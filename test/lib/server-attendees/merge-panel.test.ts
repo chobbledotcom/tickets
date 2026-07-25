@@ -8,12 +8,19 @@ import {
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { setupListingAndDirectAttendee } from "./helpers.ts";
 // jscpd:ignore-end
-import { mergePair } from "./merge.ts";
+import {
+  assignMergeAnswers,
+  mergePair,
+  mergePairWithQuestion,
+} from "./merge.ts";
 
 /** Fetch the merge Actions page for `target` with `sourceToken` set. */
 const mergeActionsPage = (
@@ -90,6 +97,8 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "Jane Doe",
         "John Smith",
         "Merge and Delete Source Attendee",
+        "Keep current: Jane Doe",
+        "Use source: John Smith",
       );
     });
 
@@ -188,7 +197,60 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
       const { target, sourceToken } = await mergePair({ sameListing: true });
       const response = await mergeActionsPage(target.id, sourceToken);
       // Same listing, same qty/price/checked_in/refunded — classified as "duplicate"
-      await expectHtmlResponse(response, 200, "Duplicate");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Duplicate",
+        "Current quantity: 1. Source quantity: 1.",
+        "Keep current booking",
+        "Use source booking",
+        "Skip source booking",
+      );
+    });
+
+    test("leaves the decision cell empty for a moveable booking beside a conflict", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        listing1.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const source = await bookTestAttendee(
+        [listing1.id, listing2.id],
+        "John Smith",
+        "john@example.com",
+      );
+
+      await expectHtmlResponse(
+        await mergeActionsPage(target.id, source.ticket_token),
+        200,
+        "Duplicate",
+        "Will be moved",
+        "Decision",
+      );
+    });
+
+    test("shows named choices for conflicting custom answers", async () => {
+      const { a1, a2, q, target, sourceToken } = await mergePairWithQuestion(
+        "Meal",
+        ["Pasta", "Curry"],
+      );
+      await assignMergeAnswers(target.id, sourceToken, {
+        source: [a2!.id],
+        target: [a1.id],
+      });
+
+      await expectHtmlResponse(
+        await mergeActionsPage(target.id, sourceToken),
+        200,
+        "Keep (Jane Doe)",
+        "Use (John Smith)",
+        "None",
+        "Pasta",
+        "Curry",
+        `name="answer_${q.id}"`,
+      );
     });
   });
 });

@@ -26,7 +26,7 @@ import {
 
 /* jscpd:ignore-end */
 
-type TableRenderShell<TRow, TContext = void> = {
+type TableRenderShell<TRow, TContext = undefined> = {
   /** Empty-state body rendered in a single `<td colspan>` when rows is
    *  empty. When omitted, an empty rows array renders no body at all. */
   readonly empty?: Child | undefined;
@@ -46,7 +46,7 @@ type TableRenderShell<TRow, TContext = void> = {
   readonly renderCell?: TableCellRenderer<TRow, TContext> | undefined;
 };
 
-type TableContextOptions<TContext> = [undefined] extends [TContext]
+type TableContextOptions<TContext> = [TContext] extends [undefined]
   ? { readonly context?: undefined }
   : { readonly context: TContext };
 
@@ -59,7 +59,7 @@ export type TableCellRenderer<TRow, TContext> = (
 ) => Child;
 
 /** Per-render options for column selection, context, row state, and framing. */
-export type TableRenderOptions<TRow, TContext = void> = TableRenderShell<
+export type TableRenderOptions<TRow, TContext = undefined> = TableRenderShell<
   TRow,
   TContext
 > & {
@@ -257,7 +257,7 @@ type InternalRenderOptions<TRow, TContext> = TableRenderShell<
 };
 
 /** Render the table from a fixed column list, rows, and framing options. */
-const renderColumns = <TRow, TContext = void>(
+const renderColumns = <TRow, TContext = undefined>(
   rows: readonly TRow[],
   options: InternalRenderOptions<TRow, TContext>,
 ): JSX.Element => {
@@ -315,10 +315,10 @@ const renderColumnsOptions = <TRow, TContext>(
 
 /** Render the table from its definition + rows + options. Returns the full
  *  `<div class="table-scroll"><table>…</table></div>` shell. */
-export const renderTable = <TRow, TContext = void>(
+export const renderTable = <TRow, TContext = undefined>(
   table: TableDefinition<TRow, TContext>,
   rows: readonly TRow[],
-  ...optionArgs: [undefined] extends [TContext]
+  ...optionArgs: [TContext] extends [undefined]
     ? [options?: TableRenderOptions<TRow, TContext>]
     : [options: TableRenderOptions<TRow, TContext>]
 ): JSX.Element => {
@@ -332,7 +332,7 @@ export const renderTable = <TRow, TContext = void>(
 /** The standard up/down reorder-arrows column: prepended to a table's
  *  columns when the operator can re-order rows. Hidden entirely in
  *  read-only mode (the arrows would post to a route that 403s). */
-export const reorderColumn = <TRow, TContext = void>(
+export const reorderColumn = <TRow, TContext = undefined>(
   options: ReorderColumnOptions<TRow>,
 ): TableColumn<TRow, TContext> => ({
   cell: (row, _ctx, index, rows) =>

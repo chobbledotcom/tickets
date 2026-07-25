@@ -25,19 +25,13 @@ import { renderTable } from "#templates/components/table.tsx";
 export type { ReorderColumnOptions };
 
 /** Show the table (or whatever `whenPresent` builds) for a non-empty list, or
- * the plain "nothing yet" note the admin tables share when the list is empty. */
+ * the supplied note content in a paragraph when the list is empty. */
 export const itemsOrEmptyNote = <T,>(
   items: T[],
-  emptyText: string,
+  emptyContent: Child,
   whenPresent: (items: T[]) => JSX.Element,
 ): JSX.Element =>
-  items.length === 0 ? (
-    <p>
-      <em>{emptyText}</em>
-    </p>
-  ) : (
-    whenPresent(items)
-  );
+  items.length === 0 ? <p>{emptyContent}</p> : whenPresent(items);
 
 const itemsOrEmptyReorderTable = <T,>(
   items: T[],
@@ -45,7 +39,7 @@ const itemsOrEmptyReorderTable = <T,>(
   options: ReorderColumnOptions<T>,
   columns: readonly TableColumn<T>[],
 ): JSX.Element =>
-  itemsOrEmptyNote(items, emptyText, (rows) =>
+  itemsOrEmptyNote(items, <em>{emptyText}</em>, (rows) =>
     renderTable(defineTable(columns), rows, { reorder: options }),
   );
 

@@ -440,18 +440,13 @@ const MergePiiDecisionTable = ({
             <Raw html={renderFieldValue(field.targetValue, field.multiline)} />
           </MergeRadioOption>
         ),
-        header: (
-          <>
-            {"Keep (current): "}
-            <strong>{targetName}</strong>
-          </>
-        ),
+        header: t("admin.attendees.merge_keep_current", { name: targetName }),
         key: "target",
       },
       {
         cell: (field) =>
           field.same ? (
-            <span class="muted">(same)</span>
+            <span class="muted">{t("admin.attendees.merge_same")}</span>
           ) : (
             <MergeRadioOption
               checked={false}
@@ -463,12 +458,7 @@ const MergePiiDecisionTable = ({
               />
             </MergeRadioOption>
           ),
-        header: (
-          <>
-            {"Take from: "}
-            <strong>{sourceName}</strong>
-          </>
-        ),
+        header: t("admin.attendees.merge_use_source", { name: sourceName }),
         key: "source",
       },
     ])}
@@ -509,7 +499,7 @@ const mergeAnswerColumns = (
           const { answer, from } = nonConflictAnswerLabel(item);
           return (
             <span class="muted">
-              {answer} ({from} — auto-kept)
+              {t("admin.attendees.merge_answer_kept", { answer, from })}
             </span>
           );
         }
@@ -523,15 +513,17 @@ const mergeAnswerColumns = (
           </MergeRadioOption>
         );
       },
-      header: `Keep (${targetName})`,
+      header: t("admin.attendees.merge_keep_answer", { name: targetName }),
       key: "target",
     },
     choiceColumn(
       "source",
-      `Take from (${sourceName})`,
+      t("admin.attendees.merge_use_answer", { name: sourceName }),
       (item) => item.sourceAnswerText!,
     ),
-    choiceColumn("clear", t("admin.attendees.th_clear"), () => "None"),
+    choiceColumn("clear", t("admin.attendees.th_clear"), () =>
+      t("admin.attendees.merge_no_answer"),
+    ),
   ];
 };
 
@@ -591,7 +583,7 @@ const bookingDecisionName = (item: AttendeeMergeDiffBookingItem): string =>
 
 const bookingStatus = (item: AttendeeMergeDiffBookingItem): JSX.Element => {
   if (item.conflictClass === "moveable") {
-    return <span class="muted">Will be moved</span>;
+    return <span class="muted">{t("admin.attendees.merge_will_move")}</span>;
   }
   const conflictLabel = bookingConflictLabel(item);
   const targetQty = item.targetBooking!.quantity;
@@ -599,7 +591,10 @@ const bookingStatus = (item: AttendeeMergeDiffBookingItem): JSX.Element => {
     <>
       <strong>{conflictLabel}</strong>
       {item.targetBooking &&
-        ` (target qty: ${targetQty}, source qty: ${item.sourceBooking.quantity})`}
+        ` ${t("admin.attendees.merge_booking_quantities", {
+          source: item.sourceBooking.quantity,
+          target: targetQty,
+        })}`}
     </>
   );
 };
@@ -617,28 +612,29 @@ const BookingChoice = ({
     <>
       <RadioOption checked name={name} value="keep_target">
         {" "}
-        Keep target
+        {t("admin.attendees.merge_keep_booking")}
       </RadioOption>
       <BreakRadio name={name} value="take_source">
-        Replace with source
+        {t("admin.attendees.merge_use_booking")}
       </BreakRadio>
       <BreakRadio name={name} value="skip_source">
-        Skip source
+        {t("admin.attendees.merge_skip_booking")}
       </BreakRadio>
       {moneyAtStake > 0 && (
         <div class="merge-money-decision">
           <p class="muted">
             <strong>{t("attendee_form.merge_discarded_payment_label")}</strong>{" "}
-            (source {formatCurrency(item.sourceSaleAmount)}, target{" "}
-            {formatCurrency(item.targetSaleAmount)}) — this can't be undone, so
-            choose explicitly:
+            {t("admin.attendees.merge_payment_choice", {
+              current: formatCurrency(item.targetSaleAmount),
+              source: formatCurrency(item.sourceSaleAmount),
+            })}
           </p>
           <RadioOption checked={false} name={`money_${key}`} value="credit">
             {" "}
-            Keep as the person's credit
+            {t("admin.attendees.merge_keep_credit")}
           </RadioOption>
           <BreakRadio name={`money_${key}`} value="writeoff">
-            Write it off
+            {t("admin.attendees.merge_write_off")}
           </BreakRadio>
         </div>
       )}
@@ -649,10 +645,8 @@ const BookingChoice = ({
 const bookingColumns = (
   hasConflicts: boolean,
 ): TableColumn<AttendeeMergeDiffBookingItem>[] => [
-  translatedTableColumn(
-    "listing",
-    "terms.listing",
-    (item) => `Listing #${item.listingId}`,
+  translatedTableColumn("listing", "terms.listing", (item) =>
+    t("admin.attendees.merge_listing_number", { id: item.listingId }),
   ),
   translatedTableColumn("date", "common.date", bookingDateLabel),
   translatedTableColumn(

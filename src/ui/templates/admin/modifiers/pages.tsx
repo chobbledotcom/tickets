@@ -16,6 +16,7 @@ import {
 import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
+import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import {
   SaveForm,
   saveFormComponent,
@@ -153,10 +154,8 @@ export const adminModifiersPage = (
     active: "/admin/modifiers",
     children: (
       <>
-        {modifiers.length === 0 ? (
-          <p>{t("modifiers.no_modifiers")}</p>
-        ) : (
-          renderTable(modifiersTable, modifiers, { context: session })
+        {itemsOrEmptyNote(modifiers, t("modifiers.no_modifiers"), (rows) =>
+          renderTable(modifiersTable, rows, { context: session }),
         )}
         <ModifiersGuideFooter />
       </>

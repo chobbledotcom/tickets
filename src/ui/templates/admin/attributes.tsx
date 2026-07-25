@@ -117,7 +117,7 @@ const AttributeListingsTable = ({
   emptyText: string;
   showOptions: boolean;
 }): JSX.Element =>
-  itemsOrEmptyNote(listings, emptyText, (rows) =>
+  itemsOrEmptyNote(listings, <em>{emptyText}</em>, (rows) =>
     renderTable(attributeListingsTable, rows, {
       columnKeys: showOptions ? ["listing", "options"] : ["listing"],
     }),

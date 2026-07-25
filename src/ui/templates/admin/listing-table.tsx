@@ -34,7 +34,7 @@ import { filteredTableCells } from "#templates/components/table-filters.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
 type ListingRenderer = Omit<
-  TableColumn<ListingWithCount, void, ListingColumnKey>,
+  TableColumn<ListingWithCount, undefined, ListingColumnKey>,
   "key"
 >;
 

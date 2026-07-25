@@ -28,10 +28,13 @@ describe("defineTable", () => {
 
   test("attaches every renderer to a configurable layout", () => {
     const layout = defineTableLayout(v.picklist(["name", "status"]), ["name"]);
-    const table = attachTableRenderers<Row, void, "name" | "status">(layout, {
-      name: { cell: (row) => row.name, header: "Name" },
-      status: { cell: (row) => row.status, header: "Status" },
-    });
+    const table = attachTableRenderers<Row, undefined, "name" | "status">(
+      layout,
+      {
+        name: { cell: (row) => row.name, header: "Name" },
+        status: { cell: (row) => row.status, header: "Status" },
+      },
+    );
 
     expect(table.columns.map((column) => column.key)).toEqual([
       "name",

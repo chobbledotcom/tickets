@@ -36,7 +36,7 @@ type TableParts<TRow, TContext, TKey extends string> = {
  *  helpers bound to those keys. Produced by {@link defineTable}. */
 export type TableDefinition<
   TRow,
-  TContext = void,
+  TContext = undefined,
   TKey extends string = string,
 > = {
   /** The full column set, in declared order. */
@@ -74,7 +74,7 @@ const buildTable = <TRow, TContext, TKey extends string>({
 /** Build an ordinary fixed table whose declared order is its only layout. */
 export const defineTable = <
   TRow,
-  TContext = void,
+  TContext = undefined,
   TKey extends string = string,
 >(
   columns: TableColumns<TRow, TContext, TKey>,

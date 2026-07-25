@@ -28,7 +28,11 @@ export type TableAttrs = Record<string, string | number | boolean | undefined>;
  *  column-kind class, optional per-cell attributes, and the optional pieces
  *  that drive configurable layouts (rawValue) and the guide reference
  *  table (label + description). */
-export type TableColumn<TRow, TContext = void, TKey extends string = string> = {
+export type TableColumn<
+  TRow,
+  TContext = undefined,
+  TKey extends string = string,
+> = {
   /** Stable identifier for this column. The same key appears in configurable
    *  layout templates (`{{key}}`) and in the guide reference table. */
   readonly key: TKey;

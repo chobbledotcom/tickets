@@ -4,6 +4,7 @@ import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AdminSession, Group } from "#shared/types.ts";
 import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
+import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 
 const groupLink = (
@@ -39,10 +40,8 @@ export const adminGroupsPage = successListPage<Group[]>(
   "/admin/groups",
   (groups, session) => (
     <>
-      {groups.length === 0 ? (
-        <p>{t("groups.no_groups")}</p>
-      ) : (
-        renderTable(groupsTable, groups, { context: session.adminLevel })
+      {itemsOrEmptyNote(groups, t("groups.no_groups"), (rows) =>
+        renderTable(groupsTable, rows, { context: session.adminLevel }),
       )}
 
       <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#packages">

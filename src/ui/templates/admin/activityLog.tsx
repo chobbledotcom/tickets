@@ -9,6 +9,7 @@ import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { Child, SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
@@ -150,17 +151,22 @@ const activityLogTable = defineTable<
   },
   {
     cell: (entry, refs) =>
-      refs === undefined
-        ? null
-        : attendeeRefLink(entry.attendee_id, refs.attendees),
+      attendeeRefLink(
+        entry.attendee_id,
+        requireValue(refs, "Activity attendee column requires references")
+          .attendees,
+      ),
     header: () => t("terms.attendee"),
     key: "attendee",
   },
   {
     cell: (entry, refs) =>
-      refs === undefined
-        ? null
-        : refLink(entry.listing_id, refs.listings, "/admin/listing"),
+      refLink(
+        entry.listing_id,
+        requireValue(refs, "Activity listing column requires references")
+          .listings,
+        "/admin/listing",
+      ),
     header: () => t("terms.listing"),
     key: "listing",
   },
