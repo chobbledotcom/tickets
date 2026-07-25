@@ -837,6 +837,40 @@ migrations, protocol details, query budgets, concurrency, and test
 infrastructure. Never translate a direct technical test into Gherkin when the
 TypeScript test is smaller or more exact.
 
+#### Test architecture — three categories, no generic e2e bucket
+
+Every test falls into exactly one of three categories. A generic `test/e2e`
+bucket is not one of them — each existing e2e test should eventually become
+either a Cucumber story or a narrowly scoped direct technical contract test.
+
+1. **Pure unit/property tests** — data in, data out. No database, network,
+   filesystem, DOM, subprocess, or real clock. Mirror the source file.
+2. **Direct technical contract tests** — exercise the smallest real boundary
+   necessary: SQLite, Request/Response, provider transport, DOM, WebCrypto,
+   build artifact, module graph, filesystem, subprocess, or concurrency. These
+   own SQL constraints, migrations, triggers, transactions, wire protocols,
+   HTTP security, cryptographic interoperability, query/resource budgets, and
+   tooling contracts. They cannot be replaced by Cucumber or pure tests.
+3. **Cucumber acceptance specifications** — one user story or observable
+   business rule per Feature, in domain language only. No SQL, route names,
+   field names, selectors, mocks, or provider payloads.
+
+**Migrate e2e tests toward Cucumber or direct contracts.** When touching an
+e2e test, ask: can the claim be stated as an actor-facing rule without
+technical nouns? If yes, move the narrative to Cucumber and delete the old
+test. Is the production behavior fully determined by explicit values? If yes,
+keep or extract a pure function and test it directly. Would replacing the real
+boundary make the assertion stop proving its subject? If yes, keep a direct
+technical contract test. Split tests that mix all three concerns by claim
+rather than duplicating.
+
+**New features need Cucumber coverage when applicable.** A new feature that
+introduces an observable user journey or business rule ships with a Cucumber
+Feature alongside its direct tests. A feature that is purely technical (a
+migration, a protocol change, a performance fix, a refactor) does not need
+one. The Cucumber Feature must not be the only coverage of a production line
+or branch — keep 100% direct Deno coverage.
+
 The authored hierarchy is strict:
 
 - A `Feature` is one user story or capability and has exactly one globally
