@@ -2,6 +2,7 @@ import { readStream } from "#scripts/stream-lines.ts";
 import { precommitWorkerCount } from "#scripts/workers.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
 import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
+import { acquirePrecommitLock } from "./lock.ts";
 import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
 import { getSteps, type Step } from "./steps.ts";
@@ -106,6 +107,40 @@ export const main = async (): Promise<void> => {
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
   await warnAboutMergeConflicts();
 
+  // In CI, runs are isolated, so skip the lock. Locally, wait for any other
+  // tickets precommit run (even from a different checkout) to finish before
+  // starting — two runs at once just contention-saturate the machine.
+  const run: () => Promise<void> = ci ? runStepsAndPush : () =>
+    withLock(runStepsAndPush);
+  await run();
+};
+
+/**
+ * Acquire the cross-instance precommit lock, run `task`, and release the lock
+ * on completion — success or failure. While waiting, tell the user which
+ * process holds the lock and how long we have waited, and that they may want
+ * to kill this waiter and run a more targeted check instead.
+ */
+const withLock = async (task: () => Promise<void>): Promise<void> => {
+  const lock = await acquirePrecommitLock(({ holderPid, waitedMs }) => {
+    const seconds = Math.round(waitedMs / 1000);
+    const hint = seconds === 0
+      ? `Another tickets precommit run is in progress (PID ${holderPid}). Waiting for it to finish.`
+      : `Still waiting for PID ${holderPid} (${seconds}s). You can kill this process and run a more targeted test with \`deno task test:files <path>\`.`;
+    console.log(yellow(hint));
+  });
+  if (!lock.acquired) {
+    console.log(red("Another tickets precommit run holds the lock and waiting was skipped."));
+    Deno.exit(1);
+  }
+  try {
+    await task();
+  } finally {
+    lock.release();
+  }
+};
+
+const runStepsAndPush = async (): Promise<void> => {
   const steps = getSteps();
   for (const step of steps) {
     const passed = await runStep(step);
