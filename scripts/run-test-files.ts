@@ -14,8 +14,23 @@
  * flags such as `--filter` all work. At least one argument is required.
  */
 
-import { focusedTargets } from "./specs/options.ts";
+import {
+  type FocusedTargets,
+  focusedTargets,
+  shouldRunFocusedSpecs,
+} from "./specs/options.ts";
 import { runTests, withTestHarness } from "./test-harness.ts";
+
+const runFocusedSpecs = async (targets: FocusedTargets): Promise<number> => {
+  if (!shouldRunFocusedSpecs(targets)) return 0;
+  const { runSpecs } = await import("./specs/run.ts");
+  const result = await runSpecs({
+    ...(targets.specPaths.length > 0 ? { paths: targets.specPaths } : {}),
+    reports: false,
+    ...(targets.tags === undefined ? {} : { tags: targets.tags }),
+  });
+  return result.success ? 0 : 1;
+};
 
 const main = async (): Promise<void> => {
   if (Deno.args.length === 0) {
@@ -31,16 +46,7 @@ const main = async (): Promise<void> => {
       const testCode = await runTests(targets.testArgs, false);
       if (testCode !== 0) return testCode;
     }
-    if (targets.specPaths.length > 0) {
-      const { runSpecs } = await import("./specs/run.ts");
-      const result = await runSpecs({
-        paths: targets.specPaths,
-        reports: false,
-        ...(targets.tags === undefined ? {} : { tags: targets.tags }),
-      });
-      return result.success ? 0 : 1;
-    }
-    return 0;
+    return runFocusedSpecs(targets);
   });
   Deno.exit(exitCode);
 };

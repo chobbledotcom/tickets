@@ -9,6 +9,10 @@ export interface FocusedTargets {
   testArgs: string[];
 }
 
+export const shouldRunFocusedSpecs = (
+  targets: Pick<FocusedTargets, "specPaths" | "tags">,
+): boolean => targets.specPaths.length > 0 || targets.tags !== undefined;
+
 interface SpecSelection {
   paths?: readonly string[];
   tags?: string;

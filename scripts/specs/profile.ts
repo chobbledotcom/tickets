@@ -31,13 +31,18 @@ const OUTLINE_KEYWORDS = new Set(
   Object.values(dialects).flatMap(({ scenarioOutline }) => scenarioOutline),
 );
 
-const cleanDescription = (description: string): string =>
-  description
-    .trim()
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(" ");
+const cleanDescription = (description: string): string => {
+  const lines = description.split("\n");
+  const indentation = Math.min(
+    ...lines
+      .filter((line) => line.trim())
+      .map((line) => line.length - line.trimStart().length),
+  );
+  return lines
+    .map((line) => line.slice(indentation))
+    .join("\n")
+    .trim();
+};
 
 const requireDescription = (
   kind: "Feature" | "Rule",

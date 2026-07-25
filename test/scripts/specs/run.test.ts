@@ -10,6 +10,7 @@ import {
   focusedTargets,
   parseSpecArgs,
   shouldCheckUnusedSteps,
+  shouldRunFocusedSpecs,
 } from "#scripts/specs/options.ts";
 import {
   addDatabaseCleanup,
@@ -215,11 +216,14 @@ describe("Cucumber runner", () => {
   });
 
   test("does not treat a tag expression as a Feature path", () => {
-    expect(focusedTargets(["--tags", "@case:payment.feature"])).toEqual({
+    const targets = focusedTargets(["--tags", "@case:payment.feature"]);
+    expect(targets).toEqual({
       specPaths: [],
       tags: "@case:payment.feature",
       testArgs: [],
     });
+    expect(shouldRunFocusedSpecs(targets)).toBe(true);
+    expect(shouldRunFocusedSpecs({ specPaths: [] })).toBe(false);
   });
 
   test("keeps a Feature-like filter value with the direct test arguments", () => {
