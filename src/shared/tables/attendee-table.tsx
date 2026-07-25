@@ -26,7 +26,6 @@ import { nonBlankLines } from "#shared/lines.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import {
   ATTENDEE_COLUMN_KEYS,
-  ATTENDEE_DEFAULT_COLUMN_KEYS,
 } from "#shared/tables/attendee-layout.ts";
 import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
@@ -208,7 +207,7 @@ const answers: AttendeeCol = {
       opts.answerQuestionMap,
     );
     return (
-      <span class="answers-cell" title={tooltip}>
+      <span title={tooltip}>
         {short}
       </span>
     );
@@ -314,7 +313,7 @@ export const attendeeTable = defineTable<AttendeeTableRow, AttendeeColumnOpts>(
     registered,
   ],
   {
-    defaultColumnKeys: ATTENDEE_DEFAULT_COLUMN_KEYS,
+    defaultColumnKeys: ATTENDEE_COLUMN_KEYS,
     configKeys: ATTENDEE_COLUMN_KEYS,
   },
 );

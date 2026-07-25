@@ -19,7 +19,11 @@ import {
 
 /** Every attendee-table column key — the universe the layout parser
  *  accepts. There are no extras: every key here appears in the default order
- *  too, so a saved template can only reorder, not introduce new ones. */
+ *  too, so a saved template can only reorder, not introduce new ones.
+ *  (The attendee table's default column set IS this full list — when a
+ *  table has no configurable extras, `defineTable` defaults its
+ *  `defaultColumnKeys` to `configKeys`, so callers reaching for one name
+ *  get the same list as the other.) */
 export const ATTENDEE_COLUMN_KEYS = [
   "status",
   "date",
@@ -35,19 +39,15 @@ export const ATTENDEE_COLUMN_KEYS = [
   "registered",
 ] as const;
 
-/** The columns shown when no user template is saved — the full set, since
- *  the attendee table has no configurable extras. */
-export const ATTENDEE_DEFAULT_COLUMN_KEYS = ATTENDEE_COLUMN_KEYS;
-
 const ATTENDEE_DEFAULT_LAYOUT: TableLayout = {
-  columnKeys: ATTENDEE_DEFAULT_COLUMN_KEYS,
+  columnKeys: ATTENDEE_COLUMN_KEYS,
   filters: new Map(),
 };
 
 export const ATTENDEE_TABLE_LAYOUT = {
   keys: ATTENDEE_COLUMN_KEYS,
-  defaultColumnKeys: ATTENDEE_DEFAULT_COLUMN_KEYS,
-  defaultTemplate: buildDefaultTemplate(ATTENDEE_DEFAULT_COLUMN_KEYS),
+  defaultColumnKeys: ATTENDEE_COLUMN_KEYS,
+  defaultTemplate: buildDefaultTemplate(ATTENDEE_COLUMN_KEYS),
   defaultLayout: ATTENDEE_DEFAULT_LAYOUT,
   parse: (template: string): TableLayout =>
     parseLayout(template, ATTENDEE_COLUMN_KEYS, ATTENDEE_DEFAULT_LAYOUT),
