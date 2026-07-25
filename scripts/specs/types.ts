@@ -1,10 +1,23 @@
-export interface SpecRegistry {
-  actors: readonly string[];
-  editions: readonly string[];
-  owners: readonly string[];
-  risks: readonly string[];
-  surfaces: readonly string[];
-}
+import * as v from "valibot";
+
+const RegisteredValuesSchema = v.pipe(
+  v.array(v.pipe(v.string(), v.trim(), v.nonEmpty())),
+  v.minLength(1),
+  v.check(
+    (values) => new Set(values).size === values.length,
+    "Registered values must be unique",
+  ),
+);
+
+export const SpecRegistrySchema = v.strictObject({
+  actors: RegisteredValuesSchema,
+  editions: RegisteredValuesSchema,
+  owners: RegisteredValuesSchema,
+  risks: RegisteredValuesSchema,
+  surfaces: RegisteredValuesSchema,
+});
+
+export type SpecRegistry = v.InferOutput<typeof SpecRegistrySchema>;
 
 export interface SpecSource {
   data: string;
@@ -34,6 +47,5 @@ export interface SpecStory extends SpecItem {
 }
 
 export interface SpecCatalog {
-  ndjson: string;
   stories: SpecStory[];
 }

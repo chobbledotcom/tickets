@@ -18,6 +18,14 @@ import {
 } from "#test/specs/support/world.ts";
 
 const timestamp = { nanos: 0, seconds: 0 };
+const startedCase: Envelope = {
+  testCaseStarted: {
+    attempt: 0,
+    id: "started",
+    testCaseId: "case",
+    timestamp,
+  },
+};
 
 const stepDefinition = (id: string): Envelope => ({
   stepDefinition: {
@@ -31,10 +39,17 @@ const stepDefinition = (id: string): Envelope => ({
 });
 
 describe("Cucumber runner", () => {
+  test("rejects a run that selected no scenarios", () => {
+    expect(messageIssues([], false)).toEqual([
+      "Cucumber selected no scenarios",
+    ]);
+  });
+
   test("rejects retries", () => {
     expect(
       messageIssues(
         [
+          startedCase,
           {
             testCaseStarted: {
               attempt: 1,
@@ -53,6 +68,7 @@ describe("Cucumber runner", () => {
     expect(
       messageIssues(
         [
+          startedCase,
           {
             testStepFinished: {
               testCaseStartedId: "start",
@@ -75,6 +91,7 @@ describe("Cucumber runner", () => {
     expect(
       messageIssues(
         [
+          startedCase,
           stepDefinition("unused"),
           stepDefinition("used"),
           {
@@ -94,7 +111,9 @@ describe("Cucumber runner", () => {
   });
 
   test("allows focused runs to leave unrelated definitions unused", () => {
-    expect(messageIssues([stepDefinition("unused")], false)).toEqual([]);
+    expect(
+      messageIssues([startedCase, stepDefinition("unused")], false),
+    ).toEqual([]);
     expect(shouldCheckUnusedSteps({})).toBe(true);
     expect(shouldCheckUnusedSteps({ paths: ["specs/example.feature"] })).toBe(
       false,
@@ -200,6 +219,50 @@ describe("Cucumber runner", () => {
       specPaths: [],
       tags: "@case:payment.feature",
       testArgs: [],
+    });
+  });
+
+  test("keeps a Feature-like filter value with the direct test arguments", () => {
+    expect(
+      focusedTargets([
+        "test/shared/example.test.ts",
+        "--filter",
+        "payment.feature",
+      ]),
+    ).toEqual({
+      specPaths: [],
+      testArgs: ["test/shared/example.test.ts", "--filter", "payment.feature"],
+    });
+  });
+
+  test("keeps Feature-like Deno option and script values with direct tests", () => {
+    expect(
+      focusedTargets([
+        "test/shared/example.test.ts",
+        "--filter=payment.feature",
+        "--junit-path",
+        "report.feature",
+        "--",
+        "script.feature",
+      ]),
+    ).toEqual({
+      specPaths: [],
+      testArgs: [
+        "test/shared/example.test.ts",
+        "--filter=payment.feature",
+        "--junit-path",
+        "report.feature",
+        "--",
+        "script.feature",
+      ],
+    });
+    expect(focusedTargets(["--filter"])).toEqual({
+      specPaths: [],
+      testArgs: ["--filter"],
+    });
+    expect(focusedTargets(["--filter", "--shuffle"])).toEqual({
+      specPaths: [],
+      testArgs: ["--filter", "--shuffle"],
     });
   });
 });

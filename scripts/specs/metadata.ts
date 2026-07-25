@@ -1,9 +1,10 @@
 import type { Tag } from "@cucumber/messages";
+import * as v from "valibot";
 import { invalidSpec } from "./errors.ts";
 import type { SpecRegistry } from "./types.ts";
 
 const ID_PATTERN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
-const KNOWN_TAGS = new Set([
+const SpecTagKeySchema = v.picklist([
   "actor",
   "case",
   "edition",
@@ -13,9 +14,10 @@ const KNOWN_TAGS = new Set([
   "story",
   "surface",
 ]);
+type SpecTagKey = v.InferOutput<typeof SpecTagKeySchema>;
 
 export interface ParsedTag {
-  key: string;
+  key: SpecTagKey;
   line: number;
   name: string;
   value: string;
@@ -36,7 +38,11 @@ const parseTag = (tag: Tag, uri: string): ParsedTag => {
   const name = tag.name;
   const splitAt = name.indexOf(":");
   const key = name.slice(1, splitAt);
-  if (splitAt < 2 || splitAt === name.length - 1 || !KNOWN_TAGS.has(key)) {
+  if (
+    splitAt < 2 ||
+    splitAt === name.length - 1 ||
+    !v.is(SpecTagKeySchema, key)
+  ) {
     return unknownTag({ line: tag.location.line, name }, uri);
   }
   return { key, line: tag.location.line, name, value: name.slice(splitAt + 1) };
@@ -45,12 +51,22 @@ const parseTag = (tag: Tag, uri: string): ParsedTag => {
 const parseTags = (tags: readonly Tag[], uri: string): ParsedTag[] =>
   tags.map((tag) => parseTag(tag, uri));
 
-export const valuesFor = (tags: ParsedTag[], key: string): string[] =>
+const rejectDuplicateTags = (tags: ParsedTag[], uri: string): void => {
+  const seen = new Set<string>();
+  for (const tag of tags) {
+    if (seen.has(tag.name)) {
+      invalidSpec(uri, tag.line, `Duplicate ${tag.name}`);
+    }
+    seen.add(tag.name);
+  }
+};
+
+export const valuesFor = (tags: ParsedTag[], key: SpecTagKey): string[] =>
   tags.filter((tag) => tag.key === key).map((tag) => tag.value);
 
 export const requiredTagValues = (
   tags: ParsedTag[],
-  key: string,
+  key: SpecTagKey,
   uri: string,
   line: number,
   quantity: "one" | "some",
@@ -99,10 +115,11 @@ const addId = (
 
 export const tagsFor = (
   tags: readonly Tag[],
-  allowed: string[],
+  allowed: SpecTagKey[],
   state: ValidationState,
 ): ParsedTag[] => {
   const parsed = parseTags(tags, state.uri);
+  rejectDuplicateTags(parsed, state.uri);
   ensureAllowed(parsed, [...allowed, "surface"], "key", state.uri);
   ensureAllowed(
     parsed.filter((tag) => tag.key === "surface"),

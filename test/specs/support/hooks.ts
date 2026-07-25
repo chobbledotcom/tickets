@@ -10,7 +10,10 @@ import {
 
 Before(async function (this: TicketsWorld): Promise<void> {
   this.cleanup = [];
-  const cleanupDb = await setupTestDbEnvironment(true);
+  const cleanupDb = await setupTestDbEnvironment(true).catch((error) => {
+    clearTestEncryptionKey();
+    throw error;
+  });
   addDatabaseCleanup(this, cleanupDb, clearTestEncryptionKey);
 });
 

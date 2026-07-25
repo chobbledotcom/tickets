@@ -36,7 +36,15 @@ describe("Cucumber story catalog", () => {
 
   test("validates the owner registry at its JSON boundary", () => {
     expect(parseSpecOwners({ owners: ["payments"] })).toEqual(["payments"]);
-    for (const invalid of [{}, { owners: [] }, { owners: [""] }, null]) {
+    for (const invalid of [
+      {},
+      { owners: [] },
+      { owners: [""] },
+      { owners: ["payments", "payments"] },
+      { owners: ["   "] },
+      { extra: true, owners: ["payments"] },
+      null,
+    ]) {
       expect(() => parseSpecOwners(invalid)).toThrow();
     }
   });

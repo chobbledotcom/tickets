@@ -1,15 +1,9 @@
 import {
   AstBuilder,
-  compile,
   GherkinClassicTokenMatcher,
   Parser,
 } from "@cucumber/gherkin";
-import {
-  type Envelope,
-  type GherkinDocument,
-  type Source,
-  SourceMediaType,
-} from "@cucumber/messages";
+import type { GherkinDocument } from "@cucumber/messages";
 import { invalidSpec } from "./errors.ts";
 import type { SpecSource } from "./types.ts";
 
@@ -34,21 +28,4 @@ export const parseGherkinSource = (
     const message = String(error);
     return invalidSpec(source.uri, parseErrorLine(message), message);
   }
-};
-
-export const gherkinEnvelopes = (
-  source: SpecSource,
-  document: GherkinDocument,
-  newId: () => string,
-): Envelope[] => {
-  const sourceMessage: Source = {
-    data: source.data,
-    mediaType: SourceMediaType.TEXT_X_CUCUMBER_GHERKIN_PLAIN,
-    uri: source.uri,
-  };
-  return [
-    { source: sourceMessage },
-    { gherkinDocument: document },
-    ...compile(document, source.uri, newId).map((pickle) => ({ pickle })),
-  ];
 };

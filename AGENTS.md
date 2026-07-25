@@ -706,7 +706,7 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task restore <backup.zip>` - Restore the database named by `DB_URL` / `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Shows the backup details, asks for typed confirmation, and reports each restore step in the console.
 - `deno task snapshot --out <path.sqlite>` - Sync the complete remote database to a standalone local SQLite file. The task prefers `DB_URL` and `DB_TOKEN` from `.env` over shell values. This developer-only task checkpoints and verifies the file, refuses to overwrite an existing path, and removes its temporary replica on success or failure.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
-- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. All of a source's mirror-located direct tests run first, whether or not those tests changed; changed tests under `test/integration/`, `test/e2e/`, or `specs/` run only for direct-test survivors. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files. If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
+- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. All of a source's mirror-located direct tests run first, whether or not those tests changed; changed tests under `test/integration/`, `test/e2e/`, or `specs/` run only for direct-test survivors. A changed Cucumber step or support file selects every Feature. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files. If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
 - `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand in an isolated `.mutation-runs/<id>/work` copy: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
@@ -899,9 +899,6 @@ Execution is equally strict:
 - New shared steps must be reused by the current story or an immediately
   included second story. Do not create a speculative vocabulary.
 
-The first implementation and replacement criteria are specified in
-`CUCUMBER_MVP.md`.
-
 ## Test Quality Standards
 
 All tests must meet these mandatory criteria:
@@ -1007,12 +1004,13 @@ the whole tree would be far too slow. The standalone
 `deno task precommit:mutation` runs it automatically, but **only over the files
 this branch changed** (its committed diff against `origin/main`/`main`): the
 `precommit:mutation` step runs each source's mirror-located direct tests first,
-  whether or not the direct tests changed, then runs changed `test/integration/`,
-  `test/e2e/`, and `specs/` files only for survivors. Tests for unchanged sources, scripts,
+whether or not the direct tests changed, then runs changed `test/integration/`,
+`test/e2e/`, and `specs/` files only for survivors. A changed Cucumber step or
+support file selects every Feature. Tests for unchanged sources, scripts,
 and test helpers are outside that src mutation run. A standalone mutation
 command still rejects any explicit test that neither mirrors a selected source
-  nor lives in an integration folder or `specs/`. The gate demands a 100% kill rate, so the
-cost stays bounded to the source files you actually changed. Run
+nor lives in an integration folder or `specs/`. The gate demands a 100% kill
+rate, so the cost stays bounded to the source files you actually changed. Run
 `deno task precommit:mutation` before merging a
 branch that changes `src/` files; the standard `deno task precommit` no longer
 runs it (it was too slow for every commit).

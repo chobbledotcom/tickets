@@ -43,9 +43,20 @@ const isIntegrationTest = (testFile: string): boolean => {
   );
 };
 
-/** Select every direct test for the changed sources, plus only the broad
- * integration/e2e/Cucumber tests changed on this branch. Tests for scripts,
- * test helpers, and unchanged sources are outside this src mutation run. */
+const isFeatureFile = (path: string): boolean =>
+  relativeToProject(path).endsWith(".feature");
+
+const isSharedSpecCode = (path: string): boolean => {
+  const relativePath = relativeToProject(path);
+  return (
+    relativePath.startsWith("test/specs/steps/") ||
+    relativePath.startsWith("test/specs/support/")
+  );
+};
+
+/** Select every direct test for the changed sources, plus broad integration
+ * tests changed on this branch. Changed shared Cucumber code selects every
+ * Feature because any story may use it. */
 export const selectMutationTests = (
   sourceFiles: string[],
   allTestFiles: string[],
@@ -57,7 +68,11 @@ export const selectMutationTests = (
       !isIntegrationTest(testFile) &&
       prefixes.some((prefix) => ownsTest(prefix, testFile)),
   )(allTestFiles);
-  return unique([...direct, ...filter(isIntegrationTest)(changedTestFiles)]);
+  const changedIntegration = filter(isIntegrationTest)(changedTestFiles);
+  const affectedFeatures = changedTestFiles.some(isSharedSpecCode)
+    ? filter(isFeatureFile)(allTestFiles)
+    : [];
+  return unique([...direct, ...changedIntegration, ...affectedFeatures]);
 };
 
 interface OwnedTest {

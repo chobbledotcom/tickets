@@ -34,7 +34,6 @@ const main = async (): Promise<void> => {
     if (targets.specPaths.length > 0) {
       const { runSpecs } = await import("./specs/run.ts");
       const result = await runSpecs({
-        enforceUnused: false,
         paths: targets.specPaths,
         reports: false,
         ...(targets.tags === undefined ? {} : { tags: targets.tags }),

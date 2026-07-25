@@ -44,6 +44,9 @@ export const messageIssues = (
   const definitions = mapNotNullish(definitionId)(messages);
   const used = new Set(flatMap(usedDefinitionIds)(messages));
   const issues = [
+    ...(messages.some((message) => message.testCaseStarted)
+      ? []
+      : ["Cucumber selected no scenarios"]),
     ...flatMap(executionIssues)(messages),
     ...(enforceUnused ? unusedIssues(definitions, used) : []),
   ];

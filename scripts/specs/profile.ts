@@ -1,6 +1,5 @@
 import { dialects } from "@cucumber/gherkin";
 import {
-  type Envelope,
   type Examples,
   type Feature,
   IdGenerator,
@@ -8,7 +7,7 @@ import {
   type Scenario,
 } from "@cucumber/messages";
 import { invalidSpec } from "./errors.ts";
-import { gherkinEnvelopes, parseGherkinSource } from "./gherkin.ts";
+import { parseGherkinSource } from "./gherkin.ts";
 import {
   addCaseId,
   ensureAllowed,
@@ -53,12 +52,24 @@ const requireDescription = (
   return cleaned;
 };
 
-const placeholdersIn = (scenario: Scenario): Set<string> =>
-  new Set(
-    Array.from(JSON.stringify(scenario).matchAll(/<([^<>]+)>/g), (match) =>
+const placeholdersIn = (scenario: Scenario): Set<string> => {
+  const authoredText = [
+    scenario.name,
+    scenario.description,
+    ...scenario.steps.flatMap((step) => [
+      step.text,
+      step.docString?.content ?? "",
+      ...(step.dataTable?.rows.flatMap((row) =>
+        row.cells.map((cell) => cell.value),
+      ) ?? []),
+    ]),
+  ].join("\n");
+  return new Set(
+    Array.from(authoredText.matchAll(/<([^<>]+)>/g), (match) =>
       match[1]!.trim(),
     ),
   );
+};
 
 const outlineCases = (
   scenario: Scenario,
@@ -251,7 +262,7 @@ const storyFromFeature = (
   if (rules.length === 0) {
     invalidSpec(state.uri, feature.location.line, "Feature needs a Rule");
   }
-  const oneFeatureValue = (key: string): string =>
+  const oneFeatureValue = (key: "owner" | "risk"): string =>
     requiredTagValues(tags, key, state.uri, feature.location.line, "one").join(
       "",
     );
@@ -295,7 +306,6 @@ export const validateSpecSources = (
   const newId = IdGenerator.incrementing();
   const state = { ids: new Set<string>(), registry, uri: "" };
   const stories: SpecStory[] = [];
-  const envelopes: Envelope[] = [];
 
   for (const source of sorted) {
     state.uri = source.uri;
@@ -303,11 +313,7 @@ export const validateSpecSources = (
     const feature = document.feature;
     if (!feature) return invalidSpec(source.uri, 1, "Feature is required");
     stories.push(storyFromFeature(feature, state));
-    envelopes.push(...gherkinEnvelopes(source, document, newId));
   }
 
-  return {
-    ndjson: `${envelopes.map((envelope) => JSON.stringify(envelope)).join("\n")}\n`,
-    stories,
-  };
+  return { stories };
 };

@@ -2,7 +2,12 @@ import { isAbsolute, join, relative } from "node:path";
 import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
 import { validateSpecSources } from "./profile.ts";
-import type { SpecCatalog, SpecRegistry, SpecSource } from "./types.ts";
+import {
+  type SpecCatalog,
+  type SpecRegistry,
+  SpecRegistrySchema,
+  type SpecSource,
+} from "./types.ts";
 
 const DEFAULT_SPEC_PATH = join(projectRoot, "specs");
 const OWNER_PATH = join(DEFAULT_SPEC_PATH, "owners.json");
@@ -14,9 +19,7 @@ const BASE_REGISTRY: Omit<SpecRegistry, "owners"> = {
   surfaces: ["admin", "return", "webhook"],
 };
 
-const OwnerFileSchema = v.object({
-  owners: v.pipe(v.array(v.pipe(v.string(), v.nonEmpty())), v.minLength(1)),
-});
+const OwnerFileSchema = v.pick(SpecRegistrySchema, ["owners"]);
 
 const featurePathsUnder = async (path: string): Promise<string[]> => {
   const stat = await Deno.stat(path);
@@ -46,10 +49,11 @@ export const collectFeaturePaths = async (
 export const parseSpecOwners = (input: unknown): string[] =>
   v.parse(OwnerFileSchema, input).owners;
 
-const loadRegistry = async (): Promise<SpecRegistry> => ({
-  ...BASE_REGISTRY,
-  owners: parseSpecOwners(JSON.parse(await Deno.readTextFile(OWNER_PATH))),
-});
+const loadRegistry = async (): Promise<SpecRegistry> =>
+  v.parse(SpecRegistrySchema, {
+    ...BASE_REGISTRY,
+    owners: parseSpecOwners(JSON.parse(await Deno.readTextFile(OWNER_PATH))),
+  });
 
 const sourceFromPath = async (path: string): Promise<SpecSource> => ({
   data: await Deno.readTextFile(path),

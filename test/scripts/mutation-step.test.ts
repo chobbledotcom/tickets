@@ -57,11 +57,15 @@ describe("partitionChanged", () => {
       "test/lib/dates.test.ts",
       "test/templates/admin/attendees.test.tsx",
       "specs/payments/capacity.feature",
+      "test/specs/steps/payment-capacity.ts",
+      "test/specs/support/hooks.ts",
     ]);
     expect(tests).toEqual([
       "test/lib/dates.test.ts",
       "test/templates/admin/attendees.test.tsx",
       "specs/payments/capacity.feature",
+      "test/specs/steps/payment-capacity.ts",
+      "test/specs/support/hooks.ts",
     ]);
   });
 

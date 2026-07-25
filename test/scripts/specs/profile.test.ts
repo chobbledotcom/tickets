@@ -48,10 +48,9 @@ describe("Cucumber specification profile", () => {
         uri: "specs/payments/capacity.feature",
       },
     ]);
-    expect(first.ndjson.split("\n").filter(Boolean).length).toBe(3);
   });
 
-  test("sorts sources before assigning deterministic message ids", () => {
+  test("sorts sources before building the catalog", () => {
     const second = source(
       validFeature
         .replaceAll("payments.capacity-after-payment", "payments.other")
@@ -67,7 +66,6 @@ describe("Cucumber specification profile", () => {
       "specs/a.feature",
       "specs/z.feature",
     ]);
-    expect(result.ndjson).toContain('"id":"0"');
   });
 
   test("reports malformed Gherkin at its source", () => {
@@ -97,13 +95,20 @@ describe("Cucumber specification profile", () => {
         [source(replace("@owner:payments", "@owner:payments @owner:payments"))],
         registry,
       ),
-    ).toThrow("exactly one @owner:");
+    ).toThrow("Duplicate @owner:payments");
     expect(() =>
       validateSpecSources(
         [source(replace("@risk:high", "@risk:high @mystery:value"))],
         registry,
       ),
     ).toThrow("Unknown tag @mystery:value");
+    expectInvalid(
+      replace(
+        "@actor:customer @actor:organiser",
+        "@actor:customer @actor:customer @actor:organiser",
+      ),
+      "Duplicate @actor:customer",
+    );
   });
 
   test("requires every Scenario to belong to a described Rule", () => {
@@ -199,6 +204,12 @@ describe("Cucumber specification profile", () => {
         registry,
       ),
     ).toThrow("placeholder <missing>");
+    expect(() =>
+      validateSpecSources(
+        [source(outlineFeature.replace("| 1      |", "| <literal> |"))],
+        registry,
+      ),
+    ).not.toThrow();
   });
 
   test("rejects a Scenario Outline without Examples", () => {

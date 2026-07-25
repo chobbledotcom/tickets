@@ -24,6 +24,32 @@ const tagExpression = (value: string | undefined): string => {
   return value;
 };
 
+const DIRECT_OPTIONS_WITH_VALUES = new Set([
+  "--cert",
+  "--conditions",
+  "--config",
+  "--ext",
+  "--filter",
+  "--import-map",
+  "--junit-path",
+  "--location",
+  "--lock",
+  "--minimum-dependency-age",
+  "--preload",
+  "--reporter",
+  "--seed",
+  "-c",
+]);
+
+const directArgumentCount = (args: string[], index: number): number => {
+  const arg = args[index]!;
+  if (arg === "--") return args.length - index;
+  if (!arg.startsWith("-")) return 0;
+  if (!DIRECT_OPTIONS_WITH_VALUES.has(arg)) return 1;
+  const value = args[index + 1];
+  return value !== undefined && !value.startsWith("--") ? 2 : 1;
+};
+
 export const parseSpecArgs = (args: string[]): SpecCliOptions => {
   const paths: string[] = [];
   let tags: string | undefined;
@@ -47,6 +73,12 @@ export const focusedTargets = (args: string[]): FocusedTargets => {
     const arg = args[index]!;
     if (arg === "--tags") {
       tags = tagExpression(args[++index]);
+      continue;
+    }
+    const directCount = directArgumentCount(args, index);
+    if (directCount > 0) {
+      testArgs.push(...args.slice(index, index + directCount));
+      index += directCount - 1;
       continue;
     }
     if (arg.endsWith(".feature")) {

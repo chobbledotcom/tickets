@@ -11,17 +11,20 @@ import { messageIssues } from "./messages.ts";
 import { shouldCheckUnusedSteps } from "./options.ts";
 
 export interface RunSpecsOptions {
-  enforceUnused?: boolean;
   paths?: string[];
   reports?: boolean;
-  supportPaths?: string[];
   tags?: string;
 }
 
 export interface SpecRunSummary {
-  issues: string[];
-  messageCount: number;
   success: boolean;
+}
+
+interface CompleteRunSpecsOptions {
+  enforceUnused: boolean;
+  paths: string[];
+  reports: boolean;
+  tags: string;
 }
 
 const REPORT_DIR = join(projectRoot, "reports");
@@ -40,7 +43,7 @@ const reportFormats = (reports: boolean): string[] =>
     : ["progress"];
 
 const cucumberConfiguration = async (
-  options: Required<RunSpecsOptions>,
+  options: CompleteRunSpecsOptions,
 ): Promise<IRunConfiguration> => {
   if (options.reports) await Deno.mkdir(REPORT_DIR, { recursive: true });
   const { runConfiguration } = await loadConfiguration(
@@ -48,7 +51,7 @@ const cucumberConfiguration = async (
       file: false,
       provided: {
         format: reportFormats(options.reports),
-        import: options.supportPaths,
+        import: DEFAULT_SUPPORT,
         order: "defined",
         parallel: 0,
         paths: options.paths,
@@ -68,11 +71,10 @@ export const runSpecs = async (
 ): Promise<SpecRunSummary> => {
   const paths = options.paths ?? ["specs"];
   await readSpecCatalog(paths);
-  const complete: Required<RunSpecsOptions> = {
-    enforceUnused: options.enforceUnused ?? shouldCheckUnusedSteps(options),
+  const complete: CompleteRunSpecsOptions = {
+    enforceUnused: shouldCheckUnusedSteps(options),
     paths,
     reports: options.reports ?? true,
-    supportPaths: options.supportPaths ?? DEFAULT_SUPPORT,
     tags: options.tags ?? "",
   };
   const messages: Envelope[] = [];
@@ -84,8 +86,6 @@ export const runSpecs = async (
   const issues = messageIssues(messages, complete.enforceUnused);
   for (const issue of issues) console.error(issue);
   return {
-    issues,
-    messageCount: messages.length,
     success: result.success && issues.length === 0,
   };
 };
