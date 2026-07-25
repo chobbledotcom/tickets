@@ -26,7 +26,7 @@ import {
 
 /* jscpd:ignore-end */
 
-type TableRenderShell<TRow, TContext = undefined> = {
+type TableRenderShell<TRow, TContext, TKey extends string> = {
   /** Empty-state body rendered in a single `<td colspan>` when rows is
    *  empty. When omitted, an empty rows array renders no body at all. */
   readonly empty?: Child | undefined;
@@ -43,15 +43,24 @@ type TableRenderShell<TRow, TContext = undefined> = {
     | ((row: TRow, context: TContext) => TableAttrs)
     | undefined;
   /** Optional cell renderer installed by configurable tables. */
-  readonly renderCell?: TableCellRenderer<TRow, TContext> | undefined;
+  readonly renderCell?: TableCellRenderer<TRow, TContext, TKey> | undefined;
+};
+
+type TableRenderFrame<TRow, TContext, TKey extends string> = TableRenderShell<
+  TRow,
+  TContext,
+  TKey
+> & {
+  /** Add the standard move-up/down column when the site is writable. */
+  readonly reorder?: ReorderColumnOptions<TRow> | undefined;
 };
 
 type TableContextOptions<TContext> = [TContext] extends [undefined]
   ? { readonly context?: undefined }
   : { readonly context: TContext };
 
-export type TableCellRenderer<TRow, TContext> = (
-  column: TableColumn<TRow, TContext>,
+export type TableCellRenderer<TRow, TContext, TKey extends string> = (
+  column: TableColumn<TRow, TContext, TKey>,
   row: TRow,
   context: TContext,
   index: number,
@@ -59,20 +68,19 @@ export type TableCellRenderer<TRow, TContext> = (
 ) => Child;
 
 /** Per-render options for column selection, context, row state, and framing. */
-export type TableRenderOptions<TRow, TContext = undefined> = TableRenderShell<
+export type TableRenderOptions<
   TRow,
-  TContext
-> & {
+  TContext,
+  TKey extends string,
+> = TableRenderFrame<TRow, TContext, TKey> & {
   /** The column keys to render, in order. Defaults to the table's
    *  layout defaults. Pass the parsed layout's `columnKeys` to honour a
    *  user-configured order. */
-  readonly columnKeys?: readonly string[] | undefined;
+  readonly columnKeys?: readonly TKey[] | undefined;
   /** Column keys that should NOT render even when listed in `columnKeys`.
    *  The attendee table uses this to hide columns whose data is entirely
    *  absent in the visible rows (e.g. email when no attendee has one). */
-  readonly hiddenKeys?: ReadonlySet<string> | undefined;
-  /** Add the standard move-up/down column when the site is writable. */
-  readonly reorder?: ReorderColumnOptions<TRow> | undefined;
+  readonly hiddenKeys?: ReadonlySet<TKey> | undefined;
 } & TableContextOptions<TContext>;
 
 /** The set of `ColumnKind` literal values, for runtime disambiguation between
@@ -169,7 +177,7 @@ const TableShell = ({
     </table>
   </div>
 );
-const TableCell = <TRow, TContext>({
+const TableCell = <TRow, TContext, TKey extends string>({
   column,
   row,
   ctx,
@@ -177,12 +185,12 @@ const TableCell = <TRow, TContext>({
   rows,
   renderCell,
 }: {
-  column: TableColumn<TRow, TContext>;
+  column: TableColumn<TRow, TContext, TKey>;
   row: TRow;
   ctx: TContext;
   index: number;
   rows: readonly TRow[];
-  renderCell: TableCellRenderer<TRow, TContext> | undefined;
+  renderCell: TableCellRenderer<TRow, TContext, TKey> | undefined;
 }): JSX.Element => {
   const attrs = splitCellAttrs(column.cellAttrs?.(row, ctx));
   const className = combineClasses(column.class, column.className, attrs.class);
@@ -190,12 +198,14 @@ const TableCell = <TRow, TContext>({
     renderCell === undefined
       ? column.cell(row, ctx, index, rows)
       : renderCell(column, row, ctx, index, rows);
-  return className === "" ? (
-    <td {...attrs.rest}>{content}</td>
-  ) : (
-    <td class={className} {...attrs.rest}>
+  const cellAttrs =
+    className === "" ? attrs.rest : { class: className, ...attrs.rest };
+  return column.rowHeader ? (
+    <th {...cellAttrs} scope="row">
       {content}
-    </td>
+    </th>
+  ) : (
+    <td {...cellAttrs}>{content}</td>
   );
 };
 
@@ -206,8 +216,8 @@ const TableCell = <TRow, TContext>({
 const renderHeaderCell = (header: Child, className: string): JSX.Element =>
   className === "" ? <th>{header}</th> : <th class={className}>{header}</th>;
 
-const headerCell = <TRow, TContext>(
-  column: TableColumn<TRow, TContext>,
+const headerCell = <TRow, TContext, TKey extends string>(
+  column: TableColumn<TRow, TContext, TKey>,
 ): JSX.Element =>
   renderHeaderCell(
     resolveColumnText(column.header),
@@ -217,13 +227,13 @@ const headerCell = <TRow, TContext>(
 /** Build the column list to actually render: from `columnKeys` (or the
  *  table's default), minus any hidden keys. Validates that each requested
  *  key is in the table's set so a misconfiguration surfaces loudly. */
-const resolveColumns = <TRow, TContext>(
-  table: TableDefinition<TRow, TContext>,
-  columnKeys: readonly string[] | undefined,
-  hiddenKeys: ReadonlySet<string> | undefined,
-): readonly TableColumn<TRow, TContext>[] => {
+const resolveColumns = <TRow, TContext, TKey extends string>(
+  table: TableDefinition<TRow, TContext, TKey>,
+  columnKeys: readonly TKey[] | undefined,
+  hiddenKeys: ReadonlySet<TKey> | undefined,
+): readonly TableColumn<TRow, TContext, TKey>[] => {
   const requested = columnKeys ?? table.layout.defaultColumnKeys;
-  const result: TableColumn<TRow, TContext>[] = [];
+  const result: TableColumn<TRow, TContext, TKey>[] = [];
   for (const key of requested) {
     if (hiddenKeys?.has(key)) continue;
     result.push(columnOrThrow(table, key));
@@ -231,40 +241,18 @@ const resolveColumns = <TRow, TContext>(
   return result;
 };
 
-/** Wrap `resolveColumns` for the common `renderTable`/`renderReorderTable`
- *  case where the column-selection parameters come straight off the
- *  render-options object. */
-const resolveOptionColumns = <TRow, TContext>(
-  table: TableDefinition<TRow, TContext>,
-  options: TableRenderOptions<TRow, TContext> | undefined,
-): readonly TableColumn<TRow, TContext>[] => {
-  const columns = resolveColumns(
-    table,
-    options?.columnKeys,
-    options?.hiddenKeys,
-  );
-  return options?.reorder === undefined || isReadOnly()
-    ? columns
-    : [reorderColumn<TRow, TContext>(options.reorder), ...columns];
-};
-
-type InternalRenderOptions<TRow, TContext> = TableRenderShell<
-  TRow,
-  TContext
-> & {
-  readonly columns: readonly TableColumn<TRow, TContext>[];
-  readonly context: TContext;
-};
-
 /** Render the table from a fixed column list, rows, and framing options. */
-const renderColumns = <TRow, TContext = undefined>(
+const renderColumns = <TRow, TContext, TKey extends string>(
   rows: readonly TRow[],
-  options: InternalRenderOptions<TRow, TContext>,
+  columns: readonly TableColumn<TRow, TContext, TKey>[],
+  ctx: TContext,
+  options: TableRenderFrame<TRow, TContext, TKey>,
 ): JSX.Element => {
-  const { columns } = options;
-  const colCount = columns.length;
-  const ctx = options.context;
-
+  const reorder =
+    options.reorder === undefined || isReadOnly()
+      ? undefined
+      : reorderColumn<TRow, TContext>(options.reorder);
+  const colCount = columns.length + (reorder === undefined ? 0 : 1);
   const body: Child =
     rows.length === 0 && options.empty !== undefined ? (
       <tr>
@@ -273,6 +261,16 @@ const renderColumns = <TRow, TContext = undefined>(
     ) : (
       rows.map((row, index) => (
         <tr {...(options.rowAttrs?.(row, ctx) ?? {})}>
+          {reorder !== undefined && (
+            <TableCell
+              column={reorder}
+              ctx={ctx}
+              index={index}
+              renderCell={undefined}
+              row={row}
+              rows={rows}
+            />
+          )}
           {columns.map((column) => (
             <TableCell
               column={column}
@@ -291,41 +289,37 @@ const renderColumns = <TRow, TContext = undefined>(
     body,
     bodyAttrs: options.bodyAttrs,
     foot: options.foot,
-    headerRow: <tr>{columns.map(headerCell)}</tr>,
+    headerRow: (
+      <tr>
+        {reorder !== undefined && headerCell(reorder)}
+        {columns.map(headerCell)}
+      </tr>
+    ),
     scrollClass: options.scrollClass,
     tableClass: options.tableClass,
   });
 };
 
-/** Build renderer-internal options with the resolved column list. */
-const renderColumnsOptions = <TRow, TContext>(
-  options: TableRenderOptions<TRow, TContext> | undefined,
-  columns: readonly TableColumn<TRow, TContext>[],
-): InternalRenderOptions<TRow, TContext> => ({
-  bodyAttrs: options?.bodyAttrs,
-  columns,
-  context: (options?.context ?? undefined) as TContext,
-  empty: options?.empty,
-  foot: options?.foot,
-  renderCell: options?.renderCell,
-  rowAttrs: options?.rowAttrs,
-  scrollClass: options?.scrollClass,
-  tableClass: options?.tableClass,
-});
-
 /** Render the table from its definition + rows + options. Returns the full
  *  `<div class="table-scroll"><table>…</table></div>` shell. */
-export const renderTable = <TRow, TContext = undefined>(
-  table: TableDefinition<TRow, TContext>,
+export const renderTable = <TRow, TKey extends string, TContext = undefined>(
+  table: TableDefinition<TRow, TContext, TKey>,
   rows: readonly TRow[],
   ...optionArgs: [TContext] extends [undefined]
-    ? [options?: TableRenderOptions<TRow, TContext>]
-    : [options: TableRenderOptions<TRow, TContext>]
+    ? [options?: TableRenderOptions<TRow, TContext, TKey>]
+    : [options: TableRenderOptions<TRow, TContext, TKey>]
 ): JSX.Element => {
   const options = optionArgs[0];
+  const columns = resolveColumns(
+    table,
+    options?.columnKeys,
+    options?.hiddenKeys,
+  );
   return renderColumns(
     rows,
-    renderColumnsOptions(options, resolveOptionColumns(table, options)),
+    columns,
+    (options?.context ?? undefined) as TContext,
+    options ?? {},
   );
 };
 
@@ -352,8 +346,15 @@ export const reorderColumn = <TRow, TContext = undefined>(
 /** Convenience: render the column-reference table shown in the admin guide.
  *  The same `<div class="table-scroll"><table>` shell as every other table,
  *  with one row per column showing its `{{key}}` tag, label, and description. */
-export const renderColumnReference = <TRow, TContext>(
-  table: TableDefinition<TRow, TContext>,
+type ColumnReferenceTable = {
+  readonly columns: readonly Pick<
+    TableColumn<never, never>,
+    "description" | "key" | "label"
+  >[];
+};
+
+export const renderColumnReference = (
+  table: ColumnReferenceTable,
 ): JSX.Element => {
   const rows = table.columns.flatMap((column) => {
     const label = resolveGuideText(column.label);

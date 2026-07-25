@@ -96,9 +96,10 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "Merge Preview",
         "Jane Doe",
         "John Smith",
-        "Merge and Delete Source Attendee",
+        "Merge and delete source attendee",
         "Keep current: Jane Doe",
         "Use source: John Smith",
+        '<th scope="row">Name</th>',
       );
     });
 
@@ -250,6 +251,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "Pasta",
         "Curry",
         `name="answer_${q.id}"`,
+        '<th scope="row">Meal</th>',
       );
     });
   });

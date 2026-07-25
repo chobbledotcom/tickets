@@ -18,15 +18,15 @@ import { textSettingsSection } from "#templates/components/settings-field-sectio
 
 /** Shape describing a configurable-columns table for the column-order form:
  *  a typed `columns` array the form reads available keys from. */
-type ConfigurableColumns = {
-  keys: readonly string[];
+type ConfigurableColumns<TKey extends string> = {
+  keys: readonly TKey[];
 };
 
 /** Render available column tags as helper text */
-const AvailableTags = ({
+const AvailableTags = <TKey extends string>({
   columns,
 }: {
-  columns: ConfigurableColumns;
+  columns: ConfigurableColumns<TKey>;
 }): JSX.Element => (
   <small>
     {t("settings.column_order.available")}{" "}
@@ -34,18 +34,18 @@ const AvailableTags = ({
   </small>
 );
 
-type ColumnOrderConfig = {
+type ColumnOrderConfig<TKey extends string> = {
   action: string;
   descriptionKey: string;
   submitLabelKey: string;
   titleKey: string;
   placeholder: string;
-  columns: TableLayoutDefinition;
+  columns: TableLayoutDefinition<TKey>;
   getValue: (s: AdvancedSettingsPageState) => string;
 };
 
 /** A single column-order settings form. The two exports below specialise it. */
-const columnOrderForm = (cfg: ColumnOrderConfig) =>
+const columnOrderForm = <TKey extends string>(cfg: ColumnOrderConfig<TKey>) =>
   textSettingsSection<AdvancedSettingsPageState>((s) => ({
     action: cfg.action,
     description: <Raw html={t(cfg.descriptionKey)} />,

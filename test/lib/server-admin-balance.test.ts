@@ -220,7 +220,7 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     expect(html).toContain(`/admin/attendees/${attendeeId}/ledger`);
     // The tab strip alone also carries that href, so pin the payment-details
     // link itself by its anchor text — it must render for owners.
-    expect(html).toContain("view ledger &amp; payment link");
+    expect(html).toContain("View money changes and payment link");
   });
 
   test("a manager's overview shows the balance owed but never the owner-only ledger link", async () => {

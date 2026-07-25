@@ -8,8 +8,8 @@ import {
   validateLayout,
 } from "#shared/tables/layout.ts";
 
-const KEYS = ["name", "created"];
-const DEFAULT_LAYOUT: TableLayout = {
+const KEYS = ["name", "created"] as const;
+const DEFAULT_LAYOUT: TableLayout<(typeof KEYS)[number]> = {
   columnKeys: KEYS,
   filters: new Map(),
 };

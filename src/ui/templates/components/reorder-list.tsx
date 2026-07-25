@@ -22,8 +22,6 @@ import { renderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
-export type { ReorderColumnOptions };
-
 /** Show the table (or whatever `whenPresent` builds) for a non-empty list, or
  * the supplied note content in a paragraph when the list is empty. */
 export const itemsOrEmptyNote = <T,>(

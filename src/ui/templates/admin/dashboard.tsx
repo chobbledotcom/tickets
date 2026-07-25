@@ -18,6 +18,7 @@ import {
   listingCategory,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
+import type { ListingColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import type {
   AdminSession,
@@ -44,8 +45,6 @@ import {
 } from "#templates/admin/listing-table.tsx";
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
-
-export { editorListingTable, listingTable };
 
 /** Keeps only the listings that are still active. */
 const activeOnly = filter((e: ListingWithCount) => e.active);
@@ -221,7 +220,7 @@ export const adminDashboardPage = (
   newestAttendees: DisplayAttendee[] = [],
   successMessage?: string,
   stats?: ActiveListingStats | null,
-  listingColumnLayout?: TableLayout,
+  listingColumnLayout?: TableLayout<ListingColumnKey>,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
   unbookableIds: ReadonlySet<number> = new Set(),
@@ -307,7 +306,7 @@ export const adminDashboardPage = (
 export const adminListingsPage = (
   listings: ListingWithCount[],
   session: AdminSession,
-  listingColumnLayout?: TableLayout,
+  listingColumnLayout?: TableLayout<ListingColumnKey>,
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   // Editors see a money-free, edit-linked table on a fixed order (their saved

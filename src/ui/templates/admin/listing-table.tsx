@@ -204,7 +204,11 @@ export const listingTable = attachTableRenderers(
 );
 
 /** The editor listing table: a money-free subset at a fixed order. */
-export const editorListingTable = defineTable<ListingWithCount>([
+export const editorListingTable = defineTable<
+  ListingWithCount,
+  undefined,
+  ListingColumnKey
+>([
   { ...editorName, key: "name" },
   columnOrThrow(listingTable, "description"),
   columnOrThrow(listingTable, "status"),
@@ -226,8 +230,8 @@ export type ListingTableVariant =
 /** Shared input: the rows, the parsed column layout, and an optional variant. */
 export type ListingTableArgs = {
   listings: ListingWithCount[];
-  readonly columnKeys?: readonly string[] | undefined;
-  readonly filters?: ReadonlyMap<string, string> | undefined;
+  readonly columnKeys?: readonly ListingColumnKey[] | undefined;
+  readonly filters?: ReadonlyMap<ListingColumnKey, string> | undefined;
   readonly table?: ListingTableVariant | undefined;
 };
 
@@ -242,7 +246,11 @@ export const renderListingsTableSection = (
   return renderTable(table, args.listings, {
     columnKeys: args.columnKeys ?? table.layout.defaultColumnKeys,
     empty: args.emptyText,
-    renderCell: filteredTableCells(args.filters ?? new Map()),
+    renderCell: filteredTableCells<
+      ListingWithCount,
+      undefined,
+      ListingColumnKey
+    >(args.filters ?? new Map<ListingColumnKey, string>()),
     rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
   });
 };

@@ -8,9 +8,19 @@
  */
 
 import * as BunnySDK from "@bunny.net/edgescript-sdk";
-import { concatBytes } from "#shared/crypto/utils.ts";
 
 type Bytes = Uint8Array<ArrayBuffer>;
+
+// This file is uploaded directly, so its byte join must stay local.
+const concatBytes = (...parts: Uint8Array[]): Bytes => {
+  const size = parts.reduce((total, part) => total + part.byteLength, 0);
+  const bytes = new Uint8Array(size);
+  parts.reduce((offset, part) => {
+    bytes.set(part, offset);
+    return offset + part.byteLength;
+  }, 0);
+  return bytes;
+};
 
 const KEY: Bytes = crypto.getRandomValues(new Uint8Array(32));
 const SAMPLE = "attendee-pii-value-12345@example.com";

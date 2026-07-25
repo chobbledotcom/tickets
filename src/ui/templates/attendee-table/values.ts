@@ -1,6 +1,7 @@
 import { sort } from "#fp";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { nonBlankLines } from "#shared/lines.ts";
+import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import type {
   AttendeeColumnOpts,
@@ -124,8 +125,8 @@ export const sortAttendeeRows: (
 export const hiddenAttendeeColumnKeys = (
   rows: readonly AttendeeTableRow[],
   options: AttendeeTableOptions,
-): Set<string> => {
-  const hidden = new Set<string>();
+): Set<AttendeeColumnKey> => {
+  const hidden = new Set<AttendeeColumnKey>();
   if (options.showCheckin === false) hidden.add("status");
   if (!options.showListing) hidden.add("listings");
   if (!options.showDate) hidden.add("date");

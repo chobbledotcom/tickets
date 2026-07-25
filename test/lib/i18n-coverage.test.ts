@@ -67,7 +67,6 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["shared/forms/message-fields.tsx", 1],
   ["shared/forms/rendering.tsx", 4],
   ["ui/templates/admin/api-keys.tsx", 2],
-  ["ui/templates/admin/attendees.tsx", 2],
   ["ui/templates/admin/calendar.tsx", 1],
   ["ui/templates/admin/guide/accounts.tsx", 1],
   ["ui/templates/admin/guide/domains.tsx", 2],

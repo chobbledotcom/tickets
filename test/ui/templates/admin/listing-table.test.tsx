@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { ListingColumnKey } from "#shared/tables/configurable.ts";
+import {
+  configurableTableLayouts,
+  type ListingColumnKey,
+} from "#shared/tables/configurable.ts";
 import { columnOrThrow } from "#shared/tables/definition.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
@@ -8,6 +11,7 @@ import {
   listingTable,
   renderListingsTableSection,
 } from "#templates/admin/listing-table.tsx";
+import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
@@ -20,13 +24,35 @@ const rawValue = (
   return read(listing, undefined);
 };
 
-const cell = (key: string, listing: ListingWithCount): string =>
+const cell = (key: ListingColumnKey, listing: ListingWithCount): string =>
   String(
     columnOrThrow(listingTable, key).cell(listing, undefined, 0, [listing]),
   );
 
 describe("listingTable", () => {
   beforeAll(setupAdminPageTest);
+
+  test("keeps configurable table keys separate at compile time", () => {
+    const renderAttendees = () =>
+      AttendeeTable({
+        allowedDomain: "example.com",
+        // @ts-expect-error Listing layouts cannot be passed to AttendeeTable.
+        columnLayout: configurableTableLayouts.listing.defaultLayout,
+        rows: [],
+        showDate: false,
+        showListing: false,
+      });
+    const renderListings = () =>
+      renderListingsTableSection({
+        // @ts-expect-error Attendee keys cannot be passed to listing table options.
+        columnKeys: configurableTableLayouts.attendee.defaultColumnKeys,
+        emptyText: "None",
+        listings: [],
+      });
+
+    void renderAttendees;
+    void renderListings;
+  });
 
   test("returns the stored values used by Liquid filters", () => {
     const listing = testListingWithCount({

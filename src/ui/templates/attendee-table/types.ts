@@ -1,5 +1,6 @@
 import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 
@@ -31,5 +32,5 @@ export type AttendeeTableOptions = {
   /** Skip default sort and use rows as-is (default: false). */
   presorted?: boolean | undefined;
   questionData?: TableQuestionData | undefined;
-  columnLayout?: TableLayout | undefined;
+  columnLayout?: TableLayout<AttendeeColumnKey> | undefined;
 };

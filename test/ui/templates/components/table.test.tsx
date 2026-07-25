@@ -67,6 +67,22 @@ describe("typed table rendering", () => {
     );
   });
 
+  test("renders semantic row headers", () => {
+    const table = defineTable<{ label: string; value: string }>([
+      {
+        cell: (row) => row.label,
+        header: "Field",
+        key: "label",
+        rowHeader: true,
+      },
+      { cell: (row) => row.value, header: "Value", key: "value" },
+    ]);
+
+    expect(
+      String(renderTable(table, [{ label: "Name", value: "Alice" }])),
+    ).toContain('<th scope="row">Name</th><td>Alice</td>');
+  });
+
   test("renders only documented columns in the reference", () => {
     const table = defineTable<{ name: string }>([
       {

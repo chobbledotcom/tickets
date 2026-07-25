@@ -14,13 +14,13 @@ import type { Result } from "#shared/result.ts";
 
 /** A configurable column layout: the keys to render (in order) and the
  *  Liquid filter expressions keyed by column key. */
-export type TableLayout<TKey extends string = string> = {
+export type TableLayout<TKey extends string> = {
   readonly columnKeys: readonly TKey[];
   readonly filters: ReadonlyMap<TKey, string>;
 };
 
 /** One configurable table's complete pure layout contract. */
-export type TableLayoutDefinition<TKey extends string = string> = {
+export type TableLayoutDefinition<TKey extends string> = {
   readonly defaultColumnKeys: readonly TKey[];
   readonly defaultLayout: TableLayout<TKey>;
   readonly defaultTemplate: string;
@@ -71,8 +71,7 @@ const collectColumnTag =
       };
     }
     const { columns, filters, seen } = result.value;
-    // First occurrence wins; later duplicates are silently dropped, matching
-    // the old column-layout parser's behaviour.
+    // Only the first occurrence controls the column's position and filter.
     if (!seen.has(key)) {
       seen.add(key);
       columns.push(validKey);

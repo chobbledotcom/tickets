@@ -6,7 +6,7 @@
  * the configurable layout keys (e.g. the listing/attendee "column order"
  * Liquid template), and labels the column in the guide reference table.
  *
- * The cell renderer takes a row and the per-table context (default `void`),
+ * The cell renderer takes a row and the per-table context (default `undefined`),
  * so an ordinary column with no context can ignore both. Cells return JSX
  * children. JSX escapes text values while explicit `Raw` nodes carry trusted
  * markup.
@@ -66,6 +66,8 @@ export type TableColumn<
    *  (the duplicate-preview table). The `class` key, if set here, merges
    *  with `class`, `className`, and `headerClassName` for that one cell. */
   readonly cellAttrs?: (row: TRow, ctx: TContext) => TableAttrs;
+  /** Render each body cell as a semantic row header. */
+  readonly rowHeader?: boolean;
   /** Return the raw, Liquid-friendly value for this column. When the user
    *  applies a Liquid filter (e.g. `{{created | date: "%B"}}`), the filter
    *  runs against this value instead of the cell renderer's output. */

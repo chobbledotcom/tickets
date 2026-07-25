@@ -1,7 +1,9 @@
 import { t } from "#i18n";
 import { isServicing } from "#shared/db/attendees/kind.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
+import type { AttendeeTableRow } from "#shared/types.ts";
 import { attendeeTable } from "#templates/attendee-table/columns.tsx";
 import { createStatusRenderer } from "#templates/attendee-table/status.tsx";
 import type {
@@ -38,14 +40,18 @@ export const AttendeeTable = (options: AttendeeTableOptions): JSX.Element => {
   const rows = options.presorted
     ? options.rows
     : sortAttendeeRows(options.rows);
-  const layout: TableLayout =
+  const layout: TableLayout<AttendeeColumnKey> =
     options.columnLayout ?? settings.attendeeColumnLayout;
   return renderTable(attendeeTable, rows, {
     columnKeys: layout.columnKeys,
     context: buildColumnOptions(options),
     empty: options.emptyMessage ?? t("admin.attendee_table.no_attendees"),
     hiddenKeys: hiddenAttendeeColumnKeys(rows, options),
-    renderCell: filteredTableCells(layout.filters),
+    renderCell: filteredTableCells<
+      AttendeeTableRow,
+      AttendeeColumnOpts,
+      AttendeeColumnKey
+    >(layout.filters),
     rowAttrs: (row) =>
       isServicing(row.attendee.kind)
         ? { class: "servicing-event", "data-servicing": "true" }
