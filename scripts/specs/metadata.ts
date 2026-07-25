@@ -93,9 +93,8 @@ const addId = (
     invalidSpec(state.uri, line, `Invalid ${kind} id ${id}`);
   }
   const tagged = `@${kind}:${id}`;
-  if (state.ids.has(tagged))
-    invalidSpec(state.uri, line, `Duplicate ${tagged}`);
-  state.ids.add(tagged);
+  if (state.ids.has(id)) invalidSpec(state.uri, line, `Duplicate ${tagged}`);
+  state.ids.add(id);
 };
 
 export const tagsFor = (

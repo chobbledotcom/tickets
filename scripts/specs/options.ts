@@ -40,14 +40,17 @@ export const parseSpecArgs = (args: string[]): SpecCliOptions => {
 };
 
 export const focusedTargets = (args: string[]): FocusedTargets => {
-  const specPaths = args.filter((arg) => arg.endsWith(".feature"));
+  const specPaths: string[] = [];
   const testArgs: string[] = [];
   let tags: string | undefined;
   for (let index = 0; index < args.length; index++) {
     const arg = args[index]!;
-    if (arg.endsWith(".feature")) continue;
     if (arg === "--tags") {
       tags = tagExpression(args[++index]);
+      continue;
+    }
+    if (arg.endsWith(".feature")) {
+      specPaths.push(arg);
       continue;
     }
     testArgs.push(arg);

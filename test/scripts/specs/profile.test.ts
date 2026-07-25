@@ -156,6 +156,13 @@ describe("Cucumber specification profile", () => {
     ).toThrow("Duplicate @story:payments.capacity-after-payment");
   });
 
+  test("rejects the same id across metadata kinds", () => {
+    expectInvalid(
+      replace("payment.place-available", "payments.capacity-after-payment"),
+      "Duplicate @case:payments.capacity-after-payment",
+    );
+  });
+
   test("validates Scenario Outline case ids and placeholders", () => {
     expect(
       validateSpecSources(

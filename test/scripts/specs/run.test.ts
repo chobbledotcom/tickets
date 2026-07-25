@@ -11,7 +11,11 @@ import {
   parseSpecArgs,
   shouldCheckUnusedSteps,
 } from "#scripts/specs/options.ts";
-import { cleanupWorld, requiredWorldValue } from "#test/specs/support/world.ts";
+import {
+  addDatabaseCleanup,
+  cleanupWorld,
+  requiredWorldValue,
+} from "#test/specs/support/world.ts";
 
 const timestamp = { nanos: 0, seconds: 0 };
 
@@ -117,6 +121,26 @@ describe("Cucumber runner", () => {
     expect(error).toBe(restoreError);
   });
 
+  test("clears the encryption key after database cleanup fails", async () => {
+    const calls: string[] = [];
+    const databaseError = new Error("database cleanup failed");
+    const world = { cleanup: [] };
+    addDatabaseCleanup(
+      world,
+      () => {
+        calls.push("database");
+        throw databaseError;
+      },
+      () => {
+        calls.push("encryption key");
+      },
+    );
+
+    const error = await cleanupWorld(world).catch((error) => error);
+    expect(calls).toEqual(["database", "encryption key"]);
+    expect(error).toBe(databaseError);
+  });
+
   test("returns a required World value", () => {
     expect(requiredWorldValue("stored", "result")).toBe("stored");
   });
@@ -167,6 +191,14 @@ describe("Cucumber runner", () => {
     ).toThrow("--tags needs a tag expression");
     expect(focusedTargets(["specs/example.feature"])).toEqual({
       specPaths: ["specs/example.feature"],
+      testArgs: [],
+    });
+  });
+
+  test("does not treat a tag expression as a Feature path", () => {
+    expect(focusedTargets(["--tags", "@case:payment.feature"])).toEqual({
+      specPaths: [],
+      tags: "@case:payment.feature",
       testArgs: [],
     });
   });
