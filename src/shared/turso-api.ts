@@ -9,7 +9,12 @@ import {
   slugifyForProvider,
 } from "#shared/config.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { fetchText, jsonHeaders, parseApiError } from "#shared/fetch.ts";
+import {
+  type FetchResult,
+  fetchText,
+  jsonHeaders,
+  parseApiError,
+} from "#shared/fetch.ts";
 import type {
   CreateDatabaseFn,
   DatabaseCredentials,
@@ -100,23 +105,36 @@ const namesFrom = <Entry>(
   getName: (entry: Entry) => string,
 ): string[] => entries.map(getName);
 
-/** Build a Turso client around one platform API token. */
-export const createTursoApi = (apiToken: string): TursoApi => {
+/** Build a Turso client around one platform API token. The optional signal
+ * cancels in-flight requests; cleanup deletes always ignore it so an
+ * incomplete destination can still be removed after an interrupt. */
+export const createTursoApi = (
+  apiToken: string,
+  signal?: AbortSignal,
+): TursoApi => {
   const apiHeaders = (): Record<string, string> =>
     jsonHeaders({ Authorization: `Bearer ${apiToken}` });
-  const apiFetch = (path: string, init: RequestInit = {}) =>
+  /** Fetch a Turso API path. Cleanup deletes pass `interruptible: false`
+   * so an aborted signal never prevents removal of an incomplete destination. */
+  const fetchApi = (
+    path: string,
+    init: RequestInit = {},
+    interruptible = true,
+  ): Promise<FetchResult> =>
     fetchText(`${TURSO_API_BASE}${path}`, {
       ...init,
       headers: apiHeaders(),
+      ...(interruptible && signal !== undefined ? { signal } : {}),
     });
 
   const deleteDatabase = async (
     organization: string,
     name: string,
   ): Promise<Result<void>> => {
-    const response = await apiFetch(
+    const response = await fetchApi(
       databasePath(organization, slugifyForTurso(name)),
       { method: "DELETE" },
+      false,
     );
     return response.ok
       ? okResult(undefined)
@@ -144,7 +162,7 @@ export const createTursoApi = (apiToken: string): TursoApi => {
     request: CreateTursoDatabaseRequest,
   ): Promise<Result<TursoDatabaseCredentials>> => {
     const name = slugifyForTurso(request.name);
-    const createResponse = await apiFetch(databasePath(request.organization), {
+    const createResponse = await fetchApi(databasePath(request.organization), {
       body: JSON.stringify({
         group: request.group,
         name,
@@ -179,7 +197,7 @@ export const createTursoApi = (apiToken: string): TursoApi => {
     }
     const dbUrl = `libsql://${database.Hostname}`;
     try {
-      const tokenResponse = await apiFetch(
+      const tokenResponse = await fetchApi(
         `${databasePath(request.organization, name)}/auth/tokens?authorization=full-access`,
         { method: "POST" },
       );
@@ -214,7 +232,7 @@ export const createTursoApi = (apiToken: string): TursoApi => {
   return {
     createDatabase,
     databaseExists: async (organization, name) => {
-      const response = await apiFetch(
+      const response = await fetchApi(
         databasePath(organization, slugifyForTurso(name)),
       );
       if (response.ok) return okResult(true);
@@ -223,7 +241,7 @@ export const createTursoApi = (apiToken: string): TursoApi => {
     },
     deleteDatabase,
     listGroups: async (organization) => {
-      const response = await apiFetch(
+      const response = await fetchApi(
         `/v1/organizations/${encodeURIComponent(organization)}/groups`,
       );
       if (!response.ok) {
@@ -237,7 +255,7 @@ export const createTursoApi = (apiToken: string): TursoApi => {
       return okResult(namesFrom(groups, (group) => group.name));
     },
     listOrganizations: async () => {
-      const response = await apiFetch("/v1/organizations");
+      const response = await fetchApi("/v1/organizations");
       if (!response.ok) {
         return parseApiError(response, "List Turso organizations");
       }

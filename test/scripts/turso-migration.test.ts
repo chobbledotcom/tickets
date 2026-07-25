@@ -296,4 +296,18 @@ describe("Turso migration CLI", () => {
     expect(state.deleted).toEqual(["personal/destination-database"]);
     expect(state.removed).toEqual(["/tmp/turso-migration-test"]);
   });
+
+  test("reports the original failure and temp directory when cleanup fails", async () => {
+    const state = tursoMigrationCliState({
+      deps: {
+        removeTempDir: () => Promise.reject(new Error("permission denied")),
+        verifyUploadFile: () => Promise.reject(new Error("bad sqlite")),
+      },
+    });
+
+    expect(await runMigrateTursoCli(state.deps)).toBe(1);
+    expect(state.stderr[0]).toContain("bad sqlite");
+    expect(state.stderr[0]).toContain("permission denied");
+    expect(state.stderr[0]).toContain("/tmp/turso-migration-test");
+  });
 });

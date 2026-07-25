@@ -360,4 +360,40 @@ describe("Turso management API", () => {
       },
     );
   });
+
+  const signalSentToFetch = async (
+    action: () => Promise<unknown>,
+  ): Promise<AbortSignal | null | undefined> => {
+    let receivedSignal: AbortSignal | null | undefined;
+    await withMocks(
+      () =>
+        stubFetch((_url, init) => {
+          receivedSignal = init?.signal;
+          return new Response(JSON.stringify({ organizations: [] }));
+        }),
+      async () => {
+        await action();
+      },
+    );
+    return receivedSignal;
+  };
+
+  test("forwards an abort signal to platform API requests", async () => {
+    const controller = new AbortController();
+    const signalApi = createTursoApi("platform-token", controller.signal);
+    expect(await signalSentToFetch(() => signalApi.listOrganizations())).toBe(
+      controller.signal,
+    );
+  });
+
+  test("does not interrupt cleanup deletes with the abort signal", async () => {
+    const controller = new AbortController();
+    controller.abort(new Error("interrupted"));
+    const signalApi = createTursoApi("platform-token", controller.signal);
+    expect(
+      await signalSentToFetch(() =>
+        signalApi.deleteDatabase("personal", "database"),
+      ),
+    ).toBeUndefined();
+  });
 });

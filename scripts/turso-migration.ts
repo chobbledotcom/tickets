@@ -22,7 +22,7 @@ onTerminationSignals(() => {
 await runDenoScript((io) =>
   runMigrateTursoCli({
     ...io,
-    createApi: createTursoApi,
+    createApi: (token, signal) => createTursoApi(token, signal),
     createSnapshot: (request, writeProgress, signal) =>
       createDatabaseSnapshot(request, createClient, writeProgress, signal),
     getEnv: (key) => fileEnv[key] ?? io.getEnv(key),

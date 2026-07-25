@@ -77,7 +77,7 @@ export const tursoMigrationCliState = (
   };
   const deps: MigrateTursoCliDeps = {
     args: [],
-    createApi: (token) => {
+    createApi: (token, _signal) => {
       state.apiTokens.push(token);
       return api;
     },

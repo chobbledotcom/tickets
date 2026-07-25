@@ -1,5 +1,4 @@
 import { join } from "@std/path";
-import { failAfterCleanups } from "#scripts/cleanup.ts";
 import {
   readSnapshotRequest,
   type SnapshotProgressWriter,
@@ -17,7 +16,7 @@ import {
 export const MIGRATE_TURSO_USAGE = "Usage: deno task migrate:turso";
 
 export interface MigrateTursoCliDeps extends ScriptIo {
-  createApi: (apiToken: string) => TursoApi;
+  createApi: (apiToken: string, signal: AbortSignal) => TursoApi;
   createSnapshot: (
     request: SnapshotRequest,
     writeProgress: SnapshotProgressWriter,
@@ -150,9 +149,16 @@ const migrateSnapshot = async (
       );
     }
   } catch (error) {
-    return await failAfterCleanups(error, [
-      () => deps.removeTempDir(tempDirectory),
-    ]);
+    try {
+      await deps.removeTempDir(tempDirectory);
+    } catch (cleanupError) {
+      throw new Error(
+        `${errorMessage(error)}. Temporary files could not be removed: ${errorMessage(
+          cleanupError,
+        )}. Remove this directory: ${tempDirectory}`,
+      );
+    }
+    throw error;
   }
 
   let cleanupError: unknown | null = null;
@@ -197,7 +203,7 @@ export const runMigrateTursoCli = async (
       { outputPath: "database.sqlite" },
       (key) => (key === "DB_URL" ? dbUrl : dbToken),
     );
-    const api = deps.createApi(apiToken);
+    const api = deps.createApi(apiToken, deps.signal);
     deps.stdout("Checking the Turso account...");
     const organization = chooseTursoName(
       deps,
