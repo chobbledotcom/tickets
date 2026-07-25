@@ -1400,6 +1400,6 @@ if both do). The webhook test file drops to ~380 lines.
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
-`test/features/api/folded-booking/parent-booking.test.ts` kill every mutant on the unchanged `folded-booking.ts`.
+`test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
 Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
 `scripts/mutation/equivalent-mutants.txt` with proofs — no unsuppressed survivors remain.
