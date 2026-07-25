@@ -1,4 +1,4 @@
-import type { chromium, LaunchOptions } from "playwright";
+import type { Browser, chromium, LaunchOptions } from "playwright";
 
 type Chromium = typeof chromium;
 
@@ -18,7 +18,7 @@ export const browserLaunchOptions = (
 export const launchScreenshotChromium = (
   browser: Chromium,
   executablePath?: string,
-) =>
+): Promise<Browser> =>
   browser.launch(
     browserLaunchOptions(true, executablePath, SCREENSHOT_LAUNCH_ARGS),
   );

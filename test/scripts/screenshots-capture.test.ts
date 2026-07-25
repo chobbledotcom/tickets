@@ -131,7 +131,7 @@ describe("reusable screenshot capture", () => {
     });
   });
 
-  test("resolves Chromium from env, Nix path, or absent", async () => {
+  test("resolves Chromium from the CHROMIUM_EXECUTABLE env var", async () => {
     const envStub = stub(Deno.env, "get", (key) =>
       key === "CHROMIUM_EXECUTABLE" ? "/custom/chromium" : undefined,
     );
@@ -140,7 +140,9 @@ describe("reusable screenshot capture", () => {
     } finally {
       envStub.restore();
     }
+  });
 
+  test("falls back to the Nix profile path when the env var is unset", async () => {
     const nixEnv = stub(Deno.env, "get", () => undefined);
     const statOk = stub(Deno, "stat", () =>
       Promise.resolve({} as Deno.FileInfo),
@@ -153,7 +155,9 @@ describe("reusable screenshot capture", () => {
       nixEnv.restore();
       statOk.restore();
     }
+  });
 
+  test("returns undefined when no env var and the Nix path is absent", async () => {
     const missingEnv = stub(Deno.env, "get", () => undefined);
     const statStub = stub(Deno, "stat", () =>
       Promise.reject(new Deno.errors.NotFound()),
@@ -164,7 +168,9 @@ describe("reusable screenshot capture", () => {
       missingEnv.restore();
       statStub.restore();
     }
+  });
 
+  test("rethrows non-NotFound filesystem errors from the Nix path check", async () => {
     const permEnv = stub(Deno.env, "get", () => undefined);
     const permStub = stub(Deno, "stat", () =>
       Promise.reject(new Deno.errors.PermissionDenied("no access")),

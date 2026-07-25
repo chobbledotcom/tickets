@@ -20,18 +20,12 @@ const stableId = (label: string) =>
 const PositiveIntegerSchema = integerAtLeast(1);
 
 export const EvidenceProfileNameSchema = v.picklist(["mobile"]);
-export type EvidenceProfileName = v.InferOutput<
-  typeof EvidenceProfileNameSchema
->;
 
 export const EvidencePresentationSchema = v.picklist([
   "canonical",
   "branded",
   "editorial",
 ]);
-export type EvidencePresentation = v.InferOutput<
-  typeof EvidencePresentationSchema
->;
 
 const EvidenceProfilesSchema = v.pipe(
   v.array(EvidenceProfileNameSchema, "Invalid evidence profile"),
