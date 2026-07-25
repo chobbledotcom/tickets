@@ -3,7 +3,11 @@ import type { Page } from "playwright";
 import { log } from "#e2e/log.ts";
 import { sleep } from "#e2e/util.ts";
 import { squareRequestInit } from "#shared/square.ts";
-import { configureProvider, hostedCheckout } from "./shared.ts";
+import {
+  configureProvider,
+  exerciseAdminRefund,
+  hostedCheckout,
+} from "./shared.ts";
 import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
 
 /**
@@ -193,6 +197,11 @@ const completeViaSandboxApi = async (
 };
 
 export const square: PaymentProvider = {
+  // Exercise the real Square sandbox refund API (POST /v2/refunds → Valibot
+  // schema parse → COMPLETED check → payment_id/amount verification → ledger
+  // posting) plus the admin refresh-payment route. This is the only e2e path
+  // that exercises the confirmed-Square-refund contract from this PR.
+  afterPaidBooking: exerciseAdminRefund,
   configure: configureProvider("square", async (session, secrets) => {
     await session.fill("square_access_token", secrets.token);
     await session.fill("square_location_id", secrets.locationId);

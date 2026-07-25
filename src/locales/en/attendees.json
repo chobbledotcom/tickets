@@ -219,5 +219,6 @@
   "success.all_refunded": "All attendees refunded",
   "success.notification_resent": "Notification re-sent",
   "success.payment_status_refunded": "Payment status updated: refunded",
-  "success.payment_status_current": "Payment status is up to date"
+  "success.payment_status_current": "Payment status is up to date",
+  "note.placeholder_refund_confirmed": "Refund confirmed: the payment provider reported this refund as settled. No manual refund is needed."
 }

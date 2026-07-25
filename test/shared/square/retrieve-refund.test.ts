@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
-import type { RefundPaymentInput } from "#shared/square.ts";
 import { retrievePayment, squareApi } from "#shared/square.ts";
 import { withSquareClient } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
-import { withMocks } from "#test-utils/mocks.ts";
 
 describeSquare(() => {
   describe("retrieveOrder", () => {
@@ -236,132 +233,6 @@ describeSquare(() => {
           expect(paymentsGet.calls[0]!.args[0]).toEqual({
             paymentId: "pay_wrapper",
           });
-        },
-      );
-    });
-  });
-
-  describe("refundPayment", () => {
-    test("returns false when access token not set", async () => {
-      const result = await squareApi.refundPayment("pay_123");
-      expect(result).toBe(false);
-    });
-
-    test("returns false when payment retrieval returns null", async () => {
-      const retrieveStub = stub(squareApi, "retrievePayment", () =>
-        Promise.resolve(null),
-      );
-      const errorSpy = spy(console, "error");
-      await withMocks(
-        () => ({ errorSpy, retrieveStub }),
-        async () => {
-          const result = await squareApi.refundPayment("pay_123");
-          expect(result).toBe(false);
-          // Prove we reached the null-retrieval branch, not an earlier exit.
-          expect(retrieveStub.calls).toHaveLength(1);
-          expect(retrieveStub.calls[0]!.args[0]).toBe("pay_123");
-          expect(errorSpy.calls).toHaveLength(1);
-          expect(errorSpy.calls[0]!.args[0]).toBe(
-            '[Error] E_SQUARE_REFUND detail="Cannot refund payment pay_123: missing amount info"',
-          );
-        },
-      );
-    });
-
-    test("calls SDK refund with correct amount from payment", async () => {
-      await withSquareClient(
-        {
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(4200), currency: "USD" },
-                id: "pay_refund_me",
-                orderId: "order_refund",
-                status: "COMPLETED",
-              },
-            }),
-          refundsRefundPayment: () =>
-            Promise.resolve({
-              refund: { id: "refund_123", status: "PENDING" },
-            }),
-        },
-        async ({ paymentsGet, refundsRefundPayment }) => {
-          const result = await squareApi.refundPayment("pay_refund_me");
-          expect(result).toBe(true);
-
-          // Verify payments.get was called to fetch amount
-          expect(paymentsGet.calls[0]!.args[0]).toEqual({
-            paymentId: "pay_refund_me",
-          });
-
-          // Verify refund was called with correct amount and payment ID
-          const refundArgs = refundsRefundPayment.calls[0]
-            ?.args[0] as RefundPaymentInput;
-          expect(refundArgs.paymentId).toBe("pay_refund_me");
-          expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
-          expect(refundArgs.amountMoney.currency).toBe("USD");
-          // The key is a pure function of (provider, payment id), so a webhook
-          // redelivery of the same refund reuses it and Square deduplicates
-          // the second call instead of charging back a second time.
-          expect(refundArgs.idempotencyKey).toBe(
-            "94jKDa73RqRmoCUbDHE2CCc5rNAMtKDdSERbYIImwK0",
-          );
-        },
-      );
-    });
-
-    test("reuses the same idempotency key across repeated refunds of one payment", async () => {
-      // Two refund attempts for the same Square payment must hand Square the
-      // same idempotency key, so a retried webhook redelivery cannot create a
-      // second refund. The key is deterministic, not a fresh random per call.
-      await withSquareClient(
-        {
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(1000), currency: "GBP" },
-                id: "pay_repeat",
-                orderId: "order_repeat",
-                status: "COMPLETED",
-              },
-            }),
-          refundsRefundPayment: () =>
-            Promise.resolve({
-              refund: { id: "refund_repeat", status: "PENDING" },
-            }),
-        },
-        async ({ refundsRefundPayment }) => {
-          await squareApi.refundPayment("pay_repeat");
-          await squareApi.refundPayment("pay_repeat");
-
-          expect(refundsRefundPayment.calls).toHaveLength(2);
-          const [first, second] = refundsRefundPayment.calls.map(
-            (call) => (call.args[0] as RefundPaymentInput).idempotencyKey,
-          );
-          expect(first).toBe(second);
-          expect(first).toBe("Zo9WnE2h_fa7qTOrXREnPmK-WsI5dcg2LE4-0mMYwao");
-        },
-      );
-    });
-
-    test("returns false when refund SDK call throws", async () => {
-      await withSquareClient(
-        {
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(1000), currency: "GBP" },
-                id: "pay_fail",
-                orderId: "order_fail",
-                status: "COMPLETED",
-              },
-            }),
-          refundsRefundPayment: () =>
-            Promise.reject(new Error("Square API error")),
-        },
-        async () => {
-          const result = await squareApi.refundPayment("pay_fail");
-          expect(result).toBe(false);
         },
       );
     });

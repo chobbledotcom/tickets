@@ -872,8 +872,8 @@ src/shared/runtime.ts:67:45  ?? → ||   # nodeCompatVersion is string|undefined
 src/shared/runtime.ts:68:18  ?? → ||   # os is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts:70:43  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts:71:38  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
-src/shared/square.ts:644:18  ?? → ||   # the callback returns true while missing clients and caught errors return null; both operators produce the same boolean
-src/shared/square.ts:714:37  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
+src/shared/square.ts:312:21  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
+src/shared/square.ts:783:37  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
 src/ui/client/dom.ts:13:19  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only

@@ -142,9 +142,7 @@ describeSquare(() => {
       );
       when(want.locationName, (n) => expect(result.location.name).toBe(n));
       when(want.locationStatus, (s) => expect(result.location.status).toBe(s));
-      when(want.locationError, (e) =>
-        expect(result.location.error).toContain(e),
-      );
+      when(want.locationError, (e) => expect(result.location.error).toBe(e));
       when(want.webhookConfigured, (c) =>
         expect(result.webhook.configured).toBe(c),
       );

@@ -17,6 +17,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -38,16 +39,12 @@ const setupBalanceRefresh = async (
     "pi_refresh_deposit",
     500,
   );
-  await postTransfers(
-    await mapBooking({
-      amountPaid: 500,
-      attendeeId: attendee.id,
-      bookingFee: 0,
-      eventId: "refresh-deposit-session",
-      lines: [{ gross: 800, listingId: listing.id }],
-      modifiers: [],
-      occurredAt: OCCURRED_AT,
-    }),
+  await postPaymentLeg(
+    attendee.id,
+    500,
+    "refresh-deposit-session",
+    listing.id,
+    800,
   );
   await postTransfers([
     {

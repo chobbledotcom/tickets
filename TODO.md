@@ -1330,6 +1330,110 @@ out of scope for that PR's brief — recorded here for a follow-up.*
   a deliberate test review, which is the only way the test catches the failure
   mode it is meant to catch.
 
+## Stale equivalent-mutant line numbers across recent refactors
+
+*Origin: running `deno task mutation:audit-equivalents` while hardening
+`src/shared/square.ts` for the confirmed-Square-refunds job.*
+
+`scripts/mutation/equivalent-mutants.txt` carries several entries whose
+`file:line:col` no longer points at a generated mutant, so
+`deno task mutation:audit-equivalents` aborts with "No generated mutant matches".
+The mutants are still real and equivalent; only the code moved. Confirmed stale
+entries span at least:
+- `src/shared/uptime-kuma/socket.ts` (lines 107, 130, 167, 187 — `===`/`!==`↔loose)
+- `src/shared/uptime-kuma/monitors.ts` (lines 87, 101, 116, 119, 138, 193, 227,
+  250, 306, 325 — `===`/`!==`↔loose and `1000→1001`)
+- `src/shared/scheduled-access.ts:16:20 ??→||`
+- `src/shared/storage.ts:376:18 application/octet-stream→""`
+- `src/ui/templates/admin/images.tsx:84:28` and `:85:20 ??→||`
+- `src/features/app/routes.ts:235:14 →"mutated"`
+
+These most likely drifted when the Uptime Kuma modules were split into
+one-concept-per-file (#1906) and other recent move/refactor PRs. The audit is a
+standalone task (`mutation:audit-equivalents`, not part of `deno task
+precommit`), so CI doesn't gate on it; it surfaced here only because the
+Square-refunds job ran exhaustive mutation and used the audit to validate its
+own equivalent entries. The `square.ts` entries in the equivalent-mutants
+registry have been refreshed in place (they drift as the source shifts lines —
+the audit command's own output lists every stale `file:line:col`);
+
+Fix: for each stale entry, re-run `deno task mutation <file> '<tests>'
+--exhaustive`, locate the surviving equivalent mutant's current `file:line:col`
+from the report, and update the line/col in `equivalent-mutants.txt` (or remove
+the entry if the static gates now kill it — `mutation:audit-equivalents --write`
+does this automatically for entries the lint/type-check gates catch). Then
+re-run the audit until it reports no stale entries. Starting point: the audit's
+own output lists every stale `file:line:col`.
+
+---
+
+## Square PENDING refunds — propagate a pending result, not a plain false
+
+*Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread
+on `squareApi.refundPayment` (`src/shared/square.ts`). This PR deliberately
+does NOT address it; recorded so the follow-on work can pick it up.*
+
+`squareApi.refundPayment` returns `false` for a Square refund that is still
+`PENDING` (an accepted-but-unsettled refund). That is the honest current-main
+boolean contract this PR ships, but it has a real downstream cost the reviewer
+flagged: the webhook/admin refund flow reads `refunded === false` as a failed
+refund, so a pending Square refund releases the reservation, returns 503, and
+— because each call mints a fresh `crypto.randomUUID()` idempotency key — a
+redelivery posts another full-refund attempt instead of waiting on the
+existing refund id. A PENDING Square refund is documented as a normal accepted
+`RefundPayment` response, so collapsing it into `false` loses the "accepted,
+not yet settled" signal.
+
+Update: PR #1912 (stable Stripe and Square refund idempotency keys) has since
+landed on `main`; the Square refund idempotency key is now the stable
+`refundIdempotencyKey("square", paymentId)` rather than a fresh
+`crypto.randomUUID()`, so a redelivery re-posts with the SAME key and Square
+dedupes it — the double-pay half of the risk above is now mitigated. The
+PENDING-still-returns-false behaviour itself (a retryable re-attempt that waits
+on `isPaymentRefunded` rather than holding the refund id) remains, so the
+pending-result union below is still the real fix; the stale-key concern is
+resolved.
+
+The fix is the staged-checkout pending-result union / callback resolution this
+PR was explicitly told not to introduce: surface a pending outcome (carrying
+the refund id) separately from a plain false, and have the webhook/admin refund
+paths hold/redeliver against that id instead of re-posting. That is the same
+machinery planned for #1853 (`split/staged-checkout-runtime` — "Finish and
+recover paid checkouts safely") and overlaps #1905
+(`split/authoritative-payment-callbacks` — provider-neutral webhook retry
+resolution), so it must be designed with those branches, not duplicated here.
+Starting points: `squareApi.refundPayment` in `src/shared/square.ts` (where the
+boolean contract lives), the idempotency key in its `withClient` callback, and
+the downstream `tryRefund` in `src/features/api/payment-processing/refunds.ts`
+plus `refundReferenceAtProvider` in
+`src/features/admin/refunds/provider.ts` (both treat `false` as failed and fall
+back to `isPaymentRefunded`, which a still-pending refund also fails).
+
+---
+
+## Validate Square orders/payments responses with Valibot schemas
+
+*Origin: CodeRabbit review of PR #1911. The refund response validation is done
+(`SquareRefundResponseSchema` in `src/shared/square.ts`), and the test file
+splits are complete (`refund-payment.test.ts`, `refund-transport.test.ts`,
+and the shared `mock-fetch.ts` helper all exist; `retrieve-refund.test.ts` is
+240 lines and `rest-transport.test.ts` is 372). What remains is extending the
+same boundary-validation pattern to the orders and payments client methods.*
+
+The Square REST client still maps order and payment responses with type casts
+(`get<T>` for orders and payments). `squareFetch` returns `JSON.parse(response.text)`
+cast as `<T>`, so a malformed order or payment object — wrong field types, an
+unexpected shape — passes through unvalidated. The refund path now has a Valibot
+schema (`SquareRefundSchema` / `SquareRefundResponseSchema`) parsed with
+`v.parse` OUTSIDE `withClient`, so a malformed refund response fails loudly.
+Doing the same for orders and payments means defining `SquareOrderSchema` and
+`SquarePaymentSchema` and parsing in their respective `squareApi` methods, so
+a malformed response throws rather than being silently cast. Starting point:
+`squareFetch` and the `SquareOrderResponse` / `SquarePaymentResponse` types in
+`src/shared/square.ts`; mirror the refund schema shape that already exists.
+
+---
+
 ## Split oversized test files moved by PR #1903
 
 *Origin: Codex review of PR #1903 ("Load heavy modules only when needed").
