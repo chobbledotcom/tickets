@@ -710,6 +710,18 @@ export const squareApi: {
         `Square refund ${refund.id} is for payment ${refund.payment_id}, not ${paymentId}`,
       );
     }
+    // Verify the refund amount matches the payment amount — a partial refund
+    // for the correct payment would still be incomplete.
+    const expectedAmount = payment.amountMoney!.amount;
+    const expectedCurrency = payment.amountMoney!.currency as string;
+    if (
+      BigInt(refund.amount_money.amount) !== expectedAmount ||
+      refund.amount_money.currency !== expectedCurrency
+    ) {
+      throw new Error(
+        `Square refund ${refund.id} amount (${refund.amount_money.amount} ${refund.amount_money.currency}) does not match payment amount (${expectedAmount} ${expectedCurrency})`,
+      );
+    }
     return CONFIRMED_REFUND_STATUSES.includes(refund.status);
   },
 

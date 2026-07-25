@@ -235,6 +235,26 @@ describeSquare(() => {
       ).rejects.toThrow("pay_some_other");
     });
 
+    test("throws when the refund amount does not match the payment", async () => {
+      await expect(
+        refundOutcomeFor({
+          amount_money: { amount: 999, currency: "GBP" },
+          id: "ref_wrong_amount",
+          status: "COMPLETED",
+        }),
+      ).rejects.toThrow("amount");
+    });
+
+    test("throws when the refund currency does not match the payment", async () => {
+      await expect(
+        refundOutcomeFor({
+          amount_money: { amount: 1999, currency: "USD" },
+          id: "ref_wrong_currency",
+          status: "COMPLETED",
+        }),
+      ).rejects.toThrow("amount");
+    });
+
     test("returns false for a PENDING refund status", async () => {
       expect(
         await refundOutcomeFor({ id: "ref_pending", status: "PENDING" }),

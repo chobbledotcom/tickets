@@ -11,9 +11,14 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
+import {
+  createSystemNote,
+  getNotesForAttendee,
+} from "#shared/db/system-notes.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -354,6 +359,35 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_placeholder_refresh",
       );
       await refreshAndVerifyRefundCash(attendee);
+    });
+
+    test("deletes the stale manual-refund note and adds a confirmation", async () => {
+      const attendee = await setupPlaceholderForRefresh(
+        "Stale Note",
+        "stale-note@example.com",
+        "placeholder-stale-note-session",
+        "pi_stale_note",
+      );
+      // Create the "could NOT be refunded" warning from storeRefundedBooking.
+      const privateKey = await getTestPrivateKey();
+      await createSystemNote(
+        attendee.id,
+        "This booking was kept at quantity 0 but its payment could NOT be refunded automatically because the event filled up while they were paying. Payment reference: pi_stale_note (code: capacity_full). Please refund it manually and check the [ledger](/admin/ledger/attendee/" +
+          attendee.id +
+          ").",
+      );
+
+      await submitRefreshPayment(attendee, () => Promise.resolve(true));
+
+      // The stale "could NOT be refunded" note should be deleted.
+      const notes = await getNotesForAttendee(attendee.id, privateKey);
+      expect(
+        notes.some((note) => note.note.includes("could NOT be refunded")),
+      ).toBe(false);
+      // The confirmation note should be present.
+      expect(notes.some((note) => note.note.includes("Refund confirmed"))).toBe(
+        true,
+      );
     });
 
     test("reconciles a placeholder whose listing was since deleted", async () => {

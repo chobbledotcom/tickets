@@ -187,12 +187,19 @@ export const getRefundPaymentReferences = async (
   );
 };
 
+/** The refund payment references for one attendee (never null). */
+export const getRefundPaymentReferencesForAttendee = async (
+  attendee: RefundPaymentReferenceSource,
+  privateKey: CryptoKey,
+): Promise<RefundPaymentReference[]> =>
+  (await getRefundPaymentReferences([attendee], privateKey)).get(attendee.id)!;
+
 export const hasRefundPaymentReference = async (
   attendee: RefundPaymentReferenceSource,
   privateKey: CryptoKey,
 ): Promise<boolean> =>
-  (await getRefundPaymentReferences([attendee], privateKey)).get(attendee.id)!
-    .length > 0;
+  (await getRefundPaymentReferencesForAttendee(attendee, privateKey)).length >
+  0;
 
 export const getAttendeeIdsWithPaymentReference = async (
   attendees: readonly RefundPaymentReferenceSource[],
