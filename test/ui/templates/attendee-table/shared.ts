@@ -3,6 +3,7 @@ import type {
   AttendeeTableOptions,
   AttendeeTableRow,
 } from "#templates/attendee-table.tsx";
+import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
@@ -35,6 +36,12 @@ export const zaraAliceRows = (): AttendeeTableRow[] => [
   namedListingRow("B Listing", testAttendee({ id: 1, name: "Zara" })),
   namedListingRow("A Listing", testAttendee({ id: 2, name: "Alice" })),
 ];
+
+/** Render the attendee table to an HTML string for assertion. The renderer
+ *  returns `JSX.Element` (SafeHtml) at runtime; tests want a plain string for
+ *  `toContain`/`matchAll`/`indexOf`. */
+export const render = (opts: AttendeeTableOptions): string =>
+  String(AttendeeTable(opts));
 
 export const attendeeTableSuite = (defineTests: () => void): void => {
   describe("AttendeeTable", () => {

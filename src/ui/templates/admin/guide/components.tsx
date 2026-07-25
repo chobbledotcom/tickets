@@ -3,8 +3,7 @@
  *
  * Section/Q render the FAQ accordion structure. Faq is the data-driven form
  * that pulls its question and answer HTML from the guide.q.* and guide.a.*
- * locale keys. columnReferenceTable renders the column-tag reference tables for
- * the Column Order section.
+ * locale keys.
  */
 
 /* jscpd:ignore-start */
@@ -121,27 +120,3 @@ export const renderGuideSections: (
     {section.entries.map(renderEntry)}
   </Section>
 ));
-
-/** Render a column reference table from column generators */
-export const columnReferenceTable = (
-  columns: Record<string, { label: string; description: string }>,
-): string => {
-  const rows = Object.entries(columns)
-    .map(
-      ([key, col]) =>
-        `<tr>
-          <td><code>{{${key}}}</code></td>
-          <td>${col.label}</td>
-          <td>${col.description}</td>
-        </tr>`,
-    )
-    .join("");
-  return [
-    '<div class="table-scroll">',
-    "<table>",
-    "<thead><tr><th>Tag</th><th>Label</th><th>Description</th></tr></thead>",
-    `<tbody>${rows}</tbody>`,
-    "</table>",
-    "</div>",
-  ].join("");
-};

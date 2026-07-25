@@ -2,16 +2,14 @@
  * Admin guide — Operations sections.
  */
 
-import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
-import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
-import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { attendeeTable } from "#shared/tables/attendee-table.tsx";
+import { listingTable } from "#shared/tables/listing-table.tsx";
 import {
-  columnReferenceTable,
   custom,
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+import { renderColumnReference } from "#templates/components/table.tsx";
 
 /** The "Default order: `<code>`" line a table-columns FAQ answer opens with. */
 const defaultOrderParagraph = (template: string): JSX.Element => (
@@ -133,20 +131,20 @@ export const operationsSections = (): GuideSection[] => [
       custom(
         "listing_table_columns",
         <>
-          {defaultOrderParagraph(COLUMN_LAYOUTS.listing.defaultTemplate)}
-          <Raw html={columnReferenceTable(LISTING_TABLE_COLUMNS)} />
+          {defaultOrderParagraph(listingTable.defaultTemplate)}
+          {renderColumnReference(listingTable)}
         </>,
       ),
       custom(
         "attendee_table_columns",
         <>
-          {defaultOrderParagraph(COLUMN_LAYOUTS.attendee.defaultTemplate)}
+          {defaultOrderParagraph(attendeeTable.defaultTemplate)}
           <p>
             Columns referencing absent data (e.g. <code>{"{{email}}"}</code>{" "}
             when no attendees have an email) are hidden automatically even when
             included in the template.
           </p>
-          <Raw html={columnReferenceTable(ATTENDEE_TABLE_COLUMNS)} />
+          {renderColumnReference(attendeeTable)}
         </>,
       ),
       custom(

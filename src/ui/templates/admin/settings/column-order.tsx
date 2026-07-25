@@ -8,28 +8,27 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
-import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
-import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { attendeeTable } from "#shared/tables/attendee-table.tsx";
+import { listingTable } from "#shared/tables/listing-table.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { textSettingsSection } from "#templates/components/settings-field-section.tsx";
 
 /* jscpd:ignore-end */
 
-const listingDefault = COLUMN_LAYOUTS.listing.defaultTemplate;
-const attendeeDefault = COLUMN_LAYOUTS.attendee.defaultTemplate;
+const listingDefault = listingTable.defaultTemplate;
+const attendeeDefault = attendeeTable.defaultTemplate;
 
 /** Render available column tags as helper text */
 const AvailableTags = ({
   columns,
 }: {
-  columns: Record<string, { label: string }>;
+  columns: { columns: readonly { key: string; label?: string }[] };
 }): JSX.Element => (
   <small>
     {t("settings.column_order.available")}{" "}
-    {Object.keys(columns)
-      .map((key) => `{{${key}}}`)
+    {columns.columns
+      .map((c) => `{{${c.key}}}`)
       .join(", ")}
   </small>
 );
@@ -40,7 +39,7 @@ type ColumnOrderConfig = {
   submitLabelKey: string;
   titleKey: string;
   placeholder: string;
-  columns: Record<string, { label: string }>;
+  columns: { columns: readonly { key: string; label?: string }[] };
   getValue: (s: AdvancedSettingsPageState) => string;
 };
 
@@ -65,7 +64,7 @@ const columnOrderForm = (cfg: ColumnOrderConfig) =>
 
 export const ListingColumnOrderForm = columnOrderForm({
   action: "/admin/settings/listing-column-order",
-  columns: LISTING_TABLE_COLUMNS,
+  columns: listingTable,
   descriptionKey: "settings.column_order.listing_desc",
   getValue: (s) => s.listingColumnOrder,
   placeholder: listingDefault,
@@ -75,7 +74,7 @@ export const ListingColumnOrderForm = columnOrderForm({
 
 export const AttendeeColumnOrderForm = columnOrderForm({
   action: "/admin/settings/attendee-column-order",
-  columns: ATTENDEE_TABLE_COLUMNS,
+  columns: attendeeTable,
   descriptionKey: "settings.column_order.attendee_desc",
   getValue: (s) => s.attendeeColumnOrder,
   placeholder: attendeeDefault,

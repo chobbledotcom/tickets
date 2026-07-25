@@ -4,7 +4,7 @@ import {
   NO_QUANTITY_PREFIX,
   QTY_PREFIX,
 } from "#routes/admin/attendee-form-lines.ts";
-import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
+import { listingTable } from "#shared/tables/listing-table.tsx";
 import { getDb } from "#shared/db/client.ts";
 import {
   activeListingStatsSection,
@@ -267,7 +267,7 @@ describe("adminDashboardPage with column template filters", () => {
       [],
       undefined,
       null,
-      COLUMN_LAYOUTS.listing.parse('{{name}}, {{created | date: "%B %Y"}}'),
+      listingTable.parse('{{name}}, {{created | date: "%B %Y"}}'),
     );
     expect(html).toContain("April 2026");
   });
@@ -283,7 +283,7 @@ describe("adminDashboardPage with column template filters", () => {
       [],
       undefined,
       null,
-      COLUMN_LAYOUTS.listing.parse("{{name}}, {{created}}"),
+      listingTable.parse("{{name}}, {{created}}"),
     );
     // Default uses toLocaleDateString — locale format, not Liquid strftime
     expect(html).toContain("2026");

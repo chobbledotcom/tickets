@@ -15,7 +15,6 @@ import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -30,12 +29,20 @@ import {
   SETTINGS_FORMS,
   type SettingsFormDefinition,
 } from "#shared/settings/forms.ts";
+import { attendeeTable } from "#shared/tables/attendee-table.tsx";
+import { listingTable } from "#shared/tables/listing-table.tsx";
 import {
   isPaymentProvider,
   type PaymentProviderType,
   type Theme,
 } from "#shared/types.ts";
 import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
+
+/** The two configurable admin tables, keyed by their settings column. */
+const COLUMN_LAYOUTS = {
+  attendee: attendeeTable,
+  listing: listingTable,
+} as const;
 
 const formRoute = (definition: SettingsFormDefinition) => ({
   advanced: definition.page === "advanced",
