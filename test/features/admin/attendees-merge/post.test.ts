@@ -3,6 +3,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
+import { setupListingAndDirectAttendee } from "#test/lib/server-attendees/helpers.ts";
+import {
+  getMergeVersion,
+  mergePair,
+  submitMerge,
+} from "#test/lib/server-attendees/merge.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -15,9 +21,8 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { setupListingAndDirectAttendee } from "./helpers.ts";
+
 // jscpd:ignore-end
-import { getMergeVersion, mergePair, submitMerge } from "./merge.ts";
 
 /** Merge a paid source into a target on the same listing with its booking
  *  skipped, choosing `money` ("credit"/"writeoff") for the discarded charge,

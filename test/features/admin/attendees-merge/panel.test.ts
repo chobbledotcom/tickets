@@ -1,6 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setupListingAndDirectAttendee } from "#test/lib/server-attendees/helpers.ts";
+import {
+  assignMergeAnswers,
+  mergePair,
+  mergePairWithQuestion,
+} from "#test/lib/server-attendees/merge.ts";
 import {
   expectHtmlResponse,
   testRequiresAuth,
@@ -14,13 +20,8 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { setupListingAndDirectAttendee } from "./helpers.ts";
+
 // jscpd:ignore-end
-import {
-  assignMergeAnswers,
-  mergePair,
-  mergePairWithQuestion,
-} from "./merge.ts";
 
 /** Fetch the merge Actions page for `target` with `sourceToken` set. */
 const mergeActionsPage = (
