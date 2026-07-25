@@ -4,53 +4,25 @@ import { filter, map, pipe } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
-import {
-  createSystemNote,
-  getNotesForAttendee,
-} from "#shared/db/system-notes.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
-
-/** Post a payment leg for one booking line (no sale leg). Shared by the
- *  balance-refresh setup and the placeholder-reconciliation test so the
- *  mapBooking/postTransfers shape stays in one place. */
-const postPaymentLeg = async (
-  attendeeId: number,
-  amount: number,
-  eventId: string,
-  listingId: number,
-  gross: number,
-): Promise<void> => {
-  await postTransfers(
-    await mapBooking({
-      amountPaid: amount,
-      attendeeId,
-      bookingFee: 0,
-      eventId,
-      lines: [{ gross, listingId }],
-      modifiers: [],
-      occurredAt: OCCURRED_AT,
-    }),
-  );
-};
 
 const setupBalanceRefresh = async (
   balanceSessionId: string,
@@ -298,113 +270,6 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
         false,
       );
-    });
-
-    /** Create a quantity-0 placeholder attendee with a payment leg, finalize
-     *  the payment reference, and optionally run a callback before the refresh.
-     *  Shared by the placeholder reconciliation tests. */
-    const setupPlaceholderForRefresh = async (
-      name: string,
-      email: string,
-      sessionId: string,
-      paymentReference: string,
-      beforeRefresh?: (listingId: number) => Promise<void>,
-    ): Promise<Attendee> => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 800,
-      });
-      const created = await attendeesApi.createAttendeeAtomic({
-        bookings: [
-          {
-            date: "2026-08-01",
-            listingId: listing.id,
-            pricePaid: 0,
-            quantity: 0,
-          },
-        ],
-        email,
-        name,
-        paymentId: paymentReference,
-      });
-      if (!created.success) throw new Error(`setup failed: ${created.reason}`);
-      const attendee = created.attendees[0]!;
-      await postPaymentLeg(attendee.id, 500, sessionId, listing.id, 0);
-      await reserveSession(sessionId);
-      await finalizeReservedPayment(
-        sessionId,
-        attendee.id,
-        "tok-placeholder",
-        paymentReference,
-      );
-      if (beforeRefresh) await beforeRefresh(listing.id);
-      return attendee;
-    };
-
-    /** Submit the refresh with the provider reporting the refund as settled,
-     *  and verify the refund_cash leg was posted to the attendee's account. */
-    const refreshAndVerifyRefundCash = async (
-      attendee: Attendee,
-    ): Promise<void> => {
-      await submitRefreshPayment(attendee, () => Promise.resolve(true));
-      const legs = await transfersByAccount(attendeeAccount(attendee.id));
-      expect(legs.some((leg) => leg.kind === KIND.refundCash)).toBe(true);
-    };
-
-    test("reconciles a quantity-0 placeholder when its refund later settles", async () => {
-      const attendee = await setupPlaceholderForRefresh(
-        "Placeholder",
-        "placeholder@example.com",
-        "placeholder-refresh-session",
-        "pi_placeholder_refresh",
-      );
-      await refreshAndVerifyRefundCash(attendee);
-    });
-
-    test("deletes the stale manual-refund note and adds a confirmation", async () => {
-      const attendee = await setupPlaceholderForRefresh(
-        "Stale Note",
-        "stale-note@example.com",
-        "placeholder-stale-note-session",
-        "pi_stale_note",
-      );
-      // Create the "could NOT be refunded" warning from storeRefundedBooking.
-      const privateKey = await getTestPrivateKey();
-      await createSystemNote(
-        attendee.id,
-        "This booking was kept at quantity 0 but its payment could NOT be refunded automatically because the event filled up while they were paying. Payment reference: pi_stale_note (code: capacity_full). Please refund it manually and check the [ledger](/admin/ledger/attendee/" +
-          attendee.id +
-          ").",
-      );
-
-      await submitRefreshPayment(attendee, () => Promise.resolve(true));
-
-      // The stale "could NOT be refunded" note should be deleted.
-      const notes = await getNotesForAttendee(attendee.id, privateKey);
-      expect(
-        notes.some((note) => note.note.includes("could NOT be refunded")),
-      ).toBe(false);
-      // The confirmation note should be present.
-      expect(notes.some((note) => note.note.includes("Refund confirmed"))).toBe(
-        true,
-      );
-    });
-
-    test("reconciles a placeholder whose listing was since deleted", async () => {
-      const attendee = await setupPlaceholderForRefresh(
-        "Deleted Placeholder",
-        "deleted-listing@example.com",
-        "placeholder-deleted-listing-session",
-        "pi_placeholder_deleted",
-        async (listingId) => {
-          // Delete the listing row only — listing_attendees has no FK to
-          // listings, so the booking row survives with its listing_id.
-          // (deleteListing would cascade to the attendee; this test exercises
-          // the case where only the listing row is gone.)
-          await execute("DELETE FROM listings WHERE id = ?", [listingId]);
-        },
-      );
-      await refreshAndVerifyRefundCash(attendee);
     });
   });
 });
