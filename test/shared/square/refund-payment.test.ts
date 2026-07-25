@@ -1,13 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
+import { stub } from "@std/testing/mock";
+import * as v from "valibot";
 import type { RefundPaymentInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
 import { withSquareClient } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 describeSquare(() => {
+  const errors = setupErrorSpy();
+
   describe("refundPayment", () => {
     test("returns false when access token not set", async () => {
       const result = await squareApi.refundPayment("pay_123");
@@ -38,17 +42,16 @@ describeSquare(() => {
       const retrieveStub = stub(squareApi, "retrievePayment", () =>
         Promise.resolve(null),
       );
-      const errorSpy = spy(console, "error");
       await withMocks(
-        () => ({ errorSpy, retrieveStub }),
+        () => ({ retrieveStub }),
         async () => {
           const result = await squareApi.refundPayment("pay_123");
           expect(result).toBe(false);
           // Prove we reached the null-retrieval branch, not an earlier exit.
           expect(retrieveStub.calls).toHaveLength(1);
           expect(retrieveStub.calls[0]!.args[0]).toBe("pay_123");
-          expect(errorSpy.calls).toHaveLength(1);
-          expect(errorSpy.calls[0]!.args[0]).toBe(
+          expect(errors.calls).toHaveLength(1);
+          expect(errors.calls[0]!.args[0]).toBe(
             '[Error] E_SQUARE_REFUND detail="Cannot refund payment pay_123: missing amount info"',
           );
         },
@@ -151,6 +154,9 @@ describeSquare(() => {
         async () => {
           const result = await squareApi.refundPayment("pay_fail");
           expect(result).toBe(false);
+          expect(errors.lastMessage()).toBe(
+            '[Error] E_SQUARE_REFUND detail="Status code: 500 Body: ..."',
+          );
         },
       );
     });
@@ -238,11 +244,11 @@ describeSquare(() => {
     test("throws when the refund amount does not match the payment", async () => {
       await expect(
         refundOutcomeFor({
-          amount_money: { amount: 999, currency: "GBP" },
+          amount_money: { amount: 0, currency: "GBP" },
           id: "ref_wrong_amount",
           status: "COMPLETED",
         }),
-      ).rejects.toThrow("amount");
+      ).rejects.toThrow("does not match payment amount");
     });
 
     test("throws when the refund currency does not match the payment", async () => {
@@ -276,21 +282,15 @@ describeSquare(() => {
     test("throws for an APPROVED status (not a PaymentRefund status)", async () => {
       // APPROVED is in Square's RefundStatus ENUM but NOT the PaymentRefund
       // object's status field. The picklist rejects undocumented statuses.
-      await expectMalformedThrows({
-        refund: { id: "ref_approved", status: "APPROVED" },
-      });
+      await expectMalformedThrows(malformedRefund({ status: "APPROVED" }));
     });
 
     test("throws for a SUCCEEDED status (not a Square refund status)", async () => {
-      await expectMalformedThrows({
-        refund: { id: "ref_succeeded", status: "SUCCEEDED" },
-      });
+      await expectMalformedThrows(malformedRefund({ status: "SUCCEEDED" }));
     });
 
     test("throws for an unknown refund status", async () => {
-      await expectMalformedThrows({
-        refund: { id: "ref_unknown", status: "WAT" },
-      });
+      await expectMalformedThrows(malformedRefund({ status: "WAT" }));
     });
 
     test("accepts a 1-character id (minLength boundary)", async () => {
@@ -321,29 +321,53 @@ describeSquare(() => {
         async () => {
           // A malformed response throws (ValiError from v.parse) OUTSIDE
           // withClient — it fails loudly instead of normalizing to false.
-          await expect(squareApi.refundPayment(paymentId)).rejects.toThrow();
+          await expect(squareApi.refundPayment(paymentId)).rejects.toThrow(
+            v.ValiError,
+          );
         },
       );
     };
+
+    const malformedRefund = (
+      overrides: Record<string, unknown>,
+    ): Record<string, unknown> => ({
+      refund: {
+        amount_money: { amount: 1500, currency: "USD" },
+        id: "ref_malformed",
+        payment_id: "pay_malformed",
+        status: "COMPLETED",
+        ...overrides,
+      },
+    });
 
     test("throws when the response has no refund object", async () => {
       await expectMalformedThrows({});
     });
 
     test("throws when the refund object has no id", async () => {
-      await expectMalformedThrows({ refund: { status: "COMPLETED" } });
+      await expectMalformedThrows(malformedRefund({ id: undefined }));
     });
 
     test("throws when the refund id is an empty string", async () => {
-      await expectMalformedThrows({ refund: { id: "", status: "PENDING" } });
+      await expectMalformedThrows(malformedRefund({ id: "" }));
     });
 
     test("throws when the refund object has no status", async () => {
-      await expectMalformedThrows({ refund: { id: "ref_no_status" } });
+      await expectMalformedThrows(malformedRefund({ status: undefined }));
     });
 
     test("throws when the refund id is a non-string type", async () => {
-      await expectMalformedThrows({ refund: { id: 123, status: "COMPLETED" } });
+      await expectMalformedThrows(malformedRefund({ id: 123 }));
+    });
+
+    test("throws when the refund payment id is empty", async () => {
+      await expectMalformedThrows(malformedRefund({ payment_id: "" }));
+    });
+
+    test("throws when the refund currency is empty", async () => {
+      await expectMalformedThrows(
+        malformedRefund({ amount_money: { amount: 1500, currency: "" } }),
+      );
     });
   });
 });

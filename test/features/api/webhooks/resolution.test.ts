@@ -159,6 +159,34 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
     expect(errors.contains(`listing=${listing.id}`)).toBe(true);
   });
 
+  test("acknowledges a stored booking after its refund attempt fails", async () => {
+    await setupStripe();
+    const listing = await createSoldOutListing();
+    const refund = stub(stripePaymentProvider, "refundPayment", () =>
+      Promise.resolve(false),
+    );
+    const refundStatus = stub(stripePaymentProvider, "isPaymentRefunded", () =>
+      Promise.resolve(false),
+    );
+    const resolve = stubPaidSession({
+      id: "cs_unrefunded",
+      listing,
+      paymentIntent: "pi_unrefunded",
+    });
+    try {
+      const response = await stripeWebhookResponse(resolve, "evt_unrefunded");
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        error: expect.stringContaining("refund is being arranged"),
+        processed: false,
+        received: true,
+      });
+    } finally {
+      refundStatus.restore();
+      refund.restore();
+    }
+  });
+
   test("processes a paid session and returns processed: true", async () => {
     await setupStripe();
     const listing = await createTestListing({
