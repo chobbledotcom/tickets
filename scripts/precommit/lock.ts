@@ -9,6 +9,10 @@ export const precommitLockPath = (
 
 const PRECOMMIT_LOCK_PATH = precommitLockPath(tmpdir(), userInfo().uid);
 
+export const precommitLockAt =
+  (path: string): (<T>(task: () => Promise<T>) => Promise<T>) =>
+  <T>(task: () => Promise<T>): Promise<T> =>
+    withFileLock(path, task);
+
 /** Prevent this user from running either precommit gate concurrently. */
-export const withPrecommitLock = <T>(task: () => Promise<T>): Promise<T> =>
-  withFileLock(PRECOMMIT_LOCK_PATH, task);
+export const withPrecommitLock = precommitLockAt(PRECOMMIT_LOCK_PATH);
