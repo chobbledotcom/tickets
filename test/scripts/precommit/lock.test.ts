@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { removeIfPresent } from "#scripts/cleanup.ts";
 import { withPrecommitLock } from "#scripts/precommit/lock.ts";
 
@@ -74,14 +75,38 @@ describe("withPrecommitLock", () => {
     const holder = startHolder(HOLD_LOCK_SCRIPT);
     await waitUntilLocked(holder);
 
-    let ran = false;
-    const waiting = withPrecommitLock(async () => {
-      ran = true;
-    }, LOCK_PATH);
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
-    expect(ran).toBe(false);
+    const lockAttempted = Promise.withResolvers<void>();
+    const open = Deno.open;
+    const openStub = stub(
+      Deno,
+      "open",
+      async (
+        path: string | URL,
+        options?: Deno.OpenOptions,
+      ): Promise<Deno.FsFile> => {
+        const file = await open(path, options);
+        const lock = file.lock.bind(file);
+        file.lock = (exclusive?: boolean): Promise<void> => {
+          lockAttempted.resolve();
+          return lock(exclusive);
+        };
+        return file;
+      },
+    );
 
-    await releaseHolder(holder);
+    let ran = false;
+    let waiting: Promise<void> = Promise.resolve();
+    try {
+      waiting = withPrecommitLock(async () => {
+        ran = true;
+      }, LOCK_PATH);
+      await lockAttempted.promise;
+      expect(ran).toBe(false);
+    } finally {
+      openStub.restore();
+      await releaseHolder(holder);
+    }
+
     await waiting;
     expect(ran).toBe(true);
   });

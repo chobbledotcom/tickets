@@ -26,6 +26,12 @@ describe("resolveDenoJobs", () => {
     expect(resolveDenoJobs(16, true, "1")).toBe(undefined);
   });
 
+  test("replaces invalid DENO_JOBS values with the capped count", () => {
+    for (const value of ["", "0", "-1", "2.5", "not-a-number"]) {
+      expect(resolveDenoJobs(16, false, value)).toBe(7);
+    }
+  });
+
   test("returns the CI worker count when unset in CI", () => {
     expect(resolveDenoJobs(16, true, undefined)).toBe(16);
   });

@@ -216,7 +216,7 @@ Prices are in the smallest currency unit (e.g. pence, cents). For multi-listing 
 - Three-layer key hierarchy: env var root key → RSA key pair → per-user wrapped data keys
 - The data key is wrapped with a key derived from the admin password (never stored), so a database dump plus the environment key still can't decrypt PII without a login
 - Activity log entries are encrypted with the owner's public key: unauthenticated code (webhooks, error handlers) can write them, but only a logged-in admin can read them
-- If no other keyed role (owner, manager, or agent) or recovery owner exists, losing the last keyed password makes the protected data unreadable
+- If no other keyed role (owner, manager, or agent), recovery owner, or active API key exists, losing the last keyed password makes the protected data unreadable
 
 ### Concurrency
 
