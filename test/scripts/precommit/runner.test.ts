@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { runChecksBeforePush } from "#scripts/precommit/runner.ts";
+import { runChecksBeforePush } from "#scripts/precommit/run-order.ts";
 
 describe("runChecksBeforePush", () => {
   test("releases the local lock before starting the push flow", async () => {

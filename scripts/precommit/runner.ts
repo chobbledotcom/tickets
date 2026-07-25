@@ -5,6 +5,7 @@ import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
 import { withPrecommitLock } from "./lock.ts";
 import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
+import { runChecksBeforePush } from "./run-order.ts";
 import { getSteps, type Step } from "./steps.ts";
 import {
   canPrompt,
@@ -92,21 +93,6 @@ const runStep = async (step: Step): Promise<boolean> => {
   return success;
 };
 
-/**
- * Run the heavy checks under the cross-worktree lock, then release it before
- * the optional push prompt. CI jobs are already isolated and skip the lock.
- */
-export const runChecksBeforePush = async (
-  ci: boolean,
-  checks: () => Promise<void>,
-  push: () => Promise<void>,
-  lock: (task: () => Promise<void>) => Promise<void> = withPrecommitLock,
-): Promise<void> => {
-  if (ci) await checks();
-  else await lock(checks);
-  await push();
-};
-
 const runSteps = async (): Promise<void> => {
   const steps = getSteps();
   for (const step of steps) {
@@ -147,5 +133,10 @@ export const main = async (): Promise<void> => {
   if (jobs !== undefined) Deno.env.set("DENO_JOBS", String(jobs));
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
   await warnAboutMergeConflicts();
-  await runChecksBeforePush(ci, runSteps, pushCheckedInChanges);
+  await runChecksBeforePush(
+    ci,
+    runSteps,
+    pushCheckedInChanges,
+    withPrecommitLock,
+  );
 };
