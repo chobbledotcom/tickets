@@ -15,7 +15,7 @@ import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -29,6 +29,7 @@ import {
 } from "#shared/db/payment-references.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { legMatches } from "#shared/ledger/legs.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 /* jscpd:ignore-start */
@@ -112,6 +113,19 @@ const recordConfirmedRefund = async (
   listingId: number,
   references: readonly RefundPaymentReference[],
 ): Promise<Response | null> => {
+  // Check if this is a payment-only placeholder BEFORE posting the refund —
+  // afterward the new refund_cash leg would make the "only payment legs" check
+  // fail. A placeholder has ONLY provider-payment legs (from world, kind =
+  // payment), no sale/fee/adjustment. A surcharge-only order (payment + fee)
+  // is NOT a placeholder, so the note is not created for it. This matches the
+  // isPaymentOnlyPlaceholder check in refund-ledger.ts.
+  const legsBeforeRefund = await transfersByAccount(
+    attendeeAccount(attendeeId),
+  );
+  const isProviderPayment = legMatches({ from: WORLD, kind: KIND.payment });
+  const isPlaceholder =
+    legsBeforeRefund.length > 0 && legsBeforeRefund.every(isProviderPayment);
+
   const { posted } = await recordAttendeeRefund(attendeeId, references);
   await logActivity(
     `Payment marked as refunded for attendee '${attendee.name}'`,
@@ -124,14 +138,7 @@ const recordConfirmedRefund = async (
       t("error.refund_not_recorded"),
     );
   }
-  // Only add the resolving note for a placeholder — one whose ledger has NO
-  // sale legs (only payment legs, the signature of a storeRefundedBooking
-  // placeholder). A normal attendee (or one that gained a real booking after
-  // the placeholder was created) has sale legs, so the note is not created;
-  // this checks the authoritative ledger state, not the booking quantities.
-  const legs = await transfersByAccount(attendeeAccount(attendeeId));
-  const hasSaleLeg = legs.some((leg) => leg.kind === KIND.sale);
-  if (!hasSaleLeg) {
+  if (isPlaceholder) {
     await createSystemNote(attendeeId, t("note.placeholder_refund_confirmed"));
   }
   return null;

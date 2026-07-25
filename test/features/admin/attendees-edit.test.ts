@@ -303,7 +303,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       email: string,
       sessionId: string,
       paymentReference: string,
-      beforeRefresh?: () => Promise<void>,
+      beforeRefresh?: (listingId: number) => Promise<void>,
     ): Promise<Attendee> => {
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -332,7 +332,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "tok-placeholder",
         paymentReference,
       );
-      if (beforeRefresh) await beforeRefresh();
+      if (beforeRefresh) await beforeRefresh(listing.id);
       return attendee;
     };
 
@@ -362,8 +362,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "deleted-listing@example.com",
         "placeholder-deleted-listing-session",
         "pi_placeholder_deleted",
-        async () => {
-          await execute("DELETE FROM listings WHERE id = ?", [0]);
+        async (listingId) => {
+          // Delete the listing row only — listing_attendees has no FK to
+          // listings, so the booking row survives with its listing_id.
+          // (deleteListing would cascade to the attendee; this test exercises
+          // the case where only the listing row is gone.)
+          await execute("DELETE FROM listings WHERE id = ?", [listingId]);
         },
       );
       await refreshAndVerifyRefundCash(attendee);
