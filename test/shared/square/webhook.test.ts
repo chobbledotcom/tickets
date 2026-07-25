@@ -169,13 +169,10 @@ describeSquare(() => {
         notificationUrl,
       );
 
-      // Verify payload is valid JSON matching input
-      const parsed = JSON.parse(payload);
-      expect(parsed.id).toBe("evt_constructed");
-      expect(parsed.type).toBe("payment.updated");
-
-      // Signature should be base64-encoded
-      expect(signature).toMatch(/^[A-Za-z0-9+/]+=*$/);
+      expect(payload).toBe(
+        '{"data":{"object":{"id":"pay_123","status":"COMPLETED"}},"id":"evt_constructed","type":"payment.updated"}',
+      );
+      expect(signature).toBe("1qV7bElBeg7e1tQ/IQSeIzgQMyFmpiVC5Q2jYS6r+ZU=");
 
       // Signature should be verifiable with the same secret (stored in DB)
       await settings.update.square.webhookSignatureKey(secret);

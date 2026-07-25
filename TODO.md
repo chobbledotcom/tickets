@@ -1579,18 +1579,6 @@ file, delete parallel cases from the older suites, and split the remaining
 provider tests by operation until each file is near or below 400 lines. Keep
 one shared fixture/helper rather than adapting duplicate test paths.
 
-## Restore a fixed Square webhook signature vector
-
-*Origin: branch review of `split/authoritative-payment-callbacks`.*
-
-`test/shared/square/webhook.test.ts` now generates and verifies its positive
-signature with production functions that share the same signing code. A
-matching serialization or HMAC protocol bug in both functions remains green.
-Starting point: restore exact assertions for the serialized payload and a
-fixed expected base64 signature produced from a known secret, notification
-URL, and payload. Keep the round-trip assertion too, but do not let it replace
-the independent known-answer vector.
-
 ## Prove an empty payment reference never reaches a provider
 
 *Origin: branch review of `split/authoritative-payment-callbacks`.*
