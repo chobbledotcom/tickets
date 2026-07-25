@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-all
+
 /**
  * Focused test runner: reuses the full runner's setup (built static assets +
  * stripe-mock, via the shared test harness) but runs only the test files
@@ -13,7 +14,23 @@
  * flags such as `--filter` all work. At least one argument is required.
  */
 
+import {
+  type FocusedTargets,
+  focusedTargets,
+  shouldRunFocusedSpecs,
+} from "./specs/options.ts";
 import { runTests, withTestHarness } from "./test-harness.ts";
+
+const runFocusedSpecs = async (targets: FocusedTargets): Promise<number> => {
+  if (!shouldRunFocusedSpecs(targets)) return 0;
+  const { runSpecs } = await import("./specs/run.ts");
+  const result = await runSpecs({
+    ...(targets.specPaths.length > 0 ? { paths: targets.specPaths } : {}),
+    reports: false,
+    ...(targets.tags === undefined ? {} : { tags: targets.tags }),
+  });
+  return result.success ? 0 : 1;
+};
 
 const main = async (): Promise<void> => {
   if (Deno.args.length === 0) {
@@ -23,7 +40,14 @@ const main = async (): Promise<void> => {
     Deno.exit(1);
   }
 
-  const exitCode = await withTestHarness(() => runTests(Deno.args, false));
+  const targets = focusedTargets(Deno.args);
+  const exitCode = await withTestHarness(async () => {
+    if (targets.testArgs.length > 0) {
+      const testCode = await runTests(targets.testArgs, false);
+      if (testCode !== 0) return testCode;
+    }
+    return runFocusedSpecs(targets);
+  });
   Deno.exit(exitCode);
 };
 

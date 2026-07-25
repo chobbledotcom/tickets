@@ -1,9 +1,11 @@
+import { partition } from "#fp";
 import {
   type BiomeCommand,
   resolveBiomeCommand,
 } from "#scripts/biome-command.ts";
 import { commandExitCode } from "#scripts/deno-command.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { isFeaturePath } from "#scripts/specs/paths.ts";
 import { stripeMockEnv } from "#scripts/stripe-mock.ts";
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
@@ -101,26 +103,44 @@ export const createStaticGates = async (
   deps: StaticGateDeps = realGateDeps,
 ): Promise<StaticGate[]> => [await createLinter(deps), createTypeChecker(deps)];
 
-const runTestBatch: TestBatchRunner = (batch, signal, env) =>
-  denoExitCode(
-    [
-      "test",
-      "--no-check",
-      "--allow-all",
-      "--parallel",
-      "--preload",
-      "./test/test-utils/preload.ts",
-      "--v8-flags=--expose-gc",
-      ...batch,
-    ],
-    {
-      cwd: projectRoot,
-      env,
-      signal,
-      stderr: "null",
-      stdout: "null",
-    },
-  );
+const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
+  const [features, direct] = partition(isFeaturePath)(batch);
+  const options = {
+    cwd: projectRoot,
+    env,
+    signal,
+    stderr: "null",
+    stdout: "null",
+  } as const;
+  if (direct.length > 0) {
+    const code = await denoExitCode(
+      [
+        "test",
+        "--no-check",
+        "--allow-all",
+        "--parallel",
+        "--preload",
+        "./test/test-utils/preload.ts",
+        "--v8-flags=--expose-gc",
+        ...direct,
+      ],
+      options,
+    );
+    if (code !== 0) return code;
+  }
+  return features.length === 0
+    ? 0
+    : await denoExitCode(
+        [
+          "run",
+          "--v8-flags=--expose-gc",
+          "-A",
+          "./scripts/run-specs.ts",
+          ...features,
+        ],
+        options,
+      );
+};
 
 export interface TestExecutionDeps {
   runBatch: TestBatchRunner;
@@ -182,7 +202,8 @@ export const runTests = async (
   else signal.addEventListener("abort", forwardAbort, { once: true });
   const startedAt = performance.now();
   try {
-    const cursor = { batches: batchTestFiles(testFiles), next: 0 };
+    const [features, direct] = partition(isFeaturePath)(testFiles);
+    const cursor = { batches: batchTestFiles(direct), next: 0 };
     const context = { controller, deps, env, signal };
     const jobs = Math.min(
       Math.max(1, batchJobs),
@@ -191,11 +212,14 @@ export const runTests = async (
     const outcomes = await Promise.all(
       Array.from({ length: jobs }, () => runBatchWorker(cursor, context)),
     );
-    const outcome = outcomes.includes("failed")
+    let outcome: Outcome = outcomes.includes("failed")
       ? "failed"
       : outcomes.includes("timed-out")
         ? "timed-out"
         : "passed";
+    if (outcome === "passed" && features.length > 0) {
+      outcome = (await runOneBatch(features, context)) ?? "passed";
+    }
     return { durationMs: performance.now() - startedAt, outcome };
   } finally {
     signal.removeEventListener("abort", forwardAbort);

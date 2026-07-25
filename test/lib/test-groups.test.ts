@@ -6,7 +6,6 @@ import {
   defaultGroupCount,
   GROUPS_DIR,
   mustRunAlone,
-  parseWorkerCount,
   planTestGroups,
   RUN_ALONE_MARKER,
   renderGroupEntry,
@@ -14,6 +13,7 @@ import {
   shardRoundRobin,
   writeTestGroups,
 } from "#scripts/test-groups.ts";
+import { parseWorkerCount } from "#scripts/workers.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withTempDir } from "#test-utils/files.ts";
 

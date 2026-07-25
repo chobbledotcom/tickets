@@ -1,6 +1,6 @@
-import { isAbsolute, relative } from "node:path";
 import { filter, map, sort, unique } from "#fp";
-import { projectRoot } from "#scripts/project-root.ts";
+import { inProjectFolders, relativeToProject } from "#scripts/path.ts";
+import { isFeaturePath } from "#scripts/specs/paths.ts";
 
 export interface SourceTestTarget {
   directTestFiles: string[];
@@ -12,17 +12,15 @@ export interface MutationTestMap {
   targets: SourceTestTarget[];
 }
 
-const INTEGRATION_TEST_PREFIXES = ["test/e2e/", "test/integration/"];
-
-const normalizePath = (path: string): string => path.replace(/\\/g, "/");
-
-const relativeToProject = (path: string): string => {
-  const normalized = normalizePath(path);
-  const projectPath = isAbsolute(normalized)
-    ? relative(projectRoot, normalized)
-    : normalized;
-  return normalizePath(projectPath).replace(/^\.\//, "");
-};
+const isIntegrationTest = inProjectFolders([
+  "specs",
+  "test/e2e",
+  "test/integration",
+]);
+const isSharedSpecCode = inProjectFolders([
+  "test/specs/steps",
+  "test/specs/support",
+]);
 
 const testPrefix = (sourceFile: string): string =>
   relativeToProject(sourceFile)
@@ -34,18 +32,9 @@ const ownsTest = (prefix: string, testFile: string): boolean => {
   return base === prefix || base.startsWith(`${prefix}/`);
 };
 
-const isIntegrationTest = (testFile: string): boolean => {
-  const path = relativeToProject(testFile);
-  return (
-    filter((prefix: string) => path.startsWith(prefix))(
-      INTEGRATION_TEST_PREFIXES,
-    ).length > 0
-  );
-};
-
-/** Select every direct test for the changed sources, plus only the integration
- * tests changed on this branch. Tests for scripts, test helpers, and unchanged
- * sources are outside this src mutation run. */
+/** Select every direct test for the changed sources, plus broad integration
+ * tests changed on this branch. Changed shared Cucumber code selects every
+ * Feature because any story may use it. */
 export const selectMutationTests = (
   sourceFiles: string[],
   allTestFiles: string[],
@@ -57,7 +46,11 @@ export const selectMutationTests = (
       !isIntegrationTest(testFile) &&
       prefixes.some((prefix) => ownsTest(prefix, testFile)),
   )(allTestFiles);
-  return unique([...direct, ...filter(isIntegrationTest)(changedTestFiles)]);
+  const changedIntegration = filter(isIntegrationTest)(changedTestFiles);
+  const affectedFeatures = changedTestFiles.some(isSharedSpecCode)
+    ? filter(isFeaturePath)(allTestFiles)
+    : [];
+  return unique([...direct, ...changedIntegration, ...affectedFeatures]);
 };
 
 interface OwnedTest {
@@ -81,8 +74,8 @@ const ownedTest =
     testFile,
   });
 
-/** Pair selected sources with their mirrored tests. Only tests in the explicit
- * integration/e2e folders may remain unmatched. */
+/** Pair selected sources with their mirrored tests. Only explicit
+ * integration/e2e/Cucumber paths may remain unmatched. */
 export const buildMutationTestMap = (
   sourceFiles: string[],
   testFiles: string[],
@@ -97,7 +90,7 @@ export const buildMutationTestMap = (
   if (misplaced.length > 0) {
     throw new Error(
       "Mutation tests must mirror a selected source or live under " +
-        `test/integration/ or test/e2e/:\n${map(relativeToProject)(misplaced).join("\n")}`,
+        `specs/, test/integration/, or test/e2e/:\n${map(relativeToProject)(misplaced).join("\n")}`,
     );
   }
   return {

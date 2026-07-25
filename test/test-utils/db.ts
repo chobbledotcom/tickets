@@ -1,9 +1,11 @@
-import { createClient } from "@libsql/client";
+import { type Client, createClient } from "@libsql/client";
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { lazyRef } from "#fp";
+import { runCleanups } from "#scripts/cleanup.ts";
 import { invalidateCachesForTable } from "#shared/cache-registry.ts";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { getDb, queryOne, setDb } from "#shared/db/client.ts";
+import { queryOne, setDb } from "#shared/db/client.ts";
 import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings/records.ts";
@@ -15,7 +17,6 @@ import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
-import { getEnv } from "#shared/env.ts";
 import { setStorageConfigForTest } from "#shared/storage.ts";
 import {
   type EnvScope,
@@ -48,7 +49,32 @@ import {
   setSetupState,
 } from "#test-utils/test-state.ts";
 
+interface TestDbResource {
+  client: Client;
+  env: EnvScope;
+  path: string;
+}
+
+const [getTestDbResource, setTestDbResource] = lazyRef<TestDbResource | null>(
+  () => null,
+);
+
+const cleanupUnlessKept = (
+  cleanup: () => void,
+): Disposable & {
+  keep(): void;
+} => {
+  const state = { cleanup };
+  return {
+    keep: () => {
+      state.cleanup = () => {};
+    },
+    [Symbol.dispose]: () => state.cleanup(),
+  };
+};
+
 const prepareTestClient = async (triggers = false): Promise<void> => {
+  if (getTestDbResource()) resetDb();
   // Keep libsql's leaked file descriptors from exhausting the process limit
   // under high `--parallel` worker counts (see reclaim-fds.ts).
   maybeReclaimLeakedFds();
@@ -75,15 +101,18 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   const goldenPath = await getOrCreateGoldenDb();
   const path = await createTrackedTestDbFile(".db");
   await Deno.copyFile(goldenPath, path);
-  withEnv({
+  const env = withEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
   const client = createClient({ url: `file:${path}` });
+  setTestDbResource({ client, env, path });
+  using rollback = cleanupUnlessKept(resetDb);
   setDb(client);
   // journal_mode persists in the SQLite header from the golden; synchronous=OFF
   // is per-connection only and must be re-applied.
   await client.executeMultiple("PRAGMA synchronous=OFF;");
+  rollback.keep();
 };
 
 export const createTestDb = async (triggers = false): Promise<void> => {
@@ -130,52 +159,73 @@ export const createTestDbWithSetup = async (
 ): Promise<void> => {
   await prepareTestClient(triggers);
   resetTestSession();
-
+  using rollback = cleanupUnlessKept(resetDb);
   // Replay captured setup rows (isolate cache or the run-wide snapshot) in one
   // batch rather than re-running the ceremony's hashing and key generation.
   const reusable = reusableSetupState(country);
-  if (reusable) {
-    await replaySetupState(reusable);
-    return;
+  if (reusable) await replaySetupState(reusable);
+  else {
+    const { state, liveSession } = await runSetupCeremony(country);
+    setSetupState(state);
+    setTestSession(liveSession);
   }
-
-  const { state, liveSession } = await runSetupCeremony(country);
-  setSetupState(state);
-  setTestSession(liveSession);
+  rollback.keep();
 };
 
-/** Close the active test client and delete its temp DB file. Best-effort: the
- *  container is ephemeral, so a missed unlink just lingers until teardown. */
+/** Close and remove the exact database resource created for this test. */
 const cleanupTestDbFile = (): void => {
-  const url = getEnv("DB_URL");
-  if (!url?.startsWith("file:")) return;
+  const resource = getTestDbResource();
+  if (!resource) return;
   try {
-    getDb().close();
-  } catch {
-    // client already closed or never opened
+    resource.client.close();
+  } finally {
+    try {
+      resource.env.dispose();
+    } finally {
+      try {
+        cleanupTestDbPath(resource.path);
+      } finally {
+        setTestDbResource(null);
+      }
+    }
   }
-  cleanupTestDbPath(url.slice("file:".length));
 };
 
 export const resetDb = (): void => {
-  cleanupTestDbFile();
-  setDb(null);
-  settings.setup.clearCache();
-  settings.invalidateCache();
-  invalidateUsersCache();
-  invalidateListingsCache();
-  holidays.invalidate();
-  groups.cache.invalidate();
-  logisticsAgents.invalidate();
-  attendeeStatuses.invalidate();
-  invalidateCachesForTable("sessions");
-  setTestSession(null);
-  setDemoModeForTest(false);
-  resetEffectiveDomain();
-  resetHostEmailConfig();
-  settings.appleWallet.resetHostConfig();
-  settings.googleWallet.resetHostConfig();
-  settings.clearTestOverrides();
+  try {
+    cleanupTestDbFile();
+  } finally {
+    setDb(null);
+    settings.setup.clearCache();
+    settings.invalidateCache();
+    invalidateUsersCache();
+    invalidateListingsCache();
+    holidays.invalidate();
+    groups.cache.invalidate();
+    logisticsAgents.invalidate();
+    attendeeStatuses.invalidate();
+    invalidateCachesForTable("sessions");
+    setTestSession(null);
+    setDemoModeForTest(false);
+    resetEffectiveDomain();
+    resetHostEmailConfig();
+    settings.appleWallet.resetHostConfig();
+    settings.googleWallet.resetHostConfig();
+    settings.clearTestOverrides();
+  }
+};
+
+/** Set up the standard configured-site database used by integration tests.
+ * Returns the one cleanup that must run after the test or Cucumber Scenario. */
+export const setupTestDbEnvironment = async (
+  triggers = false,
+): Promise<() => void> => {
+  resetTestSlugCounter();
+  setHostEmailConfigForTest(null);
+  settings.appleWallet.setHostConfigForTest(null);
+  settings.googleWallet.setHostConfigForTest(null);
+  await createTestDbWithSetup("GB", triggers);
+  return resetDb;
 };
 
 /**
@@ -226,35 +276,32 @@ export const describeWithEnv = (
   fn: () => void,
 ): void => {
   describe(name, () => {
+    let cleanupDb: (() => void) | undefined;
     let env: EnvScope | undefined;
     let storageDir: TempPath | undefined;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
-        resetTestSlugCounter();
-        setHostEmailConfigForTest(null);
-        settings.appleWallet.setHostConfigForTest(null);
-        settings.googleWallet.setHostConfigForTest(null);
-        await createTestDbWithSetup("GB", options.triggers ?? false);
+        cleanupDb = await setupTestDbEnvironment(options.triggers ?? false);
       }
       if (options.env) env = withEnv(options.env);
       storageDir = applyStorageConfig(options.storage);
     });
-    // Register the suite body before this suite's own afterEach. Sibling
-    // afterEach hooks run in registration order, so a nest of `withEnv` scopes
-    // opened inside the body must dispose BEFORE the env layer created here —
-    // otherwise the inner scope's dispose restores the stale "env on" layer
-    // *after* this afterEach cleared it, leaving the overlay leaking the
-    // suite's env (e.g. CAN_BUILD_SITES="true") into the next suite. Putting
-    // `fn()` first makes this teardown the last to run, matching the standard
-    // inner-then-outer contract BDD suites already assume.
+    // Register this teardown after nested suite hooks so inner env scopes close
+    // before this suite restores its outer database and env layers.
     fn();
-    afterEach(() => {
-      if (options.db) resetDb();
-      env?.dispose();
+    afterEach(async () => {
+      const dbCleanup = cleanupDb;
+      const envCleanup = env;
+      const currentStorageDir = storageDir;
+      cleanupDb = undefined;
       env = undefined;
-      teardownStorageConfig(storageDir);
       storageDir = undefined;
+      await runCleanups([
+        () => teardownStorageConfig(currentStorageDir),
+        ...(envCleanup ? [() => envCleanup.dispose()] : []),
+        ...(dbCleanup ? [dbCleanup] : []),
+      ]);
     });
     // A small suite may never reach the amortised reclaim threshold, so hand
     // back its leaked descriptors when it finishes (see reclaim-fds.ts).

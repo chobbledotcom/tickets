@@ -17,6 +17,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectAttendeeCreatedWithPiiBlob,
+  expectSessionFailed,
   expectWebhookProcessed,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
@@ -28,6 +29,12 @@ describeWithEnv(
   "server webhooks > refund helper functions",
   { db: true },
   () => {
+    test("missing terminal payment records fail loudly", async () => {
+      await expect(expectSessionFailed("missing-session")).rejects.toThrow(
+        "Processed payment missing-session was not stored",
+      );
+    });
+
     test("tryRefund returns false when paymentReference is empty", async () => {
       await setupStripe();
 

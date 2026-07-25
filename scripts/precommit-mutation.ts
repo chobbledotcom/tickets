@@ -4,7 +4,8 @@
  *
  * Mutation-tests every `src/` file this branch changed (vs origin/main) and
  * demands a 100% kill rate. Mirrored direct tests run first for their source;
- * explicit integration/e2e tests run only for direct-test survivors. See
+ * explicit integration/e2e/Cucumber tests run only for direct-test survivors.
+ * Changed shared Cucumber code selects every Feature. See
  * ./precommit/mutation-step.ts for selection details.
  *
  * Real git and mutation-runner wiring lives here, away from the unit-tested
@@ -17,6 +18,7 @@ import { runMutationInSnapshot } from "./mutation/isolation.ts";
 import { runCommand } from "./precommit/git.ts";
 import { runMutationStep } from "./precommit/mutation-step.ts";
 import { projectRoot } from "./project-root.ts";
+import { collectFeaturePaths } from "./specs/catalog.ts";
 import { collectTestFiles } from "./test-groups.ts";
 
 /** Per-mutant timeout floor; mirrors `deno task mutation`'s default. */
@@ -36,9 +38,10 @@ const mutationArgs = (sources: string[], tests: string[]): string[] => [
 if (import.meta.main) {
   const code = await runMutationStep({
     allTestFiles: async () =>
-      (await collectTestFiles(projectRoot)).map((path) =>
-        relative(projectRoot, path),
-      ),
+      [
+        ...(await collectTestFiles(projectRoot)),
+        ...(await collectFeaturePaths()),
+      ].map((path) => relative(projectRoot, path)),
     log: (message) => console.log(message),
     run: runCommand,
     runMutation: ({ sources, tests }) =>

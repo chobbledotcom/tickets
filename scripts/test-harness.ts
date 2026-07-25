@@ -254,20 +254,29 @@ export const runSuiteWithHarness = async (
   // permissions) must surface rather than leave a stale JUnit file behind.
   await Deno.remove(JUNIT_PATH).catch(rethrowUnlessNotFound);
   return withTestHarness(async () => {
+    let testCode: number;
     if (Deno.env.get("TICKETS_TEST_UNGROUPED") === "1") {
-      return runTests(["test/"], useCoverage, JUNIT_PATH);
+      testCode = await runTests(["test/"], useCoverage, JUNIT_PATH);
+    } else {
+      const { writeTestGroups } = await import("./test-groups.ts");
+      const groups = await writeTestGroups(projectRoot);
+      try {
+        testCode = await runTests(
+          groups.runArgs,
+          useCoverage,
+          JUNIT_PATH,
+          groups.testFiles,
+        );
+      } finally {
+        await groups.cleanup();
+      }
     }
-    const { writeTestGroups } = await import("./test-groups.ts");
-    const groups = await writeTestGroups(projectRoot);
-    try {
-      return await runTests(
-        groups.runArgs,
-        useCoverage,
-        JUNIT_PATH,
-        groups.testFiles,
-      );
-    } finally {
-      await groups.cleanup();
-    }
+    if (testCode !== 0) return testCode;
+
+    // Acceptance stories run in this harness process after direct Deno tests.
+    // Their behavior is required, but their execution never fills a gap in the
+    // direct suite's separately-enforced 100% coverage.
+    const { runSpecs } = await import("./specs/run.ts");
+    return (await runSpecs()).success ? 0 : 1;
   });
 };

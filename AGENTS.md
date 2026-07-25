@@ -696,6 +696,9 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task test` - Run the full suite
 - `deno task test:coverage` - Run the full suite with coverage
 - `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
+- `deno task specs` - Run every Cucumber Feature through the shared test harness and write ignored Messages, HTML, and JUnit reports under `reports/`
+- `deno task specs:check` - Parse every Feature and validate the strict authored profile and stable catalog
+- `deno task specs:files <feature>... [--tags <expression>]` - Run selected Features through the shared harness
 - `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
 - `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code that *would* be reformatted, without touching the checkout. This is the lint `deno task precommit` runs in **every** environment, so a clean `precommit` locally means the lint step will pass in CI too. Run `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
@@ -703,7 +706,7 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task restore <backup.zip>` - Restore the database named by `DB_URL` / `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Shows the backup details, asks for typed confirmation, and reports each restore step in the console.
 - `deno task snapshot --out <path.sqlite>` - Sync the complete remote database to a standalone local SQLite file. The task prefers `DB_URL` and `DB_TOKEN` from `.env` over shell values. This developer-only task checkpoints and verifies the file, refuses to overwrite an existing path, and removes its temporary replica on success or failure.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
-- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. All of a source's mirror-located direct tests run first, whether or not those tests changed; changed tests under `test/integration/` or `test/e2e/` run only for direct-test survivors. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files. If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
+- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. All of a source's mirror-located direct tests run first, whether or not those tests changed; changed tests under `test/integration/`, `test/e2e/`, or `specs/` run only for direct-test survivors. A changed Cucumber step or support file selects every Feature. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files. If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
 - `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand in an isolated `.mutation-runs/<id>/work` copy: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
@@ -721,6 +724,8 @@ Arguments are forwarded verbatim to `deno test`, so multiple files, directories,
 ```bash
 deno task test:files test/lib/dates.test.ts --filter "formats date"
 deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks/*.test.ts
+deno task test:files specs/payments/capacity-after-payment.feature
+deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-payment.feature
 ```
 
 #### Lower-level alternative
@@ -823,6 +828,78 @@ Tests use Deno standard library packages directly:
 - `@std/testing/mock` — `spy()`, `stub()` for mocking
 - `@std/expect/fn` — `fn()` for mock functions
 - `@std/testing/time` — `FakeTime` for timer tests
+
+### Cucumber Acceptance Specifications
+
+Cucumber owns user journeys and observable business rules. Direct Deno tests
+still own pure logic, properties, schemas, SQL and transaction contracts,
+migrations, protocol details, query budgets, concurrency, and test
+infrastructure. Never translate a direct technical test into Gherkin when the
+TypeScript test is smaller or more exact.
+
+The authored hierarchy is strict:
+
+- A `Feature` is one user story or capability and has exactly one globally
+  unique `@story:<id>` tag.
+- A `Rule` is one canonical observable product rule and has exactly one
+  globally unique `@rule:<id>` tag. Every Scenario belongs to a Rule.
+- A plain `Scenario` is one concrete example and has exactly one globally
+  unique `@case:<id>` tag.
+- A `Scenario Outline` is one coherent family of examples. Its Examples table
+  has a unique `case_id` column because individual rows cannot carry tags.
+- Every Feature has one known `@owner:`, `@risk:`, at least one `@actor:`, and
+  at least one `@edition:` tag. Other tag kinds come from the checked registry;
+  ad-hoc metadata tags are forbidden.
+- Feature and Rule descriptions explain their purpose in plain language. Do
+  not hide JSON, YAML, evidence paths, or another schema in comments.
+
+Write the smallest scenario that proves the rule:
+
+- Use 3-5 Given/When/Then steps and one action per Scenario where possible.
+- Describe the domain and observable result, not routes, SQL, selectors, form
+  field names, provider payloads, mocks, or implementation details.
+- Keep exact mutation-resistant assertions in the TypeScript step definition.
+  A plain-language `Then the payment is refunded once` may assert the exact
+  provider call count, stored note, terminal result, and lack of a duplicate.
+- Use `Scenario Outline` only for the same rule over a real input family, never
+  to combine unrelated facts or reduce line count.
+- Validate DataTable rows, DocStrings, custom parameters, and Examples cells at
+  the boundary with a typed schema. All table cells begin as strings; never
+  cast and hope.
+- Business setup belongs in Given steps. Hooks contain only technical fixture
+  setup and cleanup that a reader does not need to understand the rule.
+- Every step must match exactly one definition. Undefined, ambiguous, pending,
+  skipped, and retried steps fail. The full suite also fails on unused step
+  definitions; focused runs may leave unrelated shared definitions unused.
+
+Execution is equally strict:
+
+- Run the pinned official Cucumber API under the repository's pinned Deno, in
+  the existing test harness. Do not add Node, run Cucumber through Bun, or make
+  another Gherkin runner.
+- Use a fresh typed World for every Scenario. Never keep scenario entities in
+  module globals or hide the global database client in World.
+- Run Scenarios through the bounded Cucumber worker pool. Each worker has its
+  own isolate, and every Scenario gets a fresh database and World. Test
+  environment changes must use `withEnv` so `Deno.env` and the worker's
+  `process.env` stay aligned. Do not add retries; a pass after retry is still a
+  flaky failure.
+- Reuse the existing golden database, stripe-mock, static assets, encryption,
+  browser, cache reset, and cleanup mechanisms. Extract one hook-free fixture
+  when Cucumber and Deno hooks need the same lifecycle; never maintain two.
+- Cucumber Messages NDJSON is the generated machine result. HTML and JUnit are
+  reports. Generated AST, Pickle, Messages, and report files are never sources
+  of truth and are not committed.
+- Stable repository IDs come only from authored tags. Cucumber AST/Pickle IDs,
+  names, paths, and line numbers are not durable IDs.
+- A Cucumber journey never supplies the only coverage of a production line or
+  branch. Keep 100% direct Deno coverage, and run direct tests before Cucumber
+  integration tests in mutation runs.
+- A migration is a replacement: delete the old narrative test in the same
+  change. Temporary old/new comparison is allowed while developing, but no PR
+  merges with two paths for one behavior.
+- New shared steps must be reused by the current story or an immediately
+  included second story. Do not create a speculative vocabulary.
 
 ## Test Quality Standards
 
@@ -929,12 +1006,13 @@ the whole tree would be far too slow. The standalone
 `deno task precommit:mutation` runs it automatically, but **only over the files
 this branch changed** (its committed diff against `origin/main`/`main`): the
 `precommit:mutation` step runs each source's mirror-located direct tests first,
-whether or not the direct tests changed, then runs changed `test/integration/`
-and `test/e2e/` files only for survivors. Tests for unchanged sources, scripts,
+whether or not the direct tests changed, then runs changed `test/integration/`,
+`test/e2e/`, and `specs/` files only for survivors. A changed Cucumber step or
+support file selects every Feature. Tests for unchanged sources, scripts,
 and test helpers are outside that src mutation run. A standalone mutation
 command still rejects any explicit test that neither mirrors a selected source
-nor lives in an integration folder. The gate demands a 100% kill rate, so the
-cost stays bounded to the source files you actually changed. Run
+nor lives in an integration folder or `specs/`. The gate demands a 100% kill
+rate, so the cost stays bounded to the source files you actually changed. Run
 `deno task precommit:mutation` before merging a
 branch that changes `src/` files; the standard `deno task precommit` no longer
 runs it (it was too slow for every commit).

@@ -25,6 +25,29 @@ const testFilesAcrossBatches = Array.from(
   (_, index) => `test/${index}.ts`,
 );
 
+const mixedMutationFiles = [
+  "test/shared/example.test.ts",
+  "specs/payments/example.feature",
+];
+
+const runCapturedMutation = async (
+  output?: Deno.CommandOutput,
+): Promise<{
+  captured: ReturnType<typeof captureCommands>;
+  outcome: string;
+}> => {
+  const captured = captureCommands(output);
+  const commandNamespace = Deno as unknown as {
+    Command: typeof captured.Command;
+  };
+  using _command = stub(commandNamespace, "Command", captured.Command);
+  const result = await runTests(
+    { ...config, testFiles: mixedMutationFiles },
+    new AbortController().signal,
+  );
+  return { captured, outcome: result.outcome };
+};
+
 const runConcurrentFailure = async (
   firstBatch: (signal: AbortSignal) => Promise<number>,
 ): Promise<{ calls: number; outcome: string }> => {
@@ -169,6 +192,67 @@ describe("mutation test execution", () => {
       "--v8-flags=--expose-gc",
       "test/shared/example.test.ts",
     ]);
+  });
+
+  test("runs Cucumber Features after direct mutation tests", async () => {
+    const result = await runCapturedMutation();
+    expect(result.outcome).toBe("passed");
+    expect(result.captured.commands.map(({ options }) => options.args)).toEqual(
+      [
+        [
+          "test",
+          "--no-check",
+          "--allow-all",
+          "--parallel",
+          "--preload",
+          "./test/test-utils/preload.ts",
+          "--v8-flags=--expose-gc",
+          "test/shared/example.test.ts",
+        ],
+        [
+          "run",
+          "--v8-flags=--expose-gc",
+          "-A",
+          "./scripts/run-specs.ts",
+          "specs/payments/example.feature",
+        ],
+      ],
+    );
+  });
+
+  test("runs all Features once after concurrent direct batches", async () => {
+    const features = ["specs/a.feature", "specs/b.feature"];
+    const batches: string[][] = [];
+    const result = await runTests(
+      {
+        ...config,
+        batchJobs: 2,
+        testFiles: [...testFilesAcrossBatches, ...features],
+      },
+      new AbortController().signal,
+      {
+        runBatch: (batch) => {
+          batches.push(batch);
+          return Promise.resolve(0);
+        },
+      },
+    );
+
+    expect(result.outcome).toBe("passed");
+    expect(batches.slice(0, -1).flat()).toEqual(testFilesAcrossBatches);
+    expect(batches.at(-1)).toEqual(features);
+  });
+
+  test("does not run Cucumber after a direct mutation test fails", async () => {
+    const result = await runCapturedMutation({
+      code: 1,
+      signal: null,
+      stderr: new Uint8Array(),
+      stdout: new Uint8Array(),
+      success: false,
+    });
+    expect(result.outcome).toBe("failed");
+    expect(result.captured.commands).toHaveLength(1);
   });
 
   test("surfaces subprocess infrastructure failures", async () => {

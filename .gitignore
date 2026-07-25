@@ -42,3 +42,4 @@ deploy/certs/*.pem
 /undefined/
 /null/
 .test-groups/
+reports/
