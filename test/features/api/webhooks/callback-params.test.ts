@@ -171,7 +171,7 @@ describeWithEnv("payment callback params", { db: true }, () => {
       // paid: true must be rendered → data-payment-result="success"
       expect(secondHtml).toContain('data-payment-result="success"');
       // The listing's own thank-you URL is used
-      expect(secondHtml).toContain("https://example.com/listing-thanks");
+      expect(secondHtml).toContain('href="https://example.com/listing-thanks"');
     } finally {
       retrieve.restore();
     }
