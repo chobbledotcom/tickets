@@ -3,18 +3,17 @@ export const parseWorkerCount = (
   value: string | undefined,
   fallback: number,
 ): number => {
+  if (!value || !/^\d+$/.test(value)) return fallback;
   const jobs = Number(value);
-  return Number.isInteger(jobs) && jobs > 0 ? jobs : fallback;
+  return Number.isSafeInteger(jobs) && jobs > 0 ? jobs : fallback;
 };
 
 /**
  * Test worker count for a precommit run. In CI, use every available thread.
  * Locally, leave headroom for the editor and other foreground work: half the
- * threads minus one (never less than one). Callers should skip setting
- * `DENO_JOBS` when the operator has already set it, so an explicit override
- * always wins.
+ * threads minus one (never less than one).
  */
-export const precommitWorkerCount = (
+const precommitWorkerCount = (
   hardwareConcurrency: number,
   ci: boolean,
 ): number =>
@@ -23,16 +22,15 @@ export const precommitWorkerCount = (
     : Math.max(1, Math.floor(hardwareConcurrency / 2) - 1);
 
 /**
- * The `DENO_JOBS` value a precommit run should use: an explicit operator-set
- * positive-integer value always wins; otherwise the capped worker count for CI
- * vs local replaces it. Returns `undefined` when the caller should not change
- * the env because the operator set a valid `DENO_JOBS` themselves.
+ * The `DENO_JOBS` value a precommit run should use. A valid positive whole
+ * number wins; otherwise use the capped worker count for CI or local work.
  */
 export const resolveDenoJobs = (
   hardwareConcurrency: number,
   ci: boolean,
   currentDenoJobs: string | undefined,
-): number | undefined => {
-  if (parseWorkerCount(currentDenoJobs, 0) > 0) return;
-  return precommitWorkerCount(hardwareConcurrency, ci);
-};
+): number =>
+  parseWorkerCount(
+    currentDenoJobs,
+    precommitWorkerCount(hardwareConcurrency, ci),
+  );

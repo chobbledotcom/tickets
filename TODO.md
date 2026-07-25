@@ -1332,35 +1332,25 @@ out of scope for that PR's brief — recorded here for a follow-up.*
 
 ---
 
-## Scheduled finalize for SumUp payments without a webhook or redirect
+## Recover paid SumUp checkouts without a webhook or redirect
 
 *Origin: follow-up to the SumUp provider work, surfaced 2026-07-25 while
 documenting SumUp in `README.md` / `src/docs/payments.ts` (PR #1918).*
 
-SumUp does not sign its webhooks (`requiresWebhookSignature: false` in
-`src/shared/sumup-provider.ts`). Today a SumUp checkout is finalized through
-two paths: the `CHECKOUT_STATUS_CHANGED` webhook (unsigned, but
-`resolveWebhookSession` pre-filters against staged checkout rows in
-`src/shared/db/sumup-checkouts.ts` and re-fetches the checkout from SumUp to
-establish authenticity and paid status) and the redirect return, which calls
-`retrieveSession`. If both are lost — the webhook delivery never arrives and
-the customer never returns to the redirect URL — a paid checkout stays in the
-`pending` / `unpaid` state indefinitely until manual intervention.
+SumUp does not sign its webhooks. If its webhook is lost and the customer never
+returns to the redirect URL, SumUp can charge the customer without creating a
+booking or payment record. Only the staged checkout remains, and database
+pruning removes it after 24 hours.
 
-Add a scheduled task that polls outstanding staged SumUp checkouts whose
-status is not yet terminal and finalizes any the SumUp API reports as `PAID`
-through the same `validatePaidSession` → `processPaymentSession` path the
-redirect return uses. The shared processor owns reservation, conflict handling,
-booking, refund, and replay behavior, so the scheduled task must not call
-`completePaidBooking` directly. In lieu of a trustworthy webhook, this
-scheduled poll is the reliable fallback. It should reuse the existing
-scheduled-task mechanism (`src/shared/site-scheduler.ts`,
-`src/shared/maintenance/runner.ts`) and stay within the per-request edge
-subrequest budget, so bound each run to a page of staged checkouts and let the
-next tick continue. Cover it with a regression test that stages a
-paid-but-unfinalized checkout, runs the poll, and proves the attendee/ledger
-rows are created exactly once across concurrent webhook, redirect, and
-scheduled-poll attempts.
+Add a bounded maintenance task to `src/shared/maintenance/registry.ts` that
+checks a page of staged SumUp checkouts on each run. Fetch each checkout once.
+When SumUp reports it as `PAID`, pass the fetched session through the same
+classification and `processPaymentSession` path used by webhooks and redirects.
+Extract a shared entry point that accepts an already fetched session so the task
+does not make a second provider request. Keep each run within the edge request
+budget and request a follow-up run when a full page remains. Add a regression
+test that runs webhook, redirect, and maintenance attempts concurrently and
+proves they create the attendee and ledger rows exactly once.
 
 ---
 

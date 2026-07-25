@@ -3,11 +3,11 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { removeIfPresent } from "#scripts/cleanup.ts";
-import { withPrecommitLock } from "#scripts/precommit/lock.ts";
+import { withFileLock } from "#scripts/lock-file.ts";
 
 const LOCK_PATH = join(
   Deno.env.get("TMPDIR") ?? "/tmp",
-  `chobble-tickets-precommit-test-${Deno.pid}-${Date.now()}.lock`,
+  `chobble-tickets-file-lock-test-${Deno.pid}-${Date.now()}.lock`,
 );
 
 const HOLD_LOCK_SCRIPT = `
@@ -61,13 +61,13 @@ const releaseHolder = async (child: Deno.ChildProcess): Promise<void> => {
   await child.status;
 };
 
-describe("withPrecommitLock", () => {
+describe("withFileLock", () => {
   beforeEach(() => removeIfPresent(LOCK_PATH));
   afterEach(() => removeIfPresent(LOCK_PATH));
 
   test("runs the task and returns its value", async () => {
     await expect(
-      withPrecommitLock(() => Promise.resolve("checked"), LOCK_PATH),
+      withFileLock(LOCK_PATH, () => Promise.resolve("checked")),
     ).resolves.toBe("checked");
   });
 
@@ -97,9 +97,9 @@ describe("withPrecommitLock", () => {
     let ran = false;
     let waiting: Promise<void> = Promise.resolve();
     try {
-      waiting = withPrecommitLock(async () => {
+      waiting = withFileLock(LOCK_PATH, async () => {
         ran = true;
-      }, LOCK_PATH);
+      });
       await lockAttempted.promise;
       expect(ran).toBe(false);
     } finally {
@@ -117,7 +117,7 @@ describe("withPrecommitLock", () => {
     await holder.status;
 
     await expect(
-      withPrecommitLock(() => Promise.resolve("recovered"), LOCK_PATH),
+      withFileLock(LOCK_PATH, () => Promise.resolve("recovered")),
     ).resolves.toBe("recovered");
   });
 });

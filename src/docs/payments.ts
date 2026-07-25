@@ -9,9 +9,7 @@
  *
  * {@link PaymentProvider} defines the common contract:
  * - Create single and multi-listing checkout sessions
- * - Validate incoming webhooks (signature verification where the provider
- *   signs, as with Stripe and Square; for unsigned providers like SumUp,
- *   authenticity is re-established by fetching the checkout from the provider)
+ * - Validate incoming webhooks using each provider's checks
  * - Retrieve session details and process refunds
  *
  * @module

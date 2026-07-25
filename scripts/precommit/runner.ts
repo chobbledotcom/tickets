@@ -1,8 +1,10 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { withFileLock } from "#scripts/lock-file.ts";
 import { readStream } from "#scripts/stream-lines.ts";
 import { resolveDenoJobs } from "#scripts/workers.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
 import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
-import { withPrecommitLock } from "./lock.ts";
 import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
 import { runChecksBeforePush } from "./run-order.ts";
@@ -13,6 +15,11 @@ import {
   currentTerminalState,
 } from "./terminal.ts";
 import { write } from "./write.ts";
+
+const PRECOMMIT_LOCK_PATH = join(tmpdir(), "chobble-tickets-precommit.lock");
+
+const withPrecommitLock = (task: () => Promise<void>): Promise<void> =>
+  withFileLock(PRECOMMIT_LOCK_PATH, task);
 
 const canPromptNow = (): boolean => canPrompt(currentTerminalState());
 
@@ -124,13 +131,13 @@ export const main = async (): Promise<void> => {
   if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
   // Cap test parallelism for the run. CI uses every thread; a local git hook
   // uses (threads / 2) - 1 so the editor and foreground work keep headroom.
-  // An explicit DENO_JOBS always wins — only set a default when unset.
+  // A valid explicit DENO_JOBS wins; replace invalid values with the default.
   const jobs = resolveDenoJobs(
     navigator.hardwareConcurrency,
     ci,
     Deno.env.get("DENO_JOBS"),
   );
-  if (jobs !== undefined) Deno.env.set("DENO_JOBS", String(jobs));
+  Deno.env.set("DENO_JOBS", String(jobs));
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
   await warnAboutMergeConflicts();
   await runChecksBeforePush(
