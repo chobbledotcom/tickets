@@ -1,15 +1,12 @@
-import { Buffer } from "node:buffer";
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
 // test-groups: run-alone
+
+import { request as httpRequest } from "node:http";
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { join, toFileUrl } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  type DatabaseUploadTransport,
   uploadTursoDatabaseFile,
   verifyTursoUploadFile,
 } from "#scripts/turso-migration-file.ts";
@@ -37,25 +34,28 @@ const uploadCredentials = (dbUrl: string) => ({
 });
 
 const withUploadServer = async (
-  handler: (request: IncomingMessage, response: ServerResponse) => void,
-  run: (dbUrl: string) => Promise<void>,
+  handler: (request: Request) => Response | Promise<Response>,
+  run: (dbUrl: string, transport: DatabaseUploadTransport) => Promise<void>,
 ): Promise<void> => {
-  const server = createServer(handler);
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address();
-  if (address === null || typeof address === "string") {
-    throw new Error("Upload test server has no TCP address");
-  }
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", onListen: () => {}, port: 0 },
+    handler,
+  );
+  const address = server.addr;
+  if (!("port" in address)) throw new Error("Expected a network address");
+  const transport: DatabaseUploadTransport = {
+    request: (url, options, receive) => {
+      expect(url.protocol).toBe("https:");
+      const localUrl = new URL(url);
+      localUrl.protocol = "http:";
+      return httpRequest(localUrl, options, receive);
+    },
+  };
   try {
-    await run(`http://127.0.0.1:${address.port}`);
+    await run(`https://127.0.0.1:${address.port}`, transport);
   } finally {
-    server.closeAllConnections();
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
+    await server.shutdown();
+    await server.finished;
   }
 };
 
@@ -115,18 +115,18 @@ describe("Turso migration file", () => {
       let contentLength: string | undefined;
 
       await withUploadServer(
-        async (request, response) => {
-          authorization = request.headers.authorization;
-          contentLength = request.headers["content-length"];
-          const chunks = await Array.fromAsync(request);
-          uploaded = new Uint8Array(Buffer.concat(chunks));
-          response.end();
+        async (request) => {
+          authorization = request.headers.get("authorization") ?? undefined;
+          contentLength = request.headers.get("content-length") ?? undefined;
+          uploaded = new Uint8Array(await request.arrayBuffer());
+          return new Response();
         },
-        (dbUrl) =>
+        (dbUrl, transport) =>
           uploadTursoDatabaseFile(
             path,
             uploadCredentials(dbUrl),
             new AbortController().signal,
+            transport,
           ),
       );
 
@@ -148,13 +148,15 @@ describe("Turso migration file", () => {
       await Deno.writeTextFile(path, "sqlite bytes");
 
       await withUploadServer(
-        (_request, response) => {
-          response.writeHead(400);
-          response.end("invalid");
-        },
-        async (dbUrl) => {
+        () => new Response("invalid", { status: 400 }),
+        async (dbUrl, transport) => {
           await expect(
-            uploadTursoDatabaseFile(path, uploadCredentials(dbUrl)),
+            uploadTursoDatabaseFile(
+              path,
+              uploadCredentials(dbUrl),
+              undefined,
+              transport,
+            ),
           ).rejects.toThrow("Upload database failed (400): invalid");
         },
       );
@@ -176,29 +178,6 @@ describe("Turso migration file", () => {
       ).rejects.toThrow("interrupted");
 
       await Deno.remove(path);
-    }));
-
-  test("starts a TLS connection for a libsql database URL", () =>
-    withTempDir(async (dir) => {
-      const path = join(dir, "database.sqlite");
-      await Deno.writeTextFile(path, "sqlite bytes");
-      const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
-      const address = listener.addr;
-      const upload = uploadTursoDatabaseFile(path, {
-        ...TEST_TURSO_CREDENTIALS,
-        dbUrl: `libsql://127.0.0.1:${address.port}`,
-      });
-
-      try {
-        const connection = await listener.accept();
-        const firstByte = new Uint8Array(1);
-        await connection.read(firstByte);
-        connection.close();
-        await expect(upload).rejects.toThrow();
-        expect(firstByte[0]).toBe(22);
-      } finally {
-        listener.close();
-      }
     }));
 
   test("rejects database upload URLs without TLS", () =>

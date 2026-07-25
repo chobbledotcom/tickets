@@ -46,7 +46,7 @@ describe("Turso management API", () => {
             name: "new-database",
           },
         });
-        expect(JSON.parse(requests[0]?.init?.body as string)).toEqual({
+        expect(await new Response(requests[0]?.init?.body).json()).toEqual({
           group: "default",
           name: "new-database",
           seed: { type: "database_upload" },
@@ -104,11 +104,13 @@ describe("Turso management API", () => {
         stubFetch(
           (url, init) => {
             urls.push(url);
-            expect(
-              (init?.headers as Record<string, string>).Authorization,
-            ).toBe("Bearer platform-token");
+            expect(new Headers(init?.headers).get("authorization")).toBe(
+              "Bearer platform-token",
+            );
             return new Response(
-              JSON.stringify([{ slug: "personal" }, { slug: "team" }]),
+              JSON.stringify({
+                organizations: [{ slug: "personal" }, { slug: "team" }],
+              }),
             );
           },
           (url) => {

@@ -1,12 +1,7 @@
 import { Buffer } from "node:buffer";
 import { createReadStream } from "node:fs";
-import {
-  request as httpRequest,
-  type IncomingMessage,
-  type RequestOptions,
-} from "node:http";
-import { request as httpsRequest } from "node:https";
-import { pipeline } from "node:stream/promises";
+import type { ClientRequest, IncomingMessage } from "node:http";
+import { request as httpsRequest, type RequestOptions } from "node:https";
 import { assertExists } from "@std/assert";
 import {
   checkLocalSnapshot,
@@ -71,21 +66,24 @@ interface UploadResponse {
   text: string;
 }
 
-const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
+export interface DatabaseUploadTransport {
+  request(
+    url: URL,
+    options: RequestOptions,
+    receive: (response: IncomingMessage) => void,
+  ): ClientRequest;
+}
+
+const secureUploadTransport: DatabaseUploadTransport = {
+  request: httpsRequest,
+};
 
 const databaseUploadUrl = (dbUrl: string): URL => {
   const source = new URL(dbUrl);
-  const loopbackHttp =
-    source.protocol === "http:" && LOOPBACK_HOSTNAMES.has(source.hostname);
-  if (
-    source.protocol !== "libsql:" &&
-    source.protocol !== "https:" &&
-    !loopbackHttp
-  ) {
+  if (source.protocol !== "libsql:" && source.protocol !== "https:") {
     throw new Error("Turso database URL must use TLS");
   }
-  const protocol = loopbackHttp ? "http:" : "https:";
-  return new URL(`${protocol}//${source.host}/v1/upload`);
+  return new URL(`https://${source.host}/v1/upload`);
 };
 
 const readResponse = (
@@ -107,36 +105,49 @@ const readResponse = (
   response.on("error", reject);
 };
 
-const sendDatabaseFile = (
+const sendDatabaseFile = async (
   url: URL,
   path: string,
   token: string,
   size: number,
   signal?: AbortSignal,
-): Promise<UploadResponse> =>
-  new Promise((resolve, reject) => {
-    const options: RequestOptions = {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Connection: "close",
-        "Content-Length": String(size),
-      },
-      method: "POST",
-    };
-    if (signal !== undefined) options.signal = signal;
-    const request = (url.protocol === "http:" ? httpRequest : httpsRequest)(
-      url,
-      options,
-      (response) => readResponse(response, resolve, reject),
-    );
-    pipeline(createReadStream(path), request).catch(reject);
-  });
+  transport: DatabaseUploadTransport = secureUploadTransport,
+): Promise<UploadResponse> => {
+  const response = Promise.withResolvers<UploadResponse>();
+  const options: RequestOptions = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Connection: "close",
+      "Content-Length": String(size),
+    },
+    method: "POST",
+  };
+  if (signal !== undefined) options.signal = signal;
+  const request = transport.request(url, options, (incoming) =>
+    readResponse(incoming, response.resolve, response.reject),
+  );
+  const file = createReadStream(path);
+  const fileClosed = Promise.withResolvers<void>();
+  file.once("close", fileClosed.resolve);
+  request.once("error", file.destroy.bind(file));
+  request.once("error", response.reject);
+  file.once("error", request.destroy.bind(request));
+  file.once("error", response.reject);
+  file.pipe(request);
+  try {
+    return await response.promise;
+  } finally {
+    file.destroy();
+    await fileClosed.promise;
+  }
+};
 
 /** Stream a SQLite file into a Turso database without holding it in memory. */
 export const uploadTursoDatabaseFile = async (
   path: string,
   credentials: DatabaseCredentials,
   signal?: AbortSignal,
+  transport?: DatabaseUploadTransport,
 ): Promise<void> => {
   const info = await Deno.stat(path);
   if (!info.isFile) throw new Error(`Database snapshot is not a file: ${path}`);
@@ -147,6 +158,7 @@ export const uploadTursoDatabaseFile = async (
     credentials.dbToken,
     info.size,
     signal,
+    transport,
   );
   if (!response.ok) {
     requireSuccess(parseApiError(response, "Upload database"));

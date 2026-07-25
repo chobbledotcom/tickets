@@ -21,6 +21,7 @@ export interface MigrateTursoCliDeps extends ScriptIo {
   createSnapshot: (
     request: SnapshotRequest,
     writeProgress: SnapshotProgressWriter,
+    signal: AbortSignal,
   ) => Promise<string>;
   makeTempDir: () => Promise<string>;
   prompt: (message: string) => string | null;
@@ -120,6 +121,7 @@ const migrateSnapshot = async (
     const path = await deps.createSnapshot(
       { ...source, outputPath: join(tempDirectory, "database.sqlite") },
       deps.stdout,
+      deps.signal,
     );
     deps.signal.throwIfAborted();
     deps.stdout("Checking the SQLite file for Turso...");

@@ -73,6 +73,37 @@ const expectExistingFilePreserved = async (
 };
 
 describe("database snapshot safety", () => {
+  test("stops a source sync when its signal is aborted", () =>
+    withTempDir(async (dir) => {
+      const controller = new AbortController();
+      const interruption = new Error("snapshot interrupted");
+      const syncStarted = Promise.withResolvers<void>();
+      const syncNeverFinishes = new Promise<unknown>(() => {});
+      let closed = false;
+      const snapshot = createDatabaseSnapshot(
+        request(join(dir, "snapshot.sqlite")),
+        () =>
+          replicaClient(
+            () => {
+              syncStarted.resolve();
+              return syncNeverFinishes;
+            },
+            () => {
+              closed = true;
+            },
+          ),
+        undefined,
+        controller.signal,
+      );
+
+      await syncStarted.promise;
+      controller.abort(interruption);
+
+      await expect(snapshot).rejects.toBe(interruption);
+      expect(closed).toBe(true);
+      expect(await directoryNames(dir)).toEqual([]);
+    }));
+
   test("refuses an existing output before syncing", () =>
     withTempDir(async (dir) => {
       const outputPath = join(dir, "snapshot.sqlite");

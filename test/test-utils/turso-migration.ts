@@ -23,6 +23,7 @@ export interface TursoMigrationCliState {
   promptMessages: string[];
   removed: string[];
   secretMessages: string[];
+  snapshotSignals: AbortSignal[];
   snapshots: SnapshotRequest[];
   stderr: string[];
   stdout: string[];
@@ -51,6 +52,7 @@ export const tursoMigrationCliState = (
     promptMessages: [],
     removed: [],
     secretMessages: [],
+    snapshotSignals: [],
     snapshots: [],
     stderr: [],
     stdout: [],
@@ -79,8 +81,9 @@ export const tursoMigrationCliState = (
       state.apiTokens.push(token);
       return api;
     },
-    createSnapshot: (request, writeProgress) => {
+    createSnapshot: (request, writeProgress, signal) => {
       state.events.push("snapshot");
+      state.snapshotSignals.push(signal);
       state.snapshots.push(request);
       writeProgress("[1/4] Checking destination");
       return Promise.resolve(request.outputPath);

@@ -226,6 +226,22 @@ const withSnapshotClient = <Result>(
   return withCleanup(() => run(client), [() => client.close()]);
 };
 
+const waitForOrAbort = async <Result>(
+  operation: Promise<Result>,
+  signal?: AbortSignal,
+): Promise<Result> => {
+  if (signal === undefined) return await operation;
+  signal.throwIfAborted();
+  const interrupted = Promise.withResolvers<never>();
+  const stop = (): void => interrupted.reject(signal.reason);
+  signal.addEventListener("abort", stop, { once: true });
+  try {
+    return await Promise.race([operation, interrupted.promise]);
+  } finally {
+    signal.removeEventListener("abort", stop);
+  }
+};
+
 export const checkLocalSnapshot = (
   path: string,
   factory: SnapshotClientFactory,
@@ -239,6 +255,7 @@ const syncReplica = (
   path: string,
   request: SnapshotRequest,
   factory: SnapshotClientFactory,
+  signal?: AbortSignal,
 ): Promise<unknown> =>
   withSnapshotClient(
     factory,
@@ -247,7 +264,7 @@ const syncReplica = (
       syncUrl: request.dbUrl,
       url: toFileUrl(path).href,
     },
-    (client) => client.sync(),
+    (client) => waitForOrAbort(client.sync(), signal),
   );
 
 const verifyRows = (
@@ -313,6 +330,7 @@ export const createDatabaseSnapshot = async (
   request: SnapshotRequest,
   factory: SnapshotClientFactory,
   writeProgress: SnapshotProgressWriter = ignoreSnapshotProgress,
+  signal?: AbortSignal,
 ): Promise<string> => {
   const outputPath = resolve(request.outputPath);
   const outputDirectory = dirname(outputPath);
@@ -327,7 +345,7 @@ export const createDatabaseSnapshot = async (
   return await withCleanup(async () => {
     const temporaryPath = join(temporaryDirectory, "snapshot.sqlite");
     writeProgress(SNAPSHOT_PROGRESS.syncing);
-    await syncReplica(temporaryPath, request, factory);
+    await syncReplica(temporaryPath, request, factory, signal);
     writeProgress(SNAPSHOT_PROGRESS.verifying);
     await checkLocalSnapshot(temporaryPath, factory, SNAPSHOT_QUERY_CHECKS);
     await requireEmptyWal(temporaryPath);

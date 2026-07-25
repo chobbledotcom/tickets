@@ -23,8 +23,8 @@ await runDenoScript((io) =>
   runMigrateTursoCli({
     ...io,
     createApi: createTursoApi,
-    createSnapshot: (request, writeProgress) =>
-      createDatabaseSnapshot(request, createClient, writeProgress),
+    createSnapshot: (request, writeProgress, signal) =>
+      createDatabaseSnapshot(request, createClient, writeProgress, signal),
     getEnv: (key) => fileEnv[key] ?? io.getEnv(key),
     makeTempDir: () => Deno.makeTempDir({ prefix: "tickets-turso-migration-" }),
     prompt,

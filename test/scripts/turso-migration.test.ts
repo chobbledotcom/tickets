@@ -36,6 +36,7 @@ describe("Turso migration CLI", () => {
         outputPath: "/tmp/turso-migration-test/database.sqlite",
       },
     ]);
+    expect(state.snapshotSignals).toEqual([state.deps.signal]);
     expect(state.createRequests).toEqual([
       {
         group: "default",
