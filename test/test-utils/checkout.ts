@@ -31,6 +31,11 @@ export const checkoutIntent = (
   ...overrides,
 });
 
+/** The checkout URL {@link stubCheckout} returns, so a test can assert a paid
+ *  booking's response carries exactly the URL the stub produced (importing it
+ *  keeps the stub's URL and the assertion in lockstep, not a magic string). */
+export const STUB_CHECKOUT_URL = "https://stripe.example/checkout";
+
 /** Stub the checkout-session provider and capture the intent it was called
  * with — the shared "inspect what checkout would have charged" fixture
  * behind every test that never actually completes a paid session. The optional
@@ -46,7 +51,7 @@ export const stubCheckout = (sessionId = "cs_test") => {
     (intent: CheckoutIntent) => {
       captured = intent;
       return Promise.resolve({
-        checkoutUrl: "https://stripe.example/checkout",
+        checkoutUrl: STUB_CHECKOUT_URL,
         sessionId,
       });
     },

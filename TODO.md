@@ -1396,3 +1396,20 @@ reorganisation. Starting point: move the two phone-index describe blocks into
 `test/shared/sms/phone-index.test.ts`, keeping the `makeAttendee` /
 `storedPhoneIndex` helpers in whichever file needs them (or lift to `#test-utils`
 if both do). The webhook test file drops to ~380 lines.
+
+## Mutation survivor in `src/features/api/folded-booking.ts` (direct tests)
+
+Direct tests at `test/features/api/folded-booking.test.ts` and
+`test/features/api/folded-booking/parent-booking.test.ts` kill all but one mutant on the unchanged `folded-booking.ts`;
+four equivalents (lines 87, 118, 176, 301) are recorded in
+`scripts/mutation/equivalent-mutants.txt`. One survivor remains, noted here
+because it is a deliberate non-kill (testing it would assert an
+implementation detail, not a user-visible contract):
+
+- `src/features/api/folded-booking.ts:381:17  1 → 0` —
+  `dayCount: 1` in the `FoldBase` `processParentApiBooking` builds. The fold
+  computes its own `fold.dayCount` (e.g. `3` for a customisable child) which
+  the intent carries, so the base value does not surface in any observable
+  output of the parent flow. Killing it would require asserting on the
+  intermediate `parentResolvedDuration(parent.listing, base.dayCount)` value,
+  which is an implementation detail rather than a user-visible contract.
