@@ -194,11 +194,11 @@ export const handleBookingFeePost = settingsHandler({
  */
 const COLUMN_ORDER_SETTINGS = {
   attendee: {
-    label: "Attendee column order",
+    message: () => t("settings.column_order.attendee_updated"),
     update: settings.update.attendeeColumnOrder,
   },
   listing: {
-    label: "Listing column order",
+    message: () => t("settings.column_order.listing_updated"),
     update: settings.update.listingColumnOrder,
   },
 };
@@ -207,13 +207,19 @@ type ConfigurableColumnLayoutKind = keyof typeof COLUMN_ORDER_SETTINGS;
 
 const columnOrderHandler = (kind: ConfigurableColumnLayoutKind) => {
   const config = COLUMN_ORDER_SETTINGS[kind];
+  const layout = configurableTableLayouts[kind];
   return settingsHandler({
     advanced: true,
     extract: (form) => form.getString("column_order").trim(),
     formId: `settings-${kind}-column-order`,
-    label: config.label,
+    log: config.message,
     save: config.update,
-    validate: configurableTableLayouts[kind].validate,
+    validate: (value) =>
+      layout.validate(value) === null
+        ? null
+        : t("settings.column_order.invalid", {
+            columns: layout.keys.join(", "),
+          }),
   });
 };
 

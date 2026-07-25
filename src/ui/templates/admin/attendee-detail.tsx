@@ -15,12 +15,13 @@ import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
-import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { HeaderRow } from "#templates/components/header-row.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
 /** One key/value row of a detail table: a header cell plus a value cell. */
@@ -79,6 +80,72 @@ export const InactiveNote = ({
     </span>
   );
 
+type BookingTableContext = {
+  childNamesByParentId: Map<number, string[]>;
+  nameByListingId: Map<number, string>;
+};
+
+const bookingColumns: readonly TableColumn<
+  AttendeeBooking,
+  BookingTableContext
+>[] = [
+  {
+    cell: (booking, context) => (
+      <>
+        <a href={`/admin/listing/${booking.listingId}`}>
+          {booking.listingName}
+        </a>
+        <InactiveNote active={booking.listingActive} leadingSpace />
+        {booking.parentListingId > 0 ? (
+          <div class="muted small">
+            {t("attendee_detail.addon_under", {
+              parent:
+                context.nameByListingId.get(booking.parentListingId) ??
+                `#${booking.parentListingId}`,
+            })}
+          </div>
+        ) : null}
+        {context.childNamesByParentId.has(booking.listingId) ? (
+          <div class="muted small">
+            {t("attendee_detail.includes_addon", {
+              children: context.childNamesByParentId
+                .get(booking.listingId)!
+                .join(", "),
+            })}
+          </div>
+        ) : null}
+      </>
+    ),
+    header: t("terms.listing"),
+    key: "listing",
+  },
+  {
+    cell: (booking) =>
+      booking.startAt
+        ? formatDateRangeLabel(booking.startAt, booking.endAt)
+        : "—",
+    header: t("common.date"),
+    key: "date",
+  },
+  {
+    cell: (booking) => booking.quantity,
+    class: "quantity",
+    header: t("common.quantity"),
+    key: "quantity",
+  },
+  {
+    cell: (booking) =>
+      BookingStatusBadges({
+        checkedIn: booking.checkedIn,
+        refunded: booking.refunded,
+      }) ?? "—",
+    header: t("common.status"),
+    key: "status",
+  },
+];
+
+const bookingsTable = defineTable(bookingColumns);
+
 /**
  * Read-only summary of the listings an attendee currently books, shown as a
  * table near the top of the edit page: one row per booking with its quantity,
@@ -111,14 +178,9 @@ export const AttendeeBookingsTable = ({
   return (
     <PageBlock>
       <h3>{t("terms.bookings")}</h3>
-      <DataTable
-        columns={[
-          textCol("terms.listing"),
-          textCol("common.date"),
-          { class: "quantity", header: t("common.quantity") },
-          textCol("common.status"),
-        ]}
-        foot={
+      {renderTable(bookingsTable, bookings, {
+        context: { childNamesByParentId, nameByListingId },
+        foot: (
           <tr>
             <th colspan="2" scope="row">
               {t("attendee_detail.total")}
@@ -126,42 +188,8 @@ export const AttendeeBookingsTable = ({
             <td class={colClass("quantity")}>{totalQuantity}</td>
             <td />
           </tr>
-        }
-        rows={bookings.map((booking) => [
-          <>
-            <a href={`/admin/listing/${booking.listingId}`}>
-              {booking.listingName}
-            </a>
-            <InactiveNote active={booking.listingActive} leadingSpace />
-            {booking.parentListingId > 0 ? (
-              <div class="muted small">
-                {t("attendee_detail.addon_under", {
-                  parent:
-                    nameByListingId.get(booking.parentListingId) ??
-                    `#${booking.parentListingId}`,
-                })}
-              </div>
-            ) : null}
-            {childNamesByParentId.has(booking.listingId) ? (
-              <div class="muted small">
-                {t("attendee_detail.includes_addon", {
-                  children: childNamesByParentId
-                    .get(booking.listingId)!
-                    .join(", "),
-                })}
-              </div>
-            ) : null}
-          </>,
-          booking.startAt
-            ? formatDateRangeLabel(booking.startAt, booking.endAt)
-            : "—",
-          booking.quantity,
-          BookingStatusBadges({
-            checkedIn: booking.checkedIn,
-            refunded: booking.refunded,
-          }) ?? "—",
-        ])}
-      />
+        ),
+      })}
     </PageBlock>
   );
 };

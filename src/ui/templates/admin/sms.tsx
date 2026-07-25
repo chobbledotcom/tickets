@@ -4,9 +4,9 @@
  */
 
 /* jscpd:ignore-start */
-import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type {
   AdminSession,
   Attendee,
@@ -15,8 +15,8 @@ import type {
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 /* jscpd:ignore-end */
 
 /** A text-message activity-log entry, shown as conversation history. */
@@ -33,29 +33,25 @@ type SmsPageOptions = {
   history: SmsHistoryItem[];
 };
 
-const HistoryRow = ({ item }: { item: SmsHistoryItem }): string =>
-  String(
-    <tr>
-      <td>{new Date(item.created).toLocaleString()}</td>
-      <td>{item.message}</td>
-    </tr>,
-  );
+const historyColumns: readonly TableColumn<SmsHistoryItem>[] = [
+  {
+    cell: (item) => new Date(item.created).toLocaleString(),
+    header: t("sms.contact.col_when"),
+    key: "when",
+  },
+  {
+    cell: (item) => item.message,
+    header: t("sms.contact.col_message"),
+    key: "message",
+  },
+];
+
+const smsHistoryTable = defineTable(historyColumns);
 
 const historyTable = (history: SmsHistoryItem[]): string =>
   history.length === 0
     ? `<p>${t("sms.contact.no_messages")}</p>`
-    : String(
-        <DataTable
-          columns={[
-            { header: t("sms.contact.col_when") },
-            { header: t("sms.contact.col_message") },
-          ]}
-          rows={pipe(
-            map((item: SmsHistoryItem) => HistoryRow({ item })),
-            joinStrings,
-          )(history)}
-        />,
-      );
+    : String(renderTable(smsHistoryTable, history));
 
 const ComposeForm = ({
   attendee,

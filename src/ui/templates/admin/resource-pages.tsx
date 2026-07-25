@@ -8,7 +8,7 @@
  * columns (typed via {@link TableColumn}), form fields (a `renderFields`
  * callback so non-`Field[]` forms like the attendee-status checkboxes still
  * fit), and the delete confirmation copy.
- * `AdminPage`, `DataTable`, and `ConfirmPage` are its rendering primitives.
+ * `AdminPage`, typed tables, and `ConfirmPage` are its rendering primitives.
  */
 
 /* jscpd:ignore-start */

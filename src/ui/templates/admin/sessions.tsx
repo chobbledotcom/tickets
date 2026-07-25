@@ -3,31 +3,43 @@
  */
 
 /* jscpd:ignore-start */
-import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AdminSession, Session } from "#shared/types.ts";
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
-const SessionRow = ({
-  session,
-  isCurrent,
-}: {
-  session: Session;
-  isCurrent: boolean;
-}): string =>
-  String(
-    <tr>
-      <td>{session.token.slice(0, 8)}...</td>
-      <td>{formatDatetimeShort(new Date(session.expires).toISOString())}</td>
-      <td>{isCurrent ? <mark>{t("sessions.current")}</mark> : ""}</td>
-    </tr>,
-  );
+const sessionColumns: readonly TableColumn<Session, string>[] = [
+  {
+    cell: (session) => `${session.token.slice(0, 8)}...`,
+    header: t("sessions.col.token"),
+    key: "token",
+  },
+  {
+    cell: (session) =>
+      formatDatetimeShort(new Date(session.expires).toISOString()),
+    header: t("sessions.col.expires"),
+    key: "expires",
+  },
+  {
+    cell: (session, currentToken) =>
+      session.token === currentToken ? (
+        <mark>{t("sessions.current")}</mark>
+      ) : (
+        ""
+      ),
+    header: t("common.status"),
+    key: "status",
+  },
+];
+
+const sessionsTable = defineTable(sessionColumns);
 
 /**
  * Admin sessions page
@@ -38,16 +50,6 @@ export const adminSessionsPage = (
   adminSession: AdminSession,
   success?: string,
 ): string => {
-  const sessionRows =
-    sessions.length > 0
-      ? pipe(
-          map((s: Session) =>
-            SessionRow({ isCurrent: s.token === currentToken, session: s }),
-          ),
-          joinStrings,
-        )(sessions)
-      : `<tr><td colspan="3">${t("sessions.no_sessions")}</td></tr>`;
-
   const otherSessionCount = sessions.filter(
     (s) => s.token !== currentToken,
   ).length;
@@ -57,14 +59,10 @@ export const adminSessionsPage = (
     success,
   )(
     <>
-      <DataTable
-        columns={[
-          textCol("sessions.col.token"),
-          textCol("sessions.col.expires"),
-          textCol("common.status"),
-        ]}
-        rows={sessionRows}
-      />
+      {renderTable(sessionsTable, sessions, {
+        context: currentToken,
+        empty: <Raw html={t("sessions.no_sessions")} />,
+      })}
 
       {otherSessionCount > 0 && (
         <>

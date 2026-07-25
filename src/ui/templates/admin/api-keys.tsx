@@ -10,6 +10,7 @@ import type { EndpointDoc } from "#shared/admin-api-example.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
@@ -17,9 +18,9 @@ import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
-import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -53,16 +54,29 @@ const OptsFlash = ({
   opts: { error?: string | undefined; success?: string | undefined };
 }): JSX.Element => <Flash error={opts.error} success={opts.success} />;
 
-const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
-  String(
-    <tr>
-      <td>
-        <a href={`/admin/api-keys/${apiKey.id}`}>{apiKey.name}</a>
-      </td>
-      <td>{createdCell(apiKey)}</td>
-      <td>{lastUsedCell(apiKey)}</td>
-    </tr>,
-  );
+const ApiKeyLink = ({ apiKey }: { apiKey: ApiKeyDisplay }): JSX.Element => (
+  <a href={`/admin/api-keys/${apiKey.id}`}>{apiKey.name}</a>
+);
+
+const apiKeyColumns: readonly TableColumn<ApiKeyDisplay>[] = [
+  {
+    cell: (apiKey) => <ApiKeyLink apiKey={apiKey} />,
+    header: t("common.name"),
+    key: "name",
+  },
+  {
+    cell: createdCell,
+    header: t("common.created"),
+    key: "created",
+  },
+  {
+    cell: lastUsedCell,
+    header: t("api_keys.col.last_used"),
+    key: "last_used",
+  },
+];
+
+const apiKeyTable = defineTable(apiKeyColumns);
 
 // Every API-keys screen sits in the same admin shell. This wrapper keeps the
 // active tab and page frame identical across the list, manage, and docs pages —
@@ -84,16 +98,8 @@ export const adminApiKeysPage = (
     error?: string | undefined;
     newKey?: string | undefined;
   },
-): string => {
-  const keyRows =
-    keys.length > 0
-      ? pipe(
-          map((k: ApiKeyDisplay) => ApiKeyRow({ apiKey: k })),
-          joinStrings,
-        )(keys)
-      : `<tr><td colspan="3">${t("api_keys.no_keys")}</td></tr>`;
-
-  return apiKeysShell(
+): string =>
+  apiKeysShell(
     adminSession,
     t("api_keys.title"),
     <>
@@ -115,10 +121,9 @@ export const adminApiKeysPage = (
         <a href="/admin/api-keys/docs">{t("api_keys.docs_link")}</a>.
       </p>
 
-      <DataTable
-        columns={namedColumns("common.created", "api_keys.col.last_used")}
-        rows={keyRows}
-      />
+      {renderTable(apiKeyTable, keys, {
+        empty: <Raw html={t("api_keys.no_keys")} />,
+      })}
 
       <br />
 
@@ -138,7 +143,6 @@ export const adminApiKeysPage = (
       </GuideFooter>
     </>,
   );
-};
 
 /**
  * Admin API key delete confirmation page

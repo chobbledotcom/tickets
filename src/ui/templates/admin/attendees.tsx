@@ -23,9 +23,16 @@ import {
 } from "#shared/merge/attendee-merge.ts";
 import type {
   AttendeeMergeDiff,
+  AttendeeMergeDiffAnswerItem,
   AttendeeMergeDiffBookingItem,
+  AttendeeMergeDiffPiiField,
 } from "#shared/merge/attendee-merge-types.ts";
 import { paymentDashboardUrl } from "#shared/payment-dashboard.ts";
+import {
+  defineTable,
+  type TableColumn,
+  type TableDefinition,
+} from "#shared/tables/definition.ts";
 import type {
   AdminSession,
   Attendee,
@@ -38,8 +45,6 @@ import {
   SectionFieldset,
 } from "#templates/components/aggregate-sections.tsx";
 import { Badge } from "#templates/components/badge.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
-import { HeaderRow } from "#templates/components/header-row.tsx";
 import {
   type LabelledLine,
   LabelledParas,
@@ -52,49 +57,36 @@ import {
   type RadioOptionProps,
 } from "#templates/components/radio-option.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
-/** A `<td>` cell holding one labelled radio option of a merge-decision group.
- *  The merge tables (PII fields, custom-question answers, booking conflicts)
- *  all render the same `<td><label><input type="radio"…/> {label}</label></td>`
- *  cell; this helper factors that out so a quorum target/source/clear cell
- *  can't drift between the three tables. */
-const mergeRadioCell = ({
+/** One labelled radio option used by each merge-decision table. */
+const MergeRadioOption = ({
   children,
   ...option
 }: RadioOptionProps): JSX.Element => (
-  <td>
-    <RadioOption {...option}> {children}</RadioOption>
-  </td>
+  <RadioOption {...option}> {children}</RadioOption>
 );
 
-/** A merge-decision table: an optional heading + a {@link DataTable} whose
- *  header row is the given column labels and whose body is the per-row decision
- *  <tr>s. The PII-field, answer, and booking decision tables all share this
- *  shell. A heading makes it a legend-led form section; without one it stays a
- *  plain wrapper (the PII table leads the merge form, under its own heading). */
-const DecisionTable = ({
+/** A merge-decision table with an optional legend-led form section. */
+const DecisionTable = <TRow,>({
   heading,
-  headers,
-  children,
+  rows,
+  table,
 }: {
   heading?: string;
-  headers: Child[];
-  children: JSX.Element[];
+  rows: readonly TRow[];
+  table: TableDefinition<TRow>;
 }): JSX.Element => {
-  const table = (
-    <DataTable
-      columns={headers.map((header) => ({ header }))}
-      rows={children}
-    />
-  );
+  const content = renderTable(table, rows);
   return heading ? (
     <SectionFieldset className="listing-section" legend={heading}>
-      {table}
+      {content}
     </SectionFieldset>
   ) : (
-    <div>{table}</div>
+    <div>{content}</div>
   );
 };
 
@@ -419,46 +411,131 @@ const renderFieldValue = (value: string, multiline: boolean): string =>
     ? String(<span style="white-space:pre-wrap">{value || "—"}</span>)
     : value || "—";
 
-/** Render a PII field choice row (radio buttons for target vs source value) */
-const MergePiiField = ({
-  field,
-  label,
-  targetValue,
-  sourceValue,
-  multiline = false,
+/** The PII field choices for the current and source attendee. */
+const MergePiiDecisionTable = ({
+  fields,
+  sourceName,
+  targetName,
 }: {
-  field: string;
-  label: string;
-  targetValue: string;
-  sourceValue: string;
-  multiline?: boolean;
-}): string => {
-  const same = targetValue === sourceValue;
-  const name = `pii_${field}`;
-  return String(
-    <tr>
-      <th scope="row">{label}</th>
-      {mergeRadioCell({
-        checked: true,
-        children: <Raw html={renderFieldValue(targetValue, multiline)} />,
-        name,
-        value: "target",
-      })}
-      <td>
-        {same ? (
-          <span class="muted">(same)</span>
-        ) : (
-          <RadioOption checked={false} name={name} value="source">
-            {" "}
-            <Raw html={renderFieldValue(sourceValue, multiline)} />
-          </RadioOption>
-        )}
-      </td>
-    </tr>,
-  );
+  fields: AttendeeMergeDiffPiiField[];
+  sourceName: string;
+  targetName: string;
+}): JSX.Element => (
+  <DecisionTable
+    heading=""
+    rows={fields}
+    table={defineTable<AttendeeMergeDiffPiiField>([
+      {
+        cell: (field) => field.label,
+        header: () => t("admin.attendees.field"),
+        key: "field",
+      },
+      {
+        cell: (field) => (
+          <MergeRadioOption
+            checked={true}
+            name={`pii_${field.field}`}
+            value="target"
+          >
+            <Raw html={renderFieldValue(field.targetValue, field.multiline)} />
+          </MergeRadioOption>
+        ),
+        header: (
+          <>
+            {"Keep (current): "}
+            <strong>{targetName}</strong>
+          </>
+        ),
+        key: "target",
+      },
+      {
+        cell: (field) =>
+          field.same ? (
+            <span class="muted">(same)</span>
+          ) : (
+            <MergeRadioOption
+              checked={false}
+              name={`pii_${field.field}`}
+              value="source"
+            >
+              <Raw
+                html={renderFieldValue(field.sourceValue, field.multiline)}
+              />
+            </MergeRadioOption>
+          ),
+        header: (
+          <>
+            {"Take from: "}
+            <strong>{sourceName}</strong>
+          </>
+        ),
+        key: "source",
+      },
+    ])}
+  />
+);
+
+const mergeAnswerColumns = (
+  targetName: string,
+  sourceName: string,
+): TableColumn<AttendeeMergeDiffAnswerItem>[] => {
+  const choiceColumn = (
+    key: "source" | "clear",
+    header: Child,
+    label: (item: AttendeeMergeDiffAnswerItem) => Child,
+  ): TableColumn<AttendeeMergeDiffAnswerItem> => ({
+    cell: (item) =>
+      item.conflict ? (
+        <MergeRadioOption
+          checked={false}
+          name={`answer_${item.questionId}`}
+          value={key}
+        >
+          {label(item)}
+        </MergeRadioOption>
+      ) : null,
+    header,
+    key,
+  });
+  return [
+    {
+      cell: (item) => item.questionText,
+      header: () => t("terms.question"),
+      key: "question",
+    },
+    {
+      cell: (item) => {
+        if (!item.conflict) {
+          const { answer, from } = nonConflictAnswerLabel(item);
+          return (
+            <span class="muted">
+              {answer} ({from} — auto-kept)
+            </span>
+          );
+        }
+        return (
+          <MergeRadioOption
+            checked={true}
+            name={`answer_${item.questionId}`}
+            value="target"
+          >
+            {item.targetAnswerText!}
+          </MergeRadioOption>
+        );
+      },
+      header: `Keep (${targetName})`,
+      key: "target",
+    },
+    choiceColumn(
+      "source",
+      `Take from (${sourceName})`,
+      (item) => item.sourceAnswerText!,
+    ),
+    choiceColumn("clear", t("admin.attendees.th_clear"), () => "None"),
+  ];
 };
 
-/** Render the answer decision table */
+/** Render the answer decision table. */
 const MergeAnswersDecisionTable = ({
   diff,
   targetName,
@@ -467,59 +544,14 @@ const MergeAnswersDecisionTable = ({
   diff: AttendeeMergeDiff;
   targetName: string;
   sourceName: string;
-}): string => {
-  if (diff.answerItems.length === 0) return "";
-  return String(
+}): JSX.Element | null => {
+  if (diff.answerItems.length === 0) return null;
+  return (
     <DecisionTable
-      headers={[
-        t("terms.question"),
-        `Keep (${targetName})`,
-        `Take from (${sourceName})`,
-        t("admin.attendees.th_clear"),
-      ]}
       heading={t("admin.attendees.custom_question_answers")}
-    >
-      {diff.answerItems.map((item) => {
-        const name = `answer_${item.questionId}`;
-        if (!item.conflict) {
-          // Non-conflicting: show info only (no decision needed)
-          const { answer, from } = nonConflictAnswerLabel(item);
-          return (
-            <HeaderRow header={item.questionText}>
-              <td colspan="3">
-                <span class="muted">
-                  {answer} ({from} — auto-kept)
-                </span>
-              </td>
-            </HeaderRow>
-          );
-        }
-        const targetLabel = item.targetAnswerText!;
-        const sourceLabel = item.sourceAnswerText!;
-        return (
-          <HeaderRow header={item.questionText}>
-            {mergeRadioCell({
-              checked: true,
-              children: targetLabel,
-              name,
-              value: "target",
-            })}
-            {mergeRadioCell({
-              checked: false,
-              children: sourceLabel,
-              name,
-              value: "source",
-            })}
-            {mergeRadioCell({
-              checked: false,
-              children: "None",
-              name,
-              value: "clear",
-            })}
-          </HeaderRow>
-        );
-      })}
-    </DecisionTable>,
+      rows={diff.answerItems}
+      table={defineTable(mergeAnswerColumns(targetName, sourceName))}
+    />
   );
 };
 
@@ -544,128 +576,140 @@ const BreakRadio = ({
   </>
 );
 
-/** One row of the booking decision table: the shared leading listing/date/qty
- *  cells followed by the row's status and (optionally) decision cells. Both the
- *  moveable and conflicting booking rows open with these same three cells. */
-const BookingDecisionRow = ({
-  children,
-  dateStr,
+const bookingDateLabel = (item: AttendeeMergeDiffBookingItem): string =>
+  item.startAt
+    ? formatDateRangeLabel(item.startAt, item.sourceBooking.end_at)
+    : "—";
+
+const bookingDecisionName = (item: AttendeeMergeDiffBookingItem): string =>
+  bookingKey(
+    item.listingId,
+    item.startAt,
+    item.parentListingId,
+    item.packageGroupId,
+  );
+
+const bookingStatus = (item: AttendeeMergeDiffBookingItem): JSX.Element => {
+  if (item.conflictClass === "moveable") {
+    return <span class="muted">Will be moved</span>;
+  }
+  const conflictLabel = bookingConflictLabel(item);
+  const targetQty = item.targetBooking!.quantity;
+  return (
+    <>
+      <strong>{conflictLabel}</strong>
+      {item.targetBooking &&
+        ` (target qty: ${targetQty}, source qty: ${item.sourceBooking.quantity})`}
+    </>
+  );
+};
+
+const BookingChoice = ({
   item,
 }: {
-  children: Child;
-  dateStr: string;
   item: AttendeeMergeDiffBookingItem;
-}): JSX.Element => (
-  <tr>
-    <td>Listing #{item.listingId}</td>
-    <td>{dateStr}</td>
-    <td>{item.sourceBooking.quantity}</td>
-    {children}
-  </tr>
-);
+}): JSX.Element | null => {
+  if (item.conflictClass === "moveable") return null;
+  const key = bookingDecisionName(item);
+  const name = `booking_${key}`;
+  const moneyAtStake = Math.max(item.sourceSaleAmount, item.targetSaleAmount);
+  return (
+    <>
+      <RadioOption checked name={name} value="keep_target">
+        {" "}
+        Keep target
+      </RadioOption>
+      <BreakRadio name={name} value="take_source">
+        Replace with source
+      </BreakRadio>
+      <BreakRadio name={name} value="skip_source">
+        Skip source
+      </BreakRadio>
+      {moneyAtStake > 0 && (
+        <div class="merge-money-decision">
+          <p class="muted">
+            <strong>{t("attendee_form.merge_discarded_payment_label")}</strong>{" "}
+            (source {formatCurrency(item.sourceSaleAmount)}, target{" "}
+            {formatCurrency(item.targetSaleAmount)}) — this can't be undone, so
+            choose explicitly:
+          </p>
+          <RadioOption checked={false} name={`money_${key}`} value="credit">
+            {" "}
+            Keep as the person's credit
+          </RadioOption>
+          <BreakRadio name={`money_${key}`} value="writeoff">
+            Write it off
+          </BreakRadio>
+        </div>
+      )}
+    </>
+  );
+};
 
-/** Render the booking decision table */
+const bookingColumns = (
+  hasConflicts: boolean,
+): TableColumn<AttendeeMergeDiffBookingItem>[] => [
+  translatedTableColumn(
+    "listing",
+    "terms.listing",
+    (item) => `Listing #${item.listingId}`,
+  ),
+  translatedTableColumn("date", "common.date", bookingDateLabel),
+  translatedTableColumn(
+    "quantity",
+    "admin.attendees.source_qty",
+    (item) => item.sourceBooking.quantity,
+  ),
+  translatedTableColumn("status", "common.status", bookingStatus),
+  ...(hasConflicts
+    ? [
+        translatedTableColumn(
+          "decision",
+          "admin.attendees.decision",
+          (item: AttendeeMergeDiffBookingItem) => <BookingChoice item={item} />,
+        ),
+      ]
+    : []),
+];
+
+/** Render the booking decision table. */
 const MergeBookingsDecisionTable = ({
   diff,
 }: {
   diff: AttendeeMergeDiff;
-}): string => {
+}): JSX.Element => {
   const hasConflicts = hasBookingConflicts(diff.bookingItems);
-  const moveableExtraCell = hasConflicts ? String(<td />) : "";
-  const headers = [
-    t("terms.listing"),
-    t("common.date"),
-    t("admin.attendees.source_qty"),
-    t("common.status"),
-    ...(hasConflicts ? [t("admin.attendees.decision")] : []),
-  ];
-
-  return String(
+  return (
     <DecisionTable
-      headers={headers}
       heading={t("admin.attendees.listing_registrations")}
-    >
-      {diff.bookingItems.map((item) => {
-        const key = bookingKey(
-          item.listingId,
-          item.startAt,
-          item.parentListingId,
-          item.packageGroupId,
-        );
-        const name = `booking_${key}`;
-        const dateStr = item.startAt
-          ? formatDateRangeLabel(item.startAt, item.sourceBooking.end_at)
-          : "—";
-
-        if (item.conflictClass === "moveable") {
-          return (
-            <BookingDecisionRow dateStr={dateStr} item={item}>
-              <td>
-                <span class="muted">Will be moved</span>
-              </td>
-              <Raw html={moveableExtraCell} />
-            </BookingDecisionRow>
-          );
-        }
-
-        const conflictLabel = bookingConflictLabel(item);
-        const targetQty = item.targetBooking!.quantity;
-        const sourceQty = item.sourceBooking.quantity;
-        // The most either side's discarded ticket could be worth; >0 means
-        // a payment is at stake, so decision 17 demands a credit/write-off.
-        const moneyAtStake = Math.max(
-          item.sourceSaleAmount,
-          item.targetSaleAmount,
-        );
-
-        return (
-          <BookingDecisionRow dateStr={dateStr} item={item}>
-            <td>
-              <strong>{conflictLabel}</strong>
-              {item.targetBooking &&
-                ` (target qty: ${targetQty}, source qty: ${sourceQty})`}
-            </td>
-            <td>
-              <RadioOption checked name={name} value="keep_target">
-                {" "}
-                Keep target
-              </RadioOption>
-              <BreakRadio name={name} value="take_source">
-                Replace with source
-              </BreakRadio>
-              <BreakRadio name={name} value="skip_source">
-                Skip source
-              </BreakRadio>
-              {moneyAtStake > 0 && (
-                <div class="merge-money-decision">
-                  <p class="muted">
-                    <strong>
-                      {t("attendee_form.merge_discarded_payment_label")}
-                    </strong>{" "}
-                    (source {formatCurrency(item.sourceSaleAmount)}, target{" "}
-                    {formatCurrency(item.targetSaleAmount)}) — this can't be
-                    undone, so choose explicitly:
-                  </p>
-                  <RadioOption
-                    checked={false}
-                    name={`money_${key}`}
-                    value="credit"
-                  >
-                    {" "}
-                    Keep as the person's credit
-                  </RadioOption>
-                  <BreakRadio name={`money_${key}`} value="writeoff">
-                    Write it off
-                  </BreakRadio>
-                </div>
-              )}
-            </td>
-          </BookingDecisionRow>
-        );
-      })}
-    </DecisionTable>,
+      rows={diff.bookingItems}
+      table={defineTable(bookingColumns(hasConflicts))}
+    />
   );
 };
+
+const MergeNamedDecisionTables = ({
+  diff,
+  sourceName,
+  targetName,
+}: {
+  diff: AttendeeMergeDiff;
+  sourceName: string;
+  targetName: string;
+}): JSX.Element => (
+  <>
+    <MergePiiDecisionTable
+      fields={diff.piiFields}
+      sourceName={sourceName}
+      targetName={targetName}
+    />
+    <MergeAnswersDecisionTable
+      diff={diff}
+      sourceName={sourceName}
+      targetName={targetName}
+    />
+  </>
+);
 
 /**
  * Attendee merge panel (the Actions tab) — search for a source attendee by
@@ -730,45 +774,14 @@ export const AttendeeMergePanel = (
           />
           <input name="merge_version" type="hidden" value={mergeDiff.version} />
 
-          {/* PII decisions */}
-          <DecisionTable
-            headers={[
-              t("admin.attendees.field"),
-              <>
-                {"Keep (current): "}
-                <strong>{target.name}</strong>
-              </>,
-              <>
-                {"Take from: "}
-                <strong>{source.name}</strong>
-              </>,
-            ]}
-            heading=""
-          >
-            {mergeDiff.piiFields.map((f) => (
-              <Raw
-                html={MergePiiField({
-                  field: f.field,
-                  label: f.label,
-                  multiline: f.multiline,
-                  sourceValue: f.sourceValue,
-                  targetValue: f.targetValue,
-                })}
-              />
-            ))}
-          </DecisionTable>
-
-          {/* Answer decisions */}
-          <Raw
-            html={MergeAnswersDecisionTable({
-              diff: mergeDiff,
-              sourceName: source.name,
-              targetName: target.name,
-            })}
+          <MergeNamedDecisionTables
+            diff={mergeDiff}
+            sourceName={source.name}
+            targetName={target.name}
           />
 
           {/* Booking decisions */}
-          <Raw html={MergeBookingsDecisionTable({ diff: mergeDiff })} />
+          <MergeBookingsDecisionTable diff={mergeDiff} />
 
           <p>
             <strong>Warning:</strong> This will permanently delete the source

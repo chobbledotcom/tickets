@@ -5,10 +5,11 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 /* jscpd:ignore-end */
 
 export type BackupEntry = {
@@ -30,6 +31,34 @@ export type BackupPageState = {
   maxBackups: number;
   storageEnabled: boolean;
 };
+
+const backupsTable = defineTable<BackupEntry>([
+  {
+    cell: (backup) => backup.label,
+    header: () => t("common.created"),
+    key: "created",
+  },
+  {
+    cell: (backup) => <code>{backup.timestamp}</code>,
+    header: () => t("backup.table_timestamp"),
+    key: "timestamp",
+  },
+  {
+    cell: (backup) => backup.sizeLabel,
+    header: () => t("backup.table_size"),
+    key: "size",
+  },
+  {
+    cell: (backup) => (
+      <a href={`/admin/backup/download/${backup.filename}`}>
+        {t("backup.download_link")}
+      </a>
+    ),
+    class: "actions",
+    header: () => t("common.actions"),
+    key: "actions",
+  },
+]);
 
 /** Summary note: how many backups exist and when the oldest will be purged. */
 const RetentionNote = ({
@@ -110,22 +139,7 @@ export const adminBackupPage = flashDataPage<BackupPageState>(
                   backups={state.backups}
                   maxBackups={state.maxBackups}
                 />
-                <DataTable
-                  columns={[
-                    { header: t("common.created") },
-                    { header: t("backup.table_timestamp") },
-                    { header: t("backup.table_size") },
-                    { class: "actions", header: t("common.actions") },
-                  ]}
-                  rows={state.backups.map((b) => [
-                    b.label,
-                    <code>{b.timestamp}</code>,
-                    b.sizeLabel,
-                    <a href={`/admin/backup/download/${b.filename}`}>
-                      {t("backup.download_link")}
-                    </a>,
-                  ])}
-                />
+                {renderTable(backupsTable, state.backups)}
               </>
             )}
           </section>

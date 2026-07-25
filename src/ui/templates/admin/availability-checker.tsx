@@ -16,8 +16,8 @@ import { sort } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
-import { DataTable } from "#templates/components/data-table.tsx";
-import { colClass } from "#templates/components/table-columns.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import { renderTable } from "#templates/components/table.tsx";
 import { OrderCartButtonBody } from "#templates/public/order-gallery.tsx";
 /* jscpd:ignore-end */
 
@@ -39,13 +39,11 @@ const priceLabel = (row: AvailabilityRow): string =>
     ? t("availability.free")
     : `${row.canPayMore ? t("availability.from_prefix") : ""}${formatCurrency(row.unitPrice)}`;
 
-/** One selectable listing row. The name links to the listing; the first cell
- * is the hidden checkbox + tick box that drives selection. */
-const Row = ({ row }: { row: AvailabilityRow }): JSX.Element => {
-  const field = `${SELECT_PREFIX}${row.id}`;
-  return (
-    <tr>
-      <td>
+const availabilityColumns: readonly TableColumn<AvailabilityRow>[] = [
+  {
+    cell: (row) => {
+      const field = `${SELECT_PREFIX}${row.id}`;
+      return (
         <label class="row-select">
           <input
             aria-label={t("availability.select_listing", { name: row.name })}
@@ -57,21 +55,32 @@ const Row = ({ row }: { row: AvailabilityRow }): JSX.Element => {
           />
           <span aria-hidden="true" class="row-select-tick"></span>
         </label>
-      </td>
-      <td>
-        <a href={`/admin/listing/${row.id}`}>{row.name}</a>
-      </td>
-      <td
-        class={[colClass("quantity"), row.remaining <= 0 ? "danger" : null]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {row.remaining}/{row.total}
-      </td>
-      <td class={colClass("amount")}>{priceLabel(row)}</td>
-    </tr>
-  );
-};
+      );
+    },
+    header: <span class="visually-hidden">{t("availability.select")}</span>,
+    key: "select",
+  },
+  {
+    cell: (row) => <a href={`/admin/listing/${row.id}`}>{row.name}</a>,
+    header: t("availability.listing"),
+    key: "listing",
+  },
+  {
+    cell: (row) => `${row.remaining}/${row.total}`,
+    cellAttrs: (row) => ({ class: row.remaining <= 0 ? "danger" : undefined }),
+    class: "quantity",
+    header: t("availability.remaining"),
+    key: "remaining",
+  },
+  {
+    cell: priceLabel,
+    class: "amount",
+    header: t("availability.price"),
+    key: "price",
+  },
+];
+
+const availabilityTable = defineTable(availabilityColumns);
 
 /**
  * The availability checker disclosure. Rendered closed; the create-attendee
@@ -100,24 +109,13 @@ export const AvailabilityChecker = ({
           method="get"
         >
           {date && <input name={START_DATE_FIELD} type="hidden" value={date} />}
-          <DataTable
-            columns={[
-              {
-                header: (
-                  <span class="visually-hidden">
-                    {t("availability.select")}
-                  </span>
-                ),
-              },
-              { header: t("availability.listing") },
-              { class: "quantity", header: t("availability.remaining") },
-              { class: "amount", header: t("availability.price") },
-            ]}
-            rows={sort((a: AvailabilityRow, b: AvailabilityRow) =>
+          {renderTable(
+            availabilityTable,
+            sort((a: AvailabilityRow, b: AvailabilityRow) =>
               a.name.localeCompare(b.name),
-            )(rows).map((row) => <Row row={row} />)}
-            tableClass="availability-table"
-          />
+            )(rows),
+            { tableClass: "availability-table" },
+          )}
           <div class="order-actions">
             <button class="order-cart" type="submit">
               <OrderCartButtonBody

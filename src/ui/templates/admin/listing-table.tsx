@@ -30,6 +30,7 @@ import {
 import type { ListingWithCount } from "#shared/types.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable, tableColumnText } from "#templates/components/table.tsx";
+import { filteredTableCells } from "#templates/components/table-filters.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
 type ListingRenderer = Omit<
@@ -241,7 +242,7 @@ export const renderListingsTableSection = (
   return renderTable(table, args.listings, {
     columnKeys: args.columnKeys ?? table.layout.defaultColumnKeys,
     empty: args.emptyText,
-    filters: args.filters,
+    renderCell: filteredTableCells(args.filters ?? new Map()),
     rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
   });
 };

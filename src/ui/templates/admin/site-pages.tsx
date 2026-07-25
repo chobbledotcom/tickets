@@ -27,7 +27,6 @@ import {
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -55,6 +54,8 @@ export type EditModel = {
   pageOptions: PickerOption[];
 };
 
+type NestedPageRow = ListModel["nested"][number];
+
 const DeleteLink = rowDeleteLink(LIST);
 
 /** A page row's name cell: the page name linking through to its edit page.
@@ -81,16 +82,38 @@ const pageReorderTable = <T,>(opts: {
     },
   });
 
-/** A page-list row's cells: the name link, one middle cell (public slug or
- * parent name), then the delete link. Shared by the root and nested lists. */
-const pageRowCells = (
-  page: SitePageNavRow,
-  middle: JSX.Element | string,
-): (JSX.Element | string)[] => [
-  <PageNameLink id={page.id} name={page.name} />,
-  middle,
-  <DeleteLink id={page.id} />,
-];
+const pageColumns = <T,>(
+  pageOf: (row: T) => SitePageNavRow,
+): { actions: TableColumn<T>; name: TableColumn<T> } => ({
+  actions: {
+    cell: (row) => <DeleteLink id={pageOf(row).id} />,
+    header: "",
+    key: "actions",
+  },
+  name: {
+    cell: (row) => {
+      const page = pageOf(row);
+      return <PageNameLink id={page.id} name={page.name} />;
+    },
+    header: t("site.pages.name_column"),
+    key: "name",
+  },
+});
+
+const ownPage = (page: SitePageNavRow): SitePageNavRow => page;
+const nestedPage = (row: NestedPageRow): SitePageNavRow => row.page;
+const ownPageColumns = pageColumns(ownPage);
+const nestedPageColumns = pageColumns(nestedPage);
+
+const nestedPageTable = defineTable<NestedPageRow>([
+  nestedPageColumns.name,
+  {
+    cell: ({ parentName }) => parentName,
+    header: t("site.pages.parent_column"),
+    key: "parent",
+  },
+  nestedPageColumns.actions,
+]);
 
 export const adminSitePagesListPage = (
   model: ListModel,
@@ -112,37 +135,20 @@ export const adminSitePagesListPage = (
         {pageReorderTable({
           base: (page) => `${LIST}/${page.id}`,
           columns: [
-            {
-              cell: (page) => <PageNameLink id={page.id} name={page.name} />,
-              header: t("site.pages.name_column"),
-              key: "name",
-            },
+            ownPageColumns.name,
             {
               cell: (page) => <code>/page/{page.slug}</code>,
               header: t("common.slug"),
               key: "slug",
             },
-            {
-              cell: (page) => <DeleteLink id={page.id} />,
-              header: "",
-              key: "actions",
-            },
+            ownPageColumns.actions,
           ],
           rows: model.roots,
         })}
         {model.nested.length > 0 && (
           <>
             <h2>{t("site.pages.nested_heading")}</h2>
-            <DataTable
-              columns={[
-                { header: t("site.pages.name_column") },
-                { header: t("site.pages.parent_column") },
-                { header: "" },
-              ]}
-              rows={model.nested.map(({ page, parentName }) =>
-                pageRowCells(page, parentName),
-              )}
-            />
+            {renderTable(nestedPageTable, model.nested)}
           </>
         )}
       </>

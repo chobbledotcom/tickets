@@ -56,6 +56,7 @@ import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { SelectedQuestionAnswers } from "#shared/db/question-types.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import {
   type AdminSession,
   type Attendee,
@@ -77,13 +78,13 @@ import {
   type FormSection,
   FormSections,
 } from "#templates/components/aggregate-sections.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
   SelectField,
   type SelectOption,
 } from "#templates/components/select-field.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 /* jscpd:ignore-end */
 
@@ -169,106 +170,138 @@ const lineRowClass = (line: AttendeeFormLine, booked: boolean): string => {
     : "attendee-line attendee-line-empty";
 };
 
-/** One row of the listing editor — one booking path and its quantity box. */
-const ListingRow = ({
-  line,
-  index,
-  warnings,
-  data,
-}: {
-  line: AttendeeFormLine;
-  index: number;
-  warnings: string[];
-  data: AttendeeFormTemplateData;
-}): JSX.Element => {
+const listingNameCell = (
+  line: AttendeeFormLine,
+  data: AttendeeFormTemplateData,
+): JSX.Element => {
   const listing = line.listing!;
-  const booked = isRetainedLine(line) || Boolean(line.existingBooking);
-  const isDaily = listing.listing_type === "daily";
   const label = pathLabel(line, data);
+  return (
+    <>
+      <AdminListingLink listing={listing} />
+      {label ? <span class="muted small booking-path"> {label}</span> : null}
+      <InactiveNote active={listing.active} />
+      {BookingStatusBadges({
+        checkedIn: Boolean(line.existingBooking?.checked_in),
+        refunded: Boolean(line.existingBooking?.refunded),
+      })}
+    </>
+  );
+};
+
+const listingDatesCell = (line: AttendeeFormLine): JSX.Element => (
+  <span class="muted small">
+    {line.listing!.listing_type === "daily"
+      ? t("attendee_form.shared_dates")
+      : t("attendee_form.fixed_date")}
+  </span>
+);
+
+const listingQuantityCell = (
+  line: AttendeeFormLine,
+  _data: AttendeeFormTemplateData,
+  index: number,
+): JSX.Element => {
+  const listing = line.listing!;
   // A paid line can't be marked no-quantity until its charge is refunded, so the
   // box is disabled with an explaining tooltip rather than left to fail on save.
   const paymentLocked = isPaymentLockedLine(line);
   return (
-    <tr class={lineRowClass(line, booked)}>
-      <td>
-        <AdminListingLink listing={listing} />
-        {label ? <span class="muted small booking-path"> {label}</span> : null}
-        <InactiveNote active={listing.active} />
-        {BookingStatusBadges({
-          checkedIn: Boolean(line.existingBooking?.checked_in),
-          refunded: Boolean(line.existingBooking?.refunded),
-        })}
-      </td>
-      <td>
-        <span class="muted small">
-          {isDaily
-            ? t("attendee_form.shared_dates")
-            : t("attendee_form.fixed_date")}
-        </span>
-      </td>
-      <td class="attendee-line-qty">
+    <>
+      <input
+        aria-label={t("attendee_form.qty_aria", { title: listing.name })}
+        class="line-qty"
+        max={listing.max_quantity}
+        min="0"
+        name={`${QTY_PREFIX}${index}`}
+        type="number"
+        value={line.quantity === null ? "0" : String(line.quantity)}
+      />
+      <label class="small">
         <input
-          aria-label={t("attendee_form.qty_aria", { title: listing.name })}
-          class="line-qty"
-          max={listing.max_quantity}
-          min="0"
-          name={`${QTY_PREFIX}${index}`}
-          type="number"
-          value={line.quantity === null ? "0" : String(line.quantity)}
+          checked={line.noQuantity}
+          class="no-quantity-toggle"
+          disabled={paymentLocked}
+          name={`${NO_QUANTITY_PREFIX}${index}`}
+          title={
+            paymentLocked ? t("attendee_form.paid_no_quantity_line") : undefined
+          }
+          type="checkbox"
+          value="1"
         />
-        <label class="small">
-          <input
-            checked={line.noQuantity}
-            class="no-quantity-toggle"
-            disabled={paymentLocked}
-            name={`${NO_QUANTITY_PREFIX}${index}`}
-            title={
-              paymentLocked
-                ? t("attendee_form.paid_no_quantity_line")
-                : undefined
-            }
-            type="checkbox"
-            value="1"
-          />
-          {t("attendee_form.no_quantity")}
-        </label>
+        {t("attendee_form.no_quantity")}
+      </label>
+      <input
+        name={`${LINE_LISTING_PREFIX}${index}`}
+        type="hidden"
+        value={String(line.listingId)}
+      />
+      <input
+        name={`${LINE_KEY_PREFIX}${index}`}
+        type="hidden"
+        value={line.key}
+      />
+      {line.packageGroupId > 0 ? (
         <input
-          name={`${LINE_LISTING_PREFIX}${index}`}
+          name={`${LINE_PACKAGE_PREFIX}${index}`}
           type="hidden"
-          value={String(line.listingId)}
+          value={String(line.packageGroupId)}
         />
-        <input
-          name={`${LINE_KEY_PREFIX}${index}`}
-          type="hidden"
-          value={line.key}
-        />
-        {line.packageGroupId > 0 ? (
-          <input
-            name={`${LINE_PACKAGE_PREFIX}${index}`}
-            type="hidden"
-            value={String(line.packageGroupId)}
-          />
-        ) : null}
-      </td>
-      <td>
-        {line.existingBooking?.start_at ? (
-          <div class="muted small">
-            {formatDateRangeLabel(
-              line.existingBooking.start_at,
-              line.existingBooking.end_at,
-            )}
-          </div>
-        ) : null}
-        {line.error ? <ErrorAlert>{line.error}</ErrorAlert> : null}
-        {warnings.map((w) => (
-          <div class="warning small" role="alert">
-            {w}
-          </div>
-        ))}
-      </td>
-    </tr>
+      ) : null}
+    </>
   );
 };
+
+const listingNoticesCell = (
+  line: AttendeeFormLine,
+  data: AttendeeFormTemplateData,
+): JSX.Element => (
+  <>
+    {line.existingBooking?.start_at ? (
+      <div class="muted small">
+        {formatDateRangeLabel(
+          line.existingBooking.start_at,
+          line.existingBooking.end_at,
+        )}
+      </div>
+    ) : null}
+    {line.error ? <ErrorAlert>{line.error}</ErrorAlert> : null}
+    {(data.lineWarnings.get(line.listingId) ?? []).map((warning) => (
+      <div class="warning small" role="alert">
+        {warning}
+      </div>
+    ))}
+  </>
+);
+
+const listingColumns: readonly TableColumn<
+  AttendeeFormLine,
+  AttendeeFormTemplateData
+>[] = [
+  {
+    cell: listingNameCell,
+    header: t("terms.listing"),
+    key: "listing",
+  },
+  {
+    cell: listingDatesCell,
+    header: t("attendee_form.col_dates"),
+    key: "dates",
+  },
+  {
+    cell: listingQuantityCell,
+    className: "attendee-line-qty",
+    header: t("attendee_form.col_qty"),
+    key: "quantity",
+  },
+  {
+    cell: listingNoticesCell,
+    header: "",
+    key: "notices",
+  },
+];
+
+const listingEditorTable = defineTable(listingColumns);
 
 /** The fixed listing editor: one quantity box per listing. When at least one
  * line is already booked — an edit, or a create deep-linked from the calendar
@@ -309,23 +342,16 @@ const ListingEditor = ({ data }: AttendeeFormProps): JSX.Element => {
           {t("attendee_form.show_package_paths")}
         </label>
       )}
-      <DataTable
-        columns={[
-          { header: t("terms.listing") },
-          { header: t("attendee_form.col_dates") },
-          { header: t("attendee_form.col_qty") },
-          { header: "" },
-        ]}
-        rows={data.parsed.lines.map((line, index) => (
-          <ListingRow
-            data={data}
-            index={index}
-            line={line}
-            warnings={data.lineWarnings.get(line.listingId) ?? []}
-          />
-        ))}
-        tableClass="line-editor"
-      />
+      {renderTable(listingEditorTable, data.parsed.lines, {
+        context: data,
+        rowAttrs: (line) => ({
+          class: lineRowClass(
+            line,
+            isRetainedLine(line) || Boolean(line.existingBooking),
+          ),
+        }),
+        tableClass: "line-editor",
+      })}
     </div>
   );
 };

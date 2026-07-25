@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { defineTable } from "#shared/tables/definition.ts";
 import {
   combineClasses,
@@ -79,6 +80,11 @@ describe("typed table rendering", () => {
     ]);
 
     const html = String(renderColumnReference(table));
+    expect(html).toContain(`<th>${t("guide.table_reference.tag")}</th>`);
+    expect(html).toContain(`<th>${t("guide.table_reference.label")}</th>`);
+    expect(html).toContain(
+      `<th>${t("guide.table_reference.description")}</th>`,
+    );
     expect(html).toContain("{{name}}");
     expect(html).toContain("Stored name");
     expect(html).not.toContain("{{internal}}");

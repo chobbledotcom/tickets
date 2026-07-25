@@ -6,11 +6,26 @@
 
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { OrderSummary } from "#shared/db/attendees/balance.ts";
-import { DataTable } from "#templates/components/data-table.tsx";
+import type { OrderLine, OrderSummary } from "#shared/db/attendees/balance.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import { SubmitForm } from "#templates/components/submit-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { prosePage, simplePublicPage } from "./prose-page.tsx";
 import { AmountLine } from "./shared.tsx";
+
+const orderSummaryTable = defineTable<OrderLine>([
+  {
+    cell: (line) => line.name,
+    header: () => t("public_balance.item"),
+    key: "item",
+  },
+  {
+    cell: (line) => line.quantity,
+    class: "quantity",
+    header: () => t("common.qty"),
+    key: "quantity",
+  },
+]);
 
 /** Recap + pay form for an outstanding balance. */
 export const balancePaymentPage = (
@@ -24,13 +39,7 @@ export const balancePaymentPage = (
   )(
     <p>{t("public_balance.booking_summary")}</p>,
     <>
-      <DataTable
-        columns={[
-          { header: t("public_balance.item") },
-          { class: "quantity", header: t("common.qty") },
-        ]}
-        rows={summary.lines.map((line) => [line.name, line.quantity])}
-      />
+      {renderTable(orderSummaryTable, summary.lines)}
       <AmountLine
         amount={summary.fullPrice}
         label={`${t("public_balance.full_order_price")}:`}

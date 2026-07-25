@@ -1,9 +1,37 @@
 import { t } from "#i18n";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import type { Group } from "#shared/types.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { AdminSession, Group } from "#shared/types.ts";
 import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+
+const groupLink = (
+  group: Group,
+  adminLevel: AdminSession["adminLevel"],
+): JSX.Element => (
+  // Staff open the detail page; editors can't (it decrypts attendee PII), so
+  // they link straight to the edit form.
+  <a href={entityReturnPath("/admin/groups", adminLevel, group.id)}>
+    {group.name}
+  </a>
+);
+
+const groupColumns: readonly TableColumn<Group, AdminSession["adminLevel"]>[] =
+  [
+    {
+      cell: groupLink,
+      header: t("common.name"),
+      key: "name",
+    },
+    {
+      cell: (group) => group.slug,
+      header: t("common.slug"),
+      key: "slug",
+    },
+  ];
+
+const groupsTable = defineTable(groupColumns);
 
 /** Admin groups list page. */
 export const adminGroupsPage = successListPage<Group[]>(
@@ -14,23 +42,7 @@ export const adminGroupsPage = successListPage<Group[]>(
       {groups.length === 0 ? (
         <p>{t("groups.no_groups")}</p>
       ) : (
-        <DataTable
-          columns={namedColumns("common.slug")}
-          rows={groups.map((group) => [
-            // Staff open the detail page; editors can't (it decrypts attendee
-            // PII), so they link straight to the edit form.
-            <a
-              href={entityReturnPath(
-                "/admin/groups",
-                session.adminLevel,
-                group.id,
-              )}
-            >
-              {group.name}
-            </a>,
-            group.slug,
-          ])}
-        />
+        renderTable(groupsTable, groups, { context: session.adminLevel })
       )}
 
       <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#packages">

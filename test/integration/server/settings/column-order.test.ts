@@ -1,12 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { execute } from "#shared/db/client.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin settings: column order)", { db: true }, () => {
+  const invalidMessage = (kind: keyof typeof configurableTableLayouts) =>
+    t("settings.column_order.invalid", {
+      columns: configurableTableLayouts[kind].keys.join(", "),
+    });
+
   describe("POST /admin/settings/listing-column-order", () => {
     const formUrl =
       "/admin/settings-advanced?form=settings-listing-column-order#settings-listing-column-order";
@@ -18,7 +25,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
       );
       await expectFlashRedirect(
         formUrl,
-        "Listing column order updated",
+        t("settings.column_order.listing_updated"),
       )(response);
       expect(settings.listingColumnOrder).toBe("{{name}}, {{status}}");
       expect(settings.listingColumnLayout.columnKeys).toEqual([
@@ -32,10 +39,11 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "/admin/settings/listing-column-order",
         { column_order: "{{invalid}}" },
       );
-      await expectFlashRedirect(formUrl, undefined, false)(response);
-      const msg = decodeURIComponent(response.headers.get("set-cookie") ?? "");
-      expect(msg).toContain("invalid");
-      expect(msg).toContain("Available columns");
+      await expectFlashRedirect(
+        formUrl,
+        invalidMessage("listing"),
+        false,
+      )(response);
     });
 
     test("clears to default when empty", async () => {
@@ -46,7 +54,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
       );
       await expectFlashRedirect(
         formUrl,
-        "Listing column order updated",
+        t("settings.column_order.listing_updated"),
       )(response);
       expect(settings.listingColumnOrder).toBe("");
       expect(settings.listingColumnLayout.columnKeys[0]).toBe("name");
@@ -77,7 +85,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
       );
       await expectFlashRedirect(
         formUrl,
-        "Attendee column order updated",
+        t("settings.column_order.attendee_updated"),
       )(response);
       expect(settings.attendeeColumnOrder).toBe(
         "{{name}}, {{qty}}, {{ticket}}",
@@ -94,10 +102,11 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "/admin/settings/attendee-column-order",
         { column_order: "{{bogus}}" },
       );
-      await expectFlashRedirect(formUrl, undefined, false)(response);
-      const msg = decodeURIComponent(response.headers.get("set-cookie") ?? "");
-      expect(msg).toContain("bogus");
-      expect(msg).toContain("Available columns");
+      await expectFlashRedirect(
+        formUrl,
+        invalidMessage("attendee"),
+        false,
+      )(response);
     });
 
     test("clears to default when empty", async () => {
@@ -108,7 +117,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
       );
       await expectFlashRedirect(
         formUrl,
-        "Attendee column order updated",
+        t("settings.column_order.attendee_updated"),
       )(response);
       expect(settings.attendeeColumnOrder).toBe("");
     });

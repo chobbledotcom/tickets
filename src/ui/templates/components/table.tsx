@@ -1,12 +1,14 @@
 /**
  * Render typed table definitions through the shared scrolling table shell.
  * The renderer resolves requested and hidden columns, passes table context to
- * each cell, applies configured filters, and attaches cell and row attributes.
+ * each cell and attaches cell and row attributes.
  *
  * Unknown requested keys fail at the table definition boundary. Cell renderers
  * return JSX children, so text is escaped unless the caller supplies `Raw`.
  */
 
+/* jscpd:ignore-start */
+import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type {
@@ -16,20 +18,15 @@ import type {
 } from "#shared/tables/column.ts";
 import type { TableDefinition } from "#shared/tables/definition.ts";
 import { columnOrThrow } from "#shared/tables/definition.ts";
-import { renderFilteredValue } from "#shared/tables/liquid.ts";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 import {
   type ColumnKind,
   colClass,
 } from "#templates/components/table-columns.ts";
 
+/* jscpd:ignore-end */
+
 type TableRenderShell<TRow, TContext = void> = {
-  /** Per-table context passed to every column's `cell` and `cellAttrs`. */
-  readonly context?: TContext | undefined;
-  /** Per-column-key Liquid filter expressions, applied to a column's
-   *  `rawValue` instead of its `cell()` output. Pass the parsed layout's
-   *  `filters`. */
-  readonly filters?: ReadonlyMap<string, string> | undefined;
   /** Empty-state body rendered in a single `<td colspan>` when rows is
    *  empty. When omitted, an empty rows array renders no body at all. */
   readonly empty?: Child | undefined;
@@ -45,7 +42,21 @@ type TableRenderShell<TRow, TContext = void> = {
   readonly rowAttrs?:
     | ((row: TRow, context: TContext) => TableAttrs)
     | undefined;
+  /** Optional cell renderer installed by configurable tables. */
+  readonly renderCell?: TableCellRenderer<TRow, TContext> | undefined;
 };
+
+type TableContextOptions<TContext> = [undefined] extends [TContext]
+  ? { readonly context?: undefined }
+  : { readonly context: TContext };
+
+export type TableCellRenderer<TRow, TContext> = (
+  column: TableColumn<TRow, TContext>,
+  row: TRow,
+  context: TContext,
+  index: number,
+  rows: readonly TRow[],
+) => Child;
 
 /** Per-render options for column selection, context, row state, and framing. */
 export type TableRenderOptions<TRow, TContext = void> = TableRenderShell<
@@ -62,7 +73,7 @@ export type TableRenderOptions<TRow, TContext = void> = TableRenderShell<
   readonly hiddenKeys?: ReadonlySet<string> | undefined;
   /** Add the standard move-up/down column when the site is writable. */
   readonly reorder?: ReorderColumnOptions<TRow> | undefined;
-};
+} & TableContextOptions<TContext>;
 
 /** The set of `ColumnKind` literal values, for runtime disambiguation between
  *  a `class` (ColumnKind — to be turned into `col-<kind>`) and a `className`
@@ -130,32 +141,8 @@ const splitCellAttrs = (
   return { class: customClass, rest };
 };
 
-/** Render one <td>'s body. When a Liquid filter is active and the column
- *  exposes a raw value, the filter runs against that value (escaped); the
- *  column's own `cell()` is otherwise the body. */
-const cellContent = <TRow, TContext>(
-  column: TableColumn<TRow, TContext>,
-  row: TRow,
-  ctx: TContext,
-  index: number,
-  rows: readonly TRow[],
-  filterExpr: string | undefined,
-): Child => {
-  if (filterExpr && column.rawValue) {
-    return renderFilteredValue(
-      filterExpr,
-      column.rawValue(row, ctx),
-      column.key,
-    );
-  }
-  return column.cell(row, ctx, index, rows);
-};
-
-/** The shared `<div class="table-scroll"><table>` shell wrapping one table's
- *  header row, body, and optional footer. Both the positional `DataTable`
- *  renderer (in `data-table.tsx`) and the typed `renderColumns` renderer
- *  call this so the wrapping structure can never drift between them. */
-export const TableShell = ({
+/** The shared scrolling table shell wrapping one header, body, and footer. */
+const TableShell = ({
   body,
   bodyAttrs,
   foot,
@@ -188,18 +175,21 @@ const TableCell = <TRow, TContext>({
   ctx,
   index,
   rows,
-  filterExpr,
+  renderCell,
 }: {
   column: TableColumn<TRow, TContext>;
   row: TRow;
   ctx: TContext;
   index: number;
   rows: readonly TRow[];
-  filterExpr: string | undefined;
+  renderCell: TableCellRenderer<TRow, TContext> | undefined;
 }): JSX.Element => {
   const attrs = splitCellAttrs(column.cellAttrs?.(row, ctx));
   const className = combineClasses(column.class, column.className, attrs.class);
-  const content = cellContent(column, row, ctx, index, rows, filterExpr);
+  const content =
+    renderCell === undefined
+      ? column.cell(row, ctx, index, rows)
+      : renderCell(column, row, ctx, index, rows);
   return className === "" ? (
     <td {...attrs.rest}>{content}</td>
   ) : (
@@ -213,10 +203,7 @@ const TableCell = <TRow, TContext>({
  *  when non-empty so the renderer can emit no class attribute at all.
  *  Lifted out so the positional-and-typed renderers share one shape; both
  *  call this so a `<th>` element's structure can never drift between them. */
-export const renderHeaderCell = (
-  header: Child,
-  className: string,
-): JSX.Element =>
+const renderHeaderCell = (header: Child, className: string): JSX.Element =>
   className === "" ? <th>{header}</th> : <th class={className}>{header}</th>;
 
 const headerCell = <TRow, TContext>(
@@ -266,6 +253,7 @@ type InternalRenderOptions<TRow, TContext> = TableRenderShell<
   TContext
 > & {
   readonly columns: readonly TableColumn<TRow, TContext>[];
+  readonly context: TContext;
 };
 
 /** Render the table from a fixed column list, rows, and framing options. */
@@ -275,11 +263,7 @@ const renderColumns = <TRow, TContext = void>(
 ): JSX.Element => {
   const { columns } = options;
   const colCount = columns.length;
-  // `void` accepts `undefined` (no context passed); contextual tables pass
-  // their own context. `as TContext` because the option's `?` admits
-  // `undefined`, which is exactly what `void` callers leave absent.
-  const ctx = (options.context ?? undefined) as TContext;
-  const filters = options.filters ?? new Map<string, string>();
+  const ctx = options.context;
 
   const body: Child =
     rows.length === 0 && options.empty !== undefined ? (
@@ -293,8 +277,8 @@ const renderColumns = <TRow, TContext = void>(
             <TableCell
               column={column}
               ctx={ctx}
-              filterExpr={filters.get(column.key)}
               index={index}
+              renderCell={options.renderCell}
               row={row}
               rows={rows}
             />
@@ -320,10 +304,10 @@ const renderColumnsOptions = <TRow, TContext>(
 ): InternalRenderOptions<TRow, TContext> => ({
   bodyAttrs: options?.bodyAttrs,
   columns,
-  context: options?.context,
+  context: (options?.context ?? undefined) as TContext,
   empty: options?.empty,
-  filters: options?.filters,
   foot: options?.foot,
+  renderCell: options?.renderCell,
   rowAttrs: options?.rowAttrs,
   scrollClass: options?.scrollClass,
   tableClass: options?.tableClass,
@@ -334,12 +318,16 @@ const renderColumnsOptions = <TRow, TContext>(
 export const renderTable = <TRow, TContext = void>(
   table: TableDefinition<TRow, TContext>,
   rows: readonly TRow[],
-  options?: TableRenderOptions<TRow, TContext>,
-): JSX.Element =>
-  renderColumns(
+  ...optionArgs: [undefined] extends [TContext]
+    ? [options?: TableRenderOptions<TRow, TContext>]
+    : [options: TableRenderOptions<TRow, TContext>]
+): JSX.Element => {
+  const options = optionArgs[0];
+  return renderColumns(
     rows,
     renderColumnsOptions(options, resolveOptionColumns(table, options)),
   );
+};
 
 /** The standard up/down reorder-arrows column: prepended to a table's
  *  columns when the operator can re-order rows. Hidden entirely in
@@ -387,9 +375,9 @@ export const renderColumnReference = <TRow, TContext>(
       <table>
         <thead>
           <tr>
-            <th>Tag</th>
-            <th>Label</th>
-            <th>Description</th>
+            <th>{t("guide.table_reference.tag")}</th>
+            <th>{t("guide.table_reference.label")}</th>
+            <th>{t("guide.table_reference.description")}</th>
           </tr>
         </thead>
         <tbody>{rows}</tbody>

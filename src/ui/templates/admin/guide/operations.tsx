@@ -2,6 +2,8 @@
  * Admin guide — Operations sections.
  */
 
+import { t } from "#i18n";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   custom,
   faq,
@@ -14,7 +16,7 @@ import { renderColumnReference } from "#templates/components/table.tsx";
 /** The "Default order: `<code>`" line a table-columns FAQ answer opens with. */
 const defaultOrderParagraph = (template: string): JSX.Element => (
   <p>
-    Default order: <code>{template}</code>
+    {t("guide.table_columns.default_order")} <code>{template}</code>
   </p>
 );
 
@@ -106,28 +108,7 @@ export const operationsSections = (): GuideSection[] => [
   },
   {
     entries: [
-      custom(
-        "customise_table_columns",
-        <>
-          <p>
-            Go to <strong>Advanced Settings</strong> and find the{" "}
-            <strong>Listing Table Columns</strong> or{" "}
-            <strong>Attendee Table Columns</strong> section. Enter a
-            comma-separated list of Liquid-style tags to control which columns
-            appear and in what order.
-          </p>
-          <p>
-            For example, to show only the name and status on the listings table:
-          </p>
-          <pre>
-            <code>{"{{name}}, {{status}}"}</code>
-          </pre>
-          <p>
-            Leave the field empty or clear it to restore the default column
-            order.
-          </p>
-        </>,
-      ),
+      faq("customise_table_columns"),
       custom(
         "listing_table_columns",
         <>
@@ -139,64 +120,11 @@ export const operationsSections = (): GuideSection[] => [
         "attendee_table_columns",
         <>
           {defaultOrderParagraph(attendeeTable.layout.defaultTemplate)}
-          <p>
-            Columns referencing absent data (e.g. <code>{"{{email}}"}</code>{" "}
-            when no attendees have an email) are hidden automatically even when
-            included in the template.
-          </p>
+          <Raw html={t("guide.table_columns.attendee_hidden")} />
           {renderColumnReference(attendeeTable)}
         </>,
       ),
-      custom(
-        "column_format_filters",
-        <>
-          <p>
-            Yes. Date and price columns support Liquid filters. Add a pipe (
-            <code>|</code>) after the column name followed by the filter:
-          </p>
-          <pre>
-            <code>
-              {'{{created | date: "%B %d, %Y"}}'}
-              {"\n"}
-              {'{{date | date: "%A %e %b"}}'}
-              {"\n"}
-              {"{{price | currency}}"}
-            </code>
-          </pre>
-          <p>
-            The <code>date</code> filter uses{" "}
-            <a href="https://strftime.net/">strftime format codes</a>. Common
-            codes:
-          </p>
-          <ul>
-            <li>
-              <code>%Y</code> full year, <code>%y</code> 2-digit year
-            </li>
-            <li>
-              <code>%B</code> full month name, <code>%b</code> abbreviated
-            </li>
-            <li>
-              <code>%d</code> zero-padded day, <code>%e</code> day without
-              padding
-            </li>
-            <li>
-              <code>%A</code> full weekday, <code>%a</code> abbreviated
-            </li>
-            <li>
-              <code>%H</code> hour (24h), <code>%I</code> hour (12h),{" "}
-              <code>%M</code> minutes
-            </li>
-          </ul>
-          <p>
-            The <code>currency</code> filter formats a number as your configured
-            currency (e.g. <code>2500</code> &rarr; &pound;25.00).
-          </p>
-          <p>
-            Columns without a <code>rawValue</code> (like name or email) ignore
-            filters &mdash; they always render their default content.
-          </p>
-        </>,
-      ),
+      faq("column_format_filters"),
     ],
     id: "column-order",
     titleKey: "column_order",

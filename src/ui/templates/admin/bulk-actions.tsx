@@ -18,11 +18,12 @@ import {
 } from "#shared/bulk-replace.ts";
 import { settings } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
 import { SubmitForm } from "#templates/components/submit-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { TextFields } from "#templates/components/text-fields.tsx";
 
@@ -171,23 +172,34 @@ export const adminBulkActionsPage = (
   );
 };
 
-/** Preview row component: one table row per source listing. */
-const PreviewRow = ({
-  row,
-  tz,
-}: {
-  row: DuplicatePreviewRow;
-  tz: string;
-}): JSX.Element => (
-  <tr data-listing-id={String(row.id)}>
-    <td data-preview-original-name>{row.originalName}</td>
-    <td data-preview-new-name>{row.newName}</td>
-    <td data-preview-original-date>
-      {formatIsoForPreview(row.originalDate, tz)}
-    </td>
-    <td data-preview-new-date>{formatIsoForPreview(row.newDate, tz)}</td>
-  </tr>
-);
+const previewColumns: readonly TableColumn<DuplicatePreviewRow, string>[] = [
+  {
+    cell: (row) => row.originalName,
+    cellAttrs: () => ({ "data-preview-original-name": true }),
+    header: t("bulk_actions.preview_col_original_name"),
+    key: "original_name",
+  },
+  {
+    cell: (row) => row.newName,
+    cellAttrs: () => ({ "data-preview-new-name": true }),
+    header: t("bulk_actions.preview_col_new_name"),
+    key: "new_name",
+  },
+  {
+    cell: (row, timezone) => formatIsoForPreview(row.originalDate, timezone),
+    cellAttrs: () => ({ "data-preview-original-date": true }),
+    header: t("bulk_actions.preview_col_original_date"),
+    key: "original_date",
+  },
+  {
+    cell: (row, timezone) => formatIsoForPreview(row.newDate, timezone),
+    cellAttrs: () => ({ "data-preview-new-date": true }),
+    header: t("bulk_actions.preview_col_new_date"),
+    key: "new_date",
+  },
+];
+
+const duplicatePreviewTable = defineTable(previewColumns);
 
 /**
  * Admin duplicate-group page: form with live preview.
@@ -286,16 +298,11 @@ export const adminDuplicateGroupPage: BulkActionPage = (
             <em>{t("bulk_actions.preview_empty")}</em>
           </p>
         ) : (
-          <DataTable
-            bodyAttrs={{ "data-duplicate-preview-rows": "" }}
-            columns={[
-              { header: t("bulk_actions.preview_col_original_name") },
-              { header: t("bulk_actions.preview_col_new_name") },
-              { header: t("bulk_actions.preview_col_original_date") },
-              { header: t("bulk_actions.preview_col_new_date") },
-            ]}
-            rows={initialRows.map((row) => <PreviewRow row={row} tz={tz} />)}
-          />
+          renderTable(duplicatePreviewTable, initialRows, {
+            bodyAttrs: { "data-duplicate-preview-rows": "" },
+            context: tz,
+            rowAttrs: (row) => ({ "data-listing-id": String(row.id) }),
+          })
         )}
 
         <script id="duplicate-preview-listings" type="application/json">
