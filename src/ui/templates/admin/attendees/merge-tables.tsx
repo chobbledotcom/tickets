@@ -3,7 +3,6 @@ import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   bookingConflictLabel,
   bookingKey,
@@ -57,10 +56,12 @@ const DecisionTable = <TRow,>({
   );
 };
 
-const renderFieldValue = (value: string, multiline: boolean): string =>
-  multiline
-    ? String(<span style="white-space:pre-wrap">{value || "—"}</span>)
-    : value || "—";
+const renderFieldValue = (value: string, multiline: boolean): Child =>
+  multiline ? (
+    <span style="white-space:pre-wrap">{value || "—"}</span>
+  ) : (
+    value || "—"
+  );
 
 const MergePiiDecisionTable = ({
   fields,
@@ -88,7 +89,7 @@ const MergePiiDecisionTable = ({
             name={`pii_${field.field}`}
             value="target"
           >
-            <Raw html={renderFieldValue(field.targetValue, field.multiline)} />
+            {renderFieldValue(field.targetValue, field.multiline)}
           </MergeRadioOption>
         ),
         header: t("admin.attendees.merge_keep_current", { name: targetName }),
@@ -104,9 +105,7 @@ const MergePiiDecisionTable = ({
               name={`pii_${field.field}`}
               value="source"
             >
-              <Raw
-                html={renderFieldValue(field.sourceValue, field.multiline)}
-              />
+              {renderFieldValue(field.sourceValue, field.multiline)}
             </MergeRadioOption>
           ),
         header: t("admin.attendees.merge_use_source", { name: sourceName }),

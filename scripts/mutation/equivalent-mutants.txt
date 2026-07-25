@@ -17,7 +17,6 @@
 # noDoubleEquals rule rejects every `=== → ==` and `!== → !=` mutant. The runner
 # counts a static-check failure as killed, so those never survive to be recorded.
 
-src/ui/templates/components/data-table.tsx:85:43  0 → -1   # For the only changed case, an empty array, both branches render the same empty tbody; non-empty arrays make both comparisons false
 src/shared/form-data.ts:16:33  ?? → ||   # trim returns a string, and its only falsy value is the empty string supplied by the fallback
 src/shared/forms/validation.ts:101:46  = → +=   # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
 src/features/admin/dashboard.ts:232:65  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
@@ -390,11 +389,11 @@ src/shared/listings-actions.ts:376:38  && → ||   # clearing false means mayStr
 # attendee merge/refund route: mutants with no observable effect.
 src/features/admin/attendee-refunds.ts:179:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
 
-# attendee columns Listings/answers rework
-src/shared/columns/attendee-columns.ts:135:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
-src/shared/columns/attendee-columns.ts:65:39  || → ??    # date column row.attendee.date: string|null; null gives "" under both operators, and "" is the only falsy-non-null string, which also gives "" under both
-src/shared/columns/attendee-columns.ts:77:36  || → ??    # email column row.attendee.email: string (never null/undefined); "" is the only falsy value and is also the fallback, so || and ?? agree for every possible value
-src/ui/templates/attendee-table.tsx:150:47  ?? → ||    # compareAttendeeRows listingA = a.listings[0]?.name ?? "": string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+# attendee table values and columns
+src/ui/templates/attendee-table/values.ts:54:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
+src/ui/templates/attendee-table/columns.tsx:68:39  || → ??    # date column row.attendee.date: string|null; null gives "" under both operators, and "" is the only falsy-non-null string, which also gives "" under both
+src/ui/templates/attendee-table/columns.tsx:76:36  || → ??    # email column row.attendee.email: string (never null/undefined); "" is the only falsy value and is also the fallback, so || and ?? agree for every possible value
+src/ui/templates/attendee-table/values.ts:106:47  ?? → ||    # listing name is string|undefined; its only falsy string is the empty fallback, so ?? and || agree
 
 # --- Rich markdown editor (src/ui/client/admin/markdown-editor*.ts) ------------
 # Browser DOM-construction code, same class of equivalents as order.ts above:

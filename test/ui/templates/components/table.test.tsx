@@ -3,15 +3,38 @@ import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { defineTable } from "#shared/tables/definition.ts";
 import {
-  combineClasses,
   renderColumnReference,
   renderTable,
   tableColumnText,
 } from "#templates/components/table.tsx";
 
 describe("typed table rendering", () => {
-  test("ignores non-text and empty cell classes", () => {
-    expect(combineClasses(4, true, "", false, undefined)).toBe("");
+  test("ignores non-text and empty cell classes through the renderer", () => {
+    const table = defineTable<{
+      className: boolean | number | string | undefined;
+      value: string;
+    }>([
+      {
+        cell: (row) => row.value,
+        cellAttrs: (row) => ({ class: row.className }),
+        header: "Value",
+        key: "value",
+      },
+    ]);
+    const html = String(
+      renderTable(
+        table,
+        ["", 4, true, false, undefined].map((className, index) => ({
+          className,
+          value: `Value ${index}`,
+        })),
+      ),
+    );
+
+    expect(html).not.toContain("class=");
+    expect(html).toContain(
+      "<tbody><tr><td>Value 0</td></tr><tr><td>Value 1</td></tr><tr><td>Value 2</td></tr><tr><td>Value 3</td></tr><tr><td>Value 4</td></tr></tbody>",
+    );
   });
 
   test("uses the label as the default column header", () => {

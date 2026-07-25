@@ -30,6 +30,7 @@ const recalculateTable = (currentLabel: string, recalculatedLabel: string) =>
       ),
       header: "",
       key: "field",
+      rowHeader: true,
     },
     {
       cell: (row) => row.current,

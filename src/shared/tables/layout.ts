@@ -104,14 +104,14 @@ const parseColumnTemplate =
 /** Render the default Liquid template for the given column keys: the comma-
  *  separated `{{key}}` form shown in the column-order settings form and the
  *  guide. */
-export const buildDefaultTemplate = (keys: readonly string[]): string =>
+const buildDefaultTemplate = (keys: readonly string[]): string =>
   keys.map((key) => `{{${key}}}`).join(", ");
 
 /** Parse a Liquid column template into a {@link TableLayout}. Falls back to
  *  `defaultLayout` when the template is empty; throws on an invalid
  *  template so a saved bad layout surfaces loudly rather than silently
  *  rendering a default. */
-export const parseLayout = <TKey extends string>(
+const parseLayout = <TKey extends string>(
   template: string,
   validKeys: readonly TKey[],
   defaultLayout: TableLayout<TKey>,
@@ -127,7 +127,7 @@ export const parseLayout = <TKey extends string>(
 
 /** Validate a Liquid column template. Returns the error string when invalid,
  *  `null` when valid (or empty — empty is the "use the default" sentinel). */
-export const validateLayout = <TKey extends string>(
+const validateLayout = <TKey extends string>(
   template: string,
   validKeys: readonly TKey[],
 ): string | null => {

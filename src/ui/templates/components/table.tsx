@@ -113,7 +113,7 @@ const partToClass = (
  *  `cellAttrs`) into one class string for the <td> or <th>. Returns the
  *  empty string for an all-empty input so the renderer can emit no class
  *  attribute at all. */
-export const combineClasses = (
+const combineClasses = (
   ...parts: readonly (ColumnKind | string | number | boolean | undefined)[]
 ): string =>
   parts
