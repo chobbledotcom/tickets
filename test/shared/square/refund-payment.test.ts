@@ -14,6 +14,26 @@ describeSquare(() => {
       expect(result).toBe(false);
     });
 
+    test("returns false when the client is unavailable for the refund POST", async () => {
+      // retrievePayment succeeds (payment has an amount), but the client cache
+      // returns null at refund time (e.g. settings changed between the two
+      // calls — an edge case the guard handles safely by returning false).
+      const retrieveStub = stub(squareApi, "retrievePayment", () =>
+        Promise.resolve({
+          amountMoney: { amount: BigInt(1500), currency: "USD" },
+          id: "pay_no_client",
+          status: "COMPLETED",
+        }),
+      );
+      await withMocks(
+        () => ({ retrieveStub }),
+        async () => {
+          const result = await squareApi.refundPayment("pay_no_client");
+          expect(result).toBe(false);
+        },
+      );
+    });
+
     test("returns false when payment retrieval returns null", async () => {
       const retrieveStub = stub(squareApi, "retrievePayment", () =>
         Promise.resolve(null),

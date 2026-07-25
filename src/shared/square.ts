@@ -646,9 +646,9 @@ export const squareApi: {
    * A 200 response that is missing its refund object, has an empty id, carries
    * non-string fields, OR reports an undocumented status (not in the picklist
    * PENDING/COMPLETED/REJECTED/FAILED) is malformed — that is caught at the
-   * boundary by a Valibot schema parse OUTSIDE withClient, so it throws loudly
-   * instead of normalizing to false. (Client-unconfigured and HTTP errors are
-   * still contained by withClient → null → false.) */
+   * boundary by a Valibot schema parse, so it throws loudly instead of
+   * normalizing to false. (Client-unconfigured returns false; HTTP and
+   * parsing errors propagate — a successful HTTP response is always validated.) */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
@@ -659,29 +659,38 @@ export const squareApi: {
       return false;
     }
 
-    // POST the refund inside withClient (handles client-not-configured + HTTP
-    // errors → null). The raw response comes back UNVALIDATED; we parse it
-    // with a Valibot schema below, OUTSIDE withClient, so a malformed response
-    // throws loudly instead of being caught and normalized to false.
-    const raw = await withClient(
-      async (client) =>
-        await client.refunds.refundPayment({
-          amountMoney: {
-            amount: payment.amountMoney!.amount,
-            currency: payment.amountMoney!.currency as string,
-          },
-          idempotencyKey: await refundIdempotencyKey("square", paymentId),
-          paymentId,
-        }),
-      ErrorCode.SQUARE_REFUND,
-    );
+    // Get the client directly (not through withClient) so a successful HTTP
+    // response — even a null or invalid-JSON body — reaches the Valibot parse.
+    // With withClient, a JSON.parse throw or a JSON null return would be caught
+    // and normalized to null → false. With a direct call + targeted catch, only
+    // provider/network errors return false; a 200 body always reaches v.parse.
+    const client = await squareApi.getSquareClient();
+    if (!client) return false;
 
-    if (raw === null) return false;
+    let raw: unknown;
+    try {
+      raw = await client.refunds.refundPayment({
+        amountMoney: {
+          amount: payment.amountMoney!.amount,
+          currency: payment.amountMoney!.currency as string,
+        },
+        idempotencyKey: await refundIdempotencyKey("square", paymentId),
+        paymentId,
+      });
+    } catch (err) {
+      // HTTP errors, network errors, and JSON.parse failures from a non-OK
+      // response are logged and returned as false (graceful, retryable).
+      logError({
+        code: ErrorCode.SQUARE_REFUND,
+        detail: errorMessage(err),
+      });
+      return false;
+    }
 
     // Boundary validation: a 200 from Square must carry a refund object with
-    // a non-empty string id and a non-empty string status. Square documents id
-    // as Required with Min Length 1. A malformed response throws here — outside
-    // withClient — so it surfaces loudly rather than silently returning false.
+    // a non-empty string id and a documented status. Square documents id as
+    // Required with Min Length 1. A malformed response (null, missing refund,
+    // empty id, non-string fields, undocumented status) throws here — loudly.
     const parsed = v.parse(SquareRefundResponseSchema, raw);
     return CONFIRMED_REFUND_STATUSES.includes(parsed.refund.status);
   },
