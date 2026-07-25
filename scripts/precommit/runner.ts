@@ -1,8 +1,11 @@
 import { readStream } from "#scripts/stream-lines.ts";
+import { resolveDenoJobs } from "#scripts/workers.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
 import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
+import { withPrecommitLock } from "./lock.ts";
 import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
+import { runChecksBeforePush } from "./run-order.ts";
 import { getSteps, type Step } from "./steps.ts";
 import {
   canPrompt,
@@ -90,12 +93,7 @@ const runStep = async (step: Step): Promise<boolean> => {
   return success;
 };
 
-export const main = async (): Promise<void> => {
-  const ci = isCi();
-  if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
-  console.log(bold(ci ? "precommit (ci)" : "precommit"));
-  await warnAboutMergeConflicts();
-
+const runSteps = async (): Promise<void> => {
   const steps = getSteps();
   for (const step of steps) {
     const passed = await runStep(step);
@@ -106,6 +104,9 @@ export const main = async (): Promise<void> => {
   }
 
   console.log(`\n${green("precommit passed")}`);
+};
+
+const pushCheckedInChanges = async (): Promise<void> => {
   const pushSucceeded = await promptToPushCheckedInChanges({
     confirm: confirmPush,
     isInteractive: canPromptNow,
@@ -116,4 +117,26 @@ export const main = async (): Promise<void> => {
     console.log(red("git push failed"));
     Deno.exit(1);
   }
+};
+
+export const main = async (): Promise<void> => {
+  const ci = isCi();
+  if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
+  // Cap test parallelism for the run. CI uses every thread; a local git hook
+  // uses (threads / 2) - 1 so the editor and foreground work keep headroom.
+  // A valid explicit DENO_JOBS wins; replace invalid values with the default.
+  const jobs = resolveDenoJobs(
+    navigator.hardwareConcurrency,
+    ci,
+    Deno.env.get("DENO_JOBS"),
+  );
+  Deno.env.set("DENO_JOBS", String(jobs));
+  console.log(bold(ci ? "precommit (ci)" : "precommit"));
+  await warnAboutMergeConflicts();
+  await runChecksBeforePush(
+    ci,
+    runSteps,
+    pushCheckedInChanges,
+    withPrecommitLock,
+  );
 };

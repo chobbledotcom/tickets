@@ -6,7 +6,7 @@ It is developed by [Chobble CIC](https://chobble.com) - a community interest com
 
 **Website**: [tickets.chobble.com](https://tickets.chobble.com)
 
-This is not "open core" - every feature is available under **AGPLv3** with no proprietary add-ons. If you'd rather not host it yourself, I offer hosted instances at [tix.chobble.com](https://tix.chobble.com/ticket/register) for £5/month or £50/year.
+This is not "open core" - every feature is available under [AGPL-3.0-only](LICENSE) with no proprietary add-ons. If you'd rather not host it yourself, I offer hosted instances at [tix.chobble.com](https://tix.chobble.com/ticket/register) for £5/month or £50/year.
 
 ---
 
@@ -207,16 +207,16 @@ Prices are in the smallest currency unit (e.g. pence, cents). For multi-listing 
 
 ### Encryption
 
-- **Hybrid RSA-OAEP + AES-256-GCM** for attendee PII (name, email, phone, postal address)
+- **Hybrid RSA-OAEP + AES-256-GCM** for attendee PII (name, email, phone, postal address) and payment references
   - Public key encrypts on submission (no auth needed)
   - Private key only available to authenticated admin sessions
   - A database dump alone is not sufficient to recover PII - an attacker would also need the encryption key from the environment
-- **AES-256-GCM** for payment IDs, prices, check-in status, API keys, holiday names, usernames
+- **AES-256-GCM** for API credentials and selected configuration fields
 - **PBKDF2** (600k iterations, SHA-256) for password hashing
 - Three-layer key hierarchy: env var root key → RSA key pair → per-user wrapped data keys
-- The data key is wrapped with a key derived from the admin password (never stored), so a database dump plus the environment key still can't decrypt PII without a login
+- The data key is wrapped with each owner, manager, and agent password and each API key. These credentials are never stored, so a database dump plus the environment key still cannot decrypt PII without one of them
 - Activity log entries are encrypted with the owner's public key: unauthenticated code (webhooks, error handlers) can write them, but only a logged-in admin can read them
-- If you lose the password, the data is permanently unreadable - there is no backdoor
+- If every owner, manager, and agent password and every API key is lost, protected data cannot be recovered
 
 ### Concurrency
 
@@ -418,11 +418,11 @@ See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~
 
 - **Runtime**: Deno - runs standalone, via Docker, or on Bunny Edge Scripting
 - **Database**: libsql (local SQLite or remote Turso)
-- **Payments**: Stripe, Square
+- **Payments**: Stripe, Square, SumUp
 - **Build**: esbuild, single-file output
 - **Templates**: Server-rendered JSX
 - **Crypto**: Web Crypto API (AES-256-GCM, RSA-OAEP, PBKDF2)
 
 ## License
 
-AGPLv3 - developed by [Chobble CIC](https://chobble.com), a community interest company.
+AGPL-3.0-only - developed by [Chobble CIC](https://chobble.com), a community interest company.
