@@ -69,7 +69,12 @@ describeSquare(() => {
             }),
           refundsRefundPayment: () =>
             Promise.resolve({
-              refund: { id: "refund_123", status: "COMPLETED" },
+              refund: {
+                amount_money: { amount: 4200, currency: "USD" },
+                id: "refund_123",
+                payment_id: "pay_refund_me",
+                status: "COMPLETED",
+              },
             }),
         },
         async ({ paymentsGet, refundsRefundPayment }) => {
@@ -106,7 +111,12 @@ describeSquare(() => {
             }),
           refundsRefundPayment: () =>
             Promise.resolve({
-              refund: { id: "refund_repeat", status: "PENDING" },
+              refund: {
+                amount_money: { amount: 1000, currency: "GBP" },
+                id: "refund_repeat",
+                payment_id: "pay_repeat",
+                status: "PENDING",
+              },
             }),
         },
         async ({ refundsRefundPayment }) => {
@@ -171,11 +181,14 @@ describeSquare(() => {
     });
 
     /** Runs refundPayment against a payment with a chargeable amount, with a
-     * valid Square refund object (non-empty string id + status). Returns the
-     * boolean contract outcome, so each status case only states its expectation. */
+     * valid Square refund object. `payment_id` and `amount_money` default to
+     * the expected values (matching the payment). Returns the boolean outcome,
+     * so each status case only states its id + status + expectation. */
     const refundOutcomeFor = async (refund: {
       id: string;
       status: string;
+      payment_id?: string;
+      amount_money?: { amount: number; currency: string };
     }): Promise<boolean> => {
       const paymentId = "pay_contract";
       let outcome = true;
@@ -190,7 +203,14 @@ describeSquare(() => {
                 status: "COMPLETED",
               },
             }),
-          refundsRefundPayment: () => Promise.resolve({ refund }),
+          refundsRefundPayment: () =>
+            Promise.resolve({
+              refund: {
+                amount_money: { amount: 1999, currency: "GBP" },
+                payment_id: paymentId,
+                ...refund,
+              },
+            }),
         },
         async () => {
           outcome = await squareApi.refundPayment(paymentId);
@@ -203,6 +223,16 @@ describeSquare(() => {
       expect(
         await refundOutcomeFor({ id: "ref_completed", status: "COMPLETED" }),
       ).toBe(true);
+    });
+
+    test("throws when the refund is for a different payment", async () => {
+      await expect(
+        refundOutcomeFor({
+          id: "ref_wrong_payment",
+          payment_id: "pay_some_other",
+          status: "COMPLETED",
+        }),
+      ).rejects.toThrow("pay_some_other");
     });
 
     test("returns false for a PENDING refund status", async () => {

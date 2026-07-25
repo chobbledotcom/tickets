@@ -237,13 +237,20 @@ type SquarePaymentResponse = {
 /**
  * Valibot boundary schema for the Square PaymentRefund object returned by
  * POST /v2/refunds. Square documents `id` as a required string with Min Length
- * 1, and `status` as one of PENDING, COMPLETED, REJECTED, FAILED. Parsing with
- * this schema at the boundary rejects malformed responses — a missing refund
- * object, empty id, non-string field type, or an undocumented status — with a
- * thrown ValiError instead of silently passing them through a type cast.
+ * 1, `status` as one of PENDING, COMPLETED, REJECTED, FAILED, `payment_id` as
+ * the associated payment ID, and `amount_money` as the refunded Money object.
+ * Parsing with this schema at the boundary rejects malformed responses — a
+ * missing refund, empty id, non-string field, undocumented status, or missing
+ * payment/amount — with a thrown ValiError instead of silently passing them
+ * through a type cast.
  */
 const SquareRefundSchema = v.object({
+  amount_money: v.object({
+    amount: v.pipe(v.number(), v.minValue(0)),
+    currency: v.pipe(v.string(), v.minLength(1)),
+  }),
   id: v.pipe(v.string(), v.minLength(1)),
+  payment_id: v.pipe(v.string(), v.minLength(1)),
   status: v.picklist(["PENDING", "COMPLETED", "REJECTED", "FAILED"]),
 });
 
@@ -695,7 +702,15 @@ export const squareApi: {
     // Required with Min Length 1. A malformed response (null, missing refund,
     // empty id, non-string fields, undocumented status) throws here — loudly.
     const parsed = v.parse(SquareRefundResponseSchema, raw);
-    return CONFIRMED_REFUND_STATUSES.includes(parsed.refund.status);
+    const refund = parsed.refund;
+    // Verify the refund is actually for this payment — a COMPLETED refund for a
+    // different payment_id would be a Square data integrity issue.
+    if (refund.payment_id !== paymentId) {
+      throw new Error(
+        `Square refund ${refund.id} is for payment ${refund.payment_id}, not ${paymentId}`,
+      );
+    }
+    return CONFIRMED_REFUND_STATUSES.includes(refund.status);
   },
 
   resetSquareClient: (): void => clientCache.reset(),
