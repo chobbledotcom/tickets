@@ -1363,3 +1363,32 @@ out of scope for that PR's brief — recorded here for a follow-up.*
   in lockstep. An independent literal list makes a section addition/removal/rename
   a deliberate test review, which is the only way the test catches the failure
   mode it is meant to catch.
+
+---
+
+## Scheduled finalize for SumUp payments without a webhook or redirect
+
+*Origin: follow-up to the SumUp provider work, surfaced 2026-07-25 while
+documenting SumUp in `README.md` / `src/docs/payments.ts` (PR #1918).*
+
+SumUp does not sign its webhooks (`requiresWebhookSignature: false` in
+`src/shared/sumup-provider.ts`). Today a SumUp checkout is finalized through
+two paths: the `CHECKOUT_STATUS_CHANGED` webhook (unsigned, but
+`resolveWebhookSession` pre-filters against staged checkout rows in
+`src/shared/db/sumup-checkouts.ts` and re-fetches the checkout from SumUp to
+establish authenticity and paid status) and the redirect return, which calls
+`retrieveSession`. If both are lost — the webhook delivery never arrives and
+the customer never returns to the redirect URL — a paid checkout stays in the
+`pending` / `unpaid` state indefinitely until manual intervention.
+
+Add a scheduled task that polls outstanding staged SumUp checkouts whose
+status is not yet terminal and finalizes any the SumUp API reports as `PAID`
+by calling the same `retrieveSession` → `finalizeSessionIfUnresolved` path the
+redirect uses. In lieu of a trustworthy webhook, this scheduled poll is the
+reliable fallback. It should reuse the existing scheduled-task mechanism
+(`src/shared/site-scheduler.ts`, `src/shared/maintenance/runner.ts`) and stay
+within the per-request edge subrequest budget, so bound each run to a page of
+staged checkouts and let the next tick continue. Cover it with a regression
+test that stages a paid-but-unfinalized checkout, runs the poll, and proves the
+attendee/ledger rows are created exactly once across concurrent webhook,
+redirect, and scheduled-poll attempts.
