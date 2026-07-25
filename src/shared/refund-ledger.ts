@@ -53,6 +53,14 @@ const isProviderPaymentLeg = legMatches({ from: WORLD, kind: KIND.payment });
 const isOperatorMoneyLeg = (leg: Transfer): boolean =>
   leg.kind === KIND.adjustment || leg.kind?.startsWith("manual_") === true;
 
+/** A placeholder's order group is ONLY provider-payment legs (world → attendee,
+ *  kind = payment) — no sale, no booking_fee, no adjustment. This is stricter
+ *  than "no sale leg": a surcharge-only order (payment + booking_fee but no
+ *  sale) must NOT be classified as a placeholder, because reversing it would
+ *  cancel the remaining fee receivable. Only a pure payment-only group qualifies. */
+const isPaymentOnlyPlaceholder = (group: Transfer[]): boolean =>
+  group.length > 0 && group.every(isProviderPaymentLeg);
+
 const refundedSessionGroups = async (
   references: RefundReferences,
 ): Promise<Set<string>> =>
@@ -128,11 +136,18 @@ const computeAttendeeRefund = async (
   }
   const orders = await coveredRefundGroups(legs, references);
   if (orders.length === 0) return { groups: [], posted: false };
-  // Only auto-reverse a fully-paid account. If the attendee still owes (an
-  // unpaid reservation) or holds credit, a full provider refund can't map cleanly
-  // onto the ledger: reversing the account while a balance remains would strand
-  // receivables or over-refund it. Such cases go to a manual adjustment instead.
-  if (balanceOf(account)(legs) !== 0) return { groups: [], posted: false };
+  // Only auto-reverse a fully-paid account — UNLESS the account is a pure
+  // payment-only placeholder (every order group is ONLY provider-payment legs,
+  // no sale/fee/adjustment): a quantity-0 stored-but-refunded booking has a
+  // non-zero balance (world funded, nothing consumed), but reversing it is
+  // clean (refund_cash returns the payment, balance zeroes). This lets the
+  // operator's "refresh payment" reconcile a placeholder when a PENDING refund
+  // later settles. A surcharge-only order (payment + fee, no sale) does NOT
+  // qualify — reversing it would cancel the fee receivable.
+  const isPlaceholder = orders.every(isPaymentOnlyPlaceholder);
+  if (!isPlaceholder && balanceOf(account)(legs) !== 0) {
+    return { groups: [], posted: false };
+  }
   const occurredAt = nowIso();
   return {
     groups: await Promise.all(

@@ -23,8 +23,9 @@
  *
  * It mutates every changed `src/` file and demands a 100% kill rate. The runner
  * pairs mirror-located tests with their source and runs them first. Changed
- * tests under `test/integration/` or `test/e2e/` are the later integration
- * stage. Direct tests come from the whole checkout, not just the branch diff,
+ * tests under `test/integration/`, `test/e2e/`, or `specs/` are the later
+ * integration stage. A changed Cucumber step or support file selects every
+ * Feature. Direct tests come from the whole checkout, not just the branch diff,
  * so an unchanged test still proves a changed source. The whole source file is
  * mutated regardless of how little of it changed.
  *
@@ -88,8 +89,10 @@ const isSourceFile = (path: string): boolean =>
   (path.endsWith(".ts") || path.endsWith(".tsx") || path.endsWith(".js"));
 
 const isTestFile = (path: string): boolean =>
-  path.startsWith("test/") &&
-  (path.endsWith(".test.ts") || path.endsWith(".test.tsx"));
+  (path.startsWith("test/") &&
+    (path.endsWith(".test.ts") || path.endsWith(".test.tsx"))) ||
+  (path.startsWith("test/specs/") && path.endsWith(".ts")) ||
+  (path.startsWith("specs/") && path.endsWith(".feature"));
 
 /** Split changed paths into the src files we mutate and the tests we run. A
  *  path that is neither (docs, scripts, config) is dropped. */
@@ -163,10 +166,10 @@ export const mutationNoticeSummary = (stdout: string): string | undefined => {
  *   - More than `STALE_BASE_SOURCE_LIMIT` changed src files → skip (pass) with a
  *     fetch hint; the local base ref is almost certainly stale.
  *   - No changed src files → nothing to prove; pass.
- *   - Changed src but no matching direct or changed integration tests → skip
+ *   - Changed src but no matching direct or affected integration tests → skip
  *     (pass). The 100%-coverage gate still applies.
  *   - Otherwise → map every mirror-located direct test to each changed source,
- *     then use changed integration/e2e tests as the later stage. The runner's
+ *     then use affected integration/e2e/Cucumber tests as the later stage. The runner's
  *     exit code passes through, except
  *     code 2 ("no mutable operators
  *     in any changed src file", e.g. a types-only or re-export change) becomes a

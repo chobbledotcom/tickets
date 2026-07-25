@@ -13,7 +13,7 @@ import { Flash } from "#shared/forms/flash.tsx";
 import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import type { AttendeeTableRow } from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { simplePublicPage } from "./public/shared.tsx";
+import { simplePublicPage } from "./public/prose-page.tsx";
 import { SubmitWithHidden } from "./public/unsubscribe.tsx";
 
 /** Alias export used by check-in templates */

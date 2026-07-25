@@ -205,7 +205,8 @@ describeSquare(() => {
     const makeLink = () =>
       squareApi.createPaymentLink(validationIntent, "http://localhost");
 
-    /** The SDK error should surface as a PaymentUserError mentioning `hint`. */
+    /** The SDK error should surface as a PaymentUserError with the exact
+     * user-facing message built from the label (so a mutated label is caught). */
     const expectUserError = (sdkError: Error, hint: string) =>
       failingCheckout(sdkError, async () => {
         try {
@@ -213,7 +214,9 @@ describeSquare(() => {
           expect(true).toBe(false); // should not reach here
         } catch (err) {
           expect(err instanceof PaymentUserError).toBe(true);
-          expect((err as PaymentUserError).message).toContain(hint);
+          expect((err as PaymentUserError).message).toBe(
+            `The payment processor rejected the ${hint} as invalid. Please correct it and try again.`,
+          );
         }
       });
 

@@ -252,7 +252,12 @@ describeSquare(() => {
             }),
           refundsRefundPayment: () =>
             Promise.resolve({
-              refund: { id: "refund_prov", status: "PENDING" },
+              refund: {
+                amount_money: { amount: 2000, currency: "GBP" },
+                id: "refund_prov",
+                payment_id: "pay_prov_ref",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {

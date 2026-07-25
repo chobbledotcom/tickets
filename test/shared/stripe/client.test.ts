@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createStripeClient } from "#shared/stripe/client.ts";
+import { refundHeaderProbe } from "#test/lib/stripe/refund-header-probe.ts";
 import { stripeResponseFor } from "#test/lib/stripe/responses.ts";
 
 test("maps every used Stripe operation to its endpoint", async () => {
@@ -66,4 +67,14 @@ test("maps every used Stripe operation to its endpoint", async () => {
     },
     { body: "", method: "DELETE", path: "/v1/webhook_endpoints/we%2F1" },
   ]);
+});
+
+test("sends the supplied idempotency key as the Idempotency-Key header on a refund", async () => {
+  // The probe enables one retry, so a retry-generated key would exist by
+  // default; the caller's key must take precedence over it.
+  const { client, capturedKey } = refundHeaderProbe("sk_test_client");
+
+  await client.refunds.create({ payment_intent: "pi_1" }, "stable-refund-key");
+
+  expect(capturedKey()).toBe("stable-refund-key");
 });

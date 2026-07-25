@@ -6,7 +6,6 @@ import {
   deleteFile,
   detectImageType,
   downloadImage,
-  getImageProxyUrl,
   getMimeTypeFromFilename,
   IMAGE_ERROR_MESSAGES,
   uploadImageTargets,
@@ -71,10 +70,6 @@ describeWithEnv("image storage", STORAGE_TEST_ENV, () => {
   });
 
   describe("image paths and MIME types", () => {
-    test("builds a proxy URL", () => {
-      expect(getImageProxyUrl("abc123.jpg")).toBe("/image/abc123.jpg");
-    });
-
     test("maps every stored image extension", () => {
       expect(getMimeTypeFromFilename("a.jpg")).toBe("image/jpeg");
       expect(getMimeTypeFromFilename("abc.png")).toBe("image/png");

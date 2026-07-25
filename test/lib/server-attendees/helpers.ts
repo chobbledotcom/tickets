@@ -13,10 +13,10 @@ import {
   flashCookieHeader,
 } from "#test-utils/assertions.ts";
 import {
-  buildAttendeeEditForm,
   createTestAttendee,
   createTestAttendeeDirect,
   getAttendeesRaw,
+  submitAttendeeEdit,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
@@ -111,16 +111,6 @@ export const submitDeleteIncomplete = async (
       cookie,
     ),
   );
-
-/** Build the attendee edit form with `overrides` and POST it. Returns the
- *  response. Shared by the attendee-edit validation and update tests. */
-export const submitAttendeeEdit = async (
-  attendeeId: number,
-  overrides: Parameters<typeof buildAttendeeEditForm>[1],
-): Promise<Response> => {
-  const form = await buildAttendeeEditForm(attendeeId, overrides);
-  return (await adminFormPost(`/admin/attendees/${attendeeId}`, form)).response;
-};
 
 /** POST `/admin/attendees/:id/refresh-payment` with Stripe configured as the
  *  provider and `isPaymentRefunded` stubbed to return `refunded`. The three

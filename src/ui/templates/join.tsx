@@ -7,7 +7,7 @@ import { t } from "#i18n";
 import { joinForm } from "#routes/join.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
-import { simplePublicPage } from "#templates/public/shared.tsx";
+import { simplePublicPage } from "#templates/public/prose-page.tsx";
 import { AuthFormPage } from "#templates/setup.tsx";
 /* jscpd:ignore-end */
 

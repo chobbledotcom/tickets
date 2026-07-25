@@ -160,6 +160,40 @@ describe("mutation test map", () => {
     expect(result.integrationTestFiles).toEqual(["test/e2e/booking.test.ts"]);
   });
 
+  test("keeps changed Cucumber Features in the integration stage", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        ["test/shared/a.test.ts"],
+        ["specs/payments/a.feature"],
+      ),
+    ).toEqual(["test/shared/a.test.ts", "specs/payments/a.feature"]);
+    expect(
+      buildMutationTestMap(
+        ["src/shared/a.ts"],
+        ["test/shared/a.test.ts", "specs/payments/a.feature"],
+      ).integrationTestFiles,
+    ).toEqual(["specs/payments/a.feature"]);
+  });
+
+  test("runs all Features when shared Cucumber code changes", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        [
+          "test/shared/a.test.ts",
+          "specs/payments/a.feature",
+          "specs/payments/b.feature",
+        ],
+        ["test/specs/steps/payments.ts"],
+      ),
+    ).toEqual([
+      "test/shared/a.test.ts",
+      "specs/payments/a.feature",
+      "specs/payments/b.feature",
+    ]);
+  });
+
   test("requires mutable sources to have a mirror-located direct test", () => {
     expect(() => requireDirectMutationTests("src/shared/a.ts", 1, [])).toThrow(
       "No direct test mirrors src/shared/a.ts",

@@ -79,7 +79,7 @@ describeSquare(() => {
           TEST_SECRET,
           TEST_NOTIFICATION_URL,
         );
-      const receivedSignature = "invalidsignature";
+      const receivedSignature = "mismatched-sig";
       const errorSpy = spy(console, "error");
       try {
         await expectInvalid(

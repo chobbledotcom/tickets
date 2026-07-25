@@ -5,8 +5,7 @@
  */
 
 import { t } from "#i18n";
-import { escapeHtml } from "#templates/layout.tsx";
-import { simplePublicPage } from "./shared.tsx";
+import { simplePublicPage } from "./prose-page.tsx";
 
 type RenewalErrorPageProps = {
   siteName: string;
@@ -20,7 +19,7 @@ export const renewalErrorPage = ({ siteName }: RenewalErrorPageProps): string =>
   )(
     <p>
       {t("public_renewal.link_invalid_for", {
-        siteName: escapeHtml(siteName),
+        siteName,
       })}{" "}
       {t("public_renewal.contact_support")}
     </p>,
