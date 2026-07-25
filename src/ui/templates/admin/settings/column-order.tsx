@@ -19,11 +19,17 @@ import { textSettingsSection } from "#templates/components/settings-field-sectio
 const listingDefault = listingTable.defaultTemplate;
 const attendeeDefault = attendeeTable.defaultTemplate;
 
+/** Shape describing a configurable-columns table for the column-order form:
+ *  a typed `columns` array the form reads available keys from. */
+type ConfigurableColumns = {
+  columns: readonly { key: string; label?: string }[];
+};
+
 /** Render available column tags as helper text */
 const AvailableTags = ({
   columns,
 }: {
-  columns: { columns: readonly { key: string; label?: string }[] };
+  columns: ConfigurableColumns;
 }): JSX.Element => (
   <small>
     {t("settings.column_order.available")}{" "}
@@ -37,7 +43,7 @@ type ColumnOrderConfig = {
   submitLabelKey: string;
   titleKey: string;
   placeholder: string;
-  columns: { columns: readonly { key: string; label?: string }[] };
+  columns: ConfigurableColumns;
   getValue: (s: AdvancedSettingsPageState) => string;
 };
 

@@ -64,6 +64,17 @@ export type AttendeeTableOptions = {
 // Column visibility — determines which columns are eligible to display
 // ---------------------------------------------------------------------------
 
+/** Columns hidden when every row's value is blank — keeps a saved layout
+ *  from producing a column of empty cells. */
+const hideWhenAllBlank = (
+  rows: readonly AttendeeTableRow[],
+  field: keyof AttendeeTableRow["attendee"],
+  columnKey: string,
+): Set<string> =>
+  rows.some((r) => !!r.attendee[field])
+    ? new Set()
+    : new Set([columnKey]);
+
 /** Compute which columns should be hidden, based on caller options and the
  *  visible rows: phone/address/special_instructions/answers are hidden when
  *  no attendee has the underlying data, and listings/date/status follow the
@@ -77,11 +88,10 @@ const computeHiddenKeys = (
   if (!showCheckin) hidden.add("status");
   if (!opts.showListing) hidden.add("listings");
   if (!opts.showDate) hidden.add("date");
-  if (!rows.some((r) => !!r.attendee.address)) hidden.add("address");
-  if (!rows.some((r) => !!r.attendee.email)) hidden.add("email");
-  if (!rows.some((r) => !!r.attendee.phone)) hidden.add("phone");
-  if (!rows.some((r) => !!r.attendee.special_instructions))
-    hidden.add("special_instructions");
+  for (const columnKey of ["address", "email", "phone", "special_instructions"] as const) {
+    const field = columnKey as keyof AttendeeTableRow["attendee"];
+    for (const v of hideWhenAllBlank(rows, field, columnKey)) hidden.add(v);
+  }
   if (!opts.questionData || opts.questionData.questions.length === 0)
     hidden.add("answers");
   return hidden;
@@ -208,9 +218,7 @@ const createStatusRenderer =
     // indicator instead of a check-in button (updateCheckedIn refuses it).
     if (!hasTicketQuantity(a)) {
       return (
-        <span class="muted small">
-          {t("admin.attendee_table.no_quantity")}
-        </span>
+        <span class="muted small">{t("admin.attendee_table.no_quantity")}</span>
       );
     }
     if (a.refunded) {

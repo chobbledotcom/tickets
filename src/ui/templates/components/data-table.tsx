@@ -21,10 +21,12 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { type ColumnKind } from "#templates/components/table-columns.ts";
 import {
-  type ColumnKind,
-  colClass,
-} from "#templates/components/table-columns.ts";
+  combineClasses,
+  renderHeaderCell,
+  TableShell,
+} from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -92,15 +94,13 @@ const isCellRows = (rows: DataTableProps["rows"]): rows is Child[][] =>
   Array.isArray(rows) && (rows.length === 0 || Array.isArray(rows[0]));
 
 /** Combine a column's `class` (kind) and `className` (free-form) into one
- *  class string for the <th> or <td>. */
+ *  class string for the <th> or <td>; returns undefined when neither is set
+ *  so the renderer can emit no class attribute at all. Delegates to the
+ *  shared `combineClasses` so column-kind rules (`col-amount`, `col-quantity`,
+ *  etc.) match the typed-table renderer's exactly. */
 const cellClassName = (column: Column): string | undefined => {
-  if (column.class === undefined && column.className === undefined) {
-    return;
-  }
-  const parts: string[] = [];
-  if (column.class !== undefined) parts.push(colClass(column.class));
-  if (column.className !== undefined) parts.push(column.className);
-  return parts.join(" ") || undefined;
+  const combined = combineClasses(column.class, column.className);
+  return combined === "" ? undefined : combined;
 };
 
 export const DataTable = ({
@@ -130,30 +130,18 @@ export const DataTable = ({
     ) : (
       rows
     );
-  return (
-    <div
-      class={
-        scrollClass === undefined
-          ? "table-scroll"
-          : `table-scroll ${scrollClass}`
-      }
-    >
-      <table class={tableClass}>
-        <thead>
-          <tr>
-            {columns.map((c) => {
-              const className = cellClassName(c);
-              return className === undefined ? (
-                <th>{c.header}</th>
-              ) : (
-                <th class={className}>{c.header}</th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody {...bodyAttrs}>{body}</tbody>
-        {foot !== undefined && <tfoot>{foot}</tfoot>}
-      </table>
-    </div>
-  );
+  return TableShell({
+    body,
+    bodyAttrs,
+    foot,
+    headerRow: (
+      <tr>
+        {columns.map((c) =>
+          renderHeaderCell(c.header, cellClassName(c) ?? ""),
+        )}
+      </tr>
+    ),
+    scrollClass,
+    tableClass,
+  });
 };

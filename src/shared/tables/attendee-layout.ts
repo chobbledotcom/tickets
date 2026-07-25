@@ -10,12 +10,14 @@
  * Keep this module pure: no JSX, no UI imports.
  */
 
+/* jscpd:ignore-start */
 import type { TableLayout } from "#shared/tables/layout.ts";
 import {
   buildDefaultTemplate,
   parseLayout,
   validateLayout,
 } from "#shared/tables/layout.ts";
+/* jscpd:ignore-end */
 
 /** Every attendee-table column key — the universe the layout parser
  *  accepts. There are no extras: every key here appears in the default order
@@ -45,10 +47,10 @@ const ATTENDEE_DEFAULT_LAYOUT: TableLayout = {
 };
 
 export const ATTENDEE_TABLE_LAYOUT = {
-  keys: ATTENDEE_COLUMN_KEYS,
   defaultColumnKeys: ATTENDEE_COLUMN_KEYS,
-  defaultTemplate: buildDefaultTemplate(ATTENDEE_COLUMN_KEYS),
   defaultLayout: ATTENDEE_DEFAULT_LAYOUT,
+  defaultTemplate: buildDefaultTemplate(ATTENDEE_COLUMN_KEYS),
+  keys: ATTENDEE_COLUMN_KEYS,
   parse: (template: string): TableLayout =>
     parseLayout(template, ATTENDEE_COLUMN_KEYS, ATTENDEE_DEFAULT_LAYOUT),
   validate: (template: string): string | null =>

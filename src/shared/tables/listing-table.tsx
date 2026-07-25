@@ -181,8 +181,8 @@ const listingColumns: readonly ListingCol[] = [
  *  operator may add via a saved column template. The order shown here
  *  matches the old `COLUMN_LAYOUTS.listing` default order. */
 export const listingTable = defineTable(listingColumns, {
-  defaultColumnKeys: LISTING_DEFAULT_COLUMN_KEYS,
   configKeys: LISTING_COLUMN_KEYS,
+  defaultColumnKeys: LISTING_DEFAULT_COLUMN_KEYS,
 });
 
 /** The editor listing table: a money-free subset at a fixed order — the

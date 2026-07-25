@@ -24,10 +24,8 @@ import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { nonBlankLines } from "#shared/lines.ts";
 import { normalizePhone } from "#shared/phone.ts";
-import {
-  ATTENDEE_COLUMN_KEYS,
-} from "#shared/tables/attendee-layout.ts";
-import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
+import { ATTENDEE_COLUMN_KEYS } from "#shared/tables/attendee-layout.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
 
@@ -206,11 +204,7 @@ const answers: AttendeeCol = {
       opts.answerTextMap,
       opts.answerQuestionMap,
     );
-    return (
-      <span title={tooltip}>
-        {short}
-      </span>
-    );
+    return <span title={tooltip}>{short}</span>;
   },
   className: "answers-cell",
   description: "Custom question answers",
@@ -236,14 +230,10 @@ const ticket: AttendeeCol = {
   // row's cancelled/interested listing. Show the indicator instead.
   cell: (row, opts) => {
     if (isServicing(row.attendee.kind)) {
-      return (
-        <span class="muted small">{t("admin.attendee_table.servicing")}</span>
-      );
+      return <span class="muted small">{t("admin.attendee_table.servicing")}</span>;
     }
     if (!hasTicketQuantity(row.attendee)) {
-      return (
-        <span class="muted small">{t("admin.attendee_table.no_quantity")}</span>
-      );
+      return <span class="muted small">{t("admin.attendee_table.no_quantity")}</span>;
     }
     return (
       <a href={`https://${opts.allowedDomain}/t/${row.attendee.ticket_token}`}>
@@ -313,8 +303,8 @@ export const attendeeTable = defineTable<AttendeeTableRow, AttendeeColumnOpts>(
     registered,
   ],
   {
-    defaultColumnKeys: ATTENDEE_COLUMN_KEYS,
     configKeys: ATTENDEE_COLUMN_KEYS,
+    defaultColumnKeys: ATTENDEE_COLUMN_KEYS,
   },
 );
 
