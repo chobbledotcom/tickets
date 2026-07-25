@@ -16,6 +16,10 @@
 import { formatCurrency } from "#shared/currency.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import {
+  LISTING_COLUMN_KEYS,
+  LISTING_DEFAULT_COLUMN_KEYS,
+} from "#shared/tables/listing-layout.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
@@ -177,17 +181,8 @@ const listingColumns: readonly ListingCol[] = [
  *  operator may add via a saved column template. The order shown here
  *  matches the old `COLUMN_LAYOUTS.listing` default order. */
 export const listingTable = defineTable(listingColumns, {
-  defaultColumnKeys: [
-    "name",
-    "description",
-    "status",
-    "attendees",
-    "tickets",
-    "revenue",
-    "cost",
-    "profit",
-    "created",
-  ],
+  defaultColumnKeys: LISTING_DEFAULT_COLUMN_KEYS,
+  configKeys: LISTING_COLUMN_KEYS,
 });
 
 /** The editor listing table: a money-free subset at a fixed order — the

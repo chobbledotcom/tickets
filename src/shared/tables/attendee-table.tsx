@@ -24,7 +24,11 @@ import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { nonBlankLines } from "#shared/lines.ts";
 import { normalizePhone } from "#shared/phone.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import {
+  ATTENDEE_COLUMN_KEYS,
+  ATTENDEE_DEFAULT_COLUMN_KEYS,
+} from "#shared/tables/attendee-layout.ts";
+import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
 
@@ -294,20 +298,26 @@ export const buildAnswerMaps = (
 /** The attendee table — every column, in declaration order. Not configurable
  *  beyond the default set (no extras): every key in this table is part of
  *  the layout's accepted keys. */
-export const attendeeTable = defineTable<AttendeeTableRow, AttendeeColumnOpts>([
-  status,
-  date,
-  name,
-  listings,
-  email,
-  phone,
-  address,
-  special_instructions,
-  answers,
-  qty,
-  ticket,
-  registered,
-]);
+export const attendeeTable = defineTable<AttendeeTableRow, AttendeeColumnOpts>(
+  [
+    status,
+    date,
+    name,
+    listings,
+    email,
+    phone,
+    address,
+    special_instructions,
+    answers,
+    qty,
+    ticket,
+    registered,
+  ],
+  {
+    defaultColumnKeys: ATTENDEE_DEFAULT_COLUMN_KEYS,
+    configKeys: ATTENDEE_COLUMN_KEYS,
+  },
+);
 
 /** Re-export so existing importers can read ATTENDEE_TABLE_COLUMNS off the
  *  new module during the migration. New callers should import `attendeeTable`

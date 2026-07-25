@@ -29,8 +29,8 @@ import {
   SETTINGS_FORMS,
   type SettingsFormDefinition,
 } from "#shared/settings/forms.ts";
-import { attendeeTable } from "#shared/tables/attendee-table.tsx";
-import { listingTable } from "#shared/tables/listing-table.tsx";
+import { ATTENDEE_TABLE_LAYOUT } from "#shared/tables/attendee-layout.ts";
+import { LISTING_TABLE_LAYOUT } from "#shared/tables/listing-layout.ts";
 import {
   isPaymentProvider,
   type PaymentProviderType,
@@ -40,8 +40,8 @@ import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
 
 /** The two configurable admin tables, keyed by their settings column. */
 const COLUMN_LAYOUTS = {
-  attendee: attendeeTable,
-  listing: listingTable,
+  attendee: ATTENDEE_TABLE_LAYOUT,
+  listing: LISTING_TABLE_LAYOUT,
 } as const;
 
 const formRoute = (definition: SettingsFormDefinition) => ({
