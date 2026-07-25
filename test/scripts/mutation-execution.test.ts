@@ -25,6 +25,29 @@ const testFilesAcrossBatches = Array.from(
   (_, index) => `test/${index}.ts`,
 );
 
+const mixedMutationFiles = [
+  "test/shared/example.test.ts",
+  "specs/payments/example.feature",
+];
+
+const runCapturedMutation = async (
+  output?: Deno.CommandOutput,
+): Promise<{
+  captured: ReturnType<typeof captureCommands>;
+  outcome: string;
+}> => {
+  const captured = captureCommands(output);
+  const commandNamespace = Deno as unknown as {
+    Command: typeof captured.Command;
+  };
+  using _command = stub(commandNamespace, "Command", captured.Command);
+  const result = await runTests(
+    { ...config, testFiles: mixedMutationFiles },
+    new AbortController().signal,
+  );
+  return { captured, outcome: result.outcome };
+};
+
 const runConcurrentFailure = async (
   firstBatch: (signal: AbortSignal) => Promise<number>,
 ): Promise<{ calls: number; outcome: string }> => {
@@ -63,89 +86,89 @@ describe("mutation test execution", () => {
     expect(mutantTestEnv(env, false)).toEqual(env);
   });
 
-  test("creates native Biome and Deno static gates", async () => {
-    const calls: unknown[][] = [];
+  test("resolves native Biome once for repeated static gates", async () => {
+    const biomeCalls: Deno.CommandOptions[] = [];
+    const denoCalls: Array<{ args: string[]; options: Deno.CommandOptions }> =
+      [];
+    let resolutions = 0;
     const deps: StaticGateDeps = {
       commandExit: (command, options) => {
-        calls.push([command, options]);
+        expect(command).toBe("biome");
+        biomeCalls.push(options);
         return Promise.resolve(0);
       },
       denoExit: (args, options) => {
-        calls.push([args, options]);
+        denoCalls.push({ args, options });
         return Promise.resolve(0);
       },
-      whichBiome: () => Promise.resolve(true),
+      resolveBiome: (args) => {
+        resolutions += 1;
+        return Promise.resolve({ args, command: "biome" });
+      },
     };
     const signal = new AbortController().signal;
     const gates = await createStaticGates(deps);
     expect(
       await Promise.all(gates.map((gate) => gate.exit("source.ts", signal))),
     ).toEqual([0, 0]);
-    expect(calls).toEqual([
-      [
-        "biome",
-        {
-          args: ["lint", "--no-errors-on-unmatched", "source.ts"],
-          cwd: projectRoot,
-          signal,
-          stderr: "null",
-          stdout: "null",
-        },
-      ],
-      [
-        ["check", "source.ts"],
-        {
-          cwd: projectRoot,
-          signal,
-          stderr: "null",
-          stdout: "null",
-        },
-      ],
+    expect(await gates[0]!.exit("second.ts", signal)).toBe(0);
+    expect(biomeCalls.map((options) => options.args)).toEqual([
+      ["lint", "--error-on-warnings", "--no-errors-on-unmatched", "source.ts"],
+      ["lint", "--error-on-warnings", "--no-errors-on-unmatched", "second.ts"],
     ]);
+    expect(biomeCalls.map((options) => options.cwd)).toEqual(
+      Array.from({ length: 2 }, () => projectRoot),
+    );
+    expect(denoCalls).toEqual([
+      {
+        args: ["check", "source.ts"],
+        options: {
+          cwd: projectRoot,
+          signal,
+          stderr: "null",
+          stdout: "null",
+        },
+      },
+    ]);
+    expect(resolutions).toBe(1);
     expect(gates.map(({ label, phase }) => ({ label, phase }))).toEqual([
       { label: "lint", phase: "lint" },
       { label: "type-check", phase: "type-check" },
     ]);
   });
 
-  test("falls back to packaged Biome when native lookup cannot find it", async () => {
+  test("passes the resolved Biome command prefix to lint", async () => {
     const commands: Array<{ args: string[] | undefined; command: string }> = [];
-    const deps = (whichBiome: () => Promise<boolean>): StaticGateDeps => ({
+    const deps: StaticGateDeps = {
       commandExit: (command, options) => {
         commands.push({ args: options.args, command });
         return Promise.resolve(0);
       },
       denoExit: () => Promise.resolve(0),
-      whichBiome,
-    });
-    for (const whichBiome of [
-      () => Promise.resolve(false),
-      () => Promise.reject(new Error("which unavailable")),
-    ]) {
-      const gates = await createStaticGates(deps(whichBiome));
-      const lint = gates[0];
-      if (!lint) throw new Error("Expected lint gate");
-      await lint.exit("source.ts", new AbortController().signal);
-    }
-    expect(commands).toEqual(
-      Array.from({ length: 2 }, () => ({
+      resolveBiome: (args) =>
+        Promise.resolve({
+          args: ["run", "-A", "npm:@biomejs/biome@2.4.16", ...args],
+          command: Deno.execPath(),
+        }),
+    };
+    const gates = await createStaticGates(deps);
+    const lint = gates[0];
+    if (!lint) throw new Error("Expected lint gate");
+    await lint.exit("source.ts", new AbortController().signal);
+
+    expect(commands).toEqual([
+      {
         args: [
           "run",
           "-A",
-          "npm:@biomejs/biome",
+          "npm:@biomejs/biome@2.4.16",
           "lint",
+          "--error-on-warnings",
           "--no-errors-on-unmatched",
           "source.ts",
         ],
         command: Deno.execPath(),
-      })),
-    );
-  });
-
-  test("finds the static gate tools available to the running process", async () => {
-    expect((await createStaticGates()).map(({ label }) => label)).toEqual([
-      "lint",
-      "type-check",
+      },
     ]);
   });
 
@@ -169,6 +192,67 @@ describe("mutation test execution", () => {
       "--v8-flags=--expose-gc",
       "test/shared/example.test.ts",
     ]);
+  });
+
+  test("runs Cucumber Features after direct mutation tests", async () => {
+    const result = await runCapturedMutation();
+    expect(result.outcome).toBe("passed");
+    expect(result.captured.commands.map(({ options }) => options.args)).toEqual(
+      [
+        [
+          "test",
+          "--no-check",
+          "--allow-all",
+          "--parallel",
+          "--preload",
+          "./test/test-utils/preload.ts",
+          "--v8-flags=--expose-gc",
+          "test/shared/example.test.ts",
+        ],
+        [
+          "run",
+          "--v8-flags=--expose-gc",
+          "-A",
+          "./scripts/run-specs.ts",
+          "specs/payments/example.feature",
+        ],
+      ],
+    );
+  });
+
+  test("runs all Features once after concurrent direct batches", async () => {
+    const features = ["specs/a.feature", "specs/b.feature"];
+    const batches: string[][] = [];
+    const result = await runTests(
+      {
+        ...config,
+        batchJobs: 2,
+        testFiles: [...testFilesAcrossBatches, ...features],
+      },
+      new AbortController().signal,
+      {
+        runBatch: (batch) => {
+          batches.push(batch);
+          return Promise.resolve(0);
+        },
+      },
+    );
+
+    expect(result.outcome).toBe("passed");
+    expect(batches.slice(0, -1).flat()).toEqual(testFilesAcrossBatches);
+    expect(batches.at(-1)).toEqual(features);
+  });
+
+  test("does not run Cucumber after a direct mutation test fails", async () => {
+    const result = await runCapturedMutation({
+      code: 1,
+      signal: null,
+      stderr: new Uint8Array(),
+      stdout: new Uint8Array(),
+      success: false,
+    });
+    expect(result.outcome).toBe("failed");
+    expect(result.captured.commands).toHaveLength(1);
   });
 
   test("surfaces subprocess infrastructure failures", async () => {

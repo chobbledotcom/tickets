@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { fillSoldOutListing } from "#test/lib/server-payments/_shared-setup.ts";
+import { fillSoldOutListing } from "#test/integration/server/payments/_shared-setup.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

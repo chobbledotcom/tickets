@@ -119,13 +119,6 @@ export const getStorageBackend = (): "bunny" | "local" | "none" => {
 export const isStorageEnabled = (): boolean => getStorageBackend() !== "none";
 
 /**
- * Get the proxy URL path for serving a decrypted image.
- * Images are encrypted on CDN, so they must be served through the proxy.
- */
-export const getImageProxyUrl = (filename: string): string =>
-  `/image/${filename}`;
-
-/**
  * Get the MIME type for an image filename from its extension.
  */
 export const getMimeTypeFromFilename = (filename: string): ImageMime | null => {
@@ -330,10 +323,9 @@ const localRemove = async (filename: string): Promise<void> => {
 
 /**
  * Lazily load the Bunny storage SDK. It is a heavy dependency (it drags in zod)
- * that only the Bunny backend's upload/download/delete calls actually use, so it
- * is kept off the cold-boot path — the page layout imports this module purely for
- * getImageProxyUrl. The SDK loads on the first Bunny operation, the same way the
- * Stripe and Sentry SDKs and the image codecs are dynamically imported.
+ * that only the Bunny backend's upload/download/delete calls actually use. The
+ * SDK loads on the first Bunny operation, the same way the Stripe and Sentry
+ * SDKs and the image codecs are dynamically imported.
  */
 const loadStorageSdk = once(() => import("@bunny.net/storage-sdk"));
 

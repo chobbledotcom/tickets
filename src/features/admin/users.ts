@@ -16,7 +16,6 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import {
   type AuthSession,
-  generateSecureToken,
   OWNER_FORM,
   ownerPage,
   requireOwnerOr,
@@ -29,6 +28,7 @@ import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
+import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";

@@ -448,277 +448,290 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
   });
 });
 
-describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
-  test("rejects a zero-capacity listing", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 0, name: "Zero Cap" },
-      version: 1,
+describeWithEnv(
+  "catalog-transfer review fixes",
+  {
+    db: true,
+    env: { CAN_BUILD_SITES: undefined },
+  },
+  () => {
+    test("rejects a zero-capacity listing", async () => {
+      const result = await importCatalog({
+        kind: "listing",
+        listing: { maxAttendees: 0, name: "Zero Cap" },
+        version: 1,
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.error).toContain("listing.maxAttendees");
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("listing.maxAttendees");
-  });
 
-  test("rejects a day-price key that is not a day count", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: {
-        dayPrices: { weekday: 100 },
-        maxAttendees: 1,
-        name: "Bad Day",
-      },
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("day count");
-  });
-
-  test("rejects a duplicate parent reference", async () => {
-    await createTestListing({ name: "Dup Parent" });
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Dup Child" },
-      parents: ["Dup Parent", "Dup Parent"],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("referenced more than once");
-  });
-
-  test("rejects a parent that is itself a child (single-level nesting)", async () => {
-    const grandparent = await createTestListing({ name: "Grandparent" });
-    const parent = await createTestListing({ name: "Middle" });
-    await listingChildren.setIds(grandparent.id, [parent.id]);
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Deep Child" },
-      parents: ["Middle"],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("offered as a child");
-  });
-
-  test("strips webhook URL and use-defaults for an editor import", async () => {
-    const result = await importCatalog(
-      {
+    test("rejects a day-price key that is not a day count", async () => {
+      const result = await importCatalog({
         kind: "listing",
         listing: {
-          maxAttendees: 5,
-          name: "Editor Listing",
-          useDefaults: true,
-          webhookUrl: "https://example.com/hook",
+          dayPrices: { weekday: 100 },
+          maxAttendees: 1,
+          name: "Bad Day",
         },
         version: 1,
-      },
-      "editor",
-    );
-    if (!result.ok) throw new Error(result.error);
-    const imported = (await getListingWithCount(result.value.id))!;
-    expect(imported.webhook_url).toBe("");
-    expect(imported.use_defaults).toBe(false);
-  });
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.error).toContain("day count");
+    });
 
-  test("keeps the webhook URL for a non-editor import", async () => {
-    const result = await importCatalog(
-      {
+    test("rejects a duplicate parent reference", async () => {
+      await createTestListing({ name: "Dup Parent" });
+      const result = await importCatalog({
         kind: "listing",
-        listing: {
-          maxAttendees: 5,
-          name: "Owner Listing",
-          webhookUrl: "https://example.com/hook",
-        },
+        listing: { maxAttendees: 1, name: "Dup Child" },
+        parents: ["Dup Parent", "Dup Parent"],
         version: 1,
-      },
-      "owner",
-    );
-    if (!result.ok) throw new Error(result.error);
-    const imported = (await getListingWithCount(result.value.id))!;
-    expect(imported.webhook_url).toBe("https://example.com/hook");
-  });
-
-  test("clears assign-built-site when the builder is not configured", async () => {
-    expect(await importBuiltSiteListing("No Builder")).toBe(false);
-  });
-
-  test("clears uses-logistics when logistics is disabled", async () => {
-    expect(await importLogisticsListing("Logi Off")).toBe(false);
-  });
-
-  test("keeps uses-logistics when logistics is enabled", async () => {
-    settings.setForTest(featureSetting("logistics"));
-    expect(await importLogisticsListing("Logi On")).toBe(true);
-  });
-
-  test("clears package overrides for a non-package group membership", async () => {
-    const group = await createTestGroup({ name: "Regular Group" });
-    const result = await importCatalog({
-      groups: [{ group: "Regular Group", packagePrice: 500, quantity: 3 }],
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Joiner", unitPrice: 900 },
-      version: 1,
-    });
-    if (!result.ok) throw new Error(result.error);
-    const row = (await getGroupPackagePrices(group.id)).find(
-      (r) => r.listing_id === result.value.id,
-    )!;
-    // The override is dropped because the group isn't a package.
-    expect(row.package_price).toBeNull();
-    expect(row.quantity).toBe(1);
-  });
-
-  test("clears member overrides when importing a non-package group", async () => {
-    await createTestListing({ name: "Plain Member", unitPrice: 800 });
-    const result = await importCatalog({
-      group: { name: "Plain Group" },
-      kind: "group",
-      members: [{ listing: "Plain Member", packagePrice: 200, quantity: 5 }],
-      version: 1,
-    });
-    if (!result.ok) throw new Error(result.error);
-    const row = (await getGroupPackagePrices(result.value.id))[0]!;
-    expect(row.package_price).toBeNull();
-    expect(row.quantity).toBe(1);
-  });
-
-  test("rejects a parent that is a hidden-package member", async () => {
-    const pkg = await createTestGroup({ isPackage: true, name: "Hidden Pkg" });
-    // createTestGroup can't set hide_package_listings, so set it directly and
-    // refresh the cached group set the import reads.
-    await execute("UPDATE groups SET hide_package_listings = 1 WHERE id = ?", [
-      pkg.id,
-    ]);
-    const { groups } = await import("#shared/db/groups.ts");
-    groups.cache.invalidate();
-    const parent = await createTestListing({ name: "Pkg Parent" });
-    await assignListingsToGroup([parent.id], pkg.id);
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Kid" },
-      parents: ["Pkg Parent"],
-      version: 1,
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.error).toContain("hidden package");
-  });
-
-  test("imports a listing with many parents in one batched insert", async () => {
-    // More parents than the per-request N+1 guard (25) and the transaction
-    // round-trip cap (~30) would allow one query/insert each — proves the
-    // batched nested-parent check and the set-wise edge insert.
-    const { listingsTable } = await import("#shared/db/listings/records.ts");
-    const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
-    const parentNames = Array.from({ length: 30 }, (_, i) => `Parent ${i}`);
-    for (const name of parentNames) {
-      const slug = name.toLowerCase().replace(/\s+/g, "-");
-      await listingsTable.insert({
-        // Supply dayPrices so insert doesn't read them back per row (which would
-        // trip the N+1 guard across this 30-row setup loop).
-        dayPrices: {},
-        maxAttendees: 1,
-        maxPrice: 0,
-        name,
-        slug,
-        slugIndex: await computeSlugIndex(slug),
       });
-    }
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Many Kids" },
-      parents: parentNames,
-      version: 1,
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.error).toContain("referenced more than once");
     });
-    if (!result.ok) throw new Error(result.error);
-    expect((await listingParents.getIds(result.value.id)).length).toBe(30);
-  });
 
-  test("imports a listing that belongs to many groups", async () => {
-    // More groups than the per-request N+1 guard (25) would allow one
-    // compatibility SELECT each — proves group-compat validation batch-loads the
-    // siblings for every referenced group instead of one query per group. Insert
-    // the groups directly (like the many-parents case) rather than via
-    // createTestGroup, whose trailing getAllGroups() would itself trip the read
-    // guard 30 times over in this one test context.
-    const { computeGroupSlugIndex, groups } = await import(
-      "#shared/db/groups.ts"
-    );
-    const groupNames = Array.from({ length: 30 }, (_, i) => `Group ${i}`);
-    for (const name of groupNames) {
-      const slug = name.toLowerCase().replace(/\s+/g, "-");
-      await groups.table.insert({
-        name,
-        slug,
-        slugIndex: await computeGroupSlugIndex(slug),
+    test("rejects a parent that is itself a child (single-level nesting)", async () => {
+      const grandparent = await createTestListing({ name: "Grandparent" });
+      const parent = await createTestListing({ name: "Middle" });
+      await listingChildren.setIds(grandparent.id, [parent.id]);
+      const result = await importCatalog({
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Deep Child" },
+        parents: ["Middle"],
+        version: 1,
       });
-    }
-    const result = await importCatalog({
-      groups: groupNames.map((group) => ({ group })),
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Joins Many" },
-      version: 1,
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.error).toContain("offered as a child");
     });
-    if (!result.ok) throw new Error(result.error);
-    expect((await listingGroups.getIds(result.value.id)).length).toBe(30);
-  });
 
-  test("imports a child listing that also belongs to a regular group", async () => {
-    // A child (has a parent) that joins a non-package group exercises the
-    // package-membership guard over a real, non-package group set — it must find
-    // no package and let the parent edge through.
-    await createTestListing({ name: "Edge Parent" });
-    await createTestGroup({ name: "Plain Joiner Group" });
-    const result = await importCatalog({
-      groups: [{ group: "Plain Joiner Group" }],
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Grouped Kid" },
-      parents: ["Edge Parent"],
-      version: 1,
+    test("strips webhook URL and use-defaults for an editor import", async () => {
+      const result = await importCatalog(
+        {
+          kind: "listing",
+          listing: {
+            maxAttendees: 5,
+            name: "Editor Listing",
+            useDefaults: true,
+            webhookUrl: "https://example.com/hook",
+          },
+          version: 1,
+        },
+        "editor",
+      );
+      if (!result.ok) throw new Error(result.error);
+      const imported = (await getListingWithCount(result.value.id))!;
+      expect(imported.webhook_url).toBe("");
+      expect(imported.use_defaults).toBe(false);
     });
-    if (!result.ok) throw new Error(result.error);
-    expect((await listingParents.getIds(result.value.id)).length).toBe(1);
-    expect((await listingGroups.getIds(result.value.id)).length).toBe(1);
-  });
 
-  test("hides the webhook URL from an editor export", async () => {
-    const listing = await createTestListing({
-      name: "Hooked",
-      webhookUrl: "https://example.com/hook",
+    test("keeps the webhook URL for a non-editor import", async () => {
+      const result = await importCatalog(
+        {
+          kind: "listing",
+          listing: {
+            maxAttendees: 5,
+            name: "Owner Listing",
+            webhookUrl: "https://example.com/hook",
+          },
+          version: 1,
+        },
+        "owner",
+      );
+      if (!result.ok) throw new Error(result.error);
+      const imported = (await getListingWithCount(result.value.id))!;
+      expect(imported.webhook_url).toBe("https://example.com/hook");
     });
-    // The editor blob must not carry the PII sink URL the edit form hides…
-    const editorBlob = unwrapExport(await exportListing(listing.id, "editor"));
-    expect(editorBlob.listing.webhookUrl).toBeUndefined();
-    // …but staff still round-trip it.
-    const ownerBlob = unwrapExport(await exportListing(listing.id, "owner"));
-    expect(ownerBlob.listing.webhookUrl).toBe("https://example.com/hook");
-  });
 
-  test("batches many memberships into at most two statements", async () => {
-    // The interactive transaction caps at 30 statements, so a large group's
-    // memberships must not be one statement each. membershipStatements collapses
-    // them into one group_listings insert plus one group_day insert.
-    const { membershipStatements } = await import(
-      "#routes/admin/catalog-transfer/membership.ts"
-    );
-    const memberships = Array.from({ length: 40 }, (_, i) => ({
-      dayPrices: { 1: 500 },
-      groupId: 7,
-      listingId: i + 1,
-      packagePrice: null,
-      quantity: 1,
-    }));
-    const statements = membershipStatements(memberships);
-    expect(statements.length).toBe(2);
-    // Every member appears in the single group_listings insert (3 args each:
-    // group_id, listing_id, quantity — the flat price override, when present,
-    // lives in the separate listing_prices insert).
-    expect(statements[0]!.args.length).toBe(40 * 3);
-  });
-});
+    test("clears assign-built-site when the builder is not configured", async () => {
+      expect(await importBuiltSiteListing("No Builder")).toBe(false);
+    });
+
+    test("clears uses-logistics when logistics is disabled", async () => {
+      expect(await importLogisticsListing("Logi Off")).toBe(false);
+    });
+
+    test("keeps uses-logistics when logistics is enabled", async () => {
+      settings.setForTest(featureSetting("logistics"));
+      expect(await importLogisticsListing("Logi On")).toBe(true);
+    });
+
+    test("clears package overrides for a non-package group membership", async () => {
+      const group = await createTestGroup({ name: "Regular Group" });
+      const result = await importCatalog({
+        groups: [{ group: "Regular Group", packagePrice: 500, quantity: 3 }],
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Joiner", unitPrice: 900 },
+        version: 1,
+      });
+      if (!result.ok) throw new Error(result.error);
+      const row = (await getGroupPackagePrices(group.id)).find(
+        (r) => r.listing_id === result.value.id,
+      )!;
+      // The override is dropped because the group isn't a package.
+      expect(row.package_price).toBeNull();
+      expect(row.quantity).toBe(1);
+    });
+
+    test("clears member overrides when importing a non-package group", async () => {
+      await createTestListing({ name: "Plain Member", unitPrice: 800 });
+      const result = await importCatalog({
+        group: { name: "Plain Group" },
+        kind: "group",
+        members: [{ listing: "Plain Member", packagePrice: 200, quantity: 5 }],
+        version: 1,
+      });
+      if (!result.ok) throw new Error(result.error);
+      const row = (await getGroupPackagePrices(result.value.id))[0]!;
+      expect(row.package_price).toBeNull();
+      expect(row.quantity).toBe(1);
+    });
+
+    test("rejects a parent that is a hidden-package member", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Hidden Pkg",
+      });
+      // createTestGroup can't set hide_package_listings, so set it directly and
+      // refresh the cached group set the import reads.
+      await execute(
+        "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
+        [pkg.id],
+      );
+      const { groups } = await import("#shared/db/groups.ts");
+      groups.cache.invalidate();
+      const parent = await createTestListing({ name: "Pkg Parent" });
+      await assignListingsToGroup([parent.id], pkg.id);
+      const result = await importCatalog({
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Kid" },
+        parents: ["Pkg Parent"],
+        version: 1,
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.error).toContain("hidden package");
+    });
+
+    test("imports a listing with many parents in one batched insert", async () => {
+      // More parents than the per-request N+1 guard (25) and the transaction
+      // round-trip cap (~30) would allow one query/insert each — proves the
+      // batched nested-parent check and the set-wise edge insert.
+      const { listingsTable } = await import("#shared/db/listings/records.ts");
+      const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
+      const parentNames = Array.from({ length: 30 }, (_, i) => `Parent ${i}`);
+      for (const name of parentNames) {
+        const slug = name.toLowerCase().replace(/\s+/g, "-");
+        await listingsTable.insert({
+          // Supply dayPrices so insert doesn't read them back per row (which would
+          // trip the N+1 guard across this 30-row setup loop).
+          dayPrices: {},
+          maxAttendees: 1,
+          maxPrice: 0,
+          name,
+          slug,
+          slugIndex: await computeSlugIndex(slug),
+        });
+      }
+      const result = await importCatalog({
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Many Kids" },
+        parents: parentNames,
+        version: 1,
+      });
+      if (!result.ok) throw new Error(result.error);
+      expect((await listingParents.getIds(result.value.id)).length).toBe(30);
+    });
+
+    test("imports a listing that belongs to many groups", async () => {
+      // More groups than the per-request N+1 guard (25) would allow one
+      // compatibility SELECT each — proves group-compat validation batch-loads the
+      // siblings for every referenced group instead of one query per group. Insert
+      // the groups directly (like the many-parents case) rather than via
+      // createTestGroup, whose trailing getAllGroups() would itself trip the read
+      // guard 30 times over in this one test context.
+      const { computeGroupSlugIndex, groups } = await import(
+        "#shared/db/groups.ts"
+      );
+      const groupNames = Array.from({ length: 30 }, (_, i) => `Group ${i}`);
+      for (const name of groupNames) {
+        const slug = name.toLowerCase().replace(/\s+/g, "-");
+        await groups.table.insert({
+          name,
+          slug,
+          slugIndex: await computeGroupSlugIndex(slug),
+        });
+      }
+      const result = await importCatalog({
+        groups: groupNames.map((group) => ({ group })),
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Joins Many" },
+        version: 1,
+      });
+      if (!result.ok) throw new Error(result.error);
+      expect((await listingGroups.getIds(result.value.id)).length).toBe(30);
+    });
+
+    test("imports a child listing that also belongs to a regular group", async () => {
+      // A child (has a parent) that joins a non-package group exercises the
+      // package-membership guard over a real, non-package group set — it must find
+      // no package and let the parent edge through.
+      await createTestListing({ name: "Edge Parent" });
+      await createTestGroup({ name: "Plain Joiner Group" });
+      const result = await importCatalog({
+        groups: [{ group: "Plain Joiner Group" }],
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Grouped Kid" },
+        parents: ["Edge Parent"],
+        version: 1,
+      });
+      if (!result.ok) throw new Error(result.error);
+      expect((await listingParents.getIds(result.value.id)).length).toBe(1);
+      expect((await listingGroups.getIds(result.value.id)).length).toBe(1);
+    });
+
+    test("hides the webhook URL from an editor export", async () => {
+      const listing = await createTestListing({
+        name: "Hooked",
+        webhookUrl: "https://example.com/hook",
+      });
+      // The editor blob must not carry the PII sink URL the edit form hides…
+      const editorBlob = unwrapExport(
+        await exportListing(listing.id, "editor"),
+      );
+      expect(editorBlob.listing.webhookUrl).toBeUndefined();
+      // …but staff still round-trip it.
+      const ownerBlob = unwrapExport(await exportListing(listing.id, "owner"));
+      expect(ownerBlob.listing.webhookUrl).toBe("https://example.com/hook");
+    });
+
+    test("batches many memberships into at most two statements", async () => {
+      // The interactive transaction caps at 30 statements, so a large group's
+      // memberships must not be one statement each. membershipStatements collapses
+      // them into one group_listings insert plus one group_day insert.
+      const { membershipStatements } = await import(
+        "#routes/admin/catalog-transfer/membership.ts"
+      );
+      const memberships = Array.from({ length: 40 }, (_, i) => ({
+        dayPrices: { 1: 500 },
+        groupId: 7,
+        listingId: i + 1,
+        packagePrice: null,
+        quantity: 1,
+      }));
+      const statements = membershipStatements(memberships);
+      expect(statements.length).toBe(2);
+      // Every member appears in the single group_listings insert (3 args each:
+      // group_id, listing_id, quantity — the flat price override, when present,
+      // lives in the separate listing_prices insert).
+      expect(statements[0]!.args.length).toBe(40 * 3);
+    });
+  },
+);
 
 describeWithEnv(
   "catalog-transfer with the builder enabled",

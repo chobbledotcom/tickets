@@ -128,7 +128,6 @@ describe("test-utils — error paths & contracts", () => {
       const listing = await createTestListing({ unitPrice: 2500 });
       expect(listing.unit_price).toBe(2500);
       // Update without specifying unitPrice -> formatPrice(undefined, 2500)
-      // This covers the branch: existing != null ? String(existing) : ""
       const updated = await updateTestListing(listing.id, { maxAttendees: 50 });
       expect(updated.unit_price).toBe(2500);
       expect(updated.max_attendees).toBe(50);

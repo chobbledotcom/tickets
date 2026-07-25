@@ -15,6 +15,7 @@ import {
 import {
   buildAttendeeEditForm,
   createTestAttendee,
+  existingAttendeeLines,
 } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestBuiltSite,
@@ -25,7 +26,6 @@ import {
   lineIndexOnPage,
   openAttendeeEditor,
   setupAndLogin,
-  ticketTokenOnPage,
 } from "#test-utils/e2e.ts";
 import {
   setTestSession,
@@ -186,6 +186,49 @@ describe("test-utils — db-backed & settings contracts", () => {
       expect(form.line_key_0).not.toBe("");
     });
 
+    test("existingAttendeeLines returns the complete stored form line", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Stored Form",
+        "stored-form@example.com",
+        2,
+      );
+
+      expect(await existingAttendeeLines(attendee.id)).toEqual([
+        {
+          eventId: listing.id,
+          key: `${listing.id}||0|0`,
+          noQuantity: false,
+          packageGroupId: 0,
+          quantity: 2,
+        },
+      ]);
+    });
+
+    test("buildAttendeeEditForm preserves a no-quantity line by default", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "No Quantity Form",
+        "no-quantity-form@example.com",
+      );
+      await getDb().execute({
+        args: [attendee.id],
+        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
+      });
+
+      const form = await buildAttendeeEditForm(attendee.id);
+
+      expect(form.qty_0).toBe("0");
+      expect(form.noqty_0).toBe("1");
+    });
+
     test("buildAttendeeEditForm defaults new override lines to one ticket with no key", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
@@ -279,7 +322,7 @@ describe("test-utils — db-backed & settings contracts", () => {
       ]);
     });
 
-    test("attendee navigation helpers fail clearly when required links are absent", async () => {
+    test("openAttendeeEditor fails clearly when its link is absent", async () => {
       const browser = {
         currentHtml: "<main>No attendees yet</main>",
         links: [],
@@ -288,9 +331,6 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       await expect(openAttendeeEditor(browser)).rejects.toThrow(
         "no attendee edit link on the current page",
-      );
-      expect(() => ticketTokenOnPage(browser)).toThrow(
-        "no customer /t ticket link on the current page",
       );
     });
   });

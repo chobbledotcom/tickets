@@ -11,6 +11,7 @@ test("keeps the complete built-site route catalog exact", async () => {
     "GET /admin/built-sites/new",
     "POST /admin/built-sites",
     "POST /admin/built-sites/:id/add-secrets",
+    "POST /admin/built-sites/:id/add-uptime-monitor",
     "POST /admin/built-sites/:id/bump-deadline",
     "POST /admin/built-sites/:id/delete",
     "POST /admin/built-sites/:id/edit",
@@ -26,5 +27,11 @@ test("keeps the complete built-site route catalog exact", async () => {
 test("routes the scheduler provisioning action as a POST", async () => {
   expect(Object.keys(await ADMIN_AREA_LOADERS.builtSites.load())).toContain(
     "POST /admin/built-sites/:id/provision-scheduler",
+  );
+});
+
+test("routes the Uptime Kuma monitor action as a POST", async () => {
+  expect(Object.keys(await ADMIN_AREA_LOADERS.builtSites.load())).toContain(
+    "POST /admin/built-sites/:id/add-uptime-monitor",
   );
 });

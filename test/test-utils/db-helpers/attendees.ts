@@ -3,6 +3,7 @@ import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import type { ExistingLine } from "#shared/db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
@@ -182,6 +183,26 @@ export type AttendeeLineInput = {
   noQuantity?: boolean;
 };
 
+const attendeeLineInput = ({
+  key,
+  booking,
+}: ExistingLine): AttendeeLineInput => ({
+  eventId: booking.listing_id,
+  key,
+  noQuantity: booking.quantity === 0,
+  packageGroupId: 0,
+  quantity: booking.quantity,
+});
+
+export const existingAttendeeLines = async (
+  attendeeId: number,
+): Promise<AttendeeLineInput[]> => {
+  const { loadExistingLines } = await import(
+    "#shared/db/attendees/atomic-update.ts"
+  );
+  return (await loadExistingLines(attendeeId)).map(attendeeLineInput);
+};
+
 /** The indexed editor-line fields (`line_listing_<i>` + `qty_<i>` + …) for a
  * set of lines — the admin attendee form's wire shape. Spread into a POST
  * body: `{ name: "X", ...attendeeLineFields([{ eventId: 5, quantity: 1 }]) }`. */
@@ -217,22 +238,15 @@ export const buildAttendeeEditForm = async (
     extra?: Record<string, string>;
   } = {},
 ): Promise<Record<string, string>> => {
-  const { loadExistingLines } = await import(
-    "#shared/db/attendees/atomic-update.ts"
-  );
   const { resolveSharedDates } = await import(
     "#routes/admin/attendee-form-model.ts"
   );
+  const { loadExistingLines } = await import(
+    "#shared/db/attendees/atomic-update.ts"
+  );
   const existing = await loadExistingLines(attendeeId);
-  const shared = resolveSharedDates(existing.map((e) => e.booking));
-  const lines =
-    overrides.lines ??
-    existing.map(({ key, booking }) => ({
-      eventId: booking.listing_id,
-      key,
-      packageGroupId: 0,
-      quantity: booking.quantity,
-    }));
+  const shared = resolveSharedDates(existing.map(({ booking }) => booking));
+  const lines = overrides.lines ?? existing.map(attendeeLineInput);
   const form: Record<string, string> = {
     address: overrides.address ?? "",
     day_count: String(overrides.dayCount ?? shared.dayCount),
@@ -246,6 +260,15 @@ export const buildAttendeeEditForm = async (
   Object.assign(form, attendeeLineFields(lines));
   if (overrides.extra) Object.assign(form, overrides.extra);
   return form;
+};
+
+export const submitAttendeeEdit = async (
+  attendeeId: number,
+  overrides: Parameters<typeof buildAttendeeEditForm>[1],
+): Promise<Response> => {
+  const { adminFormPost } = await import("#test-utils/session.ts");
+  const form = await buildAttendeeEditForm(attendeeId, overrides);
+  return (await adminFormPost(`/admin/attendees/${attendeeId}`, form)).response;
 };
 
 /** Create one attendee booked across several listings in a single order —

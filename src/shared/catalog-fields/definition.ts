@@ -91,6 +91,12 @@ type CatalogProjection<
       ? FormValues<Fields>
       : OptionalCatalogFieldValues<Fields>;
 
+type ProjectionValue = (
+  field: CatalogField,
+  values: Record<string, unknown>,
+) => unknown;
+type StoredValueProjection = (field: CatalogField, value: unknown) => unknown;
+
 const matchesTransfer = (value: unknown, transfer: TransferName) => {
   const kind = TRANSFER_KINDS[transfer];
   if (value === null) return kind === "string";
@@ -110,36 +116,68 @@ export const isValidCatalogApiValue = (
   (field[2] !== "nonNegativeInt" ||
     (Number.isSafeInteger(value as number) && (value as number) >= 0));
 
-const projectedValue = (
+const schemaValue: ProjectionValue = (field, values) => {
+  const schema = values[field[2] as string];
+  if (schema === undefined) {
+    throw new Error(`Missing catalog schema: ${field[2]}`);
+  }
+  return schema;
+};
+
+const fromStoredValue =
+  (project: StoredValueProjection): ProjectionValue =>
+  (field, values) =>
+    project(field, values[field[0]]);
+
+const PROJECTION_VALUES = {
+  api: fromStoredValue((field, value) =>
+    matchesTransfer(value, field[2] as TransferName)
+      ? (value ?? "")
+      : undefined,
+  ),
+  columns: (field) => field[1],
+  form: fromStoredValue((field, value) =>
+    field[2] === "boolean" ? value === "1" : (value ?? field[4]),
+  ),
+  schema: schemaValue,
+  storedApi: fromStoredValue((_field, value) => value ?? ""),
+  transfer: fromStoredValue((field, value) =>
+    field[2] === "dayPrices" && Object.keys(value as object).length === 0
+      ? undefined
+      : value,
+  ),
+} satisfies Record<ProjectionMode, ProjectionValue>;
+
+const PROJECTION_USES = {
+  api: 1,
+  columns: 0,
+  form: 2,
+  schema: 0,
+  storedApi: 1,
+  transfer: 0,
+} as const satisfies Record<ProjectionMode, 0 | 1 | 2>;
+
+const fieldSupportsProjection = (
   mode: ProjectionMode,
   field: CatalogField,
-  values: Record<string, unknown>,
-): unknown => {
-  const value = values[field[0]];
-  switch (mode) {
-    case "columns":
-      return field[1];
-    case "form":
-      return field[2] === "boolean" ? value === "1" : (value ?? field[4]);
-    case "schema": {
-      const schema = values[field[2] as string];
-      if (schema === undefined) {
-        throw new Error(`Missing catalog schema: ${field[2]}`);
-      }
-      return schema;
-    }
-    case "storedApi":
-      return value ?? "";
-    case "api":
-      return matchesTransfer(value, field[2] as TransferName)
-        ? (value ?? "")
-        : undefined;
-    case "transfer":
-      return field[2] === "dayPrices" &&
-        Object.keys(value as object).length === 0
-        ? undefined
-        : value;
-  }
+): boolean => {
+  const requiredUse = PROJECTION_USES[mode];
+  if (requiredUse !== 0) return (Number(field[3]) & requiredUse) !== 0;
+  return (mode === "columns" ? field[1] : field[2]) !== undefined;
+};
+
+const projectCatalogField = <Key extends PropertyKey>(
+  mode: ProjectionMode,
+  source: Record<string, unknown>,
+  excluded: readonly Key[],
+  [key, field]: [Key, CatalogField],
+): readonly (readonly [Key | string, unknown])[] => {
+  if (!fieldSupportsProjection(mode, field) || excluded.includes(key))
+    return [];
+  const value = PROJECTION_VALUES[mode](field, source);
+  return value === undefined
+    ? []
+    : [[mode === "columns" ? field[0] : key, value] as const];
 };
 
 export const projectCatalogFields = <
@@ -152,25 +190,17 @@ export const projectCatalogFields = <
   source: Source,
   excluded: readonly (keyof Fields)[] = [],
 ): CatalogProjection<Fields, Mode, Source> => {
-  const requiredUse =
-    mode === "form" ? 2 : mode === "api" || mode === "storedApi" ? 1 : 0;
+  const project = (
+    field: [keyof Fields, CatalogField],
+  ): readonly (readonly [keyof Fields | string, unknown])[] =>
+    projectCatalogField(
+      mode,
+      source as Record<string, unknown>,
+      excluded,
+      field,
+    );
   const pairs = (
     Object.entries(fields) as [keyof Fields, CatalogField][]
-  ).flatMap(([key, field]) => {
-    const [, column, transfer, use] = field;
-    const selected =
-      requiredUse === 0
-        ? (mode === "columns" ? column : transfer) !== undefined
-        : (Number(use) & requiredUse) !== 0;
-    if (!selected || excluded.includes(key)) return [];
-    const value = projectedValue(
-      mode,
-      field,
-      source as Record<string, unknown>,
-    );
-    return value === undefined
-      ? []
-      : [[mode === "columns" ? field[0] : key, value] as const];
-  });
+  ).flatMap(project);
   return Object.fromEntries(pairs) as CatalogProjection<Fields, Mode, Source>;
 };

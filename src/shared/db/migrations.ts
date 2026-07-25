@@ -26,12 +26,18 @@ import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
-import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 import { recordScriptVersion } from "#shared/update.ts";
+
+export * from "./migrations/errors.ts";
+
+import {
+  MigrationInProgressError,
+  MissingSettingsTableError,
+} from "./migrations/errors.ts";
 import { MIGRATION_IDS, MIGRATION_REGISTRY } from "./migrations/registry.ts";
 import { EVENT_TO_LISTING_RENAME_PLAN } from "./migrations/rename-plan.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
@@ -73,25 +79,6 @@ type DbState =
   | "needs_migration"
   | "missing_settings"
   | "uninitialized_settings";
-
-export class MissingSettingsTableError extends namedError(
-  "MissingSettingsTableError",
-) {
-  constructor(message = "Database settings table does not exist") {
-    super(message);
-  }
-}
-
-/**
- * Thrown when another isolate holds the migration lock — i.e. a database
- * migration (including its pre-migration backup) is already running. The
- * request can be retried once the migration finishes, so callers surface a
- * dedicated "migration in progress" page that auto-refreshes rather than the
- * generic temporary-error page.
- */
-export class MigrationInProgressError extends namedError(
-  "MigrationInProgressError",
-) {}
 
 /** Build a checker for "this exact table is missing" database errors. */
 const missingTableError =

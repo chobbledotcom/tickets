@@ -9,6 +9,8 @@ import {
   type SiteSecretsView,
 } from "#shared/site-secrets.ts";
 import type { BuiltSiteUpdateState } from "#shared/site-update.ts";
+import type { UptimeKumaMonitorDetails } from "#shared/uptime-kuma/matching.ts";
+import type { UptimeKumaMonitorState } from "#shared/uptime-kuma/monitors.ts";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   Icon,
@@ -33,6 +35,14 @@ const SiteActionForm = ({
     </CsrfForm>
   </WritableOnly>
 );
+
+const TranslatedSubmitButton = ({
+  icon,
+  labelKey,
+}: {
+  icon: IconName;
+  labelKey: string;
+}): JSX.Element => <SubmitButton icon={icon}>{t(labelKey)}</SubmitButton>;
 
 const CodeNameList = ({ names }: { names: string[] }): JSX.Element => (
   <ul>
@@ -82,7 +92,7 @@ const deadlineForm =
     <SiteActionForm action={action} siteId={site.id}>
       {inputId ? <label for={inputId}>{t(labelKey)}</label> : null}
       {field(inputId)}
-      <SubmitButton icon="save">{t(submitKey)}</SubmitButton>
+      <TranslatedSubmitButton icon="save" labelKey={submitKey} />
     </SiteActionForm>
   );
 
@@ -132,9 +142,10 @@ const provisionedPanel = (site: BuiltSite): JSX.Element => {
       <BumpDeadlineForm inputId="bump_months" site={site} />
       <OverrideDeadlineForm inputId="override_date" site={site} />
       <SiteActionForm action="re-sync-deadline" siteId={site.id}>
-        <SubmitButton icon="rotate-ccw">
-          {t("built_sites.resync_deadline_button")}
-        </SubmitButton>
+        <TranslatedSubmitButton
+          icon="rotate-ccw"
+          labelKey="built_sites.resync_deadline_button"
+        />
       </SiteActionForm>
     </ProsePanel>
   );
@@ -149,9 +160,10 @@ const unprovisionedPanel = (site: BuiltSite): JSX.Element => (
     <SiteActionForm action="provision-renewal" siteId={site.id}>
       <label for="provision_months">{t("built_sites.initial_months")}</label>
       <MonthsInput id="provision_months" />
-      <SubmitButton icon="hammer">
-        {t("built_sites.provision_button")}
-      </SubmitButton>
+      <TranslatedSubmitButton
+        icon="hammer"
+        labelKey="built_sites.provision_button"
+      />
     </SiteActionForm>
     <h3>{t("built_sites.bump_deadline_title")}</h3>
     <BumpDeadlineForm site={site} />
@@ -163,11 +175,89 @@ const unprovisionedPanel = (site: BuiltSite): JSX.Element => (
 export const renewalPanelFor = (site: BuiltSite): JSX.Element =>
   isProvisioned(site) ? provisionedPanel(site) : unprovisionedPanel(site);
 
-export const MaintenancePanel = ({
-  site,
+const formatMonitorInterval = (seconds: number): string =>
+  seconds % 60 === 0
+    ? t("built_sites.kuma_interval_minutes", {
+        minutes: String(seconds / 60),
+      })
+    : t("built_sites.kuma_interval_seconds", { seconds: String(seconds) });
+
+const KumaMonitorDetails = ({
+  monitor,
 }: {
+  monitor: UptimeKumaMonitorDetails;
+}): JSX.Element => {
+  const details: Array<readonly [string, string]> = [
+    ["built_sites.kuma_monitor_id", String(monitor.id)],
+    ["built_sites.kuma_monitor_name", monitor.name],
+    ["built_sites.kuma_group", monitor.group],
+    [
+      "built_sites.kuma_status",
+      t(
+        monitor.active
+          ? "built_sites.kuma_status_active"
+          : "built_sites.kuma_status_paused",
+      ),
+    ],
+    ["built_sites.kuma_target", monitor.url],
+    ["built_sites.kuma_method", monitor.method],
+    [
+      "built_sites.kuma_interval",
+      formatMonitorInterval(monitor.intervalSeconds),
+    ],
+  ];
+  return (
+    <dl>
+      {details.map(([labelKey, value]) => (
+        <div>
+          <dt>{t(labelKey)}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+};
+
+type MaintenancePanelProps = {
+  monitor: UptimeKumaMonitorState;
   site: BuiltSite;
-}): JSX.Element => (
+};
+
+const KumaMonitorPanel = ({
+  monitor,
+  site,
+}: MaintenancePanelProps): JSX.Element => {
+  if (monitor.kind === "unconfigured") {
+    return <p>{t("built_sites.kuma_unconfigured")}</p>;
+  }
+  if (monitor.kind === "error") {
+    return (
+      <ErrorNote>
+        {t("built_sites.kuma_error", { error: monitor.error })}
+      </ErrorNote>
+    );
+  }
+  if (monitor.kind === "found") {
+    return <KumaMonitorDetails monitor={monitor.monitor} />;
+  }
+  return (
+    <>
+      <p>{t("built_sites.kuma_missing")}</p>
+      {site.scheduledTaskKey ? (
+        <SiteActionForm action="add-uptime-monitor" siteId={site.id}>
+          <TranslatedSubmitButton icon="plus" labelKey="built_sites.kuma_add" />
+        </SiteActionForm>
+      ) : (
+        <p>{t("built_sites.kuma_needs_key")}</p>
+      )}
+    </>
+  );
+};
+
+export const MaintenancePanel = ({
+  monitor,
+  site,
+}: MaintenancePanelProps): JSX.Element => (
   <div class="prose">
     <p>{t("built_sites.maintenance_intro")}</p>
     {site.scheduledTaskKey && (
@@ -177,14 +267,17 @@ export const MaintenancePanel = ({
       </p>
     )}
     <SiteActionForm action="provision-scheduler" siteId={site.id}>
-      <SubmitButton icon="hammer">
-        {t(
+      <TranslatedSubmitButton
+        icon="hammer"
+        labelKey={
           site.scheduledTaskKey
             ? "built_sites.maintenance_resend"
-            : "built_sites.maintenance_provision",
-        )}
-      </SubmitButton>
+            : "built_sites.maintenance_provision"
+        }
+      />
     </SiteActionForm>
+    <h3>{t("built_sites.kuma_title")}</h3>
+    <KumaMonitorPanel monitor={monitor} site={site} />
   </div>
 );
 

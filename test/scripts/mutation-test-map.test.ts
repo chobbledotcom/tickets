@@ -3,10 +3,34 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   buildMutationTestMap,
   requireDirectMutationTests,
+  selectMutationTests,
 } from "#scripts/mutation/test-map.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 
 describe("mutation test map", () => {
+  test("selects all direct tests and only changed integration tests", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        [
+          "test/shared/a.test.ts",
+          "test/shared/a/extra.test.ts",
+          "test/shared/b.test.ts",
+          "test/integration/unchanged.test.ts",
+        ],
+        [
+          "test/scripts/tool.test.ts",
+          "test/shared/b.test.ts",
+          "test/integration/changed.test.ts",
+        ],
+      ),
+    ).toEqual([
+      "test/shared/a.test.ts",
+      "test/shared/a/extra.test.ts",
+      "test/integration/changed.test.ts",
+    ]);
+  });
+
   test("does not use another source's mirrored tests as fallback tests", () => {
     expect(
       buildMutationTestMap(
@@ -134,6 +158,40 @@ describe("mutation test map", () => {
       ["test/shared/a.test.ts", "test/e2e/booking.test.ts"],
     );
     expect(result.integrationTestFiles).toEqual(["test/e2e/booking.test.ts"]);
+  });
+
+  test("keeps changed Cucumber Features in the integration stage", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        ["test/shared/a.test.ts"],
+        ["specs/payments/a.feature"],
+      ),
+    ).toEqual(["test/shared/a.test.ts", "specs/payments/a.feature"]);
+    expect(
+      buildMutationTestMap(
+        ["src/shared/a.ts"],
+        ["test/shared/a.test.ts", "specs/payments/a.feature"],
+      ).integrationTestFiles,
+    ).toEqual(["specs/payments/a.feature"]);
+  });
+
+  test("runs all Features when shared Cucumber code changes", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        [
+          "test/shared/a.test.ts",
+          "specs/payments/a.feature",
+          "specs/payments/b.feature",
+        ],
+        ["test/specs/steps/payments.ts"],
+      ),
+    ).toEqual([
+      "test/shared/a.test.ts",
+      "specs/payments/a.feature",
+      "specs/payments/b.feature",
+    ]);
   });
 
   test("requires mutable sources to have a mirror-located direct test", () => {

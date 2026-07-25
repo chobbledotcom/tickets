@@ -6,7 +6,7 @@ import {
   modifierListings,
   modifiersTable,
 } from "#shared/db/modifiers.ts";
-import { createServiceChargeScenario } from "#test/lib/server-webhooks/service-charge-scenario.ts";
+import { createServiceChargeScenario } from "#test/integration/server/webhooks/service-charge-scenario.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

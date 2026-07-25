@@ -1,7 +1,5 @@
-import { expect } from "@std/expect";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
-import { expectFlash, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
@@ -20,19 +18,6 @@ export const seedBatchAttendees = async (
       `${piPrefix}${i}`,
     );
   }
-};
-
-/** Assert a refund-all response reporting 1 succeeded + 1 failed. */
-export const expectPartialRefund = async (
-  listing: { id: number },
-  response: Response,
-): Promise<void> => {
-  await expectFlashRedirect(
-    `/admin/listing/${listing.id}/refund-all`,
-    expect.stringContaining("1 refund(s) succeeded"),
-    false,
-  )(response);
-  expectFlash(response, expect.stringContaining("1 failed"), false);
 };
 
 export const createPaidListing = (

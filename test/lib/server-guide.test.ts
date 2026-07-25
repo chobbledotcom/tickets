@@ -18,8 +18,19 @@ import { withEnv } from "#test-utils/env.ts";
 describeWithEnv("server (admin guide)", { db: true }, () => {
   // The guide's default rendering is identical in every test (static help
   // content from the standard fixture), so it is rendered once and shared;
-  // only the tests that alter config below fetch their own copy.
-  const guide = cachedAdminPage("/admin/guide");
+  // only the tests that alter config below fetch their own copy. The cached
+  // render is pinned to CAN_BUILD_SITES unset so the snapshot never depends on
+  // whatever the ambient overlay happens to carry when it is first fetched.
+  const cachedGuide = cachedAdminPage("/admin/guide");
+  const guide = async (
+    ...expected: Parameters<typeof cachedGuide>
+  ): Promise<string> => {
+    using _env = withEnv({ CAN_BUILD_SITES: undefined });
+    // The env pin must cover the whole first render, so await the cached page
+    // before the `using` scope disposes.
+    const html = await cachedGuide(...expected);
+    return html;
+  };
 
   describe("GET /admin/guide", () => {
     testRequiresAuth("/admin/guide");
@@ -314,8 +325,17 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("hides built sites section when builder is disabled", async () => {
-      const html = await guide();
+      using _env = withEnv({ CAN_BUILD_SITES: undefined });
+      const html = await assertAdminHtml("/admin/guide");
       expect(html).not.toContain('id="built-sites"');
+    });
+
+    test("cached guide is pinned to builder-off even under ambient CAN_BUILD_SITES=true", async () => {
+      using _ambient = withEnv({ CAN_BUILD_SITES: "true" });
+      const live = await assertAdminHtml("/admin/guide", 'id="built-sites"');
+      expect(live).toContain('id="built-sites"');
+      const cached = await guide();
+      expect(cached).not.toContain('id="built-sites"');
     });
 
     test("shows built sites section when builder is enabled", async () => {

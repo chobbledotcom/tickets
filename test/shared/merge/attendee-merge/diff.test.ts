@@ -56,45 +56,48 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
       const diff = await buildMergeDiff({ source, target });
 
-      // The full PII field schema (label + multiline flag for each), so a
-      // mutant that drops a label or flips a multiline flag is caught here.
       expect(diff.piiFields).toEqual([
-        expect.objectContaining({
+        {
           field: "name",
           label: "Name",
           multiline: false,
-        }),
-        expect.objectContaining({
+          same: false,
+          sourceValue: "Bob",
+          targetValue: "Alice",
+        },
+        {
           field: "email",
           label: "Email",
           multiline: false,
-        }),
-        expect.objectContaining({
+          same: false,
+          sourceValue: "bob@test.com",
+          targetValue: "alice@test.com",
+        },
+        {
           field: "phone",
           label: "Phone",
           multiline: false,
-        }),
-        expect.objectContaining({
+          same: true,
+          sourceValue: "",
+          targetValue: "",
+        },
+        {
           field: "address",
           label: "Address",
           multiline: true,
-        }),
-        expect.objectContaining({
+          same: true,
+          sourceValue: "",
+          targetValue: "",
+        },
+        {
           field: "special_instructions",
           label: "Special Instructions",
           multiline: true,
-        }),
+          same: true,
+          sourceValue: "",
+          targetValue: "",
+        },
       ]);
-      expect(diff.piiFields.length).toBe(5);
-
-      const nameField = diff.piiFields.find((f) => f.field === "name")!;
-      expect(nameField.same).toBe(false);
-      expect(nameField.targetValue).toBe("Alice");
-      expect(nameField.sourceValue).toBe("Bob");
-
-      // phone/address/special_instructions are same (both empty)
-      const phoneField = diff.piiFields.find((f) => f.field === "phone")!;
-      expect(phoneField.same).toBe(true);
     });
 
     test("detects answer conflicts", async () => {
@@ -219,26 +222,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         target,
       });
 
-      expect(diff.version).toBeTruthy();
-      expect(typeof diff.version).toBe("string");
-      // The version string prefix-lists the four sections in order, joined by
-      // "|", and each section's tag (t:/s:/ta:/sa:/tb:/sb:) only appears once.
-      expect(diff.version).toMatch(/^t:\d+\|s:\d+/);
-      // The target's answer-id mapping travels inside `ta:` as
-      // `<questionId>=<answerId>` — its presence locks the comma separator AND
-      // both indexes (key vs answer value) against mutation. The second
-      // mapping forces a comma between the two `<qid>=<aid>` fragments.
-      expect(diff.version).toContain(`ta:${question.id}=${answers[0]!.id}`);
-      expect(diff.version).toContain(
-        `${second.question.id}=${second.answers[0]!.id}`,
+      const booking = bookingKey(listing.id, null, 0, 0);
+      expect(diff.version).toBe(
+        `t:${target.id}|s:${source.id}|ta:${question.id}=${answers[0]!.id},${second.question.id}=${second.answers[0]!.id}|sa:|tb:${booking}|sb:${booking}`,
       );
-      // Two saved answers => a comma-joined `ta:` fragment. The exact form is
-      // one of two orderings depending on the answers' query order, but
-      // either way the comma sits between the two `id=aid` fragments.
-      const taFragment = diff.version.split("ta:")[1]!.split("|")[0]!;
-      expect(taFragment).toContain(",");
-      expect(taFragment.split(",").length).toBe(2);
-      expect(diff.version.split("|").length).toBe(6);
     });
 
     test("bookingSaleAmount counts only `sale` legs of one event group", async () => {

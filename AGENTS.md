@@ -4,7 +4,23 @@ A minimal ticket reservation system using Bunny Edge Scripting and libsql.
 
 ## Getting Started
 
-Run `./setup.sh` to install Deno, cache dependencies, and run all precommit checks (typecheck, lint, tests).
+Assume the workspace is probably running on NixOS. Use the repository's Nix
+development shell so Deno and the other tools come from `flake.nix`:
+
+```bash
+nix develop
+```
+
+For one command, run it through the shell instead of entering it:
+
+```bash
+nix develop -c deno task precommit
+```
+
+Do not use `mise` or a host-installed `deno` directly when Nix is available.
+All `deno ...` commands in this file assume you are already inside
+`nix develop`; non-interactive agents should prefix them with
+`nix develop -c`. On systems without Nix, `./setup.sh` remains the fallback.
 
 ## Runtime Environment
 
@@ -19,14 +35,14 @@ Code must work in both environments. The edge runtime is Deno-based, so developm
 This repo pins Deno 2.5.6, the lowest Bunny Edge Scripting runtime version this
 project is expected to run on. Local development should use that version too.
 
-This repo pins Deno with mise:
+The Nix flake pins the required Deno version. Check it with:
 
 ```bash
-mise install
-mise exec -- deno --version
+nix develop -c deno --version
 ```
 
-The `.tool-versions` file is kept in sync for asdf-compatible tooling.
+The `.tool-versions` and mise configuration are kept in sync only for
+environments without Nix.
 
 ## stripe-mock
 
@@ -81,7 +97,7 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Never lose work — commit WIP even if broken**: Uncommitted changes are lost if the working environment is reclaimed (it has happened). If you have non-trivial work in progress and are about to pause, hand off, delegate to a background agent, or end a turn with a dirty tree, **commit and push it** rather than leaving it uncommitted. A known-broken checkpoint is fine and expected — mark it unmistakably in the commit message (e.g. `WIP: <chunk> — NOT GREEN, <what fails>`) so it is never mistaken for finished work, and follow up with a green commit. Do not hold a commit back purely because the tree does not yet build or pass; losing the work is worse.
 - **Answer every PR review thread you address**: When a pull request review leaves comments — from an automated reviewer (e.g. Codex) or a human — reply to **each** thread directly with a concise, proper note: how it was resolved (the mechanism + the regression test that locks it), or why it is not actionable/incorrect. Do this even when the commit message already explains the change — an open thread reads as unaddressed, so close the loop on the thread itself. This is a deliberate exception to general GitHub-comment frugality: resolution replies on review threads are expected, not noise. Keep each reply tight (a few sentences), and reference the fixing commit. **If a suggestion is valid but outside the current job's scope**, do not silently drop it — record it in `TODO.md` with enough context for a future person to pick it up without re-reading the PR (the file/path it concerns, what the reviewer proposed, why it's genuinely out of scope here, and a starting point), then reply on the thread pointing to the TODO entry. Scope is a real boundary, not an excuse to lose good ideas.
 - **Finish by rewriting the PR name and description**: Once a feature is done, revisit its pull request and update the name and description to match what was actually built. A PR often starts life with a WIP or work-in-flight title; the finished PR should be thorough but written in simple, concise, understandable, non-technical language — the same plain language we want in our code, comments, and method names. Someone without a CS degree should be able to read the PR and know what changed, why, and what it means for the people using the site.
-- **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
+- **Final check**: Run `nix develop -c deno task precommit` before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
 
 ## Offensive Programming — Never Suppress Errors
 
@@ -666,9 +682,10 @@ logging and table-scoped cache invalidation stay automatic.
   error. The write lock is acquired with a short retry so concurrent writers
   serialize rather than failing; a database that stays locked surfaces as
   `DatabaseBusyError`. Read-only statements and batches also retry fleeting
-  upstream gateway errors (Turso 502/503/504). Interactive transactions and
-  write paths retry only `SQLITE_BUSY`; gateway 5xx errors are never replayed
-  because the operation may have committed before the gateway timed out. Note the trade-off: an interactive transaction locks the
+  upstream HTTP errors (BunnyDB 421 and Turso 502/503/504). Interactive
+  transactions and write paths retry only `SQLITE_BUSY`; upstream HTTP errors
+  are never replayed because the operation may have committed before the
+  response arrived. Note the trade-off: an interactive transaction locks the
   database for writing until it commits or rolls back (with a timeout), so keep
   the work inside it tight — do any expensive non-DB computation before opening
   it, and prefer a plain batch whenever no inter-step logic is actually needed.
@@ -679,6 +696,9 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task test` - Run the full suite
 - `deno task test:coverage` - Run the full suite with coverage
 - `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
+- `deno task specs` - Run every Cucumber Feature through the shared test harness and write ignored Messages, HTML, and JUnit reports under `reports/`
+- `deno task specs:check` - Parse every Feature and validate the strict authored profile and stable catalog
+- `deno task specs:files <feature>... [--tags <expression>]` - Run selected Features through the shared harness
 - `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
 - `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code that *would* be reformatted, without touching the checkout. This is the lint `deno task precommit` runs in **every** environment, so a clean `precommit` locally means the lint step will pass in CI too. Run `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
@@ -686,7 +706,7 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task restore <backup.zip>` - Restore the database named by `DB_URL` / `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Shows the backup details, asks for typed confirmation, and reports each restore step in the console.
 - `deno task snapshot --out <path.sqlite>` - Sync the complete remote database to a standalone local SQLite file. The task prefers `DB_URL` and `DB_TOKEN` from `.env` over shell values. This developer-only task checkpoints and verifies the file, refuses to overwrite an existing path, and removes its temporary replica on success or failure.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
-- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. A source's mirror-located direct tests run first; changed tests under `test/integration/` or `test/e2e/` run only for direct-test survivors. Any other unmatched test is an error: move it to the path that mirrors its source while strengthening it to kill the mutants. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files (and likewise when src changed without any changed test). If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
+- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. All of a source's mirror-located direct tests run first, whether or not those tests changed; changed tests under `test/integration/`, `test/e2e/`, or `specs/` run only for direct-test survivors. A changed Cucumber step or support file selects every Feature. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files. If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
 - `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand in an isolated `.mutation-runs/<id>/work` copy: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
@@ -704,6 +724,8 @@ Arguments are forwarded verbatim to `deno test`, so multiple files, directories,
 ```bash
 deno task test:files test/lib/dates.test.ts --filter "formats date"
 deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks/*.test.ts
+deno task test:files specs/payments/capacity-after-payment.feature
+deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-payment.feature
 ```
 
 #### Lower-level alternative
@@ -760,6 +782,10 @@ example, `storage.bunnycdn.com` or `uk.storage.bunnycdn.com`).
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g. `.tickets`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
 - `SENTRY_URL` - Sentry DSN for server-side error reporting (e.g. a self-hosted Bugsink: `https://<key>@bugs.example.com/<project>`). When set, the same classified server errors that log to the console and ping ntfy are also captured by Sentry, with a real stack trace when the originating exception is available. Unset ⇒ Sentry is disabled (the SDK never initializes). The release is `chobble-tickets@<commit>`, matching the source maps the deploy workflows upload; readable (un-minified) traces additionally require the `SENTRY_AUTH_TOKEN`, `SENTRY_CLI_URL` (the instance base URL, e.g. `https://bugs.example.com/`), `SENTRY_ORG`, and `SENTRY_PROJECT` GitHub Actions secrets so the deploy can inject debug IDs and upload the maps. Without those secrets the deploy still works; traces just stay minified.
+- `UPTIME_KUMA_URL` - Uptime Kuma 2.4 or newer base URL used by builder instances to inspect and add built-site scheduled maintenance monitors. Requires `CAN_BUILD_SITES=true`, `UPTIME_KUMA_USERNAME`, and `UPTIME_KUMA_PASSWORD`.
+- `UPTIME_KUMA_USERNAME` - Uptime Kuma username. Must be set with `UPTIME_KUMA_URL` and `UPTIME_KUMA_PASSWORD`.
+- `UPTIME_KUMA_PASSWORD` - Uptime Kuma password. Must be set with `UPTIME_KUMA_URL` and `UPTIME_KUMA_USERNAME`.
+- `UPTIME_KUMA_INTERVAL_MINUTES` - Optional positive whole number controlling how often new built-site monitors run. Defaults to `15`.
 - `DEBUG_KEY` - Optional diagnostic key. `GET /health` returns a plain `Up :)` by default; a request with a matching `X-Debug-Key` header instead returns JSON build diagnostics (commit, build timestamp, server time) — non-private but useful to operators. Unset ⇒ verbose health disabled. The running build also records its commit into `settings.current_script_commit` on boot, so a backup carries the commit the site was on and a restore can surface which commit to redeploy (via `.github/workflows/restore-deploy.yml`).
 - `BOTPOISON_PUBLIC_KEY` - Optional Botpoison public key (sent to the browser). The contact form works without it; setting it together with `BOTPOISON_SECRET_KEY` adds proof-of-work spam protection as a progressive enhancement. The owner still enables the form under Site → Contact and sets a business email.
 - `BOTPOISON_SECRET_KEY` - Optional Botpoison secret key. Used server-side to verify contact form submissions when Botpoison is enabled. Never sent to the browser.
@@ -802,6 +828,121 @@ Tests use Deno standard library packages directly:
 - `@std/testing/mock` — `spy()`, `stub()` for mocking
 - `@std/expect/fn` — `fn()` for mock functions
 - `@std/testing/time` — `FakeTime` for timer tests
+
+### Cucumber Acceptance Specifications
+
+Cucumber owns user journeys and observable business rules. Direct Deno tests
+still own pure logic, properties, schemas, SQL and transaction contracts,
+migrations, protocol details, query budgets, concurrency, and test
+infrastructure. Never translate a direct technical test into Gherkin when the
+TypeScript test is smaller or more exact.
+
+#### Test architecture — three categories, no generic e2e bucket
+
+Every test falls into exactly one of three categories. A generic `test/e2e`
+bucket is not one of them — each existing e2e test should eventually become
+either a Cucumber story or a narrowly scoped direct technical contract test.
+
+1. **Pure unit/property tests** — data in, data out. No database, network,
+   filesystem, DOM, subprocess, or real clock. Mirror the source file.
+2. **Direct technical contract tests** — exercise the smallest real boundary
+   necessary: SQLite, Request/Response, provider transport, DOM, WebCrypto,
+   build artifact, module graph, filesystem, subprocess, or concurrency. These
+   own SQL constraints, migrations, triggers, transactions, wire protocols,
+   HTTP security, cryptographic interoperability, query/resource budgets, and
+   tooling contracts. They cannot be replaced by Cucumber or pure tests.
+3. **Cucumber acceptance specifications** — one user story or observable
+   business rule per Feature, in domain language only. No SQL, route names,
+   field names, selectors, mocks, or provider payloads.
+
+**Migrate e2e tests toward Cucumber or direct contracts.** When touching an
+e2e test, ask: can the claim be stated as an actor-facing rule without
+technical nouns? If yes, move the narrative to Cucumber and delete the old
+test. Is the production behavior fully determined by explicit values? If yes,
+keep or extract a pure function and test it directly. Would replacing the real
+boundary make the assertion stop proving its subject? If yes, keep a direct
+technical contract test. Split tests that mix all three concerns by claim
+rather than duplicating.
+
+**New features need Cucumber coverage when applicable.** A new feature that
+introduces an observable user journey or business rule ships with a Cucumber
+Feature alongside its direct tests. A feature that is purely technical (a
+migration, a protocol change, a performance fix, a refactor) does not need
+one. The Cucumber Feature must not be the only coverage of a production line
+or branch — keep 100% direct Deno coverage.
+
+The authored hierarchy is strict:
+
+- A `Feature` is one user story or capability and has exactly one globally
+  unique `@story:<id>` tag.
+- A `Rule` is one canonical observable product rule and has exactly one
+  globally unique `@rule:<id>` tag. Every Scenario belongs to a Rule.
+- A plain `Scenario` is one concrete example and has exactly one globally
+  unique `@case:<id>` tag.
+- A `Scenario Outline` is one coherent family of examples. Its Examples table
+  has a unique `case_id` column because individual rows cannot carry tags.
+- Every Feature has one known `@owner:`, `@risk:`, at least one `@actor:`, and
+  at least one `@edition:` tag. Other tag kinds come from the checked registry;
+  ad-hoc metadata tags are forbidden.
+- Feature and Rule descriptions explain their purpose in plain language. Do
+  not hide JSON, YAML, evidence paths, or another schema in comments.
+
+Write the smallest scenario that proves the rule:
+
+- Use 3-5 Given/When/Then steps and one action per Scenario where possible.
+- Describe the domain and observable result, not routes, SQL, selectors, form
+  field names, provider payloads, mocks, or implementation details.
+- Keep exact mutation-resistant assertions in the TypeScript step definition.
+  A plain-language `Then the payment is refunded once` may assert the exact
+  provider call count, stored note, terminal result, and lack of a duplicate.
+- Use `Scenario Outline` only for the same rule over a real input family, never
+  to combine unrelated facts or reduce line count.
+- Validate DataTable rows, DocStrings, custom parameters, and Examples cells at
+  the boundary with a typed schema. All table cells begin as strings; never
+  cast and hope.
+- Business setup belongs in Given steps. Hooks contain only technical fixture
+  setup and cleanup that a reader does not need to understand the rule.
+- Every step must match exactly one definition. Undefined, ambiguous, pending,
+  skipped, and retried steps fail. The full suite also fails on unused step
+  definitions; focused runs may leave unrelated shared definitions unused.
+- **Drive through the real rendered form.** A Cucumber `When`/`Then` that
+  submits an admin edit must read the production HTML form, parse its fields
+  and CSRF token, and POST exactly what a browser would. Do not reconstruct
+  the form state from database rows — that bypasses the rendering layer the
+  scenario exists to prove and would silently keep passing if the editor
+  stopped rendering a field or emitted one the POST parser cannot consume.
+  Exception: pure data-in/data-out rules with no user-facing form action may
+  read state directly. When a form is involved, use
+  `extractFormEntries`/`extractCsrfToken` against the real served page.
+
+Execution is equally strict:
+
+- Run the pinned official Cucumber API under the repository's pinned Deno, in
+  the existing test harness. Do not add Node, run Cucumber through Bun, or make
+  another Gherkin runner.
+- Use a fresh typed World for every Scenario. Never keep scenario entities in
+  module globals or hide the global database client in World.
+- Run Scenarios through the bounded Cucumber worker pool. Each worker has its
+  own isolate, and every Scenario gets a fresh database and World. Test
+  environment changes must use `withEnv` so `Deno.env` and the worker's
+  `process.env` stay aligned. Do not add retries; a pass after retry is still a
+  flaky failure.
+- Reuse the existing golden database, stripe-mock, static assets, encryption,
+  browser, cache reset, and cleanup mechanisms. Extract one hook-free fixture
+  when Cucumber and Deno hooks need the same lifecycle; never maintain two.
+- Cucumber Messages NDJSON is the generated machine result. HTML and JUnit are
+  reports. Generated AST, Pickle, Messages, and report files are never sources
+  of truth and are not committed.
+- Stable repository IDs come only from authored tags. Cucumber AST/Pickle IDs,
+  names, paths, and line numbers are not durable IDs.
+- A Cucumber journey never supplies the only coverage of a production line or
+  branch. Keep 100% direct Deno coverage, and run direct tests before Cucumber
+  integration tests in mutation runs.
+- A migration is a replacement: delete the old narrative test in the same
+  change. Temporary old/new comparison is allowed while developing, but no PR
+  merges with two paths for one behavior.
+- New shared steps must be reused by the current story or an immediately
+  included second story. Do not create a speculative vocabulary.
 
 ## Test Quality Standards
 
@@ -908,30 +1049,31 @@ the whole tree would be far too slow. The standalone
 `deno task precommit:mutation` runs it automatically, but **only over the files
 this branch changed** (its committed diff against `origin/main`/`main`): the
 `precommit:mutation` step runs each source's mirror-located direct tests first,
-then runs changed `test/integration/` and `test/e2e/` files only for survivors.
-An unmatched test anywhere else fails the run so it must be moved. It demands a 100% kill
-rate, so the cost stays bounded to what you actually changed. Run
+whether or not the direct tests changed, then runs changed `test/integration/`,
+`test/e2e/`, and `specs/` files only for survivors. A changed Cucumber step or
+support file selects every Feature. Tests for unchanged sources, scripts,
+and test helpers are outside that src mutation run. A standalone mutation
+command still rejects any explicit test that neither mirrors a selected source
+nor lives in an integration folder or `specs/`. The gate demands a 100% kill
+rate, so the cost stays bounded to the source files you actually changed. Run
 `deno task precommit:mutation` before merging a
 branch that changes `src/` files; the standard `deno task precommit` no longer
 runs it (it was too slow for every commit).
 Known-equivalent survivors recorded in
 `scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
-That file's header warns against recording `=== → ==`/`!== → !=` mutants
-because Biome's `noDoubleEquals` normally rejects `==`/`!=` and the runner
-counts a lint failure as killed before tests even run — **but this does not
-apply to comparisons against the `null` literal**: Biome's `noDoubleEquals`
-allows `== null`/`!= null` as the idiomatic null-or-undefined check, so a
-`=== null` → `== null` mutant on a value typed to exclude `undefined` is a
-real, lint-surviving equivalent and belongs in the file (there are several
-already, e.g. `logistics-filter.ts:41:45`, `sort-listings.ts:44:12`,
-`package-privacy.ts:44:10`). Verify either way by mutating the line by hand
-and running `deno run -A scripts/biome.ts check --error-on-warnings <file>` —
-exit 0 means the lint gate does not kill it, so a real survivor needs a test
-or a documented equivalent, not removal on the assumption that lint caught it.
+Never record `=== → ==`/`!== → !=` mutants: Biome's `noDoubleEquals` rule is
+configured to reject loose comparisons even against `null`, and the runner
+counts that lint failure as killed before tests run. Use
+`deno task mutation:audit-equivalents` to check the whole equivalent list with
+lint and type-check only; pass `--write` to remove entries those static gates
+now kill. The audit never runs tests and refuses to rewrite stale or malformed
+entries.
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap
-**static gates**, ordered cheapest-first: a per-file Biome **lint** (the
-`noDoubleEquals` case above) and then a `deno check` **type-check**. Either one
+**static gates**, ordered cheapest-first: a per-file Biome **lint** and then a
+`deno check` **type-check**. Keep the Biome calls one-shot unless a new benchmark
+proves otherwise: with pinned Biome 2.4.16, 20 warm one-file runs measured a
+17.3 ms standalone median and a 51.2 ms `--use-server` median. Either gate
 exiting non-zero kills the mutant without spending a full `deno test` on it —
 both a forbidden lint diagnostic and a type error are build failures, so the
 mutant could never ship, and static checks are far faster than the suite. The
@@ -956,12 +1098,10 @@ record the mutant in `scripts/mutation/equivalent-mutants.txt` with a proof that
 no input can distinguish it. "It was already there" is not a resolution; leaving
 it just guarantees the next person trips over the same survivor. This is the
 [Good citizen](#preferences) rule applied to mutation testing.
-It is a best-effort check with three documented blind spots (see the header of
+It is a best-effort check with two documented blind spots (see the header of
 `scripts/precommit/mutation-step.ts`): it scopes to the
-*committed* diff, so uncommitted work isn't checked until committed; it trusts
-that a changed src file's covering test changed alongside it, so a changed src
-whose test is unchanged — paired with an unrelated changed test — can report
-false survivors; and it diffs against your *local* `origin/main`, never
+*committed* diff, so uncommitted work isn't checked until committed; and it
+diffs against your *local* `origin/main`, never
 re-fetching, so a stale local ref under a branch built on newer main commits can
 leak upstream src into the set (run `git fetch origin main` first; a branch's own
 author is unaffected). In each case, reach for `deno task mutation` on the

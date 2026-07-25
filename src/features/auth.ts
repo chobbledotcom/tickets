@@ -17,7 +17,6 @@ import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
-import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
@@ -49,17 +48,6 @@ import {
 } from "#shared/types.ts";
 
 /* jscpd:ignore-end */
-
-// SessionKeyError and the session→private-key derivation live in #shared so
-// shared-layer modules (e.g. the activity log) can reach them without importing
-// the feature layer. Re-exported here for the central request error handler
-// (app/request.ts), which special-cases it into a re-authenticate response.
-// Route handlers derive the key directly via requireRequestPrivateKey /
-// getRequestPrivateKey (#shared/session-private-key.ts) — the request-scoped,
-// thread-free form that needs no session argument.
-export { SessionKeyError } from "#shared/session-private-key.ts";
-// Re-export for callers that need it
-export { generateSecureToken };
 
 /** Session with wrapped data key for private key derivation, and user role */
 export type AuthSession = {

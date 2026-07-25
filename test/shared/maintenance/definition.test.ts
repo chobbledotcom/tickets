@@ -4,11 +4,13 @@ import {
   defineMaintenanceTasks,
   MAINTENANCE_RELEASE_HEADROOM_MS,
   MAINTENANCE_REQUEST_CALL_LIMIT,
+  MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT,
   MAINTENANCE_TASK_CALL_LIMIT,
   type MaintenanceTaskDeclaration,
   maintenanceStartupCalls,
   maintenanceTaskByName,
 } from "#shared/maintenance/definition.ts";
+import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
 import { maintenanceDeclaration } from "./fixtures.ts";
 
 const task = (
@@ -20,7 +22,7 @@ const task = (
   });
 
 describe("maintenance task declarations", () => {
-  test("totals every startup call and the shared settings and sync reads", () => {
+  test("totals every startup call and the shared settings and sync calls", () => {
     expect(maintenanceStartupCalls([])).toEqual({
       database: 0,
       external: 0,
@@ -44,7 +46,9 @@ describe("maintenance task declarations", () => {
     ).toEqual({ database: 8, external: 9, total: 17 });
   });
 
-  test("reserves eight calls and one second for scheduler bookkeeping", () => {
+  test("keeps scheduler work below Bunny's request limits", () => {
+    expect(BUNNY_SUBREQUEST_LIMIT - MAINTENANCE_REQUEST_CALL_LIMIT).toBe(8);
+    expect(MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT).toBe(40);
     expect(MAINTENANCE_REQUEST_CALL_LIMIT - MAINTENANCE_TASK_CALL_LIMIT).toBe(
       8,
     );
@@ -109,15 +113,29 @@ describe("maintenance task declarations", () => {
     ).not.toThrow();
   });
 
-  test("rejects activation checks that cannot fit the request", () => {
+  test("rejects activation checks above the database request limit", () => {
     expect(() =>
       defineMaintenanceTasks([
         task({
-          check: { maxDatabaseCalls: MAINTENANCE_REQUEST_CALL_LIMIT },
+          check: {
+            maxDatabaseCalls: MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT - 1,
+          },
         }),
       ]),
     ).toThrow(
-      `Maintenance checks declare ${MAINTENANCE_REQUEST_CALL_LIMIT + 2} startup calls; maximum is ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
+      `Maintenance checks declare ${MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT + 1} database and ${MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT + 1} total startup calls; maximums are ${MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT} and ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
+    );
+  });
+
+  test("rejects activation checks above the combined request limit", () => {
+    expect(() =>
+      defineMaintenanceTasks([
+        task({
+          check: { maxExternalCalls: MAINTENANCE_REQUEST_CALL_LIMIT - 1 },
+        }),
+      ]),
+    ).toThrow(
+      `Maintenance checks declare 2 database and ${MAINTENANCE_REQUEST_CALL_LIMIT + 1} total startup calls; maximums are ${MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT} and ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
     );
   });
 

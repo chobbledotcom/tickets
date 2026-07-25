@@ -9,7 +9,8 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { OrderSummary } from "#shared/db/attendees/balance.ts";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { SubmitForm } from "#templates/components/submit-form.tsx";
-import { AmountLine, prosePage, simplePublicPage } from "./shared.tsx";
+import { prosePage, simplePublicPage } from "./prose-page.tsx";
+import { AmountLine } from "./shared.tsx";
 
 /** Recap + pay form for an outstanding balance. */
 export const balancePaymentPage = (

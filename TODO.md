@@ -473,40 +473,6 @@ in `src/shared/pending-work.ts` + `flushAllPendingWork()` for the restore
 path; extend the race harness in `test/lib/server-backup.test.ts` ("a
 deploy's first request cannot clobber...") with a concurrent cold GET.
 
-## Equivalent-mutant entries challenged by review (from PR #1717)
-
-*Origin: CodeRabbit review on PR #1717 (import-graph slimming). The challenged
-entries live in `scripts/mutation/equivalent-mutants.txt` but were added by the
-balance-payments work (PR #1697) and only passed through #1717 via a merge of
-main, so relitigating them there was out of scope.*
-
-CodeRabbit argued three suppressions don't meet the file's "no possible input
-distinguishes it" bar because they rely on *current-consumer* behaviour rather
-than interface guarantees:
-
-- **`src/shared/db/payment-references.ts:88` (ORDER BY removal).** The entry's
-  rationale is that every consumer dedupes `sessionIds` or uses them in an
-  `IN (...)`. That is consumer-dependent: a future consumer that renders or
-  compares the array order would observe the mutant. Either normalize ordering
-  at the exported API boundary (e.g. sort `sessionIds` before returning) and
-  keep the suppression, or drop the entry and pin the order with a test.
-- **`src/features/admin/attendees-edit.ts:68` (`bookings[0]` → `bookings[1]`).**
-  The entry leans on a data invariant (the LIMIT 1 row's `listing_id` matching
-  `attendee.listing_id`). Multi-parent bookings exist (see
-  `test/lib/db/attendee-multiparent-rows.test.ts`), so an attendee whose first
-  booking is on a different listing may be constructible. Preferred fix: add a
-  regression test with divergent booking/attendee listing ids asserting the
-  refresh context picks `bookings[0].listing_id`, then delete the entry.
-- **`src/shared/merge/attendee-merge.ts:715/:722` (`merge-unbill`/`merge-credit`
-  keyParts).** The entry argues the prefixes feed only HMAC'd
-  `event_group`/`reference` digests that nothing queries. The digests are still
-  persisted, so the safest resolution is a test that pins the two legs'
-  event-group derivation (or an explicit storage-contract note), then removal.
-
-Starting point: each entry's full rationale is in the file next to the line
-numbers above; the mutation harness is `deno task mutation --source <file>
---test <suite>`.
-
 ## Dead-export scanner matches raw text (from PR #1745 review)
 
 `test/lib/code-quality/detectors.ts` scans raw file contents when deciding
@@ -1392,3 +1358,183 @@ staged checkouts and let the next tick continue. Cover it with a regression
 test that stages a paid-but-unfinalized checkout, runs the poll, and proves the
 attendee/ledger rows are created exactly once across concurrent webhook,
 redirect, and scheduled-poll attempts.
+
+---
+
+## Stale equivalent-mutant line numbers across recent refactors
+
+*Origin: running `deno task mutation:audit-equivalents` while hardening
+`src/shared/square.ts` for the confirmed-Square-refunds job.*
+
+`scripts/mutation/equivalent-mutants.txt` carries several entries whose
+`file:line:col` no longer points at a generated mutant, so
+`deno task mutation:audit-equivalents` aborts with "No generated mutant matches".
+The mutants are still real and equivalent; only the code moved. Confirmed stale
+entries span at least:
+- `src/shared/uptime-kuma/socket.ts` (lines 107, 130, 167, 187 — `===`/`!==`↔loose)
+- `src/shared/uptime-kuma/monitors.ts` (lines 87, 101, 116, 119, 138, 193, 227,
+  250, 306, 325 — `===`/`!==`↔loose and `1000→1001`)
+- `src/shared/scheduled-access.ts:16:20 ??→||`
+- `src/shared/storage.ts:376:18 application/octet-stream→""`
+- `src/ui/templates/admin/images.tsx:84:28` and `:85:20 ??→||`
+- `src/features/app/routes.ts:235:14 →"mutated"`
+
+These most likely drifted when the Uptime Kuma modules were split into
+one-concept-per-file (#1906) and other recent move/refactor PRs. The audit is a
+standalone task (`mutation:audit-equivalents`, not part of `deno task
+precommit`), so CI doesn't gate on it; it surfaced here only because the
+Square-refunds job ran exhaustive mutation and used the audit to validate its
+own equivalent entries. The `square.ts` entries in the equivalent-mutants
+registry have been refreshed in place (they drift as the source shifts lines —
+the audit command's own output lists every stale `file:line:col`);
+
+Fix: for each stale entry, re-run `deno task mutation <file> '<tests>'
+--exhaustive`, locate the surviving equivalent mutant's current `file:line:col`
+from the report, and update the line/col in `equivalent-mutants.txt` (or remove
+the entry if the static gates now kill it — `mutation:audit-equivalents --write`
+does this automatically for entries the lint/type-check gates catch). Then
+re-run the audit until it reports no stale entries. Starting point: the audit's
+own output lists every stale `file:line:col`.
+
+---
+
+## Square PENDING refunds — propagate a pending result, not a plain false
+
+*Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread
+on `squareApi.refundPayment` (`src/shared/square.ts`). This PR deliberately
+does NOT address it; recorded so the follow-on work can pick it up.*
+
+`squareApi.refundPayment` returns `false` for a Square refund that is still
+`PENDING` (an accepted-but-unsettled refund). That is the honest current-main
+boolean contract this PR ships, but it has a real downstream cost the reviewer
+flagged: the webhook/admin refund flow reads `refunded === false` as a failed
+refund, so a pending Square refund releases the reservation, returns 503, and
+— because each call mints a fresh `crypto.randomUUID()` idempotency key — a
+redelivery posts another full-refund attempt instead of waiting on the
+existing refund id. A PENDING Square refund is documented as a normal accepted
+`RefundPayment` response, so collapsing it into `false` loses the "accepted,
+not yet settled" signal.
+
+Update: PR #1912 (stable Stripe and Square refund idempotency keys) has since
+landed on `main`; the Square refund idempotency key is now the stable
+`refundIdempotencyKey("square", paymentId)` rather than a fresh
+`crypto.randomUUID()`, so a redelivery re-posts with the SAME key and Square
+dedupes it — the double-pay half of the risk above is now mitigated. The
+PENDING-still-returns-false behaviour itself (a retryable re-attempt that waits
+on `isPaymentRefunded` rather than holding the refund id) remains, so the
+pending-result union below is still the real fix; the stale-key concern is
+resolved.
+
+The fix is the staged-checkout pending-result union / callback resolution this
+PR was explicitly told not to introduce: surface a pending outcome (carrying
+the refund id) separately from a plain false, and have the webhook/admin refund
+paths hold/redeliver against that id instead of re-posting. That is the same
+machinery planned for #1853 (`split/staged-checkout-runtime` — "Finish and
+recover paid checkouts safely") and overlaps #1905
+(`split/authoritative-payment-callbacks` — provider-neutral webhook retry
+resolution), so it must be designed with those branches, not duplicated here.
+Starting points: `squareApi.refundPayment` in `src/shared/square.ts` (where the
+boolean contract lives), the idempotency key in its `withClient` callback, and
+the downstream `tryRefund` in `src/features/api/payment-processing/refunds.ts`
+plus `refundReferenceAtProvider` in
+`src/features/admin/refunds/provider.ts` (both treat `false` as failed and fall
+back to `isPaymentRefunded`, which a still-pending refund also fails).
+
+---
+
+## Validate Square orders/payments responses with Valibot schemas
+
+*Origin: CodeRabbit review of PR #1911. The refund response validation is done
+(`SquareRefundResponseSchema` in `src/shared/square.ts`), and the test file
+splits are complete (`refund-payment.test.ts`, `refund-transport.test.ts`,
+and the shared `mock-fetch.ts` helper all exist; `retrieve-refund.test.ts` is
+240 lines and `rest-transport.test.ts` is 372). What remains is extending the
+same boundary-validation pattern to the orders and payments client methods.*
+
+The Square REST client still maps order and payment responses with type casts
+(`get<T>` for orders and payments). `squareFetch` returns `JSON.parse(response.text)`
+cast as `<T>`, so a malformed order or payment object — wrong field types, an
+unexpected shape — passes through unvalidated. The refund path now has a Valibot
+schema (`SquareRefundSchema` / `SquareRefundResponseSchema`) parsed with
+`v.parse` OUTSIDE `withClient`, so a malformed refund response fails loudly.
+Doing the same for orders and payments means defining `SquareOrderSchema` and
+`SquarePaymentSchema` and parsing in their respective `squareApi` methods, so
+a malformed response throws rather than being silently cast. Starting point:
+`squareFetch` and the `SquareOrderResponse` / `SquarePaymentResponse` types in
+`src/shared/square.ts`; mirror the refund schema shape that already exists.
+
+---
+
+## Split oversized test files moved by PR #1903
+
+*Origin: Codex review of PR #1903 ("Load heavy modules only when needed").
+That PR is a cold-start import reduction; as a side effect it relocated several
+test files via `git mv` to mirror their source module paths (the mutation gate
+requires mirror-located direct tests). Two of the moved files are over the
+~400-line target in AGENTS.md:*
+
+- **`test/features/admin/auth.test.ts` (651 lines).** Was
+  `test/lib/server-auth.test.ts` (658 lines on `main`) — the move did not grow
+  it. Covers login, logout, sessions, roles, invalid credentials, CSRF, and
+  `wrappedDataKey` edge cases. A future PR should split it into focused files
+  by concern (e.g. `login.test.ts`, `logout.test.ts`, `sessions.test.ts`,
+  `roles.test.ts`) under `test/features/admin/auth/`, mirroring the
+  `test/features/admin/users/` folder pattern already in place. Run
+  `deno task test:files test/features/admin/auth/*.ts` after the split to
+  confirm coverage stays at 100%.
+
+- **`test/ui/templates/checkin.test.ts` (533 lines).** Was
+  `test/lib/server-checkin.test.ts` (499 lines on `main`) — the move grew it
+  slightly via the row-scoped assertion rewrite in `64475d4f`. Covers GET/POST
+  `/checkin/:tokens` rendering, column visibility, check-in/out flows,
+  refunded-attendee blocking, shared-token behaviour, and route matching. A
+  future PR should split it by concern (e.g. `checkin/rendering.test.ts`,
+  `checkin/flows.test.ts`, `checkin/routes.test.ts`) under
+  `test/ui/templates/checkin/`. Keep the `rowFor` helper in a shared helper
+  file (or move it to `#test-utils` if a second caller appears) rather than
+  duplicating it across the split files.
+
+Both files are well under the Biome hard 1,000-line ceiling
+(`noExcessiveLinesPerFile`), so neither is in the `biome.json` override list.
+Splitting them now was deliberately deferred because doing it inside the
+cold-start PR would balloon the diff with unrelated mechanical test moves and
+re-conflict with the import-only changes that are the actual subject of the
+PR. The ~400-line target is guidance, and the cold-start PR's brief was
+explicitly about import-graph narrowing, not test reorganisation.
+
+## Export REFRESH_DELAY_MS for test reuse
+
+*Origin: CodeRabbit review on PR #1909 (independent test hardening).*
+
+`src/ui/client/admin/order-gallery.ts` declares `const REFRESH_DELAY_MS = 200`
+privately. The debounce-timing test in `test/ui/client/admin/order-gallery.test.ts`
+hard-codes `199` and `1` to assert the exact 200 ms boundary. Importing the
+production constant (`REFRESH_DELAY_MS - 1` then `1`) would keep the test aligned
+if the delay changes. This requires exporting `REFRESH_DELAY_MS` from the
+production module — a small production change that was out of scope for the
+test-only PR. Starting point: add `export` to the `const REFRESH_DELAY_MS`
+declaration, then replace the hard-coded `199` in the "waits for the debounce
+delay" test with `REFRESH_DELAY_MS - 1`.
+
+## Split the sms-webhook test suite
+
+*Origin: Codex review on PR #1909 (independent test hardening).*
+
+`test/features/api/sms-webhook.test.ts` is 461 lines (the ~400-line target
+applies to test files too). It bundles three concerns that can stand alone:
+phone-index normalisation/unit tests (`describeWithEnv({ encryptionKey: true })`),
+attendee phone-index DB tests (`describeWithEnv({ db: true })`), and the webhook
+handler tests (`describeWithEnv({ db: true })`). The file was already 427 lines
+on main; the independent-test-hardening PR added 34 lines of new webhook coverage.
+Splitting now was deferred because the PR's brief was test hardening, not test
+reorganisation. Starting point: move the two phone-index describe blocks into
+`test/shared/sms/phone-index.test.ts`, keeping the `makeAttendee` /
+`storedPhoneIndex` helpers in whichever file needs them (or lift to `#test-utils`
+if both do). The webhook test file drops to ~380 lines.
+
+## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
+
+Direct tests at `test/features/api/folded-booking.test.ts` and
+`test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
+Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
+`scripts/mutation/equivalent-mutants.txt` with proofs — no unsuppressed survivors remain.

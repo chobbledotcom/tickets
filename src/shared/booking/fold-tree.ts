@@ -121,6 +121,32 @@ export type FoldBase = OrderSpan & {
   customPrices: Map<number, number>;
 };
 
+type FoldableParent = { node: BookingNode; parentQty: number };
+
+/** Select the first booked path for each parent that has children. A parent can
+ * appear through overlapping packages and its standalone row, but its children
+ * are chosen once against the parent's total quantity. */
+const selectFoldableParents = (
+  nodes: readonly BookingNode[],
+  quantities: ReadonlyMap<number, number>,
+): FoldableParent[] => {
+  const selectedParentIds = new Set<number>();
+  return compact(
+    nodes.map((node) => {
+      const parentQty = quantities.get(node.listingId) ?? 0;
+      if (
+        parentQty <= 0 ||
+        node.children.length === 0 ||
+        selectedParentIds.has(node.listingId)
+      ) {
+        return null;
+      }
+      selectedParentIds.add(node.listingId);
+      return { node, parentQty };
+    }),
+  );
+};
+
 /** A bookable child paired with the per-unit quantity chosen under one parent
  * (always > 0 — zero-quantity children are dropped). */
 type ChildSelection = { child: TicketListing; qty: number };
@@ -415,17 +441,10 @@ export const foldBookingTree = (
     selectedListingIds: new Set(base.quantities.keys()),
   };
 
-  // A parent booked through several paths (overlapping packages, or a package
-  // plus its own standalone row) has one node per path with identical child
-  // edges; its children are chosen once against the parent's TOTAL quantity,
-  // so fold the first node and skip the rest.
-  const foldedParentIds = new Set<number>();
-  for (const node of tree.nodes) {
-    const parentQty = base.quantities.get(node.listingId) ?? 0;
-    if (parentQty <= 0) continue;
-    if (node.children.length === 0) continue;
-    if (foldedParentIds.has(node.listingId)) continue;
-    foldedParentIds.add(node.listingId);
+  for (const { node, parentQty } of selectFoldableParents(
+    tree.nodes,
+    base.quantities,
+  )) {
     const error = foldParentNode(
       state,
       node,

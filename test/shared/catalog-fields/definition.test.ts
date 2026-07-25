@@ -173,6 +173,17 @@ describe("catalog field projection", () => {
     expect(isValidCatalogApiValue(groupCatalogFields.hidden, "false")).toBe(
       false,
     );
+    expect(isValidCatalogApiValue(groupCatalogFields.maxAttendees, 1.5)).toBe(
+      false,
+    );
+    expect(
+      isValidCatalogApiValue(listingCatalogFields.bookableDays, ["Monday"]),
+    ).toBe(true);
+    expect(
+      isValidCatalogApiValue(listingCatalogFields.bookableDays, {
+        0: "Monday",
+      }),
+    ).toBe(false);
   });
 
   test("projects every stored API value and clears null strings", () => {

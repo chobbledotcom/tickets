@@ -9,6 +9,7 @@ import {
   isolateElementCss,
   wasImageTrimmed,
 } from "./screenshots/checks.ts";
+import { parseRgb, type Rgb } from "./screenshots/color.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
@@ -23,6 +24,10 @@ import {
   startWithFailureCleanup,
   waitForHealthy,
 } from "./screenshots/server.ts";
+import {
+  applySocialTarget,
+  type SocialTargetName,
+} from "./screenshots/social.ts";
 import {
   findAvailablePort,
   startStripeMock,
@@ -261,19 +266,17 @@ const applyTheme = async (
   await submit(page, 'form[action="/admin/settings/custom-css"]');
 };
 
-interface Rgb {
-  b: number;
-  g: number;
-  r: number;
-}
-
-const parseRgb = (color: string): Rgb => {
-  const channels = color.match(/\d+/g)?.slice(0, 3).map(Number);
-  if (channels?.length !== 3) {
-    throw new Error(`Could not read screenshot background colour: ${color}`);
-  }
-  return { b: channels[2]!, g: channels[1]!, r: channels[0]! };
-};
+const readBodyBackground = async (page: Page): Promise<Rgb> =>
+  parseRgb(
+    await page.locator("body").evaluate((node) => {
+      const getStyle = Reflect.get(globalThis, "getComputedStyle");
+      const style = Reflect.apply(getStyle, globalThis, [node]);
+      if (typeof style !== "object" || style === null) {
+        throw new Error("Could not read the page style.");
+      }
+      return String(Reflect.get(style, "backgroundColor"));
+    }),
+  );
 
 const trimElementScreenshot = async (
   png: Uint8Array,
@@ -309,7 +312,7 @@ const capture = async (
   name: ScreenshotName,
   outputPath: string,
   elementSelector?: string,
-): Promise<void> => {
+): Promise<Rgb> => {
   const scene = SCENES[name];
   await page.goto(`${baseUrl}${scene.path(context)}`, {
     waitUntil: "networkidle",
@@ -317,7 +320,7 @@ const capture = async (
   await scene.prepare?.(page);
   await page.waitForFunction('document.fonts.status === "loaded"');
   await scene.verify?.(page);
-  await capturePreparedPage(page, outputPath, elementSelector);
+  return await capturePreparedPage(page, outputPath, elementSelector);
 };
 
 const capturePreparedPage = async (
@@ -325,7 +328,7 @@ const capturePreparedPage = async (
   outputPath: string,
   elementSelector?: string,
   fullPage = false,
-): Promise<void> => {
+): Promise<Rgb> => {
   if (elementSelector) {
     const initialViewport = page.viewportSize();
     if (!initialViewport) {
@@ -350,23 +353,38 @@ const capturePreparedPage = async (
         { block: "center" },
       ]),
     );
-    const backgroundColor = await page.locator("body").evaluate((node) => {
-      const getStyle = Reflect.get(globalThis, "getComputedStyle");
-      const style = Reflect.apply(getStyle, globalThis, [node]);
-      if (typeof style !== "object" || style === null) {
-        throw new Error("Could not read the page style.");
-      }
-      return String(Reflect.get(style, "backgroundColor"));
-    });
+    const background = await readBodyBackground(page);
     await trimElementScreenshot(
       await page.screenshot(),
-      parseRgb(backgroundColor),
+      background,
       outputPath,
     );
     await page.setViewportSize(initialViewport);
-    return;
+    return background;
   }
+  const background = await readBodyBackground(page);
   await page.screenshot({ fullPage, path: outputPath });
+  return background;
+};
+
+const writeSocialVariants = async (
+  sourcePath: string,
+  outputDir: string,
+  baseName: string,
+  logPrefix: string,
+  background: Rgb,
+  targets: readonly SocialTargetName[],
+): Promise<void> => {
+  for (const target of targets) {
+    const variantName = `${baseName}__${target}`;
+    await applySocialTarget(
+      sourcePath,
+      join(outputDir, `${variantName}.png`),
+      target,
+      background,
+    );
+    console.log(`${logPrefix}${variantName}.png`);
+  }
 };
 
 const captureScenario = async (
@@ -374,6 +392,7 @@ const captureScenario = async (
   page: Page,
   server: AppServer,
   outputDir: string,
+  social: readonly SocialTargetName[] = [],
 ): Promise<void> => {
   const { baseUrl } = server;
   await setupAdmin(page, baseUrl, scenario.setupUsername);
@@ -400,13 +419,21 @@ const captureScenario = async (
   });
   await page.waitForFunction('document.fonts.status === "loaded"');
   const outputPath = join(outputDir, `${scenario.name}.png`);
-  await capturePreparedPage(
+  const background = await capturePreparedPage(
     page,
     outputPath,
     scenario.elementSelector,
     scenario.fullPage,
   );
   console.log(`${scenario.name}.png`);
+  await writeSocialVariants(
+    outputPath,
+    outputDir,
+    scenario.name,
+    "",
+    background,
+    social,
+  );
 };
 
 const chromiumExecutable = async (): Promise<string | undefined> => {
@@ -449,7 +476,13 @@ const main = async (): Promise<void> => {
     const page = await context.newPage();
     page.setDefaultTimeout(TIMEOUT_MS);
     if (scenario) {
-      await captureScenario(scenario, page, server, outputDir);
+      await captureScenario(
+        scenario,
+        page,
+        server,
+        outputDir,
+        options.social ?? [],
+      );
       return;
     }
     const sceneContext = await setupApp(page, server);
@@ -466,7 +499,7 @@ const main = async (): Promise<void> => {
           elementSelector ? isolateElementCss(elementSelector) : "",
         );
         const outputPath = join(themeDir, `${name}.png`);
-        await capture(
+        const background = await capture(
           page,
           server.baseUrl,
           sceneContext,
@@ -475,6 +508,14 @@ const main = async (): Promise<void> => {
           elementSelector,
         );
         console.log(`${theme}/${name}.png`);
+        await writeSocialVariants(
+          outputPath,
+          themeDir,
+          name,
+          `${theme}/`,
+          background,
+          options.social ?? [],
+        );
       }
     }
   } finally {

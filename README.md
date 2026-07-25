@@ -302,6 +302,22 @@ capture. Pass their path with `--scenario`; the scenario's `name` sets the PNG
 filename directly inside `--output`. A scenario can set its own viewport when a
 wider layout is part of the screenshot.
 
+Pass `--social` (one of `facebook`, `instagram-landscape`,
+`instagram-portrait`, `instagram-square`, a comma-separated list, or `all`) to
+also write a social-media-sized copy of each screenshot next to the original.
+The runner takes the page background colour and extends one side of the canvas
+until the image reaches the target's aspect ratio, then downscales to the
+target's pixel size if the result is larger. Variants are named
+`<theme>/<name>__<target>.png` (or `<scenario-name>__<target>.png` for
+scenarios). For example, `dashboard__facebook.png` is the Facebook share size
+(1200 by 630px) of the dashboard screenshot.
+
+```bash
+deno task screenshot all --social facebook,instagram-portrait
+deno task screenshot dashboard --social all
+```
+
+
 ```bash
 # Install Deno, cache dependencies, run all checks
 ./setup.sh
@@ -350,6 +366,10 @@ Optional:
 | `SUPPORT_FORM_NAG_DAYS` | Optional positive integer (default `7`): how long the Support page shows a "you last submitted this form …" notice after a submission, to discourage duplicates.                                                                            |
 | `BOTPOISON_PUBLIC_KEY`  | Optional [Botpoison](https://botpoison.com) public key. When set with `BOTPOISON_SECRET_KEY`, adds proof-of-work spam protection to the contact form (which otherwise works without it).                                                       |
 | `BOTPOISON_SECRET_KEY`  | Optional Botpoison secret key. Used server-side to verify contact form submissions when Botpoison is enabled.                                                                                                                                |
+| `UPTIME_KUMA_URL` | Uptime Kuma 2.4 or newer URL for built-site maintenance monitors. Requires `CAN_BUILD_SITES=true`, `UPTIME_KUMA_USERNAME`, and `UPTIME_KUMA_PASSWORD`. |
+| `UPTIME_KUMA_USERNAME` | Uptime Kuma username. Requires `UPTIME_KUMA_URL` and `UPTIME_KUMA_PASSWORD`. |
+| `UPTIME_KUMA_PASSWORD` | Uptime Kuma password. Requires `UPTIME_KUMA_URL` and `UPTIME_KUMA_USERNAME`. |
+| `UPTIME_KUMA_INTERVAL_MINUTES` | How often built-site monitors run. Any positive whole-minute interval is allowed. Defaults to `15`. |
 
 Optional:
 
@@ -358,7 +378,7 @@ Optional:
 | `ADMIN_EMAIL_ADDRESS` | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled. |
 | `DEBUG_KEY` | Optional diagnostic key. `GET /health` returns a plain `Up :)` by default; a request carrying a matching `X-Debug-Key` header gets a small JSON payload (build commit, build timestamp, server time). Unset ⇒ the verbose response is disabled. |
 
-**Database maintenance:** pruning of expired sessions, rate-limit rows, payment records, and optional orphan attendees runs automatically while serving requests. For quiet sites, configure an external monitor to send an authenticated `POST /scheduled` to each site at least every 15 minutes. Each site needs its own key. The builder does not contact child sites for the monitor. See the [scheduled maintenance guide](docs/scheduled-maintenance.md) for setup and CDN rules.
+**Database maintenance:** pruning of expired sessions, rate-limit rows, payment records, and optional orphan attendees runs automatically while serving requests. For quiet sites, configure an external monitor to send an authenticated `POST /scheduled` on the schedule you need. Each site needs its own key. New managed Uptime Kuma monitors default to every 15 minutes. A builder with Uptime Kuma configured can inspect and add these monitors from each built site's **Scheduled maintenance** tab. See the [scheduled maintenance guide](docs/scheduled-maintenance.md) for setup and CDN rules.
 
 **Backups:** every table is dumped to a single `.zip`, with table reads keyset-paginated so no single response trips libsqld's "Response is too large" payload cap (the server limit behind Bunny's databases). Backups run **out-of-band**, not inside the migration: a full dump of a ~31-table schema can't fit alongside a migration within one edge request's [50-subrequest budget](https://docs.bunny.net/scripting/limits), so migrations just migrate, and a backup is taken by GitHub Actions (or `deno task backup`) beforehand. To enforce that, **`/admin/update` and the per-site update button refuse to deploy unless a backup of that database was taken in the last hour.**
 

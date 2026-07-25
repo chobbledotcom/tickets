@@ -1,0 +1,651 @@
+import { expect } from "@std/expect";
+import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { handleRequest } from "#routes";
+import { getSessionCookieName } from "#shared/cookies.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { createSession, getSession } from "#shared/db/sessions.ts";
+import { setSkipLoginDelay } from "#shared/test-overrides.ts";
+import {
+  assertAdminHtml,
+  assertPublicHtml,
+  expectAdminLoginSuccess,
+  expectFlash,
+  expectFlashRedirect,
+  expectHtmlResponse,
+  FLASH_TEST_ID,
+  flashCookieHeader,
+  followRedirectWithFlash,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
+import { extractInputValue } from "#test-utils/csrf.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+import {
+  awaitTestRequest,
+  mockAdminLoginRequest,
+  mockFormRequest,
+  mockRequest,
+} from "#test-utils/mocks.ts";
+import { createTestAgentSession, loginAsAdmin } from "#test-utils/session.ts";
+
+/** POST a wrong-password login through the given server context, then assert it
+ *  is rejected with a 302 and the standard wrong-credentials flash. */
+const expectWrongPasswordLoginVia = async (
+  server: Parameters<typeof handleRequest>[1],
+): Promise<void> => {
+  const request = await mockAdminLoginRequest({
+    password: "wrong",
+    username: "testadmin",
+  });
+  const response = await handleRequest(request, server);
+  expect(response.status).toBe(302);
+  expectFlash(
+    response,
+    expect.stringContaining("Username or password was wrong"),
+    false,
+  );
+};
+
+/** Overwrite the owner's wrapped data key, attempt an admin login with the real
+ *  password, and assert a 302 redirect whose flash contains `message`. */
+const expectLoginRejectedWithWrappedKey = async (
+  wrappedDataKey: string | null,
+  message: string,
+): Promise<void> => {
+  const { getDb } = await import("#shared/db/client.ts");
+  await getDb().execute({
+    args: [wrappedDataKey],
+    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = 1",
+  });
+  const response = await handleRequest(
+    await mockAdminLoginRequest({
+      password: TEST_ADMIN_PASSWORD,
+      username: "testadmin",
+    }),
+  );
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining(message), false);
+};
+
+describeWithEnv("server (admin auth)", { db: true }, () => {
+  describe("GET /admin/", () => {
+    test("shows login page when not authenticated", async () => {
+      await assertPublicHtml("/admin/", "Login");
+    });
+
+    test("shows dashboard when authenticated", async () => {
+      await assertAdminHtml("/admin/", "Listings");
+    });
+  });
+
+  describe("GET /admin (without trailing slash)", () => {
+    test("shows login page when not authenticated", async () => {
+      await assertPublicHtml("/admin", "Login");
+    });
+  });
+
+  describe("GET /admin/login", () => {
+    test("shows login page", async () => {
+      const html = await assertPublicHtml("/admin/login", "Login");
+      // Login page contains a signed CSRF token in the form
+      expect(extractInputValue(html, "csrf_token")).toMatch(/^s1\./);
+    });
+
+    test("redirects to /admin when already authenticated", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/login", { cookie });
+      await expectFlashRedirect("/admin", "Already logged in")(response);
+    });
+  });
+
+  describe("POST /admin/login", () => {
+    test("validates required password field", async () => {
+      const response = await handleRequest(
+        await mockAdminLoginRequest({ password: "", username: "testadmin" }),
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Password is required"),
+        false,
+      );
+    });
+
+    test("rejects wrong password", async () => {
+      const response = await handleRequest(
+        await mockAdminLoginRequest({
+          password: "wrong",
+          username: "testadmin",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Username or password was wrong"),
+        false,
+      );
+    });
+
+    test("accepts correct password and sets cookie", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const response = await handleRequest(
+        await mockAdminLoginRequest({ password, username: "testadmin" }),
+      );
+      await expectAdminLoginSuccess(response);
+    });
+
+    test("rejects login when CSRF token is missing from form", async () => {
+      const body = "username=testadmin&password=testpassword123";
+      const response = await handleRequest(
+        new Request("http://localhost/admin/login", {
+          body,
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            host: "localhost",
+          },
+          method: "POST",
+        }),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid or expired form"),
+        false,
+      );
+    });
+
+    test("rejects login when CSRF token is invalid", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", {
+          csrf_token: "invalid-csrf-token",
+          password: TEST_ADMIN_PASSWORD,
+          username: "testadmin",
+        }),
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid or expired form"),
+        false,
+      );
+    });
+
+    test("returns 429 when rate limited", async () => {
+      // Rate limiting uses direct connection IP (falls back to "direct" in tests)
+      const makeRequest = () =>
+        mockAdminLoginRequest({ password: "wrong", username: "testadmin" });
+
+      // Make 5 failed attempts to trigger lockout
+      for (let i = 0; i < 5; i++) {
+        await handleRequest(await makeRequest());
+      }
+
+      // 6th attempt should be rate limited
+      const response = await handleRequest(await makeRequest());
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Too many login attempts"),
+        false,
+      );
+    });
+
+    test("uses server.requestIP when available", async () => {
+      // IP is extracted from server.requestIP.
+      await expectWrongPasswordLoginVia({
+        requestIP: () => ({ address: "192.168.1.100" }),
+      });
+    });
+
+    test("falls back to direct when server.requestIP returns null", async () => {
+      // requestIP returns null, so the handler falls back to "direct".
+      await expectWrongPasswordLoginVia({ requestIP: () => null });
+    });
+  });
+
+  describe("POST /admin/logout", () => {
+    testRequiresAuth("/admin/logout", {
+      body: { csrf_token: "invalid" },
+      method: "POST",
+    });
+
+    test("rejects invalid CSRF token when authenticated", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/logout",
+          { csrf_token: "invalid-csrf" },
+          cookie,
+        ),
+      );
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
+    });
+
+    test("succeeds with valid CSRF token", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
+      );
+      await expectFlashRedirect("/admin", "Logged out")(response);
+      const sessionCookie = response.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
+      expect(sessionCookie).toContain("Max-Age=0");
+    });
+  });
+
+  describe("GET /admin/logout", () => {
+    testRequiresAuth("/admin/logout");
+
+    test("shows confirmation page with the actual POST form", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockRequest("/admin/logout", { headers: { cookie } }),
+      );
+
+      await expectHtmlResponse(
+        response,
+        200,
+        "Are you sure you want to log out?",
+        'action="/admin/logout"',
+        'method="POST"',
+      );
+    });
+
+    test("shows confirmation page to delivery agents", async () => {
+      const { cookie } = await createTestAgentSession();
+
+      const response = await handleRequest(
+        mockRequest("/admin/logout", { headers: { cookie } }),
+      );
+
+      await expectHtmlResponse(
+        response,
+        200,
+        "Are you sure you want to log out?",
+        'action="/admin/logout"',
+        'method="POST"',
+      );
+    });
+  });
+
+  describe("GET /admin/sessions", () => {
+    testRequiresAuth("/admin/sessions");
+
+    test("shows sessions page when authenticated", async () => {
+      await assertAdminHtml(
+        "/admin/sessions",
+        "Sessions",
+        "Token",
+        "Expires",
+        "Current",
+      );
+    });
+
+    test("highlights current session with mark", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/sessions", { cookie });
+      const html = await response.text();
+      expect(html).toContain("<mark>Current</mark>");
+    });
+
+    test("shows logout button when other sessions exist", async () => {
+      // Create an extra session
+      await createSession(
+        "other-session",
+        "other-csrf",
+        Date.now() + 10000,
+        null,
+        1,
+      );
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/sessions", { cookie });
+      const html = await response.text();
+      expect(html).toContain("Log out of all other sessions");
+    });
+
+    test("does not show logout button when no other sessions", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/sessions", { cookie });
+      const html = await response.text();
+      expect(html).not.toContain("Log out of all other sessions");
+    });
+  });
+
+  describe("POST /admin/sessions", () => {
+    testRequiresAuth("/admin/sessions", {
+      body: { csrf_token: "test" },
+      method: "POST",
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/sessions",
+          { csrf_token: "invalid-csrf" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("displays success message from flash cookie on sessions page", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/sessions?flash=${FLASH_TEST_ID}`,
+        {
+          cookie: `${cookie}; ${flashCookieHeader(
+            "Logged out of all other sessions",
+          )}`,
+        },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Logged out of all other sessions",
+        'class="success"',
+      );
+    });
+
+    test("logs out other sessions and shows success message", async () => {
+      // Create other sessions before login
+      await createSession("other1", "csrf1", Date.now() + 10000, null, 1);
+      await createSession("other2", "csrf2", Date.now() + 10000, null, 1);
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
+      );
+      await expectFlashRedirect(
+        "/admin/sessions",
+        "Logged out of all other sessions",
+      )(response);
+
+      // Verify other sessions are deleted
+      const other1 = await getSession("other1");
+      const other2 = await getSession("other2");
+      expect(other1).toBeNull();
+      expect(other2).toBeNull();
+    });
+
+    test("keeps current session active after logging out others", async () => {
+      await createSession("other", "csrf-other", Date.now() + 10000, null, 1);
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Extract the session token from cookie
+      const sessionMatch = cookie.match(
+        new RegExp(`${getSessionCookieName()}=([^;]+)`),
+      );
+      const sessionToken = sessionMatch?.[1];
+
+      await handleRequest(
+        mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
+      );
+
+      // Verify current session still exists
+      const currentSession = await getSession(sessionToken || "");
+      expect(currentSession).not.toBeNull();
+    });
+  });
+
+  describe("session expiration", () => {
+    test("nonexistent session shows login page", async () => {
+      const response = await awaitTestRequest("/admin/", "nonexistent");
+      await expectHtmlResponse(response, 200, "Login");
+    });
+
+    test("expired session is deleted and shows login page", async () => {
+      // Add an expired session directly to the database
+      await createSession(
+        "expired-token",
+        "csrf-expired",
+        Date.now() - 1000,
+        null,
+        1,
+      );
+
+      const response = await awaitTestRequest("/admin/", "expired-token");
+      await expectHtmlResponse(response, 200, "Login");
+
+      // Verify the expired session was deleted
+      const session = await getSession("expired-token");
+      expect(session).toBeNull();
+    });
+  });
+
+  describe("logout with valid session", () => {
+    test("deletes session from database", async () => {
+      // Log in first
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const token = cookie.split("=")[1]?.split(";")[0] || "";
+
+      expect(token).not.toBe("");
+      const sessionBefore = await getSession(token);
+      expect(sessionBefore).not.toBeNull();
+
+      // Now logout
+      const logoutResponse = await awaitTestRequest("/admin/logout", {
+        cookie,
+        data: { csrf_token: csrfToken },
+      });
+      expect(logoutResponse.status).toBe(302);
+
+      // Verify session was deleted
+      const sessionAfter = await getSession(token);
+      expect(sessionAfter).toBeNull();
+    });
+  });
+
+  describe("POST /admin/login (user without wrapped data key)", () => {
+    test("returns 302 with error when user has no wrapped data key (not activated)", async () => {
+      // A null wrapped_data_key means the user exists but is not activated.
+      await expectLoginRejectedWithWrappedKey(null, "not been activated");
+    });
+  });
+
+  describe("routes/admin/auth.ts (wrappedDataKey corrupted path)", () => {
+    test("login fails when wrapped data key cannot be unwrapped", async () => {
+      // A corrupted wrapped_data_key can't be unwrapped by the KEK.
+      await expectLoginRejectedWithWrappedKey(
+        "corrupted_key",
+        "Username or password was wrong",
+      );
+    });
+  });
+
+  describe("login timing delay", () => {
+    afterEach(() => {
+      setSkipLoginDelay(true);
+    });
+
+    test("applies random delay when TEST_SKIP_LOGIN_DELAY is not set", async () => {
+      setSkipLoginDelay(false);
+      const start = Date.now();
+      const response = await handleRequest(
+        await mockAdminLoginRequest({
+          password: TEST_ADMIN_PASSWORD,
+          username: "testadmin",
+        }),
+      );
+      const elapsed = Date.now() - start;
+      await expectFlashRedirect("/admin", "Logged in")(response);
+      expect(elapsed).toBeGreaterThanOrEqual(100);
+    });
+  });
+
+  describe("session expiration (blank screen test)", () => {
+    test("expired session shows login page, not blank screen", async () => {
+      // Create an expired session using the real createSession function
+      const expiredToken = "expired-blank-screen-test-token";
+      await createSession(
+        expiredToken,
+        "csrf-expired",
+        Date.now() - 1000,
+        null,
+        1,
+      );
+
+      // Make request with expired session cookie
+      const response = await awaitTestRequest("/admin/", expiredToken);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+
+      // Verify we get login page, not blank screen or dashboard
+      expect(html).toContain("Login");
+      expect(html).toContain("<form");
+      expect(html.length).toBeGreaterThan(100); // Not blank
+      expect(html).not.toContain("Listings"); // Should not show dashboard
+      expect(html).not.toContain("No listings yet"); // Should not show listings table
+
+      // Verify session was deleted from database after expiration check
+      const deletedSession = await getSession(expiredToken);
+      expect(deletedSession).toBeNull();
+    });
+
+    test("multiple requests with expired session consistently show login page", async () => {
+      // Create an expired session using the real createSession function
+      const expiredToken = "expired-multi-request-test-token";
+      await createSession(
+        expiredToken,
+        "csrf-expired",
+        Date.now() - 1000,
+        null,
+        1,
+      );
+
+      // Make multiple requests with the same expired session token
+      for (let i = 0; i < 3; i++) {
+        const response = await awaitTestRequest("/admin/", expiredToken);
+        expect(response.status).toBe(200);
+        const html = await response.text();
+
+        // Each request should consistently show login page, not blank or dashboard
+        expect(html).toContain("Login");
+        expect(html.length).toBeGreaterThan(100);
+        expect(html).not.toContain("Listings");
+        expect(html).not.toContain("No listings yet");
+      }
+
+      // Verify session was deleted after first access
+      const deletedSession = await getSession(expiredToken);
+      expect(deletedSession).toBeNull();
+    });
+
+    test("dashboard always contains expected content structure", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+
+      // Verify key content elements that should never be blank
+      expect(html).toContain("Listings"); // Page title
+      expect(html).toContain("<table"); // Table structure
+      expect(html).toContain("Listing Name"); // Table header
+      expect(html.length).toBeGreaterThan(500); // Substantial content
+    });
+
+    test("login page always contains expected content structure", async () => {
+      const response = await handleRequest(mockRequest("/admin/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+
+      // Verify key content elements of login page
+      expect(html).toContain("Login");
+      expect(html).toContain("<form");
+      expect(html).toContain("username");
+      expect(html).toContain("password");
+      expect(html.length).toBeGreaterThan(200); // Substantial content
+    });
+  });
+
+  describe("login error display", () => {
+    test("displays error from flash cookie on login page", async () => {
+      const response = await handleRequest(
+        mockRequest(`/admin?flash=${FLASH_TEST_ID}`, {
+          headers: {
+            cookie: flashCookieHeader("Username or password was wrong", false),
+          },
+        }),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Login",
+        "Username or password was wrong",
+      );
+    });
+
+    test("shows error after failed login attempt", async () => {
+      const postResponse = await handleRequest(
+        await mockAdminLoginRequest({
+          password: "wrong",
+          username: "testadmin",
+        }),
+      );
+      expect(postResponse.status).toBe(302);
+
+      const getResponse = await followRedirectWithFlash(
+        postResponse,
+        handleRequest,
+      );
+      await expectHtmlResponse(
+        getResponse,
+        200,
+        "Login",
+        "Username or password was wrong",
+      );
+    });
+
+    test("failed login with existing session shows login page, not dashboard", async () => {
+      // Simulate a user who is already logged in but tries to log in again
+      // with wrong credentials. They should be redirected to the login page,
+      // not left logged in on the dashboard.
+      const { cookie } = await loginAsAdmin();
+
+      const csrfToken = await signCsrfToken();
+      const postResponse = await handleRequest(
+        mockFormRequest(
+          "/admin/login",
+          {
+            csrf_token: csrfToken,
+            password: "wrong",
+            username: "testadmin",
+          },
+          cookie,
+        ),
+      );
+      expect(postResponse.status).toBe(302);
+
+      // Follow the redirect, carrying both the original session cookie and
+      // the flash cookie from the failed login response.
+      const getResponse = await followRedirectWithFlash(
+        postResponse,
+        handleRequest,
+        cookie,
+      );
+
+      // Should land on the login page with the error, NOT the dashboard.
+      const html = await getResponse.text();
+      expect(getResponse.status).toBe(200);
+      expect(html).toContain("Login");
+      expect(html).toContain("Username or password was wrong");
+      expect(html).not.toContain("Listing Name");
+    });
+  });
+});

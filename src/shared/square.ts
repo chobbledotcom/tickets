@@ -11,6 +11,8 @@
  */
 
 /* jscpd:ignore-start */
+import * as v from "valibot";
+import { isNotNullish } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -30,12 +32,14 @@ import {
   type SignedTestWebhook,
   signedTestWebhook,
 } from "#shared/payment-helpers.ts";
+import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import type {
   CheckoutIntent,
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { stringEntries } from "#shared/string-entries.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
 /* jscpd:ignore-end */
@@ -168,15 +172,18 @@ export type SquareRequestOptions = { method?: string; body?: unknown };
 export const squareRequestInit = (
   token: string,
   options?: SquareRequestOptions,
-): { headers: Record<string, string>; method: string; body?: string } => ({
-  headers: {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    "Square-Version": SQUARE_API_VERSION,
-  },
-  method: options?.method ?? "GET",
-  ...(options?.body != null ? { body: jsonStringify(options.body) } : {}),
-});
+): { headers: Record<string, string>; method: string; body?: string } => {
+  const body = options?.body;
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Square-Version": SQUARE_API_VERSION,
+    },
+    method: options?.method ?? "GET",
+    ...(isNotNullish(body) ? { body: jsonStringify(body) } : {}),
+  };
+};
 
 /** Make an authenticated request to the Square REST API */
 const squareFetch = async (
@@ -209,7 +216,7 @@ type SquarePaymentLinkResponse = {
 type SquareOrderResponse = {
   order?: {
     id?: string;
-    metadata?: Record<string, string>;
+    metadata?: Record<string, string | null>;
     tenders?: SquareRawTender[];
     state?: string;
     total_money?: { amount: number; currency: string };
@@ -226,6 +233,31 @@ type SquarePaymentResponse = {
     refunded_money?: { amount: number; currency: string };
   };
 };
+
+/**
+ * Valibot boundary schema for the Square PaymentRefund object returned by
+ * POST /v2/refunds. Square documents `id` as a required string with Min Length
+ * 1, `status` as one of PENDING, COMPLETED, REJECTED, FAILED, `payment_id` as
+ * the associated payment ID, and `amount_money` as the refunded Money object.
+ * Parsing with this schema at the boundary rejects malformed responses — a
+ * missing refund, empty id, non-string field, undocumented status, or missing
+ * payment/amount — with a thrown ValiError instead of silently passing them
+ * through a type cast.
+ */
+const SquareRefundSchema = v.object({
+  amount_money: v.object({
+    amount: v.pipe(v.number(), v.minValue(0)),
+    currency: v.pipe(v.string(), v.minLength(1)),
+  }),
+  id: v.pipe(v.string(), v.minLength(1)),
+  payment_id: v.pipe(v.string(), v.minLength(1)),
+  status: v.picklist(["PENDING", "COMPLETED", "REJECTED", "FAILED"]),
+});
+
+/** Response schema for POST /v2/refunds — the `refund` object is required. */
+const SquareRefundResponseSchema = v.object({
+  refund: SquareRefundSchema,
+});
 
 type SquareLocation = {
   id?: string;
@@ -348,7 +380,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
       },
     },
     refunds: {
-      refundPayment: async (p: RefundPaymentInput) => {
+      refundPayment: async (p: RefundPaymentInput): Promise<unknown> =>
         await post<unknown>("/v2/refunds", {
           amount_money: {
             amount: p.amountMoney.amount,
@@ -356,9 +388,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           },
           idempotency_key: p.idempotencyKey,
           payment_id: p.paymentId,
-        });
-        return {};
-      },
+        }),
     },
   };
 };
@@ -546,6 +576,12 @@ const buildCheckoutOptions = (
 /** Type for the Square API client returned by createSquareClient */
 export type SquareClient = ReturnType<typeof createSquareClient>;
 
+/** Square PaymentRefund status that means the money has been returned to the
+ * buyer. Square's PaymentRefund object documents COMPLETED as the terminal
+ * success status (PENDING → COMPLETED is the happy-path transition; REJECTED
+ * and FAILED are failures). Any other status is treated as not-yet-confirmed. */
+const CONFIRMED_REFUND_STATUSES: readonly string[] = ["COMPLETED"];
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  */
@@ -612,7 +648,14 @@ export const squareApi: {
   },
   getSquareClient: getClientImpl,
 
-  /** Refund a payment (full amount) */
+  /** Refund a payment (full amount). Returns true only when Square confirms the
+   * refund with a COMPLETED status; PENDING, REJECTED, and FAILED return false.
+   * HTTP errors (non-2xx) and network failures are logged and returned as false
+   * (graceful, retryable). A 200 response is always validated by a Valibot
+   * schema parse — a malformed body (missing refund, empty id, non-string
+   * fields, undocumented status, invalid JSON, wrong payment_id) throws loudly
+   * rather than silently normalizing to false. Client-unconfigured returns
+   * false. */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
@@ -623,19 +666,63 @@ export const squareApi: {
       return false;
     }
 
-    const result = await withClient(async (client) => {
-      await client.refunds.refundPayment({
+    // Get the client directly (not through withClient) so a successful HTTP
+    // response — even a null or invalid-JSON body — reaches the Valibot parse.
+    // With withClient, a JSON.parse throw or a JSON null return would be caught
+    // and normalized to null → false. With a direct call + targeted catch, only
+    // provider/network errors return false; a 200 body always reaches v.parse.
+    const client = await squareApi.getSquareClient();
+    if (!client) return false;
+
+    let raw: unknown;
+    try {
+      raw = await client.refunds.refundPayment({
         amountMoney: {
           amount: payment.amountMoney!.amount,
           currency: payment.amountMoney!.currency as string,
         },
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: await refundIdempotencyKey("square", paymentId),
         paymentId,
       });
-      return true;
-    }, ErrorCode.SQUARE_REFUND);
+    } catch (err) {
+      // HTTP errors, network errors from squareFetch are logged and returned
+      // as false (graceful, retryable). A JSON.parse SyntaxError from a 200
+      // body (malformed provider response) re-throws to fail loudly at the
+      // boundary — every successful HTTP response must be validated by v.parse.
+      if (err instanceof SyntaxError) throw err;
+      logError({
+        code: ErrorCode.SQUARE_REFUND,
+        detail: errorMessage(err),
+      });
+      return false;
+    }
 
-    return result ?? false;
+    // Boundary validation: a 200 from Square must carry a refund object with
+    // a non-empty string id and a documented status. Square documents id as
+    // Required with Min Length 1. A malformed response (null, missing refund,
+    // empty id, non-string fields, undocumented status) throws here — loudly.
+    const parsed = v.parse(SquareRefundResponseSchema, raw);
+    const refund = parsed.refund;
+    // Verify the refund is actually for this payment — a COMPLETED refund for a
+    // different payment_id would be a Square data integrity issue.
+    if (refund.payment_id !== paymentId) {
+      throw new Error(
+        `Square refund ${refund.id} is for payment ${refund.payment_id}, not ${paymentId}`,
+      );
+    }
+    // Verify the refund amount matches the payment amount — a partial refund
+    // for the correct payment would still be incomplete.
+    const expectedAmount = payment.amountMoney!.amount;
+    const expectedCurrency = payment.amountMoney!.currency as string;
+    if (
+      BigInt(refund.amount_money.amount) !== expectedAmount ||
+      refund.amount_money.currency !== expectedCurrency
+    ) {
+      throw new Error(
+        `Square refund ${refund.id} amount (${refund.amount_money.amount} ${refund.amount_money.currency}) does not match payment amount (${expectedAmount} ${expectedCurrency})`,
+      );
+    }
+    return CONFIRMED_REFUND_STATUSES.includes(refund.status);
   },
 
   resetSquareClient: (): void => clientCache.reset(),
@@ -649,12 +736,7 @@ export const squareApi: {
 
       // Convert nullable metadata values to plain string record
       const metadata: Record<string, string> | undefined = order.metadata
-        ? Object.fromEntries(
-            Object.entries(order.metadata).filter(
-              (entry): entry is [string, string] =>
-                typeof entry[1] === "string",
-            ),
-          )
+        ? Object.fromEntries(stringEntries(Object.entries(order.metadata)))
         : undefined;
 
       return {

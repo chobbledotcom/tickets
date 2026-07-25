@@ -22,275 +22,147 @@ const rendered = (
 ): string => renderField(field(overrides), value);
 
 describe("renderField", () => {
-  test("renders text input with label", () => {
-    const html = rendered({ label: "Username", name: "username" });
-    expect(html).toContain("<label>");
-    expect(html).toContain("Username");
-    expect(html).toContain('type="text"');
-    expect(html).toContain('name="username"');
-  });
-
-  test("renders required attribute", () => {
-    const html = rendered({
-      label: "Email",
-      name: "email",
-      required: true,
-      type: "email",
-    });
-    expect(html).toContain("required");
-  });
-
-  test("renders placeholder", () => {
-    const html = rendered({
-      label: "Name",
-      name: "name",
-      placeholder: "Enter your name",
-    });
-    expect(html).toContain('placeholder="Enter your name"');
-  });
-
-  test("marks a markdown textarea for preview, plain textarea is not marked", () => {
-    const withPreview = rendered({
-      label: "Bio",
-      markdown: true,
-      name: "bio",
-      type: "textarea",
-    });
-    expect(withPreview).toContain("data-markdown-preview");
-
-    const plain = rendered({ label: "Bio", name: "bio", type: "textarea" });
-    expect(plain).not.toContain("data-markdown-preview");
-  });
-
-  test("renders hint text", () => {
-    const html = rendered({
-      hint: "Minimum 8 characters",
-      label: "Password",
-      name: "pw",
-      type: "password",
-    });
-    expect(html).toContain("Minimum 8 characters");
-    expect(html).toContain("<small");
-  });
-
-  test("renders hintHtml as raw HTML", () => {
-    const html = rendered({
-      hintHtml: '<a href="/guide">Help</a>',
-      label: "Description",
-      name: "desc",
-    });
-    expect(html).toContain('<a href="/guide">Help</a>');
-    expect(html).toContain("<small");
-  });
-
-  test("renders a public link under a slug field with a value", () => {
-    const html = rendered(
-      {
-        label: "Slug",
-        name: "slug",
-        publicLinkPath: (slug) => `/news/${slug}`,
-      },
-      "my-post",
-    );
-    expect(html).toContain(
-      '<small class="public-link">Public link: <a href="/news/my-post" rel="noopener" target="_blank">/news/my-post</a></small>',
-    );
-  });
-
-  test("renders no public link when the field has no value", () => {
-    const html = rendered({
-      label: "Slug",
-      name: "slug",
-      publicLinkPath: (slug) => `/news/${slug}`,
-    });
-    expect(html).not.toContain("public-link");
-    expect(html).not.toContain("Public link");
-  });
-
-  test("renders no public link when the field opts out", () => {
-    const html = rendered({ label: "Slug", name: "slug" }, "my-post");
-    expect(html).not.toContain("public-link");
-  });
-
-  test("renders min attribute for number", () => {
-    const html = rendered({
-      label: "Quantity",
-      min: 1,
-      name: "qty",
-      type: "number",
-    });
-    expect(html).toContain('min="1"');
-  });
-
-  test("renders pattern attribute", () => {
-    const html = rendered({ label: "Code", name: "code", pattern: "[A-Z]{3}" });
-    expect(html).toContain('pattern="[A-Z]{3}"');
-  });
-
-  test("renders maxlength attribute", () => {
-    const html = rendered({
-      label: "Description",
-      maxlength: 128,
-      name: "desc",
-    });
-    expect(html).toContain('maxlength="128"');
-  });
-
-  test("renders autocomplete when provided, omits when absent", () => {
+  test("renders all ordinary input attributes and escaped content exactly", () => {
     expect(
-      rendered({ autocomplete: "name", label: "Name", name: "name" }),
-    ).toContain('autocomplete="name"');
-    expect(rendered({ label: "Name", name: "name" })).not.toContain(
-      "autocomplete",
+      rendered(
+        {
+          autocomplete: "name",
+          autofocus: true,
+          hint: "Plain hint",
+          hintHtml: "<b>Trusted hint</b>",
+          id: "name-id",
+          inputmode: "text",
+          label: "Name",
+          max: 9,
+          maxlength: 8,
+          min: 1,
+          minlength: 2,
+          name: "name",
+          pattern: "[A-Z]+",
+          placeholder: "Enter name",
+          required: true,
+          title: "Uppercase letters",
+        },
+        '<A&B">',
+      ),
+    ).toBe(
+      '<label>Name<input autocomplete="name" autofocus id="name-id" inputmode="text" max="9" maxlength="8" min="1" minlength="2" name="name" pattern="[A-Z]+" placeholder="Enter name" required title="Uppercase letters" type="text" value="&lt;A&amp;B&quot;&gt;"><small>Plain hint</small><small><b>Trusted hint</b></small></label>',
     );
   });
 
-  test("renders textarea for textarea type", () => {
-    const html = rendered({
-      label: "Description",
-      name: "description",
-      type: "textarea",
-    });
-    expect(html).toContain("<textarea");
-    expect(html).not.toContain("<input");
-  });
-
-  test("renders value when provided", () => {
-    expect(rendered({ label: "Name", name: "name" }, "John")).toContain(
-      'value="John"',
+  test("omits optional attributes, value, and beforeHtml when absent", () => {
+    expect(rendered({ label: "Name", name: "name" })).toBe(
+      '<label>Name<input name="name" type="text"></label>',
     );
   });
 
-  test("escapes HTML in value", () => {
-    const html = rendered(
-      { label: "Name", name: "name" },
-      '<script>alert("xss")</script>',
+  test("renders trusted beforeHtml before the label", () => {
+    expect(rendered({ beforeHtml: "<hr>", label: "Name", name: "name" })).toBe(
+      '<hr><label>Name<input name="name" type="text"></label>',
     );
-    expect(html).toContain("&lt;script&gt;");
-    expect(html).not.toContain("<script>");
   });
 
-  test("renders textarea with value", () => {
-    const html = rendered(
-      { label: "Description", name: "description", type: "textarea" },
-      "Some description",
-    );
-    expect(html).toContain(">Some description</textarea>");
-  });
-
-  describe("select type", () => {
-    const colorSelect: Field = {
-      label: "Color",
-      name: "color",
-      options: [
-        { label: "Red", value: "red" },
-        { label: "Blue", value: "blue" },
-      ],
-      type: "select",
-    };
-
-    test("renders select element with options", () => {
-      const html = renderField(colorSelect);
-      expect(html).toContain("<select");
-      expect(html).toContain('name="color"');
-      expect(html).toContain(">Red</option>");
-      expect(html).toContain(">Blue</option>");
+  for (const { description, field: textarea, expected, value } of [
+    {
+      description: "markdown textarea attributes and an escaped value",
+      expected:
+        '<label>Bio<textarea autocomplete="off" data-markdown-preview id="bio-id" maxlength="10" name="bio" placeholder="Write" required>A &lt; B</textarea></label>',
+      field: field({
+        autocomplete: "off",
+        id: "bio-id",
+        label: "Bio",
+        markdown: true,
+        maxlength: 10,
+        name: "bio",
+        placeholder: "Write",
+        required: true,
+        type: "textarea",
+      }),
+      value: "A < B",
+    },
+    {
+      description: "plain textarea without markdown metadata",
+      expected: '<label>Bio<textarea name="bio"></textarea></label>',
+      field: field({ label: "Bio", name: "bio", type: "textarea" }),
+      value: "",
+    },
+  ] as const) {
+    test(`renders ${description}`, () => {
+      expect(renderField(textarea, value)).toBe(expected);
     });
+  }
 
-    test("marks selected value and leaves others unselected", () => {
-      const html = renderField(colorSelect, "blue");
-      expect(html).toContain('value="blue" selected');
-      expect(html).not.toContain('value="red" selected');
-    });
-
-    test("renders hint on select", () => {
-      const html = renderField({
-        hint: "Choose the priority",
-        label: "Priority",
-        name: "priority",
-        options: [{ label: "Low", value: "low" }],
-        type: "select",
-      });
-      expect(html).toContain("Choose the priority");
-    });
-  });
-
-  describe("date type", () => {
-    test("renders date input", () => {
-      const html = rendered({
-        label: "Start Date",
-        name: "start_date",
-        type: "date",
-      });
-      expect(html).toContain('type="date"');
-      expect(html).toContain('name="start_date"');
-    });
-
-    test("renders date input with value", () => {
-      const html = rendered(
-        { label: "Start Date", name: "start_date", type: "date" },
-        "2026-12-25",
-      );
-      expect(html).toContain('value="2026-12-25"');
-    });
-  });
-
-  describe("datetime type", () => {
-    test("renders split date and time inputs", () => {
-      const html = rendered({
-        label: "Closes At",
-        name: "closes_at",
-        type: "datetime",
-      });
-      expect(html).toContain('name="closes_at_date"');
-      expect(html).toContain('placeholder="Date"');
-      expect(html).toContain('name="closes_at_time"');
-      expect(html).toContain('placeholder="Time"');
-    });
-
-    test("splits combined value into date and time parts", () => {
-      const html = rendered(
-        { label: "Closes At", name: "closes_at", type: "datetime" },
-        "2099-06-15T14:30",
-      );
-      expect(html).toContain('value="2099-06-15"');
-      expect(html).toContain('value="14:30"');
-    });
-
-    test("renders no value attributes when value is empty", () => {
-      const html = rendered(
-        { label: "Closes At", name: "closes_at", type: "datetime" },
-        "",
-      );
-      expect(html).not.toContain("value=");
-    });
-  });
-
-  describe("file type", () => {
-    test("renders file input with accept attribute", () => {
-      const html = rendered({
-        accept: "image/jpeg,image/png",
-        label: "Upload Image",
-        name: "image",
-        type: "file",
-      });
-      expect(html).toContain('type="file"');
-      expect(html).toContain('accept="image/jpeg,image/png"');
-    });
-
-    test("renders the required attribute", () => {
-      const html = rendered({
-        label: "Upload Image",
+  test("renders file attributes exactly", () => {
+    expect(
+      rendered({
+        accept: "image/png",
+        id: "image-id",
+        label: "Image",
         name: "image",
         required: true,
         type: "file",
-      });
-      expect(html).toContain('name="image" required type="file"');
-    });
+      }),
+    ).toBe(
+      '<label>Image<input accept="image/png" id="image-id" name="image" required type="file"></label>',
+    );
   });
 
-  describe("checkbox-group type", () => {
-    const daysField: Field = {
+  describe("select", () => {
+    test("renders an explicit id, required state, selection, and option hints", () => {
+      expect(
+        rendered(
+          {
+            id: "shade-id",
+            label: "Shade",
+            name: "shade",
+            options: [
+              { hint: "Warm", label: "Red", value: "red" },
+              { label: "Blue", value: "blue" },
+            ],
+            required: true,
+            type: "select",
+          },
+          "blue",
+        ),
+      ).toBe(
+        '<label>Shade<select name="shade" id="shade-id" required><option value="red">Red</option><option value="blue" selected>Blue</option></select></label><ul><li><strong>Red:</strong> Warm</li></ul>',
+      );
+    });
+
+    test("uses the field name as id and omits required and empty option hints", () => {
+      expect(
+        rendered(
+          {
+            label: "Color",
+            name: "color",
+            options: [
+              { label: "Red", value: "red" },
+              { label: "Blue", value: "blue" },
+            ],
+            type: "select",
+          },
+          "red",
+        ),
+      ).toBe(
+        '<label>Color<select name="color" id="color"><option value="red" selected>Red</option><option value="blue">Blue</option></select></label>',
+      );
+    });
+    test("keeps an explicit empty id", () => {
+      expect(
+        rendered({
+          id: "",
+          label: "Color",
+          name: "color",
+          options: [{ label: "Red", value: "red" }],
+          type: "select",
+        }),
+      ).toBe(
+        '<label>Color<select name="color" id=""><option value="red">Red</option></select></label>',
+      );
+    });
+  });
+  describe("checkbox group", () => {
+    const days = field({
       label: "Days",
       name: "days",
       options: [
@@ -299,116 +171,230 @@ describe("renderField", () => {
         { label: "Wednesday", value: "Wednesday" },
       ],
       type: "checkbox-group",
-    };
-
-    test("renders checkbox inputs with correct names and values", () => {
-      const html = renderField(daysField);
-      expect(html).toContain('type="checkbox"');
-      expect(html).toContain('name="days"');
-      expect(html).toContain('value="Monday"');
-      expect(html).toContain('value="Tuesday"');
     });
 
-    test("pre-selects matching values from comma-separated string", () => {
-      const html = renderField(daysField, "Monday,Wednesday");
-      expect(html).toContain('value="Monday" checked');
-      expect(html).toContain('value="Wednesday" checked');
-      expect(html).not.toContain('value="Tuesday" checked');
+    test("uses commas as delimiters and trims each selected value", () => {
+      expect(renderField(days, "Monday, Wednesday")).toBe(
+        '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday" checked> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday" checked> Wednesday</label></fieldset></label>',
+      );
     });
 
-    test("renders no checked state when value is empty", () => {
-      expect(renderField(daysField)).not.toContain("checked");
+    test("renders no checked attributes for an empty value", () => {
+      expect(renderField(days, "")).toBe(
+        '<label>Days<fieldset class="checkboxes"><label><input type="checkbox" name="days" value="Monday"> Monday</label><label><input type="checkbox" name="days" value="Tuesday"> Tuesday</label><label><input type="checkbox" name="days" value="Wednesday"> Wednesday</label></fieldset></label>',
+      );
     });
+  });
+
+  describe("datetime", () => {
+    for (const { description, expected, value } of [
+      {
+        description: "empty date and time inputs",
+        expected:
+          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date"><input type="time" name="closes_time" placeholder="Time" aria-label="Time"></label>',
+        value: "",
+      },
+      {
+        description: "a date without adding a time value",
+        expected:
+          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closes_time" placeholder="Time" aria-label="Time"></label>',
+        value: "2099-06-15",
+      },
+      {
+        description: "separate date and time values",
+        expected:
+          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closes_time" placeholder="Time" aria-label="Time" value="14:30"></label>',
+        value: "2099-06-15T14:30",
+      },
+    ] as const) {
+      test(`renders ${description}`, () => {
+        expect(
+          rendered(
+            { label: "Closes", name: "closes", type: "datetime" },
+            value,
+          ),
+        ).toBe(expected);
+      });
+    }
+  });
+
+  describe("money", () => {
+    test("renders its id, minimum, required state, and value", () => {
+      expect(
+        rendered(
+          {
+            id: "fee-id",
+            label: "Fee",
+            min: 0,
+            name: "fee",
+            required: true,
+            type: "money",
+          },
+          "12.34",
+        ),
+      ).toBe(
+        '<label>Fee<input id="fee-id" inputmode="decimal" min="0" name="fee" required step="0.01" type="number" value="12.34"></label>',
+      );
+    });
+
+    test("omits optional attributes and value when empty", () => {
+      expect(rendered({ label: "Fee", name: "fee", type: "money" }, "")).toBe(
+        '<label>Fee<input inputmode="decimal" name="fee" step="0.01" type="number"></label>',
+      );
+    });
+  });
+
+  describe("public link", () => {
+    const withPublicLink = {
+      label: "Slug",
+      name: "slug",
+      publicLinkPath: (slug: string) => `/news/${slug}`,
+    } as const;
+
+    test("renders the link for a value", () => {
+      expect(rendered(withPublicLink, "my-post")).toBe(
+        '<label>Slug<input name="slug" type="text" value="my-post"><small class="public-link">Public link: <a href="/news/my-post" rel="noopener" target="_blank">/news/my-post</a></small></label>',
+      );
+    });
+
+    for (const { description, linkField, value } of [
+      {
+        description: "the path builder is absent",
+        linkField: { label: "Slug", name: "slug" },
+        value: "my-post",
+      },
+      {
+        description: "the value is empty",
+        linkField: withPublicLink,
+        value: "",
+      },
+    ] as const) {
+      test(`omits the link when ${description}`, () => {
+        expect(rendered(linkField, value)).toBe(
+          `<label>Slug<input name="slug" type="text"${
+            value ? ` value="${value}"` : ""
+          }></label>`,
+        );
+      });
+    }
   });
 });
 
 describe("renderFields", () => {
-  test("renders all fields", () => {
-    const fields: Field[] = [
-      field({ label: "Name", name: "name", required: true }),
-      field({ label: "Email", name: "email", required: true, type: "email" }),
-    ];
-    const html = renderFields(fields);
-    expect(html).toContain('name="name"');
-    expect(html).toContain('name="email"');
-  });
-
-  test("populates field values", () => {
-    const fields: Field[] = [
-      field({ label: "Name", name: "name" }),
-      field({ label: "Count", name: "count", type: "number" }),
-    ];
-    const html = renderFields(fields, { count: 42, name: "Test" });
-    expect(html).toContain('value="Test"');
-    expect(html).toContain('value="42"');
-  });
-
-  test("omits value attribute for null values", () => {
-    const html = renderFields(
-      [field({ label: "Price", name: "price", type: "number" })],
-      { price: null },
-    );
-    expect(html).not.toContain('value="null"');
-  });
-
-  test("uses defaultValue when no explicit value or saved data", () => {
-    const html = renderFields([
-      field({ defaultValue: "US", label: "Country", name: "country" }),
-    ]);
-    expect(html).toContain('value="US"');
-  });
-});
-
-describe("renderFields with saved form data", () => {
-  afterEach(() => clearSavedFormData());
-
-  test("restores saved text values", () => {
-    setSavedFormData(new FormParams("name=Alice"));
-    expect(renderFields([field({ label: "Name", name: "name" })])).toContain(
-      'value="Alice"',
+  test("renders visible fields in order with string and number values", () => {
+    expect(
+      renderFields(
+        [
+          field({ label: "Name", name: "name" }),
+          field({ label: "Hidden", name: "hidden", visible: false }),
+          field({
+            label: "Count",
+            name: "count",
+            type: "number",
+            visible: true,
+          }),
+        ],
+        { count: 42, hidden: "secret", name: "Test" },
+      ),
+    ).toBe(
+      '<label>Name<input name="name" type="text" value="Test"></label><label>Count<input name="count" type="number" value="42"></label>',
     );
   });
 
-  test("explicit values take precedence over saved values", () => {
-    setSavedFormData(new FormParams("name=Saved"));
-    const html = renderFields([field({ label: "Name", name: "name" })], {
-      name: "Explicit",
+  describe("saved form data precedence", () => {
+    afterEach(() => clearSavedFormData());
+
+    for (const { description, expected, saved, value } of [
+      {
+        description: "a non-empty explicit value over saved data",
+        expected: "Explicit",
+        saved: "Saved",
+        value: "Explicit",
+      },
+      {
+        description: "saved data over an explicit empty string",
+        expected: "Saved",
+        saved: "Saved",
+        value: "",
+      },
+      {
+        description: "saved data over the field default",
+        expected: "Saved",
+        saved: "Saved",
+        value: undefined,
+      },
+    ] as const) {
+      test(`uses ${description}`, () => {
+        setSavedFormData(new FormParams(`name=${saved}`));
+        expect(
+          renderFields(
+            [field({ defaultValue: "Default", label: "Name", name: "name" })],
+            value === undefined ? {} : { name: value },
+          ),
+        ).toBe(
+          `<label>Name<input name="name" type="text" value="${expected}"></label>`,
+        );
+      });
+    }
+
+    for (const { description, expected, value } of [
+      {
+        description: "the default for a missing value",
+        expected: ' value="Default"',
+        value: undefined,
+      },
+      {
+        description: "the default for a null value",
+        expected: ' value="Default"',
+        value: null,
+      },
+      {
+        description: "blank for an explicit empty string",
+        expected: "",
+        value: "",
+      },
+    ] as const) {
+      test(`uses ${description} when there is no saved data`, () => {
+        expect(
+          renderFields(
+            [field({ defaultValue: "Default", label: "Name", name: "name" })],
+            value === undefined ? {} : { name: value },
+          ),
+        ).toBe(`<label>Name<input name="name" type="text"${expected}></label>`);
+      });
+    }
+
+    test("falls back to a blank value when no source has a value", () => {
+      expect(renderFields([field({ label: "Name", name: "name" })])).toBe(
+        '<label>Name<input name="name" type="text"></label>',
+      );
     });
-    expect(html).toContain('value="Explicit"');
-    expect(html).not.toContain("Saved");
-  });
 
-  test("saved data takes precedence over defaultValue", () => {
-    setSavedFormData(new FormParams("country=GB"));
-    const html = renderFields([
-      field({ defaultValue: "US", label: "Country", name: "country" }),
-    ]);
-    expect(html).toContain('value="GB"');
-    expect(html).not.toContain('value="US"');
+    test("keeps an explicit zero", () => {
+      expect(
+        renderFields(
+          [field({ label: "Count", name: "count", type: "number" })],
+          {
+            count: 0,
+          },
+        ),
+      ).toBe(
+        '<label>Count<input name="count" type="number" value="0"></label>',
+      );
+    });
   });
 });
 
 describe("renderSelectOptions", () => {
-  test("renders each entry, marking only the chosen one", () => {
-    const html = renderSelectOptions([
-      { label: "One", value: "1" },
-      { label: "Two", selected: true, value: "2" },
-    ]);
-    expect(html).toBe(
-      '<option value="1">One</option><option value="2" selected>Two</option>',
+  test("escapes entries and marks only the selected option", () => {
+    expect(
+      renderSelectOptions([
+        { label: "One & only", value: '1"' },
+        { label: "Two < three", selected: true, value: "2" },
+      ]),
+    ).toBe(
+      '<option value="1&quot;">One &amp; only</option><option value="2" selected>Two &lt; three</option>',
     );
-  });
-
-  test("escapes both value and label", () => {
-    const html = renderSelectOptions([
-      { label: "Fish & Chips <hot>", value: 'a"&b' },
-    ]);
-    expect(html).toBe(
-      '<option value="a&quot;&amp;b">Fish &amp; Chips &lt;hot&gt;</option>',
-    );
-  });
-
-  test("renders nothing for an empty list", () => {
     expect(renderSelectOptions([])).toBe("");
   });
 });

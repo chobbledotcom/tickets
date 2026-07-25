@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Page-specific extra bundles: inject a separate script (and optional
  * stylesheet) only when the page contains the element it enhances, so pages

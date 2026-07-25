@@ -20,7 +20,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne, type SqlStatement } from "#shared/db/client.ts";
 import { ADDRESS_CACHE_MS, MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
+import { isoBefore, nowMs } from "#shared/now.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 /* jscpd:ignore-end */
 
@@ -34,8 +34,7 @@ export const computeAddressSearchIndex = (
 ): Promise<BlindIndex> => hmacHash(`${provider}:${normalisedSearch}`);
 
 /** The oldest `created` a cache row may have and still be served. */
-const freshCutoffIso = (): string =>
-  new Date(nowMs() - ADDRESS_CACHE_MS).toISOString();
+const freshCutoffIso = (): string => isoBefore(ADDRESS_CACHE_MS);
 
 export const addressCachePruneStatement = (): SqlStatement => ({
   args: [freshCutoffIso(), MAINTENANCE_PRUNE_BATCH],

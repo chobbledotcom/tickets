@@ -6,6 +6,7 @@ import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
 } from "#shared/payment-helpers.ts";
+import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import type { CheckoutIntent, SetupWebhookEndpoint } from "#shared/payments.ts";
 import type {
   StripeCheckoutLineItemParams,
@@ -104,11 +105,14 @@ export interface StripeApi {
 export const stripeApi: StripeApi = {
   cleanupOldWebhookEndpoints,
   createCheckoutSession,
-  refundPayment: (intentId) =>
-    stripeClientRuntime.run(
-      (client) => client.refunds.create({ payment_intent: intentId }),
+  refundPayment: async (intentId) => {
+    const idempotencyKey = await refundIdempotencyKey("stripe", intentId);
+    return stripeClientRuntime.run(
+      (client) =>
+        client.refunds.create({ payment_intent: intentId }, idempotencyKey),
       ErrorCode.STRIPE_REFUND,
-    ),
+    );
+  },
   retrieveCheckoutSession: (id) =>
     stripeClientRuntime.run(
       (client) => client.checkout.sessions.retrieve(id),

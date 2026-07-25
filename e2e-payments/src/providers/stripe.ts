@@ -1,10 +1,13 @@
 /* jscpd:ignore-start */
-import { type BrowserSession, requirePageText } from "#e2e/browser.ts";
+import type { BrowserSession } from "#e2e/browser.ts";
 import { config } from "#e2e/config.ts";
-import { BOOKER_NAME } from "#e2e/flow.ts";
 import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
-import { configureProvider, hostedCheckout } from "./shared.ts";
+import {
+  configureProvider,
+  exerciseAdminRefund,
+  hostedCheckout,
+} from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
 /* jscpd:ignore-end */
@@ -47,54 +50,6 @@ const testStripeConnection = async (session: BrowserSession): Promise<void> => {
   );
 };
 
-const exerciseStripeRefund = async (session: BrowserSession): Promise<void> => {
-  const attendee = session.page.getByRole("link", {
-    exact: true,
-    name: BOOKER_NAME,
-  });
-  const attendeeHref = await attendee.getAttribute("href");
-  if (!attendeeHref) {
-    throw new Error(`Could not open paid attendee "${BOOKER_NAME}"`);
-  }
-  await session.goto(attendeeHref);
-
-  // This polls the real PaymentIntent with latest_charge expanded.
-  await session.clickButton("Refresh payment status");
-  await requirePageText(
-    session,
-    "Payment status is up to date",
-    "stripe-payment-status-failed",
-    'Expected the app page to contain "Payment status is up to date"',
-  );
-
-  await session.clickLink("Actions");
-  await session.clickLink("Refund");
-  await session.fill("confirm_identifier", BOOKER_NAME);
-  await session.clickButton("Refund Attendee");
-  await requirePageText(
-    session,
-    "Refund issued",
-    "stripe-refund-failed",
-    'Expected the app page to contain "Refund issued"',
-  );
-
-  await session.clickLink("Overview");
-  const paymentDetails = await session.page
-    .locator(".prose", { hasText: "Payment Details" })
-    .first()
-    .innerText();
-  if (
-    !paymentDetails.includes("Refund Status:") ||
-    !paymentDetails.includes("Refunded")
-  ) {
-    await session.dumpPage("stripe-refund-not-recorded");
-    throw new Error(
-      `Stripe refund was not recorded on the attendee. Payment details:\n${paymentDetails}`,
-    );
-  }
-  log("  Stripe PaymentIntent lookup and full refund passed");
-};
-
 /**
  * Whether `url` points at a cloudflared quick-tunnel host
  * (`trycloudflare.com` or any `*.trycloudflare.com` subdomain). Substring
@@ -116,21 +71,8 @@ const isTrycloudflareTunnelUrl = (raw: string | undefined): boolean => {
   }
 };
 
-/**
- * Stripe. Configuring the key registers a webhook endpoint against the site's
- * public HTTPS URL, so this provider REQUIRES the cloudflared tunnel.
- *
- * Hosted Stripe Checkout (checkout.stripe.com) exposes its inputs at the top
- * level (not iframed), addressable via the WHATWG cc-* autocomplete tokens the
- * generic card filler tries first. The billing country shown on Checkout is
- * driven by the Stripe account, so the postal field expects a matching format —
- * a US sandbox account rejects a UK postcode ("your ZIP is incomplete"). Set up
- * the site as US/USD and enter a US ZIP so the two agree.
- * Sandbox test card: 4242 4242 4242 4242, any future expiry, any CVC.
- * Docs: https://docs.stripe.com/testing
- */
 export const stripe: PaymentProvider = {
-  afterPaidBooking: exerciseStripeRefund,
+  afterPaidBooking: exerciseAdminRefund,
   // Each run registers a webhook endpoint for its ephemeral *.trycloudflare.com
   // URL, and the throwaway DB forgets the id — so without cleanup they pile up
   // and Stripe eventually rejects new ones (accounts cap webhook endpoints).

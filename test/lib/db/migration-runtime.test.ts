@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
+import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
 import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
@@ -20,7 +21,6 @@ import {
   loadMigrations,
   MIGRATION_LOCK_TTL_MS,
   type Migration,
-  MigrationInProgressError,
   rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,

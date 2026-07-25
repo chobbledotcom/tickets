@@ -1,5 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import {
+  processEnvironment,
+  setEnvironmentValue,
+} from "#scripts/environment-values.ts";
 import { getRealEnv, withEnv } from "#test-utils/env.ts";
 
 const SET_KEY = "TICKETS_TEST_WITH_ENV_SET";
@@ -75,5 +79,31 @@ describe("withEnv", () => {
       throw new Error("stop");
     }).toThrow("stop");
     expect(Deno.env.get(SET_KEY)).toBe("before");
+  });
+
+  test("keeps Cucumber worker process values aligned with its overlay", () => {
+    const workerKey = "CUCUMBER_WORKER_ID";
+    const previousWorker = process.env[workerKey];
+    const previousSet = process.env[SET_KEY];
+    const previousDelete = process.env[DELETE_KEY];
+    try {
+      process.env[workerKey] = "test-worker";
+      process.env[SET_KEY] = "outside";
+      delete process.env[DELETE_KEY];
+      {
+        using _env = withEnv({
+          [DELETE_KEY]: undefined,
+          [SET_KEY]: "inside",
+        });
+        expect(process.env[SET_KEY]).toBe("inside");
+        expect(process.env[DELETE_KEY]).toBeUndefined();
+      }
+      expect(process.env[SET_KEY]).toBe("outside");
+      expect(process.env[DELETE_KEY]).toBeUndefined();
+    } finally {
+      setEnvironmentValue(processEnvironment, workerKey, previousWorker);
+      setEnvironmentValue(processEnvironment, SET_KEY, previousSet);
+      setEnvironmentValue(processEnvironment, DELETE_KEY, previousDelete);
+    }
   });
 });

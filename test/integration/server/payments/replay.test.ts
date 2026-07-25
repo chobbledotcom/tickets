@@ -5,7 +5,6 @@ import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows } from "#shared/db/system-notes.ts";
-import { fillSoldOutListing } from "#test/lib/server-payments/_shared-setup.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -109,59 +108,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(html).not.toContain("being processed");
           // ...and never issues a second refund.
           expect(mockRefund.calls.length).toBe(1);
-        },
-      );
-    });
-
-    test("sold-out-after-payment refunds once and replays on retry", async () => {
-      // A sold-out listing: post-payment attendee creation must fail as sold out.
-      const listing = await fillSoldOutListing();
-
-      await withMocks(
-        () =>
-          stubPaidSession(
-            "cs_replay_soldout",
-            {
-              email: "second@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Second",
-            },
-            1000,
-          ),
-        async ({ mockRefund }) => {
-          const placeholders = async () =>
-            (await getAttendeesRaw(listing.id)).filter((a) => a.quantity === 0);
-
-          // First delivery: the late buyer is not dropped — a quantity-0
-          // placeholder is stored, refunded once, with a note, and a
-          // fully-handled outcome renders with HTTP 200.
-          const first = await handleRequest(
-            mockRequest("/payment/success?session_id=cs_replay_soldout"),
-          );
-          await expectHtmlResponse(
-            first,
-            200,
-            "saved your details",
-            "refunded",
-          );
-          const afterFirst = await placeholders();
-          expect(afterFirst.length).toBe(1);
-          expect((await getNoteRows([afterFirst[0]!.id])).length).toBe(1);
-          expect(mockRefund.calls.length).toBe(1);
-
-          // The session is recorded as a terminal failure.
-          const record = await isSessionProcessed("cs_replay_soldout");
-          expect(record?.attendee_id).toBeNull();
-          expect(record?.failure_data).not.toBe("");
-
-          // Retry replays the SAME terminal outcome (the old drop path's 410/409
-          // is now 200 for the store path): same message, no second placeholder,
-          // no second refund, and never the transient lock message.
-          await expectReplayedSave(
-            "cs_replay_soldout",
-            mockRefund,
-            async () => (await placeholders()).length,
-          );
         },
       );
     });

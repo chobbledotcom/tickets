@@ -8,6 +8,8 @@ import {
   flatMap,
   groupToMap,
   identity,
+  isNotNullish,
+  isNullish,
   joinStrings,
   map,
   mapBy,
@@ -23,6 +25,12 @@ describe("fp collections", () => {
     test("removes null and undefined while keeping other falsy values", () => {
       expect(compact([0, null, "", undefined, false])).toEqual([0, "", false]);
     });
+  });
+
+  test("distinguishes both missing values from every present falsy value", () => {
+    const values = [null, undefined, 0, "", false];
+    expect(values.map(isNullish)).toEqual([true, true, false, false, false]);
+    expect(values.map(isNotNullish)).toEqual([false, false, true, true, true]);
   });
 
   describe("joinStrings", () => {

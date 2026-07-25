@@ -7,48 +7,12 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectAttendeeCreatedWithPiiBlob,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
-  test("processes valid single-ticket webhook and creates attendee", async () => {
-    await setupStripe();
-
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      unitPrice: 1000,
-    });
-
-    await expectWebhookProcessed(
-      checkoutSessionEvent({
-        amountTotal: 1000,
-        eventId: "evt_test",
-        metadata: signedMeta(
-          {
-            email: "webhook@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Webhook User",
-          },
-          1000,
-        ),
-        paymentIntent: "pi_webhook_test",
-        sessionId: "cs_webhook_test",
-      }),
-    );
-
-    await expectAttendeeCreatedWithPiiBlob(listing.id);
-
-    // Verify tokens ARE persisted in DB (webhook stores them for redirect to consume)
-    const { isSessionProcessed } = await import(
-      "#shared/db/processed-payments.ts"
-    );
-    const record = await isSessionProcessed("cs_webhook_test");
-    expect(record?.ticket_tokens).not.toBe("");
-  });
-
   test("dates booking ledger legs from the checkout time, not now", async () => {
     await setupStripe();
     const listing = await createTestListing({

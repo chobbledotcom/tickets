@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   collectModuleGraphFiles,
   STATE_BUILDER_ROOT,
+  staticGraphFiles,
 } from "#scripts/mutation/state-graph.ts";
 import { tempDir } from "#test-utils/files.ts";
 
@@ -66,5 +67,23 @@ describe("mutation > state graph", () => {
     // test-state.ts ever moves, this pins the constant to move with it.
     const stat = await Deno.stat(STATE_BUILDER_ROOT);
     expect(stat.isFile).toBe(true);
+  });
+
+  test("staticGraphFiles excludes a dynamic-import-only dep but keeps its static siblings", async () => {
+    // The cold-start regression test relies on `staticGraphFiles` walking
+    // only static imports: a module behind `await import(...)` must not
+    // appear even though `deno info` lists it in the graph. A static
+    // sibling must still appear.
+    using temp = tempDir({ prefix: "tickets-state-graph-" });
+    const root = temp.path;
+    await writeScratchModules(root);
+    const files = await staticGraphFiles("entry.ts", root);
+    // dynamic-dep.ts is only reachable via `await import()`, so it is
+    // deferred and must not be on the static path; unrelated.ts is not
+    // imported at all; the data: module is not a file.
+    expect([...files].sort()).toEqual([
+      `${root}/entry.ts`,
+      `${root}/static-dep.ts`,
+    ]);
   });
 });
