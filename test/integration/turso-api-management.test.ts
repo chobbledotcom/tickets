@@ -205,7 +205,7 @@ describe("Turso management API", () => {
     );
   });
 
-  test("deletes the requested database when Turso returns another name", async () => {
+  test("does not delete on a name mismatch from the create response", async () => {
     const urls: string[] = [];
     await withMocks(
       () =>
@@ -224,9 +224,7 @@ describe("Turso management API", () => {
           error: "Create database returned an unexpected name: other-name",
           ok: false,
         });
-        expect(urls).toEqual([
-          "https://api.turso.tech/v1/organizations/personal/databases/requested-name",
-        ]);
+        expect(urls).toEqual([]);
       },
     );
   });

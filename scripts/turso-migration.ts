@@ -32,6 +32,7 @@ await runDenoScript((io) =>
     removeTempDir: (path) => Deno.remove(path, { recursive: true }),
     signal: interruption.signal,
     uploadDatabaseFile: uploadTursoDatabaseFile,
-    verifyUploadFile: (path) => verifyTursoUploadFile(path, createClient),
+    verifyUploadFile: (path, signal) =>
+      verifyTursoUploadFile(path, createClient, signal),
   }),
 );

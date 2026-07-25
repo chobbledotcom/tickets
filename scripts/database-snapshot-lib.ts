@@ -227,16 +227,16 @@ const withSnapshotClient = <Result>(
 };
 
 const waitForOrAbort = async <Result>(
-  operation: Promise<Result>,
+  operation: () => Promise<Result>,
   signal?: AbortSignal,
 ): Promise<Result> => {
-  if (signal === undefined) return await operation;
+  if (signal === undefined) return await operation();
   signal.throwIfAborted();
   const interrupted = Promise.withResolvers<never>();
   const stop = (): void => interrupted.reject(signal.reason);
   signal.addEventListener("abort", stop, { once: true });
   try {
-    return await Promise.race([operation, interrupted.promise]);
+    return await Promise.race([operation(), interrupted.promise]);
   } finally {
     signal.removeEventListener("abort", stop);
   }
@@ -251,7 +251,9 @@ export const checkLocalSnapshot = (
   withSnapshotClient(factory, { url: toFileUrl(path).href }, async (client) => {
     for (const check of checks) {
       signal?.throwIfAborted();
-      check.verify(await waitForOrAbort(client.execute(check.sql), signal));
+      check.verify(
+        await waitForOrAbort(() => client.execute(check.sql), signal),
+      );
     }
   });
 
@@ -268,7 +270,7 @@ const syncReplica = (
       syncUrl: request.dbUrl,
       url: toFileUrl(path).href,
     },
-    (client) => waitForOrAbort(client.sync(), signal),
+    (client) => waitForOrAbort(() => client.sync(), signal),
   );
 
 const verifyRows = (

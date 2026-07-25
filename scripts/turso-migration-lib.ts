@@ -32,7 +32,7 @@ export interface MigrateTursoCliDeps extends ScriptIo {
     credentials: TursoDatabaseCredentials,
     signal: AbortSignal,
   ) => Promise<void>;
-  verifyUploadFile: (path: string) => Promise<void>;
+  verifyUploadFile: (path: string, signal: AbortSignal) => Promise<void>;
 }
 
 interface MigrationOutcome {
@@ -124,7 +124,7 @@ const migrateSnapshot = async (
     );
     deps.signal.throwIfAborted();
     deps.stdout("Checking the SQLite file for Turso...");
-    await deps.verifyUploadFile(path);
+    await deps.verifyUploadFile(path, deps.signal);
     deps.signal.throwIfAborted();
     deps.stdout("Creating the Turso database...");
     credentials = requireSuccess(

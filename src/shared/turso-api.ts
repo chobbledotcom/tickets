@@ -198,9 +198,7 @@ export const createTursoApi = (
       );
     }
     if (database.Name !== name) {
-      return await cleanUpFailedCreate(
-        request.organization,
-        name,
+      return errorResult(
         `Create database returned an unexpected name: ${database.Name}`,
       );
     }

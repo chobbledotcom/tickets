@@ -113,7 +113,7 @@ export const tursoMigrationCliState = (
       state.uploads.push(path);
       return Promise.resolve();
     },
-    verifyUploadFile: () => {
+    verifyUploadFile: (_path: string, _signal: AbortSignal) => {
       state.events.push("verify");
       return Promise.resolve();
     },

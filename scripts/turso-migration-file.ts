@@ -58,7 +58,9 @@ const TURSO_FILE_REQUIREMENTS = [
 export const verifyTursoUploadFile = (
   path: string,
   factory: SnapshotClientFactory,
-): Promise<void> => checkLocalSnapshot(path, factory, TURSO_FILE_REQUIREMENTS);
+  signal?: AbortSignal,
+): Promise<void> =>
+  checkLocalSnapshot(path, factory, TURSO_FILE_REQUIREMENTS, signal);
 
 interface UploadResponse {
   ok: boolean;
