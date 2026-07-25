@@ -1,10 +1,8 @@
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { withFileLock } from "#scripts/lock-file.ts";
 import { readStream } from "#scripts/stream-lines.ts";
 import { resolveDenoJobs } from "#scripts/workers.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
 import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
+import { withPrecommitLock } from "./lock.ts";
 import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
 import { runChecksBeforePush } from "./run-order.ts";
@@ -15,11 +13,6 @@ import {
   currentTerminalState,
 } from "./terminal.ts";
 import { write } from "./write.ts";
-
-const PRECOMMIT_LOCK_PATH = join(tmpdir(), "chobble-tickets-precommit.lock");
-
-const withPrecommitLock = (task: () => Promise<void>): Promise<void> =>
-  withFileLock(PRECOMMIT_LOCK_PATH, task);
 
 const canPromptNow = (): boolean => canPrompt(currentTerminalState());
 
