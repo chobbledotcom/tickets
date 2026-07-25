@@ -1,3 +1,8 @@
-import { denoEnvironment, environmentTasks } from "./environment-values.ts";
+import {
+  denoEnvironment,
+  environmentTasks,
+  type RunWithEnvironment,
+} from "./environment-values.ts";
 
-export const withEnvironment = environmentTasks(denoEnvironment);
+export const withEnvironment: RunWithEnvironment =
+  environmentTasks(denoEnvironment);

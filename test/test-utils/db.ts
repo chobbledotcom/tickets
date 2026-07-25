@@ -178,33 +178,41 @@ const cleanupTestDbFile = (): void => {
   if (!resource) return;
   try {
     resource.client.close();
-  } catch {
-    // client already closed or never opened
+  } finally {
+    try {
+      resource.env.dispose();
+    } finally {
+      try {
+        cleanupTestDbPath(resource.path);
+      } finally {
+        setTestDbResource(null);
+      }
+    }
   }
-  resource.env.dispose();
-  cleanupTestDbPath(resource.path);
-  setTestDbResource(null);
 };
 
 export const resetDb = (): void => {
-  cleanupTestDbFile();
-  setDb(null);
-  settings.setup.clearCache();
-  settings.invalidateCache();
-  invalidateUsersCache();
-  invalidateListingsCache();
-  holidays.invalidate();
-  groups.cache.invalidate();
-  logisticsAgents.invalidate();
-  attendeeStatuses.invalidate();
-  invalidateCachesForTable("sessions");
-  setTestSession(null);
-  setDemoModeForTest(false);
-  resetEffectiveDomain();
-  resetHostEmailConfig();
-  settings.appleWallet.resetHostConfig();
-  settings.googleWallet.resetHostConfig();
-  settings.clearTestOverrides();
+  try {
+    cleanupTestDbFile();
+  } finally {
+    setDb(null);
+    settings.setup.clearCache();
+    settings.invalidateCache();
+    invalidateUsersCache();
+    invalidateListingsCache();
+    holidays.invalidate();
+    groups.cache.invalidate();
+    logisticsAgents.invalidate();
+    attendeeStatuses.invalidate();
+    invalidateCachesForTable("sessions");
+    setTestSession(null);
+    setDemoModeForTest(false);
+    resetEffectiveDomain();
+    resetHostEmailConfig();
+    settings.appleWallet.resetHostConfig();
+    settings.googleWallet.resetHostConfig();
+    settings.clearTestOverrides();
+  }
 };
 
 /** Set up the standard configured-site database used by integration tests.

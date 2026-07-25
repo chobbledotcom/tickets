@@ -1,10 +1,17 @@
 import { withCleanup } from "#scripts/cleanup.ts";
 
-interface WritableEnvironment {
+export interface WritableEnvironment {
   delete(key: string): void;
   get(key: string): string | undefined;
   set(key: string, value: string): void;
 }
+
+export type EnvironmentValues = Record<string, string | undefined>;
+
+export type RunWithEnvironment = <Result>(
+  values: EnvironmentValues | undefined,
+  task: () => Promise<Result>,
+) => Promise<Result>;
 
 export const denoEnvironment: WritableEnvironment = Deno.env;
 
@@ -27,9 +34,9 @@ export const setEnvironmentValue = (
   else environment.set(key, value);
 };
 
-const applyEnvironment = (
+export const applyEnvironment = (
   environment: WritableEnvironment,
-  values: Record<string, string | undefined>,
+  values: EnvironmentValues,
 ): void => {
   for (const [key, value] of Object.entries(values)) {
     setEnvironmentValue(environment, key, value);
@@ -37,11 +44,8 @@ const applyEnvironment = (
 };
 
 export const environmentTasks =
-  (environment: WritableEnvironment) =>
-  <Result>(
-    values: Record<string, string | undefined> | undefined,
-    task: () => Promise<Result>,
-  ): Promise<Result> => {
+  (environment: WritableEnvironment): RunWithEnvironment =>
+  (values, task) => {
     if (!values) return task();
     const previous = Object.fromEntries(
       Object.keys(values).map((key) => [key, environment.get(key)]),

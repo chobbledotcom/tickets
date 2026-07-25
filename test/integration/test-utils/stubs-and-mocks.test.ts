@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getSessionCookieName } from "#shared/cookies.ts";
+import { requireEnv } from "#shared/env.ts";
 import { expectHtmlEscaped, rejectionMessage } from "#test-utils/assertions.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import {
@@ -179,24 +180,23 @@ describe("test-utils — stubs, caches & request mocks", () => {
       expect(() => resetDb()).not.toThrow();
     });
 
-    test("removes the temp database even when closing the client throws", async () => {
+    test("propagates a close failure after removing the temp database", async () => {
       await createTestDb();
-      const url = Deno.env.get("DB_URL");
-      expect(url?.startsWith("file:")).toBe(true);
-      const path = String(url).slice("file:".length);
+      const url = requireEnv("DB_URL");
+      expect(url.startsWith("file:")).toBe(true);
+      const path = url.slice("file:".length);
       const { getDb } = await import("#shared/db/client.ts");
       using _close = stub(getDb(), "close", () => {
-        throw new Error("already closed");
+        throw new Error("close failed");
       });
 
-      expect(() => resetDb()).not.toThrow();
+      expect(() => resetDb()).toThrow("close failed");
       await expect(Deno.stat(path)).rejects.toThrow(Deno.errors.NotFound);
     });
 
     test("removes SQLite sidecar files for the active temp database", async () => {
       await createTestDb();
-      const url = Deno.env.get("DB_URL");
-      const path = url!.slice("file:".length);
+      const path = requireEnv("DB_URL").slice("file:".length);
       const sidecars = [`${path}-journal`, `${path}-shm`, `${path}-wal`];
       for (const sidecar of sidecars) {
         Deno.writeTextFileSync(sidecar, "left");

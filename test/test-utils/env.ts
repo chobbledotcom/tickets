@@ -1,5 +1,6 @@
 import { lazyRef } from "#fp";
 import {
+  applyEnvironment,
   processEnvironment,
   setEnvironmentValue,
 } from "#scripts/environment-values.ts";
@@ -102,9 +103,7 @@ export const withEnv = (vars: Record<string, string | undefined>): EnvScope => {
     if (!state.active) return;
     state.active = false;
     if (workerProcessEnv) {
-      for (const [key, value] of Object.entries(workerProcessEnv)) {
-        setEnvironmentValue(processEnvironment, key, value);
-      }
+      applyEnvironment(processEnvironment, workerProcessEnv);
     }
     setOverlay(prev);
   };
