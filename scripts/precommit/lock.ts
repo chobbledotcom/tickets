@@ -10,8 +10,8 @@
  * A crashed holder leaves a stale lock; the next acquirer detects a dead PID and
  * steals the lock rather than waiting forever.
  */
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 /** Where the lock lives: the OS temp dir, so it survives across worktrees. */
 const LOCK_PATH = join(tmpdir(), "chobble-tickets-precommit.lock");
@@ -104,6 +104,36 @@ const stealFromDeadHolder = (): boolean => {
   return tryAcquire();
 };
 
+/**
+ * Try to take over a lock whose holder is dead or missing. Returns `true` when
+ * this process now owns the lock.
+ */
+const acquireIfHolderDead = (): boolean => {
+  const holderPid = readHolderPid();
+  if (holderPid !== null && isProcessAlive(holderPid)) return false;
+  return stealFromDeadHolder();
+};
+
+/** One poll tick: sleep, then try to acquire or steal from a dead holder.
+ * Returns the lock result when this process acquired, otherwise `null` so the
+ * caller can keep polling. Also calls `onWait` with the latest holder and wait. */
+const pollOnce = async (
+  start: number,
+  onWait: (details: { holderPid: number; waitedMs: number }) => void,
+  fallbackPid: number,
+): Promise<LockResult | null> => {
+  await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  if (tryAcquire()) {
+    return { acquired: true, release, waitedFor: Date.now() - start };
+  }
+  if (acquireIfHolderDead()) {
+    return { acquired: true, release, waitedFor: Date.now() - start };
+  }
+  const currentHolder = readHolderPid() ?? fallbackPid;
+  onWait({ holderPid: currentHolder, waitedMs: Date.now() - start });
+  return null;
+};
+
 export type LockResult =
   /** This process acquired the lock; `release` must be called when done. */
   | { acquired: true; release: () => void }
@@ -125,33 +155,16 @@ export const acquirePrecommitLock = async (
   onWait: (details: { holderPid: number; waitedMs: number }) => void,
   shouldWait: () => boolean = (): boolean => true,
 ): Promise<LockResult> => {
-  if (tryAcquire()) {
-    return { acquired: true, release };
-  }
-
-  const holderPid = readHolderPid();
-  if (holderPid === null || !isProcessAlive(holderPid)) {
-    // Stale lock from a crashed holder — take it.
-    if (stealFromDeadHolder()) return { acquired: true, release };
-  }
-
+  if (tryAcquire()) return { acquired: true, release };
+  if (acquireIfHolderDead()) return { acquired: true, release };
   if (!shouldWait()) return { acquired: false };
 
+  const holderPid = readHolderPid() ?? 0;
   const start = Date.now();
-  onWait({ holderPid: holderPid!, waitedMs: 0 });
+  onWait({ holderPid, waitedMs: 0 });
 
-  // Poll until the holder releases or dies.
   for (;;) {
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-    if (tryAcquire()) {
-      return { acquired: true, waitedFor: Date.now() - start, release };
-    }
-    const currentHolder = readHolderPid();
-    if (currentHolder !== null && !isProcessAlive(currentHolder)) {
-      if (stealFromDeadHolder()) {
-        return { acquired: true, waitedFor: Date.now() - start, release };
-      }
-    }
-    onWait({ holderPid: currentHolder ?? holderPid!, waitedMs: Date.now() - start });
+    const result = await pollOnce(start, onWait, holderPid);
+    if (result) return result;
   }
 };

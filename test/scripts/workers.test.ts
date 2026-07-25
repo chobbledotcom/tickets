@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  parseWorkerCount,
-  precommitWorkerCount,
-} from "#scripts/workers.ts";
+import { parseWorkerCount, precommitWorkerCount } from "#scripts/workers.ts";
 
 describe("parseWorkerCount", () => {
   test("returns the parsed value for a positive integer string", () => {

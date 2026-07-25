@@ -110,8 +110,9 @@ export const main = async (): Promise<void> => {
   // In CI, runs are isolated, so skip the lock. Locally, wait for any other
   // tickets precommit run (even from a different checkout) to finish before
   // starting — two runs at once just contention-saturate the machine.
-  const run: () => Promise<void> = ci ? runStepsAndPush : () =>
-    withLock(runStepsAndPush);
+  const run: () => Promise<void> = ci
+    ? runStepsAndPush
+    : () => withLock(runStepsAndPush);
   await run();
 };
 
@@ -124,13 +125,18 @@ export const main = async (): Promise<void> => {
 const withLock = async (task: () => Promise<void>): Promise<void> => {
   const lock = await acquirePrecommitLock(({ holderPid, waitedMs }) => {
     const seconds = Math.round(waitedMs / 1000);
-    const hint = seconds === 0
-      ? `Another tickets precommit run is in progress (PID ${holderPid}). Waiting for it to finish.`
-      : `Still waiting for PID ${holderPid} (${seconds}s). You can kill this process and run a more targeted test with \`deno task test:files <path>\`.`;
+    const hint =
+      seconds === 0
+        ? `Another tickets precommit run is in progress (PID ${holderPid}). Waiting for it to finish.`
+        : `Still waiting for PID ${holderPid} (${seconds}s). You can kill this process and run a more targeted test with \`deno task test:files <path>\`.`;
     console.log(yellow(hint));
   });
   if (!lock.acquired) {
-    console.log(red("Another tickets precommit run holds the lock and waiting was skipped."));
+    console.log(
+      red(
+        "Another tickets precommit run holds the lock and waiting was skipped.",
+      ),
+    );
     Deno.exit(1);
   }
   try {
