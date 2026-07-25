@@ -12,7 +12,7 @@ export interface MutationTestMap {
   targets: SourceTestTarget[];
 }
 
-const INTEGRATION_TEST_PREFIXES = ["test/e2e/", "test/integration/"];
+const INTEGRATION_TEST_PREFIXES = ["specs/", "test/e2e/", "test/integration/"];
 
 const normalizePath = (path: string): string => path.replace(/\\/g, "/");
 
@@ -43,9 +43,9 @@ const isIntegrationTest = (testFile: string): boolean => {
   );
 };
 
-/** Select every direct test for the changed sources, plus only the integration
- * tests changed on this branch. Tests for scripts, test helpers, and unchanged
- * sources are outside this src mutation run. */
+/** Select every direct test for the changed sources, plus only the broad
+ * integration/e2e/Cucumber tests changed on this branch. Tests for scripts,
+ * test helpers, and unchanged sources are outside this src mutation run. */
 export const selectMutationTests = (
   sourceFiles: string[],
   allTestFiles: string[],
@@ -81,8 +81,8 @@ const ownedTest =
     testFile,
   });
 
-/** Pair selected sources with their mirrored tests. Only tests in the explicit
- * integration/e2e folders may remain unmatched. */
+/** Pair selected sources with their mirrored tests. Only explicit
+ * integration/e2e/Cucumber paths may remain unmatched. */
 export const buildMutationTestMap = (
   sourceFiles: string[],
   testFiles: string[],
@@ -97,7 +97,7 @@ export const buildMutationTestMap = (
   if (misplaced.length > 0) {
     throw new Error(
       "Mutation tests must mirror a selected source or live under " +
-        `test/integration/ or test/e2e/:\n${map(relativeToProject)(misplaced).join("\n")}`,
+        `specs/, test/integration/, or test/e2e/:\n${map(relativeToProject)(misplaced).join("\n")}`,
     );
   }
   return {

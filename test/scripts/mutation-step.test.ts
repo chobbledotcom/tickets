@@ -52,14 +52,16 @@ describe("partitionChanged", () => {
     ]);
   });
 
-  test("collects test/*.test.ts and *.test.tsx files as tests", () => {
+  test("collects direct tests and Cucumber Features as tests", () => {
     const { tests } = partitionChanged([
       "test/lib/dates.test.ts",
       "test/templates/admin/attendees.test.tsx",
+      "specs/payments/capacity.feature",
     ]);
     expect(tests).toEqual([
       "test/lib/dates.test.ts",
       "test/templates/admin/attendees.test.tsx",
+      "specs/payments/capacity.feature",
     ]);
   });
 

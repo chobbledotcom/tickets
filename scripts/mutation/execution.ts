@@ -101,26 +101,39 @@ export const createStaticGates = async (
   deps: StaticGateDeps = realGateDeps,
 ): Promise<StaticGate[]> => [await createLinter(deps), createTypeChecker(deps)];
 
-const runTestBatch: TestBatchRunner = (batch, signal, env) =>
-  denoExitCode(
-    [
-      "test",
-      "--no-check",
-      "--allow-all",
-      "--parallel",
-      "--preload",
-      "./test/test-utils/preload.ts",
-      "--v8-flags=--expose-gc",
-      ...batch,
-    ],
-    {
-      cwd: projectRoot,
-      env,
-      signal,
-      stderr: "null",
-      stdout: "null",
-    },
-  );
+const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
+  const features = batch.filter((file) => file.endsWith(".feature"));
+  const direct = batch.filter((file) => !file.endsWith(".feature"));
+  const options = {
+    cwd: projectRoot,
+    env,
+    signal,
+    stderr: "null",
+    stdout: "null",
+  } as const;
+  if (direct.length > 0) {
+    const code = await denoExitCode(
+      [
+        "test",
+        "--no-check",
+        "--allow-all",
+        "--parallel",
+        "--preload",
+        "./test/test-utils/preload.ts",
+        "--v8-flags=--expose-gc",
+        ...direct,
+      ],
+      options,
+    );
+    if (code !== 0) return code;
+  }
+  return features.length === 0
+    ? 0
+    : await denoExitCode(
+        ["run", "-A", "./scripts/run-specs.ts", ...features],
+        options,
+      );
+};
 
 export interface TestExecutionDeps {
   runBatch: TestBatchRunner;

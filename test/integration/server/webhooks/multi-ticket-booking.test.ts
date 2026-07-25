@@ -6,19 +6,14 @@ import { getDb } from "#shared/db/client.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectAttendeeCounts } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectRefundedWithNote,
-  expectSessionFailed,
   expectWebhookIgnored,
-  expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
-  findKeptPlaceholder,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -105,34 +100,6 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
       sql: "SELECT parent_listing_id FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
     });
     expect(Number(parentIdRow.rows[0]!.parent_listing_id)).toBe(parent.id);
-  });
-
-  test("webhook handles sold-out listing and returns error in JSON", async () => {
-    await setupStripe();
-
-    const listing = await fillSoleCapacityListing();
-
-    const { mockRefund } = await expectWebhookKeptAndRefunded(
-      checkoutSessionEvent({
-        amountTotal: 1000,
-        eventId: "evt_soldout",
-        metadata: signedMeta(
-          {
-            email: "late@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Late Buyer",
-          },
-          1000,
-        ),
-        paymentIntent: "pi_soldout",
-        sessionId: "cs_soldout",
-      }),
-    );
-    // The late buyer is not dropped: a quantity-0 placeholder is kept
-    // alongside the original sold-out attendee, refunded once, with a note.
-    const placeholder = await findKeptPlaceholder(listing.id);
-    await expectRefundedWithNote(placeholder.id, mockRefund);
-    await expectSessionFailed("cs_soldout");
   });
 
   test("multi-ticket webhook creates attendees for multiple listings", async () => {

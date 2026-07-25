@@ -178,6 +178,19 @@ export const resetDb = (): void => {
   settings.clearTestOverrides();
 };
 
+/** Set up the standard configured-site database used by integration tests.
+ * Returns the one cleanup that must run after the test or Cucumber Scenario. */
+export const setupTestDbEnvironment = async (
+  triggers = false,
+): Promise<() => void> => {
+  resetTestSlugCounter();
+  setHostEmailConfigForTest(null);
+  settings.appleWallet.setHostConfigForTest(null);
+  settings.googleWallet.setHostConfigForTest(null);
+  await createTestDbWithSetup("GB", triggers);
+  return resetDb;
+};
+
 /**
  * Establish the requested `storage` backend for a test as a typed suite-level
  * `StorageConfig` (read via `#shared/storage.ts`, layered under any per-test
@@ -226,22 +239,20 @@ export const describeWithEnv = (
   fn: () => void,
 ): void => {
   describe(name, () => {
+    let cleanupDb: (() => void) | undefined;
     let env: EnvScope | undefined;
     let storageDir: TempPath | undefined;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
-        resetTestSlugCounter();
-        setHostEmailConfigForTest(null);
-        settings.appleWallet.setHostConfigForTest(null);
-        settings.googleWallet.setHostConfigForTest(null);
-        await createTestDbWithSetup("GB", options.triggers ?? false);
+        cleanupDb = await setupTestDbEnvironment(options.triggers ?? false);
       }
       if (options.env) env = withEnv(options.env);
       storageDir = applyStorageConfig(options.storage);
     });
     afterEach(() => {
-      if (options.db) resetDb();
+      cleanupDb?.();
+      cleanupDb = undefined;
       env?.dispose();
       env = undefined;
       teardownStorageConfig(storageDir);

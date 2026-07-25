@@ -4,7 +4,7 @@
  *
  * Mutation-tests every `src/` file this branch changed (vs origin/main) and
  * demands a 100% kill rate. Mirrored direct tests run first for their source;
- * explicit integration/e2e tests run only for direct-test survivors. See
+ * explicit integration/e2e/Cucumber tests run only for direct-test survivors. See
  * ./precommit/mutation-step.ts for selection details.
  *
  * Real git and mutation-runner wiring lives here, away from the unit-tested
