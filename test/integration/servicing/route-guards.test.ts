@@ -26,6 +26,7 @@ import {
   createRealAttendee,
   createServicingHold,
   createTestServicingEvent,
+  getServicingEvent,
   listingCostOf,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
@@ -83,10 +84,39 @@ describeWithEnv(
       response.body?.cancel();
     });
 
+    test("POST /admin/servicing/:id/delete redirects to the dashboard on success", async () => {
+      const { id, listing } = await createServicingHold();
+      const response = await adminPost(`/admin/servicing/${id}/delete`, {});
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("/admin/");
+      expect(await getServicingEvent(id)).toBeNull();
+      expect(
+        (
+          await createTestServicingEvent({
+            bookings: [{ listingId: listing.id, quantity: 1 }],
+            name: "unused",
+          })
+        ).id,
+      ).toBeGreaterThan(0);
+    });
+
     test("POST /admin/servicing/:id/duplicate 404s for a missing service event id", async () => {
       const response = await adminPost("/admin/servicing/999999/duplicate", {});
       expect(response.status).toBe(404);
       response.body?.cancel();
+    });
+
+    test("POST /admin/servicing/:id/duplicate redirects to the copy on success", async () => {
+      const { id, listing } = await createServicingHold({ name: "Original" });
+      const response = await adminPost(`/admin/servicing/${id}/duplicate`, {});
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location") ?? "";
+      expect(location).toContain("/admin/servicing/");
+      const copyId = Number(location.match(/\/admin\/servicing\/(\d+)/)?.[1]);
+      expect(copyId).toBeGreaterThan(id);
+      const copy = await getServicingEvent(copyId);
+      expect(copy?.name).toBe("Original");
+      expect(copy?.bookings[0]?.listingId).toBe(listing.id);
     });
 
     test("POST /admin/servicing/:id/cost/:costId 404s for a missing cost id", async () => {

@@ -15,6 +15,7 @@ export interface TicketsWorld extends World {
   refundCalls?: () => number;
   secondBody?: string;
   secondStatus?: number;
+  servicingEventId?: number;
   sessionId?: string;
   ticketToken?: string;
 }

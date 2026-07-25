@@ -13,6 +13,7 @@ describe("Cucumber story catalog", () => {
     expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
       "attendees.no-quantity-tickets",
       "payments.capacity-after-payment",
+      "servicing.hold-and-cost",
     ]);
   });
 

@@ -35,7 +35,6 @@ import type { Attendee, Listing, ListingWithCount } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { getTestSession, withTestSession } from "#test-utils/session.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // ─── Production API re-exports (see contract above) ────────────────────────
 
@@ -319,59 +318,6 @@ export const adminPost = async (
   );
 };
 
-// ─── E2E helpers ────────────────────────────────────────────────────────────
-
-/** The standard e2e setup: log in + create a daily "Room A" listing, ready for
- *  a servicing hold. Each §21 narrative opens with this exact sequence. */
-export const setupBrowserWithListing = async (
-  browser: TestBrowser,
-  listingFields: Record<string, string> & { name: string },
-): Promise<number> => {
-  const { setupAndLogin, createListing } = await import("#test-utils/e2e.ts");
-  await setupAndLogin(browser);
-  return Number(await createListing(browser, listingFields));
-};
-
-/** The standard e2e "create a servicing hold" flow: visit the create form,
- *  fill in name + quantity on the created listing, submit. Used by every §21
- *  narrative scenario. */
-export const createHoldInBrowser = async (
-  browser: TestBrowser,
-  name: string,
-  listingId: number,
-): Promise<void> => {
-  await submitServicingCreateForm(browser, { listingId, name });
-};
-
-/** Find the `/admin/servicing/:id` path for the current e2e browser page.
- *  Called after `setupBrowserWithHold`, which always lands on that path. */
-export const findServicingLink = (browser: TestBrowser): string =>
-  browser.currentUrl.match(/^\/admin\/servicing\/\d+/)![0];
-
-/** Submit the standard servicing create form: name + quantity on listing id
- *  `quantity_${listingId}` + a single-day `start_date`. Mirrors the operator
- *  narrative flow each §21 e2e scenario opens with. */
-export const submitServicingCreateForm = async (
-  browser: TestBrowser,
-  fields: {
-    name: string;
-    listingId: number;
-    quantity?: number;
-    startDate?: string;
-  },
-): Promise<void> => {
-  await browser.visit("/admin/servicing/new");
-  await browser.submitForm(
-    {
-      day_count: "1",
-      name: fields.name,
-      [`quantity_${fields.listingId}`]: String(fields.quantity ?? 1),
-      start_date: fields.startDate ?? "2099-07-01",
-    },
-    "Create Service Event",
-  );
-};
-
 // ─── Compound assertion helpers (curried where the shape is shared) ─────────
 
 /** Assert a servicing event's logistics plan is disabled (split=0, no agents).
@@ -482,17 +428,6 @@ export const createDailyListingPair = async (
   const a = await createDailyTestListing({ maxAttendees, name: nameA });
   const b = await createDailyTestListing({ maxAttendees, name: nameB });
   return [a, b];
-};
-
-/** The full e2e narrative opener: log in, create a listing, create a servicing
- *  hold on it. Every §21 scenario begins with this sequence. */
-export const setupBrowserWithHold = async (
-  browser: TestBrowser,
-  listingFields: Record<string, string> & { name: string },
-  holdName: string,
-): Promise<void> => {
-  const listingId = await setupBrowserWithListing(browser, listingFields);
-  await createHoldInBrowser(browser, holdName, listingId);
 };
 
 // ─── Control-attendee fixture ───────────────────────────────────────────────
