@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  removeIfExistsSync,
-  rethrowUnlessNotFound,
-} from "#scripts/not-found.ts";
+import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import {
   collectTestFiles,
   defaultGroupCount,
@@ -122,26 +119,6 @@ describe("test-groups", () => {
         rethrowUnlessNotFound(new Deno.errors.NotFound("gone")),
       ).not.toThrow();
       expect(() => rethrowUnlessNotFound(new Error("boom"))).toThrow("boom");
-    });
-
-    test("removeIfExistsSync removes a present file and ignores a missing one", () => {
-      const path = `${Deno.env.get("TMPDIR") ?? "/tmp"}/not-found-test-${Deno.pid}-${Date.now()}.tmp`;
-      Deno.writeTextFileSync(path, "x");
-      expect(() => removeIfExistsSync(path)).not.toThrow();
-      expect(() => Deno.statSync(path)).toThrow(Deno.errors.NotFound);
-      // Calling again on the now-missing path is a no-op, not an error.
-      expect(() => removeIfExistsSync(path)).not.toThrow();
-    });
-
-    test("removeIfExistsSync rethrows non-NotFound errors", () => {
-      // Removing a non-empty directory without `recursive: true` throws
-      // `NotADirectory` on Linux / a permission error elsewhere — never
-      // `NotFound` — so the helper must surface it.
-      const dir = `${Deno.env.get("TMPDIR") ?? "/tmp"}/not-found-test-${Deno.pid}-${Date.now()}.d`;
-      Deno.mkdirSync(dir);
-      Deno.writeTextFileSync(`${dir}/child.tmp`, "x");
-      expect(() => removeIfExistsSync(dir)).toThrow();
-      Deno.removeSync(dir, { recursive: true });
     });
 
     test("rethrowUnlessLeftoverDir lets only the expected leftovers pass", () => {

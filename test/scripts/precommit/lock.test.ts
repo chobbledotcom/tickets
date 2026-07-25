@@ -1,129 +1,98 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { acquirePrecommitLock } from "#scripts/precommit/lock.ts";
+import { removeIfPresent } from "#scripts/cleanup.ts";
+import { withPrecommitLock } from "#scripts/precommit/lock.ts";
 
-/**
- * Each test file run uses its own unique lock path under the OS temp dir, so
- * tests never touch the real precommit lock at `PRECOMMIT_LOCK_PATH` — a
- * concurrent `deno task test:coverage` could be running precommit for real, and
- * colliding with its lock (or stealing it) would make both flaky.
- */
 const LOCK_PATH = join(
   Deno.env.get("TMPDIR") ?? "/tmp",
   `chobble-tickets-precommit-test-${Deno.pid}-${Date.now()}.lock`,
 );
 
-const removeLock = (): void => {
+const HOLD_LOCK_SCRIPT = `
+const file = await Deno.open(Deno.args[0], {
+  create: true,
+  read: true,
+  write: true,
+});
+await file.lock();
+await Deno.stdout.write(new TextEncoder().encode("locked\\n"));
+await Deno.stdin.read(new Uint8Array(1));
+file.close();
+`;
+
+const EXIT_WITH_LOCK_SCRIPT = `
+const file = await Deno.open(Deno.args[0], {
+  create: true,
+  read: true,
+  write: true,
+});
+await file.lock();
+await Deno.stdout.write(new TextEncoder().encode("locked\\n"));
+Deno.exit(0);
+`;
+
+const startHolder = (
+  script: string,
+  stdin: "piped" | "null" = "piped",
+): Deno.ChildProcess =>
+  new Deno.Command(Deno.execPath(), {
+    args: ["eval", script, "--", LOCK_PATH],
+    stdin,
+    stdout: "piped",
+  }).spawn();
+
+const waitUntilLocked = async (child: Deno.ChildProcess): Promise<void> => {
+  const reader = child.stdout.getReader();
   try {
-    Deno.removeSync(LOCK_PATH);
-  } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    const { value } = await reader.read();
+    expect(new TextDecoder().decode(value)).toBe("locked\n");
+  } finally {
+    await reader.cancel();
+    reader.releaseLock();
   }
 };
 
-/**
- * Produce a PID that has definitely already exited. We spawn a process that
- * exits immediately and wait for it to finish; its PID is now recycled-free and
- * reads as dead under the lock's liveness probe. This is deterministic on every
- * platform, unlike picking a large number and hoping it isn't in use.
- */
-const deadPid = async (): Promise<number> => {
-  const child = new Deno.Command("true", {
-    stderr: "null",
-    stdout: "null",
-  }).spawn();
+const releaseHolder = async (child: Deno.ChildProcess): Promise<void> => {
+  const writer = child.stdin.getWriter();
+  await writer.write(new Uint8Array([1]));
+  await writer.close();
   await child.status;
-  return child.pid;
 };
 
-describe("acquirePrecommitLock", () => {
-  beforeEach(removeLock);
-  afterEach(removeLock);
+describe("withPrecommitLock", () => {
+  beforeEach(() => removeIfPresent(LOCK_PATH));
+  afterEach(() => removeIfPresent(LOCK_PATH));
 
-  test("acquires immediately when no lock exists", async () => {
-    const lock = await acquirePrecommitLock(
-      () => {},
-      () => true,
-      LOCK_PATH,
-    );
-    expect(lock.acquired).toBe(true);
-    if (lock.acquired) lock.release();
-    // The lock file is gone after release.
-    expect(() => Deno.readTextFileSync(LOCK_PATH)).toThrow();
+  test("runs the task and returns its value", async () => {
+    await expect(
+      withPrecommitLock(() => Promise.resolve("checked"), LOCK_PATH),
+    ).resolves.toBe("checked");
   });
 
-  test("waits when another process holds the lock, then acquires after release", async () => {
-    // Hold the lock with a live PID that is not the acquirer's own. The test's
-    // own Deno process PID is alive and foreign to `acquirePrecommitLock`
-    // (which only writes its own PID when *it* acquires), so the waiter must
-    // wait until we remove the lock file.
-    Deno.writeTextFileSync(LOCK_PATH, String(Deno.pid));
+  test("waits for a lock held by another process", async () => {
+    const holder = startHolder(HOLD_LOCK_SCRIPT);
+    await waitUntilLocked(holder);
 
-    let waitCalls = 0;
-    let acquired = false;
+    let ran = false;
+    const waiting = withPrecommitLock(async () => {
+      ran = true;
+    }, LOCK_PATH);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(ran).toBe(false);
 
-    // Start the waiter in the background.
-    const waiter = (async () => {
-      const lock = await acquirePrecommitLock(
-        () => {
-          waitCalls++;
-        },
-        () => true,
-        LOCK_PATH,
-      );
-      acquired = lock.acquired;
-      if (lock.acquired) lock.release();
-    })();
-
-    // Let the waiter detect the held lock and call onWait at least once.
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    expect(waitCalls).toBeGreaterThan(0);
-    expect(acquired).toBe(false);
-
-    // Release the foreign lock so the waiter can acquire.
-    removeLock();
-
-    await waiter;
-    expect(acquired).toBe(true);
+    await releaseHolder(holder);
+    await waiting;
+    expect(ran).toBe(true);
   });
 
-  test("steals the lock when the holder PID is dead", async () => {
-    // Use a PID from a process that has already exited, so the liveness probe
-    // deterministically reports it dead on every platform.
-    const pid = await deadPid();
-    Deno.writeTextFileSync(LOCK_PATH, String(pid));
+  test("acquires after a holder exits without unlocking", async () => {
+    const holder = startHolder(EXIT_WITH_LOCK_SCRIPT, "null");
+    await waitUntilLocked(holder);
+    await holder.status;
 
-    const lock = await acquirePrecommitLock(
-      () => {},
-      () => true,
-      LOCK_PATH,
-    );
-    expect(lock.acquired).toBe(true);
-    if (lock.acquired) lock.release();
-  });
-
-  test("returns not-acquired when shouldWait returns false", async () => {
-    // Hold the lock with the test's own live PID so it looks like a live holder.
-    Deno.writeTextFileSync(LOCK_PATH, String(Deno.pid));
-
-    const lock = await acquirePrecommitLock(
-      () => {},
-      () => false,
-      LOCK_PATH,
-    );
-    expect(lock.acquired).toBe(false);
-  });
-
-  test("release is idempotent and safe to call twice", async () => {
-    const lock = await acquirePrecommitLock(
-      () => {},
-      () => true,
-      LOCK_PATH,
-    );
-    if (!lock.acquired) throw new Error("expected to acquire");
-    expect(() => lock.release()).not.toThrow();
-    // Calling release again is a no-op (file already gone).
-    expect(() => lock.release()).not.toThrow();
+    await expect(
+      withPrecommitLock(() => Promise.resolve("recovered"), LOCK_PATH),
+    ).resolves.toBe("recovered");
   });
 });

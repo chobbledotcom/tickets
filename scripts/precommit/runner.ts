@@ -2,7 +2,7 @@ import { readStream } from "#scripts/stream-lines.ts";
 import { resolveDenoJobs } from "#scripts/workers.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
 import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
-import { acquirePrecommitLock } from "./lock.ts";
+import { withPrecommitLock } from "./lock.ts";
 import { getMergeConflictWarning } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
 import { getSteps, type Step } from "./steps.ts";
@@ -92,6 +92,47 @@ const runStep = async (step: Step): Promise<boolean> => {
   return success;
 };
 
+/**
+ * Run the heavy checks under the cross-worktree lock, then release it before
+ * the optional push prompt. CI jobs are already isolated and skip the lock.
+ */
+export const runChecksBeforePush = async (
+  ci: boolean,
+  checks: () => Promise<void>,
+  push: () => Promise<void>,
+  lock: (task: () => Promise<void>) => Promise<void> = withPrecommitLock,
+): Promise<void> => {
+  if (ci) await checks();
+  else await lock(checks);
+  await push();
+};
+
+const runSteps = async (): Promise<void> => {
+  const steps = getSteps();
+  for (const step of steps) {
+    const passed = await runStep(step);
+    if (!passed) {
+      console.log(`\n${red("precommit failed")} at ${step.name}`);
+      Deno.exit(1);
+    }
+  }
+
+  console.log(`\n${green("precommit passed")}`);
+};
+
+const pushCheckedInChanges = async (): Promise<void> => {
+  const pushSucceeded = await promptToPushCheckedInChanges({
+    confirm: confirmPush,
+    isInteractive: canPromptNow,
+    push: runInteractiveCommand,
+    run: runCommand,
+  });
+  if (!pushSucceeded) {
+    console.log(red("git push failed"));
+    Deno.exit(1);
+  }
+};
+
 export const main = async (): Promise<void> => {
   const ci = isCi();
   if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
@@ -106,65 +147,5 @@ export const main = async (): Promise<void> => {
   if (jobs !== undefined) Deno.env.set("DENO_JOBS", String(jobs));
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
   await warnAboutMergeConflicts();
-
-  // In CI, runs are isolated, so skip the lock. Locally, wait for any other
-  // tickets precommit run (even from a different checkout) to finish before
-  // starting — two runs at once just contention-saturate the machine.
-  const run: () => Promise<void> = ci
-    ? runStepsAndPush
-    : () => withLock(runStepsAndPush);
-  await run();
-};
-
-/**
- * Acquire the cross-instance precommit lock, run `task`, and release the lock
- * on completion — success or failure. While waiting, tell the user which
- * process holds the lock and how long we have waited, and that they may want
- * to kill this waiter and run a more targeted check instead.
- */
-const withLock = async (task: () => Promise<void>): Promise<void> => {
-  const lock = await acquirePrecommitLock(({ holderPid, waitedMs }) => {
-    const seconds = Math.round(waitedMs / 1000);
-    const hint =
-      seconds === 0
-        ? `Another tickets precommit run is in progress (PID ${holderPid}). Waiting for it to finish.`
-        : `Still waiting for PID ${holderPid} (${seconds}s). You can kill this process and run a more targeted test with \`deno task test:files <path>\`.`;
-    console.log(yellow(hint));
-  });
-  if (!lock.acquired) {
-    console.log(
-      red(
-        "Another tickets precommit run holds the lock and waiting was skipped.",
-      ),
-    );
-    Deno.exit(1);
-  }
-  try {
-    await task();
-  } finally {
-    lock.release();
-  }
-};
-
-const runStepsAndPush = async (): Promise<void> => {
-  const steps = getSteps();
-  for (const step of steps) {
-    const passed = await runStep(step);
-    if (!passed) {
-      console.log(`\n${red("precommit failed")} at ${step.name}`);
-      Deno.exit(1);
-    }
-  }
-
-  console.log(`\n${green("precommit passed")}`);
-  const pushSucceeded = await promptToPushCheckedInChanges({
-    confirm: confirmPush,
-    isInteractive: canPromptNow,
-    push: runInteractiveCommand,
-    run: runCommand,
-  });
-  if (!pushSucceeded) {
-    console.log(red("git push failed"));
-    Deno.exit(1);
-  }
+  await runChecksBeforePush(ci, runSteps, pushCheckedInChanges);
 };
