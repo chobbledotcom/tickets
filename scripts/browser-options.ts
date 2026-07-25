@@ -15,10 +15,18 @@ export const browserLaunchOptions = (
 });
 
 /** Launch Chromium with screenshot-mode flags (headless, CDP screenshot fix). */
-export const launchScreenshotChromium = (
+const launchScreenshotChromium = (
   browser: Chromium,
   executablePath?: string,
 ): Promise<Browser> =>
   browser.launch(
     browserLaunchOptions(true, executablePath, SCREENSHOT_LAUNCH_ARGS),
   );
+
+export const defineScreenshotBrowserLauncher =
+  (
+    browser: Chromium,
+    executablePath: () => Promise<string | undefined>,
+  ): (() => Promise<Browser>) =>
+  async () =>
+    launchScreenshotChromium(browser, await executablePath());

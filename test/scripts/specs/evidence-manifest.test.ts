@@ -8,7 +8,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import sharp from "sharp";
 import {
   buildEvidenceBundle,
-  evidenceManifestJson,
   writeEvidenceBundle,
 } from "#scripts/specs/evidence/manifest.ts";
 import { parseEvidenceDeclarations } from "#scripts/specs/evidence/schema.ts";
@@ -166,8 +165,8 @@ describe("Cucumber evidence manifest", () => {
       messages: [...messages].reverse(),
     });
 
-    expect(evidenceManifestJson(first.manifest)).toBe(
-      evidenceManifestJson(second.manifest),
+    expect(JSON.stringify(first.manifest)).toBe(
+      JSON.stringify(second.manifest),
     );
     expect(first.assets).toEqual(second.assets);
     expect(first.manifest).toEqual({
@@ -183,7 +182,8 @@ describe("Cucumber evidence manifest", () => {
               mediaType: "image/png",
               path: "assets/payment-result--mobile.png",
               profile: "mobile",
-              sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+              sha256:
+                "e4877bdee1634553b5a8a0160f8afddbc5e97eb203bda25ac97a191f82886a02",
               viewport: {
                 deviceScaleFactor: 2,
                 height: 844,
@@ -199,7 +199,7 @@ describe("Cucumber evidence manifest", () => {
       ],
       schemaVersion: 1,
     });
-    expect(evidenceManifestJson(first.manifest)).not.toMatch(
+    expect(JSON.stringify(first.manifest)).not.toMatch(
       /started-case|test-case|timestamp/,
     );
   });
@@ -361,7 +361,7 @@ describe("Cucumber evidence manifest", () => {
         await Deno.readFile(`${output}/assets/outline-result--mobile.png`),
       ).toEqual(bundle.assets.get("assets/outline-result--mobile.png"));
       expect(await Deno.readTextFile(`${output}/manifest.json`)).toBe(
-        evidenceManifestJson(bundle.manifest),
+        `${JSON.stringify(bundle.manifest, null, 2)}\n`,
       );
     } finally {
       await Deno.remove(directory, { recursive: true });

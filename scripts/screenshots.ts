@@ -1,6 +1,6 @@
 import { dirname, fromFileUrl, join, resolve } from "@std/path";
 import { chromium, type Page } from "playwright";
-import { launchScreenshotChromium } from "./browser-options.ts";
+import { defineScreenshotBrowserLauncher } from "./browser-options.ts";
 import {
   type ScreenshotAppServer,
   startScreenshotAppServer,
@@ -32,6 +32,10 @@ const ROOT = dirname(dirname(fromFileUrl(import.meta.url)));
 const USERNAME = "screenshots";
 const PASSWORD = "screenshots-password";
 const TIMEOUT_MS = 60_000;
+const launchScreenshotBrowser = defineScreenshotBrowserLauncher(
+  chromium,
+  chromiumExecutable,
+);
 
 interface SceneContext {
   listingId: string;
@@ -301,8 +305,7 @@ const main = async (): Promise<void> => {
   const server = await startScreenshotAppServer();
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
-    const executablePath = await chromiumExecutable();
-    browser = await launchScreenshotChromium(chromium, executablePath);
+    browser = await launchScreenshotBrowser();
     const context = await browser.newContext({
       baseURL: server.baseUrl,
       ...screenshotContextOptions(MOBILE_SCREENSHOT_PROFILE),

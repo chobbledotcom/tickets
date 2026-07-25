@@ -7,6 +7,7 @@ import {
   parseEvidenceDeclarations,
 } from "#scripts/specs/evidence/schema.ts";
 import { validateSpecSources } from "#scripts/specs/profile.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { registry, source } from "#test/scripts/specs/profile-fixture.ts";
 
 const catalog = validateSpecSources([source()], registry);
@@ -119,5 +120,40 @@ describe("Cucumber evidence schema", () => {
         app: { ...manifest.app, commit: "short" },
       }).success,
     ).toBe(false);
+
+    const capture = requireValue(
+      manifest.captures[0],
+      "Manifest capture is missing",
+    );
+    const asset = requireValue(capture.assets[0], "Manifest asset is missing");
+    const invalidCaptures = [
+      [],
+      [capture, { ...capture }],
+      [{ ...capture, assets: [] }],
+      [
+        {
+          ...capture,
+          assets: [
+            asset,
+            { ...asset, path: "assets/payment-result-other.png" },
+          ],
+        },
+      ],
+      [{ ...capture, steps: [] }],
+      [{ ...capture, steps: [{ keyword: "*", text: "anything happens" }] }],
+      [
+        capture,
+        {
+          ...capture,
+          assets: [{ ...asset }],
+          id: "other-capture",
+        },
+      ],
+    ];
+    for (const captures of invalidCaptures) {
+      expect(
+        v.safeParse(EvidenceManifestSchema, { ...manifest, captures }).success,
+      ).toBe(false);
+    }
   });
 });

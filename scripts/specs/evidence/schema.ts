@@ -19,9 +19,9 @@ const stableId = (label: string) =>
 
 const PositiveIntegerSchema = integerAtLeast(1);
 
-export const EvidenceProfileNameSchema = v.picklist(["mobile"]);
+const EvidenceProfileNameSchema = v.picklist(["mobile"]);
 
-export const EvidencePresentationSchema = v.picklist([
+const EvidencePresentationSchema = v.picklist([
   "canonical",
   "branded",
   "editorial",
@@ -84,27 +84,64 @@ const EvidenceAssetSchema = v.strictObject({
   width: PositiveIntegerSchema,
 });
 
+const EvidenceAssetsSchema = v.pipe(
+  v.array(EvidenceAssetSchema),
+  v.minLength(1),
+  v.check(
+    (assets) =>
+      new Set(assets.map(({ profile }) => profile)).size === assets.length,
+    "Evidence asset profiles must be unique",
+  ),
+);
+
+const EvidenceStepKeywordSchema = v.picklist([
+  "Given",
+  "When",
+  "Then",
+  "And",
+  "But",
+]);
+
 const EvidenceCaptureSchema = v.strictObject({
-  assets: v.pipe(v.array(EvidenceAssetSchema), v.minLength(1)),
+  assets: EvidenceAssetsSchema,
   case: EvidenceItemSchema,
   id: stableId("capture id"),
   presentation: EvidencePresentationSchema,
   rule: NamedEvidenceItemSchema,
-  steps: v.array(
-    v.strictObject({
-      keyword: TrimmedNonEmptyTextSchema,
-      text: TrimmedNonEmptyTextSchema,
-    }),
+  steps: v.pipe(
+    v.array(
+      v.strictObject({
+        keyword: EvidenceStepKeywordSchema,
+        text: TrimmedNonEmptyTextSchema,
+      }),
+    ),
+    v.minLength(1),
   ),
   story: NamedEvidenceItemSchema,
 });
+
+const EvidenceCapturesSchema = v.pipe(
+  v.array(EvidenceCaptureSchema),
+  v.minLength(1),
+  v.check(
+    (captures) =>
+      new Set(captures.map(({ id }) => id)).size === captures.length,
+    "Evidence capture ids must be unique",
+  ),
+  v.check((captures) => {
+    const paths = captures.flatMap(({ assets }) =>
+      assets.map(({ path }) => path),
+    );
+    return new Set(paths).size === paths.length;
+  }, "Evidence asset paths must be unique"),
+);
 
 export const EvidenceManifestSchema = v.strictObject({
   app: v.strictObject({
     commit: matchingText(COMMIT_PATTERN),
     repository: v.literal("chobbledotcom/tickets"),
   }),
-  captures: v.array(EvidenceCaptureSchema),
+  captures: EvidenceCapturesSchema,
   schemaVersion: v.literal(1),
 });
 

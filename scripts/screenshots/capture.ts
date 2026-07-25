@@ -7,7 +7,7 @@ export interface PreparedScreenshot {
   png: Uint8Array;
 }
 
-export const readBodyBackground = async (page: Page): Promise<Rgb> =>
+const readBodyBackground = async (page: Page): Promise<Rgb> =>
   parseRgb(
     await page.locator("body").evaluate((node) => {
       const getStyle = Reflect.get(globalThis, "getComputedStyle");
@@ -38,33 +38,19 @@ export const capturePreparedPage = async (
   if (!elementSelector) {
     return { background, png: await pagePng(page, fullPage) };
   }
-  const initialViewport = page.viewportSize();
-  if (!initialViewport) {
-    throw new Error("Could not read the screenshot viewport.");
-  }
   const element = page.locator(elementSelector).first();
   await element.waitFor({ state: "attached" });
   const initialBox = await element.boundingBox();
   if (!initialBox) {
     throw new Error(`Could not measure screenshot element: ${elementSelector}`);
   }
-  await page.setViewportSize({
-    height: Math.ceil(
-      Math.max(initialViewport.height, initialBox.height + 128),
-    ),
-    width: initialViewport.width,
-  });
-  try {
-    await element.evaluate((node) =>
-      Reflect.apply(Reflect.get(node, "scrollIntoView"), node, [
-        { block: "center" },
-      ]),
-    );
-    return {
-      background,
-      png: await trimElementPng(await pagePng(page, false), background),
-    };
-  } finally {
-    await page.setViewportSize(initialViewport);
-  }
+  await element.evaluate((node) =>
+    Reflect.apply(Reflect.get(node, "scrollIntoView"), node, [
+      { block: "center" },
+    ]),
+  );
+  return {
+    background,
+    png: await trimElementPng(await pagePng(page, true), background),
+  };
 };

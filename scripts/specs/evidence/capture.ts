@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
-import type { Browser, BrowserContext } from "playwright";
+import type { Browser, BrowserContext, Page } from "playwright";
 import { chromium } from "playwright";
-import { launchScreenshotChromium } from "#scripts/browser-options.ts";
+import { defineScreenshotBrowserLauncher } from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { capturePreparedPage } from "#scripts/screenshots/capture.ts";
 import {
@@ -10,15 +10,23 @@ import {
 } from "#scripts/screenshots/profile.ts";
 import { waitForScreenshotPage } from "#scripts/screenshots/readiness.ts";
 import { readSpecCatalog } from "#scripts/specs/catalog.ts";
+import type { SpecCatalog } from "#scripts/specs/types.ts";
 import { settings } from "#shared/db/settings.ts";
-import { requireValue } from "#shared/required-value.ts";
 import { serveHandler } from "#src/serve-app.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { isAllowedEvidenceRequest, resolveEvidencePath } from "./browser.ts";
 import { EVIDENCE_CAPTURES } from "./declarations.ts";
-import type { EvidenceHookCase, EvidenceWorld } from "./hook.ts";
+import type {
+  CaptureScenario,
+  EvidenceHookCase,
+  EvidenceWorld,
+} from "./hook.ts";
 import { resolveEvidenceScenario } from "./resolve.ts";
-import { parseEvidenceDeclarations } from "./schema.ts";
+import {
+  type EvidenceCaptureDeclaration,
+  parseEvidenceDeclarations,
+} from "./schema.ts";
+import { defineLoopbackServer, type LoopbackServer } from "./server.ts";
 import { storeEvidenceCss } from "./style.ts";
 
 /** Per-page capture timeout. The After hook has EVIDENCE_HOOK_TIMEOUT_MS
@@ -26,36 +34,26 @@ import { storeEvidenceCss } from "./style.ts";
  * count small enough to fit within it as EVIDENCE_CAPTURES grows. */
 const CAPTURE_TIMEOUT_MS = 60_000;
 
-interface LoopbackServer {
-  baseUrl: string;
-  close: () => Promise<void>;
+interface EvidenceCaptureDependencies {
+  capturePage: (
+    page: Page,
+    elementSelector?: string,
+  ) => Promise<{ png: Uint8Array }>;
+  declarations: readonly EvidenceCaptureDeclaration[];
+  getCookie: () => Promise<string>;
+  launchBrowser: () => Promise<Browser>;
+  readCatalog: () => Promise<SpecCatalog>;
+  startServer: () => LoopbackServer;
+  waitForPage: (page: Page) => Promise<void>;
+  writeCss: (css: string) => Promise<void>;
 }
-
-const startLoopbackServer = (): LoopbackServer => {
-  const server = Deno.serve(
-    { hostname: "127.0.0.1", onListen: () => {}, port: 0 },
-    serveHandler,
-  );
-  const address = server.addr;
-  if (address.transport !== "tcp") {
-    throw new Error("Evidence server did not open a TCP port");
-  }
-  return {
-    baseUrl: `http://127.0.0.1:${address.port}`,
-    close: async () => {
-      await server.shutdown();
-      await server.finished;
-    },
-  };
-};
 
 const browserCookie = async (
   baseUrl: string,
+  getCookie: () => Promise<string>,
 ): Promise<{ name: string; url: string; value: string }> => {
-  const pair = requireValue(
-    (await testCookie()).split(";", 1)[0],
-    "Test owner cookie is missing",
-  );
+  const [pair] = (await getCookie()).split(";", 1);
+  if (!pair) throw new Error("Test owner cookie is malformed");
   const splitAt = pair.indexOf("=");
   if (splitAt < 1 || splitAt === pair.length - 1) {
     throw new Error("Test owner cookie is malformed");
@@ -94,11 +92,12 @@ const captureProfile = async (
   browser: Browser,
   baseUrl: string,
   world: EvidenceWorld,
-  declaration: (typeof EVIDENCE_CAPTURES)[number],
+  declaration: EvidenceCaptureDeclaration,
   profileName: keyof typeof SCREENSHOT_PROFILES,
+  dependencies: EvidenceCaptureDependencies,
 ): Promise<void> => {
   const profile = SCREENSHOT_PROFILES[profileName];
-  await storeEvidenceCss(declaration, settings.update.customCss);
+  await storeEvidenceCss(declaration, dependencies.writeCss);
   const context = await browser.newContext({
     baseURL: baseUrl,
     ...screenshotContextOptions(profile),
@@ -106,18 +105,18 @@ const captureProfile = async (
   const blocked = new Set<string>();
   try {
     await blockOutboundRequests(context, baseUrl, blocked);
-    await context.addCookies([await browserCookie(baseUrl)]);
+    await context.addCookies([
+      await browserCookie(baseUrl, dependencies.getCookie),
+    ]);
     const page = await context.newPage();
     page.setDefaultTimeout(CAPTURE_TIMEOUT_MS);
     await page.goto(
       resolveEvidencePath(declaration.path, world.evidenceValues),
-      {
-        waitUntil: "domcontentloaded",
-      },
+      { waitUntil: "domcontentloaded" },
     );
-    await waitForScreenshotPage(page);
+    await dependencies.waitForPage(page);
+    const { png } = await dependencies.capturePage(page, declaration.element);
     assertNoBlockedRequests(blocked);
-    const { png } = await capturePreparedPage(page, declaration.element);
     await world.attach(Buffer.from(png), {
       fileName: `${declaration.id}--${profile.name}.png`,
       mediaType: "image/png",
@@ -127,48 +126,59 @@ const captureProfile = async (
   }
 };
 
-export const captureCurrentScenarioEvidence = async (
-  world: EvidenceWorld,
-  hook: EvidenceHookCase,
-): Promise<void> => {
-  const catalog = await readSpecCatalog();
-  const declarations = parseEvidenceDeclarations(EVIDENCE_CAPTURES, catalog);
-  const scenario = resolveEvidenceScenario(
-    catalog,
-    hook.gherkinDocument,
-    hook.pickle,
-  );
-  const selected = declarations.filter(
-    ({ caseId }) => caseId === scenario.case.id,
-  );
-  if (selected.length === 0) {
-    throw new Error(
-      `No evidence capture declared for @case:${scenario.case.id}`,
+export const defineEvidenceCapture =
+  (dependencies: EvidenceCaptureDependencies): CaptureScenario =>
+  async (world: EvidenceWorld, hook: EvidenceHookCase) => {
+    const catalog = await dependencies.readCatalog();
+    const declarations = parseEvidenceDeclarations(
+      dependencies.declarations,
+      catalog,
     );
-  }
-  const server = startLoopbackServer();
-  let browser: Browser | undefined;
-  try {
-    browser = await launchScreenshotChromium(
-      chromium,
-      await chromiumExecutable(),
+    const scenario = resolveEvidenceScenario(
+      catalog,
+      hook.gherkinDocument,
+      hook.pickle,
     );
-    for (const declaration of selected) {
-      for (const profile of declaration.profiles) {
-        await captureProfile(
-          browser,
-          server.baseUrl,
-          world,
-          declaration,
-          profile,
-        );
+    const selected = declarations.filter(
+      ({ caseId }) => caseId === scenario.case.id,
+    );
+    if (selected.length === 0) {
+      throw new Error(
+        `No evidence capture declared for @case:${scenario.case.id}`,
+      );
+    }
+    const server = dependencies.startServer();
+    let browser: Browser | undefined;
+    try {
+      browser = await dependencies.launchBrowser();
+      for (const declaration of selected) {
+        for (const profile of declaration.profiles) {
+          await captureProfile(
+            browser,
+            server.baseUrl,
+            world,
+            declaration,
+            profile,
+            dependencies,
+          );
+        }
+      }
+    } finally {
+      try {
+        await browser?.close();
+      } finally {
+        await server.close();
       }
     }
-  } finally {
-    try {
-      await browser?.close();
-    } finally {
-      await server.close();
-    }
-  }
-};
+  };
+
+export const captureCurrentScenarioEvidence = defineEvidenceCapture({
+  capturePage: capturePreparedPage,
+  declarations: EVIDENCE_CAPTURES,
+  getCookie: testCookie,
+  launchBrowser: defineScreenshotBrowserLauncher(chromium, chromiumExecutable),
+  readCatalog: readSpecCatalog,
+  startServer: defineLoopbackServer(serveHandler),
+  waitForPage: waitForScreenshotPage,
+  writeCss: settings.update.customCss,
+});

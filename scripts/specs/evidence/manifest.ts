@@ -230,7 +230,7 @@ export const buildEvidenceBundle = async (
   return { assets, manifest };
 };
 
-export const evidenceManifestJson = (manifest: EvidenceManifest): string =>
+const evidenceManifestJson = (manifest: EvidenceManifest): string =>
   `${JSON.stringify(manifest, null, 2)}\n`;
 
 export const clearEvidenceOutput = async (outputDir: string): Promise<void> => {

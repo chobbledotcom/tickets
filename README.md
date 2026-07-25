@@ -322,15 +322,19 @@ deno task screenshot dashboard --social all
 `deno task specs:evidence` runs only Cucumber cases that declare evidence. It
 runs them one at a time and captures each declared final page before that
 scenario's test database is removed. Normal `specs` and `test` runs do not start
-Chromium.
+Chromium. Commit local changes before running it: the task refuses a dirty Git
+worktree so the manifest cannot name a commit that differs from the captured
+code.
 
 The task writes a versioned `reports/evidence/manifest.json` and PNG files under
 `reports/evidence/assets/`. The manifest uses the authored story, rule, case,
 and capture IDs. It includes the app commit, image hash and dimensions, browser
 profile, viewport, and presentation type. Raw Cucumber messages and reports are
-not part of this evidence folder. The app workflow uploads this folder as the
-stable `tickets-evidence` artifact. The Tickets website imports that artifact
-into a reviewed pull request and keeps its ordinary site build offline.
+not part of this evidence folder. The app workflow verifies the capture on pull
+requests. Main pushes and a monthly refresh upload this folder as the stable
+`tickets-evidence` artifact, keeping it available within GitHub's retention
+window. The Tickets website imports that artifact into a reviewed pull request
+and keeps its ordinary site build offline.
 
 
 ```bash

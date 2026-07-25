@@ -697,7 +697,7 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task test:coverage` - Run the full suite with coverage
 - `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
 - `deno task specs` - Run every Cucumber Feature through the shared test harness and write ignored Messages, HTML, and JUnit reports under `reports/`
-- `deno task specs:evidence` - Run only cases with declared screenshot captures, one at a time, and write the versioned manifest plus PNG assets under `reports/evidence/`
+- `deno task specs:evidence` - Run only cases with declared screenshot captures, one at a time, and write the versioned manifest plus PNG assets under `reports/evidence/`; the task requires a clean Git worktree so the manifest commit matches the captured code
 - `deno task specs:check` - Parse every Feature and validate the strict authored profile and stable catalog
 - `deno task specs:files <feature>... [--tags <expression>]` - Run selected Features through the shared harness
 - `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
