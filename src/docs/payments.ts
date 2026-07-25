@@ -1,7 +1,7 @@
 /**
- * Payment processing with Stripe and Square.
+ * Payment processing with Stripe, Square, and SumUp.
  *
- * A provider-agnostic payment interface with adapters for Stripe and Square.
+ * A provider-agnostic payment interface with adapters for all three providers.
  * Handles checkout sessions, webhook verification, refunds, and
  * idempotent payment processing.
  *

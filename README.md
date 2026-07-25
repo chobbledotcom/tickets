@@ -211,12 +211,12 @@ Prices are in the smallest currency unit (e.g. pence, cents). For multi-listing 
   - Public key encrypts on submission (no auth needed)
   - Private key only available to authenticated admin sessions
   - A database dump alone is not sufficient to recover PII - an attacker would also need the encryption key from the environment
-- **AES-256-GCM** for payment IDs, prices, check-in status, API keys, holiday names, usernames
+- **AES-256-GCM** for payment references, API credentials, and selected configuration fields
 - **PBKDF2** (600k iterations, SHA-256) for password hashing
 - Three-layer key hierarchy: env var root key → RSA key pair → per-user wrapped data keys
 - The data key is wrapped with a key derived from the admin password (never stored), so a database dump plus the environment key still can't decrypt PII without a login
 - Activity log entries are encrypted with the owner's public key: unauthenticated code (webhooks, error handlers) can write them, but only a logged-in admin can read them
-- If you lose the password, the data is permanently unreadable - there is no backdoor
+- If no other keyed owner or recovery owner exists, losing the last keyed password makes the protected data unreadable
 
 ### Concurrency
 
@@ -398,11 +398,11 @@ See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~
 
 - **Runtime**: Deno - runs standalone, via Docker, or on Bunny Edge Scripting
 - **Database**: libsql (local SQLite or remote Turso)
-- **Payments**: Stripe, Square
+- **Payments**: Stripe, Square, SumUp
 - **Build**: esbuild, single-file output
 - **Templates**: Server-rendered JSX
 - **Crypto**: Web Crypto API (AES-256-GCM, RSA-OAEP, PBKDF2)
 
 ## License
 
-AGPLv3 - developed by [Chobble CIC](https://chobble.com), a community interest company.
+AGPL-3.0-only - developed by [Chobble CIC](https://chobble.com), a community interest company.
