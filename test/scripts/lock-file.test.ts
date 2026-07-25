@@ -61,6 +61,22 @@ const releaseHolder = async (child: Deno.ChildProcess): Promise<void> => {
   await child.status;
 };
 
+const stubOpenedFile = (change: (file: Deno.FsFile) => void) => {
+  const open = Deno.open;
+  return stub(
+    Deno,
+    "open",
+    async (
+      path: string | URL,
+      options?: Deno.OpenOptions,
+    ): Promise<Deno.FsFile> => {
+      const file = await open(path, options);
+      change(file);
+      return file;
+    },
+  );
+};
+
 describe("withFileLock", () => {
   beforeEach(() => removeIfPresent(LOCK_PATH));
   afterEach(() => removeIfPresent(LOCK_PATH));
@@ -76,23 +92,13 @@ describe("withFileLock", () => {
     await waitUntilLocked(holder);
 
     const lockAttempted = Promise.withResolvers<void>();
-    const open = Deno.open;
-    const openStub = stub(
-      Deno,
-      "open",
-      async (
-        path: string | URL,
-        options?: Deno.OpenOptions,
-      ): Promise<Deno.FsFile> => {
-        const file = await open(path, options);
-        const lock = file.lock.bind(file);
-        file.lock = (exclusive?: boolean): Promise<void> => {
-          lockAttempted.resolve();
-          return lock(exclusive);
-        };
-        return file;
-      },
-    );
+    const openStub = stubOpenedFile((file) => {
+      const lock = file.lock.bind(file);
+      file.lock = (exclusive?: boolean): Promise<void> => {
+        lockAttempted.resolve();
+        return lock(exclusive);
+      };
+    });
 
     let ran = false;
     let waiting: Promise<void> = Promise.resolve();
@@ -109,6 +115,43 @@ describe("withFileLock", () => {
 
     await waiting;
     expect(ran).toBe(true);
+  });
+
+  test("waits for unlock before closing and returning", async () => {
+    const unlockStarted = Promise.withResolvers<void>();
+    const releaseUnlock = Promise.withResolvers<void>();
+    let closed = false;
+    const openStub = stubOpenedFile((file) => {
+      const close = file.close.bind(file);
+      file.unlock = () => {
+        unlockStarted.resolve();
+        return releaseUnlock.promise;
+      };
+      file.close = () => {
+        closed = true;
+        close();
+      };
+    });
+
+    let settled = false;
+    const result = withFileLock(LOCK_PATH, () =>
+      Promise.resolve("checked"),
+    ).finally(() => {
+      settled = true;
+    });
+
+    try {
+      await unlockStarted.promise;
+      expect(settled).toBe(false);
+      expect(closed).toBe(false);
+    } finally {
+      releaseUnlock.resolve();
+      await result;
+      openStub.restore();
+    }
+
+    expect(closed).toBe(true);
+    await expect(result).resolves.toBe("checked");
   });
 
   test("acquires after a holder exits without unlocking", async () => {

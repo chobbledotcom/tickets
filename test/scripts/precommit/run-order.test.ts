@@ -50,4 +50,23 @@ describe("runChecksBeforePush", () => {
 
     expect(events).toEqual(["checks", "push"]);
   });
+
+  test("does not push when checks fail", async () => {
+    const failure = new Error("Checks failed");
+    let pushed = false;
+
+    await expect(
+      runChecksBeforePush(
+        false,
+        () => Promise.reject(failure),
+        () => {
+          pushed = true;
+          return Promise.resolve();
+        },
+        (checks) => checks(),
+      ),
+    ).rejects.toBe(failure);
+
+    expect(pushed).toBe(false);
+  });
 });
