@@ -22,6 +22,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   adminPost,
   assertAdmin404,
+  assertRedirectPathname,
   assertServicingId404sEverywhere,
   createRealAttendee,
   createServicingHold,
@@ -87,10 +88,7 @@ describeWithEnv(
     test("POST /admin/servicing/:id/delete redirects to the dashboard on success", async () => {
       const { id } = await createServicingHold();
       const response = await adminPost(`/admin/servicing/${id}/delete`, {});
-      expect(response.status).toBe(302);
-      expect(
-        new URL(response.headers.get("location")!, "http://x").pathname,
-      ).toBe("/admin/");
+      assertRedirectPathname(response, "/admin/");
       expect(await getServicingEvent(id)).toBeNull();
     });
 
@@ -110,10 +108,13 @@ describeWithEnv(
       expect(match).not.toBeNull();
       const copyId = Number(match![1]);
       expect(copyId).toBeGreaterThan(id);
+      assertRedirectPathname(response, `/admin/servicing/${copyId}`);
       const copy = await getServicingEvent(copyId);
       expect(copy).not.toBeNull();
       expect(copy!.name).toBe("Original");
-      expect(copy!.bookings[0]?.listingId).toBe(listing.id);
+      const firstBooking = copy!.bookings[0];
+      expect(firstBooking).toBeDefined();
+      expect(firstBooking!.listingId).toBe(listing.id);
     });
 
     test("POST /admin/servicing/:id/cost/:costId 404s for a missing cost id", async () => {

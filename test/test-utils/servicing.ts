@@ -303,6 +303,18 @@ export const assertRedirectTo = (response: Response, path: string): void => {
   expect(response.headers.get("location")).toContain(path);
 };
 
+/** Assert a 302 response's redirect pathname (ignoring flash query params)
+ *  equals `expected`. Throws contextually if the Location header is missing. */
+export const assertRedirectPathname = (
+  response: Response,
+  expected: string,
+): void => {
+  expect(response.status).toBe(302);
+  const location = response.headers.get("location");
+  expect(location).not.toBeNull();
+  expect(new URL(location!, "http://x").pathname).toBe(expected);
+};
+
 /** POST an admin form as the logged-in test owner and return the response
  *  (for status/body assertions). Replaces the per-test `handleRequest` +
  *  `mockFormRequest` + `getTestSession` dance. */

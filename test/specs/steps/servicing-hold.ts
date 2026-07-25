@@ -12,6 +12,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminPost,
+  assertRedirectPathname,
   createServicingEvent,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
@@ -131,7 +132,7 @@ When(
   "the organiser records a cost of 90.00 for Boiler Service",
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
-    await submitRenderedForm(
+    const response = await submitRenderedForm(
       `/admin/servicing/${id}`,
       "Record service event cost",
       {
@@ -139,6 +140,7 @@ When(
         memo: "Boiler part",
       },
     );
+    assertRedirectPathname(response, `/admin/servicing/${id}`);
   },
 );
 
