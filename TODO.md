@@ -1349,10 +1349,12 @@ the customer never returns to the redirect URL — a paid checkout stays in the
 
 Add a scheduled task that polls outstanding staged SumUp checkouts whose
 status is not yet terminal and finalizes any the SumUp API reports as `PAID`
-by calling the same `retrieveSession` → `classifySessionIntent` →
-`completePaidBooking` path the redirect return uses. In lieu of a trustworthy
-webhook, this scheduled poll is the reliable fallback. It should reuse the
-existing scheduled-task mechanism (`src/shared/site-scheduler.ts`,
+through the same `validatePaidSession` → `processPaymentSession` path the
+redirect return uses. The shared processor owns reservation, conflict handling,
+booking, refund, and replay behavior, so the scheduled task must not call
+`completePaidBooking` directly. In lieu of a trustworthy webhook, this
+scheduled poll is the reliable fallback. It should reuse the existing
+scheduled-task mechanism (`src/shared/site-scheduler.ts`,
 `src/shared/maintenance/runner.ts`) and stay within the per-request edge
 subrequest budget, so bound each run to a page of staged checkouts and let the
 next tick continue. Cover it with a regression test that stages a
