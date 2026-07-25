@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { ListingColumnKey } from "#shared/tables/configurable.ts";
 import { columnOrThrow } from "#shared/tables/definition.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
@@ -10,7 +11,10 @@ import {
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
-const rawValue = (key: string, listing: ListingWithCount): unknown => {
+const rawValue = (
+  key: ListingColumnKey,
+  listing: ListingWithCount,
+): unknown => {
   const read = columnOrThrow(listingTable, key).rawValue;
   if (read === undefined) throw new Error(`Column ${key} has no raw value`);
   return read(listing, undefined);
@@ -37,17 +41,18 @@ describe("listingTable", () => {
     });
 
     expect(
-      [
-        "name",
-        "tickets",
-        "revenue",
-        "cost",
-        "profit",
-        "date",
-        "price",
-        "renewal",
-      ].map((key) => rawValue(key, listing)),
-    ).toEqual(["Gala", 7, 1200, 200, 1000, "2026-04-10", 450, 12]);
+      (
+        [
+          "tickets",
+          "revenue",
+          "cost",
+          "profit",
+          "date",
+          "price",
+          "renewal",
+        ] as const
+      ).map((key) => rawValue(key, listing)),
+    ).toEqual([7, 1200, 200, 1000, "2026-04-10", 450, 12]);
   });
 
   test("returns an empty raw date when the listing has no date", () => {
@@ -85,6 +90,38 @@ describe("listingTable", () => {
     expect(html).toContain("<th>Location</th>");
     expect(html).toContain("<td>Town Hall</td>");
     expect(html).not.toContain("Listing name");
+  });
+
+  test("marks inactive listing rows", () => {
+    const html = String(
+      renderListingsTableSection({
+        emptyText: "None",
+        listings: [testListingWithCount({ active: false, name: "Past" })],
+      }),
+    );
+
+    expect(html).toContain('<tr class="inactive-row">');
+  });
+
+  test("keeps the linked thumbnail when a name filter is present", () => {
+    const html = String(
+      renderListingsTableSection({
+        columnKeys: ["name"],
+        emptyText: "None",
+        filters: new Map([["name", "name | upcase"]]),
+        listings: [
+          testListingWithCount({
+            id: 7,
+            image_url: "https://example.com/gala.jpg",
+            name: "Gala",
+          }),
+        ],
+      }),
+    );
+
+    expect(html).toContain("listing-thumbnail");
+    expect(html).toContain('<a href="/admin/listing/7">Gala</a>');
+    expect(html).not.toContain(">GALA<");
   });
 
   test("uses the requested CSV export path", () => {

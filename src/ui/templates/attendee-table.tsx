@@ -9,9 +9,8 @@
  * in the visible rows (email when nobody has one, phone likewise) so a saved
  * layout never produces a column of blanks.
  *
- * The pure layout metadata (column keys, default order, layout parser) lives
- * in `#shared/tables/attendee-layout.ts` so `settings.ts` can parse a saved
- * template without importing this UI module.
+ * The pure layout schema lives in `#shared/tables/configurable.ts`, so settings
+ * code can parse saved templates without importing this UI module.
  */
 
 import { sort } from "#fp";
@@ -28,15 +27,21 @@ import { nonBlankLines } from "#shared/lines.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
-import { ATTENDEE_COLUMN_KEYS } from "#shared/tables/attendee-layout.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import {
+  type AttendeeColumnKey,
+  configurableTableLayouts,
+} from "#shared/tables/configurable.ts";
+import {
+  attachTableRenderers,
+  type TableColumn,
+} from "#shared/tables/definition.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import type { AttendeeTableRow, DisplayAttendee } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
+import { Badge } from "#templates/components/badge.tsx";
 import { renderTable, tableColumnText } from "#templates/components/table.tsx";
 
 export type { AttendeeTableRow } from "#shared/types.ts";
-export type { TableLayout as AttendeeColumnLayout };
 
 /** Question data for displaying answers in the attendee table. */
 export type TableQuestionData = AttendeeQuestionData;
@@ -55,7 +60,10 @@ export type AttendeeColumnOpts = {
   questionData?: TableQuestionData | undefined;
 };
 
-type AttendeeCol = TableColumn<AttendeeTableRow, AttendeeColumnOpts>;
+type AttendeeRenderer = Omit<
+  TableColumn<AttendeeTableRow, AttendeeColumnOpts, AttendeeColumnKey>,
+  "key"
+>;
 
 // ---------------------------------------------------------------------------
 // Cell helpers
@@ -138,7 +146,7 @@ export const buildAnswerMaps = (
 // Column definitions
 // ---------------------------------------------------------------------------
 
-const name: AttendeeCol = {
+const name: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.name.label"),
     () => t("admin.attendee_table.column.name.description"),
@@ -146,11 +154,9 @@ const name: AttendeeCol = {
   cell: (row) => (
     <a href={attendeeAdminPath(row.attendee)}>{row.attendee.name}</a>
   ),
-  key: "name",
-  rawValue: (row) => row.attendee.name,
 };
 
-const listings: AttendeeCol = {
+const listings: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.listings.label"),
     () => t("admin.attendee_table.column.listings.description"),
@@ -169,29 +175,26 @@ const listings: AttendeeCol = {
       </span>
     );
   },
-  key: "listings",
 };
 
-const date: AttendeeCol = {
+const date: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.date.label"),
     () => t("admin.attendee_table.column.date.description"),
   ),
   cell: (row) => (row.attendee.date ? formatDateLabel(row.attendee.date) : ""),
-  key: "date",
   rawValue: (row) => row.attendee.date || "",
 };
 
-const email: AttendeeCol = {
+const email: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.email.label"),
     () => t("admin.attendee_table.column.email.description"),
   ),
   cell: (row) => row.attendee.email || "",
-  key: "email",
 };
 
-const phone: AttendeeCol = {
+const phone: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.phone.label"),
     () => t("admin.attendee_table.column.phone.description"),
@@ -201,29 +204,26 @@ const phone: AttendeeCol = {
     const normalized = normalizePhone(row.attendee.phone, opts.phonePrefix);
     return <a href={`tel:${normalized}`}>{row.attendee.phone}</a>;
   },
-  key: "phone",
 };
 
-const address: AttendeeCol = {
+const address: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.address.label"),
     () => t("admin.attendee_table.column.address.description"),
   ),
   cell: (row) => formatAddressInline(row.attendee.address || ""),
-  key: "address",
 };
 
-const special_instructions: AttendeeCol = {
+const special_instructions: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.special_instructions.label"),
     () => t("admin.attendee_table.column.special_instructions.description"),
   ),
   cell: (row) =>
     formatInstructionsInline(row.attendee.special_instructions || ""),
-  key: "special_instructions",
 };
 
-const answers: AttendeeCol = {
+const answers: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.answers.label"),
     () => t("admin.attendee_table.column.answers.description"),
@@ -238,18 +238,15 @@ const answers: AttendeeCol = {
     return <span title={tooltip}>{short}</span>;
   },
   className: "answers-cell",
-  key: "answers",
 };
 
-const qty: AttendeeCol = {
+const qty: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.qty.label"),
     () => t("admin.attendee_table.column.qty.description"),
   ),
   cell: (row) => String(row.attendee.quantity),
   class: "quantity",
-  key: "qty",
-  rawValue: (row) => row.attendee.quantity,
 };
 
 /** The "No quantity" indicator — a no-quantity sentinel row has no live
@@ -260,7 +257,7 @@ const noQuantityIndicator = (): JSX.Element => (
   <span class="muted small">{t("admin.attendee_table.no_quantity")}</span>
 );
 
-const ticket: AttendeeCol = {
+const ticket: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.ticket.label"),
     () => t("admin.attendee_table.column.ticket.description"),
@@ -280,20 +277,18 @@ const ticket: AttendeeCol = {
       </a>
     );
   },
-  key: "ticket",
 };
 
-const registered: AttendeeCol = {
+const registered: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.registered.label"),
     () => t("admin.attendee_table.column.registered.description"),
   ),
   cell: (row) => formatDatetimeShort(row.attendee.created),
-  key: "registered",
   rawValue: (row) => row.attendee.created,
 };
 
-const status: AttendeeCol = {
+const status: AttendeeRenderer = {
   ...tableColumnText(
     () => t("admin.attendee_table.column.status.label"),
     () => t("admin.attendee_table.column.status.description"),
@@ -302,28 +297,28 @@ const status: AttendeeCol = {
   cell: (row, opts) => opts.renderStatus(row),
   className: "actions-col",
   headerClassName: "actions-col",
-  key: "status",
 };
 
 /** The attendee table definition — every column, with the layout keys the
  *  operator's saved template may reference. */
-export const attendeeTable = defineTable<AttendeeTableRow, AttendeeColumnOpts>(
-  [
-    status,
-    date,
-    name,
-    listings,
-    email,
-    phone,
-    address,
-    special_instructions,
-    answers,
-    qty,
-    ticket,
-    registered,
-  ],
-  { configKeys: ATTENDEE_COLUMN_KEYS, defaultColumnKeys: ATTENDEE_COLUMN_KEYS },
-);
+export const attendeeTable = attachTableRenderers<
+  AttendeeTableRow,
+  AttendeeColumnOpts,
+  AttendeeColumnKey
+>(configurableTableLayouts.attendee, {
+  address,
+  answers,
+  date,
+  email,
+  listings,
+  name,
+  phone,
+  qty,
+  registered,
+  special_instructions,
+  status,
+  ticket,
+});
 
 // ---------------------------------------------------------------------------
 // Column visibility
@@ -472,9 +467,9 @@ const createStatusRenderer =
     }
     if (a.refunded) {
       return (
-        <span class="muted small">
+        <Badge variant="alert">
           {t("admin.attendee_table.refunded_badge")}
-        </span>
+        </Badge>
       );
     }
     return CheckinButton({
@@ -525,5 +520,9 @@ export const AttendeeTable = (opts: AttendeeTableOptions): JSX.Element => {
     empty: opts.emptyMessage ?? t("admin.attendee_table.no_attendees"),
     filters: layout.filters,
     hiddenKeys,
+    rowAttrs: (row) =>
+      isServicing(row.attendee.kind)
+        ? { class: "servicing-event", "data-servicing": "true" }
+        : {},
   });
 };

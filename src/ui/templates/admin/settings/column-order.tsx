@@ -9,20 +9,17 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { listingTable } from "#templates/admin/listing-table.tsx";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
+import type { TableLayoutDefinition } from "#shared/tables/layout.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { attendeeTable } from "#templates/attendee-table.tsx";
 import { textSettingsSection } from "#templates/components/settings-field-section.tsx";
 
 /* jscpd:ignore-end */
 
-const listingDefault = listingTable.defaultTemplate;
-const attendeeDefault = attendeeTable.defaultTemplate;
-
 /** Shape describing a configurable-columns table for the column-order form:
  *  a typed `columns` array the form reads available keys from. */
 type ConfigurableColumns = {
-  columns: readonly { key: string }[];
+  keys: readonly string[];
 };
 
 /** Render available column tags as helper text */
@@ -33,7 +30,7 @@ const AvailableTags = ({
 }): JSX.Element => (
   <small>
     {t("settings.column_order.available")}{" "}
-    {columns.columns.map((c) => `{{${c.key}}}`).join(", ")}
+    {columns.keys.map((key) => `{{${key}}}`).join(", ")}
   </small>
 );
 
@@ -43,7 +40,7 @@ type ColumnOrderConfig = {
   submitLabelKey: string;
   titleKey: string;
   placeholder: string;
-  columns: ConfigurableColumns;
+  columns: TableLayoutDefinition;
   getValue: (s: AdvancedSettingsPageState) => string;
 };
 
@@ -68,20 +65,20 @@ const columnOrderForm = (cfg: ColumnOrderConfig) =>
 
 export const ListingColumnOrderForm = columnOrderForm({
   action: "/admin/settings/listing-column-order",
-  columns: listingTable,
+  columns: configurableTableLayouts.listing,
   descriptionKey: "settings.column_order.listing_desc",
   getValue: (s) => s.listingColumnOrder,
-  placeholder: listingDefault,
+  placeholder: configurableTableLayouts.listing.defaultTemplate,
   submitLabelKey: "settings.column_order.listing_submit",
   titleKey: "settings.column_order.listing_title",
 });
 
 export const AttendeeColumnOrderForm = columnOrderForm({
   action: "/admin/settings/attendee-column-order",
-  columns: attendeeTable,
+  columns: configurableTableLayouts.attendee,
   descriptionKey: "settings.column_order.attendee_desc",
   getValue: (s) => s.attendeeColumnOrder,
-  placeholder: attendeeDefault,
+  placeholder: configurableTableLayouts.attendee.defaultTemplate,
   submitLabelKey: "settings.column_order.attendee_submit",
   titleKey: "settings.column_order.attendee_title",
 });

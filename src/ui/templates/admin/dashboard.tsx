@@ -46,7 +46,6 @@ import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx"
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 
 export { editorListingTable, listingTable };
-export type ListingColumnLayout = TableLayout;
 
 /** Keeps only the listings that are still active. */
 const activeOnly = filter((e: ListingWithCount) => e.active);
@@ -222,7 +221,7 @@ export const adminDashboardPage = (
   newestAttendees: DisplayAttendee[] = [],
   successMessage?: string,
   stats?: ActiveListingStats | null,
-  listingColumnLayout?: ListingColumnLayout,
+  listingColumnLayout?: TableLayout,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
   unbookableIds: ReadonlySet<number> = new Set(),
@@ -230,7 +229,7 @@ export const adminDashboardPage = (
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   const { columnKeys, filters } =
-    listingColumnLayout ?? listingTable.defaultLayout;
+    listingColumnLayout ?? listingTable.layout.defaultLayout;
 
   // Type filter narrows the listing table only; the stats, multi-booking, and
   // newest-attendee sections below stay based on the full set. Offer the bar
@@ -308,7 +307,7 @@ export const adminDashboardPage = (
 export const adminListingsPage = (
   listings: ListingWithCount[],
   session: AdminSession,
-  listingColumnLayout?: ListingColumnLayout,
+  listingColumnLayout?: TableLayout,
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   // Editors see a money-free, edit-linked table on a fixed order (their saved
@@ -317,8 +316,8 @@ export const adminListingsPage = (
   const isEditor = session.adminLevel === "editor";
   const table = isEditor ? editorListingTable : listingTable;
   const { columnKeys, filters } = isEditor
-    ? table.defaultLayout
-    : (listingColumnLayout ?? table.defaultLayout);
+    ? table.layout.defaultLayout
+    : (listingColumnLayout ?? table.layout.defaultLayout);
   const activeListings = activeOnly(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,

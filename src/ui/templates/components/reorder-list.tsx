@@ -18,7 +18,7 @@ import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
-import { renderReorderTable } from "#templates/components/table.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -46,7 +46,7 @@ const itemsOrEmptyReorderTable = <T,>(
   columns: readonly TableColumn<T>[],
 ): JSX.Element =>
   itemsOrEmptyNote(items, emptyText, (rows) =>
-    renderReorderTable(defineTable(columns), options, rows),
+    renderTable(defineTable(columns), rows, { reorder: options }),
   );
 
 /** A reorderable detail-page table: a text column then a quantity column, each

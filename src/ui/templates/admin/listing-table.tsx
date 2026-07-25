@@ -10,25 +10,32 @@
  * Editors see a fixed, money-free variant (`editorListingTable`) whose name
  * column links to the edit form rather than the staff-only detail page.
  *
- * The pure layout metadata (column keys, default order, layout parser) lives
- * in `#shared/tables/listing-layout.ts` so `settings.ts` can parse a saved
- * template without importing this UI module.
+ * The pure layout schema lives in `#shared/tables/configurable.ts`, so settings
+ * code can parse saved templates without importing this UI module.
  */
 
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import {
-  LISTING_COLUMN_KEYS,
-  LISTING_DEFAULT_COLUMN_KEYS,
-} from "#shared/tables/listing-layout.ts";
+  configurableTableLayouts,
+  type ListingColumnKey,
+} from "#shared/tables/configurable.ts";
+import {
+  attachTableRenderers,
+  columnOrThrow,
+  defineTable,
+  type TableColumn,
+} from "#shared/tables/definition.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable, tableColumnText } from "#templates/components/table.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
-type ListingCol = TableColumn<ListingWithCount>;
+type ListingRenderer = Omit<
+  TableColumn<ListingWithCount, void, ListingColumnKey>,
+  "key"
+>;
 
 // ---------------------------------------------------------------------------
 // Column definitions
@@ -44,132 +51,119 @@ const nameCell = (e: ListingWithCount, href: string): JSX.Element => (
   </>
 );
 
-const name: ListingCol = {
+const name: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.name.label"),
     () => t("listings_table.column.name.description"),
     () => t("listings_table.column.name.header"),
   ),
   cell: (e) => nameCell(e, `/admin/listing/${e.id}`),
-  key: "name",
-  rawValue: (e) => e.name,
 };
 
 /** Editor variant: links to the edit form instead of the staff-only detail page. */
-const editorName: ListingCol = {
+const editorName: ListingRenderer = {
   ...name,
   cell: (e) => nameCell(e, `/admin/listing/${e.id}/edit`),
 };
 
-const description: ListingCol = {
+const description: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.description.label"),
     () => t("listings_table.column.description.description"),
   ),
   cell: (e) => e.description,
   className: "cell-description",
-  key: "description",
 };
 
-const status: ListingCol = {
+const status: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.status.label"),
     () => t("listings_table.column.status.description"),
   ),
   cell: (e) => (e.active ? t("common.active") : t("common.inactive")),
-  key: "status",
 };
 
-const attendees: ListingCol = {
+const attendees: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.attendees.label"),
     () => t("listings_table.column.attendees.description"),
   ),
   cell: (e) => `${e.attendee_count} / ${e.max_attendees}`,
-  key: "attendees",
 };
 
-const tickets: ListingCol = {
+const tickets: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.tickets.label"),
     () => t("listings_table.column.tickets.description"),
   ),
   cell: (e) => String(e.tickets_count),
-  key: "tickets",
   rawValue: (e) => e.tickets_count,
 };
 
-const revenue: ListingCol = {
+const revenue: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.revenue.label"),
     () => t("listings_table.column.revenue.description"),
   ),
   cell: (e) => formatCurrency(e.income),
-  key: "revenue",
   rawValue: (e) => e.income,
 };
 
-const cost: ListingCol = {
+const cost: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.cost.label"),
     () => t("listings_table.column.cost.description"),
   ),
   cell: (e) => formatCurrency(e.cost),
-  key: "cost",
   rawValue: (e) => e.cost,
 };
 
-const profit: ListingCol = {
+const profit: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.profit.label"),
     () => t("listings_table.column.profit.description"),
   ),
   cell: (e) => formatCurrency(e.profit),
-  key: "profit",
   rawValue: (e) => e.profit,
 };
 
-const created: ListingCol = {
+const created: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.created.label"),
     () => t("listings_table.column.created.description"),
   ),
   cell: (e) => new Date(e.created).toLocaleDateString(),
-  key: "created",
   rawValue: (e) => e.created,
 };
 
-const date: ListingCol = {
+const date: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.date.label"),
     () => t("listings_table.column.date.description"),
   ),
   cell: (e) => (e.date ? new Date(e.date).toLocaleDateString() : ""),
-  key: "date",
   rawValue: (e) => e.date || "",
 };
 
-const location: ListingCol = {
+const location: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.location.label"),
     () => t("listings_table.column.location.description"),
   ),
   cell: (e) => e.location,
-  key: "location",
 };
 
-const price: ListingCol = {
+const price: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.price.label"),
     () => t("listings_table.column.price.description"),
   ),
   cell: (e) =>
     e.unit_price > 0 ? String(e.unit_price) : t("listings_table.free"),
-  key: "price",
   rawValue: (e) => e.unit_price,
 };
 
-const renewal: ListingCol = {
+const renewal: ListingRenderer = {
   ...tableColumnText(
     () => t("listings_table.column.renewal.label"),
     () => t("listings_table.column.renewal.description"),
@@ -180,7 +174,6 @@ const renewal: ListingCol = {
           months: e.months_per_unit,
         })
       : "",
-  key: "renewal",
   rawValue: (e) => e.months_per_unit,
 };
 
@@ -190,36 +183,33 @@ const renewal: ListingCol = {
 
 /** The staff listing table — 9 default columns plus 4 extras the operator
  *  may add via a saved column template. */
-export const listingTable = defineTable(
-  [
-    name,
-    description,
-    status,
+export const listingTable = attachTableRenderers(
+  configurableTableLayouts.listing,
+  {
     attendees,
-    tickets,
-    revenue,
     cost,
-    profit,
     created,
     date,
+    description,
     location,
+    name,
     price,
+    profit,
     renewal,
-  ],
-  {
-    configKeys: LISTING_COLUMN_KEYS,
-    defaultColumnKeys: LISTING_DEFAULT_COLUMN_KEYS,
+    revenue,
+    status,
+    tickets,
   },
 );
 
 /** The editor listing table: a money-free subset at a fixed order. */
 export const editorListingTable = defineTable<ListingWithCount>([
-  editorName,
-  description,
-  status,
-  attendees,
-  tickets,
-  created,
+  { ...editorName, key: "name" },
+  columnOrThrow(listingTable, "description"),
+  columnOrThrow(listingTable, "status"),
+  columnOrThrow(listingTable, "attendees"),
+  columnOrThrow(listingTable, "tickets"),
+  columnOrThrow(listingTable, "created"),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -249,9 +239,10 @@ export const renderListingsTableSection = (
 ): JSX.Element => {
   const table = resolveTable(args.table);
   return renderTable(table, args.listings, {
-    columnKeys: args.columnKeys ?? table.defaultColumnKeys,
+    columnKeys: args.columnKeys ?? table.layout.defaultColumnKeys,
     empty: args.emptyText,
     filters: args.filters,
+    rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
   });
 };
 

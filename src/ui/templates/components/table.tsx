@@ -1,44 +1,29 @@
 /**
- * The one rectangular-table renderer: turns a {@link TableDefinition} plus
- * rows + options into the scrolling `<div class="table-scroll"><table>` shell
- * every admin list page renders from. Header cells, body cells, the column
- * class, the per-cell attributes, the empty-state row, and the optional
- * `<tfoot>` all live here.
+ * Render typed table definitions through the shared scrolling table shell.
+ * The renderer resolves requested and hidden columns, passes table context to
+ * each cell, applies configured filters, and attaches cell and row attributes.
  *
- * Columns are looked up by key against the table definition, so a column
- * that's missing from `columnKeys` is a clear error rather than a silent
- * off-by-one between the header row and the body. Cells return JSX children
- * — never raw HTML strings — so escaping is automatic and the old
- * `isHtml` flag and `escapeHtml` trust protocol are gone.
+ * Unknown requested keys fail at the table definition boundary. Cell renderers
+ * return JSX children, so text is escaped unless the caller supplies `Raw`.
  */
 
 import { isReadOnly } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type {
-  CellAttrs,
   ReorderColumnOptions,
+  TableAttrs,
   TableColumn,
 } from "#shared/tables/column.ts";
 import type { TableDefinition } from "#shared/tables/definition.ts";
 import { columnOrThrow } from "#shared/tables/definition.ts";
 import { renderFilteredValue } from "#shared/tables/liquid.ts";
-import {
-  ReorderArrows,
-  type ReorderProps,
-} from "#templates/components/reorder.tsx";
+import { ReorderArrows } from "#templates/components/reorder.tsx";
 import {
   type ColumnKind,
   colClass,
 } from "#templates/components/table-columns.ts";
 
-export type { ColumnKind, ReorderColumnOptions, TableColumn, TableDefinition };
-
-/** Render-only options that don't affect which columns appear. Shared by
- *  `renderTable` (which adds `columnKeys`/`hiddenKeys` column selection via
- *  {@link TableRenderOptions}) and `renderReorderTable` (which prepends a
- *  reorder column). Lifts the duplicated field list out so the renderers
- *  can't drift on which optional props they pass through. */
-export type TableRenderShell<TContext = void> = {
+type TableRenderShell<TRow, TContext = void> = {
   /** Per-table context passed to every column's `cell` and `cellAttrs`. */
   readonly context?: TContext | undefined;
   /** Per-column-key Liquid filter expressions, applied to a column's
@@ -56,22 +41,27 @@ export type TableRenderShell<TContext = void> = {
   readonly tableClass?: string | undefined;
   /** Attributes on the <tbody> element. */
   readonly bodyAttrs?: Record<string, string> | undefined;
+  /** Attributes attached to each rendered data row. */
+  readonly rowAttrs?:
+    | ((row: TRow, context: TContext) => TableAttrs)
+    | undefined;
 };
 
-/** Per-render options for `renderTable` and `renderReorderTable`. All
- *  optional — the table definition carries the columns. Pass these to
- *  override the default column order, hide specific columns, pass a
- *  per-table context to cells, or attach empty state, foot, scroll/table
- *  class, or body attributes. */
-export type TableRenderOptions<TContext = void> = TableRenderShell<TContext> & {
+/** Per-render options for column selection, context, row state, and framing. */
+export type TableRenderOptions<TRow, TContext = void> = TableRenderShell<
+  TRow,
+  TContext
+> & {
   /** The column keys to render, in order. Defaults to the table's
-   *  `defaultColumnKeys`. Pass the parsed layout's `columnKeys` to honour a
+   *  layout defaults. Pass the parsed layout's `columnKeys` to honour a
    *  user-configured order. */
   readonly columnKeys?: readonly string[] | undefined;
   /** Column keys that should NOT render even when listed in `columnKeys`.
    *  The attendee table uses this to hide columns whose data is entirely
    *  absent in the visible rows (e.g. email when no attendee has one). */
   readonly hiddenKeys?: ReadonlySet<string> | undefined;
+  /** Add the standard move-up/down column when the site is writable. */
+  readonly reorder?: ReorderColumnOptions<TRow> | undefined;
 };
 
 /** The set of `ColumnKind` literal values, for runtime disambiguation between
@@ -133,8 +123,8 @@ const resolveGuideText = (
 /** Split `cellAttrs` into the cell-level class (merged with the column kind's
  *  class) and the remaining attributes. */
 const splitCellAttrs = (
-  attrs: CellAttrs | undefined,
-): { class: string | number | boolean | undefined; rest: CellAttrs } => {
+  attrs: TableAttrs | undefined,
+): { class: string | number | boolean | undefined; rest: TableAttrs } => {
   if (attrs === undefined) return { class: undefined, rest: {} };
   const { class: customClass, ...rest } = attrs;
   return { class: customClass, rest };
@@ -245,7 +235,7 @@ const resolveColumns = <TRow, TContext>(
   columnKeys: readonly string[] | undefined,
   hiddenKeys: ReadonlySet<string> | undefined,
 ): readonly TableColumn<TRow, TContext>[] => {
-  const requested = columnKeys ?? table.defaultColumnKeys;
+  const requested = columnKeys ?? table.layout.defaultColumnKeys;
   const result: TableColumn<TRow, TContext>[] = [];
   for (const key of requested) {
     if (hiddenKeys?.has(key)) continue;
@@ -259,16 +249,26 @@ const resolveColumns = <TRow, TContext>(
  *  render-options object. */
 const resolveOptionColumns = <TRow, TContext>(
   table: TableDefinition<TRow, TContext>,
-  options: TableRenderOptions<TContext> | undefined,
-): readonly TableColumn<TRow, TContext>[] =>
-  resolveColumns(table, options?.columnKeys, options?.hiddenKeys);
+  options: TableRenderOptions<TRow, TContext> | undefined,
+): readonly TableColumn<TRow, TContext>[] => {
+  const columns = resolveColumns(
+    table,
+    options?.columnKeys,
+    options?.hiddenKeys,
+  );
+  return options?.reorder === undefined || isReadOnly()
+    ? columns
+    : [reorderColumn<TRow, TContext>(options.reorder), ...columns];
+};
 
-type InternalRenderOptions<TRow, TContext> = TableRenderShell<TContext> & {
+type InternalRenderOptions<TRow, TContext> = TableRenderShell<
+  TRow,
+  TContext
+> & {
   readonly columns: readonly TableColumn<TRow, TContext>[];
 };
 
-/** Render the table from a fixed column list + rows + options. The shared
- *  interior of `renderTable` and `renderReorderTable`. */
+/** Render the table from a fixed column list, rows, and framing options. */
 const renderColumns = <TRow, TContext = void>(
   rows: readonly TRow[],
   options: InternalRenderOptions<TRow, TContext>,
@@ -288,7 +288,7 @@ const renderColumns = <TRow, TContext = void>(
       </tr>
     ) : (
       rows.map((row, index) => (
-        <tr>
+        <tr {...(options.rowAttrs?.(row, ctx) ?? {})}>
           {columns.map((column) => (
             <TableCell
               column={column}
@@ -313,12 +313,9 @@ const renderColumns = <TRow, TContext = void>(
   });
 };
 
-/** Build the renderer-internal options from the public render options by
- *  picking the shell fields and substituting the resolved column list. Used
- *  by both `renderTable` and `renderReorderTable` so they can't drift on
- *  which optional props they pass through. */
+/** Build renderer-internal options with the resolved column list. */
 const renderColumnsOptions = <TRow, TContext>(
-  options: TableRenderOptions<TContext> | undefined,
+  options: TableRenderOptions<TRow, TContext> | undefined,
   columns: readonly TableColumn<TRow, TContext>[],
 ): InternalRenderOptions<TRow, TContext> => ({
   bodyAttrs: options?.bodyAttrs,
@@ -327,26 +324,22 @@ const renderColumnsOptions = <TRow, TContext>(
   empty: options?.empty,
   filters: options?.filters,
   foot: options?.foot,
+  rowAttrs: options?.rowAttrs,
   scrollClass: options?.scrollClass,
   tableClass: options?.tableClass,
 });
 
 /** Render the table from its definition + rows + options. Returns the full
  *  `<div class="table-scroll"><table>…</table></div>` shell. */
-// jscpd:ignore-start — `table, rows, options` signature matches
-// `renderReorderTable` below by necessity: both renderers take the same
-// typed-table inputs plus their renderer-specific argument. There's nothing
-// to merge between a function-mandated parameter list.
 export const renderTable = <TRow, TContext = void>(
   table: TableDefinition<TRow, TContext>,
   rows: readonly TRow[],
-  options?: TableRenderOptions<TContext>,
+  options?: TableRenderOptions<TRow, TContext>,
 ): JSX.Element =>
   renderColumns(
     rows,
     renderColumnsOptions(options, resolveOptionColumns(table, options)),
   );
-// jscpd:ignore-end
 
 /** The standard up/down reorder-arrows column: prepended to a table's
  *  columns when the operator can re-order rows. Hidden entirely in
@@ -367,20 +360,6 @@ export const reorderColumn = <TRow, TContext = void>(
   header: options.header,
   key: "__reorder__",
 });
-
-/** Render a table with its reorder column prepended (when not read-only). */
-export const renderReorderTable = <TRow, TContext = void>(
-  table: TableDefinition<TRow, TContext>,
-  reorder: ReorderColumnOptions<TRow>,
-  rows: readonly TRow[],
-  options?: TableRenderOptions<TContext>,
-): JSX.Element => {
-  const baseColumns = resolveOptionColumns(table, options);
-  const columns = isReadOnly()
-    ? baseColumns
-    : [reorderColumn<TRow, TContext>(reorder), ...baseColumns];
-  return renderColumns(rows, renderColumnsOptions(options, columns));
-};
 
 /** Convenience: render the column-reference table shown in the admin guide.
  *  The same `<div class="table-scroll"><table>` shell as every other table,
@@ -418,5 +397,3 @@ export const renderColumnReference = <TRow, TContext>(
     </div>
   );
 };
-
-export type { ReorderProps };

@@ -86,9 +86,8 @@ import {
 } from "#shared/listing-defaults.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { EMAIL_BODY_KEYS } from "#shared/settings/registry.ts";
-import { ATTENDEE_TABLE_LAYOUT } from "#shared/tables/attendee-layout.ts";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
-import { LISTING_TABLE_LAYOUT } from "#shared/tables/listing-layout.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
@@ -153,7 +152,9 @@ const settingsBase = {
   // --- Apple Wallet ---
   appleWallet: appleWallet.createReadSettings(snap as (k: string) => string),
   get attendeeColumnLayout(): TableLayout {
-    return ATTENDEE_TABLE_LAYOUT.parse(snap("attendee_column_order"));
+    return configurableTableLayouts.attendee.parse(
+      snap("attendee_column_order"),
+    );
   },
   get autoPurgeOrphans(): boolean {
     return snap("auto_purge_orphans");
@@ -237,7 +238,7 @@ const settingsBase = {
   googleWallet: googleWallet.createReadSettings(snap as (k: string) => string),
   invalidateCache,
   get listingColumnLayout(): TableLayout {
-    return LISTING_TABLE_LAYOUT.parse(snap("listing_column_order"));
+    return configurableTableLayouts.listing.parse(snap("listing_column_order"));
   },
   get listingDefaults(): ListingDefaults {
     return parseListingDefaults(snap(CONFIG_KEYS.LISTING_DEFAULTS));

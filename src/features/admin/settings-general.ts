@@ -29,20 +29,13 @@ import {
   SETTINGS_FORMS,
   type SettingsFormDefinition,
 } from "#shared/settings/forms.ts";
-import { ATTENDEE_TABLE_LAYOUT } from "#shared/tables/attendee-layout.ts";
-import { LISTING_TABLE_LAYOUT } from "#shared/tables/listing-layout.ts";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import {
   isPaymentProvider,
   type PaymentProviderType,
   type Theme,
 } from "#shared/types.ts";
 import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
-
-/** The two configurable admin tables, keyed by their settings column. */
-const COLUMN_LAYOUTS = {
-  attendee: ATTENDEE_TABLE_LAYOUT,
-  listing: LISTING_TABLE_LAYOUT,
-} as const;
 
 const formRoute = (definition: SettingsFormDefinition) => ({
   advanced: definition.page === "advanced",
@@ -220,7 +213,7 @@ const columnOrderHandler = (kind: ConfigurableColumnLayoutKind) => {
     formId: `settings-${kind}-column-order`,
     label: config.label,
     save: config.update,
-    validate: COLUMN_LAYOUTS[kind].validate,
+    validate: configurableTableLayouts[kind].validate,
   });
 };
 

@@ -49,6 +49,23 @@ describe("typed table rendering", () => {
     );
   });
 
+  test("renders attributes derived from each row", () => {
+    const table = defineTable<{ active: boolean; name: string }>([
+      { cell: (row) => row.name, header: "Name", key: "name" },
+    ]);
+
+    expect(
+      String(
+        renderTable(table, [{ active: false, name: "Hidden" }], {
+          rowAttrs: (row) =>
+            row.active ? {} : { class: "inactive-row", "data-active": "false" },
+        }),
+      ),
+    ).toContain(
+      '<tr class="inactive-row" data-active="false"><td>Hidden</td></tr>',
+    );
+  });
+
   test("renders only documented columns in the reference", () => {
     const table = defineTable<{ name: string }>([
       {

@@ -267,7 +267,7 @@ describe("adminDashboardPage with column template filters", () => {
       [],
       undefined,
       null,
-      listingTable.parse('{{name}}, {{created | date: "%B %Y"}}'),
+      listingTable.layout.parse('{{name}}, {{created | date: "%B %Y"}}'),
     );
     expect(html).toContain("April 2026");
   });
@@ -283,7 +283,7 @@ describe("adminDashboardPage with column template filters", () => {
       [],
       undefined,
       null,
-      listingTable.parse("{{name}}, {{created}}"),
+      listingTable.layout.parse("{{name}}, {{created}}"),
     );
     // Default uses toLocaleDateString — locale format, not Liquid strftime
     expect(html).toContain("2026");

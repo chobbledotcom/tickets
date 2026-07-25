@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import {
   type AttendeeColumnOpts,
   type AttendeeTableRow,
@@ -11,7 +12,7 @@ import { attendeeTableSuite, makeOpts, makeRow, render } from "./shared.ts";
 const headersOf = (html: string): (string | undefined)[] =>
   [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map((match) => match[1]);
 
-const rawValue = (key: string, row: AttendeeTableRow): unknown => {
+const rawValue = (key: AttendeeColumnKey, row: AttendeeTableRow): unknown => {
   const read = attendeeTable.columnMap.get(key)?.rawValue;
   if (read === undefined) throw new Error(`Column ${key} has no raw value`);
   const opts: AttendeeColumnOpts = {
@@ -28,7 +29,9 @@ attendeeTableSuite(() => {
   test("renders only specified columns in template order", () => {
     const html = render(
       makeOpts({
-        columnLayout: attendeeTable.parse("{{name}}, {{qty}}, {{registered}}"),
+        columnLayout: attendeeTable.layout.parse(
+          "{{name}}, {{qty}}, {{registered}}",
+        ),
         showCheckin: false,
       }),
     );
@@ -36,7 +39,7 @@ attendeeTableSuite(() => {
   });
 
   test("rejects an invalid template before rendering", () => {
-    expect(() => attendeeTable.parse("{{invalid_column}}")).toThrow(
+    expect(() => attendeeTable.layout.parse("{{invalid_column}}")).toThrow(
       'Unknown column "invalid_column"',
     );
   });
@@ -45,7 +48,9 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ email: "" });
     const html = render(
       makeOpts({
-        columnLayout: attendeeTable.parse("{{name}}, {{email}}, {{qty}}"),
+        columnLayout: attendeeTable.layout.parse(
+          "{{name}}, {{email}}, {{qty}}",
+        ),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),
@@ -57,7 +62,9 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ email: "a@b.com" });
     const html = render(
       makeOpts({
-        columnLayout: attendeeTable.parse("{{qty}}, {{name}}, {{email}}"),
+        columnLayout: attendeeTable.layout.parse(
+          "{{qty}}, {{name}}, {{email}}",
+        ),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),
@@ -69,7 +76,7 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ created: "2026-04-10T14:00:00Z" });
     const html = render(
       makeOpts({
-        columnLayout: attendeeTable.parse(
+        columnLayout: attendeeTable.layout.parse(
           '{{name}}, {{registered | date: "%B %d, %Y"}}',
         ),
         rows: [makeRow({ attendee })],
@@ -83,13 +90,41 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ created: "2026-04-10T14:00:00Z" });
     const html = render(
       makeOpts({
-        columnLayout: attendeeTable.parse("{{name}}, {{registered}}"),
+        columnLayout: attendeeTable.layout.parse("{{name}}, {{registered}}"),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),
     );
     expect(html).toContain("2026-04-10 15:00");
     expect(html).not.toContain("April 10, 2026");
+  });
+
+  test("keeps the attendee link when a name filter is present", () => {
+    const attendee = testAttendee({ id: 7, name: "Jane" });
+    const html = render(
+      makeOpts({
+        columnLayout: attendeeTable.layout.parse("{{name | upcase}}"),
+        rows: [makeRow({ attendee })],
+        showCheckin: false,
+      }),
+    );
+
+    expect(html).toContain('<a href="/admin/attendees/7">Jane</a>');
+    expect(html).not.toContain(">JANE<");
+  });
+
+  test("keeps the attendee quantity when a filter is present", () => {
+    const attendee = testAttendee({ quantity: 3 });
+    const html = render(
+      makeOpts({
+        columnLayout: attendeeTable.layout.parse("{{qty | plus: 2}}"),
+        rows: [makeRow({ attendee })],
+        showCheckin: false,
+      }),
+    );
+
+    expect(html).toContain('<td class="col-quantity">3</td>');
+    expect(html).not.toContain('<td class="col-quantity">5</td>');
   });
 
   test("returns raw attendee values for Liquid filters", () => {
@@ -101,11 +136,7 @@ attendeeTableSuite(() => {
       }),
     });
 
-    expect(["name", "date", "qty"].map((key) => rawValue(key, row))).toEqual([
-      "Jane",
-      "2026-04-10",
-      3,
-    ]);
+    expect(rawValue("date", row)).toBe("2026-04-10");
     expect(
       rawValue("date", makeRow({ attendee: testAttendee({ date: null }) })),
     ).toBe("");

@@ -80,7 +80,14 @@ attendeeTableSuite(() => {
     test("shows Refunded for a refunded attendee", () => {
       const attendee = testAttendee({ refunded: true });
       expect(render(makeOpts({ rows: [makeRow({ attendee })] }))).toContain(
-        "Refunded",
+        '<span class="badge-alert">Refunded</span>',
+      );
+    });
+
+    test("marks servicing attendee rows", () => {
+      const attendee = testAttendee({ kind: "servicing" });
+      expect(render(makeOpts({ rows: [makeRow({ attendee })] }))).toContain(
+        '<tr class="servicing-event" data-servicing="true">',
       );
     });
 

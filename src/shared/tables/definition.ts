@@ -1,7 +1,7 @@
 /**
  * The pure declaration of a typed table: its columns, the keys the user may
- * reference in a configurable layout, and the layout parser/validator bound
- * to those keys.
+ * reference in a configurable layout, and the one pure layout definition
+ * attached to those renderers.
  *
  * No rendering lives here — `renderTable` (in `#templates/components/table.tsx`)
  * takes a `TableDefinition` and produces the JSX. This keeps the table's
@@ -14,61 +14,44 @@ import type {
   ReorderColumnOptions,
   TableColumn,
 } from "#shared/tables/column.ts";
-import type { TableLayout } from "#shared/tables/layout.ts";
 import {
-  buildDefaultTemplate,
-  parseLayout,
-  validateLayout,
+  defineTableLayout,
+  type TableLayoutDefinition,
 } from "#shared/tables/layout.ts";
 
 export type { ReorderColumnOptions, TableColumn };
 
+type TableColumns<TRow, TContext, TKey extends string> = readonly TableColumn<
+  TRow,
+  TContext,
+  TKey
+>[];
+
+type TableParts<TRow, TContext, TKey extends string> = {
+  readonly columns: TableColumns<TRow, TContext, TKey>;
+  readonly layout: TableLayoutDefinition<TKey>;
+};
+
 /** A typed table's declaration: columns, configurable keys, and the layout
  *  helpers bound to those keys. Produced by {@link defineTable}. */
-export type TableDefinition<TRow, TContext = void> = {
+export type TableDefinition<
+  TRow,
+  TContext = void,
+  TKey extends string = string,
+> = {
   /** The full column set, in declared order. */
-  readonly columns: readonly TableColumn<TRow, TContext>[];
+  readonly columns: TableColumns<TRow, TContext, TKey>;
   /** Column key → column definition lookup. */
-  readonly columnMap: ReadonlyMap<string, TableColumn<TRow, TContext>>;
-  /** The default column keys to render, in order. Subset of `keys`. */
-  readonly defaultColumnKeys: readonly string[];
-  /** Every key the user may reference in a configurable layout — the union
-   *  of `defaultColumnKeys` and any extras. The layout parser rejects any
-   *  key outside this set. */
-  readonly keys: readonly string[];
-  /** `{{key}}, {{key}}` form of `defaultColumnKeys`, shown in the column-order
-   *  settings form and the guide. */
-  readonly defaultTemplate: string;
-  /** The layout used when no user template is saved (or an empty one is). */
-  readonly defaultLayout: TableLayout;
-  /** Parse a saved Liquid template into a layout, falling back to
-   *  {@link defaultLayout} when the template is empty. Throws on an invalid
-   *  template so a corruption surfaces loudly. */
-  parse: (template: string) => TableLayout;
-  /** Validate a Liquid template, returning the error string or `null` when
-   *  valid (or empty). */
-  validate: (template: string) => string | null;
+  readonly columnMap: ReadonlyMap<TKey, TableColumn<TRow, TContext, TKey>>;
+  /** The pure key/default/parser contract shared with non-UI settings code. */
+  readonly layout: TableLayoutDefinition<TKey>;
 };
 
-export type TableDefinitionOptions = {
-  /** The default column keys to render, in order. Defaults to every column's
-   *  key in declared order. */
-  readonly defaultColumnKeys?: readonly string[];
-  /** The keys the user may include in a configurable layout. Defaults to
-   *  `defaultColumnKeys` (or every column key). Set this when the user may
-   *  pick columns that don't appear by default — the listing table's extras
-   *  (date, location, price, renewal). */
-  readonly configKeys?: readonly string[];
-};
-
-const buildColumnMap = <TRow, TContext>(
-  columns: readonly TableColumn<TRow, TContext>[],
-): ReadonlyMap<string, TableColumn<TRow, TContext>> => {
-  const map = new Map<string, TableColumn<TRow, TContext>>();
+const buildColumnMap = <TRow, TContext, TKey extends string>(
+  columns: TableColumns<TRow, TContext, TKey>,
+): ReadonlyMap<TKey, TableColumn<TRow, TContext, TKey>> => {
+  const map = new Map<TKey, TableColumn<TRow, TContext, TKey>>();
   for (const column of columns) {
-    if (map.has(column.key)) {
-      throw new Error(`defineTable: duplicate column key "${column.key}"`);
-    }
     map.set(column.key, column);
   }
   return map;
@@ -77,61 +60,66 @@ const buildColumnMap = <TRow, TContext>(
 /** Build a typed table definition from a column list + options. Pure: no
  *  JSX, no rows — the result is metadata plus a parse/validate pair bound to
  *  the table's keys. */
-export const defineTable = <TRow, TContext = void>(
-  columns: readonly TableColumn<TRow, TContext>[],
-  options?: TableDefinitionOptions,
-): TableDefinition<TRow, TContext> => {
+const buildTable = <TRow, TContext, TKey extends string>({
+  columns,
+  layout,
+}: TableParts<TRow, TContext, TKey>): TableDefinition<TRow, TContext, TKey> => {
   if (columns.length === 0) {
     throw new Error("defineTable: columns cannot be empty");
   }
   const columnMap = buildColumnMap(columns);
-  const declaredKeys = columns.map((c) => c.key);
-  const configKeys = options?.configKeys ?? declaredKeys;
-  const defaultColumnKeys = options?.defaultColumnKeys ?? configKeys;
+  return { columnMap, columns, layout };
+};
 
-  // Reject any config/default key that isn't in the column set, so a
-  // typo can't silently make a column disappear from the layout.
-  for (const key of configKeys) {
-    if (!columnMap.has(key)) {
-      throw new Error(
-        `defineTable: config key "${key}" is not a column (have ${declaredKeys.join(", ")})`,
-      );
-    }
-  }
-  for (const key of defaultColumnKeys) {
-    if (!columnMap.has(key)) {
-      throw new Error(
-        `defineTable: default key "${key}" is not a column (have ${declaredKeys.join(", ")})`,
-      );
-    }
-  }
-
-  const defaultTemplate = buildDefaultTemplate(defaultColumnKeys);
-  const defaultLayout: TableLayout = {
-    columnKeys: defaultColumnKeys,
-    filters: new Map(),
-  };
-
-  return {
-    columnMap,
+/** Build an ordinary fixed table whose declared order is its only layout. */
+export const defineTable = <
+  TRow,
+  TContext = void,
+  TKey extends string = string,
+>(
+  columns: TableColumns<TRow, TContext, TKey>,
+): TableDefinition<TRow, TContext, TKey> => {
+  const keys = columns.map((column) => column.key);
+  return buildTable({
     columns,
-    defaultColumnKeys,
-    defaultLayout,
-    defaultTemplate,
-    keys: configKeys,
-    parse: (template: string): TableLayout =>
-      parseLayout(template, configKeys, defaultLayout),
-    validate: (template: string): string | null =>
-      validateLayout(template, configKeys),
-  };
+    layout: defineTableLayout({ options: keys }, keys),
+  });
+};
+
+type ColumnRenderer<TRow, TContext, TKey extends string> = Omit<
+  TableColumn<TRow, TContext, TKey>,
+  "key"
+>;
+
+/** Attach one exhaustive renderer record to an existing pure layout. */
+export const attachTableRenderers = <TRow, TContext, TKey extends string>(
+  layout: TableLayoutDefinition<TKey>,
+  renderers: Readonly<Record<TKey, ColumnRenderer<TRow, TContext, TKey>>>,
+): TableDefinition<TRow, TContext, TKey> => {
+  const columns = layout.keys.map((key) => {
+    const renderer = renderers[key];
+    if (renderer === undefined) {
+      throw new Error(`attachTableRenderers: key "${key}" has no renderer`);
+    }
+    return { ...renderer, key };
+  });
+  const extraKey = Object.keys(renderers).find(
+    (key) => !layout.keys.includes(key as TKey),
+  );
+  if (extraKey !== undefined) {
+    throw new Error(
+      `attachTableRenderers: renderer key "${extraKey}" is not in the layout`,
+    );
+  }
+  return buildTable({ columns, layout });
 };
 
 /** Look up a column by key, throwing loudly if it isn't in the table's set.
  *  Used by the renderer and by tests that exercise a saved layout. */
-export const columnOrThrow = <TRow, TContext>(
-  table: TableDefinition<TRow, TContext>,
-  key: string,
-): TableColumn<TRow, TContext> => {
+export const columnOrThrow = <TRow, TContext, TKey extends string>(
+  table: TableDefinition<TRow, TContext, TKey>,
+  key: TKey,
+): TableColumn<TRow, TContext, TKey> => {
   const column = table.columnMap.get(key);
   if (column === undefined) {
     throw new Error(

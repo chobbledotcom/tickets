@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   buildDefaultTemplate,
+  defineTableLayout,
   parseLayout,
   type TableLayout,
   validateLayout,
@@ -49,6 +50,12 @@ describe("table layouts", () => {
     );
     expect(() => parseLayout("name, created", KEYS, DEFAULT_LAYOUT)).toThrow(
       "Template must include at least one column",
+    );
+  });
+
+  test("rejects a default column that is not configurable", () => {
+    expect(() => defineTableLayout({ options: ["name"] }, ["missing"])).toThrow(
+      'defineTableLayout: default key "missing" is not configurable',
     );
   });
 });

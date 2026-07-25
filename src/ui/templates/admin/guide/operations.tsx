@@ -131,14 +131,14 @@ export const operationsSections = (): GuideSection[] => [
       custom(
         "listing_table_columns",
         <>
-          {defaultOrderParagraph(listingTable.defaultTemplate)}
+          {defaultOrderParagraph(listingTable.layout.defaultTemplate)}
           {renderColumnReference(listingTable)}
         </>,
       ),
       custom(
         "attendee_table_columns",
         <>
-          {defaultOrderParagraph(attendeeTable.defaultTemplate)}
+          {defaultOrderParagraph(attendeeTable.layout.defaultTemplate)}
           <p>
             Columns referencing absent data (e.g. <code>{"{{email}}"}</code>{" "}
             when no attendees have an email) are hidden automatically even when

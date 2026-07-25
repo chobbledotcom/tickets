@@ -1,10 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import {
+  attachTableRenderers,
   columnOrThrow,
   defineTable,
   type TableColumn,
 } from "#shared/tables/definition.ts";
+import { defineTableLayout } from "#shared/tables/layout.ts";
 
 type Row = { name: string; status: string };
 
@@ -14,24 +17,32 @@ const columns: TableColumn<Row>[] = [
 ];
 
 describe("defineTable", () => {
-  test("builds defaults from the declared columns", () => {
+  test("builds a fixed layout from the declared columns", () => {
     const table = defineTable(columns);
 
-    expect(table.defaultColumnKeys).toEqual(["name", "status"]);
-    expect(table.keys).toEqual(["name", "status"]);
-    expect(table.defaultTemplate).toBe("{{name}}, {{status}}");
-    expect(table.parse("")).toBe(table.defaultLayout);
+    expect(table.layout.defaultColumnKeys).toEqual(["name", "status"]);
+    expect(table.layout.keys).toEqual(["name", "status"]);
+    expect(table.layout.defaultTemplate).toBe("{{name}}, {{status}}");
+    expect(table.layout.parse("")).toBe(table.layout.defaultLayout);
   });
 
-  test("binds layout parsing and validation to the configured columns", () => {
-    const table = defineTable(columns, {
-      configKeys: ["name", "status"],
-      defaultColumnKeys: ["name"],
+  test("attaches every renderer to a configurable layout", () => {
+    const layout = defineTableLayout(v.picklist(["name", "status"]), ["name"]);
+    const table = attachTableRenderers<Row, void, "name" | "status">(layout, {
+      name: { cell: (row) => row.name, header: "Name" },
+      status: { cell: (row) => row.status, header: "Status" },
     });
 
-    expect(table.parse("{{status}}").columnKeys).toEqual(["status"]);
-    expect(table.validate("{{status}}")).toBe(null);
-    expect(table.validate("{{missing}}")).toContain('Unknown column "missing"');
+    expect(table.columns.map((column) => column.key)).toEqual([
+      "name",
+      "status",
+    ]);
+    expect(table.layout.defaultColumnKeys).toEqual(["name"]);
+    expect(table.layout.parse("{{status}}").columnKeys).toEqual(["status"]);
+    expect(table.layout.validate("{{status}}")).toBe(null);
+    expect(table.layout.validate("{{missing}}")).toContain(
+      'Unknown column "missing"',
+    );
   });
 
   test("rejects an empty column list", () => {
@@ -40,29 +51,40 @@ describe("defineTable", () => {
     );
   });
 
-  test("rejects duplicate column keys", () => {
+  test("rejects duplicate fixed-table keys", () => {
     expect(() =>
       defineTable<Row>([
         { cell: (row) => row.name, header: "First", key: "name" },
         { cell: (row) => row.name, header: "Second", key: "name" },
       ]),
-    ).toThrow('defineTable: duplicate column key "name"');
+    ).toThrow("defineTableLayout: column keys must be unique");
   });
 
-  test("rejects a configurable key without a column", () => {
-    expect(() => defineTable(columns, { configKeys: ["missing"] })).toThrow(
-      'defineTable: config key "missing" is not a column (have name, status)',
+  test("rejects a layout renderer that is missing", () => {
+    const layout = defineTableLayout(v.picklist(["name", "status"]), [
+      "name",
+      "status",
+    ]);
+    const renderers = {
+      name: { cell: (row: Row) => row.name, header: "Name" },
+      status: { cell: (row: Row) => row.status, header: "Status" },
+    };
+    Reflect.deleteProperty(renderers, "status");
+
+    expect(() => attachTableRenderers(layout, renderers)).toThrow(
+      'attachTableRenderers: key "status" has no renderer',
     );
   });
 
-  test("rejects a default key without a column", () => {
-    expect(() =>
-      defineTable(columns, {
-        configKeys: ["name"],
-        defaultColumnKeys: ["missing"],
-      }),
-    ).toThrow(
-      'defineTable: default key "missing" is not a column (have name, status)',
+  test("rejects a renderer outside the layout", () => {
+    const layout = defineTableLayout(v.picklist(["name"]), ["name"]);
+    const renderers = Object.assign(
+      { name: { cell: (row: Row) => row.name, header: "Name" } },
+      { status: { cell: (row: Row) => row.status, header: "Status" } },
+    );
+
+    expect(() => attachTableRenderers(layout, renderers)).toThrow(
+      'attachTableRenderers: renderer key "status" is not in the layout',
     );
   });
 });
