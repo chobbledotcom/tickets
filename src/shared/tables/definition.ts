@@ -10,7 +10,7 @@
  * any JSX.
  */
 
-import type { TableColumn } from "#shared/tables/column.ts";
+import type { ReorderColumnOptions, TableColumn } from "#shared/tables/column.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import {
   buildDefaultTemplate,
@@ -18,7 +18,7 @@ import {
   validateLayout,
 } from "#shared/tables/layout.ts";
 
-export type { TableColumn };
+export type { ReorderColumnOptions, TableColumn };
 
 /** A typed table's declaration: columns, configurable keys, and the layout
  *  helpers bound to those keys. Produced by {@link defineTable}. */

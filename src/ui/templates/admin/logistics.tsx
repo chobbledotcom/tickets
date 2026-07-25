@@ -26,10 +26,8 @@ import {
   CheckboxLabel,
   SectionFieldset,
 } from "#templates/components/aggregate-sections.tsx";
-import {
-  type DataColumn,
-  dataTable,
-} from "#templates/components/data-table.tsx";
+import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
+import { renderTable } from "#templates/components/table.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
@@ -37,7 +35,7 @@ import { logisticsAgentForm } from "#templates/fields/listing.ts";
 /* jscpd:ignore-end */
 
 /** Single-column table of logistics agents (name linking to edit). */
-const agentColumns: DataColumn<LogisticsAgent>[] = [
+const agentColumns: TableColumn<LogisticsAgent>[] = [
   {
     cell: (agent) => (
       <WritableLink href={`/admin/logistics/${agent.id}`}>
@@ -45,6 +43,7 @@ const agentColumns: DataColumn<LogisticsAgent>[] = [
       </WritableLink>
     ),
     header: t("common.name"),
+    key: "name",
   },
 ];
 
@@ -59,7 +58,7 @@ const AgentsSection = ({
     {agents.length === 0 ? (
       <p>{t("logistics.no_agents_yet")}</p>
     ) : (
-      dataTable(agentColumns)(agents)
+      renderTable(defineTable(agentColumns), agents)
     )}
     <WritableOnly>
       <SaveForm

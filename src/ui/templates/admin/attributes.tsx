@@ -55,11 +55,13 @@ export const adminAttributesPage = (
           </a>
         ),
         header: t("attributes.attribute_column"),
+        key: "attribute",
       },
       {
         cell: (attribute) => attribute.options.length,
         class: "quantity",
         header: t("attributes.options_column"),
+        key: "options",
       },
     ],
     emptyText: t("attributes.none"),

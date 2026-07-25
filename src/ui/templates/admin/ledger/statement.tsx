@@ -50,20 +50,24 @@ const AccountStatementTable = ({
       {
         cell: (line) => humanDescription(line.transfer, accountCell),
         headerKey: "admin.ledger.col.activity",
+        key: "activity",
       },
       {
         cell: (line) => accountCell(counterparty(line, account)),
         headerKey: "admin.ledger.col.counterparty",
+        key: "counterparty",
       },
-      amountColumn<StatementLine>("admin.ledger.col.delta", (line) =>
+      amountColumn<StatementLine>("delta", "admin.ledger.col.delta", (line) =>
         amountCell(
           line.transfer,
           formatSignedCurrency(shownFigure(line.signed, account)),
           returnUrl,
         ),
       ),
-      amountColumn<StatementLine>("admin.ledger.col.balance", (line) =>
-        formatCurrency(shownFigure(line.running, account)),
+      amountColumn<StatementLine>(
+        "balance",
+        "admin.ledger.col.balance",
+        (line) => formatCurrency(shownFigure(line.running, account)),
       ),
     ],
     rows: lines,

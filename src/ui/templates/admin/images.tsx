@@ -19,6 +19,7 @@ import {
   type ImageUseItemType,
   ImageUseItemTypeSchema,
 } from "#shared/types.ts";
+import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
 import {
   errorAdminPage,
   flashFormPage,
@@ -31,10 +32,7 @@ import {
   type IconName,
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
-import {
-  type DataColumn,
-  dataTable,
-} from "#templates/components/data-table.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import {
   type LinkedItemGroup,
   LinkedItemsCheckboxes,
@@ -125,8 +123,12 @@ const imageLinkedItemGroups = (
   }));
 };
 
-const imageColumns: readonly DataColumn<Image>[] = [
-  { cell: (image) => thumbnail(image), header: t("images.column.thumbnail") },
+const imageColumns: readonly TableColumn<Image>[] = [
+  {
+    cell: (image) => thumbnail(image),
+    header: t("images.column.thumbnail"),
+    key: "thumbnail",
+  },
   {
     cell: (image) =>
       isReadOnly() ? (
@@ -135,11 +137,16 @@ const imageColumns: readonly DataColumn<Image>[] = [
         <a href={`/admin/images/${image.id}/edit`}>{image.name}</a>
       ),
     header: t("common.name"),
+    key: "name",
   },
-  { cell: (image) => image.alt_text, header: t("images.field.alt_text") },
+  {
+    cell: (image) => image.alt_text,
+    header: t("images.field.alt_text"),
+    key: "alt_text",
+  },
 ];
 
-const imageTable = dataTable(imageColumns);
+const imageTable = defineTable(imageColumns);
 
 /** Show the "no images" note when the list is empty, otherwise render it. */
 const imagesOrEmpty = (
@@ -181,7 +188,7 @@ export const adminImagesPage = (
   )(
     <>
       {storageEnabled
-        ? imagesOrEmpty(images, () => imageTable(images))
+        ? imagesOrEmpty(images, () => renderTable(imageTable, images))
         : storageDisabledNotice()}
       {/* The images page is editor-reachable, but the guide is staff-only, so
           gate the link by role — editors would otherwise get a 403. */}
@@ -321,7 +328,7 @@ export const ItemImagesPanel = ({
       {linkedImages.length === 0 ? (
         <p>{t("images.item.none")}</p>
       ) : (
-        imageTable(linkedImages)
+        renderTable(imageTable, linkedImages)
       )}
       <h2>{t("images.item.select_existing")}</h2>
       <CsrfForm action={action}>

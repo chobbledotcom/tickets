@@ -5,7 +5,7 @@
  * create page, and a type-the-name delete confirmation page. This factory
  * turns one config object into those three pages. The
  * resource declares its paths (derived from `basePath`), titles, table
- * columns (typed via {@link DataColumn}), form fields (a `renderFields`
+ * columns (typed via {@link TableColumn}), form fields (a `renderFields`
  * callback so non-`Field[]` forms like the attendee-status checkboxes still
  * fit), and the delete confirmation copy.
  * `AdminPage`, `DataTable`, and `ConfirmPage` are its rendering primitives.
@@ -21,10 +21,8 @@ import {
 } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
-import {
-  type DataColumn,
-  dataTable,
-} from "#templates/components/data-table.tsx";
+import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
+import { renderTable } from "#templates/components/table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
@@ -61,7 +59,7 @@ export type ResourceLabels = {
  *  and optional intro/action-row content. Omitted entirely by resources whose
  *  list page is hand-rolled (logistics), which never call `listPage`. */
 export type ResourceList<TEntity> = {
-  columns: readonly DataColumn<TEntity>[];
+  columns: readonly TableColumn<TEntity>[];
   /** Empty-state markup when the list has no rows (nothing when omitted). */
   empty?: Child;
   /** Optional intro markup rendered before the table (e.g. a prose heading). */
@@ -92,11 +90,13 @@ export type AdminResourcePagesConfig<TEntity extends { id: number }> = {
 export const writableNameColumn = <TEntity,>(
   editHref: (entity: TEntity) => string,
   name: (entity: TEntity) => string,
-): DataColumn<TEntity> => ({
+  key = "name",
+): TableColumn<TEntity> => ({
   cell: (entity) => (
     <WritableLink href={editHref(entity)}>{name(entity)}</WritableLink>
   ),
   header: t("common.name"),
+  key,
 });
 
 /** The shape every resource list page shares: the rows to show, then the same
@@ -136,7 +136,9 @@ export const defineAdminResourcePages = <TEntity extends { id: number }>(
     )(
       <>
         {list.intro}
-        {entities.length > 0 ? dataTable(list.columns)(entities) : list.empty}
+        {entities.length > 0
+          ? renderTable(defineTable(list.columns), entities)
+          : list.empty}
         {list.guideFooter}
       </>,
       <WritableOnly>{list.actions}</WritableOnly>,

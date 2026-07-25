@@ -26,11 +26,9 @@ import {
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import {
-  type DataColumn,
-  DataTable,
-  reorderTable,
-} from "#templates/components/data-table.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
+import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
+import { renderReorderTable } from "#templates/components/table.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 
@@ -73,15 +71,13 @@ const PageNameLink = ({
 
 const pageReorderTable = <T,>(opts: {
   base: (row: T) => string;
-  columns: DataColumn<T>[];
+  columns: TableColumn<T>[];
   rows: T[];
 }): JSX.Element =>
-  reorderTable(
-    {
+  renderReorderTable(defineTable(opts.columns), {
       action: (row) => (direction) => `${opts.base(row)}/move-${direction}`,
       header: t("site.pages.order_column"),
     },
-    opts.columns,
     opts.rows,
   );
 
@@ -119,12 +115,18 @@ export const adminSitePagesListPage = (
             {
               cell: (page) => <PageNameLink id={page.id} name={page.name} />,
               header: t("site.pages.name_column"),
+              key: "name",
             },
             {
               cell: (page) => <code>/page/{page.slug}</code>,
               header: t("common.slug"),
+              key: "slug",
             },
-            { cell: (page) => <DeleteLink id={page.id} />, header: "" },
+            {
+              cell: (page) => <DeleteLink id={page.id} />,
+              header: "",
+              key: "actions",
+            },
           ],
           rows: model.roots,
         })}
@@ -247,8 +249,13 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
             {
               cell: (item) => t(`site.pages.type.${item.type}`),
               header: t("site.pages.item_type_column"),
+              key: "type",
             },
-            { cell: (item) => item.label, header: t("site.pages.name_column") },
+            {
+              cell: (item) => item.label,
+              header: t("site.pages.name_column"),
+              key: "name",
+            },
             {
               cell: (item) => (
                 <InlineFormButton action={`${itemBase(item)}/remove`}>
@@ -256,6 +263,7 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
                 </InlineFormButton>
               ),
               header: "",
+              key: "actions",
             },
           ],
           rows: items,
