@@ -260,12 +260,16 @@ export const describeWithEnv = (
     afterEach(() => {
       // try/finally so each teardown step runs even if an earlier one threw —
       // the DB file, env overlay, and storage dir never outlive the test.
+      // Dispose the suite env BEFORE resetDb: the scopes are stacked (DB
+      // first in prepareTestClient, then suite env on top), so LIFO means
+      // env.dispose() pops to the DB layer, then resetDb's cleanupTestDbFile
+      // uses that DB_URL to delete the file, then disposes the DB scope.
       try {
-        if (options.db) resetDb();
+        env?.dispose();
+        env = undefined;
       } finally {
         try {
-          env?.dispose();
-          env = undefined;
+          if (options.db) resetDb();
         } finally {
           teardownStorageConfig(storageDir);
           storageDir = undefined;

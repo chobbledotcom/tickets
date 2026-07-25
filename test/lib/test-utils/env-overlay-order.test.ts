@@ -83,6 +83,30 @@ describe("describeWithEnv DB env (restored after)", () => {
   });
 });
 
+// A mixed suite (db: true AND env) stacks: DB scope first, suite env on top.
+// The afterEach must dispose the suite env BEFORE resetDb disposes the DB
+// scope — LIFO — or env.dispose() resurrects the deleted DB_URL. This suite
+// captures the DB_URL it uses; the "restored after" suite proves it's gone.
+const mixedSuiteTempDbUrl: { value: string | undefined } = { value: undefined };
+describeWithEnv(
+  "describeWithEnv mixed DB+env (stacked)",
+  { db: true, env: { [OUTER_KEY]: "on" } },
+  () => {
+    test("sees both DB_URL and outer env during the test", () => {
+      expect(getEnv("DB_URL")?.startsWith("file:")).toBe(true);
+      mixedSuiteTempDbUrl.value = getEnv("DB_URL");
+      expect(getEnv(OUTER_KEY)).toBe("on");
+    });
+  },
+);
+
+describe("describeWithEnv mixed DB+env (restored after)", () => {
+  test("neither DB_URL nor outer env leaks the deleted temp file", () => {
+    expect(getEnv("DB_URL")).not.toBe(mixedSuiteTempDbUrl.value);
+    expect(getEnv(OUTER_KEY)).toBeUndefined();
+  });
+});
+
 // Failure path: a body that opens an inner scope but fails to dispose it
 // (simulating a body afterEach that threw before reaching its dispose call).
 // The factory afterEach must still dispose the outer env scope so the
