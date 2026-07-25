@@ -678,8 +678,11 @@ export const squareApi: {
         paymentId,
       });
     } catch (err) {
-      // HTTP errors, network errors, and JSON.parse failures from a non-OK
-      // response are logged and returned as false (graceful, retryable).
+      // HTTP errors, network errors from squareFetch are logged and returned
+      // as false (graceful, retryable). A JSON.parse SyntaxError from a 200
+      // body (malformed provider response) re-throws to fail loudly at the
+      // boundary — every successful HTTP response must be validated by v.parse.
+      if (err instanceof SyntaxError) throw err;
       logError({
         code: ErrorCode.SQUARE_REFUND,
         detail: errorMessage(err),

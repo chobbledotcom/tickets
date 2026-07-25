@@ -136,11 +136,36 @@ describeSquare(() => {
               },
             }),
           refundsRefundPayment: () =>
-            Promise.reject(new Error("Square API error")),
+            Promise.reject(new Error("Status code: 500 Body: ...")),
         },
         async () => {
           const result = await squareApi.refundPayment("pay_fail");
           expect(result).toBe(false);
+        },
+      );
+    });
+
+    test("re-throws a SyntaxError (invalid JSON in a 200 body)", async () => {
+      // A 200 with invalid JSON is a malformed provider response — it must
+      // propagate (fail loudly), not be caught as a generic error → false.
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(1000), currency: "GBP" },
+                id: "pay_bad_json",
+                orderId: "order_bad_json",
+                status: "COMPLETED",
+              },
+            }),
+          refundsRefundPayment: () =>
+            Promise.reject(new SyntaxError("Unexpected token <")),
+        },
+        async () => {
+          await expect(squareApi.refundPayment("pay_bad_json")).rejects.toThrow(
+            SyntaxError,
+          );
         },
       );
     });
