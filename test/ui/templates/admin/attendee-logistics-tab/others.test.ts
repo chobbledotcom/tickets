@@ -1,8 +1,7 @@
 /**
  * The attendee Logistics tab, part two: demo-mode masking, the failed save
  * keeping the submitted selectors, the Other Attendees list, and the booked
- * window helpers. The tab's core GET/POST behaviour lives in
- * server-attendee-logistics-tab.test.ts.
+ * window helpers. The tab's core GET/POST behaviour lives in `page.test.ts`.
  */
 
 import { expect } from "@std/expect";

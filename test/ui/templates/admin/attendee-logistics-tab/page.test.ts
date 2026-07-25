@@ -3,7 +3,7 @@
  * saving (address + pin into the PII blob, selectors onto booking rows),
  * including validation failures re-rendering in place. The Other Attendees
  * list, demo mode, and the failed-save selector behaviour live in
- * server-attendee-logistics-others.test.ts.
+ * `others.test.ts`.
  */
 
 import { expect } from "@std/expect";
