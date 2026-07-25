@@ -3,57 +3,39 @@
  * across the listing detail, check-in, and calendar views.
  *
  * Column order is configurable via a Liquid template stored in settings.
- * The template determines which columns appear and in what order.
- * Columns that reference absent data (e.g. email when nobody has one)
- * are still hidden automatically.
- *
- * All cell rendering logic lives in ATTENDEE_TABLE_COLUMNS (single source
- * of truth). This component provides the complex callbacks (status, actions)
- * via the opts object and iterates the ordered column definitions.
+ * The template determines which columns appear and in what order, then this
+ * component hides any column whose underlying data is entirely absent in
+ * the visible rows (email when nobody has one, phone likewise) so a saved
+ * layout never produces a column of blanks. All cell rendering logic lives
+ * in `attendeeTable` (single source of truth); this component threads the
+ * per-table context (allowed domain, phone prefix, question data, the
+ * status cell renderer, etc.) through to those cells.
  */
 
-import { joinStrings, map, pipe, sort } from "#fp";
+import { sort } from "#fp";
 import { t } from "#i18n";
-import type {
-  AttendeeColumn,
-  AttendeeColumnLayout,
-} from "#shared/column-layout.ts";
-import { getHeaderText, renderCells } from "#shared/column-order.ts";
-import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
-import { isServicing } from "#shared/db/attendees/kind.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import {
-  type AttendeeTableRow,
-  type DisplayAttendee,
-  hasTicketQuantity,
-} from "#shared/types.ts";
-import { Badge } from "#templates/components/badge.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
+  type AttendeeColumnOpts,
+  attendeeTable,
+  buildAnswerMaps,
+} from "#shared/tables/attendee-table.tsx";
+import type { TableLayout } from "#shared/tables/layout.ts";
+import type { AttendeeTableRow, DisplayAttendee } from "#shared/types.ts";
+import { renderTable } from "#templates/components/table.tsx";
 
-export { formatAddressInline } from "#shared/columns/attendee-columns.ts";
+export type {
+  AttendeeColumnOpts,
+  TableQuestionData,
+} from "#shared/tables/attendee-table.tsx";
+export { formatAddressInline } from "#shared/tables/attendee-table.tsx";
 export type { AttendeeTableRow } from "#shared/types.ts";
 
-/** Question data for displaying answers in the attendee table.
- * Canonical shape lives in the questions module; aliased here so existing
- * importers keep their `TableQuestionData` reference. */
-export type TableQuestionData = AttendeeQuestionData;
-
-/** Options passed to attendee column cell renderers */
-export type AttendeeColumnOpts = {
-  allowedDomain: string;
-  phonePrefix: string;
-  /** Render the status cell (check-in button or refunded badge) */
-  renderStatus: (row: AttendeeTableRow) => string;
-  /** Answer maps for question-based columns */
-  answerTextMap: Map<number, string>;
-  answerQuestionMap: Map<number, string>;
-  /** Question data for the answers column */
-  questionData?: TableQuestionData | undefined;
-};
+/** Cached/typed attendee-table layout, parsed from the saved setting. */
+export type { TableLayout as AttendeeColumnLayout };
 
 /** Options for the unified AttendeeTable component */
 export type AttendeeTableOptions = {
@@ -63,62 +45,44 @@ export type AttendeeTableOptions = {
   showDate: boolean;
   activeFilter?: string | undefined;
   returnUrl?: string | undefined;
-  emptyMessage?: string;
+  emptyMessage?: string | undefined;
   phonePrefix?: string | undefined;
   /** Show the check-in/check-out status column (default: true). Per-attendee
    * edit/refund/delete actions live on the attendee edit page, not the table. */
-  showCheckin?: boolean;
+  showCheckin?: boolean | undefined;
   /** Skip default sort and use rows as-is (default: false) */
-  presorted?: boolean;
+  presorted?: boolean | undefined;
   /** Question data for the Answers column */
-  questionData?: TableQuestionData | undefined;
+  questionData?: AttendeeQuestionData | undefined;
   /** Pre-parsed layout controlling column order and filters */
-  columnLayout?: AttendeeColumnLayout;
+  columnLayout?: TableLayout | undefined;
 };
 
 // ---------------------------------------------------------------------------
 // Column visibility — determines which columns are eligible to display
 // ---------------------------------------------------------------------------
 
-/** Compute which columns are eligible based on caller options and data */
-const computeVisibilityMap = (
+/** Compute which columns should be hidden, based on caller options and the
+ *  visible rows: phone/address/special_instructions/answers are hidden when
+ *  no attendee has the underlying data, and listings/date/status follow the
+ *  caller's `showListing`/`showDate`/`showCheckin` flags. */
+const computeHiddenKeys = (
   rows: AttendeeTableRow[],
   opts: AttendeeTableOptions,
-): Record<AttendeeColumn, boolean> => {
+): Set<string> => {
   const showCheckin = opts.showCheckin !== false;
-  return {
-    address: rows.some((r) => !!r.attendee.address),
-    answers: !!opts.questionData && opts.questionData.questions.length > 0,
-    date: opts.showDate,
-    email: rows.some((r) => !!r.attendee.email),
-    listings: opts.showListing,
-    name: true,
-    phone: rows.some((r) => !!r.attendee.phone),
-    qty: true,
-    registered: true,
-    special_instructions: rows.some((r) => !!r.attendee.special_instructions),
-    status: showCheckin,
-    ticket: true,
-  };
-};
-
-// ---------------------------------------------------------------------------
-// Column ordering — parse template and filter by visibility
-// ---------------------------------------------------------------------------
-
-/** Get the ordered list of visible column keys and their filter expressions */
-const getColumnLayout = (
-  visMap: Record<AttendeeColumn, boolean>,
-  columnLayout?: AttendeeColumnLayout,
-): {
-  visibleColumns: AttendeeColumn[];
-  filters: ReadonlyMap<AttendeeColumn, string>;
-} => {
-  const { columnKeys, filters } = columnLayout ?? settings.attendeeColumnLayout;
-  return {
-    filters,
-    visibleColumns: columnKeys.filter((k) => visMap[k]),
-  };
+  const hidden = new Set<string>();
+  if (!showCheckin) hidden.add("status");
+  if (!opts.showListing) hidden.add("listings");
+  if (!opts.showDate) hidden.add("date");
+  if (!rows.some((r) => !!r.attendee.address)) hidden.add("address");
+  if (!rows.some((r) => !!r.attendee.email)) hidden.add("email");
+  if (!rows.some((r) => !!r.attendee.phone)) hidden.add("phone");
+  if (!rows.some((r) => !!r.attendee.special_instructions))
+    hidden.add("special_instructions");
+  if (!opts.questionData || opts.questionData.questions.length === 0)
+    hidden.add("answers");
+  return hidden;
 };
 
 // ---------------------------------------------------------------------------
@@ -166,27 +130,7 @@ export const sortAttendeeRows: (
 ) => AttendeeTableRow[] = sort(compareAttendeeRows);
 
 // ---------------------------------------------------------------------------
-// Answer helpers
-// ---------------------------------------------------------------------------
-
-/** Build both answer lookups in one pass over the questions: answer id → the
- * answer's text, and answer id → its question's text. */
-const buildAnswerMaps = (
-  questions: QuestionWithAnswers[],
-): Pick<AttendeeColumnOpts, "answerTextMap" | "answerQuestionMap"> => {
-  const answerTextMap = new Map<number, string>();
-  const answerQuestionMap = new Map<number, string>();
-  for (const q of questions) {
-    for (const a of q.answers) {
-      answerTextMap.set(a.id, a.text);
-      answerQuestionMap.set(a.id, q.text);
-    }
-  }
-  return { answerQuestionMap, answerTextMap };
-};
-
-// ---------------------------------------------------------------------------
-// Status & Actions — complex JSX renderers passed as callbacks
+// Status rendering — passed to attendeeTable's status column via context
 // ---------------------------------------------------------------------------
 
 /** Render the check-in/check-out button form */
@@ -222,118 +166,72 @@ const CheckinButton = ({
   );
 };
 
+/** Build the per-table context the attendee columns need. */
+const buildColumnOpts = (opts: AttendeeTableOptions): AttendeeColumnOpts => {
+  // Compute visibility map first because:
+  //  - the answers column requires `opts.questionData` with at least one
+  //    question, so the answer maps are built only when that column will
+  //    actually render; an empty questions list (no answers column) means
+  //    empty maps that the column never reads.
+  const visibleQuestionData =
+    opts.questionData && opts.questionData.questions.length > 0
+      ? opts.questionData
+      : undefined;
+  const { answerTextMap, answerQuestionMap } = buildAnswerMaps(
+    visibleQuestionData?.questions ?? [],
+  );
+  return {
+    allowedDomain: opts.allowedDomain,
+    answerQuestionMap,
+    answerTextMap,
+    phonePrefix: opts.phonePrefix || "44",
+    questionData: visibleQuestionData,
+    renderStatus: createStatusRenderer(opts),
+  };
+};
+
 /** Create the renderStatus callback for column opts */
 const createStatusRenderer =
   (opts: AttendeeTableOptions) =>
   (row: AttendeeTableRow): string => {
-    if (isServicing(row.attendee.kind)) {
-      return String(
-        <span class="servicing-event" data-servicing="true">
-          {t("admin.attendee_table.servicing")}
-        </span>,
-      );
-    }
-    // A no-quantity sentinel row stays visible but isn't checkable — show the
+    const a = row.attendee;
+    // A no-quantity sentinel row stays visible but isn't checkable — show an
     // indicator instead of a check-in button (updateCheckedIn refuses it).
-    if (!hasTicketQuantity(row.attendee)) {
+    if (a.refunded) {
       return String(
         <span class="muted small">
-          {t("admin.attendee_table.no_quantity")}
-        </span>,
-      );
-    }
-    if (row.attendee.refunded) {
-      return String(
-        <Badge variant="alert">
           {t("admin.attendee_table.refunded_badge")}
-        </Badge>,
+        </span>,
       );
     }
     // Check-in is a per-booking-line action, and every table that shows it
     // renders one row per line — a one-listing array (grouped browsing tables
     // pass showCheckin: false), so the row's first listing IS the line's.
     return CheckinButton({
-      a: row.attendee,
+      a,
       activeFilter: opts.activeFilter ?? "all",
-      listingId: row.listings[0]!.id,
+      listingId: row.listings[0]?.id ?? 0,
       returnUrl: opts.returnUrl,
     });
   };
 
 // ---------------------------------------------------------------------------
-// Row rendering — driven entirely by column generators
-// ---------------------------------------------------------------------------
-
-/** Render a single attendee row using ordered column defs */
-const AttendeeRow = (
-  row: AttendeeTableRow,
-  visibleColumns: AttendeeColumn[],
-  colOpts: AttendeeColumnOpts,
-  filters: ReadonlyMap<AttendeeColumn, string>,
-): string =>
-  `<tr${
-    isServicing(row.attendee.kind)
-      ? ' class="servicing-event" data-servicing="true"'
-      : ""
-  }>${renderCells(
-    row,
-    visibleColumns,
-    ATTENDEE_TABLE_COLUMNS,
-    colOpts,
-    filters,
-    escapeHtml,
-  )}</tr>`;
-
-// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
-/** Render the unified attendee table */
-export const AttendeeTable = (opts: AttendeeTableOptions): string => {
-  const orderedRows = opts.presorted ? opts.rows : sortAttendeeRows(opts.rows);
-  const visMap = computeVisibilityMap(orderedRows, opts);
-  const { visibleColumns, filters } = getColumnLayout(
-    visMap,
-    opts.columnLayout,
-  );
-  const colCount = visibleColumns.length;
-
-  // With no answers column there is nothing to look up — empty maps fall out.
-  // The non-null assertion is safe: computeVisibilityMap only sets
-  // `visMap.answers` true when `opts.questionData` is defined.
-  const { answerTextMap, answerQuestionMap } = buildAnswerMaps(
-    visMap.answers ? opts.questionData!.questions : [],
-  );
-
-  const colOpts: AttendeeColumnOpts = {
-    allowedDomain: opts.allowedDomain,
-    answerQuestionMap,
-    answerTextMap,
-    phonePrefix: opts.phonePrefix || "44",
-    questionData: opts.questionData,
-    renderStatus: createStatusRenderer(opts),
-  };
-
-  const rows =
-    orderedRows.length > 0
-      ? pipe(
-          map((row: AttendeeTableRow) =>
-            AttendeeRow(row, visibleColumns, colOpts, filters),
-          ),
-          joinStrings,
-        )(orderedRows)
-      : `<tr><td colspan="${colCount}">${
-          opts.emptyMessage ?? t("admin.attendee_table.no_attendees")
-        }</td></tr>`;
-
-  const headers = pipe(
-    map((key: AttendeeColumn) => {
-      const col = ATTENDEE_TABLE_COLUMNS[key];
-      const cls = col.headerClassName;
-      return `<th${cls ? ` class="${cls}"` : ""}>${getHeaderText(col)}</th>`;
-    }),
-    joinStrings,
-  )(visibleColumns);
-
-  return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+/** Render the unified attendee table. Returns the full
+ *  `<div class="table-scroll"><table>` shell. */
+export const AttendeeTable = (opts: AttendeeTableOptions): JSX.Element => {
+  const rows = opts.presorted ? opts.rows : sortAttendeeRows(opts.rows);
+  const hiddenKeys = computeHiddenKeys(rows, opts);
+  const layout: TableLayout =
+    opts.columnLayout ?? settings.attendeeColumnLayout;
+  const colOpts = buildColumnOpts(opts);
+  return renderTable(attendeeTable, rows, {
+    columnKeys: layout.columnKeys,
+    context: colOpts,
+    empty: opts.emptyMessage ?? t("admin.attendee_table.no_attendees"),
+    filters: layout.filters,
+    hiddenKeys,
+  });
 };

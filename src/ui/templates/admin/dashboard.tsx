@@ -5,15 +5,6 @@
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
-import {
-  COLUMN_LAYOUTS,
-  type ListingColumnLayout,
-} from "#shared/column-layout.ts";
-import {
-  EDITOR_LISTING_LAYOUT,
-  EDITOR_LISTING_TABLE_COLUMNS,
-  LISTING_TABLE_COLUMNS,
-} from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ActiveListingStats } from "#shared/db/attendee-types.ts";
@@ -27,6 +18,11 @@ import {
   listingCategory,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
+import type { TableLayout } from "#shared/tables/layout.ts";
+import {
+  editorListingTable,
+  listingTable,
+} from "#shared/tables/listing-table.tsx";
 import type {
   AdminSession,
   DisplayAttendee,
@@ -50,6 +46,9 @@ import {
 } from "#templates/admin/listing-table.tsx";
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
+
+export { editorListingTable, listingTable };
+export type ListingColumnLayout = TableLayout;
 
 /** Keeps only the listings that are still active. */
 const activeOnly = filter((e: ListingWithCount) => e.active);
@@ -233,7 +232,7 @@ export const adminDashboardPage = (
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   const { columnKeys, filters } =
-    listingColumnLayout ?? COLUMN_LAYOUTS.listing.defaultLayout;
+    listingColumnLayout ?? listingTable.defaultLayout;
 
   // Type filter narrows the listing table only; the stats, multi-booking, and
   // newest-attendee sections below stay based on the full set. Offer the bar
@@ -318,12 +317,10 @@ export const adminListingsPage = (
   // column template is irrelevant and never references the omitted columns), and
   // no CSV export (that route stays staff-only and exports ledger revenue).
   const isEditor = session.adminLevel === "editor";
-  const columns = isEditor
-    ? EDITOR_LISTING_TABLE_COLUMNS
-    : LISTING_TABLE_COLUMNS;
+  const table = isEditor ? editorListingTable : listingTable;
   const { columnKeys, filters } = isEditor
-    ? EDITOR_LISTING_LAYOUT
-    : (listingColumnLayout ?? COLUMN_LAYOUTS.listing.defaultLayout);
+    ? table.defaultLayout
+    : (listingColumnLayout ?? table.defaultLayout);
   const activeListings = activeOnly(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
@@ -348,25 +345,24 @@ export const adminListingsPage = (
     >
       <ListingsTableBlock
         columnKeys={columnKeys}
-        columns={columns}
         csvExport={!isEditor}
         csvHref={csvExportHref("all", activeAttributeFilters)}
         filters={filters}
         headerHtml={attributeFilterHtml}
         listings={filterByAttribute(activeListings)}
+        table={table}
       />
 
       {deactivatedListings.length > 0 && (
         <>
           <h2>{t("admin.dashboard.deactivated")}</h2>
-          <Raw
-            html={renderListingsTableSection(
-              filterByAttribute(deactivatedListings),
-              columnKeys,
-              filters,
-              columns,
-            )}
-          />
+          {renderListingsTableSection({
+            columnKeys,
+            emptyText: t("admin.dashboard.no_listings"),
+            filters,
+            listings: filterByAttribute(deactivatedListings),
+            table,
+          })}
         </>
       )}
 

@@ -126,20 +126,16 @@ export const adminCalendarPage = (
         {agents.length > 0 && (
           <Raw html={renderAgentFilter(agentFilter, agents, agentHref)} />
         )}
-        <div class="table-scroll">
-          <Raw
-            html={AttendeeTable({
-              allowedDomain,
-              emptyMessage,
-              phonePrefix,
-              questionData,
-              returnUrl,
-              rows: tableRows,
-              showDate: false,
-              showListing: true,
-            })}
-          />
-        </div>
+        {AttendeeTable({
+          allowedDomain,
+          emptyMessage,
+          phonePrefix,
+          questionData,
+          returnUrl,
+          rows: tableRows,
+          showDate: false,
+          showListing: true,
+        })}
         {dateFilter && attendees.length > 0 && (
           <div class="table-actions">
             <a href={exportHref}>{t("admin.calendar.export_csv")}</a>

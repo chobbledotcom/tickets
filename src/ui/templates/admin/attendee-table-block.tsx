@@ -1,4 +1,4 @@
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import {
   AttendeeTable,
   type AttendeeTableOptions,
@@ -27,9 +27,7 @@ export const AttendeeTableBlock = ({
   options: AttendeeTableOptions;
 }): JSX.Element => (
   <>
-    <div class="table-scroll">
-      <Raw html={AttendeeTable(options)} />
-    </div>
+    {AttendeeTable(options)}
     {actions && <div class="table-actions">{actions}</div>}
   </>
 );
