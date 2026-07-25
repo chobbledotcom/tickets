@@ -650,12 +650,12 @@ export const squareApi: {
 
   /** Refund a payment (full amount). Returns true only when Square confirms the
    * refund with a COMPLETED status; PENDING, REJECTED, and FAILED return false.
-   * A 200 response that is missing its refund object, has an empty id, carries
-   * non-string fields, OR reports an undocumented status (not in the picklist
-   * PENDING/COMPLETED/REJECTED/FAILED) is malformed — that is caught at the
-   * boundary by a Valibot schema parse, so it throws loudly instead of
-   * normalizing to false. (Client-unconfigured returns false; HTTP and
-   * parsing errors propagate — a successful HTTP response is always validated.) */
+   * HTTP errors (non-2xx) and network failures are logged and returned as false
+   * (graceful, retryable). A 200 response is always validated by a Valibot
+   * schema parse — a malformed body (missing refund, empty id, non-string
+   * fields, undocumented status, invalid JSON, wrong payment_id) throws loudly
+   * rather than silently normalizing to false. Client-unconfigured returns
+   * false. */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
