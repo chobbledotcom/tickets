@@ -642,12 +642,13 @@ export const squareApi: {
   getSquareClient: getClientImpl,
 
   /** Refund a payment (full amount). Returns true only when Square confirms the
-   * refund with a COMPLETED status. PENDING, REJECTED, FAILED, and any other
-   * status return false. A 200 response that is missing its refund object, has
-   * an empty id, or carries non-string fields is malformed — that is caught at
-   * the boundary by a Valibot schema parse OUTSIDE withClient, so it throws
-   * loudly instead of normalizing to false. (Client-unconfigured and HTTP
-   * errors are still contained by withClient → null → false.) */
+   * refund with a COMPLETED status; PENDING, REJECTED, and FAILED return false.
+   * A 200 response that is missing its refund object, has an empty id, carries
+   * non-string fields, OR reports an undocumented status (not in the picklist
+   * PENDING/COMPLETED/REJECTED/FAILED) is malformed — that is caught at the
+   * boundary by a Valibot schema parse OUTSIDE withClient, so it throws loudly
+   * instead of normalizing to false. (Client-unconfigured and HTTP errors are
+   * still contained by withClient → null → false.) */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {

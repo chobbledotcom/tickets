@@ -1353,8 +1353,9 @@ one-concept-per-file (#1906) and other recent move/refactor PRs. The audit is a
 standalone task (`mutation:audit-equivalents`, not part of `deno task
 precommit`), so CI doesn't gate on it; it surfaced here only because the
 Square-refunds job ran exhaustive mutation and used the audit to validate its
-own equivalent entries. The `square.ts` entries (293, 678, 748) were refreshed
-in place and are valid.
+own equivalent entries. The `square.ts` entries in the equivalent-mutants
+registry have been refreshed in place (they drift as the source shifts lines —
+the audit command's own output lists every stale `file:line:col`);
 
 Fix: for each stale entry, re-run `deno task mutation <file> '<tests>'
 --exhaustive`, locate the surviving equivalent mutant's current `file:line:col`
