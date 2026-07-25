@@ -48,6 +48,11 @@ import {
   setSetupState,
 } from "#test-utils/test-state.ts";
 
+// The env scope prepareTestClient opens per test (DB_URL + trigger flag).
+// resetDb disposes it right after cleanupTestDbFile uses the overlaid DB_URL
+// to delete the temp file, so the overlay never outlives the test.
+const dbEnvScope: { current: EnvScope | undefined } = { current: undefined };
+
 const prepareTestClient = async (triggers = false): Promise<void> => {
   // Keep libsql's leaked file descriptors from exhausting the process limit
   // under high `--parallel` worker counts (see reclaim-fds.ts).
@@ -75,7 +80,8 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   const goldenPath = await getOrCreateGoldenDb();
   const path = await createTrackedTestDbFile(".db");
   await Deno.copyFile(goldenPath, path);
-  withEnv({
+  dbEnvScope.current?.dispose();
+  dbEnvScope.current = withEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
@@ -159,6 +165,8 @@ const cleanupTestDbFile = (): void => {
 
 export const resetDb = (): void => {
   cleanupTestDbFile();
+  dbEnvScope.current?.dispose();
+  dbEnvScope.current = undefined;
   setDb(null);
   settings.setup.clearCache();
   settings.invalidateCache();
@@ -250,11 +258,19 @@ export const describeWithEnv = (
     // inner-then-outer contract BDD suites already assume.
     fn();
     afterEach(() => {
-      if (options.db) resetDb();
-      env?.dispose();
-      env = undefined;
-      teardownStorageConfig(storageDir);
-      storageDir = undefined;
+      // try/finally so each teardown step runs even if an earlier one threw —
+      // the DB file, env overlay, and storage dir never outlive the test.
+      try {
+        if (options.db) resetDb();
+      } finally {
+        try {
+          env?.dispose();
+          env = undefined;
+        } finally {
+          teardownStorageConfig(storageDir);
+          storageDir = undefined;
+        }
+      }
     });
     // A small suite may never reach the amortised reclaim threshold, so hand
     // back its leaked descriptors when it finishes (see reclaim-fds.ts).

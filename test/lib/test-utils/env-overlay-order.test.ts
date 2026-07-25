@@ -10,6 +10,11 @@ import { type EnvScope, getRealEnv, withEnv } from "#test-utils/env.ts";
 const OUTER_KEY = "TICKETS_TEST_OVERLAY_OUTER";
 const INNER_KEY = "TICKETS_TEST_OVERLAY_INNER";
 
+// Capture the real DB_URL so the DB suite can prove the overlay diverges
+// from it during the test, then the "restored after" suite proves it
+// converges back.
+const realDbUrl = getRealEnv("DB_URL");
+
 // A suite that sets an outer env var for its own tests and layers a second,
 // per-test env scope on top — the shape every built-sites suite uses (the
 // outer env from describeWithEnv plus an inner withEnv opened in the body).
@@ -57,8 +62,64 @@ describeWithEnv(
   },
 );
 
+// A DB-backed suite overlays DB_URL with a fresh temp file per test.
+// prepareTestClient must own and dispose that scope (via resetDb), so the
+// overlay does not keep pointing at the deleted temp file after the suite.
+const suiteTempDbUrl: { value: string | undefined } = { value: undefined };
+describeWithEnv("describeWithEnv DB env (temp file)", { db: true }, () => {
+  test("overlays DB_URL with a fresh temp file during the test", () => {
+    const url = getEnv("DB_URL");
+    expect(url?.startsWith("file:")).toBe(true);
+    expect(url).not.toBe(realDbUrl);
+    suiteTempDbUrl.value = url;
+  });
+});
+
+// After the DB suite, the overlay must not keep pointing at the deleted
+// temp file — proving resetDb disposed the prepareTestClient scope.
+describe("describeWithEnv DB env (restored after)", () => {
+  test("DB_URL overlay does not keep the deleted temp file from the suite", () => {
+    expect(getEnv("DB_URL")).not.toBe(suiteTempDbUrl.value);
+  });
+});
+
+// Failure path: a body that opens an inner scope but fails to dispose it
+// (simulating a body afterEach that threw before reaching its dispose call).
+// The factory afterEach must still dispose the outer env scope so the
+// suite's env does not leak into the next suite.
+describeWithEnv(
+  "describeWithEnv cleanup (body left inner scope undisposed)",
+  { env: { [OUTER_KEY]: "on" } },
+  () => {
+    // Open an inner scope in beforeEach but do NOT dispose it in afterEach —
+    // the factory afterEach must still clean up the outer scope.
+    beforeEach(() => {
+      withEnv({ [INNER_KEY]: "set" });
+    });
+
+    test("sees both scopes", () => {
+      expect(getEnv(OUTER_KEY)).toBe("on");
+      expect(getEnv(INNER_KEY)).toBe("set");
+    });
+  },
+);
+
+// After the above suite, OUTER_KEY must be gone (factory afterEach disposed
+// the outer scope despite the inner scope leaking). INNER_KEY may persist
+// (it was never disposed), but OUTER_KEY — the suite's own env — must not.
+describeWithEnv(
+  "describeWithEnv cleanup (outer env gone after leak)",
+  {},
+  () => {
+    test("does not inherit the outer env despite the inner scope leak", () => {
+      expect(getRealEnv(OUTER_KEY)).toBeUndefined();
+      expect(getEnv(OUTER_KEY)).toBeUndefined();
+    });
+  },
+);
+
 describe("describeWithEnv overlay cleanup (sanity)", () => {
-  test("the real process env is never touched", () => {
+  test("the real process env was never touched", () => {
     expect(getRealEnv(OUTER_KEY)).toBeUndefined();
     expect(getRealEnv(INNER_KEY)).toBeUndefined();
   });
