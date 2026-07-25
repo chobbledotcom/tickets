@@ -21,6 +21,11 @@ export interface SnapshotQueryResult {
   rows: readonly Readonly<Record<string, unknown>>[];
 }
 
+export interface SnapshotQueryCheck {
+  sql: string;
+  verify: (result: SnapshotQueryResult) => void;
+}
+
 export interface SnapshotClient {
   close(): void;
   execute(sql: string): Promise<SnapshotQueryResult>;
@@ -221,6 +226,15 @@ const withSnapshotClient = <Result>(
   return withCleanup(() => run(client), [() => client.close()]);
 };
 
+export const checkLocalSnapshot = (
+  path: string,
+  factory: SnapshotClientFactory,
+  checks: SnapshotQueryCheck[],
+): Promise<void> =>
+  withSnapshotClient(factory, { url: toFileUrl(path).href }, async (client) => {
+    for (const check of checks) check.verify(await client.execute(check.sql));
+  });
+
 const syncReplica = (
   path: string,
   request: SnapshotRequest,
@@ -244,22 +258,27 @@ const verifyRows = (
   if (!v.safeParse(schema, result.rows).success) throw new Error(message);
 };
 
-const checkpointAndVerify = (
-  path: string,
-  factory: SnapshotClientFactory,
-): Promise<void> =>
-  withSnapshotClient(factory, { url: toFileUrl(path).href }, async (client) => {
-    verifyRows(
-      CheckpointRowsSchema,
-      await client.execute("PRAGMA wal_checkpoint(TRUNCATE)"),
-      "Database snapshot checkpoint did not empty the WAL",
-    );
-    verifyRows(
-      IntegrityRowsSchema,
-      await client.execute("PRAGMA integrity_check"),
-      "Database snapshot integrity check failed",
-    );
-  });
+const snapshotQueryCheck = (
+  schema: v.GenericSchema,
+  sql: string,
+  message: string,
+): SnapshotQueryCheck => ({
+  sql,
+  verify: (result) => verifyRows(schema, result, message),
+});
+
+const SNAPSHOT_QUERY_CHECKS = [
+  snapshotQueryCheck(
+    CheckpointRowsSchema,
+    "PRAGMA wal_checkpoint(TRUNCATE)",
+    "Database snapshot checkpoint did not empty the WAL",
+  ),
+  snapshotQueryCheck(
+    IntegrityRowsSchema,
+    "PRAGMA integrity_check",
+    "Database snapshot integrity check failed",
+  ),
+];
 
 const fileSizeOrNull = async (path: string): Promise<number | null> => {
   const info = await statOrNull(path);
@@ -310,7 +329,7 @@ export const createDatabaseSnapshot = async (
     writeProgress(SNAPSHOT_PROGRESS.syncing);
     await syncReplica(temporaryPath, request, factory);
     writeProgress(SNAPSHOT_PROGRESS.verifying);
-    await checkpointAndVerify(temporaryPath, factory);
+    await checkLocalSnapshot(temporaryPath, factory, SNAPSHOT_QUERY_CHECKS);
     await requireEmptyWal(temporaryPath);
     writeProgress(SNAPSHOT_PROGRESS.publishing);
     await publishSnapshot(temporaryPath, outputPath);

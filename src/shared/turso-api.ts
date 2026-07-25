@@ -1,97 +1,262 @@
-/**
- * Turso API client — creates hosted libSQL databases via the Turso platform API.
- * Used by the site builder as an alternative database provider to Bunny DB.
- *
- * API base: https://api.turso.tech
- * Auth: Authorization: Bearer {TURSO_API_TOKEN}
- */
+/** Turso platform API client used by site provisioning and database migration. */
 
 /* jscpd:ignore-start */
+import * as v from "valibot";
 import {
   getTursoApiToken,
   getTursoGroup,
   getTursoOrganization,
   slugifyForProvider,
 } from "#shared/config.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { fetchText, jsonHeaders, parseApiError } from "#shared/fetch.ts";
 import type {
   CreateDatabaseFn,
+  DatabaseCredentials,
   DatabaseProviderApi,
 } from "#shared/provider-types.ts";
-import { databaseCredentialsFromResponse } from "#shared/provider-types.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /* jscpd:ignore-end */
 
 const TURSO_API_BASE = "https://api.turso.tech";
 
-/**
- * Sanitize a site name into a valid Turso database name.
- * Rules: 1–63 chars, lowercase letters/numbers/hyphens, no leading/trailing hyphens.
- */
+const TursoDatabaseSchema = v.object({
+  DbId: v.string(),
+  Hostname: v.string(),
+  Name: v.string(),
+});
+const CreateTursoDatabaseSchema = v.object({ database: TursoDatabaseSchema });
+const TursoTokenSchema = v.object({ jwt: v.string() });
+const TursoOrganizationsSchema = v.array(v.object({ slug: v.string() }));
+const TursoGroupsSchema = v.object({
+  groups: v.array(v.object({ name: v.string() })),
+});
+
+export interface CreateTursoDatabaseRequest {
+  group: string;
+  name: string;
+  organization: string;
+  seed?: "database_upload";
+}
+
+export interface TursoDatabaseCredentials extends DatabaseCredentials {
+  name: string;
+}
+
+export interface TursoApi {
+  createDatabase(
+    request: CreateTursoDatabaseRequest,
+  ): Promise<Result<TursoDatabaseCredentials>>;
+  databaseExists(organization: string, name: string): Promise<Result<boolean>>;
+  deleteDatabase(organization: string, name: string): Promise<Result<void>>;
+  listGroups(organization: string): Promise<Result<string[]>>;
+  listOrganizations(): Promise<Result<string[]>>;
+  uploadDatabase(
+    credentials: DatabaseCredentials,
+    body: BodyInit,
+    contentLength: number,
+  ): Promise<Result<void>>;
+}
+
+/** Turn a site name into a valid Turso database name. */
 export const slugifyForTurso = (name: string): string => {
   const slug = slugifyForProvider(name, 63);
   return slug.length > 0 ? slug : "db";
 };
 
-interface CreateTursoDbResponse {
-  database: {
-    DbId: string;
-    Hostname: string;
-    Name: string;
-  };
-}
-
-/** Headers for all Turso API requests. */
-const tursoApiHeaders = (): Record<string, string> =>
-  jsonHeaders({ Authorization: `Bearer ${getTursoApiToken()}` });
-
-/**
- * Create a new Turso database with the given name.
- * Returns the database URL and a full-access JWT token.
- */
-const createDatabaseImpl: CreateDatabaseFn = async (name) => {
-  const org = getTursoOrganization();
-  const group = getTursoGroup();
-  const dbSlug = slugifyForTurso(name);
-
-  // 1. Create the database
-  const createRes = await fetchText(
-    `${TURSO_API_BASE}/v1/organizations/${encodeURIComponent(org)}/databases`,
-    {
-      body: JSON.stringify({ group, name: dbSlug }),
-      headers: tursoApiHeaders(),
-      method: "POST",
-    },
-  );
-
-  if (!createRes.ok) {
-    return parseApiError(createRes, "Create database", ["error", "message"]);
+const parseResponse = <Output>(
+  schema: v.GenericSchema<unknown, Output>,
+  text: string,
+  label: string,
+): Output => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`${label} returned invalid JSON`);
   }
-
-  const createData: CreateTursoDbResponse = JSON.parse(createRes.text);
-  const { DbId: dbId, Hostname: hostname, Name: dbName } = createData.database;
-  const dbUrl = `libsql://${hostname}`;
-
-  // 2. Generate a full-access token
-  const tokenRes = await fetchText(
-    `${TURSO_API_BASE}/v1/organizations/${encodeURIComponent(org)}/databases/${encodeURIComponent(
-      dbName,
-    )}/auth/tokens?authorization=full-access`,
-    {
-      headers: tursoApiHeaders(),
-      method: "POST",
-    },
-  );
-
-  if (!tokenRes.ok) {
-    return parseApiError(tokenRes, "Generate database token", [
-      "error",
-      "message",
-    ]);
-  }
-
-  return databaseCredentialsFromResponse(dbId, dbUrl, tokenRes.text, "jwt");
+  const result = v.safeParse(schema, parsed);
+  if (!result.success) throw new Error(`${label} returned an invalid response`);
+  return result.output;
 };
+
+const databasePath = (organization: string, name = ""): string =>
+  `/v1/organizations/${encodeURIComponent(organization)}/databases${
+    name ? `/${encodeURIComponent(name)}` : ""
+  }`;
+
+const namesFrom = <Entry>(
+  entries: Entry[],
+  getName: (entry: Entry) => string,
+): string[] => entries.map(getName);
+
+/** Build a Turso client around one platform API token. */
+export const createTursoApi = (apiToken: string): TursoApi => {
+  const apiHeaders = (): Record<string, string> =>
+    jsonHeaders({ Authorization: `Bearer ${apiToken}` });
+  const apiFetch = (path: string, init: RequestInit = {}) =>
+    fetchText(`${TURSO_API_BASE}${path}`, {
+      ...init,
+      headers: apiHeaders(),
+    });
+
+  const deleteDatabase = async (
+    organization: string,
+    name: string,
+  ): Promise<Result<void>> => {
+    const response = await apiFetch(
+      databasePath(organization, slugifyForTurso(name)),
+      { method: "DELETE" },
+    );
+    return response.ok
+      ? okResult(undefined)
+      : parseApiError(response, "Delete database");
+  };
+
+  const cleanUpFailedCreate = async (
+    organization: string,
+    name: string,
+    failure: string,
+  ): Promise<Result<never>> => {
+    try {
+      const cleanup = await deleteDatabase(organization, name);
+      return cleanup.ok
+        ? errorResult(failure)
+        : errorResult(`${failure}. Cleanup also failed: ${cleanup.error}`);
+    } catch (error) {
+      return errorResult(
+        `${failure}. Cleanup also failed: ${errorMessage(error)}`,
+      );
+    }
+  };
+
+  const createDatabase = async (
+    request: CreateTursoDatabaseRequest,
+  ): Promise<Result<TursoDatabaseCredentials>> => {
+    const name = slugifyForTurso(request.name);
+    const createResponse = await apiFetch(databasePath(request.organization), {
+      body: JSON.stringify({
+        group: request.group,
+        name,
+        ...(request.seed ? { seed: { type: request.seed } } : {}),
+      }),
+      method: "POST",
+    });
+    if (!createResponse.ok) {
+      return parseApiError(createResponse, "Create database");
+    }
+
+    let database: v.InferOutput<typeof TursoDatabaseSchema>;
+    try {
+      database = parseResponse(
+        CreateTursoDatabaseSchema,
+        createResponse.text,
+        "Create database",
+      ).database;
+    } catch (error) {
+      return await cleanUpFailedCreate(
+        request.organization,
+        name,
+        `Create database failed: ${errorMessage(error)}`,
+      );
+    }
+    const dbUrl = `libsql://${database.Hostname}`;
+    try {
+      const tokenResponse = await apiFetch(
+        `${databasePath(request.organization, database.Name)}/auth/tokens?authorization=full-access`,
+        { method: "POST" },
+      );
+      if (!tokenResponse.ok) {
+        const failure = parseApiError(tokenResponse, "Generate database token");
+        return await cleanUpFailedCreate(
+          request.organization,
+          database.Name,
+          failure.error,
+        );
+      }
+      const { jwt: dbToken } = parseResponse(
+        TursoTokenSchema,
+        tokenResponse.text,
+        "Generate database token",
+      );
+      return okResult({
+        dbId: database.DbId,
+        dbToken,
+        dbUrl,
+        name: database.Name,
+      });
+    } catch (error) {
+      return await cleanUpFailedCreate(
+        request.organization,
+        database.Name,
+        `Generate database token failed: ${errorMessage(error)}`,
+      );
+    }
+  };
+
+  return {
+    createDatabase,
+    databaseExists: async (organization, name) => {
+      const response = await apiFetch(
+        databasePath(organization, slugifyForTurso(name)),
+      );
+      if (response.ok) return okResult(true);
+      if (response.status === 404) return okResult(false);
+      return parseApiError(response, "Check database");
+    },
+    deleteDatabase,
+    listGroups: async (organization) => {
+      const response = await apiFetch(
+        `/v1/organizations/${encodeURIComponent(organization)}/groups`,
+      );
+      if (!response.ok) {
+        return parseApiError(response, "List Turso groups");
+      }
+      const { groups } = parseResponse(
+        TursoGroupsSchema,
+        response.text,
+        "List Turso groups",
+      );
+      return okResult(namesFrom(groups, (group) => group.name));
+    },
+    listOrganizations: async () => {
+      const response = await apiFetch("/v1/organizations");
+      if (!response.ok) {
+        return parseApiError(response, "List Turso organizations");
+      }
+      const organizations = parseResponse(
+        TursoOrganizationsSchema,
+        response.text,
+        "List Turso organizations",
+      );
+      return okResult(
+        namesFrom(organizations, (organization) => organization.slug),
+      );
+    },
+    uploadDatabase: async (credentials, body, contentLength) => {
+      const hostname = new URL(credentials.dbUrl).host;
+      const response = await fetchText(`https://${hostname}/v1/upload`, {
+        body,
+        headers: {
+          Authorization: `Bearer ${credentials.dbToken}`,
+          "Content-Length": String(contentLength),
+        },
+        method: "POST",
+      });
+      return response.ok
+        ? okResult(undefined)
+        : parseApiError(response, "Upload database");
+    },
+  };
+};
+
+const createDatabaseImpl: CreateDatabaseFn = (name) =>
+  createTursoApi(getTursoApiToken()).createDatabase({
+    group: getTursoGroup(),
+    name,
+    organization: getTursoOrganization(),
+  });
 
 export const tursoDbProvider: DatabaseProviderApi = {
   createDatabase: createDatabaseImpl,
