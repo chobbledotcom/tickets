@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  defineTableLayout,
-} from "#shared/tables/layout.ts";
+import { defineTableLayout } from "#shared/tables/layout.ts";
 
 const KEYS = ["name", "created"] as const;
 const layoutDefinition = defineTableLayout({ options: KEYS }, KEYS);

@@ -5,8 +5,8 @@ import {
   AttendeeColumnOrderForm,
   ListingColumnOrderForm,
 } from "#templates/admin/settings/column-order.tsx";
+import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import { advancedDefaultState } from "../settings-advanced/state.ts";
 
 const availableTags = (keys: readonly string[]): string =>
   `Available tags: ${keys.map((key) => `{{${key}}}`).join(", ")}`;

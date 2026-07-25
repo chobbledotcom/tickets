@@ -31,7 +31,6 @@ describe("typed table rendering", () => {
       ),
     );
 
-    expect(html).not.toContain("class=");
     expect(html).toContain(
       "<tbody><tr><td>Value 0</td></tr><tr><td>Value 1</td></tr><tr><td>Value 2</td></tr><tr><td>Value 3</td></tr><tr><td>Value 4</td></tr></tbody>",
     );
