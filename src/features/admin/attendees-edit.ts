@@ -132,11 +132,13 @@ const recordConfirmedRefund = async (
     legsBeforeRefund.length > 0 && legsBeforeRefund.every(isProviderPayment);
 
   const { posted } = await recordAttendeeRefund(attendeeId, references);
-  await logActivity(
-    `Payment marked as refunded for attendee '${attendee.name}'`,
-    listingId,
-    attendeeId,
-  );
+  if (!attendee.refunded) {
+    await logActivity(
+      `Payment marked as refunded for attendee '${attendee.name}'`,
+      listingId,
+      attendeeId,
+    );
+  }
   if (!posted) {
     return errorRedirect(
       `/admin/attendees/${attendeeId}`,
