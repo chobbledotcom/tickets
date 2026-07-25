@@ -1,9 +1,10 @@
 import { Given } from "@cucumber/cucumber";
+import { getEnv } from "#shared/env.ts";
 
 export const SPEC_RUNS_PATH_ENV = "TICKETS_SPEC_RUNS_PATH";
 
 export const requiredSpecRunsPath = (): string => {
-  const path = Deno.env.get(SPEC_RUNS_PATH_ENV);
+  const path = getEnv(SPEC_RUNS_PATH_ENV);
   if (!path) throw new Error(`${SPEC_RUNS_PATH_ENV} is required`);
   return path;
 };

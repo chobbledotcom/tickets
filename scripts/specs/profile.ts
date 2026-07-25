@@ -70,8 +70,8 @@ const placeholdersIn = (scenario: Scenario): Set<string> => {
     ]),
   ].join("\n");
   return new Set(
-    Array.from(authoredText.matchAll(/<([^<>]+)>/g), (match) =>
-      match[1]!.trim(),
+    Array.from(authoredText.matchAll(/<[^<>]+>/g), (match) =>
+      match[0].slice(1, -1),
     ),
   );
 };
@@ -83,6 +83,13 @@ const outlineCases = (
 ): SpecItem[] => {
   const cases: SpecItem[] = [];
   const placeholders = placeholdersIn(scenario);
+  if (placeholders.size === 0) {
+    invalidSpec(
+      state.uri,
+      scenario.location.line,
+      "Scenario Outline needs a placeholder",
+    );
+  }
   for (const examples of scenario.examples) {
     cases.push(
       ...casesFromExamples(
@@ -187,6 +194,13 @@ const scenarioCases = (
       );
     }
     return outlineCases(scenario, tags, state);
+  }
+  if (scenario.examples.length > 0) {
+    invalidSpec(
+      state.uri,
+      scenario.location.line,
+      "Scenario cannot have Examples",
+    );
   }
   const id = idFor(tags, "case", state, scenario.location.line);
   return [

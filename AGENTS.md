@@ -879,9 +879,11 @@ Execution is equally strict:
   another Gherkin runner.
 - Use a fresh typed World for every Scenario. Never keep scenario entities in
   module globals or hide the global database client in World.
-- Run Scenarios serially until every process-global DB, environment, cache,
-  session, and stub dependency has been made parallel-safe. Do not add retries;
-  a pass after retry is still a flaky failure.
+- Run Scenarios through the bounded Cucumber worker pool. Each worker has its
+  own isolate, and every Scenario gets a fresh database and World. Test
+  environment changes must use `withEnv` so `Deno.env` and the worker's
+  `process.env` stay aligned. Do not add retries; a pass after retry is still a
+  flaky failure.
 - Reuse the existing golden database, stripe-mock, static assets, encryption,
   browser, cache reset, and cleanup mechanisms. Extract one hook-free fixture
   when Cucumber and Deno hooks need the same lifecycle; never maintain two.

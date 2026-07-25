@@ -211,6 +211,7 @@ describe("mutation test execution", () => {
         ],
         [
           "run",
+          "--v8-flags=--expose-gc",
           "-A",
           "./scripts/run-specs.ts",
           "specs/payments/example.feature",

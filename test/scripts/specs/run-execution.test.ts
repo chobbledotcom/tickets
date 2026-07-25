@@ -6,11 +6,10 @@ import {
   requiredSpecRunsPath,
   SPEC_RUNS_PATH_ENV,
 } from "#test/scripts/specs/fixtures/record-step.ts";
-import { type EnvScope, withEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 interface OutlineFixture {
   directory: string;
-  env: EnvScope;
   environment: SpecRunEnvironment;
   featurePath: string;
   runsPath: string;
@@ -22,7 +21,6 @@ const createOutlineFixture = async (
   const directory = await Deno.makeTempDir();
   const featurePath = `${directory}/outline.feature`;
   const runsPath = `${directory}/runs.txt`;
-  const env = withEnv({ [SPEC_RUNS_PATH_ENV]: runsPath });
   await Deno.writeTextFile(
     featurePath,
     `
@@ -47,15 +45,17 @@ Feature: Select a payment example
   );
   return {
     directory,
-    env,
-    environment: { reportDir: `${directory}/reports`, support: [support] },
+    environment: {
+      env: { [SPEC_RUNS_PATH_ENV]: runsPath },
+      reportDir: `${directory}/reports`,
+      support: [support],
+    },
     featurePath,
     runsPath,
   };
 };
 
 const removeOutlineFixture = async (fixture: OutlineFixture): Promise<void> => {
-  fixture.env.dispose();
   await Deno.remove(fixture.directory, { recursive: true });
 };
 
@@ -64,6 +64,10 @@ const readMessages = async (reportDir: string): Promise<Envelope[]> =>
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line));
+
+const timestampNumber = (
+  timestamp: NonNullable<Envelope["testCaseStarted"]>["timestamp"],
+): number => Number(timestamp.seconds) * 1_000_000_000 + timestamp.nanos;
 
 describe("Cucumber execution", () => {
   test("requires the path used to record selected examples", () => {
@@ -130,31 +134,50 @@ describe("Cucumber execution", () => {
         testCase ? [testCase] : [],
       );
       expect(testCases).toHaveLength(1);
-      const selectedPickle = messages.find(
-        ({ pickle }) => pickle?.id === testCases[0]?.pickleId,
-      )?.pickle;
-      expect(selectedPickle?.name).toBe("Payment result second");
+      const selectedPickles = testCases.flatMap((testCase) =>
+        messages.flatMap(({ pickle }) =>
+          pickle && pickle.id === testCase.pickleId ? [pickle] : [],
+        ),
+      );
+      expect(selectedPickles).toEqual([
+        expect.objectContaining({ name: "Payment result second" }),
+      ]);
     } finally {
       await removeOutlineFixture(fixture);
     }
   });
 
-  test("runs every Outline row when no tag filter is given", async () => {
+  test("runs Outline rows concurrently in separate workers", async () => {
+    using _jobs = withEnv({ DENO_JOBS: "2" });
     const fixture = await createOutlineFixture(
       "test/scripts/specs/fixtures/all.steps.ts",
     );
     try {
       expect(
-        await runSpecs(
-          { paths: [fixture.featurePath], reports: false },
-          fixture.environment,
-        ),
+        await runSpecs({ paths: [fixture.featurePath] }, fixture.environment),
       ).toEqual({ success: true });
       expect((await Deno.readTextFile(fixture.runsPath)).split("\n")).toEqual([
         "run",
         "run",
         "",
       ]);
+      const messages = await readMessages(fixture.environment.reportDir);
+      const starts = messages.flatMap(({ testCaseStarted }) =>
+        testCaseStarted ? [testCaseStarted] : [],
+      );
+      const finishes = messages.flatMap(({ testCaseFinished }) =>
+        testCaseFinished ? [testCaseFinished] : [],
+      );
+      expect(starts).toHaveLength(2);
+      expect(finishes).toHaveLength(2);
+      expect(new Set(starts.map(({ workerId }) => workerId)).size).toBe(2);
+      expect(
+        Math.max(...starts.map(({ timestamp }) => timestampNumber(timestamp))),
+      ).toBeLessThan(
+        Math.min(
+          ...finishes.map(({ timestamp }) => timestampNumber(timestamp)),
+        ),
+      );
     } finally {
       await removeOutlineFixture(fixture);
     }

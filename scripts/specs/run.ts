@@ -5,10 +5,15 @@ import {
   runCucumber,
 } from "@cucumber/cucumber/api";
 import type { Envelope } from "@cucumber/messages";
+import {
+  environmentTasks,
+  processEnvironment,
+} from "#scripts/environment-values.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { readSpecCatalog } from "./catalog.ts";
 import { messageIssues } from "./messages.ts";
 import { shouldCheckUnusedSteps } from "./options.ts";
+import { specWorkerCount } from "./parallel.ts";
 import { selectSpecCases } from "./selection.ts";
 
 export interface RunSpecsOptions {
@@ -22,12 +27,14 @@ export interface SpecRunSummary {
 }
 
 export interface SpecRunEnvironment {
+  env?: Record<string, string>;
   reportDir: string;
   support: string[];
 }
 
 interface CompleteRunSpecsOptions {
   enforceUnused: boolean;
+  parallel: number;
   paths: string[];
   reports: boolean;
   tags: string;
@@ -42,6 +49,7 @@ const DEFAULT_ENVIRONMENT: SpecRunEnvironment = {
   reportDir: REPORT_DIR,
   support: DEFAULT_SUPPORT,
 };
+const withProcessEnvironment = environmentTasks(processEnvironment);
 const reportFormats = (reports: boolean, reportDir: string): string[] =>
   reports
     ? [
@@ -63,7 +71,7 @@ const cucumberConfiguration = async (
         format: reportFormats(options.reports, environment.reportDir),
         import: environment.support,
         order: "defined",
-        parallel: 0,
+        parallel: options.parallel,
         paths: options.paths,
         publish: false,
         retry: 0,
@@ -92,10 +100,14 @@ export const runSpecs = async (
   const paths = options.paths ?? ["specs"];
   if (options.reports ?? true) await prepareReports(environment.reportDir);
   const catalog = await readSpecCatalog(paths);
-  const selectedPaths =
-    options.tags === undefined ? paths : selectSpecCases(catalog, options.tags);
+  const selectedPaths = selectSpecCases(catalog, options.tags ?? "");
   const complete: CompleteRunSpecsOptions = {
     enforceUnused: shouldCheckUnusedSteps(options),
+    parallel: specWorkerCount(
+      selectedPaths.length,
+      Deno.env.get("DENO_JOBS"),
+      navigator.hardwareConcurrency,
+    ),
     paths: selectedPaths.length > 0 ? selectedPaths : paths,
     reports: options.reports ?? true,
     tags:
@@ -104,10 +116,12 @@ export const runSpecs = async (
         : "",
   };
   const messages: Envelope[] = [];
-  const result = await runCucumber(
-    await cucumberConfiguration(complete, environment),
-    { cwd: projectRoot },
-    (message) => messages.push(message),
+  const result = await withProcessEnvironment(environment.env, async () =>
+    runCucumber(
+      await cucumberConfiguration(complete, environment),
+      { cwd: projectRoot },
+      (message) => messages.push(message),
+    ),
   );
   const issues = messageIssues(messages, complete.enforceUnused);
   for (const issue of issues) console.error(issue);

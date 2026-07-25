@@ -1,4 +1,8 @@
 import { lazyRef } from "#fp";
+import {
+  processEnvironment,
+  setEnvironmentValue,
+} from "#scripts/environment-values.ts";
 import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
 import { setFastPbkdf2ForTest } from "#shared/crypto/hashing.ts";
 import { setRsaKeySizeForTest } from "#shared/crypto/keys.ts";
@@ -73,6 +77,11 @@ export interface EnvScope extends Disposable {
 
 export const withEnv = (vars: Record<string, string | undefined>): EnvScope => {
   const prev = getOverlay();
+  const workerProcessEnv = process.env.CUCUMBER_WORKER_ID
+    ? Object.fromEntries(
+        Object.keys(vars).map((key) => [key, process.env[key]]),
+      )
+    : null;
   const layer: Record<string, string | undefined> = prev
     ? { ...prev }
     : Object.create(null);
@@ -84,11 +93,19 @@ export const withEnv = (vars: Record<string, string | undefined>): EnvScope => {
     const value = vars[key];
     if (value !== undefined) Deno.env.set(key, value);
     else Deno.env.delete(key);
+    if (workerProcessEnv) {
+      setEnvironmentValue(processEnvironment, key, value);
+    }
   }
   const state = { active: true };
   const dispose = (): void => {
     if (!state.active) return;
     state.active = false;
+    if (workerProcessEnv) {
+      for (const [key, value] of Object.entries(workerProcessEnv)) {
+        setEnvironmentValue(processEnvironment, key, value);
+      }
+    }
     setOverlay(prev);
   };
   return { dispose, [Symbol.dispose]: dispose };

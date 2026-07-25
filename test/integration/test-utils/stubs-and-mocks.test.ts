@@ -1,6 +1,6 @@
-import type { Client } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { expectHtmlEscaped, rejectionMessage } from "#test-utils/assertions.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -9,7 +9,6 @@ import {
   expectSendNoop,
   rejectedFetch,
 } from "#test-utils/email.ts";
-import { withEnv } from "#test-utils/env.ts";
 import {
   generateTestListingName,
   resetTestSlugCounter,
@@ -25,19 +24,10 @@ import {
   wait,
   withMocks,
 } from "#test-utils/mocks.ts";
-import { createTrackedTestDbFile } from "#test-utils/temp-db-files.ts";
 import {
   getSetupState,
   invalidateTestDbCache,
 } from "#test-utils/test-state.ts";
-
-const removeIfPresent = async (path: string): Promise<void> => {
-  try {
-    await Deno.remove(path);
-  } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
-  }
-};
 
 describe("test-utils — stubs, caches & request mocks", () => {
   afterEach(() => {
@@ -190,21 +180,17 @@ describe("test-utils — stubs, caches & request mocks", () => {
     });
 
     test("removes the temp database even when closing the client throws", async () => {
-      const path = await createTrackedTestDbFile(".db");
-      const { setDb } = await import("#shared/db/client.ts");
-      setDb({
-        close: () => {
-          throw new Error("already closed");
-        },
-      } as unknown as Client);
+      await createTestDb();
+      const url = Deno.env.get("DB_URL");
+      expect(url?.startsWith("file:")).toBe(true);
+      const path = String(url).slice("file:".length);
+      const { getDb } = await import("#shared/db/client.ts");
+      using _close = stub(getDb(), "close", () => {
+        throw new Error("already closed");
+      });
 
-      try {
-        using _env = withEnv({ DB_URL: `file:${path}` });
-        expect(() => resetDb()).not.toThrow();
-        await expect(Deno.stat(path)).rejects.toThrow(Deno.errors.NotFound);
-      } finally {
-        await removeIfPresent(path);
-      }
+      expect(() => resetDb()).not.toThrow();
+      await expect(Deno.stat(path)).rejects.toThrow(Deno.errors.NotFound);
     });
 
     test("removes SQLite sidecar files for the active temp database", async () => {

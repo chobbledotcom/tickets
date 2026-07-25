@@ -131,7 +131,13 @@ const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
   return features.length === 0
     ? 0
     : await denoExitCode(
-        ["run", "-A", "./scripts/run-specs.ts", ...features],
+        [
+          "run",
+          "--v8-flags=--expose-gc",
+          "-A",
+          "./scripts/run-specs.ts",
+          ...features,
+        ],
         options,
       );
 };

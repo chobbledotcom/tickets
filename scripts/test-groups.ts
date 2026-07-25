@@ -22,6 +22,7 @@ import { join, relative } from "node:path";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { isSourcePath, isTestPath } from "./unit-tests-report-lib.ts";
 import { collectFiles } from "./walk-files.ts";
+import { parseWorkerCount } from "./workers.ts";
 
 /** Where the generated group entry files live, relative to the project root.
  * Outside test/ so tree-walking checks (code quality, i18n coverage) never see
@@ -103,16 +104,6 @@ export const collectTestFiles = async (root: string): Promise<string[]> => {
  */
 export const defaultGroupCount = (workers: number): number =>
   Math.max(8, workers * 4);
-
-/** Read a worker count out of an env value, falling back when it is unset,
- * not a number, or not positive. Pure, so the parsing rules are testable. */
-export const parseWorkerCount = (
-  value: string | undefined,
-  fallback: number,
-): number => {
-  const jobs = Number(value);
-  return Number.isInteger(jobs) && jobs > 0 ? jobs : fallback;
-};
 
 const testWorkerCount = (): number =>
   parseWorkerCount(Deno.env.get("DENO_JOBS"), navigator.hardwareConcurrency);

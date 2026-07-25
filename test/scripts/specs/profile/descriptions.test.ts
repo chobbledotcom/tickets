@@ -14,9 +14,11 @@ describe("Cucumber catalog descriptions", () => {
       "  Customers get a clear result.\n\n  - Payment is confirmed.\n  - The result is shown.",
     );
 
-    const story = validateSpecSources([source(markdown)], registry).stories[0];
-    expect(story?.description).toBe(
-      "Customers get a clear result.\n\n- Payment is confirmed.\n- The result is shown.",
-    );
+    expect(validateSpecSources([source(markdown)], registry).stories).toEqual([
+      expect.objectContaining({
+        description:
+          "Customers get a clear result.\n\n- Payment is confirmed.\n- The result is shown.",
+      }),
+    ]);
   });
 });

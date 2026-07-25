@@ -219,6 +219,33 @@ describe("Cucumber specification profile", () => {
     );
   });
 
+  test("rejects a Scenario Outline without an authored placeholder", () => {
+    expectInvalid(
+      outlineFeature
+        .replace("Payment result <case_id>", "Payment result")
+        .replace("has <places> places", "has places"),
+      "Scenario Outline needs a placeholder",
+    );
+  });
+
+  test("rejects whitespace around a placeholder name", () => {
+    expectInvalid(
+      outlineFeature.replace("<places>", "< places >"),
+      "No Examples column for placeholder < places >",
+    );
+  });
+
+  test("rejects Examples on a plain Scenario", () => {
+    expectInvalid(
+      `${validFeature}
+      Examples:
+        | value |
+        | one   |
+`,
+      "Scenario cannot have Examples",
+    );
+  });
+
   test("rejects a Scenario without steps", () => {
     expectInvalid(
       validFeature.replace(/\n {6}Given[\s\S]*$/, "\n"),
