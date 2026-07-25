@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -87,6 +88,7 @@ const createHoldViaProduction = async (
     name: holdName,
   });
   world.servicingEventId = event.id;
+  world.holdListingId = listing.id;
   return { eventId: event.id, listingId: listing.id };
 };
 
@@ -104,7 +106,7 @@ Given(
   async function (this: TicketsWorld): Promise<void> {
     await createHoldViaProduction(this, ANNUAL_ROOM, ANNUAL_INSPECTION, {
       maxAttendees: 10,
-      maximum_days_after: 1000,
+      maximumDaysAfter: 1000,
     });
   },
 );
@@ -152,9 +154,8 @@ Then(
   "the admin dashboard shows two Annual Inspection holds",
   async function (this: TicketsWorld): Promise<void> {
     const body = await renderAdminPage("/admin/");
-    const links = (body.match(/\/admin\/servicing\/\d+/g) ?? []).length;
-    expect(links).toBeGreaterThanOrEqual(2);
-    expect(body).toContain(ANNUAL_INSPECTION);
+    const count = (body.match(/Annual Inspection/g) ?? []).length;
+    expect(count).toBeGreaterThanOrEqual(2);
   },
 );
 
@@ -182,7 +183,15 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
     const body = await renderAdminPage(`/admin/servicing/${id}`);
-    expect(body).toContain("90");
+    expect(body).toContain(">£90<");
     expect(body).toContain("Boiler part");
+  },
+);
+
+Then(
+  "the held listing has its full capacity restored",
+  async function (this: TicketsWorld): Promise<void> {
+    const listingId = requiredWorldValue(this.holdListingId, "hold listing id");
+    expect(await getListingRemainingForRange(listingId, "2099-07-01")).toBe(1);
   },
 );

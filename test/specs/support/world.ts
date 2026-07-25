@@ -9,6 +9,7 @@ export interface TicketsWorld extends World {
   firstBody?: string;
   firstFailureData?: string;
   firstStatus?: number;
+  holdListingId?: number;
   listingId?: number;
   listingIds: Map<string, number>;
   placeholderId?: number;

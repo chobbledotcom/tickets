@@ -1,5 +1,5 @@
 @story:servicing.hold-and-cost
-@owner:attendees @risk:medium
+@owner:servicing @risk:medium
 @actor:organiser
 @edition:managed @edition:self-hosted
 Feature: An organiser holds and costs a service event
@@ -35,6 +35,7 @@ Feature: An organiser holds and costs a service event
       Given an organiser has created a Boiler Service hold on Room A
       When the organiser deletes the service event
       Then the admin dashboard no longer shows Boiler Service
+      And the held listing has its full capacity restored
 
   @rule:servicing.hold-can-be-costed
   Rule: The organiser can record a cost against a hold
