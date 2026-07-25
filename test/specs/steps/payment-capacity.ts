@@ -23,6 +23,7 @@ import {
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   findKeptPlaceholder,
+  getKeptPlaceholders,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
@@ -67,9 +68,6 @@ const setSoldOutListing = async (world: TicketsWorld): Promise<void> => {
   const listing = await fillSoleCapacityListing();
   world.listingId = listing.id;
 };
-
-const placeholders = async (listingId: number): Promise<{ id: number }[]> =>
-  (await getAttendeesRaw(listingId)).filter(({ quantity }) => quantity === 0);
 
 const returnedPayment = (sessionId: string): Promise<Response> =>
   withExpectedError(() =>
@@ -201,7 +199,7 @@ Then(
   "no second customer record is made",
   async function (this: TicketsWorld): Promise<void> {
     const listingId = requiredWorldValue(this.listingId, "listing id");
-    expect((await placeholders(listingId)).map(({ id }) => id)).toEqual([
+    expect((await getKeptPlaceholders(listingId)).map(({ id }) => id)).toEqual([
       requiredWorldValue(this.placeholderId, "placeholder id"),
     ]);
   },

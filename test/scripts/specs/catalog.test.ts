@@ -22,7 +22,9 @@ describe("Cucumber story catalog", () => {
   test("sorts and removes duplicate Feature paths", async () => {
     const paths = await collectFeaturePaths([FEATURE_PATH, FEATURE_PATH]);
     expect(paths).toHaveLength(1);
-    expect(paths[0]?.endsWith(FEATURE_PATH)).toBe(true);
+    const path = paths[0];
+    if (path === undefined) throw new Error("Expected one Feature path");
+    expect(path.endsWith(FEATURE_PATH)).toBe(true);
   });
 
   test("rejects a requested path with no Features", async () => {

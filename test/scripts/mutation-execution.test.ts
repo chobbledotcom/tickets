@@ -219,6 +219,29 @@ describe("mutation test execution", () => {
     );
   });
 
+  test("runs all Features once after concurrent direct batches", async () => {
+    const features = ["specs/a.feature", "specs/b.feature"];
+    const batches: string[][] = [];
+    const result = await runTests(
+      {
+        ...config,
+        batchJobs: 2,
+        testFiles: [...testFilesAcrossBatches, ...features],
+      },
+      new AbortController().signal,
+      {
+        runBatch: (batch) => {
+          batches.push(batch);
+          return Promise.resolve(0);
+        },
+      },
+    );
+
+    expect(result.outcome).toBe("passed");
+    expect(batches.slice(0, -1).flat()).toEqual(testFilesAcrossBatches);
+    expect(batches.at(-1)).toEqual(features);
+  });
+
   test("does not run Cucumber after a direct mutation test fails", async () => {
     const result = await runCapturedMutation({
       code: 1,

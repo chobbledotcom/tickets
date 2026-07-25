@@ -1,5 +1,6 @@
 import { dialects } from "@cucumber/gherkin";
 import {
+  type Envelope,
   type Examples,
   type Feature,
   IdGenerator,
@@ -294,7 +295,7 @@ export const validateSpecSources = (
   const newId = IdGenerator.incrementing();
   const state = { ids: new Set<string>(), registry, uri: "" };
   const stories: SpecStory[] = [];
-  const envelopes: object[] = [];
+  const envelopes: Envelope[] = [];
 
   for (const source of sorted) {
     state.uri = source.uri;

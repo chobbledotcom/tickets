@@ -17,6 +17,13 @@ interface SpecSelection {
 export const shouldCheckUnusedSteps = (selection: SpecSelection): boolean =>
   selection.paths === undefined && selection.tags === undefined;
 
+const tagExpression = (value: string | undefined): string => {
+  if (!value || value.startsWith("--")) {
+    throw new Error("--tags needs a tag expression");
+  }
+  return value;
+};
+
 export const parseSpecArgs = (args: string[]): SpecCliOptions => {
   const paths: string[] = [];
   let tags: string | undefined;
@@ -24,11 +31,7 @@ export const parseSpecArgs = (args: string[]): SpecCliOptions => {
   while (remaining.length > 0) {
     const value = remaining.shift()!;
     if (value === "--tags") {
-      const expression = remaining.shift();
-      if (!expression || expression.startsWith("--")) {
-        throw new Error("--tags needs a tag expression");
-      }
-      tags = expression;
+      tags = tagExpression(remaining.shift());
     } else if (value.startsWith("--")) {
       throw new Error(`Unknown specs option ${value}`);
     } else paths.push(value);
@@ -44,9 +47,7 @@ export const focusedTargets = (args: string[]): FocusedTargets => {
     const arg = args[index]!;
     if (arg.endsWith(".feature")) continue;
     if (arg === "--tags") {
-      const value = args[++index];
-      if (!value) throw new Error("--tags needs a tag expression");
-      tags = value;
+      tags = tagExpression(args[++index]);
       continue;
     }
     testArgs.push(arg);

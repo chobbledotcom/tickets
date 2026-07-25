@@ -5,6 +5,7 @@ import {
   Parser,
 } from "@cucumber/gherkin";
 import {
+  type Envelope,
   type GherkinDocument,
   type Source,
   SourceMediaType,
@@ -39,7 +40,7 @@ export const gherkinEnvelopes = (
   source: SpecSource,
   document: GherkinDocument,
   newId: () => string,
-): object[] => {
+): Envelope[] => {
   const sourceMessage: Source = {
     data: source.data,
     mediaType: SourceMediaType.TEXT_X_CUCUMBER_GHERKIN_PLAIN,

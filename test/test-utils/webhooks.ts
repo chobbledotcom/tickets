@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import type { Attendee } from "#shared/types.ts";
 import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
@@ -180,13 +181,17 @@ export const expectWebhookKeptAndRefunded = async (
  * shared way both the redirect and webhook sold-out scenarios find the late
  * buyer's kept placeholder alongside the original attendee.
  */
+export const getKeptPlaceholders = async (
+  listingId: number,
+): Promise<Attendee[]> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  return (await getAttendeesRaw(listingId)).filter((a) => a.quantity === 0);
+};
+
 export const findKeptPlaceholder = async (
   listingId: number,
 ): Promise<{ id: number }> => {
-  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
-  const placeholders = (await getAttendeesRaw(listingId)).filter(
-    (a) => a.quantity === 0,
-  );
+  const placeholders = await getKeptPlaceholders(listingId);
   // The invariant this helper documents: exactly one kept placeholder, so a
   // duplicate-placeholder regression fails here rather than silently passing.
   expect(placeholders.length).toBe(1);

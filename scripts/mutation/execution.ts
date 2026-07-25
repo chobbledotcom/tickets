@@ -1,3 +1,4 @@
+import { partition } from "#fp";
 import {
   type BiomeCommand,
   resolveBiomeCommand,
@@ -101,9 +102,10 @@ export const createStaticGates = async (
   deps: StaticGateDeps = realGateDeps,
 ): Promise<StaticGate[]> => [await createLinter(deps), createTypeChecker(deps)];
 
+const isFeatureFile = (file: string): boolean => file.endsWith(".feature");
+
 const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
-  const features = batch.filter((file) => file.endsWith(".feature"));
-  const direct = batch.filter((file) => !file.endsWith(".feature"));
+  const [features, direct] = partition(isFeatureFile)(batch);
   const options = {
     cwd: projectRoot,
     env,
@@ -195,7 +197,8 @@ export const runTests = async (
   else signal.addEventListener("abort", forwardAbort, { once: true });
   const startedAt = performance.now();
   try {
-    const cursor = { batches: batchTestFiles(testFiles), next: 0 };
+    const [features, direct] = partition(isFeatureFile)(testFiles);
+    const cursor = { batches: batchTestFiles(direct), next: 0 };
     const context = { controller, deps, env, signal };
     const jobs = Math.min(
       Math.max(1, batchJobs),
@@ -204,11 +207,14 @@ export const runTests = async (
     const outcomes = await Promise.all(
       Array.from({ length: jobs }, () => runBatchWorker(cursor, context)),
     );
-    const outcome = outcomes.includes("failed")
+    let outcome: Outcome = outcomes.includes("failed")
       ? "failed"
       : outcomes.includes("timed-out")
         ? "timed-out"
         : "passed";
+    if (outcome === "passed" && features.length > 0) {
+      outcome = (await runOneBatch(features, context)) ?? "passed";
+    }
     return { durationMs: performance.now() - startedAt, outcome };
   } finally {
     signal.removeEventListener("abort", forwardAbort);

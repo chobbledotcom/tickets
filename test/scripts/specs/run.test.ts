@@ -27,7 +27,47 @@ const stepDefinition = (id: string): Envelope => ({
 });
 
 describe("Cucumber runner", () => {
-  test("rejects retries skipped steps and unused definitions", () => {
+  test("rejects retries", () => {
+    expect(
+      messageIssues(
+        [
+          {
+            testCaseStarted: {
+              attempt: 1,
+              id: "start",
+              testCaseId: "case",
+              timestamp,
+            },
+          },
+        ],
+        false,
+      ),
+    ).toEqual(["Cucumber retries are forbidden"]);
+  });
+
+  test("rejects skipped steps", () => {
+    expect(
+      messageIssues(
+        [
+          {
+            testStepFinished: {
+              testCaseStartedId: "start",
+              testStepId: "step",
+              testStepResult: {
+                duration: timestamp,
+                message: "",
+                status: TestStepResultStatus.SKIPPED,
+              },
+              timestamp,
+            },
+          },
+        ],
+        false,
+      ),
+    ).toEqual(["Cucumber step finished as SKIPPED"]);
+  });
+
+  test("reports unused definitions", () => {
     expect(
       messageIssues(
         [
@@ -43,34 +83,10 @@ describe("Cucumber runner", () => {
               ],
             },
           },
-          {
-            testCaseStarted: {
-              attempt: 1,
-              id: "start",
-              testCaseId: "case",
-              timestamp,
-            },
-          },
-          {
-            testStepFinished: {
-              testCaseStartedId: "start",
-              testStepId: "step",
-              testStepResult: {
-                duration: timestamp,
-                message: "",
-                status: TestStepResultStatus.SKIPPED,
-              },
-              timestamp,
-            },
-          },
         ],
         true,
       ),
-    ).toEqual([
-      "Cucumber retries are forbidden",
-      "Cucumber step finished as SKIPPED",
-      "Unused Cucumber step definition unused",
-    ]);
+    ).toEqual(["Unused Cucumber step definition unused"]);
   });
 
   test("allows focused runs to leave unrelated definitions unused", () => {
@@ -146,6 +162,9 @@ describe("Cucumber runner", () => {
     expect(() => focusedTargets(["specs/example.feature", "--tags"])).toThrow(
       "--tags needs a tag expression",
     );
+    expect(() =>
+      focusedTargets(["specs/example.feature", "--tags", "--unknown"]),
+    ).toThrow("--tags needs a tag expression");
     expect(focusedTargets(["specs/example.feature"])).toEqual({
       specPaths: ["specs/example.feature"],
       testArgs: [],
