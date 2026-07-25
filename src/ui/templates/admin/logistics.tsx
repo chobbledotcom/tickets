@@ -16,6 +16,7 @@ import { t } from "#i18n";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
 import { editPanel, successListPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
@@ -26,10 +27,9 @@ import {
   CheckboxLabel,
   SectionFieldset,
 } from "#templates/components/aggregate-sections.tsx";
-import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
-import { renderTable } from "#templates/components/table.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
 
 /* jscpd:ignore-end */

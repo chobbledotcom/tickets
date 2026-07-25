@@ -30,6 +30,7 @@ import { isReadOnly } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
@@ -45,10 +46,9 @@ import {
   transferEventLabel,
 } from "#templates/admin/ledger/formatting.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
-import { renderTable } from "#templates/components/table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
 
 /**
@@ -290,7 +290,11 @@ const transferColumns = (
 const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
   transferColumns(
     [
-      { cell: transferEventLabel, headerKey: "admin.ledger.col.event", key: "event" },
+      {
+        cell: transferEventLabel,
+        headerKey: "admin.ledger.col.event",
+        key: "event",
+      },
       {
         cell: (transfer) => (
           <>

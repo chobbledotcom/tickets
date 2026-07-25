@@ -14,6 +14,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   type FlashPageRenderer,
@@ -21,9 +22,8 @@ import {
 } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
-import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
-import { renderTable } from "#templates/components/table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 /* jscpd:ignore-end */
 
 /** A delete confirmation spec, parameterised by the entity. */

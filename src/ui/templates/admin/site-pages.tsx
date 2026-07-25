@@ -11,6 +11,7 @@ import {
   sitePageForm,
 } from "#routes/admin/site-pages-form.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type {
   AdminSession,
   SitePage,
@@ -27,10 +28,9 @@ import {
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
-import { renderReorderTable } from "#templates/components/table.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderReorderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -74,7 +74,9 @@ const pageReorderTable = <T,>(opts: {
   columns: TableColumn<T>[];
   rows: T[];
 }): JSX.Element =>
-  renderReorderTable(defineTable(opts.columns), {
+  renderReorderTable(
+    defineTable(opts.columns),
+    {
       action: (row) => (direction) => `${opts.base(row)}/move-${direction}`,
       header: t("site.pages.order_column"),
     },

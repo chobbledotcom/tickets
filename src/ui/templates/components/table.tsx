@@ -66,16 +66,29 @@ export type TableRenderOptions<TContext = void> = {
   readonly bodyAttrs?: Record<string, string> | undefined;
 };
 
+/** The set of `ColumnKind` literal values, for runtime disambiguation between
+ *  a `class` (ColumnKind — to be turned into `col-<kind>`) and a `className`
+ *  (free-form string — used verbatim). Both are typed as `string` at runtime
+ *  since `ColumnKind` is a string-literal union. */
+const COLUMN_KINDS: ReadonlySet<string> = new Set([
+  "reorder",
+  "amount",
+  "quantity",
+  "actions",
+]);
+
 /** Convert one part to its CSS class contribution, or `undefined` when it
  *  contributes nothing (boolean false, empty string, or a numeric/boolean
- *  cell-attr value the caller is just passing through). */
+ *  cell-attr value the caller is just passing through). A ColumnKind value
+ *  ("amount", "quantity", etc.) maps to `col-amount`, `col-quantity`, and a
+ *  free-form className string is used verbatim. */
 const partToClass = (
   part: ColumnKind | string | number | boolean | undefined,
 ): string | undefined => {
-  if (part === undefined || part === false || part === null) return;
-  if (typeof part === "string") return part === "" ? undefined : part;
-  if (typeof part === "number" || typeof part === "boolean") return;
-  return colClass(part);
+  if (part === undefined || part === false || part === null) return undefined;
+  if (typeof part === "number" || typeof part === "boolean") return undefined;
+  if (part === "") return undefined;
+  return COLUMN_KINDS.has(part) ? colClass(part as ColumnKind) : part;
 };
 
 /** Combine a column's class kind (e.g. "amount"), a column's free-form
@@ -139,26 +152,24 @@ const TableCell = <TRow, TContext>({
   filterExpr: string | undefined;
 }): JSX.Element => {
   const attrs = splitCellAttrs(column.cellAttrs?.(row, ctx));
-  const className = combineClasses(column.class, column.className, attrs.class);
-  const content = cellContent(column, row, ctx, index, rows, filterExpr);
-  return className === "" ? (
-    <td {...attrs.rest}>{content}</td>
-  ) : (
-    <td class={className} {...attrs.rest}>
-      {content}
-    </td>
+  const className = combineClasses(
+    column.class,
+    column.className,
+    attrs.class,
   );
+  const content = cellContent(column, row, ctx, index, rows, filterExpr);
+  return className === ""
+    ? <td {...attrs.rest}>{content}</td>
+    : <td class={className} {...attrs.rest}>{content}</td>;
 };
 
 const headerCell = <TRow, TContext>(
   column: TableColumn<TRow, TContext>,
 ): JSX.Element => {
-  const className = combineClasses(column.class, column.className);
-  return className === "" ? (
-    <th>{column.header}</th>
-  ) : (
-    <th class={className}>{column.header}</th>
-  );
+  const className = combineClasses(column.class, column.headerClassName);
+  return className === ""
+    ? <th>{column.header}</th>
+    : <th class={className}>{column.header}</th>;
 };
 
 /** Build the column list to actually render: from `columnKeys` (or the

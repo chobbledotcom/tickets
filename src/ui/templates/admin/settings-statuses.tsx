@@ -12,6 +12,7 @@ import { t } from "#i18n";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
+import type { TableColumn } from "#shared/tables/definition.ts";
 import { editPanel } from "#templates/admin/admin-page.tsx";
 import {
   defineAdminResourcePages,
@@ -20,10 +21,9 @@ import {
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
-import { type TableColumn } from "#shared/tables/definition.ts";
-import { reorderColumn } from "#templates/components/table.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { reorderColumn } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -44,15 +44,16 @@ const statusBadges = (s: AttendeeStatus): JSX.Element => (
 
 /** The reorder column for the attendee-statuses table — declared once so the
  *  header/cell order can't drift. */
-const statusReorderColumn: TableColumn<AttendeeStatus> = reorderColumn<AttendeeStatus>({
-  action: (status) => (direction) =>
-    `${LIST_PATH}/${status.id}/move-${direction}`,
-  header: t("statuses.order_header"),
-  titles: {
-    down: t("statuses.move_down_title"),
-    up: t("statuses.move_up_title"),
-  },
-});
+const statusReorderColumn: TableColumn<AttendeeStatus> =
+  reorderColumn<AttendeeStatus>({
+    action: (status) => (direction) =>
+      `${LIST_PATH}/${status.id}/move-${direction}`,
+    header: t("statuses.order_header"),
+    titles: {
+      down: t("statuses.move_down_title"),
+      up: t("statuses.move_up_title"),
+    },
+  });
 
 /** Columns for the attendee-statuses table. The `name` column's `key` is
  *  duplicated across the staff (no reorder) and owner (with reorder) variants,

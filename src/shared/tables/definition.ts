@@ -10,7 +10,10 @@
  * any JSX.
  */
 
-import type { ReorderColumnOptions, TableColumn } from "#shared/tables/column.ts";
+import type {
+  ReorderColumnOptions,
+  TableColumn,
+} from "#shared/tables/column.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import {
   buildDefaultTemplate,

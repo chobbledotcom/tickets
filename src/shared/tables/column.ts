@@ -48,16 +48,19 @@ export type TableColumn<TRow, TContext = void> = {
    *  Use for the codified width/alignment kinds mirrored in
    *  `$column-kinds` in `style.scss`. */
   readonly class?: ColumnKind;
-  /** A free-form class applied to both this column's <th> and every <td>
-   *  in it (e.g. `"cell-description"` for the listing description's
-   *  truncation, `"actions-col"` for the attendee status cell). Combined
-   *  with `class` when both are set; for per-row class overrides use
-   *  `cellAttrs`. */
+  /** A free-form class applied to every <td> in this column (e.g.
+   *  `"cell-description"` for the listing description's truncation,
+   *  `"actions-col"` for the attendee status cell). Note this does NOT set
+   *  the <th>; use `headerClassName` for that. */
   readonly className?: string;
+  /** A free-form class applied to this column's <th> only. Use when the
+   *  header and body cells need different classes (e.g. the attendee name
+   *  column's empty header but action-classed body cells). */
+  readonly headerClassName?: string;
   /** Per-cell attributes (e.g. `{"data-id": row.id}`). Useful for tables
    *  whose rows carry data attributes consumed by client-side JS hooks
    *  (the duplicate-preview table). The `class` key, if set here, merges
-   *  with `class` and `className` for that one cell. */
+   *  with `class`, `className`, and `headerClassName` for that one cell. */
   readonly cellAttrs?: (row: TRow, ctx: TContext) => CellAttrs;
   /** Return the raw, Liquid-friendly value for this column. When the user
    *  applies a Liquid filter (e.g. `{{created | date: "%B"}}`), the filter

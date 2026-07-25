@@ -11,9 +11,7 @@ attendeeTableSuite(() => {
   test("renders only specified columns in template order", () => {
     const html = render(
       makeOpts({
-        columnLayout: attendeeTable.parse(
-          "{{name}}, {{qty}}, {{registered}}",
-        ),
+        columnLayout: attendeeTable.parse("{{name}}, {{qty}}, {{registered}}"),
         showCheckin: false,
       }),
     );
@@ -30,9 +28,7 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ email: "" });
     const html = render(
       makeOpts({
-        columnLayout: attendeeTable.parse(
-          "{{name}}, {{email}}, {{qty}}",
-        ),
+        columnLayout: attendeeTable.parse("{{name}}, {{email}}, {{qty}}"),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),
@@ -44,9 +40,7 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ email: "a@b.com" });
     const html = render(
       makeOpts({
-        columnLayout: attendeeTable.parse(
-          "{{qty}}, {{name}}, {{email}}",
-        ),
+        columnLayout: attendeeTable.parse("{{qty}}, {{name}}, {{email}}"),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),

@@ -34,9 +34,7 @@ attendeeTableSuite(() => {
     });
 
     test("renders Qty column", () => {
-      expect(render(makeOpts())).toContain(
-        '<th class="col-quantity">Qty</th>',
-      );
+      expect(render(makeOpts())).toContain('<th class="col-quantity">Qty</th>');
     });
 
     test("renders Ticket column with link", () => {
@@ -73,9 +71,7 @@ attendeeTableSuite(() => {
         }),
       ),
     ];
-    const html = render(
-      makeOpts({ rows, showDate: true, showListing: true }),
-    );
+    const html = render(makeOpts({ rows, showDate: true, showListing: true }));
     const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
       (match) => match[1],
     );
@@ -189,9 +185,7 @@ attendeeTableSuite(() => {
     });
 
     test("shows Date when showDate is true", () => {
-      expect(render(makeOpts({ showDate: true }))).toContain(
-        "<th>Date</th>",
-      );
+      expect(render(makeOpts({ showDate: true }))).toContain("<th>Date</th>");
     });
 
     test("renders phone as a normalized tel link", () => {
@@ -213,9 +207,9 @@ attendeeTableSuite(() => {
 
     test("defaults the phone prefix to 44", () => {
       const attendee = testAttendee({ phone: "07700 900000" });
-      expect(
-        render(makeOpts({ rows: [makeRow({ attendee })] })),
-      ).toContain('href="tel:+447700900000"');
+      expect(render(makeOpts({ rows: [makeRow({ attendee })] }))).toContain(
+        'href="tel:+447700900000"',
+      );
     });
 
     test("renders special instructions on one line", () => {

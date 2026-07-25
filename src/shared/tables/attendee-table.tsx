@@ -270,6 +270,7 @@ const status: AttendeeCol = {
   className: "actions-col",
   description: "Check-in/check-out button or refunded badge",
   header: "",
+  headerClassName: "actions-col",
   key: "status",
   label: "Status",
 };

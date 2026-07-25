@@ -14,6 +14,7 @@
 
 import { sort } from "#fp";
 import { t } from "#i18n";
+import { isServicing } from "#shared/db/attendees/kind.ts";
 import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
@@ -25,6 +26,7 @@ import {
 } from "#shared/tables/attendee-table.tsx";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import type { AttendeeTableRow, DisplayAttendee } from "#shared/types.ts";
+import { hasTicketQuantity } from "#shared/types.ts";
 import { renderTable } from "#templates/components/table.tsx";
 
 export type {
@@ -144,7 +146,7 @@ const CheckinButton = ({
   listingId: number;
   activeFilter: string;
   returnUrl: string | undefined;
-}): string => {
+}): JSX.Element => {
   const isCheckedIn = a.checked_in;
   const label = isCheckedIn
     ? t("admin.attendee_table.check_out")
@@ -152,7 +154,7 @@ const CheckinButton = ({
   const buttonClass = isCheckedIn
     ? "link-button checkout"
     : "link-button checkin";
-  return String(
+  return (
     <CsrfForm
       action={`/admin/listing/${listingId}/attendee/${a.id}/checkin`}
       class="inline"
@@ -162,7 +164,7 @@ const CheckinButton = ({
       <button class={buttonClass} type="submit">
         {label}
       </button>
-    </CsrfForm>,
+    </CsrfForm>
   );
 };
 
@@ -193,15 +195,29 @@ const buildColumnOpts = (opts: AttendeeTableOptions): AttendeeColumnOpts => {
 /** Create the renderStatus callback for column opts */
 const createStatusRenderer =
   (opts: AttendeeTableOptions) =>
-  (row: AttendeeTableRow): string => {
+  (row: AttendeeTableRow): JSX.Element => {
     const a = row.attendee;
+    if (isServicing(a.kind)) {
+      return (
+        <span class="servicing-event" data-servicing="true">
+          {t("admin.attendee_table.servicing")}
+        </span>
+      );
+    }
     // A no-quantity sentinel row stays visible but isn't checkable — show an
     // indicator instead of a check-in button (updateCheckedIn refuses it).
+    if (!hasTicketQuantity(a)) {
+      return (
+        <span class="muted small">
+          {t("admin.attendee_table.no_quantity")}
+        </span>
+      );
+    }
     if (a.refunded) {
-      return String(
+      return (
         <span class="muted small">
           {t("admin.attendee_table.refunded_badge")}
-        </span>,
+        </span>
       );
     }
     // Check-in is a per-booking-line action, and every table that shows it

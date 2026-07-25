@@ -4,8 +4,8 @@ import {
   NO_QUANTITY_PREFIX,
   QTY_PREFIX,
 } from "#routes/admin/attendee-form-lines.ts";
-import { listingTable } from "#shared/tables/listing-table.tsx";
 import { getDb } from "#shared/db/client.ts";
+import { listingTable } from "#shared/tables/listing-table.tsx";
 import {
   activeListingStatsSection,
   adminDashboardPage,

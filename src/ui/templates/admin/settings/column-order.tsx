@@ -27,9 +27,7 @@ const AvailableTags = ({
 }): JSX.Element => (
   <small>
     {t("settings.column_order.available")}{" "}
-    {columns.columns
-      .map((c) => `{{${c.key}}}`)
-      .join(", ")}
+    {columns.columns.map((c) => `{{${c.key}}}`).join(", ")}
   </small>
 );
 

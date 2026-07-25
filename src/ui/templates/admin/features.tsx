@@ -7,13 +7,13 @@ import {
 } from "#shared/admin-features.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms/flash.tsx";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
-import { renderTable } from "#templates/components/table.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
 /* jscpd:ignore-end */

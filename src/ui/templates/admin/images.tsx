@@ -13,13 +13,13 @@ import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
+import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import {
   type AdminSession,
   type Image,
   type ImageUseItemType,
   ImageUseItemTypeSchema,
 } from "#shared/types.ts";
-import { type TableColumn, defineTable } from "#shared/tables/definition.ts";
 import {
   errorAdminPage,
   flashFormPage,
@@ -32,12 +32,12 @@ import {
   type IconName,
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
-import { renderTable } from "#templates/components/table.tsx";
 import {
   type LinkedItemGroup,
   LinkedItemsCheckboxes,
 } from "#templates/components/linked-items.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 // jscpd:ignore-end
 
 export type ImageItemOption = {

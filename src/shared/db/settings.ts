@@ -34,9 +34,6 @@ import {
   type EnabledFeatures,
   parseEnabledFeatures,
 } from "#shared/admin-features.ts";
-import { attendeeTable } from "#shared/tables/attendee-table.tsx";
-import type { TableLayout } from "#shared/tables/layout.ts";
-import { listingTable } from "#shared/tables/listing-table.tsx";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
   boolUpdate,
@@ -89,6 +86,9 @@ import {
 } from "#shared/listing-defaults.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { EMAIL_BODY_KEYS } from "#shared/settings/registry.ts";
+import { attendeeTable } from "#shared/tables/attendee-table.tsx";
+import type { TableLayout } from "#shared/tables/layout.ts";
+import { listingTable } from "#shared/tables/listing-table.tsx";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,

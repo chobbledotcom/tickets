@@ -21,7 +21,11 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { colClass, type ColumnKind } from "#templates/components/table-columns.ts";
+import {
+  type ColumnKind,
+  colClass,
+} from "#templates/components/table-columns.ts";
+
 /* jscpd:ignore-end */
 
 export type { ColumnKind };
@@ -91,7 +95,7 @@ const isCellRows = (rows: DataTableProps["rows"]): rows is Child[][] =>
  *  class string for the <th> or <td>. */
 const cellClassName = (column: Column): string | undefined => {
   if (column.class === undefined && column.className === undefined) {
-    return undefined;
+    return;
   }
   const parts: string[] = [];
   if (column.class !== undefined) parts.push(colClass(column.class));
@@ -115,9 +119,11 @@ export const DataTable = ({
         <tr>
           {row.map((cell, i) => {
             const className = cellClassName(columns[i] ?? { header: "" });
-            return className === undefined
-              ? <td>{cell}</td>
-              : <td class={className}>{cell}</td>;
+            return className === undefined ? (
+              <td>{cell}</td>
+            ) : (
+              <td class={className}>{cell}</td>
+            );
           })}
         </tr>
       ))
@@ -137,9 +143,11 @@ export const DataTable = ({
           <tr>
             {columns.map((c) => {
               const className = cellClassName(c);
-              return className === undefined
-                ? <th>{c.header}</th>
-                : <th class={className}>{c.header}</th>;
+              return className === undefined ? (
+                <th>{c.header}</th>
+              ) : (
+                <th class={className}>{c.header}</th>
+              );
             })}
           </tr>
         </thead>

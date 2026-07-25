@@ -69,9 +69,9 @@ attendeeTableSuite(() => {
 
     test("shows Refunded for a refunded attendee", () => {
       const attendee = testAttendee({ refunded: true });
-      expect(
-        render(makeOpts({ rows: [makeRow({ attendee })] })),
-      ).toContain("Refunded");
+      expect(render(makeOpts({ rows: [makeRow({ attendee })] }))).toContain(
+        "Refunded",
+      );
     });
 
     test("does not show check-in actions for a refunded attendee", () => {
@@ -102,9 +102,7 @@ attendeeTableSuite(() => {
 
   describe("empty state", () => {
     test("shows the default empty message", () => {
-      expect(render(makeOpts({ rows: [] }))).toContain(
-        "No attendees yet",
-      );
+      expect(render(makeOpts({ rows: [] }))).toContain("No attendees yet");
     });
 
     test("shows a custom empty message", () => {
