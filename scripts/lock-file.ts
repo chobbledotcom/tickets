@@ -1,11 +1,10 @@
-/** Open (creating if needed) a file to hold an advisory lock. Shared by the
- * mutation-run isolation lock and the stripe-mock install lock. */
+/** Open (creating if needed) a file to hold an advisory lock. Shared by local
+ * tooling that must not run the same expensive operation concurrently. */
 export const openLockFile = (path: string): Promise<Deno.FsFile> =>
   Deno.open(path, { create: true, read: true, write: true });
 
 /** Hold an exclusive advisory lock on the file at `path` while `body` runs,
- * then release and close it no matter how `body` ends. The one "lock a file,
- * run something, unlock" dance the stripe-mock start and install locks share. */
+ * then release and close it no matter how `body` ends. */
 export const withFileLock = async <T>(
   path: string,
   body: () => Promise<T>,
@@ -16,7 +15,7 @@ export const withFileLock = async <T>(
     try {
       return await body();
     } finally {
-      file.unlock();
+      await file.unlock();
     }
   } finally {
     file.close();

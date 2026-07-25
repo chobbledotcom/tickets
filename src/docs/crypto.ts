@@ -4,7 +4,7 @@
  * Uses the Web Crypto API for:
  * - Hybrid RSA-OAEP + AES-256-GCM encryption for PII at rest
  * - HMAC-SHA256 for webhooks and CSRF tokens
- * - Argon2-style password hashing
+ * - PBKDF2-SHA256 password hashing
  * - Constant-time comparison for timing-safe checks
  *
  * @module

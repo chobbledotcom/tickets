@@ -1330,6 +1330,30 @@ out of scope for that PR's brief — recorded here for a follow-up.*
   a deliberate test review, which is the only way the test catches the failure
   mode it is meant to catch.
 
+---
+
+## Recover paid SumUp checkouts without a webhook or redirect
+
+*Origin: follow-up to the SumUp provider work, surfaced 2026-07-25 while
+documenting SumUp in `README.md` / `src/docs/payments.ts` (PR #1918).*
+
+SumUp does not sign its webhooks. If its webhook is lost and the customer never
+returns to the redirect URL, SumUp can charge the customer without creating a
+booking or payment record. Only the staged checkout remains, and database
+pruning removes it after 24 hours.
+
+Add a bounded maintenance task to `src/shared/maintenance/registry.ts` that
+checks a page of staged SumUp checkouts on each run. Fetch each checkout once.
+When SumUp reports it as `PAID`, pass the fetched session through the same
+classification and `processPaymentSession` path used by webhooks and redirects.
+Extract a shared entry point that accepts an already fetched session so the task
+does not make a second provider request. Keep each run within the edge request
+budget and request a follow-up run when a full page remains. Add a regression
+test that runs webhook, redirect, and maintenance attempts concurrently and
+proves they create the attendee and ledger rows exactly once.
+
+---
+
 ## Stale equivalent-mutant line numbers across recent refactors
 
 *Origin: running `deno task mutation:audit-equivalents` while hardening

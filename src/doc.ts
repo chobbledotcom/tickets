@@ -5,7 +5,7 @@
  *
  * ## Features
  *
- * - Free and paid listings (Stripe/Square integration)
+ * - Free and paid listings (Stripe, Square, and SumUp integration)
  * - Standard listings (fixed capacity) and daily listings (date-based booking)
  * - Multi-listing bookings in one checkout
  * - Hybrid RSA-OAEP + AES-256-GCM encryption for PII at rest
@@ -24,7 +24,7 @@
  * |--------|-------------|
  * | [Database](../docs/database.ts) | ORM, table abstractions, and entity CRUD |
  * | [Crypto](../docs/crypto.ts) | Encryption, hashing, and CSRF |
- * | [Payments](../docs/payments.ts) | Stripe and Square integration |
+ * | [Payments](../docs/payments.ts) | Stripe, Square, and SumUp integration |
  * | [Email](../docs/email.ts) | Email sending and templates |
  * | [Tickets](../docs/tickets.ts) | QR codes, SVG tickets, Apple Wallet |
  * | [Listings](../docs/listings.ts) | Listing fields, sorting, availability |

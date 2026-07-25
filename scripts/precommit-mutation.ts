@@ -16,6 +16,7 @@
 import { relative } from "node:path";
 import { runMutationInSnapshot } from "./mutation/isolation.ts";
 import { runCommand } from "./precommit/git.ts";
+import { withPrecommitLock } from "./precommit/lock.ts";
 import { runMutationStep } from "./precommit/mutation-step.ts";
 import { projectRoot } from "./project-root.ts";
 import { collectFeaturePaths } from "./specs/catalog.ts";
@@ -36,16 +37,18 @@ const mutationArgs = (sources: string[], tests: string[]): string[] => [
 ];
 
 if (import.meta.main) {
-  const code = await runMutationStep({
-    allTestFiles: async () =>
-      [
-        ...(await collectTestFiles(projectRoot)),
-        ...(await collectFeaturePaths()),
-      ].map((path) => relative(projectRoot, path)),
-    log: (message) => console.log(message),
-    run: runCommand,
-    runMutation: ({ sources, tests }) =>
-      runMutationInSnapshot(mutationArgs(sources, tests)),
-  });
+  const code = await withPrecommitLock(() =>
+    runMutationStep({
+      allTestFiles: async () =>
+        [
+          ...(await collectTestFiles(projectRoot)),
+          ...(await collectFeaturePaths()),
+        ].map((path) => relative(projectRoot, path)),
+      log: (message) => console.log(message),
+      run: runCommand,
+      runMutation: ({ sources, tests }) =>
+        runMutationInSnapshot(mutationArgs(sources, tests)),
+    }),
+  );
   Deno.exit(code);
 }
