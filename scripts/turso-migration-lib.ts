@@ -199,9 +199,13 @@ export const runMigrateTursoCli = async (
         deps.promptSecret("Destination Turso API key:"),
         "Destination Turso API key",
       );
+    const sourceEnv: Record<string, string> = {
+      DB_TOKEN: dbToken,
+      DB_URL: dbUrl,
+    };
     const source = readSnapshotRequest(
       { outputPath: "database.sqlite" },
-      (key) => (key === "DB_URL" ? dbUrl : dbToken),
+      (key) => sourceEnv[key],
     );
     const api = deps.createApi(apiToken, deps.signal);
     deps.stdout("Checking the Turso account...");

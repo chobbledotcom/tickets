@@ -15,6 +15,13 @@ const databaseJson = (name = "new-database") =>
   });
 
 describe("Turso management API", () => {
+  const createTestDatabase = () =>
+    api.createDatabase({
+      group: "default",
+      name: "database",
+      organization: "personal",
+    });
+
   test("creates a database prepared for a binary upload", async () => {
     const requests: { init: RequestInit | undefined; url: string }[] = [];
     await withMocks(
@@ -235,11 +242,7 @@ describe("Turso management API", () => {
         () =>
           stubFetch(new Response(JSON.stringify({ database })), new Response()),
         async () => {
-          const result = await api.createDatabase({
-            group: "default",
-            name: "database",
-            organization: "personal",
-          });
+          const result = await createTestDatabase();
           expect(result.ok).toBe(false);
           if (!result.ok) {
             expect(result.error).toContain(
@@ -395,5 +398,32 @@ describe("Turso management API", () => {
         signalApi.deleteDatabase("personal", "database"),
       ),
     ).toBeUndefined();
+  });
+
+  test("deletes the destination when create throws after accepting", async () => {
+    const urls: string[] = [];
+    await withMocks(
+      () =>
+        stubFetch(
+          (_url, init) => {
+            urls.push(`${init?.method ?? "GET"}`);
+            throw new Error("network dropped");
+          },
+          (url) => {
+            urls.push(`DELETE:${url}`);
+            return new Response();
+          },
+        ),
+      async () => {
+        const result = await createTestDatabase();
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain("Create database failed");
+        }
+      },
+    );
+    expect(urls).toContain(
+      "DELETE:https://api.turso.tech/v1/organizations/personal/databases/database",
+    );
   });
 });

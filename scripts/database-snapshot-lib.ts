@@ -246,9 +246,13 @@ export const checkLocalSnapshot = (
   path: string,
   factory: SnapshotClientFactory,
   checks: SnapshotQueryCheck[],
+  signal?: AbortSignal,
 ): Promise<void> =>
   withSnapshotClient(factory, { url: toFileUrl(path).href }, async (client) => {
-    for (const check of checks) check.verify(await client.execute(check.sql));
+    for (const check of checks) {
+      signal?.throwIfAborted();
+      check.verify(await waitForOrAbort(client.execute(check.sql), signal));
+    }
   });
 
 const syncReplica = (
@@ -347,7 +351,12 @@ export const createDatabaseSnapshot = async (
     writeProgress(SNAPSHOT_PROGRESS.syncing);
     await syncReplica(temporaryPath, request, factory, signal);
     writeProgress(SNAPSHOT_PROGRESS.verifying);
-    await checkLocalSnapshot(temporaryPath, factory, SNAPSHOT_QUERY_CHECKS);
+    await checkLocalSnapshot(
+      temporaryPath,
+      factory,
+      SNAPSHOT_QUERY_CHECKS,
+      signal,
+    );
     await requireEmptyWal(temporaryPath);
     writeProgress(SNAPSHOT_PROGRESS.publishing);
     await publishSnapshot(temporaryPath, outputPath);

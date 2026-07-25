@@ -30,3 +30,17 @@ test("registers the termination handler for interrupt and terminate signals", ()
 test("unregisters the termination handler for interrupt and terminate signals", () => {
   expectBothTerminationSignals("removeSignalListener", offTerminationSignals);
 });
+
+test("continues when registering a signal listener throws", () => {
+  using _signal = stub(Deno, "addSignalListener", () => {
+    throw new Error("unsupported signal");
+  });
+  onTerminationSignals(() => {});
+});
+
+test("continues when removing a signal listener throws", () => {
+  using _signal = stub(Deno, "removeSignalListener", () => {
+    throw new Error("unsupported signal");
+  });
+  offTerminationSignals(() => {});
+});

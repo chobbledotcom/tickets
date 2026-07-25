@@ -158,11 +158,11 @@ export const createTursoApi = (
     }
   };
 
-  const createDatabase = async (
+  const postCreateRequest = (
     request: CreateTursoDatabaseRequest,
-  ): Promise<Result<TursoDatabaseCredentials>> => {
-    const name = slugifyForTurso(request.name);
-    const createResponse = await fetchApi(databasePath(request.organization), {
+    name: string,
+  ): Promise<FetchResult> =>
+    fetchApi(databasePath(request.organization), {
       body: JSON.stringify({
         group: request.group,
         name,
@@ -170,12 +170,17 @@ export const createTursoApi = (
       }),
       method: "POST",
     });
-    if (!createResponse.ok) {
-      return parseApiError(createResponse, "Create database");
-    }
 
+  const createDatabase = async (
+    request: CreateTursoDatabaseRequest,
+  ): Promise<Result<TursoDatabaseCredentials>> => {
+    const name = slugifyForTurso(request.name);
+    let createResponse: FetchResult;
     let database: v.InferOutput<typeof TursoDatabaseSchema>;
     try {
+      createResponse = await postCreateRequest(request, name);
+      if (!createResponse.ok)
+        return parseApiError(createResponse, "Create database");
       database = parseResponse(
         CreateTursoDatabaseSchema,
         createResponse.text,
