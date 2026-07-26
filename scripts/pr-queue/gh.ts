@@ -171,7 +171,7 @@ const refetchUnknownMergeability = async (
       >;
     };
     pending = pending.flatMap((pr) => {
-      const fresh = data.repository?.[`pr${pr.number}`];
+      const fresh = data.repository[`pr${pr.number}`];
       if (!fresh || fresh.mergeable === "UNKNOWN") return [pr];
       pr.mergeable = fresh.mergeable;
       pr.mergeStateStatus = fresh.mergeStateStatus;

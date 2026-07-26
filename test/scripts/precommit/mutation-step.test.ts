@@ -11,20 +11,11 @@ import {
   STALE_BASE_SOURCE_LIMIT,
 } from "#scripts/precommit/mutation-step.ts";
 import type { CapturedOutput } from "#scripts/process.ts";
+import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 
-const ok = (stdout = ""): CapturedOutput => ({
-  code: 0,
-  stderr: "",
-  stdout,
-  success: true,
-});
+const ok = capturedOk;
 
-const fail = (stderr = ""): CapturedOutput => ({
-  code: 1,
-  stderr,
-  stdout: "",
-  success: false,
-});
+const fail = (stderr = ""): CapturedOutput => capturedFail(1, stderr);
 
 /**
  * A fake git modelling base-ref resolution: `base` is the only

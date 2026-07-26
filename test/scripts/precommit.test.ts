@@ -17,20 +17,12 @@ import {
   currentTerminalState,
 } from "#scripts/precommit/terminal.ts";
 import type { CapturedOutput } from "#scripts/process.ts";
+import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 
-const ok = (stdout = ""): CapturedOutput => ({
-  code: 0,
-  stderr: "",
-  stdout,
-  success: true,
-});
+const ok = capturedOk;
 
-const fail = (code: number, stdout = "", stderr = ""): CapturedOutput => ({
-  code,
-  stderr,
-  stdout,
-  success: false,
-});
+const fail = (code: number, stdout = "", stderr = ""): CapturedOutput =>
+  capturedFail(code, stderr, stdout);
 
 /** A 40-char SHA stdout line built from a single repeated character. */
 const sha = (c: string): CapturedOutput => ok(`${c.repeat(40)}\n`);

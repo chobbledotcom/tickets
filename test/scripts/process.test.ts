@@ -106,13 +106,13 @@ describe("script process helpers", () => {
 
   test("waits for a force-stopped child to actually end", async () => {
     const order: string[] = [];
-    let endKilled: (() => void) | undefined;
+    const killed = Promise.withResolvers<() => void>();
     const process = fakeChild((signal, finish) => {
       if (signal === "SIGKILL") {
-        endKilled = () => {
+        killed.resolve(() => {
           order.push("child ended");
           finish();
-        };
+        });
       }
     });
 
@@ -121,9 +121,9 @@ describe("script process helpers", () => {
       return Promise.resolve();
     });
 
-    // Let the timeout lapse and the force-stop happen, then end the child.
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    endKilled?.();
+    // Wait for the force-stop to actually be asked for, then end the child.
+    const endKilled = await killed.promise;
+    endKilled();
     await stopping;
 
     expect(order).toEqual(["child ended", "cleaned up"]);
