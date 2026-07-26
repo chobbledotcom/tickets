@@ -12,14 +12,13 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   addAttendee,
   createListing,
+  fieldValueOnPage,
   gotoListing,
   lineIndexOnPage,
+  linePlacesOnPage,
   openAttendeeEditor,
 } from "#test-utils/e2e.ts";
-import {
-  extractFormEntries,
-  type TestBrowser,
-} from "#test-utils/test-browser.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -98,38 +97,18 @@ const saveNewDetails = async (
   return browser;
 };
 
-/** The editor holds the new details, and only the new name is editable. The
- * old name lives on in the activity log, so the name is checked as a field
- * value rather than anywhere on the page. */
-const expectSavedDetails = async (
-  world: TicketsWorld,
-  person: Rename,
-): Promise<void> => {
-  const html = scenarioBrowser(world).currentHtml;
-  expect(html).toContain(`value="${person.newName}"`);
-  expect(html).not.toContain(`value="${person.oldName}"`);
-  for (const detail of [
-    person.address,
-    person.email,
-    person.phone,
+/** Every detail is checked in the box it belongs to, so two values landing in
+ * each other's field fails. The old name survives only in the activity log, so
+ * the name is read from its box too rather than from anywhere on the page. */
+const expectSavedDetails = (world: TicketsWorld, person: Rename): void => {
+  const browser = scenarioBrowser(world);
+  expect(fieldValueOnPage(browser, "name")).toBe(person.newName);
+  expect(fieldValueOnPage(browser, "address")).toBe(person.address);
+  expect(fieldValueOnPage(browser, "email")).toBe(person.email);
+  expect(fieldValueOnPage(browser, "phone")).toBe(person.phone);
+  expect(fieldValueOnPage(browser, "special_instructions")).toBe(
     person.special_instructions,
-  ]) {
-    expect(html).toContain(detail);
-  }
-};
-
-/** The places the editor would send for one listing's line. Read from the
- * line's own box, so a place moved to another line — or dropped — is caught. */
-const placesShownForListing = (
-  browser: TestBrowser,
-  listingId: string,
-): string => {
-  const field = `qty_${lineIndexOnPage(browser, listingId)}`;
-  const entry = extractFormEntries(browser.currentHtml).find(
-    ([name]) => name === field,
   );
-  if (!entry) throw new Error(`the editor has no ${field} box`);
-  return entry[1];
 };
 
 /** The booking kept its places, and the check-in is exactly as it was. */
@@ -139,7 +118,7 @@ const expectKeptBooking = (
   checkedIn: boolean,
 ): void => {
   const browser = scenarioBrowser(world);
-  expect(placesShownForListing(browser, listingIdFor(world, ART_CLASS))).toBe(
+  expect(linePlacesOnPage(browser, listingIdFor(world, ART_CLASS))).toBe(
     person.places,
   );
   expect(browser.currentHtml.includes("Checked in")).toBe(checkedIn);
@@ -194,15 +173,15 @@ When(
 
 Then(
   "Alice Johnson's record shows her new contact details",
-  function (this: TicketsWorld): Promise<void> {
-    return expectSavedDetails(this, ALICE);
+  function (this: TicketsWorld): void {
+    expectSavedDetails(this, ALICE);
   },
 );
 
 Then(
   "Robert Jones's record shows his new contact details",
-  function (this: TicketsWorld): Promise<void> {
-    return expectSavedDetails(this, BOB);
+  function (this: TicketsWorld): void {
+    expectSavedDetails(this, BOB);
   },
 );
 
@@ -268,6 +247,19 @@ When(
       expect(browser.containsText(EVENING)).toBe(true);
       await savePlaces(browser, name, evening, "1");
       await savePlaces(browser, name, morning, "0");
+    }
+  },
+);
+
+Then(
+  "each of them has one Evening Seminar place and none on Morning Workshop",
+  async function (this: TicketsWorld): Promise<void> {
+    const browser = await adminBrowser(this);
+    const ids = requiredWorldValue(this.attendeeIds, "attendee ids");
+    for (const attendeeId of ids) {
+      await browser.visit(`/admin/attendees/${attendeeId}/edit`);
+      expect(linePlacesOnPage(browser, listingIdFor(this, EVENING))).toBe("1");
+      expect(linePlacesOnPage(browser, listingIdFor(this, MORNING))).toBe("0");
     }
   },
 );

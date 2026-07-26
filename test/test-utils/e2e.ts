@@ -21,7 +21,7 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+import { extractFormEntries, TestBrowser } from "#test-utils/test-browser.ts";
 
 /** Invalidate every in-process cache after a fresh-install / destructive DB write. */
 export const invalidateAllCaches = (): void => {
@@ -172,3 +172,24 @@ export const lineIndexOnPage = (
   }
   return index;
 };
+
+/** One field's value as the CURRENT page would submit it, or throw when the
+ * page has no such control. */
+export const fieldValueOnPage = (
+  browser: TestBrowser,
+  field: string,
+): string => {
+  const entry = extractFormEntries(browser.currentHtml).find(
+    ([name]) => name === field,
+  );
+  if (!entry) throw new Error(`no ${field} control on this page`);
+  return entry[1];
+};
+
+/** The places the attendee editor holds for one listing's line. Read from that
+ * line's own box, so a place dropped or moved to another line is caught. */
+export const linePlacesOnPage = (
+  browser: TestBrowser,
+  listingId: string | number,
+): string =>
+  fieldValueOnPage(browser, `qty_${lineIndexOnPage(browser, listingId)}`);

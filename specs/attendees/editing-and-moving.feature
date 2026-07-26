@@ -37,5 +37,6 @@ Feature: An organiser edits an attendee and moves them between listings
     Scenario: The organiser moves two attendees to another listing
       Given Alice Smith and Bob Jones each have a Morning Workshop place
       When the organiser moves both of them to Evening Seminar
-      Then Morning Workshop has no attendees
+      Then each of them has one Evening Seminar place and none on Morning Workshop
+      And Morning Workshop has no attendees
       And Evening Seminar shows Alice Smith and Bob Jones

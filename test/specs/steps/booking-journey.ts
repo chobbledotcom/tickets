@@ -7,6 +7,7 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { linePlacesOnPage, openAttendeeEditor } from "#test-utils/e2e.ts";
 import { ALL_CHECKBOXES, TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -146,12 +147,15 @@ Then(
 );
 
 Then(
-  "the Summer Concert attendee list shows the customer and their email",
+  "the Summer Concert attendee list shows the customer, their email, and one place",
   async function (this: TicketsWorld): Promise<void> {
     const browser = await adminBrowser(this);
     await browser.visit(`/admin/listing/${listingId(this)}/attendees`);
     expect(browser.containsText(CUSTOMER)).toBe(true);
     expect(browser.containsText(CUSTOMER_EMAIL)).toBe(true);
+    // The booking is exactly the one place the customer asked for.
+    await openAttendeeEditor(browser);
+    expect(linePlacesOnPage(browser, listingId(this))).toBe("1");
   },
 );
 

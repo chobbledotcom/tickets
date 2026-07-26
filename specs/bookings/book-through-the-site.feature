@@ -18,5 +18,5 @@ Feature: A customer books a listing the organiser set up
       Given the organiser has a Summer Concert listing in the Summer Festival group that asks for a t-shirt size
       When a customer books one Summer Concert place and picks the Medium size
       Then the customer can open a ticket for Summer Concert
-      And the Summer Concert attendee list shows the customer and their email
+      And the Summer Concert attendee list shows the customer, their email, and one place
       And the Summer Concert list download shows the customer picked Medium
