@@ -931,3 +931,4 @@ scripts/mutation/test-map.ts:148:46  && → ||   # ownedTest gives every integra
 # Precommit mutation gate: helper-subject lookup defaults.
 scripts/precommit/mutation-step.ts:205:49  ?? → ||   # deps.testSubjects?.() yields either a Map (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
 scripts/precommit/mutation-step.ts:210:41  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
+scripts/test-tree-scan.ts:62:53  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback

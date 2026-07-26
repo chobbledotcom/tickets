@@ -22,8 +22,7 @@ import {
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
 import { withTestHarness } from "#scripts/test-harness.ts";
-import { cachingReader, collectTestSubjects } from "#scripts/test-subjects.ts";
-import { collectFiles } from "#scripts/walk-files.ts";
+import { scanTestTree } from "#scripts/test-tree-scan.ts";
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { createFilePlan, type FileMutationPlan } from "./evaluate.ts";
 import {
@@ -368,41 +367,17 @@ const mutate = async (
  * regular test runners. Signals during the baseline and mutation phases are
  * handled gracefully by mutate().
  */
-/** What each selected test exercises, read through its helpers, so a test that
- *  proves a source from outside that source's mirror still runs for it. */
-const readTestSubjects = async (
-  testFiles: string[],
-): Promise<Map<string, readonly string[]>> => {
-  const importMap = JSON.parse(await Deno.readTextFile("deno.json")).imports;
-  const readText = cachingReader((path: string) => Deno.readTextFile(path));
-  const testTreeFiles = new Set(await collectFiles("test", () => true));
-  const entries = await Promise.all(
-    testFiles
-      .filter((testFile) => testTreeFiles.has(testFile))
-      .map(
-        async (testFile) =>
-          [
-            testFile,
-            await collectTestSubjects(
-              testFile,
-              readText,
-              importMap,
-              testTreeFiles,
-            ),
-          ] as const,
-      ),
-  );
-  return new Map(entries);
-};
-
 export const runMutationTesting = async (
   options: MutationOptions,
 ): Promise<number> => {
-  const subjects = await readTestSubjects(options.testFiles);
+  // What each selected test exercises, read through its helpers, so a test that
+  // proves a source from outside that source's mirror still runs for it.
+  const selected = new Set(options.testFiles);
+  const scan = await scanTestTree({ isTest: (path) => selected.has(path) });
   const testMap = buildMutationTestMap(
     options.sourceFiles,
     options.testFiles,
-    (testFile) => subjects.get(testFile) ?? [],
+    scan.subjectsOf,
   );
   for (const target of testMap.targets) {
     if (target.directTestFiles.length > 0) continue;

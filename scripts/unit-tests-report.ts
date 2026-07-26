@@ -15,7 +15,7 @@
  *   deno task unit-tests-report --json     # machine-readable report
  */
 
-import { cachingReader, collectTestSubjects } from "./test-subjects.ts";
+import { scanTestTree } from "./test-tree-scan.ts";
 import {
   findMisplacedTests,
   formatMisplacedSection,
@@ -73,20 +73,16 @@ if (import.meta.main) {
       path,
     }),
   );
-  const readText = cachingReader((path: string) => Deno.readTextFile(path));
-  const testTreeFiles = new Set<string>();
-  for await (const path of walkFiles(options.testRoot)) testTreeFiles.add(path);
+  const scan = await scanTestTree({
+    isTest: isTestPath,
+    testRoot: options.testRoot,
+  });
   const tests: TestFile[] = [];
-  for (const path of testTreeFiles) {
+  for (const path of scan.testTreeFiles) {
     if (!isTestPath(path)) continue;
     tests.push({
-      imports: await collectTestSubjects(
-        path,
-        readText,
-        importMap,
-        testTreeFiles,
-      ),
-      lines: countLines(await readText(path)),
+      imports: scan.subjectsOf(path),
+      lines: countLines(await scan.readText(path)),
       path,
     });
   }

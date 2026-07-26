@@ -25,6 +25,8 @@ import {
   resolveImportToSourceOrNull,
 } from "./unit-tests-report-imports.ts";
 
+export type { ImportMap };
+
 /** Reads a project-relative file's text. Missing files must throw. */
 export type ReadText = (path: string) => Promise<string>;
 
