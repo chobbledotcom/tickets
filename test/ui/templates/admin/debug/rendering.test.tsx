@@ -120,6 +120,7 @@ describe("admin debug template rendering", () => {
           subdomainSuffix: "subdomain-suffix-marker",
         },
         database: {
+          host: "turso",
           hostConfigured: true,
           schemaHash: "schema-hash-marker",
           schemaInSync: true,

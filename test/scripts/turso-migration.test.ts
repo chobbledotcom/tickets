@@ -106,7 +106,38 @@ describe("Turso migration CLI", () => {
     ]);
   });
 
-  test("stops before downloading when the destination already exists", async () => {
+  test("asks for another name when the destination already exists", async () => {
+    const taken = new Set(["destination-database"]);
+    const state = tursoMigrationCliState({
+      api: {
+        databaseExists: (_organization, name) =>
+          Promise.resolve(okResult(taken.has(name))),
+      },
+      promptAnswers: [
+        "libsql://source.example.com",
+        "Destination Database",
+        "Second Choice",
+      ],
+    });
+
+    expect(await runMigrateTursoCli(state.deps)).toBe(0);
+    expect(state.stdout).toContain(
+      "Turso database already exists: personal/destination-database",
+    );
+    expect(state.promptMessages).toContain(
+      "Choose another Turso database name:",
+    );
+    expect(state.createRequests).toEqual([
+      {
+        group: "default",
+        name: "second-choice",
+        organization: "personal",
+        seed: "database_upload",
+      },
+    ]);
+  });
+
+  test("stops when no other Turso name is given", async () => {
     const state = tursoMigrationCliState({
       api: {
         databaseExists: () => Promise.resolve(okResult(true)),
@@ -114,10 +145,7 @@ describe("Turso migration CLI", () => {
     });
 
     expect(await runMigrateTursoCli(state.deps)).toBe(1);
-    expect(state.stderr).toEqual([
-      "Migration failed: Turso database already exists: personal/destination-database",
-    ]);
-    expect(state.events).toEqual(["exists:personal/destination-database"]);
+    expect(state.stderr).toEqual(["Migration cancelled."]);
     expect(state.snapshots).toEqual([]);
   });
 

@@ -27,6 +27,7 @@ import {
   providerValue,
 } from "#shared/config.ts";
 import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
+import { databaseHostFor } from "#shared/db/host.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getHostEmailConfig } from "#shared/email.ts";
@@ -204,6 +205,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
   const googleWalletEnvConfigured = settings.googleWallet.hostConfig !== null;
   const paymentProvider = settings.paymentProvider;
+  const dbUrl = getEnv("DB_URL");
 
   return {
     appleWallet: {
@@ -238,7 +240,8 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       subdomainSuffix: getBunnyDnsSubdomainSuffix(),
     },
     database: {
-      hostConfigured: !!getEnv("DB_URL"),
+      host: dbUrl === undefined ? null : databaseHostFor(dbUrl),
+      hostConfigured: dbUrl !== undefined,
       schemaHash: SCHEMA_HASH,
       schemaInSync: settings.getCachedRaw("db_schema_hash") === SCHEMA_HASH,
     },

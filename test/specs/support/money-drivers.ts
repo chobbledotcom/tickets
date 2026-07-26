@@ -10,17 +10,8 @@ import {
   expectRedirect,
   followRedirect,
 } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockProviderType, mockRequest, withMocks } from "#test-utils/mocks.ts";
-import { adminFormPost } from "#test-utils/session.ts";
-
-/** Run the shared "e2e: accounting lifecycle" suite body under a db env,
- *  resetting the Stripe client between tests. */
-export const describeAccounting = (fn: () => void): void =>
-  describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
-    fn();
-  });
 
 // -- Public-payment driver (mirrors server-payments-success.test.ts) ------ //
 
@@ -147,35 +138,3 @@ export const withRefundMock = (
       }
     },
   );
-
-/** POST the real single-attendee admin refund form as the owner. */
-export const submitRefund = async (
-  attendeeId: number,
-  confirmName: string,
-): Promise<Response> => {
-  const { response } = await adminFormPost(
-    `/admin/attendees/${attendeeId}/refund`,
-    { confirm_identifier: confirmName },
-  );
-  return response;
-};
-
-// -- Attendee-balance driver ---------------------------------------------- //
-
-/** Move an attendee's owed balance through the ledger — the proper path now the
- *  attendee form no longer edits balances. `MANUAL_ATTENDEE_WRITEOFF` lowers what
- *  they owe (a goodwill write-off), `MANUAL_ATTENDEE_CHARGE` raises it, each by
- *  `amountMajor` pounds. Returns the route's response. */
-export const postAttendeeBalanceEntry = async (
-  attendeeId: number,
-  entryType: string,
-  amountMajor: string,
-): Promise<Response> =>
-  (
-    await adminFormPost(`/admin/ledger/attendee/${attendeeId}/add`, {
-      amount: amountMajor,
-      entry_type: entryType,
-      occurred_at: "2026-06-22T12:00",
-      return_url: `/admin/attendees/${attendeeId}/edit`,
-    })
-  ).response;
