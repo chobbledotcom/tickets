@@ -2,6 +2,7 @@ import type { Envelope } from "@cucumber/messages";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { runSpecs, type SpecRunEnvironment } from "#scripts/specs/run.ts";
+import { CONCURRENT_ROWS } from "#test/scripts/specs/fixtures/concurrent.steps.ts";
 import {
   requiredSpecRunsPath,
   SPEC_RUNS_PATH_ENV,
@@ -64,10 +65,6 @@ const readMessages = async (reportDir: string): Promise<Envelope[]> =>
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line));
-
-const timestampNumber = (
-  timestamp: NonNullable<Envelope["testCaseStarted"]>["timestamp"],
-): number => Number(timestamp.seconds) * 1_000_000_000 + timestamp.nanos;
 
 describe("Cucumber execution", () => {
   test("requires the path used to record selected examples", () => {
@@ -166,8 +163,11 @@ describe("Cucumber execution", () => {
 
   test("runs Outline rows concurrently in separate workers", async () => {
     using _jobs = withEnv({ DENO_JOBS: "2" });
+    // Each row's step waits for the other row to start, so the run can only
+    // succeed when both rows really are in flight together. Rows taken one
+    // after another leave the first waiting and the run fails.
     const fixture = await createOutlineFixture(
-      "test/scripts/specs/fixtures/all.steps.ts",
+      "test/scripts/specs/fixtures/concurrent-support.ts",
     );
     try {
       expect(
@@ -185,15 +185,10 @@ describe("Cucumber execution", () => {
       const finishes = messages.flatMap(({ testCaseFinished }) =>
         testCaseFinished ? [testCaseFinished] : [],
       );
-      expect(starts).toHaveLength(2);
-      expect(finishes).toHaveLength(2);
-      expect(new Set(starts.map(({ workerId }) => workerId)).size).toBe(2);
-      expect(
-        Math.max(...starts.map(({ timestamp }) => timestampNumber(timestamp))),
-      ).toBeLessThan(
-        Math.min(
-          ...finishes.map(({ timestamp }) => timestampNumber(timestamp)),
-        ),
+      expect(starts).toHaveLength(CONCURRENT_ROWS);
+      expect(finishes).toHaveLength(CONCURRENT_ROWS);
+      expect(new Set(starts.map(({ workerId }) => workerId)).size).toBe(
+        CONCURRENT_ROWS,
       );
     } finally {
       await removeOutlineFixture(fixture);
