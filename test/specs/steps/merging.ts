@@ -23,6 +23,7 @@ import {
   incomeOf,
   norm,
   owedBy,
+  sumOfAllBalances,
 } from "#test-utils/money/reads.ts";
 
 // jscpd:ignore-end
@@ -49,7 +50,7 @@ When(
 );
 
 When(
-  "the organiser merges them and hands the money back",
+  "the organiser merges them and keeps it as credit for them",
   async function (this: TicketsWorld): Promise<void> {
     this.mergeOutcome = await mergeDuplicates(this, "credit");
   },
@@ -86,6 +87,7 @@ Then(
     // Nothing moved: both places still counted, and the books still balance.
     expect((await getAttendeesRaw(listingId)).length).toBe(2);
     expect(await incomeOf(listingId)).toBe(minorUnits("100.00"));
+    expect(await sumOfAllBalances()).toBe(0);
   },
 );
 
@@ -97,6 +99,8 @@ Then(
     amount: string,
   ): Promise<void> {
     expect(await incomeOf(mergedListingId(this))).toBe(minorUnits(amount));
+    // However the money was decided, none of it may appear or vanish.
+    expect(await sumOfAllBalances()).toBe(0);
   },
 );
 
@@ -158,5 +162,6 @@ Then(
     const listingId = mergedListingId(this);
     expect((await getAttendeesRaw(listingId)).length).toBe(1);
     expect(await incomeOf(listingId)).toBe(0);
+    expect(await sumOfAllBalances()).toBe(0);
   },
 );

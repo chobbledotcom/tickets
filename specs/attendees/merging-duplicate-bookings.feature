@@ -21,16 +21,17 @@ Feature: An organiser merges two bookings for the same person
       Then the organiser is told a money decision is needed
       And both bookings are still there, still counted
 
-  @rule:attendees.money-handed-back-becomes-the-survivor-credit
+  @rule:attendees.money-kept-as-credit-shows-on-their-record
   @surface:admin
-  Rule: Money handed back to the person becomes credit on the booking they keep
-    The listing counts the one place they keep, and the extra money shows on
-    their record as credit, so the organiser can see what is owed to them.
+  Rule: The duplicate's money can be kept as credit for the person
+    Nothing is returned to their card. The listing counts the one place they
+    keep, and the extra money shows on their record as credit, so the organiser
+    can see what is owed to them.
 
     @case:merge.money-becomes-credit
-    Scenario: The organiser hands the duplicate's money back to the person
+    Scenario: The organiser keeps the duplicate's money as credit for the person
       Given the same person paid twice for a Reunion place
-      When the organiser merges them and hands the money back
+      When the organiser merges them and keeps it as credit for them
       Then the Reunion counts one place, at 50.00
       And the booking they keep holds 50.00 of credit
       And the credit is shown on their money page

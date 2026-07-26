@@ -28,8 +28,16 @@ import {
 
 Given(
   "three people each paid {word} for a {word} place",
-  function (this: TicketsWorld, price: string, listing: string): Promise<void> {
-    return paidPlaceEach(this, listing, price, ["One", "Two", "Three"]);
+  async function (
+    this: TicketsWorld,
+    price: string,
+    listing: string,
+  ): Promise<void> {
+    await paidPlaceEach(this, listing, price, ["One", "Two", "Three"]);
+    // The premise the rest of the story rests on: all three sales counted.
+    expect(await incomeOf(listingIdFor(this, listing))).toBe(
+      3 * minorUnits(price),
+    );
   },
 );
 

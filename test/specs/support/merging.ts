@@ -183,11 +183,15 @@ export const mergeDuplicates = async (
     merge_version: version,
     source_token: requiredWorldValue(world.duplicateToken, "duplicate token"),
   });
-  // A refused merge sends the organiser back with the reason in the error
-  // flash; an applied one reports its success instead.
+  // Either way the organiser is sent to a page and told what happened, so a
+  // reply that did neither is a broken merge, not an outcome to report.
+  expect(response.status).toBe(302);
   const flash = parseFlashCookie(response);
-  return {
-    applied: !flash.error,
-    message: flash.error ?? flash.success ?? "",
-  };
+  const message = flash.error ?? flash.success;
+  if (!message) {
+    throw new Error("The merge told the organiser nothing at all");
+  }
+  // A refused merge gives the reason as an error; an applied one reports its
+  // success instead.
+  return { applied: !flash.error, message };
 };

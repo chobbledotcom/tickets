@@ -83,11 +83,12 @@ export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
 export const refundedPeople = (
   world: TicketsWorld,
 ): { refunded: number[]; turnedDown: number } => {
-  const [first, second, third] = requiredWorldValue(
-    world.attendeeIds,
-    "the people who paid",
-  );
-  return { refunded: [first!, third!], turnedDown: second! };
+  const paid = requiredWorldValue(world.attendeeIds, "the people who paid");
+  if (paid.length !== 3) {
+    throw new Error(`Expected three people to have paid, found ${paid.length}`);
+  }
+  const [first, second, third] = paid as [number, number, number];
+  return { refunded: [first, third], turnedDown: second };
 };
 
 /** A listing that asks one price but lets a customer pay more. */
