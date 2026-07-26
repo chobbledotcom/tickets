@@ -27,7 +27,7 @@ export type TableDefinition<
 };
 
 /** A table whose columns are bound to a saved-layout parser. */
-export type ConfigurableTableDefinition<
+type ConfigurableTableDefinition<
   TRow,
   TContext = undefined,
   TKey extends string = string,

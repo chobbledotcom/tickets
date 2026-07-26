@@ -27,7 +27,7 @@ src/shared/uptime-kuma/matching.ts:58:25  1000 → 1001   # timeout is a positiv
 src/features/admin/entity-pages.ts:306:28  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts:307:24  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/site-content-page.ts:78:38  ?? → ||   # extraTabs is an array when present, and arrays are always truthy
-src/ui/templates/admin/holidays.tsx:79:45  ?? → ||   # values is a render-values object when present, so it is always truthy
+src/ui/templates/admin/holidays.tsx:87:45  ?? → ||   # values is a render-values object when present, so it is always truthy
 src/ui/client/admin/manual-checkin.ts:59:36  ?? → ||   # textContent is string|null; its only falsy string is the empty fallback itself
 src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record object when present, so it is always truthy
 
@@ -848,14 +848,14 @@ src/shared/i18n.ts:180:19   → "mutated"   # buildReplacer `const [from = ""` d
 src/shared/i18n.ts:319:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # listing edit panel (features/admin/listing-page-management-panels.ts) — group-id fallback.
-src/features/admin/listing-page-management-panels.ts:46:39  ?? → ||   # `selectedGroupIds ?? ctxData.selectedGroupIds`: selectedGroupIds is number[]|undefined — a submitted array (even []) is always truthy, so both operators return it unchanged, and undefined maps to the stored ids under both. No input distinguishes them (same class as attributes.tsx:151:61)
+src/features/admin/listing-page-management-panels.ts:46:39  ?? → ||   # `selectedGroupIds ?? ctxData.selectedGroupIds`: selectedGroupIds is number[]|undefined — a submitted array (even []) is always truthy, so both operators return it unchanged, and undefined maps to the stored ids under both. No input distinguishes them (same class as attributes.tsx:173:61)
 
 # attributes detail page (ui/templates/admin/attributes.tsx) — option listing count fallback.
-src/ui/templates/admin/attributes.tsx:152:61  ?? → ||   # `data.listingCounts.get(option.id) ?? 0`: listingCounts is Map<number,number> built from ids.length, so a present count is always >= 1 and an absent option returns undefined — the left side is never a falsy non-null number, so `?? 0` and `|| 0` agree on every reachable input (same class as checkout-pricing.ts:85:35 and pr-queue/render.ts:93:29)
+src/ui/templates/admin/attributes.tsx:173:61  ?? → ||   # `data.listingCounts.get(option.id) ?? 0`: listingCounts is Map<number,number> built from ids.length, so a present count is always >= 1 and an absent option returns undefined — the left side is never a falsy non-null number, so `?? 0` and `|| 0` agree on every reachable input (same class as checkout-pricing.ts:85:35 and pr-queue/render.ts:93:29)
 
 # questions templates (ui/templates/admin/questions.tsx) — Map.get fallbacks whose
 # left operand can never be a falsy-but-non-null value, so `??` and `||` always agree.
-src/ui/templates/admin/questions.tsx:264:50  ?? → ||   # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:151:61 and checkout-pricing.ts:85:35)
+src/ui/templates/admin/questions.tsx:267:50  ?? → ||   # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:173:61 and checkout-pricing.ts:85:35)
 # cache-registry table sets: invalidatorsByTable.get() is Set|undefined, and a
 # Set object is always truthy, so `?? new Set()` and `|| new Set()` agree.
 

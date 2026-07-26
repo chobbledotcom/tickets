@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+import { filter } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
@@ -114,7 +115,26 @@ const MergePiiDecisionTable = ({
   />
 );
 
-const mergeAnswerColumns = (
+const answerQuestionColumn: TableColumn<AttendeeMergeDiffAnswerItem> = {
+  cell: (item) => item.questionText,
+  header: () => t("terms.question"),
+  key: "question",
+  rowHeader: true,
+};
+
+const automaticAnswerTable = defineTable<AttendeeMergeDiffAnswerItem>([
+  answerQuestionColumn,
+  translatedTableColumn("status", "common.status", (item) => {
+    const { answer, from } = nonConflictAnswerLabel(item);
+    return (
+      <span class="muted">
+        {t("admin.attendees.merge_answer_kept", { answer, from })}
+      </span>
+    );
+  }),
+]);
+
+const conflictAnswerColumns = (
   targetName: string,
   sourceName: string,
 ): TableColumn<AttendeeMergeDiffAnswerItem>[] => {
@@ -123,46 +143,30 @@ const mergeAnswerColumns = (
     header: Child,
     label: (item: AttendeeMergeDiffAnswerItem) => Child,
   ): TableColumn<AttendeeMergeDiffAnswerItem> => ({
-    cell: (item) =>
-      item.conflict ? (
-        <MergeRadioOption
-          checked={false}
-          name={`answer_${item.questionId}`}
-          value={key}
-        >
-          {label(item)}
-        </MergeRadioOption>
-      ) : null,
+    cell: (item) => (
+      <MergeRadioOption
+        checked={false}
+        name={`answer_${item.questionId}`}
+        value={key}
+      >
+        {label(item)}
+      </MergeRadioOption>
+    ),
     header,
     key,
   });
   return [
+    answerQuestionColumn,
     {
-      cell: (item) => item.questionText,
-      header: () => t("terms.question"),
-      key: "question",
-      rowHeader: true,
-    },
-    {
-      cell: (item) => {
-        if (!item.conflict) {
-          const { answer, from } = nonConflictAnswerLabel(item);
-          return (
-            <span class="muted">
-              {t("admin.attendees.merge_answer_kept", { answer, from })}
-            </span>
-          );
-        }
-        return (
-          <MergeRadioOption
-            checked={true}
-            name={`answer_${item.questionId}`}
-            value="target"
-          >
-            {item.targetAnswerText!}
-          </MergeRadioOption>
-        );
-      },
+      cell: (item) => (
+        <MergeRadioOption
+          checked={true}
+          name={`answer_${item.questionId}`}
+          value="target"
+        >
+          {item.targetAnswerText!}
+        </MergeRadioOption>
+      ),
       header: t("admin.attendees.merge_keep_answer", { name: targetName }),
       key: "target",
     },
@@ -187,12 +191,25 @@ const MergeAnswersDecisionTable = ({
   sourceName: string;
 }): JSX.Element | null => {
   if (diff.answerItems.length === 0) return null;
+  const automaticAnswers = filter(
+    (item: AttendeeMergeDiffAnswerItem) => !item.conflict,
+  )(diff.answerItems);
+  const conflicts = filter(
+    (item: AttendeeMergeDiffAnswerItem) => item.conflict,
+  )(diff.answerItems);
   return (
-    <DecisionTable
-      heading={t("admin.attendees.custom_question_answers")}
-      rows={diff.answerItems}
-      table={defineTable(mergeAnswerColumns(targetName, sourceName))}
-    />
+    <SectionFieldset
+      className="listing-section"
+      legend={t("admin.attendees.custom_question_answers")}
+    >
+      {automaticAnswers.length > 0 &&
+        renderTable(automaticAnswerTable, automaticAnswers)}
+      {conflicts.length > 0 &&
+        renderTable(
+          defineTable(conflictAnswerColumns(targetName, sourceName)),
+          conflicts,
+        )}
+    </SectionFieldset>
   );
 };
 

@@ -171,6 +171,12 @@ describe("MergeDecisionTables", () => {
     expect(html).toContain(
       '<span class="muted">Source kept (source, kept automatically)</span>',
     );
+    expect(html).toContain(
+      "<thead><tr><th>Question</th><th>Status</th></tr></thead>",
+    );
+    expect(html).toContain(
+      '<tr><th scope="row">Source answer?</th><td><span class="muted">Source kept (source, kept automatically)</span></td></tr>',
+    );
     expect(html).not.toContain('name="answer_11"');
     expect(html).not.toContain('name="answer_12"');
   });
