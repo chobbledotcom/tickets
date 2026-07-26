@@ -381,7 +381,7 @@ deliberately left for later:*
   import-time work moved behind `once()`/dynamic import pays for itself ~250×
   per run — profile with a `performance.now()` probe around `import("#test-utils")`
   under `deno test` before and after.
-- **`test/lib/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
+- **`test/integration/stripe-mock-ports.test.ts` (~4s)** spawns real child processes
   to test the harness's port handling; each spawn is inherently slow. If it
   grows, the port-conflict cases could stub the child-process layer the same
   way the supervisor tests do.
@@ -411,8 +411,9 @@ they are. Nothing further planned here.
 
 *Origin: CodeRabbit review on PR #1690 (payments test split).*
 
-`test/lib/server-payments/confirm.test.ts`, the test **"handles replay of same
-session (idempotent)"**, asserts `expect([200, 302]).toContain(response.status)`.
+In `test/integration/server/payments-success-replay.test.ts`, the replay case
+asserts `expect([200, 302]).toContain(response.status)` (the test's wording may
+have changed since this note was written).
 This hedge was moved verbatim from the old `server-payments.test.ts` monolith —
 it accepts either branch, so it would not catch a regression that flips the
 replay from one path to the other.
@@ -470,8 +471,8 @@ pending work is scoped per request, so when a *concurrent* request ran
 Requires a cold deploy-boot racing an owner restore on one isolate; impact is
 only the flash's commit hint. Fix direction: an isolate-level in-flight set
 in `src/shared/pending-work.ts` + `flushAllPendingWork()` for the restore
-path; extend the race harness in `test/lib/server-backup.test.ts` ("a
-deploy's first request cannot clobber...") with a concurrent cold GET.
+path; extend the restore race harness, now at
+`test/shared/db/backup/restore.test.ts`, with a concurrent cold GET.
 
 ## Dead-export scanner matches raw text (from PR #1745 review)
 
@@ -831,7 +832,7 @@ The full runner now shares isolates between test files
 (`test/test-utils/test-state.ts`). The remaining wall-clock tail is a handful
 of genuinely long suites, which now bound the slowest groups:
 
-- **Migration chain shards** (`test/lib/db/migration-restore/`, ~20s each ×4
+- **Migration chain shards** (`test/integration/db/migration-restore/`, ~20s each ×4
   shards). They already shard by `index % shardCount`; raising the shard count
   (4 → 8) would halve each shard and shorten the tail groups. Purely
   mechanical — the factory takes the count.
@@ -1261,7 +1262,7 @@ of scope for #1873, and a starting point.*
   reading `applyRenewalsForEntries` in `src/shared/webhook.ts` to confirm it
   calls `console.error` (or `logError`) on a missing site-token match.
 
-- **Extract scanning helpers from `test/lib/code-quality.test.ts` into a
+- **Extract scanning helpers from `test/integration/code-quality.test.ts` into a
   focused module.** CodeRabbit suggested (PR #1872 review) pulling
   `forEachScannedFile`, `collectLineViolations`, `collectFileViolations`,
   `scanSourceLines`, `scanSourceFiles`, `ensureLoaded`, the `getAll*Files`
@@ -1270,7 +1271,7 @@ of scope for #1873, and a starting point.*
   path constants out of the test file — they're file-discovery and scanning
   plumbing, not test assertions. The file is currently 699 lines (under the
   Biome 1,000-line hard ceiling but over the 400-line soft target). A
-  `test/lib/code-quality/scan-context.ts` module exporting `ScanContext`,
+  `test/scripts/code-quality/scan-context.ts` module exporting `ScanContext`,
   `loadScanContext`, `collectLineViolations`, `collectFileViolations`, and
   the path constants would let the test file import them and keep only the
   assertions and per-rule config. Start from the file-discovery helpers

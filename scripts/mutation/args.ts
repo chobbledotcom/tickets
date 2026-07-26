@@ -133,8 +133,9 @@ const applyPositionals = (parsed: ParsedArgs, positional: string[]): void => {
   if (positional.length > 2) {
     parsed.error ??=
       `Too many positional arguments (${positional.length}). Quote your globs ` +
-      `so the shell can't expand them — e.g. 'src/shared/forms/*.ts' ` +
-      `'test/shared/forms/*.test.ts' — or pass repeated --source/--test flags.`;
+      `so the shell can't expand them — e.g. 'src/shared/forms/definition.ts' ` +
+      `'test/shared/forms/definition/*.test.ts' — or pass repeated ` +
+      "--source/--test flags.";
   }
 };
 
