@@ -2,9 +2,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
+import { selectOptionsFromHtml } from "#test/lib/server-parents-gate/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
-import { selectOptionsFromHtml } from "../../../lib/server-parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 

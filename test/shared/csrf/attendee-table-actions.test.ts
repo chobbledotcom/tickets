@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
-import { hasInputWithValue } from "#test-utils/csrf.ts";
-import { testAttendee } from "#test-utils/factories.ts";
 import {
   attendeeTableSuite,
   makeOpts,
   makeRow,
   render,
   zaraAliceRows,
-} from "../../ui/templates/attendee-table/shared.ts";
+} from "#test/ui/templates/attendee-table/shared.ts";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 
 attendeeTableSuite(() => {
   describe("check-in button", () => {

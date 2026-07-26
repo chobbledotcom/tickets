@@ -8,7 +8,7 @@ import {
   type FakeWebSocket,
   type SocketSetup,
   socketSetup,
-} from "../socket/support.test.ts";
+} from "#test/shared/uptime-kuma/socket/support.test.ts";
 
 const pendingCallClosures: readonly [string, (setup: SocketSetup) => void][] = [
   ["the server disconnects", ({ raw }) => raw.message("41")],

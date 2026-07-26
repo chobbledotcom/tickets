@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
-import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
 import {
   attendeeTableSuite,
   makeOpts,
   makeRow,
   render,
   zaraAliceRows,
-} from "../../../ui/templates/attendee-table/shared.ts";
+} from "#test/ui/templates/attendee-table/shared.ts";
+import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
 
 attendeeTableSuite(() => {
   describe("component", () => {

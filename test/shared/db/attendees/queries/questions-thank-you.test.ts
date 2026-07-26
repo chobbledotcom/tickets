@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { stubCheckoutIntent } from "#test/lib/server-parents-gate/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -12,7 +13,6 @@ import {
   makeParent,
   parentField,
 } from "#test-utils/parents.ts";
-import { stubCheckoutIntent } from "../../../../lib/server-parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 
