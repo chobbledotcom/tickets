@@ -88,6 +88,28 @@ describe("reading a failure's diagnostic block", () => {
     expect(failure.message).toBe("'tis broken");
   });
 
+  test("keeps a message that opens with a quote but never closes it", () => {
+    const failure = onlyFailure([
+      "not ok 1 - unclosed quote",
+      "  ---",
+      '  message: "hi there',
+      "  ...",
+    ]);
+
+    expect(failure.message).toBe('"hi there');
+  });
+
+  test("keeps a message that closes with a quote it never opened", () => {
+    const failure = onlyFailure([
+      "not ok 1 - stray closing quote",
+      "  ---",
+      "  message: hello'",
+      "  ...",
+    ]);
+
+    expect(failure.message).toBe("hello'");
+  });
+
   test("keeps the block text when the message line is empty", () => {
     const failure = onlyFailure([
       "not ok 1 - empty message",
@@ -337,6 +359,12 @@ describe("reading TAP result lines", () => {
 
     expect(out).toEqual(["ok   counted"]);
     expect(failures).toEqual([]);
+  });
+
+  test("records both failures when neither carries a block", () => {
+    const { failures } = report(["not ok 1 - first", "not ok 2 - second"]);
+
+    expect(failures.map((f) => f.name)).toEqual(["first", "second"]);
   });
 
   test("ignores a stray diagnostic block with no failure to attach it to", () => {

@@ -95,6 +95,18 @@ describe("estimating how many tests a run will report", () => {
     expect(await estimate(["--filter", "--quiet", "d.test.ts"])).toBe(1);
   });
 
+  test("reads the file after a flag that takes no value", async () => {
+    write("g.test.ts", 'Deno.test("a", () => {});');
+
+    expect(await estimate(["--quiet", "g.test.ts"])).toBe(1);
+  });
+
+  test("does not read a file whose name starts with a dash", async () => {
+    write("-odd.test.ts", 'Deno.test("a", () => {});');
+
+    expect(await estimate(["-odd.test.ts"])).toBeUndefined();
+  });
+
   test("stops reading paths after a bare --", async () => {
     write("e.test.ts", 'Deno.test("a", () => {});');
 

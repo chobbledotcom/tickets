@@ -93,13 +93,13 @@ describe("printing the run summary", () => {
     const { errors } = printed(
       summary({ failed: 1 }),
       1,
-      "error: Test failed\nTypeError: x is not a function\n",
+      "error: Test failed\nTypeError: x is not a function\n    at load\n",
     );
 
     expect(errors).toEqual([
       "\nFAILED 3 passed, 1 failed",
       "\nDeno output:",
-      "TypeError: x is not a function",
+      "TypeError: x is not a function\n    at load",
     ]);
   });
 
