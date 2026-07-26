@@ -15,6 +15,7 @@ import { BackButton } from "#templates/components/actions.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
 /* jscpd:ignore-end */
@@ -35,13 +36,13 @@ const featureColumns: TableColumn<FeatureRow>[] = [
     cell: ({ feature }) => (
       <a href={`/admin/features/${feature.slug}`}>{t(feature.labelKey)}</a>
     ),
-    header: t("features.column.feature"),
+    header: translatedTableHeader("features.column.feature"),
     key: "feature",
   },
   {
     cell: ({ enabled }) =>
       t(enabled ? "features.status.enabled" : "features.status.disabled"),
-    header: t("features.column.status"),
+    header: translatedTableHeader("features.column.status"),
     key: "status",
   },
 ];

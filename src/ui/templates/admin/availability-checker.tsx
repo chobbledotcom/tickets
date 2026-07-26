@@ -19,6 +19,7 @@ import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { OrderCartButtonBody } from "#templates/public/order-gallery.tsx";
 /* jscpd:ignore-end */
 
@@ -58,25 +59,27 @@ const availabilityColumns: readonly TableColumn<AvailabilityRow>[] = [
         </label>
       );
     },
-    header: <span class="visually-hidden">{t("availability.select")}</span>,
+    header: () => (
+      <span class="visually-hidden">{t("availability.select")}</span>
+    ),
     key: "select",
   },
   {
     cell: (row) => <a href={`/admin/listing/${row.id}`}>{row.name}</a>,
-    header: t("availability.listing"),
+    header: translatedTableHeader("availability.listing"),
     key: "listing",
   },
   {
     cell: (row) => `${row.remaining}/${row.total}`,
     cellAttrs: (row) => ({ class: row.remaining <= 0 ? "danger" : undefined }),
     class: "quantity",
-    header: t("availability.remaining"),
+    header: translatedTableHeader("availability.remaining"),
     key: "remaining",
   },
   {
     cell: priceLabel,
     class: "amount",
-    header: t("availability.price"),
+    header: translatedTableHeader("availability.price"),
     key: "price",
   },
 ];

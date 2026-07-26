@@ -8,6 +8,7 @@
  */
 
 /* jscpd:ignore-start */
+import { filter, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
@@ -185,12 +186,10 @@ const resolveColumns = <TRow, TContext, TKey extends string>(
   if (columnKeys === undefined) {
     return table.columns;
   }
-  const result: TableColumn<TRow, TContext, TKey>[] = [];
-  for (const key of columnKeys) {
-    if (hiddenKeys?.has(key)) continue;
-    result.push(columnOrThrow(table, key));
-  }
-  return result;
+  return pipe(
+    filter((key: TKey) => !hiddenKeys?.has(key)),
+    map((key: TKey) => columnOrThrow(table, key)),
+  )(columnKeys);
 };
 
 /** Render the table from a fixed column list, rows, and framing options. */
@@ -204,19 +203,17 @@ const renderColumns = <TRow, TContext, TKey extends string>(
     options.reorder === undefined || isReadOnly()
       ? undefined
       : reorderColumn<TRow, TContext>(options.reorder);
-  const renderedColumns: {
+  const dataColumns: {
     column: TableColumn<TRow, TContext>;
     filter: string | undefined;
-  }[] = [];
-  if (reorder !== undefined) {
-    renderedColumns.push({ column: reorder, filter: undefined });
-  }
-  for (const column of columns) {
-    renderedColumns.push({
-      column,
-      filter: options.filters?.get(column.key),
-    });
-  }
+  }[] = map((column: TableColumn<TRow, TContext, TKey>) => ({
+    column,
+    filter: options.filters?.get(column.key),
+  }))(columns);
+  const renderedColumns =
+    reorder === undefined
+      ? dataColumns
+      : [{ column: reorder, filter: undefined }, ...dataColumns];
   const body: Child =
     rows.length === 0 && options.empty !== undefined ? (
       <tr>

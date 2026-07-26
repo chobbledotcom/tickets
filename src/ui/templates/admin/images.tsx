@@ -39,6 +39,7 @@ import {
 } from "#templates/components/linked-items.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 // jscpd:ignore-end
 
 export type ImageItemOption = {
@@ -127,7 +128,7 @@ const imageLinkedItemGroups = (
 const imageColumns: readonly TableColumn<Image>[] = [
   {
     cell: (image) => thumbnail(image),
-    header: t("images.column.thumbnail"),
+    header: translatedTableHeader("images.column.thumbnail"),
     key: "thumbnail",
   },
   {
@@ -137,12 +138,12 @@ const imageColumns: readonly TableColumn<Image>[] = [
       ) : (
         <a href={`/admin/images/${image.id}/edit`}>{image.name}</a>
       ),
-    header: t("common.name"),
+    header: translatedTableHeader("common.name"),
     key: "name",
   },
   {
     cell: (image) => image.alt_text,
-    header: t("images.field.alt_text"),
+    header: translatedTableHeader("images.field.alt_text"),
     key: "alt_text",
   },
 ];

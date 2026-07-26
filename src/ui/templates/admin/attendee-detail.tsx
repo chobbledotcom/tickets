@@ -24,6 +24,7 @@ import { HeaderRow } from "#templates/components/header-row.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /** One key/value row of a detail table: a header cell plus a value cell. */
 const DetailTableRow = ({
@@ -117,7 +118,7 @@ const bookingColumns: readonly TableColumn<
         ) : null}
       </>
     ),
-    header: t("terms.listing"),
+    header: translatedTableHeader("terms.listing"),
     key: "listing",
   },
   {
@@ -125,13 +126,13 @@ const bookingColumns: readonly TableColumn<
       booking.startAt
         ? formatDateRangeLabel(booking.startAt, booking.endAt)
         : "—",
-    header: t("common.date"),
+    header: translatedTableHeader("common.date"),
     key: "date",
   },
   {
     cell: (booking) => booking.quantity,
     class: "quantity",
-    header: t("common.quantity"),
+    header: translatedTableHeader("common.quantity"),
     key: "quantity",
   },
   {
@@ -140,7 +141,7 @@ const bookingColumns: readonly TableColumn<
         checkedIn: booking.checkedIn,
         refunded: booking.refunded,
       }) ?? "—",
-    header: t("common.status"),
+    header: translatedTableHeader("common.status"),
     key: "status",
   },
 ];

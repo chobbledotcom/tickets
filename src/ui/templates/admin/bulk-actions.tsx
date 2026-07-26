@@ -27,6 +27,7 @@ import { SubmitForm } from "#templates/components/submit-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { TextFields } from "#templates/components/text-fields.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -177,25 +178,25 @@ const previewColumns: readonly TableColumn<DuplicatePreviewRow, string>[] = [
   {
     cell: (row) => row.originalName,
     cellAttrs: () => ({ "data-preview-original-name": true }),
-    header: t("bulk_actions.preview_col_original_name"),
+    header: translatedTableHeader("bulk_actions.preview_col_original_name"),
     key: "original_name",
   },
   {
     cell: (row) => row.newName,
     cellAttrs: () => ({ "data-preview-new-name": true }),
-    header: t("bulk_actions.preview_col_new_name"),
+    header: translatedTableHeader("bulk_actions.preview_col_new_name"),
     key: "new_name",
   },
   {
     cell: (row, timezone) => formatIsoForPreview(row.originalDate, timezone),
     cellAttrs: () => ({ "data-preview-original-date": true }),
-    header: t("bulk_actions.preview_col_original_date"),
+    header: translatedTableHeader("bulk_actions.preview_col_original_date"),
     key: "original_date",
   },
   {
     cell: (row, timezone) => formatIsoForPreview(row.newDate, timezone),
     cellAttrs: () => ({ "data-preview-new-date": true }),
-    header: t("bulk_actions.preview_col_new_date"),
+    header: translatedTableHeader("bulk_actions.preview_col_new_date"),
     key: "new_date",
   },
 ];

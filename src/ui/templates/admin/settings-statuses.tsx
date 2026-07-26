@@ -23,6 +23,7 @@ import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -50,7 +51,7 @@ const statusColumns: TableColumn<AttendeeStatus>[] = [
   ),
   {
     cell: (s) => statusBadges(s),
-    header: t("statuses.flags_header"),
+    header: translatedTableHeader("statuses.flags_header"),
     key: "flags",
   },
 ];
@@ -181,7 +182,7 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
     reorder: {
       action: (status) => (direction) =>
         `${LIST_PATH}/${status.id}/move-${direction}`,
-      header: t("statuses.order_header"),
+      header: translatedTableHeader("statuses.order_header"),
       titles: {
         down: t("statuses.move_down_title"),
         up: t("statuses.move_up_title"),

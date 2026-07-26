@@ -12,7 +12,6 @@
  */
 
 /* jscpd:ignore-start */
-import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type {
   ReorderColumnOptions,
@@ -28,6 +27,7 @@ import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 /* jscpd:ignore-end */
 
 /** A delete confirmation spec, parameterised by the entity. */
@@ -101,7 +101,7 @@ export const writableNameColumn = <TEntity,>(
   cell: (entity) => (
     <WritableLink href={editHref(entity)}>{name(entity)}</WritableLink>
   ),
-  header: t("common.name"),
+  header: translatedTableHeader("common.name"),
   key,
 });
 

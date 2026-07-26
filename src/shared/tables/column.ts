@@ -16,6 +16,8 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { ReorderProps } from "#templates/components/reorder.tsx";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
 
+type TableHeader = Child | (() => Child);
+
 /** Attributes a column's cell can attach to its <td>: the values a caller
  *  may need (data-* attributes for JS hooks, simple class overrides). The
  *  `class` key overlaps with the column-level `class` kind, so the renderer
@@ -35,7 +37,7 @@ export type TableColumn<
    *  layout templates (`{{key}}`) and in the guide reference table. */
   readonly key: TKey;
   /** The <th> content, or a function that reads translated copy at render time. */
-  readonly header: Child | (() => Child);
+  readonly header: TableHeader;
   /** Render the <td> inner content for one row. The context is the per-table
    *  `TContext` (default `void`); an ordinary column with no context can
    *  ignore every parameter after `row`. */
@@ -82,6 +84,6 @@ export type TableColumn<
  *  questions, site-page items). Hidden entirely in read-only mode. */
 export type ReorderColumnOptions<TRow> = {
   readonly action: (row: TRow) => ReorderProps["action"];
-  readonly header: Child;
+  readonly header: TableHeader;
   readonly titles?: { readonly down: string; readonly up: string };
 };

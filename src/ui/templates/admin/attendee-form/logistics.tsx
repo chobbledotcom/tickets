@@ -14,47 +14,66 @@ type LogisticsAssignmentProps = {
   listingId?: number | undefined;
 };
 
+type LogisticsLegName = "start" | "end";
+
+type LogisticsLegDetails = {
+  agentField: typeof startAgentField;
+  agentId: number | null;
+  agentLabel: string;
+  label: string;
+  time: string;
+  timeField: typeof startTimeField;
+  timeLabel: string;
+};
+
 const LogisticsLeg = ({
   agents,
   leg,
   assignment,
   listingId,
 }: LogisticsAssignmentProps & {
-  leg: "start" | "end";
+  leg: LogisticsLegName;
 }): JSX.Element => {
-  const isStart = leg === "start";
-  const label = isStart
-    ? t("attendee_form.start_leg")
-    : t("attendee_form.end_leg");
-  const time = isStart ? assignment.startTime : assignment.endTime;
-  const agentId = isStart ? assignment.startAgentId : assignment.endAgentId;
+  const detailsByLeg: Record<LogisticsLegName, LogisticsLegDetails> = {
+    end: {
+      agentField: endAgentField,
+      agentId: assignment.endAgentId,
+      agentLabel: t("attendee_form.leg_agent_end"),
+      label: t("attendee_form.end_leg"),
+      time: assignment.endTime,
+      timeField: endTimeField,
+      timeLabel: t("attendee_form.leg_time_end"),
+    },
+    start: {
+      agentField: startAgentField,
+      agentId: assignment.startAgentId,
+      agentLabel: t("attendee_form.leg_agent_start"),
+      label: t("attendee_form.start_leg"),
+      time: assignment.startTime,
+      timeField: startTimeField,
+      timeLabel: t("attendee_form.leg_time_start"),
+    },
+  };
+  const details = detailsByLeg[leg];
   return (
     <div class="logistics-leg">
-      <span class="logistics-leg-label">{label}</span>
+      <span class="logistics-leg-label">{details.label}</span>
       <input
-        aria-label={
-          isStart
-            ? t("attendee_form.leg_time_start")
-            : t("attendee_form.leg_time_end")
-        }
-        name={(isStart ? startTimeField : endTimeField)(listingId)}
+        aria-label={details.timeLabel}
+        name={details.timeField(listingId)}
         type="time"
-        value={time}
+        value={details.time}
       />
       <select
-        aria-label={
-          isStart
-            ? t("attendee_form.leg_agent_start")
-            : t("attendee_form.leg_agent_end")
-        }
+        aria-label={details.agentLabel}
         class="logistics-leg-agent"
-        name={(isStart ? startAgentField : endAgentField)(listingId)}
+        name={details.agentField(listingId)}
       >
-        <option selected={agentId === null} value="">
+        <option selected={details.agentId === null} value="">
           {t("attendee_form.agent_none")}
         </option>
         {agents.map((agent) => (
-          <option selected={agent.id === agentId} value={agent.id}>
+          <option selected={agent.id === details.agentId} value={agent.id}>
             {agent.name}
           </option>
         ))}

@@ -10,6 +10,7 @@ import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 /* jscpd:ignore-end */
 
 /** The "read more" footer link shared by the built-sites list and builder pages. */
@@ -44,12 +45,12 @@ const builtSiteUrlCell = (site: BuiltSite): JSX.Element => (
 const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [
   {
     cell: builtSiteNameCell,
-    header: t("common.name"),
+    header: translatedTableHeader("common.name"),
     key: "name",
   },
   {
     cell: builtSiteUrlCell,
-    header: t("built_sites.table_site_url"),
+    header: translatedTableHeader("built_sites.table_site_url"),
     key: "site_url",
   },
   {
@@ -59,17 +60,17 @@ const builtSiteColumns: readonly TableColumn<BuiltSite>[] = [
         : site.assignable
           ? t("built_sites.status_available")
           : t("built_sites.status_not_assignable"),
-    header: t("common.status"),
+    header: translatedTableHeader("common.status"),
     key: "status",
   },
   {
     cell: (site) => site.updates,
-    header: t("built_sites.table_updates"),
+    header: translatedTableHeader("built_sites.table_updates"),
     key: "updates",
   },
   {
     cell: (site) => formatDeadlineLabel(site.readOnlyFrom),
-    header: t("built_sites.table_read_only"),
+    header: translatedTableHeader("built_sites.table_read_only"),
     key: "read_only",
   },
 ];

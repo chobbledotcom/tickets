@@ -30,6 +30,7 @@ import {
 } from "#templates/components/reorder-list.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import {
   type ListingPanelProps,
   listingChoicePanel,
@@ -56,12 +57,12 @@ const AttributeListingLink = ({
 const attributeListingColumns: readonly TableColumn<AttributeListingRow>[] = [
   {
     cell: (listing) => <AttributeListingLink listing={listing} />,
-    header: t("terms.listing"),
+    header: translatedTableHeader("terms.listing"),
     key: "listing",
   },
   {
     cell: (listing) => listing.optionTexts.join(", "),
-    header: t("attributes.options_column"),
+    header: translatedTableHeader("attributes.options_column"),
     key: "options",
   },
 ];

@@ -13,19 +13,20 @@ import { successAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
 const sessionColumns: readonly TableColumn<Session, string>[] = [
   {
     cell: (session) => `${session.token.slice(0, 8)}...`,
-    header: t("sessions.col.token"),
+    header: translatedTableHeader("sessions.col.token"),
     key: "token",
   },
   {
     cell: (session) =>
       formatDatetimeShort(new Date(session.expires).toISOString()),
-    header: t("sessions.col.expires"),
+    header: translatedTableHeader("sessions.col.expires"),
     key: "expires",
   },
   {
@@ -35,7 +36,7 @@ const sessionColumns: readonly TableColumn<Session, string>[] = [
       ) : (
         ""
       ),
-    header: t("common.status"),
+    header: translatedTableHeader("common.status"),
     key: "status",
   },
 ];

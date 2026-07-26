@@ -285,9 +285,7 @@ describe("adminDashboardPage with column template filters", () => {
       null,
       listingTable.layout.parse("{{name}}, {{created}}"),
     );
-    // Default uses toLocaleDateString — locale format, not Liquid strftime
-    expect(html).toContain("2026");
-    expect(html).not.toContain("April 2026");
+    expect(html).toContain("Friday 10 April 2026");
   });
 });
 

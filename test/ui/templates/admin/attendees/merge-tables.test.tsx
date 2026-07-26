@@ -245,7 +245,9 @@ describe("MergeDecisionTables", () => {
       "<strong>Conflicting metadata</strong> Current quantity: 1. Source quantity: 3.",
     );
     expect(html).not.toContain('name="money_8:null:0:0"');
-    expect(html).toContain('<span class="muted">Will be moved</span>');
+    expect(html).toContain(
+      '<tr><td>Listing #9</td><td>—</td><td>1</td><td><span class="muted">Will be moved</span></td><td></td></tr>',
+    );
     expect(html).not.toContain('name="booking_9:null:0:0"');
   });
 
@@ -268,5 +270,22 @@ describe("MergeDecisionTables", () => {
     expect(html).not.toContain("<th>Decision</th>");
     expect(html).not.toContain('name="booking_15:null:0:0"');
     expect(html).not.toContain("Custom Question Answers");
+  });
+
+  test("fails clearly when a conflict has no target booking", () => {
+    expect(() =>
+      render(
+        diffWith({
+          bookingItems: [
+            bookingItem({
+              conflictClass: "conflicting_metadata",
+              targetBooking: null,
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(
+      "Missing target booking for conflicting_metadata merge conflict on listing 7",
+    );
   });
 });

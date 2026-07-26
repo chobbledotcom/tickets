@@ -16,6 +16,7 @@
 
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
+import { formatDateLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import {
@@ -106,13 +107,13 @@ const profit: ListingRenderer = {
 
 const created: ListingRenderer = {
   ...listingColumnText("created"),
-  cell: (e) => new Date(e.created).toLocaleDateString(),
+  cell: (e) => formatDateLabel(e.created.slice(0, 10)),
   rawValue: (e) => e.created,
 };
 
 const date: ListingRenderer = {
   ...listingColumnText("date"),
-  cell: (e) => (e.date ? new Date(e.date).toLocaleDateString() : ""),
+  cell: (e) => (e.date ? formatDateLabel(e.date.slice(0, 10)) : ""),
   rawValue: (e) => e.date || "",
 };
 
@@ -124,7 +125,7 @@ const location: ListingRenderer = {
 const price: ListingRenderer = {
   ...listingColumnText("price"),
   cell: (e) =>
-    e.unit_price > 0 ? String(e.unit_price) : t("listings_table.free"),
+    e.unit_price > 0 ? formatCurrency(e.unit_price) : t("listings_table.free"),
   rawValue: (e) => e.unit_price,
 };
 

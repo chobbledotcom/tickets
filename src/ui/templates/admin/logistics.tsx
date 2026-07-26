@@ -31,6 +31,7 @@ import {
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
 
 /* jscpd:ignore-end */
@@ -43,7 +44,7 @@ const agentColumns: TableColumn<LogisticsAgent>[] = [
         {agent.name}
       </WritableLink>
     ),
-    header: t("common.name"),
+    header: translatedTableHeader("common.name"),
     key: "name",
   },
 ];

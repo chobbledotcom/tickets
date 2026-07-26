@@ -73,7 +73,6 @@ const MergePiiDecisionTable = ({
   targetName: string;
 }): JSX.Element => (
   <DecisionTable
-    heading=""
     rows={fields}
     table={defineTable<AttendeeMergeDiffPiiField>([
       {
@@ -232,16 +231,20 @@ const bookingStatus = (item: AttendeeMergeDiffBookingItem): JSX.Element => {
   if (item.conflictClass === "moveable") {
     return <span class="muted">{t("admin.attendees.merge_will_move")}</span>;
   }
+  const targetBooking = item.targetBooking;
+  if (targetBooking === null) {
+    throw new Error(
+      `Missing target booking for ${item.conflictClass} merge conflict on listing ${item.listingId}`,
+    );
+  }
   const conflictLabel = bookingConflictLabel(item);
-  const targetQty = item.targetBooking!.quantity;
   return (
     <>
-      <strong>{conflictLabel}</strong>
-      {item.targetBooking &&
-        ` ${t("admin.attendees.merge_booking_quantities", {
-          source: item.sourceBooking.quantity,
-          target: targetQty,
-        })}`}
+      <strong>{conflictLabel}</strong>{" "}
+      {t("admin.attendees.merge_booking_quantities", {
+        source: item.sourceBooking.quantity,
+        target: targetBooking.quantity,
+      })}
     </>
   );
 };
@@ -307,7 +310,7 @@ const bookingColumns = (
         translatedTableColumn(
           "decision",
           "admin.attendees.decision",
-          (item: AttendeeMergeDiffBookingItem) => <BookingChoice item={item} />,
+          (item: AttendeeMergeDiffBookingItem) => BookingChoice({ item }),
         ),
       ]
     : []),

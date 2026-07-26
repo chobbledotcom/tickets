@@ -7,6 +7,7 @@ import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { apiKeyForm } from "#routes/admin/api-keys.ts";
 import type { EndpointDoc } from "#shared/admin-api-example.ts";
+import { formatDateLabel } from "#shared/dates.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -22,6 +23,7 @@ import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -35,12 +37,12 @@ export type ApiKeyDisplay = {
 /** Render a last-used date, or "never" when the key has not been used. */
 const lastUsedCell = (apiKey: ApiKeyDisplay): string =>
   apiKey.lastUsed
-    ? new Date(apiKey.lastUsed).toLocaleDateString()
+    ? formatDateLabel(apiKey.lastUsed.slice(0, 10))
     : t("api_keys.never");
 
-/** Render a created date as a locale-formatted date string. */
+/** Render a created date in the shared display format. */
 const createdCell = (apiKey: ApiKeyDisplay): string =>
-  new Date(apiKey.created).toLocaleDateString();
+  formatDateLabel(apiKey.created.slice(0, 10));
 
 /** The read-only fields shown on one API key's Overview tab. */
 export const apiKeySummaryRows = (apiKey: ApiKeyDisplay): SummaryRow[] => [
@@ -62,17 +64,17 @@ const ApiKeyLink = ({ apiKey }: { apiKey: ApiKeyDisplay }): JSX.Element => (
 const apiKeyColumns: readonly TableColumn<ApiKeyDisplay>[] = [
   {
     cell: (apiKey) => <ApiKeyLink apiKey={apiKey} />,
-    header: t("common.name"),
+    header: translatedTableHeader("common.name"),
     key: "name",
   },
   {
     cell: createdCell,
-    header: t("common.created"),
+    header: translatedTableHeader("common.created"),
     key: "created",
   },
   {
     cell: lastUsedCell,
-    header: t("api_keys.col.last_used"),
+    header: translatedTableHeader("api_keys.col.last_used"),
     key: "last_used",
   },
 ];

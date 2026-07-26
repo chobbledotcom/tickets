@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { formatCurrency } from "#shared/currency.ts";
 import {
   configurableTableLayouts,
   type ListingColumnKey,
@@ -87,16 +88,18 @@ describe("listingTable", () => {
 
   test("renders optional listing values", () => {
     const listing = testListingWithCount({
+      created: "2026-04-05T12:00:00Z",
       date: "2026-04-10",
       location: "Town Hall",
       months_per_unit: 12,
       unit_price: 450,
     });
 
-    expect(cell("date", listing)).toContain("2026");
+    expect(cell("created", listing)).toBe("Sunday 5 April 2026");
+    expect(cell("date", listing)).toBe("Friday 10 April 2026");
     expect(cell("date", testListingWithCount({ date: "" }))).toBe("");
     expect(cell("location", listing)).toBe("Town Hall");
-    expect(cell("price", listing)).toBe("450");
+    expect(cell("price", listing)).toBe(formatCurrency(450));
     expect(cell("price", testListingWithCount({ unit_price: 0 }))).toBe("Free");
     expect(cell("renewal", listing)).toBe("Renewal (12 months)");
     expect(cell("renewal", testListingWithCount({ months_per_unit: 0 }))).toBe(

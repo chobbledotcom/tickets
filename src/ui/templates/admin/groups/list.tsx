@@ -8,6 +8,7 @@ import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -26,12 +27,12 @@ const groupColumns: readonly TableColumn<Group, AdminSession["adminLevel"]>[] =
   [
     {
       cell: groupLink,
-      header: t("common.name"),
+      header: translatedTableHeader("common.name"),
       key: "name",
     },
     {
       cell: (group) => group.slug,
-      header: t("common.slug"),
+      header: translatedTableHeader("common.slug"),
       key: "slug",
     },
   ];

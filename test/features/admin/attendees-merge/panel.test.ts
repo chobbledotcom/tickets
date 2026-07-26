@@ -9,6 +9,7 @@ import {
 } from "#test/lib/server-attendees/merge.ts";
 import {
   expectHtmlResponse,
+  tableRowContaining,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
@@ -224,12 +225,20 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "john@example.com",
       );
 
-      await expectHtmlResponse(
+      const html = await expectHtmlResponse(
         await mergeActionsPage(target.id, source.ticket_token),
         200,
         "Duplicate",
         "Will be moved",
         "Decision",
+      );
+      const moveableRow = tableRowContaining(html, `Listing #${listing2.id}`);
+      expect(moveableRow).toContain(
+        '<td><span class="muted">Will be moved</span></td><td></td></tr>',
+      );
+      expect(moveableRow).not.toContain('name="booking_');
+      expect(tableRowContaining(html, `Listing #${listing1.id}`)).toContain(
+        `name="booking_${listing1.id}:null:0:0"`,
       );
     });
 

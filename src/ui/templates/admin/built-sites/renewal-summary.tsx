@@ -7,31 +7,32 @@ import { defineTable } from "#shared/tables/definition.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
 const renewalTierColumns: readonly TableColumn<ListingWithCount>[] = [
   {
     cell: (tier) => <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>,
-    header: t("built_sites.tier_table_tier"),
+    header: translatedTableHeader("built_sites.tier_table_tier"),
     key: "tier",
   },
   {
     cell: (tier) => tier.months_per_unit,
     class: "quantity",
-    header: t("built_sites.tier_table_months"),
+    header: translatedTableHeader("built_sites.tier_table_months"),
     key: "months",
   },
   {
     cell: (tier) => formatCurrency(tier.unit_price),
     class: "amount",
-    header: t("built_sites.tier_table_price"),
+    header: translatedTableHeader("built_sites.tier_table_price"),
     key: "price",
   },
   {
     cell: (tier) => tier.attendee_count,
     class: "quantity",
-    header: t("built_sites.tier_table_units"),
+    header: translatedTableHeader("built_sites.tier_table_units"),
     key: "units",
   },
 ];

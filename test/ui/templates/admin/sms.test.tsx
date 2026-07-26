@@ -90,6 +90,7 @@ describe("SMS page template", () => {
     expect(html).toContain("<legend>Send a text message</legend>");
     expect(html).toContain("Send text");
     expect(html).toContain("<th>When</th><th>Message</th>");
+    expect(html).toContain("2026-01-02 03:04");
     expect(html).toContain("First &lt;reply&gt;");
     expect(html).not.toContain("First <reply>");
     expect(html.indexOf("First &lt;reply&gt;")).toBeLessThan(

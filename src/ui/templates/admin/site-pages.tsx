@@ -31,6 +31,7 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -79,7 +80,7 @@ const pageReorderTable = <T,>(opts: {
   renderTable(defineTable(opts.columns), opts.rows, {
     reorder: {
       action: (row) => (direction) => `${opts.base(row)}/move-${direction}`,
-      header: t("site.pages.order_column"),
+      header: translatedTableHeader("site.pages.order_column"),
     },
   });
 
@@ -96,7 +97,7 @@ const pageColumns = <T,>(
       const page = pageOf(row);
       return <PageNameLink id={page.id} name={page.name} />;
     },
-    header: t("site.pages.name_column"),
+    header: translatedTableHeader("site.pages.name_column"),
     key: "name",
   },
 });
@@ -110,7 +111,7 @@ const nestedPageTable = defineTable<NestedPageRow>([
   nestedPageColumns.name,
   {
     cell: ({ parentName }) => parentName,
-    header: t("site.pages.parent_column"),
+    header: translatedTableHeader("site.pages.parent_column"),
     key: "parent",
   },
   nestedPageColumns.actions,

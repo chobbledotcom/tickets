@@ -23,4 +23,15 @@ describe("API key pages in read-only mode", () => {
     expect(html).toContain("Deploy key");
     expect(html).not.toContain('action="/admin/api-keys"');
   });
+
+  test("formats created and last-used dates consistently", () => {
+    const html = adminApiKeysPage(
+      [{ ...API_KEY, lastUsed: "2026-07-12T11:00:00.000Z" }],
+      OWNER_SESSION,
+      {},
+    );
+
+    expect(html).toContain("Saturday 11 July 2026");
+    expect(html).toContain("Sunday 12 July 2026");
+  });
 });

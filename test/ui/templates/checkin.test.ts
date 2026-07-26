@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { formatDateLabel } from "#shared/dates.ts";
+import { tableRowContaining } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
@@ -12,18 +13,6 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
-
-/** Finds the `<tr>` row containing needle and returns its complete HTML. */
-const rowFor = (html: string, needle: string): string => {
-  const start = html.indexOf("<tr", 0);
-  for (let i = start; i >= 0; i = html.indexOf("<tr", i + 1)) {
-    const end = html.indexOf("</tr>", i);
-    if (end === -1) break;
-    const row = html.slice(i, end + 5);
-    if (row.includes(needle)) return row;
-  }
-  throw new Error(`No <tr> row containing "${needle}" found in HTML`);
-};
 
 /** Create attendee + login, returning token + session for check-in tests */
 const setupCheckinTest = async (
@@ -250,8 +239,10 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       // shows an empty cell instead. The negative case — column hidden when
       // no attendee has a date — is covered by the test below.
       expect(body).toContain("<th>Date</th>");
-      expect(rowFor(body, "Zara")).toContain(formatDateLabel(date));
-      expect(rowFor(body, "Alice")).not.toContain(formatDateLabel(date));
+      expect(tableRowContaining(body, "Zara")).toContain(formatDateLabel(date));
+      expect(tableRowContaining(body, "Alice")).not.toContain(
+        formatDateLabel(date),
+      );
     });
 
     test("renders an empty cell for an attendee with no email when another attendee has one", async () => {
@@ -280,12 +271,16 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(body).toContain("<th>Email</th>");
       expect(body).toContain("<th>Phone</th>");
       // The contact-bearing attendee's row shows the values.
-      expect(rowFor(body, "WithContact")).toContain("with@test.com");
-      expect(rowFor(body, "WithContact")).toContain("0712345678");
+      expect(tableRowContaining(body, "WithContact")).toContain(
+        "with@test.com",
+      );
+      expect(tableRowContaining(body, "WithContact")).toContain("0712345678");
       // The no-contact attendee's row shows empty cells for those columns.
-      expect(rowFor(body, "NoContact")).toContain("<td></td>");
-      expect(rowFor(body, "NoContact")).not.toContain("with@test.com");
-      expect(rowFor(body, "NoContact")).not.toContain("0712345678");
+      expect(tableRowContaining(body, "NoContact")).toContain("<td></td>");
+      expect(tableRowContaining(body, "NoContact")).not.toContain(
+        "with@test.com",
+      );
+      expect(tableRowContaining(body, "NoContact")).not.toContain("0712345678");
     });
 
     test("does not show date column for standard listing in admin view", async () => {
