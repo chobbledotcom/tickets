@@ -1012,7 +1012,7 @@ a code change nothing would have caught.
 deno task mutation src/shared/dates.ts test/shared/dates.test.ts
 
 # Globs and exhaustive mode (every operator replacement, not just one each)
-deno task mutation 'src/shared/forms/*.ts' 'test/shared/forms/*.test.ts' --exhaustive
+deno task mutation 'src/shared/forms/definition.ts' 'test/shared/forms/definition/*.test.ts' --exhaustive
 ```
 
 It reports a mutation score and lists each survivor as
