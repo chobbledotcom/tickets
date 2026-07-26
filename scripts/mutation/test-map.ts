@@ -90,7 +90,9 @@ export const selectMutationTests = (
 };
 
 interface OwnedTest {
-  owner: string | null;
+  /** Every selected source's mirror prefix this test runs for. Empty means no
+   *  selected source claims it (an integration test, or a stray). */
+  owners: string[];
   testFile: string;
 }
 
@@ -112,15 +114,15 @@ const mirrorOwnerOrNull = (
 const ownedTest =
   (prefixes: string[], subjectsOf: SubjectsOf) =>
   (testFile: string): OwnedTest => {
-    if (isIntegrationTest(testFile)) return { owner: null, testFile };
+    if (isIntegrationTest(testFile)) return { owners: [], testFile };
     const mirrored = mirrorOwnerOrNull(prefixes, testFile);
-    if (mirrored !== null) return { owner: mirrored, testFile };
-    // No mirror: fall back to a source it exercises through its helpers, so a
-    // test that proves a source from another folder still runs for it.
+    if (mirrored !== null) return { owners: [mirrored], testFile };
+    // No mirror: fall back to every source it exercises through its helpers, so
+    // a test that proves two such sources runs for both of them.
     const exercised = filter((prefix: string) =>
       subjectsOf(testFile).some((source) => testPrefix(source) === prefix),
     )(prefixes);
-    return { owner: exercised[0] ?? null, testFile };
+    return { owners: exercised, testFile };
   };
 
 /** Pair selected sources with their mirrored tests. Only explicit
@@ -135,7 +137,8 @@ export const buildMutationTestMap = (
   const prefixes = map(testPrefix)(sources);
   const ownedTests = map(ownedTest(prefixes, subjectsOf))(tests);
   const misplaced = chooseTestFiles(
-    ({ owner, testFile }) => owner === null && !isIntegrationTest(testFile),
+    ({ owners, testFile }) =>
+      owners.length === 0 && !isIntegrationTest(testFile),
   )(ownedTests);
   if (misplaced.length > 0) {
     throw new Error(
@@ -145,11 +148,12 @@ export const buildMutationTestMap = (
   }
   return {
     integrationTestFiles: chooseTestFiles(
-      ({ owner, testFile }) => owner === null && isIntegrationTest(testFile),
+      ({ owners, testFile }) =>
+        owners.length === 0 && isIntegrationTest(testFile),
     )(ownedTests),
     targets: map((sourceFile: string) => ({
-      directTestFiles: chooseTestFiles(
-        ({ owner }) => owner === testPrefix(sourceFile),
+      directTestFiles: chooseTestFiles(({ owners }) =>
+        owners.includes(testPrefix(sourceFile)),
       )(ownedTests),
       sourceFile,
     }))(sources),

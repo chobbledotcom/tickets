@@ -113,6 +113,25 @@ describe("mutation test map", () => {
     });
   });
 
+  test("gives one unmirrored test to every source it exercises", () => {
+    expect(
+      buildMutationTestMap(
+        ["src/ui/table/component.tsx", "src/ui/table/values.ts"],
+        ["test/ui/table/rendering.test.ts"],
+        () => ["src/ui/table/component.tsx", "src/ui/table/values.ts"],
+      ).targets,
+    ).toEqual([
+      {
+        directTestFiles: ["test/ui/table/rendering.test.ts"],
+        sourceFile: "src/ui/table/component.tsx",
+      },
+      {
+        directTestFiles: ["test/ui/table/rendering.test.ts"],
+        sourceFile: "src/ui/table/values.ts",
+      },
+    ]);
+  });
+
   test("still rejects an unmirrored test that exercises no selected source", () => {
     expect(() =>
       buildMutationTestMap(

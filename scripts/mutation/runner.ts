@@ -13,6 +13,8 @@
  * detected).
  */
 
+import { map } from "#fp";
+import { relativeToProject } from "#scripts/path.ts";
 import { dim, red, yellow } from "#scripts/precommit/colors.ts";
 import { write } from "#scripts/precommit/write.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -372,12 +374,14 @@ export const runMutationTesting = async (
 ): Promise<number> => {
   // What each selected test exercises, read through its helpers, so a test that
   // proves a source from outside that source's mirror still runs for it.
-  const selected = new Set(options.testFiles);
+  // The CLI expands globs to absolute paths; the scan walks project-relative
+  // ones, so both sides are compared relative to the project.
+  const selected = new Set(map(relativeToProject)(options.testFiles));
   const scan = await scanTestTree({ isTest: (path) => selected.has(path) });
   const testMap = buildMutationTestMap(
     options.sourceFiles,
     options.testFiles,
-    scan.subjectsOf,
+    (testFile) => scan.subjectsOf(relativeToProject(testFile)),
   );
   for (const target of testMap.targets) {
     if (target.directTestFiles.length > 0) continue;

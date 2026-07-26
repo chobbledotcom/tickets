@@ -924,9 +924,8 @@ src/features/api/folded-booking.ts:381:17  1 → 0   # base.dayCount is read onl
 scripts/test-subjects.ts:90:9  continue; → (removed)   # a resolved `src/` path is never a member of testTreeFiles (that set only holds files under test/), so falling through reaches `if (!testTreeFiles.has(resolved) ...) continue;` and continues there instead — same walk, same subjects, for every possible input
 
 # Mutation test map: null-coalescing and the integration split.
-scripts/mutation/test-map.ts:110:7  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
-scripts/mutation/test-map.ts:123:33  ?? → ||   # same: `exercised` holds mirror prefixes, never the empty string, so ?? and || differ on no reachable value
-scripts/mutation/test-map.ts:148:46  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
+scripts/mutation/test-map.ts:112:7  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
+scripts/mutation/test-map.ts:152:28  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
 
 # Precommit mutation gate: helper-subject lookup defaults.
 scripts/precommit/mutation-step.ts:205:49  ?? → ||   # deps.testSubjects?.() yields either a Map (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
