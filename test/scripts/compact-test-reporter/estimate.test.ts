@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import {
-  estimateTapEventCount,
-  FILE_ARG_VALUE_FLAGS,
-} from "#scripts/compact-test-reporter.ts";
+import { estimateTapEventCount } from "#scripts/compact-test-reporter.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 /**
@@ -84,7 +81,28 @@ describe("estimating how many tests a run will report", () => {
   test("does not mistake any value-taking flag's value for a file", async () => {
     write("d.test.ts", 'Deno.test("a", () => {});');
 
-    for (const flag of FILE_ARG_VALUE_FLAGS) {
+    const valueTakingFlags = [
+      "--cert",
+      "--config",
+      "--conditions",
+      "--env-file",
+      "--ext",
+      "--fail-fast",
+      "--filter",
+      "--ignore",
+      "--junit-path",
+      "--location",
+      "--minimum-dependency-age",
+      "--preload",
+      "--require",
+      "--seed",
+      "--shuffle",
+      "--v8-flags",
+      "--watch",
+      "--watch-exclude",
+    ];
+
+    for (const flag of valueTakingFlags) {
       expect(await estimate([flag, "d.test.ts"])).toBeUndefined();
     }
   });

@@ -49,7 +49,7 @@ const TEST_RESULT_RE = /^\s*(not\s+)?ok\s+\d+(?:\s+-\s+(.*))?$/;
 const PLAN_RE = /^\s*(\d+)\.\.(\d+)(?:\s+#.*)?$/;
 const STEP_FAILURE_RE = /^\d+\s+test\s+steps?\s+failed\.$/;
 /** Deno test flags that take a separate value, which is never a file path. */
-export const FILE_ARG_VALUE_FLAGS = new Set([
+const FILE_ARG_VALUE_FLAGS = new Set([
   "--cert",
   "--config",
   "--conditions",
