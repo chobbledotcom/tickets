@@ -97,6 +97,13 @@ describe("check-copy rules", () => {
     expect(findIssues([entry("Click <code>x</code> here")])).toEqual([]);
   });
 
+  test("flags a vague link whose words are split by a formatting tag", () => {
+    const issues = findIssues([entry("Click<em>here</em> to start")]);
+    expect(issues.map((i) => `${i.rule}:${i.problem}`)).toEqual([
+      'descriptive-links:vague link text "Click here"',
+    ]);
+  });
+
   test("still flags a vague link in a segment beside a code example", () => {
     const issues = findIssues([
       entry("Click here after <code>setup</code> to begin"),
