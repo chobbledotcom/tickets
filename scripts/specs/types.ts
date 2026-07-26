@@ -49,3 +49,16 @@ export interface SpecStory extends SpecItem {
 export interface SpecCatalog {
   stories: SpecStory[];
 }
+
+interface SpecCaseContext {
+  rule: SpecRule;
+  specCase: SpecItem;
+  story: SpecStory;
+}
+
+export const specCasesWithContext = (catalog: SpecCatalog): SpecCaseContext[] =>
+  catalog.stories.flatMap((story) =>
+    story.rules.flatMap((rule) =>
+      rule.cases.map((specCase) => ({ rule, specCase, story })),
+    ),
+  );
