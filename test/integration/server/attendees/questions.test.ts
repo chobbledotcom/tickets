@@ -7,7 +7,7 @@ import {
   saveAttendeeAnswer,
   setupListingWithQuestion,
   submitQuestionAnswer,
-} from "#test/lib/server-attendees/helpers.ts";
+} from "#test/test-utils/attendees/helpers.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

@@ -13,7 +13,7 @@ import {
   resetModifierAggregateFields,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
-import { readModifierAggregates as aggregates } from "#test/lib/db/migration-test-helpers.ts";
+import { readModifierAggregates as aggregates } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifierUsage } from "#test-utils/modifiers.ts";

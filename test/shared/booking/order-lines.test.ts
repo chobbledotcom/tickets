@@ -6,8 +6,8 @@ import {
   buildOrderLines,
   nodeQuantitiesFor,
 } from "#shared/booking/order-lines.ts";
-import { resolved } from "#test/lib/booking-model-fixtures.ts";
-import { treePackage } from "#test/lib/package-cap-fixtures.ts";
+import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
+import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 
 /** A page selling listing 1 through package 7 (fixed ×2, overridden to 400)
  * AND standalone (base 500), beside plain listing 2 (base 300) — the

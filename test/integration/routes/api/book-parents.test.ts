@@ -6,7 +6,7 @@ import {
   bookListing,
   describePublicApi,
   withCheckoutStub,
-} from "#test/routes/api/helpers.ts";
+} from "#test/test-utils/api/helpers.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { setupStripe } from "#test-utils/settings.ts";

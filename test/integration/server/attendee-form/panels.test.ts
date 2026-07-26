@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { everydayDailyListing } from "#test/lib/server-attendee-form/helpers.ts";
+import { everydayDailyListing } from "#test/test-utils/attendee-form/helpers.ts";
 import {
   expectHtmlResponse,
   expectListingRowQuantity,

@@ -6,7 +6,7 @@ import type {
 } from "#shared/booking/page-packages.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { resolved } from "./booking-model-fixtures.ts";
+import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
 
 /** Shared fixtures for the package-cap*.test.ts suite. Not itself a test file. */
 

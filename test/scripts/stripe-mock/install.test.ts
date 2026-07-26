@@ -20,7 +20,7 @@ import {
   withLockRemovedDuringRead,
   withSecondLockRefreshHeld,
   withTempStripeMockPaths,
-} from "#test/lib/stripe-mock/helpers.ts";
+} from "#test/test-utils/stripe-mock/helpers.ts";
 import { tempDir } from "#test-utils/files.ts";
 
 const oldDate = (): Date => new Date(Date.now() - 1_000);

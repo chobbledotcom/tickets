@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import type { TreePackage } from "#shared/booking/page-packages.ts";
 import { packageSubTree } from "#shared/booking/tree.ts";
-import { resolved } from "./booking-model-fixtures.ts";
-import { treePackage as pkg } from "./package-cap-fixtures.ts";
+import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
+import { treePackage as pkg } from "#test/test-utils/package-cap-fixtures.ts";
 
 /** A two-bundle cart beside a plain listing: packages 3 (member 7) and
  * 4 (member 8) with listing 9 standalone. */

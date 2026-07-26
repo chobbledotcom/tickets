@@ -8,7 +8,7 @@ import { getListingForm } from "#templates/fields/listing.ts";
 import {
   registerListingTemplateHooks,
   renderListingDetail,
-} from "#test/templates/admin/listings/helpers.ts";
+} from "#test/ui/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("adminListingPage money breakdown", () => {

@@ -7,7 +7,7 @@ import {
   listingsTable,
 } from "#shared/db/listings/records.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
-import { expectImageErrorRedirect } from "#test/lib/server-images/helpers.ts";
+import { expectImageErrorRedirect } from "#test/integration/server/images/helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { PDF_BYTES } from "#test-utils/factories.ts";

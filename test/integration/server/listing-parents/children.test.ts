@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import { linkedParentChild } from "#test/lib/server-listing-parents/helpers.ts";
+import { linkedParentChild } from "#test/test-utils/listing-parents/helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { createHiddenPackageGroup } from "#test/lib/payment-success-helpers.ts";
+import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { configureAppleWallet } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

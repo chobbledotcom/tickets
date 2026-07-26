@@ -5,7 +5,7 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { addDays } from "#shared/dates.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { createDailyListing } from "#test/lib/server-listings/_shared-setup.ts";
+import { createDailyListing } from "#test/integration/server/listings/_shared-setup.ts";
 import { logActivity } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";

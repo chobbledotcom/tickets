@@ -7,7 +7,7 @@ import { PARENT_CHILD_GROUP_UNITS } from "#shared/types.ts";
 import {
   expectRendersSoldOut,
   expectSelectOffers,
-} from "#test/lib/server-parents-gate/helpers.ts";
+} from "#test/test-utils/parents-gate/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   registerListingTemplateHooks,
   renderListingDetail,
-} from "#test/templates/admin/listings/helpers.ts";
+} from "#test/ui/templates/admin/listings/helpers.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
   testAttendee,

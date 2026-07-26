@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 // jscpd:ignore-end
-import { setupListingAndAttendee } from "#test/lib/server-attendees/helpers.ts";
+import { setupListingAndAttendee } from "#test/test-utils/attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,

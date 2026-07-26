@@ -20,7 +20,7 @@ import {
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Holiday, ListingWithCount } from "#shared/types.ts";
-import { treePackage } from "#test/lib/package-cap-fixtures.ts";
+import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A cart line resolved against availability (the shape the fold reads). */

@@ -3,7 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,
-} from "#test/lib/db/legacy-migration/helpers.ts";
+} from "#test/integration/db/legacy-migration/helpers.ts";
 
 describe("db > legacy migration harness > stubPragmaForeignKeysOff", () => {
   const h = createLegacyMigrationHarness();

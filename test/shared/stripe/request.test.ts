@@ -17,8 +17,8 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
-import { stripeCheckoutSession } from "#test/lib/stripe/fixtures.ts";
-import { refundHeaderProbe } from "#test/lib/stripe/refund-header-probe.ts";
+import { refundHeaderProbe } from "#test/shared/stripe/refund-header-probe.ts";
+import { stripeCheckoutSession } from "#test/test-utils/stripe/fixtures.ts";
 
 const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   cancel_url: "https://example.com/cancel",

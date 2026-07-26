@@ -5,7 +5,7 @@ import {
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import { linkStoredImage } from "#test/lib/server-images/helpers.ts";
+import { linkStoredImage } from "#test/integration/server/images/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   cdnOkResponse,

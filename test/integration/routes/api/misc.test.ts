@@ -11,7 +11,7 @@ import {
   fetchAvailability,
   fetchListingBySlug,
   fetchListingsList,
-} from "#test/routes/api/helpers.ts";
+} from "#test/test-utils/api/helpers.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { jsonRequest } from "#test-utils/mocks.ts";

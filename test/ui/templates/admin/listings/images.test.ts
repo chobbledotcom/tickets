@@ -11,7 +11,7 @@ import {
   registerListingTemplateHooks,
   withBuilder,
   withoutBuilder,
-} from "#test/templates/admin/listings/helpers.ts";
+} from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";

@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { oneLineAttendeeForm } from "#test/lib/server-attendee-form/_shared-setup.ts";
+import { oneLineAttendeeForm } from "#test/test-utils/attendee-form/_shared-setup.ts";
 import {
   expectAttendeeLineCount,
   submitNewAttendeeForm,
-} from "#test/lib/server-attendee-form/helpers.ts";
+} from "#test/test-utils/attendee-form/helpers.ts";
 import { expectRedirect, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

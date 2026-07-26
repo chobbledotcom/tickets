@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   addAnswer,
   createQuestion,
-} from "#test/lib/server-questions/helpers.ts";
+} from "#test/test-utils/questions/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,

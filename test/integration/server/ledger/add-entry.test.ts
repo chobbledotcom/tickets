@@ -17,7 +17,7 @@ import {
   redirectTargetWithoutFlash,
   seededAttendee,
   seededSale,
-} from "#test/lib/server-ledger/helpers.ts";
+} from "#test/integration/server/ledger/helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

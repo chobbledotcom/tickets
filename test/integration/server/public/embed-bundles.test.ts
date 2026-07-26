@@ -1,12 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expect404ForNonGetStatic,
   expectLongCacheHeaders,
   expectStaticFile,
-} from "./static-route-checks.ts";
+} from "#test/test-utils/public/static-route-checks.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 // jscpd:ignore-end
 

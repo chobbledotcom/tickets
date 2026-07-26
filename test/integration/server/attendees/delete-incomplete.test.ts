@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 // jscpd:ignore-end
-import { submitDeleteIncomplete } from "#test/lib/server-attendees/helpers.ts";
+import { submitDeleteIncomplete } from "#test/test-utils/attendees/helpers.ts";
 import {
   expectFlashRedirect,
   testRequiresAuth,

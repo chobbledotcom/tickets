@@ -11,7 +11,7 @@ import {
   PKG_SLUG,
   pagePackage,
   registerPublicTemplateHooks,
-} from "#test/templates/public/helpers.ts";
+} from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";

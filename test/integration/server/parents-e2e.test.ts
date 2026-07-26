@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
-import { firstBookableDate } from "#test/lib/server-parents-gate/helpers.ts";
+import { firstBookableDate } from "#test/test-utils/parents-gate/helpers.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

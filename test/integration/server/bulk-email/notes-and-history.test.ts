@@ -15,7 +15,7 @@ import {
   seedDraft,
   seedListingWithAttendees,
   useResend,
-} from "#test/lib/server-bulk-email/helpers.ts";
+} from "#test/integration/server/bulk-email/helpers.ts";
 import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";

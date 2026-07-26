@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { seedListingWithAttendees } from "#test/lib/server-bulk-email/helpers.ts";
+import { seedListingWithAttendees } from "#test/integration/server/bulk-email/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

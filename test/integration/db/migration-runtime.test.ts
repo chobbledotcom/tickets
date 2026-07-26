@@ -30,7 +30,7 @@ import {
 } from "#shared/db/migrations.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
-import { markCurrentSchemaMigrationPending } from "#test/lib/db/migration-test-helpers.ts";
+import { markCurrentSchemaMigrationPending } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";

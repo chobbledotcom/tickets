@@ -8,7 +8,7 @@ import {
   LEGACY_DB_SCHEMA_HASH,
   LEGACY_DB_UPDATE,
   stubPragmaForeignKeysOff,
-} from "#test/lib/db/legacy-migration/helpers.ts";
+} from "#test/integration/db/legacy-migration/helpers.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("db > listing_attendees migration from legacy schema (backfill)", () => {

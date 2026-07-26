@@ -6,14 +6,14 @@ import {
   deactivationOrphanedAddOnError,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import { storedInputFor } from "#test/shared/listings-actions/helpers.ts";
 import {
   groupScopedAddOn,
   linkedParentChild,
   linkGroupAddOn,
   rescuingPageSetup,
   soloChildAddOn,
-} from "#test/lib/server-listing-parents/helpers.ts";
-import { storedInputFor } from "#test/shared/listings-actions/helpers.ts";
+} from "#test/test-utils/listing-parents/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

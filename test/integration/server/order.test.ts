@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
-import { enablePublicOrder } from "#test/lib/order-page-helpers.ts";
+import { enablePublicOrder } from "#test/integration/server/order-page-helpers.ts";
 import {
   assertPublicHtml,
   expectRedirect,

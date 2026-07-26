@@ -15,7 +15,7 @@ import { it as test } from "@std/testing/bdd";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
-import { weekdayOf } from "#test/lib/booking-model-fixtures.ts";
+import { weekdayOf } from "#test/test-utils/booking-model-fixtures.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   bookableStartDates,

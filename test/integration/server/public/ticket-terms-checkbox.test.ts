@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { expectBasicTicketBookingRedirectsToThanks } from "#test/lib/server-public/basic-ticket-booking.ts";
+import { expectBasicTicketBookingRedirectsToThanks } from "#test/integration/server/public/basic-ticket-booking.ts";
 import {
   assertPublicHtml,
   expectFlash,

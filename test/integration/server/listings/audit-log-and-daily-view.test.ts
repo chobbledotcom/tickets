@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { createDailyListing } from "#test/lib/server-listings/_shared-setup.ts";
+import { createDailyListing } from "#test/integration/server/listings/_shared-setup.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectHtmlResponse,

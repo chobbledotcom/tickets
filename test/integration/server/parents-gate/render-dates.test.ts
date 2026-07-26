@@ -3,12 +3,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import { weekdayOf } from "#test/lib/booking-model-fixtures.ts";
+import { weekdayOf } from "#test/test-utils/booking-model-fixtures.ts";
 import {
   firstBookableDate,
   makeDailyChildFilledOnDayA,
   selectOptionsFromHtml,
-} from "#test/lib/server-parents-gate/helpers.ts";
+} from "#test/test-utils/parents-gate/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {

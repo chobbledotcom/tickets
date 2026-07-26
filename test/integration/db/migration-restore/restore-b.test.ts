@@ -1,3 +1,3 @@
-import { defineRestoreCasesSuite } from "#test/lib/db/migration-restore/helpers.ts";
+import { defineRestoreCasesSuite } from "#test/integration/db/migration-restore/helpers.ts";
 
 defineRestoreCasesSuite(1, 2);

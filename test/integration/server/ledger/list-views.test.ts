@@ -4,7 +4,10 @@ import { postTransfers } from "#shared/accounting/store.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
-import { ledgerPageHtml, seededSale } from "#test/lib/server-ledger/helpers.ts";
+import {
+  ledgerPageHtml,
+  seededSale,
+} from "#test/integration/server/ledger/helpers.ts";
 import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";

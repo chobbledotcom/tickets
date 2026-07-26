@@ -4,7 +4,7 @@ import {
   seedListingWithAttendees,
   seedSingleAttendeeListing,
   useResend,
-} from "#test/lib/server-bulk-email/helpers.ts";
+} from "#test/integration/server/bulk-email/helpers.ts";
 import {
   expectHtmlResponse,
   testRequiresAuth,

@@ -5,7 +5,7 @@ import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import {
   addAnswer,
   createQuestion,
-} from "#test/lib/server-questions/helpers.ts";
+} from "#test/test-utils/questions/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,

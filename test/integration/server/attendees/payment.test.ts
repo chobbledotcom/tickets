@@ -10,7 +10,7 @@ import {
   firstAttendee,
   refreshPaymentAsStripe,
   setupListingAndAttendee,
-} from "#test/lib/server-attendees/helpers.ts";
+} from "#test/test-utils/attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,

@@ -30,7 +30,7 @@ import {
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
-import { seedPreDropLedgerColumns } from "#test/lib/db/migration-test-helpers.ts";
+import { seedPreDropLedgerColumns } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 

@@ -12,7 +12,7 @@ import {
 } from "#shared/db/email-templates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
-import { seedDraft } from "#test/lib/server-bulk-email/helpers.ts";
+import { seedDraft } from "#test/integration/server/bulk-email/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,

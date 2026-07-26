@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   type ContainsCase,
   runContainsCases,
-} from "#test/lib/server-parents-gate/helpers.ts";
+} from "#test/test-utils/parents-gate/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,

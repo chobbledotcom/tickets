@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 // jscpd:ignore-end
-import { setupListingAndAttendee } from "#test/lib/server-attendees/helpers.ts";
+import { setupListingAndAttendee } from "#test/test-utils/attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,

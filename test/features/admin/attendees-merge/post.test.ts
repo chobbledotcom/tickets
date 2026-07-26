@@ -3,12 +3,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
-import { setupListingAndDirectAttendee } from "#test/lib/server-attendees/helpers.ts";
+import { setupListingAndDirectAttendee } from "#test/test-utils/attendees/helpers.ts";
 import {
   getMergeVersion,
   mergePair,
   submitMerge,
-} from "#test/lib/server-attendees/merge.ts";
+} from "#test/test-utils/attendees/merge.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,

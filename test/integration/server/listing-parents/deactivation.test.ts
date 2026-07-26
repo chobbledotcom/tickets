@@ -4,7 +4,7 @@ import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   rescuingPageSetup,
   soloChildAddOn,
-} from "#test/lib/server-listing-parents/helpers.ts";
+} from "#test/test-utils/listing-parents/helpers.ts";
 import { assertJson, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

@@ -11,7 +11,7 @@ import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/r
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { createDailyListing } from "#test/lib/server-public/daily-listing.ts";
+import { createDailyListing } from "#test/integration/server/public/daily-listing.ts";
 import {
   expectFlash,
   expectReservedRedirectWithTokens,

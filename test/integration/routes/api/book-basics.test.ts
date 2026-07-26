@@ -7,7 +7,7 @@ import {
   describePublicApi,
   expectCorsHeaders,
   rawPostRequest,
-} from "#test/routes/api/helpers.ts";
+} from "#test/test-utils/api/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

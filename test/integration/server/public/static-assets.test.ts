@@ -6,7 +6,7 @@ import {
   expect404ForNonGetStatic,
   expectLongCacheHeaders,
   expectStaticFile,
-} from "#test/lib/server-public/static-route-checks.ts";
+} from "#test/test-utils/public/static-route-checks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 

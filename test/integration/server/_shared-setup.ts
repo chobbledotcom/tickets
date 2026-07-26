@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
-import { mockRequest } from "#test-utils/mocks.ts";
 import {
   latestAttendee,
   stubPaidSession,
   submitBuyerOrder,
-} from "./helpers.ts";
+} from "#test/test-utils/reservation/helpers.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 /** The shape every balance test asserts against — the newest booking's
  * plaintext reservation columns, as read back by `latestAttendee`. */

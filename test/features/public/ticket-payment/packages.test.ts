@@ -17,7 +17,7 @@ import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { treePackage } from "#test/lib/package-cap-fixtures.ts";
+import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

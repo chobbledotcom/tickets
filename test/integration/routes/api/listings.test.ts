@@ -12,7 +12,7 @@ import {
   fetchListingBySlug,
   fetchListingsList,
   fetchPublicListing,
-} from "#test/routes/api/helpers.ts";
+} from "#test/test-utils/api/helpers.ts";
 import { PublicListingSchema } from "#test-utils/api-schemas.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

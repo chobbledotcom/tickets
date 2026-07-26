@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
-import { bookPaidReservation } from "#test/lib/server-reservation/_shared-setup.ts";
+import { bookPaidReservation } from "#test/integration/server/_shared-setup.ts";
 import {
   createOptionalAddOn,
   createProgrammeCharge,
@@ -13,7 +13,7 @@ import {
   modifierRefs,
   setupReservationListing,
   stubPaidSession,
-} from "#test/lib/server-reservation/helpers.ts";
+} from "#test/test-utils/reservation/helpers.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";

@@ -4,7 +4,10 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { adjustListingIncome } from "#shared/db/listings/aggregates.ts";
 import { account } from "#shared/ledger/account.ts";
-import { ledgerPageHtml, seededSale } from "#test/lib/server-ledger/helpers.ts";
+import {
+  ledgerPageHtml,
+  seededSale,
+} from "#test/integration/server/ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

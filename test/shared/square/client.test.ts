@@ -10,8 +10,8 @@ import {
   configureSquare,
   oneLocation,
   withSquareClient,
-} from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
+} from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";

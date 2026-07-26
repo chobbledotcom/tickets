@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { stubCheckoutIntent } from "#test/lib/server-parents-gate/helpers.ts";
+import { stubCheckoutIntent } from "#test/test-utils/parents-gate/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

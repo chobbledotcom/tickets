@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getAvailableDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { publicDailyParentWithMondayChild } from "#test/lib/server-parents-booking/_shared-setup.ts";
+import { publicDailyParentWithMondayChild } from "#test/integration/server/parents-booking/_shared-setup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookableStartDates,

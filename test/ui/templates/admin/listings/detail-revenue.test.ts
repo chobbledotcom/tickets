@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   detailHtml,
   registerListingTemplateHooks,
-} from "#test/templates/admin/listings/helpers.ts";
+} from "#test/ui/templates/admin/listings/helpers.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("adminListingPage export button", () => {

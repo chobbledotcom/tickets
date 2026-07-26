@@ -7,7 +7,7 @@ import {
   expectAttendeeAdded,
   expectFlashPage,
   submitAddAttendee,
-} from "#test/lib/server-attendees/helpers.ts";
+} from "#test/test-utils/attendees/helpers.ts";
 import {
   assertAdminHtml,
   expectFlash,

@@ -6,7 +6,7 @@ import { initDb } from "#shared/db/migrations.ts";
 import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,
-} from "#test/lib/db/legacy-migration/helpers.ts";
+} from "#test/integration/db/legacy-migration/helpers.ts";
 
 describe("db > listing_attendees migration from legacy schema (questions)", () => {
   const h = createLegacyMigrationHarness();

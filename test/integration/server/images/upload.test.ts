@@ -7,7 +7,7 @@ import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
   expectImageErrorRedirect,
   linkStoredImage,
-} from "#test/lib/server-images/helpers.ts";
+} from "#test/integration/server/images/helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { PDF_BYTES } from "#test-utils/factories.ts";

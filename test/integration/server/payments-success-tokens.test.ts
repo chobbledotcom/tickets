@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
-import { renderPaymentSuccess } from "#test/lib/payment-success-helpers.ts";
+import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

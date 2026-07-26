@@ -8,7 +8,7 @@ import { account } from "#shared/ledger/account.ts";
 import {
   listingMoneyLegs,
   seededSale,
-} from "#test/lib/server-ledger/helpers.ts";
+} from "#test/integration/server/ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

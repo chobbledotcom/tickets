@@ -19,7 +19,7 @@ import {
   packageQuantityFieldName,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
-import { treePackage as pkg } from "#test/lib/package-cap-fixtures.ts";
+import { treePackage as pkg } from "#test/test-utils/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const resolved = (overrides = {}, closed = false, groupRemaining?: number) =>
