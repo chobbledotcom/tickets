@@ -1,7 +1,4 @@
-import {
-  TEST_ADMIN_PASSWORD,
-  TEST_ADMIN_USERNAME,
-} from "#test-utils/internal.ts";
+import { logInAsTestAdmin } from "#test-utils/e2e.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 import type { TicketsWorld } from "./world.ts";
 
@@ -10,17 +7,18 @@ export const scenarioBrowser = (world: TicketsWorld): TestBrowser => {
   return world.testBrowser;
 };
 
+/** Forget the Scenario's browser, so the next ask starts a fresh one. Use this
+ * after the site itself is replaced and the old session can no longer work. */
+export const resetScenarioBrowser = (world: TicketsWorld): void => {
+  delete world.testBrowser;
+};
+
 export const adminBrowser = async (
   world: TicketsWorld,
 ): Promise<TestBrowser> => {
   const browser = scenarioBrowser(world);
   await browser.visit("/admin/");
-  if (browser.containsText("Login")) {
-    await browser.submitForm(
-      { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
-      "Login",
-    );
-  }
+  if (browser.containsText("Login")) await logInAsTestAdmin(browser);
   return browser;
 };
 

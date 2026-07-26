@@ -212,6 +212,25 @@ attendeeTableSuite(() => {
       );
     });
 
+    // A roster where one person filled the field in and another did not: the
+    // column shows for everyone, so the blank row must render an empty cell.
+    const mixedRows = (field: "address" | "special_instructions") => [
+      makeRow({ attendee: testAttendee({ id: 1, [field]: "Filled in" }) }),
+      makeRow({ attendee: testAttendee({ id: 2, [field]: "" }) }),
+    ];
+
+    for (const [heading, field] of [
+      ["Address", "address"],
+      ["Special instructions", "special_instructions"],
+    ] as const) {
+      test(`renders a blank ${heading} cell beside a filled one`, () => {
+        const html = render(makeOpts({ rows: mixedRows(field) }));
+        expect(html).toContain(`<th>${heading}</th>`);
+        expect(html).toContain("Filled in");
+        expect(html).toContain("<td></td>");
+      });
+    }
+
     test("renders special instructions on one line", () => {
       const attendee = testAttendee({
         special_instructions: "Line 1\nLine 2",

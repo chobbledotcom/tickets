@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { extractFormEntries, TestBrowser } from "#test-utils/test-browser.ts";
+import {
+  ALL_CHECKBOXES,
+  extractFormEntries,
+  TestBrowser,
+} from "#test-utils/test-browser.ts";
 
 const paramsFromEntries = (html: string): URLSearchParams =>
   new URLSearchParams(extractFormEntries(html));
@@ -412,7 +416,7 @@ describe("TestBrowser forms", () => {
 
     await browser.submitForm(
       {
-        features: "__ALL_CHECKBOXES__",
+        features: ALL_CHECKBOXES,
         name: "Updated",
         notes: ["line one", "line two"],
       },

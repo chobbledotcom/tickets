@@ -235,7 +235,7 @@ export const setupTestDbEnvironment = async (
  * - `"local"`: a fresh temp dir (recorded for `getTestStoragePath`) with empty
  *   zone creds, so ambient Bunny creds can't shadow the local backend.
  */
-const applyStorageConfig = (
+export const setupTestStorage = (
   storage: DescribeEnvOptions["storage"],
 ): TempPath | undefined => {
   if (storage === "cdn") {
@@ -260,7 +260,7 @@ const applyStorageConfig = (
 };
 
 /** Clear the suite-level storage config and remove any `"local"` temp dir. */
-const teardownStorageConfig = (dir: TempPath | undefined): void => {
+export const teardownTestStorage = (dir: TempPath | undefined): void => {
   setStorageConfigForTest(null);
   setTestStoragePath(null);
   dir?.dispose();
@@ -281,7 +281,7 @@ export const describeWithEnv = (
         cleanupDb = await setupTestDbEnvironment(options.triggers ?? false);
       }
       if (options.env) env = withEnv(options.env);
-      storageDir = applyStorageConfig(options.storage);
+      storageDir = setupTestStorage(options.storage);
     });
     // Register this teardown after nested suite hooks so inner env scopes close
     // before this suite restores its outer database and env layers.
@@ -294,7 +294,7 @@ export const describeWithEnv = (
       env = undefined;
       storageDir = undefined;
       await runCleanups([
-        () => teardownStorageConfig(currentStorageDir),
+        () => teardownTestStorage(currentStorageDir),
         ...(envCleanup ? [() => envCleanup.dispose()] : []),
         ...(dbCleanup ? [dbCleanup] : []),
       ]);
