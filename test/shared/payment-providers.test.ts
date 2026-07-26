@@ -37,6 +37,55 @@ describe("payment provider registry", () => {
         expect(providerCurrencyBlock(id, "GBP")).toBeNull();
       }
     });
+
+    test("takes exactly the currencies SumUp's checkout API lists", () => {
+      expect([...PAYMENT_PROVIDERS.sumup.currencies].sort()).toEqual([
+        "BGN",
+        "BRL",
+        "CHF",
+        "CLP",
+        "COP",
+        "CZK",
+        "DKK",
+        "EUR",
+        "GBP",
+        "HRK",
+        "HUF",
+        "NOK",
+        "PLN",
+        "RON",
+        "SEK",
+        "USD",
+      ]);
+    });
+  });
+
+  test("records each provider's label and checkout-metadata caps", () => {
+    expect(PAYMENT_PROVIDERS.square.label).toBe("Square");
+    expect(PAYMENT_PROVIDERS.square.metadata).toEqual({
+      maxEntries: 10,
+      maxValueLength: 255,
+      packs: true,
+    });
+    expect(PAYMENT_PROVIDERS.stripe.label).toBe("Stripe");
+    expect(PAYMENT_PROVIDERS.stripe.metadata).toEqual({
+      maxEntries: 50,
+      maxValueLength: 500,
+      packs: false,
+    });
+    expect(PAYMENT_PROVIDERS.sumup.label).toBe("SumUp");
+    expect(PAYMENT_PROVIDERS.sumup.metadata).toEqual({
+      maxValueLength: Number.POSITIVE_INFINITY,
+      packs: false,
+    });
+  });
+
+  test("lists the providers in the order operators see them", () => {
+    expect(PAYMENT_PROVIDER_IDS).toEqual(["square", "stripe", "sumup"]);
+  });
+
+  test("has no signature header for SumUp, whose webhooks are unsigned", () => {
+    expect(PAYMENT_PROVIDERS.sumup.webhookSignatureHeader).toBeNull();
   });
 
   test("lists the signature header of every provider that signs webhooks", () => {

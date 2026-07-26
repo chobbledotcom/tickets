@@ -14,6 +14,8 @@ import {
   testSumupConnection,
 } from "#shared/sumup.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 /** Methods the fake SumUp client may implement for a given test. */
@@ -64,10 +66,24 @@ describe("sumup", () => {
     resetDb();
   });
 
+  // Declared after the database hook: building the test database re-reads the
+  // debug-log suppression flag, so the log spy must be installed after it.
+  const debugSpy = useDebugLogSpy();
+  const errorSpy = setupErrorSpy();
+
+  /** Whether any debug line written by this test carries the given text. */
+  const loggedDebug = (needle: string): boolean =>
+    debugMessages(debugSpy()).some((line: unknown) =>
+      String(line).includes(needle),
+    );
+
   describe("getSumupClient", () => {
-    test("returns null when no API key is configured", () => {
+    test("returns null and says why when no API key is configured", () => {
       settings.setForTest({ sumup_api_key: "" });
       expect(sumupApi.getSumupClient()).toBeNull();
+      expect(loggedDebug("No API key configured, cannot create client")).toBe(
+        true,
+      );
     });
 
     test("returns a client when an API key is configured", () => {
@@ -195,7 +211,7 @@ describe("sumup", () => {
       });
     });
 
-    test("returns null when the response lacks an id", async () => {
+    test("returns null and says why when the response lacks an id", async () => {
       const client = makeClient({
         create: () =>
           Promise.resolve({ hosted_checkout_url: "https://pay.sumup.com/z" }),
@@ -203,6 +219,9 @@ describe("sumup", () => {
       await withClient(client, async () => {
         expect(await createCheckout(intent, "http://localhost")).toBeNull();
       });
+      expect(
+        loggedDebug("Checkout response missing id or hosted_checkout_url"),
+      ).toBe(true);
     });
 
     test("returns null when the response lacks a hosted_checkout_url", async () => {
@@ -238,6 +257,15 @@ describe("sumup", () => {
       });
     });
 
+    test("reports SumUp's status verbatim, even when it is empty", async () => {
+      const client = makeClient({
+        txnGet: () => Promise.resolve({ status: "" }),
+      });
+      await withClient(client, async () => {
+        expect(await getTransactionStatus("txn")).toBe("");
+      });
+    });
+
     test("returns null when the status field is absent", async () => {
       const client = makeClient({ txnGet: () => Promise.resolve({}) });
       await withClient(client, async () => {
@@ -247,11 +275,12 @@ describe("sumup", () => {
   });
 
   describe("refundTransaction", () => {
-    test("returns false when merchant code is absent", async () => {
+    test("returns false and reports the missing merchant code", async () => {
       settings.setForTest({ sumup_merchant_code: "" });
       await withClient(makeClient({}), async () => {
         expect(await refundTransaction("txn")).toBe(false);
       });
+      expect(errorSpy.contains("SumUp merchant code")).toBe(true);
     });
 
     test("refunds via the transactions API and returns true", async () => {
@@ -295,14 +324,25 @@ describe("sumup", () => {
       settings.setForTest({ sumup_api_key: "" });
       const result = await testSumupConnection();
       expect(result.ok).toBe(false);
-      expect(result.apiKey.error).toBe("No SumUp API key configured");
+      expect(result.apiKey).toEqual({
+        error: "No SumUp API key configured",
+        valid: false,
+      });
+      expect(result.merchant).toEqual({ configured: false });
     });
 
     test("reports a missing merchant code", async () => {
       settings.setForTest({ sumup_merchant_code: "" });
       const result = await testSumupConnection();
       expect(result.ok).toBe(false);
-      expect(result.merchant.error).toBe("No merchant code configured");
+      expect(result.apiKey).toEqual({
+        error: "Merchant code is required to verify the key",
+        valid: false,
+      });
+      expect(result.merchant).toEqual({
+        configured: false,
+        error: "No merchant code configured",
+      });
     });
 
     const withMerchantClient = (fn: () => Promise<void>): Promise<void> => {
