@@ -1,0 +1,195 @@
+// test-groups: run-alone
+
+import { request as httpRequest } from "node:http";
+import { createClient } from "@libsql/client";
+import { expect } from "@std/expect";
+import { join, toFileUrl } from "@std/path";
+import { describe, it as test } from "@std/testing/bdd";
+import {
+  type DatabaseUploadTransport,
+  uploadTursoDatabaseFile,
+  verifyTursoUploadFile,
+} from "#scripts/turso-migration-file.ts";
+import { withTempDir } from "#test-utils/files.ts";
+import { TEST_TURSO_CREDENTIALS } from "#test-utils/turso-api.ts";
+
+const createSqliteFile = async (
+  path: string,
+  pragmas: string[],
+): Promise<void> => {
+  const client = createClient({ url: toFileUrl(path).href });
+  try {
+    for (const pragma of pragmas) await client.execute(pragma);
+    await client.execute("CREATE TABLE example (value TEXT)");
+    await client.execute("INSERT INTO example VALUES ('saved')");
+    await client.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+  } finally {
+    client.close();
+  }
+};
+
+const uploadCredentials = (dbUrl: string) => ({
+  ...TEST_TURSO_CREDENTIALS,
+  dbUrl,
+});
+
+const withUploadServer = async (
+  handler: (request: Request) => Response | Promise<Response>,
+  run: (dbUrl: string, transport: DatabaseUploadTransport) => Promise<void>,
+): Promise<void> => {
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", onListen: () => {}, port: 0 },
+    handler,
+  );
+  const address = server.addr;
+  if (!("port" in address)) throw new Error("Expected a network address");
+  const transport: DatabaseUploadTransport = {
+    request: (url, options, receive) => {
+      expect(url.protocol).toBe("https:");
+      const localUrl = new URL(url);
+      localUrl.protocol = "http:";
+      return httpRequest(localUrl, options, receive);
+    },
+  };
+  try {
+    await run(`https://127.0.0.1:${address.port}`, transport);
+  } finally {
+    await server.shutdown();
+    await server.finished;
+  }
+};
+
+describe("Turso migration file", () => {
+  test("accepts a complete SQLite file prepared for Turso", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      await createSqliteFile(path, [
+        "PRAGMA page_size = 4096",
+        "PRAGMA auto_vacuum = 0",
+        "PRAGMA encoding = 'UTF-8'",
+        "PRAGMA journal_mode = WAL",
+      ]);
+
+      await expect(
+        verifyTursoUploadFile(path, createClient),
+      ).resolves.toBeUndefined();
+    }));
+
+  test("rejects every SQLite setting Turso cannot upload", async () => {
+    for (const example of [
+      {
+        message: "Database file must use WAL journal mode",
+        pragmas: ["PRAGMA journal_mode = DELETE"],
+      },
+      {
+        message: "Database file must use 4096-byte pages",
+        pragmas: ["PRAGMA page_size = 1024", "PRAGMA journal_mode = WAL"],
+      },
+      {
+        message: "Database file must have auto-vacuum disabled",
+        pragmas: ["PRAGMA auto_vacuum = FULL", "PRAGMA journal_mode = WAL"],
+      },
+      {
+        message: "Database file must use UTF-8 encoding",
+        pragmas: ["PRAGMA encoding = 'UTF-16le'", "PRAGMA journal_mode = WAL"],
+      },
+    ]) {
+      await withTempDir(async (dir) => {
+        const path = join(dir, "database.sqlite");
+        await createSqliteFile(path, example.pragmas);
+
+        await expect(verifyTursoUploadFile(path, createClient)).rejects.toThrow(
+          example.message,
+        );
+      });
+    }
+  });
+
+  test("streams the full SQLite file with its exact byte length", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      const bytes = new Uint8Array(130_000).map((_, index) => index % 251);
+      await Deno.writeFile(path, bytes);
+      let uploaded: Uint8Array | undefined;
+      let authorization: string | undefined;
+      let contentLength: string | undefined;
+
+      await withUploadServer(
+        async (request) => {
+          authorization = request.headers.get("authorization") ?? undefined;
+          contentLength = request.headers.get("content-length") ?? undefined;
+          uploaded = new Uint8Array(await request.arrayBuffer());
+          return new Response();
+        },
+        (dbUrl, transport) =>
+          uploadTursoDatabaseFile(
+            path,
+            uploadCredentials(dbUrl),
+            new AbortController().signal,
+            transport,
+          ),
+      );
+
+      expect(authorization).toBe("Bearer database-token");
+      expect(contentLength).toBe(String(bytes.byteLength));
+      expect(uploaded).toEqual(bytes);
+    }));
+
+  test("rejects a snapshot path that is not a file", () =>
+    withTempDir(async (dir) => {
+      await expect(
+        uploadTursoDatabaseFile(dir, TEST_TURSO_CREDENTIALS),
+      ).rejects.toThrow(`Database snapshot is not a file: ${dir}`);
+    }));
+
+  test("reports an upload API failure", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      await Deno.writeTextFile(path, "sqlite bytes");
+
+      await withUploadServer(
+        () => new Response("invalid", { status: 400 }),
+        async (dbUrl, transport) => {
+          await expect(
+            uploadTursoDatabaseFile(
+              path,
+              uploadCredentials(dbUrl),
+              undefined,
+              transport,
+            ),
+          ).rejects.toThrow("Upload database failed (400): invalid");
+        },
+      );
+    }));
+
+  test("rejects an interrupted upload before opening the snapshot", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      await Deno.writeFile(path, new Uint8Array(130_000));
+      const controller = new AbortController();
+      controller.abort(new Error("interrupted"));
+
+      await expect(
+        uploadTursoDatabaseFile(
+          path,
+          TEST_TURSO_CREDENTIALS,
+          controller.signal,
+        ),
+      ).rejects.toThrow("interrupted");
+
+      await Deno.remove(path);
+    }));
+
+  test("rejects database upload URLs without TLS", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      await Deno.writeTextFile(path, "sqlite bytes");
+
+      await expect(
+        uploadTursoDatabaseFile(
+          path,
+          uploadCredentials("http://database.example.com"),
+        ),
+      ).rejects.toThrow("Turso database URL must use TLS");
+    }));
+});
