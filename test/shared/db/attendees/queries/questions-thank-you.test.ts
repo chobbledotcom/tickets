@@ -12,7 +12,7 @@ import {
   makeParent,
   parentField,
 } from "#test-utils/parents.ts";
-import { stubCheckoutIntent } from "./helpers.ts";
+import { stubCheckoutIntent } from "../../../../lib/server-parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 

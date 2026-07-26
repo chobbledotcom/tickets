@@ -9,7 +9,7 @@ import {
   makeRow,
   render,
   zaraAliceRows,
-} from "./shared.ts";
+} from "../../ui/templates/attendee-table/shared.ts";
 
 attendeeTableSuite(() => {
   describe("check-in button", () => {

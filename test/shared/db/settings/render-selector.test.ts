@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
-import { selectOptionsFromHtml } from "./helpers.ts";
+import { selectOptionsFromHtml } from "../../../lib/server-parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 
