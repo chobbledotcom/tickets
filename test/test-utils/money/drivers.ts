@@ -10,24 +10,10 @@ import {
   expectRedirect,
   followRedirect,
 } from "#test-utils/assertions.ts";
-import { extractInputValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
-import {
-  mockFormRequest,
-  mockProviderType,
-  mockRequest,
-  withMocks,
-} from "#test-utils/mocks.ts";
-import {
-  adminFormPost,
-  adminGet,
-  testCookie,
-  testCsrfToken,
-} from "#test-utils/session.ts";
+import { mockProviderType, mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 /** Run the shared "e2e: accounting lifecycle" suite body under a db env,
  *  resetting the Stripe client between tests. */
@@ -35,98 +21,6 @@ export const describeAccounting = (fn: () => void): void =>
   describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     fn();
   });
-
-/** GET the merge preview for `targetId` loaded with `sourceToken`, returning the
- *  `merge_version` the apply POST must echo back AND the name of the conflicting
- *  booking's decision field (`booking_<listingId>:<startAt>`) scraped from the
- *  rendered form, so the test answers the exact conflict the operator is shown
- *  rather than guessing the key. Uses the stable owner cookie — the preview
- *  decrypts the source's PII, needing the session's private key. */
-export const mergePreview = async (
-  targetId: number,
-  sourceToken: string,
-): Promise<{ version: string; bookingField: string }> => {
-  const page = await adminGet(
-    `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
-      sourceToken,
-    )}`,
-  );
-  expect(page.status).toBe(200);
-  const html = await page.text();
-  const version = extractInputValue(html, "merge_version");
-  expect(version).not.toBeNull();
-  const bookingField = html.match(/name="(booking_[^"]+)"/)?.[1];
-  expect(bookingField).toBeDefined();
-  return { bookingField: bookingField!, version: version! };
-};
-
-/** POST the merge apply form on the SAME stable owner cookie as
- *  {@link mergePreview}, so the apply decrypts the source under the same session
- *  that built the diff (the merge needs the owner's private key). */
-export const mergePost = async (
-  targetId: number,
-  fields: Record<string, string>,
-): Promise<Response> => {
-  const csrf = await testCsrfToken();
-  const cookie = await testCookie();
-  return handleRequest(
-    mockFormRequest(
-      `/admin/attendees/${targetId}/merge`,
-      { csrf_token: csrf, ...fields },
-      cookie,
-    ),
-  );
-};
-
-/** Build a listing with two fully-PAID duplicate bookings (a target and a
- *  token-bearing source) on it — the same-listing conflict decision 17 must
- *  resolve. Income counts BOTH £50 tickets (£100) until the merge un-bills the
- *  discarded one. Returns the ids plus the source's merge token. */
-export const twoPaidDuplicates = async (
-  name: string,
-): Promise<{
-  listingId: number;
-  targetId: number;
-  sourceId: number;
-  sourceToken: string;
-}> => {
-  const listing = await createTestListing({
-    maxAttendees: 10,
-    name,
-    unitPrice: 5000,
-  });
-  const { attendee: target } = await createTestAttendeeDirect(
-    listing.id,
-    `${name} Target`,
-    `target-${name}@example.com`,
-  );
-  const { attendee: source, token: sourceToken } =
-    await createTestAttendeeDirect(
-      listing.id,
-      `${name} Source`,
-      `source-${name}@example.com`,
-    );
-  await postListingSale({
-    attendeeId: target.id,
-    gross: 5000,
-    listingId: listing.id,
-  });
-  await postListingSale({
-    attendeeId: source.id,
-    gross: 5000,
-    listingId: listing.id,
-  });
-  return {
-    listingId: listing.id,
-    sourceId: source.id,
-    sourceToken,
-    targetId: target.id,
-  };
-};
-
-/** The money-decision form field paired with a scraped `booking_<key>` field. */
-export const moneyFieldFor = (bookingField: string): string =>
-  bookingField.replace("booking_", "money_");
 
 // -- Public-payment driver (mirrors server-payments-success.test.ts) ------ //
 

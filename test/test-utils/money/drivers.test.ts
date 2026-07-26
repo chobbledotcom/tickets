@@ -10,10 +10,11 @@ import { it as test } from "@std/testing/bdd";
 import { modifierAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
-import { runStripeSuccess } from "#test-utils/money/drivers.ts";
+import { runStripeSuccess, withRefundMock } from "#test-utils/money/drivers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("money drivers", { db: true }, () => {
@@ -46,5 +47,35 @@ describeWithEnv("money drivers", { db: true }, () => {
     // the driver carried the modifier through in the signed metadata.
     expect((await getAttendeesRaw(listing.id)).length).toBe(1);
     expect(await accountBalance(modifierAccount(modifier.id))).toBe(500);
+  });
+});
+
+describeWithEnv("the refund provider stand-in", { db: true }, () => {
+  /**
+   * The bulk-refund story needs one payment to be turned down while the rest go
+   * through, so the stand-in takes a rule rather than a single yes/no. A rule
+   * that ignored the payment it was asked about would make that story prove
+   * nothing, so the answer per payment is checked directly.
+   */
+  test("answers per payment when given a rule, not one answer for all", async () => {
+    const asked: string[] = [];
+    await withRefundMock(
+      (paymentId: string) => {
+        asked.push(paymentId);
+        return Promise.resolve(paymentId !== "pi_no");
+      },
+      async () => {
+        expect(await stripePaymentProvider.refundPayment("pi_yes")).toBe(true);
+        expect(await stripePaymentProvider.refundPayment("pi_no")).toBe(false);
+      },
+    );
+    expect(asked).toEqual(["pi_yes", "pi_no"]);
+  });
+
+  test("answers the same for every payment when given one answer", async () => {
+    await withRefundMock(false, async () => {
+      expect(await stripePaymentProvider.refundPayment("pi_any")).toBe(false);
+      expect(await stripePaymentProvider.refundPayment("pi_other")).toBe(false);
+    });
   });
 });
