@@ -7,9 +7,9 @@ import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import { BOOKING_AT } from "#test/shared/refund-ledger/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { BOOKING_AT } from "./refund-ledger/helpers.ts";
 
 const PLACEHOLDER = {
   amount: 5000,
