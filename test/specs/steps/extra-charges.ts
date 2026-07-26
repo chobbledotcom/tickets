@@ -15,6 +15,7 @@ import { settings } from "#shared/db/settings.ts";
 import {
   bookingId,
   buyPlaceWithExtra,
+  expectMoneyHandedBack,
   listingIdFor,
   sellPlacesAt,
   soleBookingOn,
@@ -205,6 +206,19 @@ Then(
     );
     expect(handedBackCharge.length).toBe(1);
     expect(handedBackCharge[0]!.amount).toBe(500);
+  },
+);
+
+Then(
+  "the customer has the whole 55.00 back",
+  async function (this: TicketsWorld): Promise<void> {
+    // Undoing the charge on its own would leave the books balanced while the
+    // customer still waited for their money, so the cash itself is checked:
+    // the whole 55.00 goes back where it came from, once.
+    await expectMoneyHandedBack(this, 5500);
+    // Nobody is left holding anything: not the customer, not the site.
+    expect(await owedBy(bookingId(this))).toBe(0);
+    expect(await worldBalance()).toBe(0);
   },
 );
 

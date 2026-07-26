@@ -75,7 +75,12 @@ Then(
 Then(
   "both places belong to the same order",
   async function (this: TicketsWorld): Promise<void> {
-    const legs = await transfersByAccount(attendeeAccount(bookingId(this)));
+    // Both listings must hold the very same booking — money alone could add up
+    // while one of the places was never given to anybody.
+    const booking = bookingId(this);
+    expect(await soleBookingOn(listingIdFor(this, "Part One"))).toBe(booking);
+    expect(await soleBookingOn(listingIdFor(this, "Part Two"))).toBe(booking);
+    const legs = await transfersByAccount(attendeeAccount(booking));
     expect(legsOfKind(legs, "sale").length).toBe(2);
     expect(new Set(legs.map((leg) => leg.eventGroup)).size).toBe(1);
   },

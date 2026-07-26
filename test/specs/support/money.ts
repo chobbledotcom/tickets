@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
+import { WORLD } from "#shared/accounting/accounts.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
@@ -19,6 +20,7 @@ import {
   runStripeSuccess,
   withRefundMock,
 } from "#test-utils/money/drivers.ts";
+import { attendeeLegsOfKind } from "#test-utils/money/reads.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -181,6 +183,19 @@ export const bookFreePlace = async (
 /** How many times the provider was asked to hand money back. */
 export const timesProviderWasAsked = (world: TicketsWorld): number =>
   requiredWorldValue(world.refundCalls, "refund calls")();
+
+/** The customer got their money back: one refund of the whole payment, returned
+ * where it came from, with the provider asked exactly once. */
+export const expectMoneyHandedBack = async (
+  world: TicketsWorld,
+  minor: number,
+): Promise<void> => {
+  expect(timesProviderWasAsked(world)).toBe(1);
+  const handedBack = await attendeeLegsOfKind(bookingId(world), "refund_cash");
+  expect(handedBack.length).toBe(1);
+  expect(handedBack[0]!.amount).toBe(minor);
+  expect(handedBack[0]!.destination).toEqual(WORLD);
+};
 
 /** Where the organiser landed after asking for a refund, and what they were
  * told there. */

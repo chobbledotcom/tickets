@@ -2,12 +2,12 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { WORLD } from "#shared/accounting/accounts.ts";
 import {
   askForRefund,
   bookingId,
   bookingPagePath,
   buyOnePlace,
+  expectMoneyHandedBack,
   expectRefundMessage,
   listingIdFor,
   timesProviderWasAsked,
@@ -50,12 +50,7 @@ Then(
       bookingPagePath(this, "actions"),
       "Refund issued",
     );
-    expect(timesProviderWasAsked(this)).toBe(1);
-    // One full refund of the whole payment, returned where it came from.
-    const handedBack = await attendeeLegsOfKind(bookingId(this), "refund_cash");
-    expect(handedBack.length).toBe(1);
-    expect(handedBack[0]!.amount).toBe(4500);
-    expect(handedBack[0]!.destination).toEqual(WORLD);
+    await expectMoneyHandedBack(this, 4500);
   },
 );
 

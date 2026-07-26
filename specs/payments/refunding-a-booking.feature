@@ -72,21 +72,8 @@ Feature: An organiser refunds a booking
       Given a customer paid a 10 percent Service charge on a 50.00 Talk place
       When the organiser refunds the booking
       Then the Service charge has earned nothing
+      And the customer has the whole 55.00 back
       And no money is left unaccounted for
-
-  @rule:payments.one-payment-pays-each-listing-its-share
-  @surface:admin
-  Rule: One payment covering two listings pays each its own share
-    A customer buying places on two listings at once pays once, and each
-    listing earns only its own part.
-
-    @case:payment.one-payment-two-listings
-    Scenario: A customer pays once for a place on each of two listings
-      Given Part One costs 30.00 and Part Two costs 20.00
-      When a customer pays 50.00 for one place on each
-      Then Part One has earned 30.00 and Part Two has earned 20.00
-      And both places belong to the same order
-      And each listing's page shows its own earnings
 
   @rule:payments.money-is-never-created-or-destroyed
   @surface:admin
