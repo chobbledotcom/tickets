@@ -6,16 +6,14 @@ import {
   manifestStillMatches,
   readStaticAssetManifest,
   type StaticAssetManifest,
+  staticAssetsAreUpToDate,
   trackFile,
   writeStaticAssetManifest,
 } from "#scripts/static-assets/cache.ts";
 import {
   deferStaticAssetBuild,
-  staticAssetsAreUpToDate,
-} from "#scripts/static-assets/prepare.ts";
-import type {
-  StaticAssetBuild,
-  StaticBundle,
+  type StaticAssetBuild,
+  type StaticBundle,
 } from "#scripts/static-assets/session.ts";
 
 const recorded = (path: string, size: number, mtime: number) => ({
@@ -130,12 +128,13 @@ describe("static asset cache", () => {
         const gone = join(dir, "gone.js");
         await Deno.writeTextFile(present, "abc");
 
-        const current = await lookUpTrackedFiles(
+        const look = await lookUpTrackedFiles(
           manifest([recorded(present, 3, 1), recorded(gone, 1, 1)], [present]),
         );
 
-        expect(current.get(present)?.size).toBe(3);
-        expect(current.get(gone)).toBe(null);
+        expect(look(present)?.size).toBe(3);
+        expect(look(gone)).toBe(null);
+        expect(look(join(dir, "never-recorded.js"))).toBe(null);
       } finally {
         await Deno.remove(dir, { recursive: true });
       }
@@ -173,6 +172,54 @@ describe("static asset cache", () => {
         expect(await readStaticAssetManifest(join(dir, "none.json"))).toBe(
           null,
         );
+      } finally {
+        await Deno.remove(dir, { recursive: true });
+      }
+    });
+
+    test("refuses to record a build that left an asset missing", async () => {
+      const dir = await Deno.makeTempDir();
+      try {
+        const record = join(dir, "record.json");
+        const source = join(dir, "source.ts");
+        const asset = join(dir, "built.js");
+        await Deno.writeTextFile(source, "x");
+
+        await expect(
+          writeStaticAssetManifest([source], [asset], record),
+        ).rejects.toThrow(`did not leave every asset on disk: ${asset}`);
+        expect(await readStaticAssetManifest(record)).toBe(null);
+      } finally {
+        await Deno.remove(dir, { recursive: true });
+      }
+    });
+
+    test("keeps the previous record when a write is interrupted", async () => {
+      const dir = await Deno.makeTempDir();
+      try {
+        const record = join(dir, "record.json");
+        const asset = join(dir, "built.js");
+        await Deno.writeTextFile(asset, "x");
+        await writeStaticAssetManifest([asset], [asset], record);
+
+        await expect(
+          writeStaticAssetManifest([asset], [join(dir, "gone.js")], record),
+        ).rejects.toThrow("did not leave every asset on disk");
+
+        expect((await readStaticAssetManifest(record))?.outputs).toEqual([
+          asset,
+        ]);
+      } finally {
+        await Deno.remove(dir, { recursive: true });
+      }
+    });
+
+    test("ignores a record left half-written", async () => {
+      const dir = await Deno.makeTempDir();
+      try {
+        const record = join(dir, "record.json");
+        await Deno.writeTextFile(record, '{"files":[{"path":"a.js"');
+        expect(await readStaticAssetManifest(record)).toBe(null);
       } finally {
         await Deno.remove(dir, { recursive: true });
       }

@@ -138,6 +138,7 @@ const BUILD_DEFINITION_FILES = [
   "deno.json",
   "deno.lock",
   "scripts/build-static-assets.ts",
+  "scripts/static-assets/outfiles.ts",
 ];
 
 const inputsOf = (

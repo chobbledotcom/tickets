@@ -1,4 +1,5 @@
 import type { BuildOptions } from "esbuild";
+import { once } from "#fp";
 import { runCleanups } from "#scripts/cleanup.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 
@@ -32,6 +33,30 @@ export interface StaticAssetFiles {
   stop(): void;
   write(file: string, contents: Uint8Array): Promise<void>;
 }
+
+/**
+ * A build that has not happened yet. Every method that genuinely needs the
+ * bundler runs `build` first (once), so callers cannot tell the difference —
+ * they only pay for it if they use it. Disposing a build nobody asked for does
+ * nothing.
+ */
+export const deferStaticAssetBuild = (
+  build: () => Promise<StaticAssetBuild>,
+): StaticAssetBuild => {
+  const asked = { value: false };
+  const started = once(async (): Promise<StaticAssetBuild> => {
+    asked.value = true;
+    return await build();
+  });
+  return {
+    affected: async (file) => (await started()).affected(file),
+    dispose: async () => {
+      if (asked.value) await (await started()).dispose();
+    },
+    rebuild: async (bundles) => (await started()).rebuild(bundles),
+    restore: async (bundles) => (await started()).restore(bundles),
+  };
+};
 
 export const fileExists = async (file: string): Promise<boolean> => {
   try {
