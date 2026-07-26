@@ -5,6 +5,9 @@
 
 import { type CopyEntry, findIssues, formatIssue } from "./rules.ts";
 
+/** The folder holding the copy the site shows people. */
+export const CATALOG_DIR = "src/locales/en";
+
 /** Read every translatable string from a locale folder's JSON files. */
 export const readCatalog = (dir: string): CopyEntry[] => {
   const entries: CopyEntry[] = [];

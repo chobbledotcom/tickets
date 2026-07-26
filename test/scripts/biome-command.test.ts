@@ -8,6 +8,13 @@ import {
 import { captureCommands } from "#test-utils/command-capture.ts";
 
 describe("Biome command resolution", () => {
+  test("installs the version biome.json is written against", async () => {
+    const config = JSON.parse(await Deno.readTextFile("biome.json"));
+    const schemaVersion = new URL(config.$schema).pathname.split("/")[2];
+
+    expect(BIOME_NPM_PACKAGE).toBe(`@biomejs/biome@${schemaVersion}`);
+  });
+
   test("uses the native Biome command when it is available", async () => {
     const captured = captureCommands();
     const commandNamespace = Deno as unknown as {

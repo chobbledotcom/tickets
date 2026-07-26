@@ -52,6 +52,7 @@ describe("script cleanup", () => {
 
     expect(calls).toEqual(["stripe", "state", "assets"]);
     expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).message).toBe("Multiple errors occurred");
     expect((error as AggregateError).errors).toEqual([stripeError, assetError]);
   });
 
@@ -66,6 +67,7 @@ describe("script cleanup", () => {
     ).catch((error) => error);
 
     expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).message).toBe("Multiple errors occurred");
     expect((error as AggregateError).errors).toEqual([
       taskError,
       stripeError,

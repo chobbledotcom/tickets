@@ -931,3 +931,6 @@ src/shared/sumup.ts:254:37  ?? → ||   # settings.sumup.keyMode is typed "test"
 
 # Bundle AST bench: the parser's filename argument is a diagnostic label only.
 scripts/bench/bundle-composition/javascript-ast.ts:17:28  bundle.js → ""   # oxc uses the name only to label diagnostics and to pick a language from its extension; "bundle.js" and "" both select the default JavaScript parser, and the only parser output this module reads is errors[0].message (which never contains the name) and the node count
+
+# Script cleanup: the second length check can never see a single error.
+scripts/cleanup.ts:7:23  1 → 0   # the line above already throws when there is exactly one error, so this check only ever runs with 0 or 2+ errors, where > 1 and > 0 agree

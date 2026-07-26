@@ -5,6 +5,6 @@
  * `deno task precommit`, or on its own with `deno task check:copy`.
  */
 
-import { runCopyCheck } from "./check-copy/run.ts";
+import { CATALOG_DIR, runCopyCheck } from "./check-copy/run.ts";
 
-Deno.exit(runCopyCheck("src/locales/en", console.log, console.error));
+Deno.exit(runCopyCheck(CATALOG_DIR, console.log, console.error));
