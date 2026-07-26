@@ -8,7 +8,39 @@ on:
 env:
   STRIPE_MOCK_VERSION: "0.188.0"
 
+# Two jobs that run side by side. Together their steps mirror `getSteps()` in
+# scripts/precommit/steps.ts — if you add a step there, add it to whichever job
+# it belongs to here. Nothing in the suite reads what the static checks
+# produce, so running them beside the suite instead of ahead of it takes their
+# time off the critical path.
 jobs:
+  checks:
+    runs-on: ubicloud-standard-4
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: ./.github/actions/setup-deno
+
+      # Each check is its own step so a failure is attributed individually in
+      # the Actions UI.
+      - name: Lint
+        run: deno task lint:ci
+
+      - name: Typecheck
+        run: deno task typecheck
+
+      - name: Check for code duplication (CPD)
+        run: deno task cpd
+
+      - name: Check user-facing copy
+        run: deno task check:copy
+
+      - name: Build edge bundle
+        run: deno task build:edge
+
   test:
     runs-on: ubicloud-standard-8
 
@@ -20,28 +52,13 @@ jobs:
         uses: ./.github/actions/setup-deno
 
       # stripe-mock is downloaded, started, and stopped by scripts/run-tests.ts
-      # (invoked via the test:coverage step inside precommit). Caching .bin just
-      # avoids re-downloading it on every run.
+      # (invoked via the test:coverage step). Caching .bin just avoids
+      # re-downloading it on every run.
       - name: Cache stripe-mock
         uses: actions/cache@v4
         with:
           path: .bin
           key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
-
-      # Run each precommit check as a separate step so failures are attributed
-      # individually in the Actions UI. The set of steps mirrors `getSteps()` in
-      # scripts/precommit/steps.ts exactly — if you add a step there, add it here.
-      - name: Lint
-        run: deno task lint:ci
-
-      - name: Typecheck
-        run: deno task typecheck
-
-      - name: Check for code duplication (CPD)
-        run: deno task cpd
-
-      - name: Build edge bundle
-        run: deno task build:edge
 
       - name: Test with coverage
         env:
