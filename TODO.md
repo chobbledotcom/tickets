@@ -1531,3 +1531,20 @@ Direct tests at `test/features/api/folded-booking.test.ts` and
 `test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
 Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
 `scripts/mutation/equivalent-mutants.txt` with proofs — no unsuppressed survivors remain.
+
+## Split `render-selector.test.ts` by what each case actually checks
+
+*Origin: Codex review on PR #1926 (test reorganisation).*
+
+`test/integration/server/parents-gate/render-selector.test.ts` holds four cases
+with three different subjects: one changes a setting and checks the effect, one
+checks how the parent booking page renders its fields, and two only exercise the
+test helper `selectOptionsFromHtml` (they assert it throws when the select is
+missing, and that it ignores a non-select element of the same name). Whichever
+source is mutation-tested, three quarters of the file is unrelated work.
+
+Out of scope for #1926, which was file moves only — separating these needs edits
+inside the tests. Starting point: move the two helper cases next to the helper
+they test (`test/lib/server-parents-gate/helpers.ts`), keep the rendering case in
+the integration tree, and let the settings case sit with the other settings
+behaviour.
