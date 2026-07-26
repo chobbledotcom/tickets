@@ -50,8 +50,17 @@ describe("listingTable", () => {
         emptyText: "None",
         listings: [],
       });
+    const renderInvalidEditorColumns = () =>
+      // @ts-expect-error Editor tables cannot render staff-only columns.
+      renderListingsTableSection({
+        columnKeys: ["revenue"],
+        emptyText: "None",
+        listings: [],
+        table: "editor",
+      });
 
     void renderAttendees;
+    void renderInvalidEditorColumns;
     void renderListings;
   });
 
@@ -119,6 +128,20 @@ describe("listingTable", () => {
     expect(html).toContain("<th>Location</th>");
     expect(html).toContain("<td>Town Hall</td>");
     expect(html).not.toContain("Listing name");
+  });
+
+  test("renders a supported editor column", () => {
+    const html = String(
+      renderListingsTableSection({
+        columnKeys: ["name"],
+        emptyText: "None",
+        listings: [testListingWithCount({ id: 7, name: "Gala" })],
+        table: "editor",
+      }),
+    );
+
+    expect(html).toContain('<a href="/admin/listing/7/edit">Gala</a>');
+    expect(html).not.toContain("Revenue");
   });
 
   test("marks inactive listing rows", () => {

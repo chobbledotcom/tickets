@@ -77,6 +77,18 @@ describe("defineTable", () => {
     );
   });
 
+  test("rejects an inherited renderer name that is not owned", () => {
+    const layout = defineTableLayout(v.picklist(["toString"]), ["toString"]);
+    const renderers = {
+      toString: { cell: (row: Row) => row.name, header: "Name" },
+    };
+    Reflect.deleteProperty(renderers, "toString");
+
+    expect(() => attachTableRenderers(layout, renderers)).toThrow(
+      'attachTableRenderers: key "toString" has no renderer',
+    );
+  });
+
   test("rejects a renderer outside the layout", () => {
     const layout = defineTableLayout(v.picklist(["name"]), ["name"]);
     const renderers = Object.assign(

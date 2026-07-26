@@ -71,7 +71,7 @@ export const attachTableRenderers = <TRow, TContext, TKey extends string>(
   renderers: Readonly<Record<TKey, ColumnRenderer<TRow, TContext, TKey>>>,
 ): ConfigurableTableDefinition<TRow, TContext, TKey> => {
   const columns = layout.keys.map((key) => {
-    const renderer = renderers[key];
+    const renderer = Object.hasOwn(renderers, key) ? renderers[key] : undefined;
     if (renderer === undefined) {
       throw new Error(`attachTableRenderers: key "${key}" has no renderer`);
     }

@@ -24,8 +24,8 @@ import {
 } from "#shared/tables/configurable.ts";
 import {
   attachTableRenderers,
-  columnOrThrow,
   defineTable,
+  type TableDefinition,
 } from "#shared/tables/definition.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
@@ -164,55 +164,68 @@ export const listingTable = attachTableRenderers(
   },
 );
 
-/** The editor listing table: a money-free subset at a fixed order. */
-export const editorListingTable = defineTable<
+const editorListingColumns = [
+  { ...editorName, key: "name" },
+  { ...description, key: "description" },
+  { ...status, key: "status" },
+  { ...attendees, key: "attendees" },
+  { ...tickets, key: "tickets" },
+  { ...created, key: "created" },
+] as const satisfies readonly TableColumn<
   ListingWithCount,
   undefined,
   ListingColumnKey
->([
-  { ...editorName, key: "name" },
-  columnOrThrow(listingTable, "description"),
-  columnOrThrow(listingTable, "status"),
-  columnOrThrow(listingTable, "attendees"),
-  columnOrThrow(listingTable, "tickets"),
-  columnOrThrow(listingTable, "created"),
-]);
+>[];
+
+type EditorListingColumnKey = (typeof editorListingColumns)[number]["key"];
+
+/** The editor listing table: a money-free subset at a fixed order. */
+const editorListingTable = defineTable<
+  ListingWithCount,
+  undefined,
+  EditorListingColumnKey
+>(editorListingColumns);
 
 // ---------------------------------------------------------------------------
 // Composition helpers
 // ---------------------------------------------------------------------------
 
-/** The staff listing table by default; editors see `editorListingTable`
- *  (a money-free, edit-linked subset). */
-type ListingTableVariant = typeof listingTable | typeof editorListingTable;
-
-/** Shared input: the rows, the parsed column layout, and an optional variant. */
-type ListingTableArgs = {
+type ListingRows<TKey extends ListingColumnKey> = {
   listings: ListingWithCount[];
-  readonly columnKeys?: readonly ListingColumnKey[] | undefined;
-  readonly filters?: ReadonlyMap<ListingColumnKey, string> | undefined;
-  readonly table?: ListingTableVariant | undefined;
+  readonly columnKeys?: readonly TKey[] | undefined;
+  readonly filters?: ReadonlyMap<TKey, string> | undefined;
 };
 
-const resolveTable = (table: ListingTableVariant | undefined) =>
-  table ?? listingTable;
+/** The table variant and its supported columns stay one typed choice. */
+type ListingTableArgs =
+  | (ListingRows<ListingColumnKey> & { readonly table?: "staff" | undefined })
+  | (ListingRows<EditorListingColumnKey> & { readonly table: "editor" });
+
+const renderListingTable = <TKey extends ListingColumnKey>(
+  table: TableDefinition<ListingWithCount, undefined, TKey>,
+  args: ListingRows<TKey>,
+  emptyText: string,
+  defaultColumnKeys?: readonly TKey[],
+): JSX.Element =>
+  renderTable(table, args.listings, {
+    columnKeys: args.columnKeys ?? defaultColumnKeys,
+    empty: emptyText,
+    filters: args.filters,
+    rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
+  });
 
 /** Render the listings table (rows + header + scroll wrapper). */
 export const renderListingsTableSection = (
   args: ListingTableArgs & { emptyText: string },
-): JSX.Element => {
-  const table = resolveTable(args.table);
-  return renderTable(table, args.listings, {
-    columnKeys:
-      args.columnKeys ??
-      (table === listingTable
-        ? listingTable.layout.defaultColumnKeys
-        : undefined),
-    empty: args.emptyText,
-    filters: args.filters,
-    rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
-  });
-};
+): JSX.Element =>
+  args.table === "editor"
+    ? renderListingTable(editorListingTable, args, args.emptyText)
+    : renderListingTable(
+        listingTable,
+        args,
+        args.emptyText,
+        listingTable.layout.defaultColumnKeys,
+      );
 
 /** A listings table with an optional filter row above it and CSV-export
  *  footer below. Shared by the dashboard and the listings index. */
@@ -226,11 +239,8 @@ export const ListingsTableBlock = (
   <PageBlock>
     {args.headerHtml !== undefined && <Raw html={args.headerHtml} />}
     {renderListingsTableSection({
-      columnKeys: args.columnKeys,
+      ...args,
       emptyText: t("admin.dashboard.no_listings"),
-      filters: args.filters,
-      listings: args.listings,
-      table: args.table,
     })}
     {args.csvExport && (
       <div class="table-actions">

@@ -38,7 +38,6 @@ import {
   typeFilterHref,
 } from "#templates/admin/listing-attribute-filters.ts";
 import {
-  editorListingTable,
   ListingsTableBlock,
   listingTable,
   renderListingsTableSection,
@@ -313,10 +312,14 @@ export const adminListingsPage = (
   // column template is irrelevant and never references the omitted columns), and
   // no CSV export (that route stays staff-only and exports ledger revenue).
   const isEditor = session.adminLevel === "editor";
-  const table = isEditor ? editorListingTable : listingTable;
-  const layout = isEditor
-    ? undefined
-    : (listingColumnLayout ?? listingTable.layout.defaultLayout);
+  const layout = listingColumnLayout ?? listingTable.layout.defaultLayout;
+  const tableOptions = isEditor
+    ? ({ table: "editor" } as const)
+    : {
+        columnKeys: layout.columnKeys,
+        filters: layout.filters,
+        table: "staff" as const,
+      };
   const activeListings = activeOnly(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
@@ -340,24 +343,20 @@ export const adminListingsPage = (
       title={t("terms.listings")}
     >
       <ListingsTableBlock
-        columnKeys={layout?.columnKeys}
+        {...tableOptions}
         csvExport={!isEditor}
         csvHref={csvExportHref("all", activeAttributeFilters)}
-        filters={layout?.filters}
         headerHtml={attributeFilterHtml}
         listings={filterByAttribute(activeListings)}
-        table={table}
       />
 
       {deactivatedListings.length > 0 && (
         <>
           <h2>{t("admin.dashboard.deactivated")}</h2>
           {renderListingsTableSection({
-            columnKeys: layout?.columnKeys,
+            ...tableOptions,
             emptyText: t("admin.dashboard.no_listings"),
-            filters: layout?.filters,
             listings: filterByAttribute(deactivatedListings),
-            table,
           })}
         </>
       )}
