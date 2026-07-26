@@ -16,6 +16,7 @@ import {
   canShowProgress,
   currentTerminalState,
 } from "#scripts/precommit/terminal.ts";
+import type { CapturedOutput } from "#scripts/process.ts";
 
 const ok = (stdout = ""): CapturedOutput => ({
   code: 0,
