@@ -1539,3 +1539,17 @@ skip becomes safe — worth roughly seven extra genuine findings.
 Starting points: `findMisplacedTests` in `scripts/unit-tests-report-imports.ts`
 (the `test.imports.includes(appEntry)` guard and the `subjects.length !== 1`
 guard), and `SHARED_SETUP_FILES` in `scripts/test-subjects.ts`.
+
+## Split the compact test reporter (from PR #1944 review)
+
+Codex flagged `scripts/compact-test-reporter.ts` at 561 lines, above the ~400
+target. It holds five separate jobs: reading the `deno test` arguments and
+guessing how many tests will run, parsing TAP failure reports, drawing the
+progress bar, printing the run summary, and running the child process.
+
+The tests for it already sit in `test/scripts/compact-test-reporter/` as
+`estimate`, `diagnostics`, `progress`, `reporter` and `summary`, so the source
+can be split into a folder of the same names and each pair stays mirrored (which
+is what the mutation gate wants). Out of scope for #1944, whose job was closing
+the mutation gaps rather than moving the file around; the file scores 100% as it
+stands, so the split can be a pure move.
