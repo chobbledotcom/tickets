@@ -52,6 +52,16 @@ describe("db > accounting > postWriteoffAdjustment", () => {
     expect(await accountBalance(revenue)).toBe(-1200);
   });
 
+  test("the smallest credit still flows into the account", async () => {
+    // One minor unit is a credit like any other: the rule turns on the sign of
+    // the delta, not on it clearing some larger figure.
+    const leg = await postSoleAdjustment(1);
+    expect(leg.amount).toBe(1);
+    expect(accountKey(leg.source)).toBe(accountKey(WRITEOFF));
+    expect(accountKey(leg.destination)).toBe(accountKey(revenue));
+    expect(await accountBalance(revenue)).toBe(1);
+  });
+
   test("amount is the absolute value of the delta either way", async () => {
     await postWriteoffAdjustment(revenue, -300, ["income-adjust", 7]);
     const [leg] = await allTransfers();

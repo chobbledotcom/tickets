@@ -64,6 +64,20 @@ describe("db > accounting > ledger-tx", () => {
     expect(await readIncome(1)).toBe(8000);
   });
 
+  test("each kind of correction records its own event, never a shared one", async () => {
+    // Income, modifier-revenue and owed corrections of the same size on the
+    // same id must not share an event group: if they did, the second and third
+    // would be taken for a replay of the first and post nothing.
+    await inOwnTx(ledgerTx.correct.income)(4, 500);
+    await inOwnTx(ledgerTx.correct.modifierRevenue)(4, 500);
+    await inOwnTx(ledgerTx.correct.owed)(4, 500);
+
+    const legs = await allTransfers();
+    expect(legs.length).toBe(3);
+    expect(new Set(legs.map((leg) => leg.eventGroup)).size).toBe(3);
+    expect(new Set(legs.map((leg) => leg.reference)).size).toBe(3);
+  });
+
   test("correct.income lowers income onto a lower target", async () => {
     await postListingSale({ attendeeId: 1, gross: 5000, listingId: 1 });
     // Steering down to 2000 posts a negative delta (a write-off debit) — the
