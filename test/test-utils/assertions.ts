@@ -52,6 +52,11 @@ const listingActivityLogHasMessage = async (
   return entries.some((entry) => entry.message.includes(substring));
 };
 
+type ListingActivityLogCheck = (
+  listingId: number,
+  substring: string,
+) => Promise<void>;
+
 /** Assert whether the listing's activity log holds an entry whose message
  * includes `substring` — one check, specialised below into the "has it" and
  * "has not" forms the tests read with. */
@@ -64,10 +69,12 @@ const expectListingActivityLog =
   };
 
 /** Assert the listing's activity log has an entry whose message includes `substring`. */
-export const expectListingActivityLogContains = expectListingActivityLog(true);
+export const expectListingActivityLogContains: ListingActivityLogCheck =
+  expectListingActivityLog(true);
 
 /** Assert the listing's activity log has no entry whose message includes `substring`. */
-export const expectListingActivityLogLacks = expectListingActivityLog(false);
+export const expectListingActivityLogLacks: ListingActivityLogCheck =
+  expectListingActivityLog(false);
 
 export const expectTestAttendeeCsvColumns = (
   row: string | undefined,

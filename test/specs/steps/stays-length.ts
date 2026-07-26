@@ -23,7 +23,6 @@ import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";
 // jscpd:ignore-end
 
 const FIRST = "Retreat One";
-const SECOND = "Retreat Two";
 
 Given(
   "two Retreat listings sharing a limit of {int} places a day",
@@ -39,18 +38,15 @@ Given(
     onFirst: number,
     onSecond: number,
   ): Promise<void> {
-    const { group, listingA, listingB } =
-      await twoGroupedListingsBookedOnAdjacentDays({
-        cap: requiredWorldValue(this.sharedDayLimit, "the shared day limit"),
-        dateA: dayFromToday(this, 10),
-        dateB: dayFromToday(this, 11),
-        quantity: onFirst,
-        secondQuantity: onSecond,
-      });
+    const { listingA } = await twoGroupedListingsBookedOnAdjacentDays({
+      cap: requiredWorldValue(this.sharedDayLimit, "the shared day limit"),
+      dateA: dayFromToday(this, 10),
+      dateB: dayFromToday(this, 11),
+      quantity: onFirst,
+      secondQuantity: onSecond,
+    });
     rememberStayListing(this, FIRST, listingA);
-    rememberStayListing(this, SECOND, listingB);
     this.sharedDayOver = dayFromToday(this, 11);
-    this.groupId = group.id;
   },
 );
 

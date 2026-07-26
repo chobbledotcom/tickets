@@ -19,7 +19,6 @@ export interface TicketsWorld extends World {
   firstDay?: string;
   firstFailureData?: string;
   firstStatus?: number;
-  groupId?: number;
   groupSlug?: string;
   holdListingId?: number;
   lengthChangeMessage?: string;

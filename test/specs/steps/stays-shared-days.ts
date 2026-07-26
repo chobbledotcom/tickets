@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import {
   visitorBooks,
   visitorTriesToBook,
+  visitorTriesToOrder,
 } from "#test/specs/support/public-booking.ts";
 import {
   dayFromToday,
@@ -18,7 +19,6 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -124,27 +124,20 @@ When(
     onLong: number,
   ): Promise<void> {
     // One order over the group's own page, which offers a quantity per listing —
-    // exactly how a customer books two listings at once.
-    const browser = new TestBrowser();
+    // exactly how a customer books two listings at once. It goes through the
+    // same visitor mechanism as a single listing, so every control it posts is
+    // checked against the served page.
     const slug = requiredWorldValue(this.groupSlug, "the group's page");
-    await browser.visit(`/ticket/${slug}`);
-    const short = stayListing(this, "Short");
-    const long = stayListing(this, "Long");
-    expect(browser.currentHtml).toContain(`quantity_${short.id}`);
-    expect(browser.currentHtml).toContain(`quantity_${long.id}`);
-    await browser.submitForm(
-      {
-        ...{ email: guest(5).email, name: guest(5).who },
-        date: dayFromToday(this, 10),
-        [`quantity_${short.id}`]: String(onShort),
-        [`quantity_${long.id}`]: String(onLong),
-      },
-      "Continue",
+    const attempt = await visitorTriesToOrder(
+      `/ticket/${slug}`,
+      [
+        { listing: stayListing(this, "Short"), places: onShort },
+        { listing: stayListing(this, "Long"), places: onLong },
+      ],
+      { ...guest(5), day: dayFromToday(this, 10) },
     );
-    this.customerBrowser = browser;
-    this.bookingWasTaken = browser.pageText.includes(
-      "Thank you for your order",
-    );
+    this.customerBrowser = attempt.browser;
+    this.bookingWasTaken = attempt.wasBooked;
   },
 );
 
