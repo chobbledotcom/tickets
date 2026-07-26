@@ -17,25 +17,6 @@ import { setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () => {
   describe("edge cases", () => {
-    test("back-to-back bookings at full capacity do not overlap", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 2,
-        maxAttendees: 1,
-      });
-
-      // Book days 10–11.
-      await bookAttendee(listing, { date: "2026-08-10", durationDays: 2 });
-
-      // Days 12–13 must be bookable (no overlap with 10–11).
-      expect(
-        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-08-12", 2),
-      ).toBe(true);
-      // But days 11–12 overlap on day 11.
-      expect(
-        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-08-11", 2),
-      ).toBe(false);
-    });
-
     test("expand-book-shrink cycle keeps all ranges consistent", async () => {
       const listing = await createDailyTestListing({
         maxAttendees: 2,

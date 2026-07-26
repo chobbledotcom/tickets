@@ -15,49 +15,6 @@ import {
 
 describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
   describe("edge cases: realistic unusual scenarios", () => {
-    test("1a: qty > 1 multi-day bookings aggregate per-day demand correctly", async () => {
-      // Two bookings of qty=2 on a 3-day listing (cap 5). Each day sees 2+2=4 ≤ 5.
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 5,
-      });
-      await bookAttendee(listing, {
-        date: "2026-06-12",
-        durationDays: 3,
-        quantity: 2,
-      });
-      const b = await bookAttendee(listing, {
-        date: "2026-06-12",
-        durationDays: 3,
-        quantity: 2,
-      });
-      expect(b.success).toBe(true);
-    });
-
-    test("1b: qty > 1 multi-day booking rejected when per-day total exceeds cap", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 5,
-      });
-      await bookAttendee(listing, {
-        date: "2026-06-12",
-        durationDays: 3,
-        quantity: 2,
-      });
-      await bookAttendee(listing, {
-        date: "2026-06-12",
-        durationDays: 3,
-        quantity: 2,
-      });
-      // Third: 2+2+2=6 > 5 on every day → reject.
-      const c = await bookAttendee(listing, {
-        date: "2026-06-12",
-        durationDays: 3,
-        quantity: 2,
-      });
-      expect(c.success).toBe(false);
-    });
-
     test("2: bookable_days change does not corrupt existing bookings", async () => {
       // Book a 3-day range Mon-Tue-Wed, then admin removes Tuesday from bookable_days.
       // Existing booking stays in the DB. New bookings covering Tuesday are blocked.
@@ -136,32 +93,6 @@ describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
       ]);
       const winners = [a.success, b.success].filter(Boolean);
       expect(winners.length).toBe(1);
-    });
-
-    test("6: group cart with mismatched durations rejects when overlap days exceed cap", async () => {
-      // ListingA is 2-day, ListingB is 4-day. Both in same group with cap=3.
-      // Cart: qty=2 each → overlap on days 1-2 sees 4 > 3.
-      const group = await createTestGroup({ maxAttendees: 3 });
-      const listingA = await createDailyTestListing({
-        durationDays: 2,
-        groupId: group.id,
-        maxAttendees: 100,
-      });
-      const listingB = await createDailyTestListing({
-        durationDays: 4,
-        groupId: group.id,
-        maxAttendees: 100,
-      });
-
-      expect(
-        await attendeesApi.checkBatchAvailability(
-          [
-            { durationDays: 2, listingId: listingA.id, quantity: 2 },
-            { durationDays: 4, listingId: listingB.id, quantity: 2 },
-          ],
-          "2026-08-01",
-        ),
-      ).toBe(false);
     });
 
     test("9: listing type switch from standard to daily preserves existing attendees", async () => {

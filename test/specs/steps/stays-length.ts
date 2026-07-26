@@ -2,23 +2,20 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import {
-  visitorBooks,
-  visitorTriesToBook,
-} from "#test/specs/support/public-booking.ts";
+import { visitorBooks } from "#test/specs/support/public-booking.ts";
 import {
   changeStayLength,
   dayFromToday,
   guest,
+  newestStayOn,
   openStayListing,
   rememberStayListing,
   stayListing,
-  staysOn,
 } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { expectListingActivityLogContains } from "#test-utils/assertions.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
-import { expectStayRunsFor } from "./stays-booking.ts";
+import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";
 
 // jscpd:ignore-end
 
@@ -76,14 +73,18 @@ Given(
       day: this.stayStartsOn,
       dayCount: days,
     });
-    this.attendeeId = (await staysOn(this, "Retreat")).at(-1)?.id;
+    this.attendeeId = await newestStayOn(this, "Retreat");
   },
 );
 
 When(
   "the organiser makes each {word} stay {int} days long",
-  function (this: TicketsWorld, name: string, days: number): Promise<void> {
-    return changeStayLength(this, name, days);
+  async function (
+    this: TicketsWorld,
+    name: string,
+    days: number,
+  ): Promise<void> {
+    await changeStayLength(this, name, days);
   },
 );
 
@@ -96,8 +97,8 @@ When(
 
 When(
   "the organiser lowers the longest Retreat stay to {int} days",
-  function (this: TicketsWorld, days: number): Promise<void> {
-    return changeStayLength(this, "Retreat", days);
+  async function (this: TicketsWorld, days: number): Promise<void> {
+    await changeStayLength(this, "Retreat", days);
   },
 );
 
@@ -117,31 +118,15 @@ Then(
 
 Then(
   "a {word} stay can no longer start in {int} days",
-  async function (
-    this: TicketsWorld,
-    name: string,
-    startsIn: number,
-  ): Promise<void> {
-    const attempt = await visitorTriesToBook(stayListing(this, name), {
-      ...guest(7),
-      day: dayFromToday(startsIn),
-    });
-    expect(attempt.wasBooked).toBe(false);
+  function (this: TicketsWorld, name: string, startsIn: number): Promise<void> {
+    return expectStayCanBeBooked(this, name, dayFromToday(startsIn), false);
   },
 );
 
 Then(
   "a {word} stay can start in {int} days again",
-  async function (
-    this: TicketsWorld,
-    name: string,
-    startsIn: number,
-  ): Promise<void> {
-    const attempt = await visitorTriesToBook(stayListing(this, name), {
-      ...guest(7),
-      day: dayFromToday(startsIn),
-    });
-    expect(attempt.wasBooked).toBe(true);
+  function (this: TicketsWorld, name: string, startsIn: number): Promise<void> {
+    return expectStayCanBeBooked(this, name, dayFromToday(startsIn), true);
   },
 );
 

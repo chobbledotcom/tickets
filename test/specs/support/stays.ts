@@ -27,6 +27,18 @@ export const staysOn = (
   name: string,
 ): Promise<Attendee[]> => getAttendeesRaw(stayListing(world, name).id);
 
+/** The stay booked most recently on a listing. Fails loudly when nothing has
+ * been booked, so a story never carries on with no stay to talk about. */
+export const newestStayOn = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<number> => {
+  const booked = await staysOn(world, name);
+  const newest = booked.at(-1);
+  if (!newest) throw new Error(`No stay has been booked on the ${name}`);
+  return newest.id;
+};
+
 /** A day counted forward from today, written the way the site writes days. */
 export const dayFromToday = (days: number): string => {
   const day = new Date();
@@ -41,7 +53,7 @@ export const openStayListing = async (
   name: string,
   days: number,
   placesADay: number,
-  options: { customerPicksDays?: boolean } = {},
+  options: { customerPicksDays?: boolean; groupId?: number } = {},
 ): Promise<Listing> => {
   const listing = await createDailyTestListing({
     durationDays: days,
@@ -51,6 +63,7 @@ export const openStayListing = async (
     maxQuantity: placesADay,
     name,
     thankYouUrl: "",
+    ...(options.groupId === undefined ? {} : { groupId: options.groupId }),
     // A listing whose customers choose their own length needs a price for each
     // length they can pick.
     ...(options.customerPicksDays
@@ -93,7 +106,7 @@ export const changeStayLength = async (
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
   expect(browser.currentHtml).toContain('name="duration_days"');
-  await browser.submitForm({ duration_days: String(days) }, "Update Listing");
+  await browser.submitForm({ duration_days: String(days) }, "Save Changes");
   expect(browser.containsText("Listing updated")).toBe(true);
   return browser.pageText;
 };

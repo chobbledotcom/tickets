@@ -17,8 +17,8 @@ Feature: A customer books a stay of several days
       Given a Cabin that is booked 3 days at a time, with room for 1 place a day
       When a customer books a Cabin stay starting in 10 days
       Then the organiser sees the stay runs for 3 days
-      And no stay can start on any of those 3 days
-      And a stay can still start the day after it ends
+      And no Cabin stay can start on any of those 3 days
+      And a Cabin stay can still start the day after it ends
 
   @rule:bookings.a-full-day-blocks-a-stay-that-needs-it
   Rule: A stay cannot be booked when one of its days is already full

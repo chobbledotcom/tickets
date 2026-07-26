@@ -13,6 +13,7 @@ import {
 import {
   dayFromToday,
   guest,
+  newestStayOn,
   openStayListing,
   stayListing,
   staysOn,
@@ -54,7 +55,7 @@ const bookStay = async (
     places,
     ...(dayCount === undefined ? {} : { dayCount }),
   });
-  world.attendeeId = (await staysOn(world, name)).at(-1)?.id;
+  world.attendeeId = await newestStayOn(world, name);
 };
 
 /** A refused attempt keeps what the customer was shown, so the Then can read
@@ -72,6 +73,22 @@ const tryToBook = async (
   });
   world.customerBrowser = attempt.browser;
   world.bookingWasTaken = attempt.wasBooked;
+};
+
+/** Whether a stay starting on a day can actually be booked. The one check
+ * behind every "can" and "cannot" step, so the two can never drift apart. */
+export const expectStayCanBeBooked = async (
+  world: TicketsWorld,
+  name: string,
+  day: string,
+  expected: boolean,
+  who = guest(8),
+): Promise<void> => {
+  const attempt = await visitorTriesToBook(stayListing(world, name), {
+    ...who,
+    day,
+  });
+  expect(attempt.wasBooked).toBe(expected);
 };
 
 Given(
@@ -201,30 +218,28 @@ Then(
 );
 
 Then(
-  "no stay can start on any of those {int} days",
-  async function (this: TicketsWorld, days: number): Promise<void> {
+  "no {word} stay can start on any of those {int} days",
+  async function (this: TicketsWorld, name: string, days: number) {
     // Every day of the stay is held, so a stay starting on any of them is
     // refused — including the last day, which overlaps by one day only.
     for (let day = 0; day < days; day++) {
-      const attempt = await visitorTriesToBook(stayListing(this, "Cabin"), {
-        ...guest(4 + day),
-        day: addDays(stayStart(this), day),
-      });
-      expect(attempt.wasBooked).toBe(false);
+      await expectStayCanBeBooked(
+        this,
+        name,
+        addDays(stayStart(this), day),
+        false,
+        guest(4 + day),
+      );
     }
   },
 );
 
 Then(
-  "a stay can still start the day after it ends",
-  async function (this: TicketsWorld): Promise<void> {
-    const listing = stayListing(this, "Cabin");
-    const attempt = await visitorTriesToBook(listing, {
-      ...guest(3),
-      // A stay of N days starting on day 0 ends on day N-1, so day N is free.
-      day: addDays(stayStart(this), listing.duration_days),
-    });
-    expect(attempt.wasBooked).toBe(true);
+  "a {word} stay can still start the day after it ends",
+  function (this: TicketsWorld, name: string): Promise<void> {
+    // A stay of N days starting on day 0 ends on day N-1, so day N is free.
+    const day = addDays(stayStart(this), stayListing(this, name).duration_days);
+    return expectStayCanBeBooked(this, name, day, true, guest(3));
   },
 );
 
@@ -242,16 +257,8 @@ Then(
 
 Then(
   "a {word} stay starting in {int} days can still be booked",
-  async function (
-    this: TicketsWorld,
-    name: string,
-    startsIn: number,
-  ): Promise<void> {
-    const attempt = await visitorTriesToBook(stayListing(this, name), {
-      ...guest(8),
-      day: dayFromToday(startsIn),
-    });
-    expect(attempt.wasBooked).toBe(true);
+  function (this: TicketsWorld, name: string, startsIn: number): Promise<void> {
+    return expectStayCanBeBooked(this, name, dayFromToday(startsIn), true);
   },
 );
 
