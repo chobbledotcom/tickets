@@ -62,6 +62,22 @@ Given(
   },
 );
 
+/** Places booked on one listing, starting on a day counted from today. Each
+ * booking is somebody different, so two are never taken for one person. */
+const bookPlaces = async (
+  world: TicketsWorld,
+  name: string,
+  places: number,
+  startsIn: number,
+  order: number,
+): Promise<void> => {
+  await visitorBooks(world, stayListing(world, name), {
+    ...guest(order),
+    day: dayFromToday(world, startsIn),
+    places,
+  });
+};
+
 Given(
   "{int} Saturday places and {int} Weekend places are booked starting in {int} days",
   async function (
@@ -70,17 +86,20 @@ Given(
     onWeekend: number,
     startsIn: number,
   ): Promise<void> {
-    const day = dayFromToday(this, startsIn);
-    await visitorBooks(this, stayListing(this, "Saturday"), {
-      ...guest(1),
-      day,
-      places: onSaturday,
-    });
-    await visitorBooks(this, stayListing(this, "Weekend"), {
-      ...guest(2),
-      day,
-      places: onWeekend,
-    });
+    await bookPlaces(this, "Saturday", onSaturday, startsIn, 1);
+    await bookPlaces(this, "Weekend", onWeekend, startsIn, 2);
+  },
+);
+
+Given(
+  "{int} {word} places are booked starting in {int} days",
+  function (
+    this: TicketsWorld,
+    places: number,
+    name: string,
+    startsIn: number,
+  ): Promise<void> {
+    return bookPlaces(this, name, places, startsIn, 1);
   },
 );
 
@@ -103,16 +122,12 @@ When(
 
 When(
   "a customer books {int} Weekend places starting in {int} days",
-  async function (
+  function (
     this: TicketsWorld,
     places: number,
     startsIn: number,
   ): Promise<void> {
-    await visitorBooks(this, stayListing(this, "Weekend"), {
-      ...guest(4),
-      day: dayFromToday(this, startsIn),
-      places,
-    });
+    return bookPlaces(this, "Weekend", places, startsIn, 4);
   },
 );
 
@@ -151,5 +166,14 @@ Then(
     // leave the customer paying for a stay they cannot use.
     expect((await staysOn(this, "Short")).length).toBe(0);
     expect((await staysOn(this, "Long")).length).toBe(0);
+  },
+);
+
+Then(
+  "the {word} holds no stays at all",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    // A refused booking must leave nothing behind, or the day it was refused
+    // for would quietly lose room to a stay nobody can use.
+    expect((await staysOn(this, name)).length).toBe(0);
   },
 );
