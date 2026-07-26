@@ -58,13 +58,15 @@
               echo "  nix run .#docker     - build container image"
               echo "  nix run .#docker-start - build and run container"
               # Throwaway defaults so `deno task start` works in a fresh
-              # checkout, but only when the caller has not chosen its own. An
-              # unconditional export would beat both the caller's environment
-              # and .env, because Deno's --env-file leaves a variable that is
-              # already set alone.
-              export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY:-$(openssl rand -base64 32)}"
-              export DB_URL="''${DB_URL:-:memory:}"
-              export PORT="''${PORT:-8080}"
+              # checkout, but only when the caller has not set the variable at
+              # all. An unconditional export would beat the caller's own
+              # environment, because Deno's --env-file leaves a variable that
+              # is already set alone. These use ''${VAR-...}, not ''${VAR:-...},
+              # so a deliberately empty value still reaches startup validation
+              # and fails there instead of being quietly replaced.
+              export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(openssl rand -base64 32)}"
+              export DB_URL="''${DB_URL-:memory:}"
+              export PORT="''${PORT-8080}"
               ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
                 export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
                 export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}:''${LD_LIBRARY_PATH:-}"
