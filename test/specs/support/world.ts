@@ -11,10 +11,12 @@ export interface TicketsWorld extends World {
   firstBody?: string;
   firstFailureData?: string;
   firstStatus?: number;
+  groupSlug?: string;
   holdListingId?: number;
   listingId?: number;
   listingIds: Map<string, number>;
   placeholderId?: number;
+  questionId?: number;
   refundCalls?: () => number;
   secondBody?: string;
   secondStatus?: number;

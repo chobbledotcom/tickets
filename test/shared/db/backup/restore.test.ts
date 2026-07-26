@@ -12,8 +12,12 @@ import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import { initDb } from "#shared/db/migrations.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  decryptFirstAttendee,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /**
@@ -57,6 +61,19 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       booked_quantity: 1,
       tickets_count: 1,
     });
+  });
+
+  test("restores encrypted attendee details with their booking", async () => {
+    const listing = await createTestListing({ name: "Attendee details" });
+    await bookTestAttendee([listing.id], "Jane Doe", "jane.doe@example.test");
+
+    await restoreFromZip(await createBackupZip());
+    await settings.loadKeys([CONFIG_KEYS.WRAPPED_PRIVATE_KEY]);
+
+    const attendee = await decryptFirstAttendee(listing.id);
+    expect(attendee.name).toBe("Jane Doe");
+    expect(attendee.email).toBe("jane.doe@example.test");
+    expect(attendee.quantity).toBe(1);
   });
 
   test("reinstalls listing total triggers after importing rows", async () => {

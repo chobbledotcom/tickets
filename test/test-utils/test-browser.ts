@@ -494,11 +494,6 @@ export class TestBrowser {
     return findAllLinks(this.currentHtml);
   }
 
-  /** Extract all checkbox values for a given field name from the current page */
-  getCheckboxValues(fieldName: string): string[] {
-    return extractCheckboxValues(this.currentHtml, fieldName);
-  }
-
   /**
    * Download a URL and return the raw bytes (for binary content like .zip files).
    * Does NOT update currentHtml/currentUrl.
