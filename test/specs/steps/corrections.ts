@@ -53,6 +53,7 @@ import {
 
 // jscpd:ignore-end
 
+const LISTING_TOLD = "Listing income corrected.";
 const GOODWILL = "manual_attendee_writeoff";
 const CHARGE = "manual_attendee_charge";
 
@@ -83,22 +84,32 @@ Then(
   },
 );
 
+/** One thing's earnings, corrected on the page that offers the box — the same
+ * act for a listing and for an extra charge, so it is written once. */
+const correctEarnings = async (
+  world: TicketsWorld,
+  page: string,
+  field: string,
+  amount: string,
+  told: string,
+): Promise<void> => {
+  await rememberMoneyBefore(world);
+  await correctOnPage(world, page, field, amount, told);
+};
+
+/** Correcting a listing's income, from both the Given and the When wording. */
+const correctListingIncome = function (
+  this: TicketsWorld,
+  listing: string,
+  amount: string,
+): Promise<void> {
+  const page = `/admin/listing/${listingIdFor(this, listing)}/edit`;
+  return correctEarnings(this, page, "income", amount, LISTING_TOLD);
+};
+
 When(
   "the organiser corrects the {word} listing's income to {word}",
-  async function (
-    this: TicketsWorld,
-    listing: string,
-    amount: string,
-  ): Promise<void> {
-    await rememberMoneyBefore(this);
-    await correctOnPage(
-      this,
-      `/admin/listing/${listingIdFor(this, listing)}/edit`,
-      "income",
-      amount,
-      "Listing income corrected.",
-    );
-  },
+  correctListingIncome,
 );
 
 Then(
@@ -114,19 +125,31 @@ Then(
   },
 );
 
+/** Exactly one correction moved exactly this much, this way round. */
+const expectOneCorrection = async (
+  account: ReturnType<typeof revenueAccount>,
+  amount: string,
+  from: ReturnType<typeof revenueAccount>,
+  to: ReturnType<typeof revenueAccount>,
+): Promise<void> => {
+  const corrections = legsOfKind(
+    await transfersByAccount(account),
+    "adjustment",
+  );
+  expect(corrections.length).toBe(1);
+  expect(corrections[0]!.amount).toBe(minorUnits(amount));
+  expect(corrections[0]!.source).toEqual(from);
+  expect(corrections[0]!.destination).toEqual(to);
+};
+
 Then(
   "the {word} difference was written off in one correction",
   async function (this: TicketsWorld, amount: string): Promise<void> {
-    const listingId = requiredWorldValue(this.listingId, "the listing");
-    const corrections = legsOfKind(
-      await transfersByAccount(revenueAccount(listingId)),
-      "adjustment",
-    );
-    expect(corrections.length).toBe(1);
-    expect(corrections[0]!.amount).toBe(minorUnits(amount));
     // Written down means out of the listing's earnings and into the write-off.
-    expect(corrections[0]!.source).toEqual(revenueAccount(listingId));
-    expect(corrections[0]!.destination).toEqual(WRITEOFF);
+    const listing = revenueAccount(
+      requiredWorldValue(this.listingId, "the listing"),
+    );
+    await expectOneCorrection(listing, amount, listing, WRITEOFF);
   },
 );
 
@@ -164,28 +187,37 @@ When(
   },
 );
 
-Then(
-  "they owe {word}, on the books and on their money page",
-  async function (this: TicketsWorld, amount: string): Promise<void> {
-    expect(await owedBy(bookingId(this))).toBe(minorUnits(amount));
-    await assertRenderedOwed(bookingId(this), minorUnits(amount));
-  },
-);
+/** What the customer owes, both on the books and on the page they are shown. */
+const expectOwed = async function (
+  this: TicketsWorld,
+  amount: string,
+): Promise<void> {
+  expect(await owedBy(bookingId(this))).toBe(minorUnits(amount));
+  await assertRenderedOwed(bookingId(this), minorUnits(amount));
+};
 
-Then(
-  "the {word} has still earned {word}, and the money the site holds is unchanged",
+Then("they owe {word}, on the books and on their money page", expectOwed);
+
+/** A listing earned this much, and one more thing is true alongside it. */
+const earnedAnd = (alsoTrue: (world: TicketsWorld) => Promise<void>) =>
   async function (
     this: TicketsWorld,
     listing: string,
     amount: string,
   ): Promise<void> {
-    // A correction to what someone owes touches neither the listing's earnings
-    // nor the cash the site holds.
     expect(await incomeOf(listingIdFor(this, listing))).toBe(
       minorUnits(amount),
     );
-    expect(await worldBalance()).toBe(cashBefore(this));
-  },
+    await alsoTrue(this);
+  };
+
+Then(
+  "the {word} has still earned {word}, and the money the site holds is unchanged",
+  // A correction to what someone owes touches neither the listing's earnings
+  // nor the cash the site holds.
+  earnedAnd(async (world) => {
+    expect(await worldBalance()).toBe(cashBefore(world));
+  }),
 );
 
 Given(
@@ -203,11 +235,11 @@ Given(
 
 When(
   "the organiser corrects the surcharge's income to {word}",
-  async function (this: TicketsWorld, amount: string): Promise<void> {
-    await rememberMoneyBefore(this);
-    await correctOnPage(
+  function (this: TicketsWorld, amount: string): Promise<void> {
+    const page = `/admin/modifiers/${surchargeId(this)}/edit`;
+    return correctEarnings(
       this,
-      `/admin/modifiers/${surchargeId(this)}/edit`,
+      page,
       "total_revenue",
       amount,
       "Option income corrected.",
@@ -225,17 +257,9 @@ Then(
 Then(
   "the {word} difference came from the write-off in one correction",
   async function (this: TicketsWorld, amount: string): Promise<void> {
-    const corrections = legsOfKind(
-      await transfersByAccount(modifierAccount(surchargeId(this))),
-      "adjustment",
-    );
-    expect(corrections.length).toBe(1);
-    expect(corrections[0]!.amount).toBe(minorUnits(amount));
     // Raising what it earned takes the difference out of the write-off.
-    expect(corrections[0]!.source).toEqual(WRITEOFF);
-    expect(corrections[0]!.destination).toEqual(
-      modifierAccount(surchargeId(this)),
-    );
+    const surcharge = modifierAccount(surchargeId(this));
+    await expectOneCorrection(surcharge, amount, WRITEOFF, surcharge);
   },
 );
 
@@ -260,13 +284,7 @@ When(
   },
 );
 
-Then(
-  "they still owe {word}, on the books and on their money page",
-  async function (this: TicketsWorld, amount: string): Promise<void> {
-    expect(await owedBy(bookingId(this))).toBe(minorUnits(amount));
-    await assertRenderedOwed(bookingId(this), minorUnits(amount));
-  },
-);
+Then("they still owe {word}, on the books and on their money page", expectOwed);
 
 Then(
   "they owe nothing, and their money page says the booking is fully paid",
@@ -281,34 +299,14 @@ Then(
 
 Then(
   "the {word} earned {word} and the customer owes nothing",
-  async function (
-    this: TicketsWorld,
-    listing: string,
-    amount: string,
-  ): Promise<void> {
-    expect(await incomeOf(listingIdFor(this, listing))).toBe(
-      minorUnits(amount),
-    );
-    expect(await owedBy(bookingId(this))).toBe(0);
-  },
+  earnedAnd(async (world) => {
+    expect(await owedBy(bookingId(world))).toBe(0);
+  }),
 );
 
 Given(
   "the organiser corrected the {word} listing's income to {word}",
-  async function (
-    this: TicketsWorld,
-    listing: string,
-    amount: string,
-  ): Promise<void> {
-    await rememberMoneyBefore(this);
-    await correctOnPage(
-      this,
-      `/admin/listing/${listingIdFor(this, listing)}/edit`,
-      "income",
-      amount,
-      "Listing income corrected.",
-    );
-  },
+  correctListingIncome,
 );
 
 Then(
