@@ -37,18 +37,14 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { openAttendeeEditor } from "#test-utils/e2e.ts";
-import {
-  TEST_ADMIN_PASSWORD,
-  TEST_ADMIN_USERNAME,
-} from "#test-utils/internal.ts";
+import { loggedInAdminBrowser, openAttendeeEditor } from "#test-utils/e2e.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
   enablePublicSite,
   setupStripe,
   stubWebhookVerify,
 } from "#test-utils/settings.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 /** One package in a journey's catalog: its members sell inside the bundle at
@@ -214,17 +210,6 @@ const mintCatalog = async (
   };
 };
 
-/** Log a fresh browser in as the seeded admin through the real login form. */
-const adminBrowser = async (): Promise<TestBrowser> => {
-  const browser = new TestBrowser();
-  await browser.visit("/admin/");
-  await browser.submitForm(
-    { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
-    "Login",
-  );
-  return browser;
-};
-
 /** The gallery's GET-form serialisation for the journey's picks. */
 const selectionUrl = (
   catalog: JourneyCatalog,
@@ -289,7 +274,7 @@ export const runOrderJourney = async (spec: {
   await enablePublicSite();
   await settings.update.orderEnabled(true);
   if (spec.paid) await setupStripe();
-  const browser = await adminBrowser();
+  const browser = await loggedInAdminBrowser();
   const catalog = await mintCatalog(spec.catalog);
 
   // The gallery offers every picked card, and the selection redirects to the

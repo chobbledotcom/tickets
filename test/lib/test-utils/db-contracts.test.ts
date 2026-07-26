@@ -23,7 +23,13 @@ import {
 } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
+  addAttendee,
+  createListing,
+  fieldValueOnPage,
+  gotoListing,
   lineIndexOnPage,
+  linePlacesOnPage,
+  loggedInAdminBrowser,
   openAttendeeEditor,
   setupAndLogin,
 } from "#test-utils/e2e.ts";
@@ -56,6 +62,22 @@ describe("test-utils — db-backed & settings contracts", () => {
   describe("strict DB-backed utility contracts", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
+    });
+
+    test("the admin journey helpers create a listing, add to its roster, and index its editor line", async () => {
+      const browser = await loggedInAdminBrowser();
+      const listingId = await createListing(browser, { name: "Helper Class" });
+      await addAttendee(browser, { name: "Helper Person", quantity: "2" });
+
+      expect(browser.containsText("Added Helper Person")).toBe(true);
+      // gotoListing finds the same listing again from the dashboard.
+      expect(await gotoListing(browser, "Helper Class")).toBe(listingId);
+      await openAttendeeEditor(browser);
+      expect(browser.containsText("Helper Person")).toBe(true);
+      expect(lineIndexOnPage(browser, listingId)).toBe("0");
+      // The editor's own box carries the places the roster add asked for.
+      expect(linePlacesOnPage(browser, listingId)).toBe("2");
+      expect(fieldValueOnPage(browser, "name")).toBe("Helper Person");
     });
 
     test("getListingWithActivityLogOrNull reads through the test admin session", async () => {
@@ -261,6 +283,16 @@ describe("test-utils — db-backed & settings contracts", () => {
       expect(attendeeLineIndex(html, 7, 0)).toBe("1");
       expect(attendeeLineIndex(html, 7, 9)).toBeNull();
       expect(attendeeLineIndex(html, 8)).toBeNull();
+    });
+
+    test("fieldValueOnPage throws when the page has no such control", () => {
+      const browser = {
+        currentHtml: '<form><input name="email" value="a@b.test"></form>',
+      } as unknown as import("#test-utils/test-browser.ts").TestBrowser;
+      expect(fieldValueOnPage(browser, "email")).toBe("a@b.test");
+      expect(() => fieldValueOnPage(browser, "phone")).toThrow(
+        "no phone control on this page",
+      );
     });
 
     test("lineIndexOnPage throws when the page has no line for the listing", () => {

@@ -1,4 +1,4 @@
-import { type Client, createClient } from "@libsql/client";
+import type { Client } from "@libsql/client";
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { lazyRef } from "#fp";
 import { runCleanups } from "#scripts/cleanup.ts";
@@ -18,6 +18,7 @@ import {
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
 import { setStorageConfigForTest } from "#shared/storage.ts";
+import { createTestDbClient } from "#test-utils/db-client.ts";
 import {
   type EnvScope,
   setupTestEncryptionKey,
@@ -91,8 +92,7 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   // A temp file, not ":memory:": interactive transactions (withTransaction) open
   // a second connection, and each ":memory:" connection is its own *separate*
   // empty database — a transaction would see no schema. A file is shared across
-  // connections. Durability is irrelevant in tests, so relax fsync to keep speed
-  // close to in-memory.
+  // connections. `createTestDbClient` keeps the speed settings on it.
   //
   // Copy the golden DB (schema + default status, prebuilt by the harness for
   // the whole run, else built once per isolate — see test-state.ts) rather
@@ -105,13 +105,10 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
-  const client = createClient({ url: `file:${path}` });
+  const client = await createTestDbClient(path);
   setTestDbResource({ client, env, path });
   using rollback = cleanupUnlessKept(resetDb);
   setDb(client);
-  // journal_mode persists in the SQLite header from the golden; synchronous=OFF
-  // is per-connection only and must be re-applied.
-  await client.executeMultiple("PRAGMA synchronous=OFF;");
   rollback.keep();
 };
 
@@ -142,9 +139,8 @@ export const setupTransactionalTestDb = async (): Promise<
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
-  const client = createClient({ url: `file:${path}` });
+  const client = await createTestDbClient(path);
   setDb(client);
-  await client.executeMultiple("PRAGMA synchronous=OFF;");
   return async () => {
     setDb(null);
     client.close();
@@ -239,7 +235,7 @@ export const setupTestDbEnvironment = async (
  * - `"local"`: a fresh temp dir (recorded for `getTestStoragePath`) with empty
  *   zone creds, so ambient Bunny creds can't shadow the local backend.
  */
-const applyStorageConfig = (
+export const setupTestStorage = (
   storage: DescribeEnvOptions["storage"],
 ): TempPath | undefined => {
   if (storage === "cdn") {
@@ -264,7 +260,7 @@ const applyStorageConfig = (
 };
 
 /** Clear the suite-level storage config and remove any `"local"` temp dir. */
-const teardownStorageConfig = (dir: TempPath | undefined): void => {
+export const teardownTestStorage = (dir: TempPath | undefined): void => {
   setStorageConfigForTest(null);
   setTestStoragePath(null);
   dir?.dispose();
@@ -285,7 +281,7 @@ export const describeWithEnv = (
         cleanupDb = await setupTestDbEnvironment(options.triggers ?? false);
       }
       if (options.env) env = withEnv(options.env);
-      storageDir = applyStorageConfig(options.storage);
+      storageDir = setupTestStorage(options.storage);
     });
     // Register this teardown after nested suite hooks so inner env scopes close
     // before this suite restores its outer database and env layers.
@@ -298,7 +294,7 @@ export const describeWithEnv = (
       env = undefined;
       storageDir = undefined;
       await runCleanups([
-        () => teardownStorageConfig(currentStorageDir),
+        () => teardownTestStorage(currentStorageDir),
         ...(envCleanup ? [() => envCleanup.dispose()] : []),
         ...(dbCleanup ? [dbCleanup] : []),
       ]);
