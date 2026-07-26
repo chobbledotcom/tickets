@@ -32,28 +32,37 @@ describe("Cucumber evidence style", () => {
     expect(stored).not.toContain("undefined");
   });
 
-  test("sets every inherited base style used by the branded capture", async () => {
-    let stored = "";
-    await storeEvidenceCss(
-      requireValue(EVIDENCE_CAPTURES[0], "Evidence capture is missing"),
-      (css) => {
-        stored = css;
-        return Promise.resolve();
-      },
+  test("sets every inherited base style used by each branded capture", async () => {
+    const branded = EVIDENCE_CAPTURES.filter(
+      ({ presentation }) => presentation === "branded",
     );
+    expect(branded.length).toBeGreaterThan(1);
+    for (const capture of branded) {
+      let stored = "";
+      await storeEvidenceCss(
+        requireValue(capture, "Evidence capture is missing"),
+        (css) => {
+          stored = css;
+          return Promise.resolve();
+        },
+      );
 
-    for (const name of [
-      "--border-radius",
-      "--color-bg",
-      "--color-bg-secondary",
-      "--color-link",
-      "--color-secondary-accent",
-      "--color-table",
-      "--color-text",
-      "--color-text-secondary",
-      "--font-family",
-    ]) {
-      expect(stored).toContain(`${name}:`);
+      for (const name of [
+        "--border-radius",
+        "--color-accent",
+        "--color-bg",
+        "--color-bg-secondary",
+        "--color-link",
+        "--color-secondary",
+        "--color-secondary-accent",
+        "--color-shadow",
+        "--color-table",
+        "--color-text",
+        "--color-text-secondary",
+        "--font-family",
+      ]) {
+        expect(stored).toContain(`${name}:`);
+      }
     }
   });
 });
