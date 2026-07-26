@@ -51,7 +51,6 @@ import {
   withSetting,
 } from "#test-utils/settings.ts";
 import { lastLogMessage } from "#test-utils/settings-handlers.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
 
 describe("test-utils — db-backed & settings contracts", () => {
   afterEach(() => {
@@ -311,18 +310,6 @@ describe("test-utils — db-backed & settings contracts", () => {
   });
 
   describe("e2e helper contracts", () => {
-    test("getCheckboxValues reads every value offered for one checkbox field", () => {
-      const browser = new TestBrowser();
-      browser.currentHtml = [
-        '<input type="checkbox" name="listing_ids" value="4">',
-        '<input type="checkbox" name="listing_ids" value="9">',
-        '<input type="checkbox" name="question_ids" value="1">',
-      ].join("");
-
-      expect(browser.getCheckboxValues("listing_ids")).toEqual(["4", "9"]);
-      expect(browser.getCheckboxValues("missing_ids")).toEqual([]);
-    });
-
     test("setupAndLogin follows the migration-complete interstitial", async () => {
       const actions: string[] = [];
       const browser = {

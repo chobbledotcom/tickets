@@ -58,15 +58,19 @@ export const setupAndLogin = async (browser: TestBrowser): Promise<void> => {
   }
 };
 
+/** Fill in the login form the browser is looking at as the seeded admin. */
+export const logInAsTestAdmin = (browser: TestBrowser): Promise<void> =>
+  browser.submitForm(
+    { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
+    "Login",
+  );
+
 /** A fresh browser logged in as the seeded admin through the real login form.
  * Use this on a database that already went through the setup ceremony. */
 export const loggedInAdminBrowser = async (): Promise<TestBrowser> => {
   const browser = new TestBrowser();
   await browser.visit("/admin/");
-  await browser.submitForm(
-    { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
-    "Login",
-  );
+  await logInAsTestAdmin(browser);
   return browser;
 };
 

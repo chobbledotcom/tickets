@@ -15,7 +15,9 @@ describe("Cucumber story catalog", () => {
       "attendees.no-quantity-tickets",
       "bookings.backup-and-restore",
       "bookings.book-through-the-site",
+      "bookings.volunteer-sign-up",
       "payments.capacity-after-payment",
+      "payments.provider-choice",
       "servicing.hold-and-cost",
     ]);
   });

@@ -3,7 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
-import { submitRenderedForm } from "#test/specs/support/admin.ts";
+import { submitRenderedAdminForm } from "#test/specs/support/browser.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -86,7 +86,7 @@ When(
       this.listingIds.get(STUDIO_LISTING),
       "studio listing id",
     );
-    const browser = await submitRenderedForm(
+    const browser = await submitRenderedAdminForm(
       this,
       "/admin/servicing/new",
       "Create Service Event",
@@ -121,7 +121,7 @@ When(
   "the organiser duplicates the service event",
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
-    await submitRenderedForm(this, `/admin/servicing/${id}`, "Duplicate");
+    await submitRenderedAdminForm(this, `/admin/servicing/${id}`, "Duplicate");
   },
 );
 
@@ -129,7 +129,7 @@ When(
   "the organiser deletes the service event",
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
-    await submitRenderedForm(
+    await submitRenderedAdminForm(
       this,
       `/admin/servicing/${id}`,
       "Delete Service Event",
@@ -141,7 +141,7 @@ When(
   "the organiser records a cost of 90.00 for Boiler Service",
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
-    const browser = await submitRenderedForm(
+    const browser = await submitRenderedAdminForm(
       this,
       `/admin/servicing/${id}`,
       "Record service event cost",

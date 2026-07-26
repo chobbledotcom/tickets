@@ -3,7 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { restoreFromZip } from "#shared/db/backup.ts";
-import { adminBrowser } from "#test/specs/support/admin.ts";
+import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -11,12 +11,7 @@ import {
 import { setupTestStorage, teardownTestStorage } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  invalidateAllCaches,
-  loggedInAdminBrowser,
-  setupAndLogin,
-} from "#test-utils/e2e.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+import { invalidateAllCaches, setupAndLogin } from "#test-utils/e2e.ts";
 
 // jscpd:ignore-end
 
@@ -48,9 +43,8 @@ const emptyAndSetUpAgain = async (world: TicketsWorld): Promise<void> => {
   await resetDatabase();
   await initDb({ allowMissingSettings: true });
   invalidateAllCaches();
-  const browser = new TestBrowser();
-  await setupAndLogin(browser);
-  world.testBrowser = browser;
+  world.testBrowser = undefined;
+  await setupAndLogin(scenarioBrowser(world));
 };
 
 const dashboard = async (world: TicketsWorld): Promise<string> => {
@@ -104,8 +98,8 @@ When(
     // database cannot be written back inside one edge request.
     await restoreFromZip(requiredWorldValue(this.backupZip, "backup file"));
     invalidateAllCaches();
-    // Restoring brings back the organiser's own login, so sign in again.
-    this.testBrowser = await loggedInAdminBrowser();
+    // The restore replaced the sessions too, so the next admin page asks the
+    // organiser to sign in again — which `adminBrowser` does on its own.
   },
 );
 

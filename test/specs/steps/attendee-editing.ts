@@ -2,7 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { adminBrowser } from "#test/specs/support/admin.ts";
+import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -102,7 +102,7 @@ const expectSavedDetails = async (
   world: TicketsWorld,
   person: Rename,
 ): Promise<void> => {
-  const html = (await adminBrowser(world)).currentHtml;
+  const html = scenarioBrowser(world).currentHtml;
   expect(html).toContain(`value="${person.newName}"`);
   expect(html).not.toContain(`value="${person.oldName}"`);
   for (const detail of [
@@ -121,7 +121,7 @@ const expectKeptBooking = async (
   person: Rename,
   checkedIn: boolean,
 ): Promise<void> => {
-  const html = (await adminBrowser(world)).currentHtml;
+  const html = scenarioBrowser(world).currentHtml;
   expect(html).toContain(`value="${person.places}"`);
   expect(html.includes("Checked in")).toBe(checkedIn);
 };

@@ -2,12 +2,12 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { adminBrowser } from "#test/specs/support/admin.ts";
+import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
+import { ALL_CHECKBOXES, type TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -64,9 +64,8 @@ const askSizeQuestion = async (
     expect(browser.containsText(size)).toBe(true);
   }
   await browser.visit(`/admin/listing/${id}/questions`);
-  const questionIds = browser.getCheckboxValues("question_ids");
-  expect(questionIds.length).toBeGreaterThan(0);
-  await browser.submitForm({ question_ids: questionIds }, "Save");
+  expect(browser.currentHtml).toContain('name="question_ids"');
+  await browser.submitForm({ question_ids: ALL_CHECKBOXES }, "Save");
   expect(browser.containsText("Questions updated")).toBe(true);
 };
 
@@ -76,10 +75,9 @@ const groupTheListing = async (browser: TestBrowser): Promise<string> => {
   expect(browser.containsText("Add Group")).toBe(true);
   await browser.submitForm({ name: GROUP }, "Create Group");
   expect(browser.containsText(GROUP)).toBe(true);
-  const listingIds = browser.getCheckboxValues("listing_ids");
-  expect(listingIds.length).toBeGreaterThan(0);
+  expect(browser.currentHtml).toContain('name="listing_ids"');
   await browser.submitForm(
-    { listing_ids: listingIds },
+    { listing_ids: ALL_CHECKBOXES },
     "Add Selected Listings",
   );
   expect(browser.containsText(LISTING)).toBe(true);
@@ -105,7 +103,7 @@ Given(
 When(
   "a customer books one Summer Concert place and picks the Medium size",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await adminBrowser(this);
+    const browser = scenarioBrowser(this);
     await browser.visit(requiredWorldValue(this.bookingPath, "booking path"));
     // A group page asks for a quantity per listing and renders the question's
     // answers as radios, so both field names are read from the served form.
@@ -133,7 +131,7 @@ When(
 Then(
   "the customer can open a ticket for Summer Concert",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await adminBrowser(this);
+    const browser = scenarioBrowser(this);
     await browser.clickLink("View your ticket");
     expect(browser.currentUrl).toMatch(/^\/t\//);
     expect(browser.containsText(LISTING)).toBe(true);
@@ -143,7 +141,7 @@ Then(
 Then(
   "the Summer Concert attendee list shows the customer and their email",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await adminBrowser(this);
+    const browser = scenarioBrowser(this);
     await browser.visit(`/admin/listing/${listingId(this)}/attendees`);
     expect(browser.containsText(CUSTOMER)).toBe(true);
     expect(browser.containsText(CUSTOMER_EMAIL)).toBe(true);
@@ -153,7 +151,7 @@ Then(
 Then(
   "the Summer Concert list download shows the customer picked Medium",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = await adminBrowser(this);
+    const browser = scenarioBrowser(this);
     await browser.visit(`/admin/listing/${listingId(this)}/attendees`);
     await browser.clickLink("Export CSV");
     const [headerLine, dataLine] = browser.currentHtml.split("\n");

@@ -4,21 +4,48 @@ import {
   EvidenceCaptureDeclarationSchema,
 } from "./schema.ts";
 
-const SERVICING_STUDIO_CSS = `
+const brandedThemeCss = (
+  borderRadius: string,
+  accent: string,
+  background: string,
+  secondaryBackground: string,
+  link: string,
+  secondary: string,
+  secondaryAccent: string,
+  shadow: string,
+  table: string,
+  text: string,
+  secondaryText: string,
+): string => `
 :root {
-  --border-radius: 5px;
-  --color-accent: #c28b52;
-  --color-bg: #e9edef;
-  --color-bg-secondary: #d8e0e3;
-  --color-link: #315b67;
-  --color-secondary: #315b67;
-  --color-secondary-accent: #315b6718;
-  --color-shadow: #263f4724;
-  --color-table: #315b67;
-  --color-text: #27383d;
-  --color-text-secondary: #66777c;
+  --border-radius: ${borderRadius};
+  --color-accent: ${accent};
+  --color-bg: ${background};
+  --color-bg-secondary: ${secondaryBackground};
+  --color-link: ${link};
+  --color-secondary: ${secondary};
+  --color-secondary-accent: ${secondaryAccent};
+  --color-shadow: ${shadow};
+  --color-table: ${table};
+  --color-text: ${text};
+  --color-text-secondary: ${secondaryText};
   --font-family: Arial, Helvetica, sans-serif;
 }
+`;
+
+const SERVICING_STUDIO_CSS = `${brandedThemeCss(
+  "5px",
+  "#c28b52",
+  "#e9edef",
+  "#d8e0e3",
+  "#315b67",
+  "#315b67",
+  "#315b6718",
+  "#263f4724",
+  "#315b67",
+  "#27383d",
+  "#66777c",
+)}
 
 #servicing-form {
   background: #f9faf8;
@@ -74,6 +101,57 @@ const SERVICING_STUDIO_CSS = `
 }
 `;
 
+const PAYMENT_PROVIDER_CSS = `${brandedThemeCss(
+  "8px",
+  "#d7ab48",
+  "#eef3f2",
+  "#dde8e5",
+  "#245e59",
+  "#244c48",
+  "#244c4818",
+  "#1e454020",
+  "#244c48",
+  "#263a38",
+  "#647471",
+)}
+
+.admin-page {
+  background: #fff;
+  border: 1px solid #c9d8d4;
+  border-top: 6px solid var(--color-accent);
+  box-shadow: 0 12px 28px var(--color-shadow);
+  padding: 1rem;
+}
+
+.admin-page > form:not(#settings-payment-provider):not(#settings-stripe),
+.admin-page > article,
+.admin-page > footer {
+  display: none;
+}
+
+#settings-payment-provider,
+#settings-stripe {
+  background: #f8faf9;
+  border: 1px solid #c9d8d4;
+  border-radius: var(--border-radius);
+  padding: 1rem;
+}
+
+#settings-payment-provider h2,
+#settings-stripe h2 {
+  color: var(--color-secondary);
+}
+
+#settings-payment-provider .radio-option {
+  background: #fff;
+  border-color: #c9d8d4;
+}
+
+#settings-stripe .notice {
+  border-left: 5px solid var(--color-accent);
+}
+`;
+
 export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
   v.parse(EvidenceCaptureDeclarationSchema, {
     caseId: "servicing.hold-on-dashboard",
@@ -81,6 +159,15 @@ export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
     element: "#servicing-form",
     id: "servicing-studio-floor-hold",
     path: "/admin/servicing/{servicingEventId}",
+    presentation: "branded",
+    profiles: ["mobile"],
+  }),
+  v.parse(EvidenceCaptureDeclarationSchema, {
+    caseId: "payments.select-saved-stripe",
+    css: PAYMENT_PROVIDER_CSS,
+    element: ".page-regions.admin-page",
+    id: "payment-provider-choice",
+    path: "/admin/settings",
     presentation: "branded",
     profiles: ["mobile"],
   }),
