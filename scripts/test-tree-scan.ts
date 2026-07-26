@@ -7,9 +7,9 @@
  * subjects, handing back the cached reader so a caller that also needs a file's
  * text (the coverage report counts lines) never reads it twice.
  *
- * The unit-test coverage report, the mutation runner, and the precommit
- * mutation gate all call this, so the three of them cannot drift apart on what
- * a test covers.
+ * The unit-test coverage report is what calls this. The mutation gate does not
+ * — it selects a source's tests by the mirror path alone (see
+ * `scripts/mutation/test-map.ts`).
  */
 
 import {
