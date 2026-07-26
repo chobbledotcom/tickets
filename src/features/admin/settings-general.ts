@@ -24,6 +24,7 @@ import {
 } from "#shared/demo/overrides.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { ok } from "#shared/response.ts";
 import {
   SETTINGS_FORMS,
@@ -63,10 +64,13 @@ export const handlePaymentProviderPost = settingsHandler({
     v === "none"
       ? settings.update.setPaymentProviderNone()
       : settings.update.paymentProvider(v as PaymentProviderType),
-  validate: (v) =>
-    v !== "none" && !isPaymentProvider(v)
-      ? t("error.invalid_payment_provider")
-      : null,
+  validate: (v) => {
+    if (v === "none") return null;
+    if (!isPaymentProvider(v)) return t("error.invalid_payment_provider");
+    // The settings page already switches off a provider that cannot take the
+    // site currency; refuse it here too so the choice can never be saved.
+    return providerCurrencyBlock(v, settings.currency);
+  },
 });
 
 /**

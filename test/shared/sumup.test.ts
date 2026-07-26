@@ -8,7 +8,6 @@ import { getSumupCheckout } from "#shared/db/sumup-checkouts.ts";
 import {
   createCheckout,
   getTransactionStatus,
-  isSumupCurrency,
   refundTransaction,
   retrieveCheckoutById,
   sumupApi,
@@ -73,18 +72,6 @@ describe("sumup", () => {
 
     test("returns a client when an API key is configured", () => {
       expect(sumupApi.getSumupClient()).not.toBeNull();
-    });
-  });
-
-  describe("isSumupCurrency", () => {
-    test("accepts SumUp-supported currencies case-insensitively", () => {
-      expect(isSumupCurrency("gbp")).toBe(true);
-      expect(isSumupCurrency("EUR")).toBe(true);
-    });
-
-    test("rejects currencies SumUp cannot charge", () => {
-      expect(isSumupCurrency("AUD")).toBe(false);
-      expect(isSumupCurrency("JPY")).toBe(false);
     });
   });
 

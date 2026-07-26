@@ -114,6 +114,34 @@ describe("adminSettingsPage", () => {
       expect(labelForValue(html, "sumup")).toBe("SumUp");
     });
 
+    /** The `<input>` tag rendered for one radio value. */
+    const inputForValue = (html: string, value: string): string =>
+      html.match(new RegExp(`<input\\b[^>]*value="${value}"[^>]*>`))?.[0] ?? "";
+
+    test("offers every provider when the site currency suits them all", () => {
+      const html = adminSettingsPage(OWNER_SESSION, {
+        ...defaultSettingsState(),
+        currency: "GBP",
+      });
+      for (const id of PAYMENT_PROVIDER_IDS) {
+        expect(inputForValue(html, id)).not.toContain("disabled");
+      }
+      expect(html).not.toContain("cannot take payments in");
+    });
+
+    test("switches off a provider that cannot take the site currency", () => {
+      const html = adminSettingsPage(OWNER_SESSION, {
+        ...defaultSettingsState(),
+        currency: "JPY",
+      });
+      expect(inputForValue(html, "sumup")).toContain("disabled");
+      expect(inputForValue(html, "stripe")).not.toContain("disabled");
+      expect(inputForValue(html, "square")).not.toContain("disabled");
+      expect(html).toContain(
+        "SumUp cannot take payments in JPY. Choose a different payment provider.",
+      );
+    });
+
     test("checks exactly the radio matching the persisted provider", () => {
       const values = ["none", ...PAYMENT_PROVIDER_IDS];
       for (const selected of values) {

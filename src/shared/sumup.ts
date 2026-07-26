@@ -32,36 +32,11 @@ import {
   type CredentialCheck,
   createWithClient,
 } from "#shared/payment-helpers.ts";
+import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 
 /* jscpd:ignore-end */
-
-/** Currencies SumUp's checkout API accepts (mirrors the SDK's Currency union).
- * Many site currencies (e.g. AUD, CAD, INR, JPY) are NOT supported — validated
- * at settings save and in the connection test so checkouts can't fail silently. */
-const SUMUP_CURRENCIES: ReadonlySet<string> = new Set([
-  "BGN",
-  "BRL",
-  "CHF",
-  "CLP",
-  "COP",
-  "CZK",
-  "DKK",
-  "EUR",
-  "GBP",
-  "HRK",
-  "HUF",
-  "NOK",
-  "PLN",
-  "RON",
-  "SEK",
-  "USD",
-]);
-
-/** Whether the given ISO currency code can be charged through SumUp. */
-export const isSumupCurrency = (code: string): boolean =>
-  SUMUP_CURRENCIES.has(code.toUpperCase());
 
 /** Normalized checkout shape consumed by the provider adapter. */
 export type SumupCheckout = {
@@ -254,7 +229,7 @@ export const sumupApi: {
       apiKey: { valid: false },
       currency: {
         code: currencyCode,
-        supported: isSumupCurrency(currencyCode),
+        supported: providerCurrencyBlock("sumup", currencyCode) === null,
       },
       merchant: { configured: false },
       ok: false,

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
@@ -47,6 +48,25 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectFlash(response, "Payment provider disabled");
+    });
+
+    test("refuses a provider that cannot take the site currency", async () => {
+      settings.setForTest({ currency: "JPY" });
+      try {
+        const { response } = await adminFormPost(
+          "/admin/settings/payment-provider",
+          { payment_provider: "sumup" },
+        );
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          "SumUp cannot take payments in JPY. Choose a different payment provider.",
+          false,
+        );
+        expect(settings.paymentProvider).not.toBe("sumup");
+      } finally {
+        settings.clearTestOverride("currency");
+      }
     });
 
     test("rejects invalid payment provider", async () => {
