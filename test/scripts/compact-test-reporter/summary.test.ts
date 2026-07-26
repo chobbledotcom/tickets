@@ -16,12 +16,10 @@ const summary = (over: Partial<CompactTapSummary> = {}): CompactTapSummary => ({
   ...over,
 });
 
-/** Capture what the summary printed to each console stream. */
-const printed = (
-  result: CompactTapSummary,
-  exitCode: number,
-  stderrText: string,
-): { errors: string[]; logs: string[] } => {
+/** Run something with the console captured, keeping each stream apart. */
+const capturingConsole = async <T>(
+  run: () => T | Promise<T>,
+): Promise<{ errors: string[]; logs: string[]; value: T }> => {
   const logs: string[] = [];
   const errors: string[] = [];
   using _log = stub(console, "log", (line?: unknown) => {
@@ -31,27 +29,34 @@ const printed = (
     errors.push(String(line));
   });
 
-  printCompactSummary(result, exitCode, stderrText);
-  return { errors, logs };
+  return { errors, logs, value: await run() };
 };
 
+/** Capture what the summary printed to each console stream. */
+const printed = (
+  result: CompactTapSummary,
+  exitCode: number,
+  stderrText: string,
+): Promise<{ errors: string[]; logs: string[] }> =>
+  capturingConsole(() => printCompactSummary(result, exitCode, stderrText));
+
 describe("printing the run summary", () => {
-  test("reports a pass when nothing failed and the run exited cleanly", () => {
-    const { errors, logs } = printed(summary(), 0, "");
+  test("reports a pass when nothing failed and the run exited cleanly", async () => {
+    const { errors, logs } = await printed(summary(), 0, "");
 
     expect(logs).toEqual(["\nPASS 3 passed"]);
     expect(errors).toEqual([]);
   });
 
-  test("reports a failure when the run exited non-zero without failed tests", () => {
-    const { errors, logs } = printed(summary(), 1, "");
+  test("reports a failure when the run exited non-zero without failed tests", async () => {
+    const { errors, logs } = await printed(summary(), 1, "");
 
     expect(logs).toEqual([]);
     expect(errors).toEqual(["\nFAILED 3 passed, 0 failed"]);
   });
 
-  test("lists each failed test with where it failed", () => {
-    const { errors } = printed(
+  test("lists each failed test with where it failed", async () => {
+    const { errors } = await printed(
       summary({
         failed: 2,
         failures: [
@@ -75,8 +80,8 @@ describe("printing the run summary", () => {
     ]);
   });
 
-  test("lists a lone failure under the same heading", () => {
-    const { errors } = printed(
+  test("lists a lone failure under the same heading", async () => {
+    const { errors } = await printed(
       summary({ failed: 1, failures: [{ message: "boom", name: "only" }] }),
       1,
       "",
@@ -89,8 +94,8 @@ describe("printing the run summary", () => {
     ]);
   });
 
-  test("shows the run's own output, minus Deno's own failure line", () => {
-    const { errors } = printed(
+  test("shows the run's own output, minus Deno's own failure line", async () => {
+    const { errors } = await printed(
       summary({ failed: 1 }),
       1,
       "error: Test failed\nTypeError: x is not a function\n    at load\n",
@@ -103,8 +108,12 @@ describe("printing the run summary", () => {
     ]);
   });
 
-  test("says nothing extra when the run's output was only Deno's failure line", () => {
-    const { errors } = printed(summary({ failed: 1 }), 1, "error: Test failed");
+  test("says nothing extra when the run's output was only Deno's failure line", async () => {
+    const { errors } = await printed(
+      summary({ failed: 1 }),
+      1,
+      "error: Test failed",
+    );
 
     expect(errors).toEqual(["\nFAILED 3 passed, 1 failed"]);
   });
@@ -118,18 +127,13 @@ describe("running deno test with the compact reporter", () => {
     const dir: TempPath = tempDir();
     try {
       Deno.writeTextFileSync(`${dir.path}/sample.test.ts`, body);
-      const logs: string[] = [];
-      using _log = stub(console, "log", (line?: unknown) => {
-        logs.push(String(line));
-      });
-      using _error = stub(console, "error", (line?: unknown) => {
-        logs.push(String(line));
-      });
-      const code = await runCompactDenoTest(
-        ["test", "--no-check", "-A", "--reporter=tap", "sample.test.ts"],
-        { cwd: dir.path, env: { CI: "1" } },
+      const { errors, logs, value } = await capturingConsole(() =>
+        runCompactDenoTest(
+          ["test", "--no-check", "-A", "--reporter=tap", "sample.test.ts"],
+          { cwd: dir.path, env: { CI: "1" } },
+        ),
       );
-      return { code, logs };
+      return { code: value, logs: [...logs, ...errors] };
     } finally {
       dir.dispose();
     }
