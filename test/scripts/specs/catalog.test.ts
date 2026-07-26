@@ -23,15 +23,18 @@ describe("Cucumber story catalog", () => {
       "bookings.ordering-several-things-at-once",
       "bookings.volunteer-sign-up",
       "payments.capacity-after-payment",
+      "payments.correcting-the-books",
       "payments.free-bookings",
       "payments.income-figures-explained",
       "payments.one-payment-many-listings",
+      "payments.paying-a-deposit",
       "payments.paying-for-a-mixed-order",
       "payments.paying-more-than-the-asking-price",
       "payments.provider-choice",
       "payments.refunding-a-booking",
       "payments.refunding-everyone-at-once",
       "payments.repeated-money-actions",
+      "payments.what-a-paid-booking-earned",
       "servicing.hold-and-cost",
     ]);
   });

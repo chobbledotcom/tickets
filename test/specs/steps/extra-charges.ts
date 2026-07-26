@@ -20,12 +20,7 @@ import {
   sellPlacesAt,
   soleBookingOn,
 } from "#test/specs/support/money.ts";
-import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
-import { insertModifier } from "#test-utils/modifiers.ts";
-import { runStripeSuccess } from "#test-utils/money/drivers.ts";
+import { runStripeSuccess } from "#test/specs/support/money-drivers.ts";
 import {
   assertRenderedModifierRevenue,
   attendeeLegsOfKind,
@@ -35,7 +30,12 @@ import {
   owedBy,
   sumOfAllBalances,
   worldBalance,
-} from "#test-utils/money/reads.ts";
+} from "#test/specs/support/money-reads.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
