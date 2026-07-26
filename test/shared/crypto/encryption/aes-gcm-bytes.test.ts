@@ -11,8 +11,23 @@ import {
 import { getRandomBytes } from "#shared/crypto/utils.ts";
 
 /** Bytes that are easy to compare and long enough to span many AES blocks. */
-const payload = (length: number): Uint8Array =>
-  Uint8Array.from({ length }, (_, i) => i % 251);
+const payload = (length: number): Uint8Array => {
+  const bytes = new Uint8Array(length);
+  for (let i = 0; i < length; i++) bytes[i] = i % 251;
+  return bytes;
+};
+
+/**
+ * Assert two byte arrays hold the same bytes, comparing their base64 form.
+ *
+ * `expect(...).toEqual(...)` walks a typed array one element at a time, which
+ * costs roughly 8.6us per byte — half a second for the 64KB payloads these
+ * tests need. Base64 is a lossless view of the same bytes, so this is exactly
+ * as strict and is not measurable at any of these sizes.
+ */
+const expectSameBytes = (actual: Uint8Array, expected: Uint8Array): void => {
+  expect(actual.toBase64()).toBe(expected.toBase64());
+};
 
 /** The 16-byte AES-GCM authentication tag appended to every ciphertext. */
 const GCM_TAG_BYTES = 16;
@@ -53,7 +68,7 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
       const { iv, ciphertext } = await aesGcmEncryptBytes(data, keyBytes);
       const decrypted = await aesGcmDecryptBytes(iv, ciphertext, keyBytes);
 
-      expect(decrypted).toEqual(data);
+      expectSameBytes(decrypted, data);
     });
 
     // The size threshold is a speed choice, so whichever implementation runs
@@ -70,7 +85,7 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
         await asWebKey(keyBytes, "decrypt"),
       );
 
-      expect(new Uint8Array(decrypted)).toEqual(data);
+      expectSameBytes(new Uint8Array(decrypted), data);
     });
 
     it(`reads Web Crypto written output ${label}`, async () => {
@@ -83,7 +98,7 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
       );
       const decrypted = await aesGcmDecryptBytes(iv, ciphertext, keyBytes);
 
-      expect(decrypted).toEqual(data);
+      expectSameBytes(decrypted, data);
     });
   }
 
@@ -94,8 +109,8 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
     const first = await aesGcmEncryptBytes(data, keyBytes);
     const second = await aesGcmEncryptBytes(data, keyBytes);
 
-    expect(first.iv).not.toEqual(second.iv);
-    expect(first.ciphertext).not.toEqual(second.ciphertext);
+    expect(first.iv.toBase64()).not.toBe(second.iv.toBase64());
+    expect(first.ciphertext.toBase64()).not.toBe(second.ciphertext.toBase64());
   });
 
   it("appends the 16-byte authentication tag to the ciphertext", async () => {
@@ -150,7 +165,7 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
       webKey("decrypt"),
     );
 
-    expect(decrypted).toEqual(data);
+    expectSameBytes(decrypted, data);
     expect(imports).toBe(2);
   });
 
@@ -173,8 +188,9 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
     const { iv, ciphertext } = await aesGcmEncryptBytes(data, keyBytes);
     expect(ciphertext.length).toBe(NODE_AES_MAX_BYTES);
 
-    expect(
+    expectSameBytes(
       await aesGcmDecryptBytes(iv, ciphertext, keyBytes, refuseWebKey),
-    ).toEqual(data);
+      data,
+    );
   });
 });

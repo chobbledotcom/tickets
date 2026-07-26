@@ -1578,3 +1578,43 @@ assertion on the imported key itself. Note `importRsaKey` in
 
 Start with the binary format: it is the bulk of the count and the group where a
 surviving mutant would represent a real risk to stored files.
+
+---
+
+## `expect(...).toEqual(...)` is very slow on byte arrays
+
+*Origin: a new encryption test showed up in the slow-test report (PR #1945).*
+
+@std/expect compares a typed array one element at a time, at roughly **8.6
+microseconds per byte**. Measured on equal `Uint8Array`s:
+
+| size | `expect().toEqual()` | `equal()` from `@std/assert` |
+| --- | --- | --- |
+| 64 bytes | 0.60ms | — |
+| 4 KB | 21.8ms | — |
+| 64 KB | 566ms | 0.4ms |
+
+So a single 64KB comparison costs more than the whole 500ms slow-test
+threshold, and even a 64-byte one is not free. `@std/assert`'s `equal` gives the
+same answer about 1,400 times faster, and comparing the two arrays' base64
+form is faster still and just as exact.
+
+About 148 assertions in `test/` compare byte-ish values this way (images,
+attachments, backups, encryption). Most are small, but the cost is linear, so
+the ones handling real file data are paying a lot.
+
+The suite already solves exactly this shape of problem for `toContain` in
+`test/test-utils/fast-expect.ts`, which is installed in every isolate through
+`deno test --preload`. The same trick should work here, with one thing to sort
+out first: `toContain` could be reimplemented outright because its semantics are
+one `.includes` call, whereas `toEqual` has a lot of behaviour worth keeping
+(asymmetric matchers, how it treats `undefined` properties). So the override
+must handle only the case it is fast at — both sides being the same typed-array
+kind — and hand everything else to the built-in. `expect.extend` replaces a
+matcher outright, so the first job is finding whether the built-in `toEqual` can
+still be reached from inside the replacement; if it cannot, a separate named
+helper used at the byte-comparing sites is the fallback.
+
+`test/shared/crypto/encryption/aes-gcm-bytes.test.ts` has a local
+`expectSameBytes` showing the base64 approach. Applying it there took that file
+from 3,690ms to 39ms.
