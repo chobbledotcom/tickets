@@ -1,4 +1,4 @@
-import { type Client, createClient } from "@libsql/client";
+import type { Client } from "@libsql/client";
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { lazyRef } from "#fp";
 import { runCleanups } from "#scripts/cleanup.ts";
@@ -18,6 +18,7 @@ import {
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
 import { setStorageConfigForTest } from "#shared/storage.ts";
+import { createTestDbClient } from "#test-utils/db-client.ts";
 import {
   type EnvScope,
   setupTestEncryptionKey,
@@ -91,8 +92,7 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   // A temp file, not ":memory:": interactive transactions (withTransaction) open
   // a second connection, and each ":memory:" connection is its own *separate*
   // empty database — a transaction would see no schema. A file is shared across
-  // connections. Durability is irrelevant in tests, so relax fsync to keep speed
-  // close to in-memory.
+  // connections. `createTestDbClient` keeps the speed settings on it.
   //
   // Copy the golden DB (schema + default status, prebuilt by the harness for
   // the whole run, else built once per isolate — see test-state.ts) rather
@@ -105,13 +105,10 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
-  const client = createClient({ url: `file:${path}` });
+  const client = await createTestDbClient(path);
   setTestDbResource({ client, env, path });
   using rollback = cleanupUnlessKept(resetDb);
   setDb(client);
-  // journal_mode persists in the SQLite header from the golden; synchronous=OFF
-  // is per-connection only and must be re-applied.
-  await client.executeMultiple("PRAGMA synchronous=OFF;");
   rollback.keep();
 };
 
@@ -142,9 +139,8 @@ export const setupTransactionalTestDb = async (): Promise<
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
-  const client = createClient({ url: `file:${path}` });
+  const client = await createTestDbClient(path);
   setDb(client);
-  await client.executeMultiple("PRAGMA synchronous=OFF;");
   return async () => {
     setDb(null);
     client.close();
