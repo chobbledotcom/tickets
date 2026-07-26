@@ -12,9 +12,8 @@ import { stripControlChars } from "./sanitize.ts";
 import type { GraphQlPr } from "./types.ts";
 
 /** Give a hung `gh` (network stall, auth prompt) a ceiling rather than blocking forever. */
-export const GH_TIMEOUT_MS = 60_000;
+const GH_TIMEOUT_MS = 60_000;
 
-/** How the report asks `gh` for something and what it gets back. */
 export type GhRunner = (args: string[]) => Promise<{
   code: number;
   stdout: string;
@@ -48,7 +47,7 @@ export const runGhCommand: GhRunner = async (args) => {
 };
 
 /** Ask `gh` for something, turning any failure into a {@link GhFailure}. */
-export const askGh = async (
+const askGh = async (
   run: GhRunner,
   args: string[],
   failMessage: string,
@@ -68,7 +67,7 @@ export const askGh = async (
  * Run a GraphQL query. Values go in as named variables, never spliced into the
  * query text, so a repo name holding a quote cannot malform it.
  */
-export const askGraphQL = async (
+const askGraphQL = async (
   run: GhRunner,
   query: string,
   variables: Record<string, string> = {},
@@ -135,11 +134,11 @@ const splitRepo = (
  * one batched query per try, a short wait between — until they settle or the
  * tries run out. PRs that settle drop out early.
  */
-export const REPOLL_ATTEMPTS = 3;
-export const REPOLL_WAIT_MS = 1500;
-export const FIRST_REPOLL_WAIT_MS = 500;
+const REPOLL_ATTEMPTS = 3;
+const REPOLL_WAIT_MS = 1500;
+const FIRST_REPOLL_WAIT_MS = 500;
 
-export const refetchUnknownMergeability = async (
+const refetchUnknownMergeability = async (
   run: GhRunner,
   owner: string,
   name: string,

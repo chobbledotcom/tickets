@@ -1,3 +1,4 @@
+import type { GhRunner } from "#scripts/pr-queue/gh.ts";
 import type { GraphQlPr, MergeQueueEntry } from "#scripts/pr-queue/types.ts";
 
 /**
@@ -103,6 +104,26 @@ const buildChecks = (
     contexts: { nodes, pageInfo: { hasNextPage: checksTruncated } },
     state: hasFailures ? "FAILURE" : hasPending ? "PENDING" : "SUCCESS",
   };
+};
+
+/** A stand-in `gh` that answers each call in turn and records what it was asked. */
+export const ghSaying = (
+  ...replies: Partial<Awaited<ReturnType<GhRunner>>>[]
+): { calls: string[][]; run: GhRunner } => {
+  const calls: string[][] = [];
+  let call = 0;
+  const run: GhRunner = (args) => {
+    calls.push(args);
+    const reply = replies[Math.min(call++, replies.length - 1)] ?? {};
+    return Promise.resolve({
+      code: 0,
+      stderr: "",
+      stdout: "",
+      timedOut: false,
+      ...reply,
+    });
+  };
+  return { calls, run };
 };
 
 export const makePr = (opts: PrFixture = {}): GraphQlPr => ({

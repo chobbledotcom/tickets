@@ -24,16 +24,17 @@ export interface PrQueueArgs {
 }
 
 /**
- * Fold the arguments left to right. `awaitingRepo` carries the one-token
- * lookahead: whatever follows "--repo" is its value, even if it looks like a
- * flag. A trailing "--repo" leaves the flag set, which becomes an error rather
- * than a silent fall-back to working out the repo itself.
+ * What has been read so far. `awaitingRepo` remembers that the last argument
+ * was "--repo", so whatever comes next is its value, even if it looks like a
+ * flag. A trailing "--repo" leaves that set, which becomes an error rather than
+ * a silent fall-back to working the repo out.
  */
 interface ArgsAcc extends PrQueueArgs {
   awaitingRepo: boolean;
 }
 
-const foldArg = (acc: ArgsAcc, arg: string): ArgsAcc => {
+/** Add one argument to what has been read. */
+const readArg = (acc: ArgsAcc, arg: string): ArgsAcc => {
   if (acc.error !== undefined) return acc;
   if (acc.awaitingRepo) return { ...acc, awaitingRepo: false, repo: arg };
   if (arg === "--json") return { ...acc, json: true };
@@ -45,7 +46,7 @@ const foldArg = (acc: ArgsAcc, arg: string): ArgsAcc => {
 
 /** What the arguments asked for, or the wording of the first mistake in them. */
 export const parsePrQueueArgs = (args: string[]): PrQueueArgs => {
-  const { awaitingRepo, ...rest } = reduce(foldArg, {
+  const { awaitingRepo, ...rest } = reduce(readArg, {
     awaitingRepo: false,
     help: false,
     json: false,
