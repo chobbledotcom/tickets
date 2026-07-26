@@ -5,6 +5,7 @@ import { revenueAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
 import { writeoffAdjustmentInserts } from "#shared/accounting/adjustments.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { accountKey } from "#shared/ledger/account.ts";
+import type { AccountRef } from "#shared/ledger/types.ts";
 import {
   postWriteoffAdjustment,
   useTransactionalDb,
@@ -29,37 +30,64 @@ describe("db > accounting > postWriteoffAdjustment", () => {
     expect(await allTransfers()).toEqual([]);
   });
 
-  test("a positive delta credits the account (writeoff → account)", async () => {
-    const leg = await postSoleAdjustment(1500);
+  /** Post one adjustment and assert the leg it wrote: how big it is, which way
+   *  the money flowed, and the balance it left behind. Every expected value is
+   *  spelled out, so the check never re-derives the rule it is testing. */
+  const expectAdjustment = async ({
+    amount,
+    balance,
+    delta,
+    from,
+    to,
+  }: {
+    amount: number;
+    balance: number;
+    delta: number;
+    from: AccountRef;
+    to: AccountRef;
+  }): Promise<void> => {
+    const leg = await postSoleAdjustment(delta);
     expect(leg.kind).toBe("adjustment");
-    expect(leg.amount).toBe(1500);
-    // Crediting the account: money flows from writeoff into the account.
-    expect(accountKey(leg.source)).toBe(accountKey(WRITEOFF));
-    expect(accountKey(leg.destination)).toBe(accountKey(revenue));
-    // balanceOf(account) rises by the delta.
-    expect(await accountBalance(revenue)).toBe(1500);
-  });
+    expect(leg.amount).toBe(amount);
+    expect(accountKey(leg.source)).toBe(accountKey(from));
+    expect(accountKey(leg.destination)).toBe(accountKey(to));
+    expect(await accountBalance(revenue)).toBe(balance);
+  };
 
-  test("a negative delta debits the account (account → writeoff)", async () => {
-    const leg = await postSoleAdjustment(-1200);
-    expect(leg.kind).toBe("adjustment");
-    // amount is the magnitude of the delta.
-    expect(leg.amount).toBe(1200);
-    // Debiting the account: money flows from the account out to writeoff.
-    expect(accountKey(leg.source)).toBe(accountKey(revenue));
-    expect(accountKey(leg.destination)).toBe(accountKey(WRITEOFF));
-    // balanceOf(account) falls by the delta.
-    expect(await accountBalance(revenue)).toBe(-1200);
+  test("a positive delta credits the account (writeoff → account)", async () => {
+    // Crediting the account: money flows from writeoff into the account, and
+    // its balance rises by the delta.
+    await expectAdjustment({
+      amount: 1500,
+      balance: 1500,
+      delta: 1500,
+      from: WRITEOFF,
+      to: revenue,
+    });
   });
 
   test("the smallest credit still flows into the account", async () => {
-    // One minor unit is a credit like any other: the rule turns on the sign of
-    // the delta, not on it clearing some larger figure.
-    const leg = await postSoleAdjustment(1);
-    expect(leg.amount).toBe(1);
-    expect(accountKey(leg.source)).toBe(accountKey(WRITEOFF));
-    expect(accountKey(leg.destination)).toBe(accountKey(revenue));
-    expect(await accountBalance(revenue)).toBe(1);
+    // One minor unit is a credit like any other: the direction turns on the
+    // sign of the delta, not on it clearing some larger figure.
+    await expectAdjustment({
+      amount: 1,
+      balance: 1,
+      delta: 1,
+      from: WRITEOFF,
+      to: revenue,
+    });
+  });
+
+  test("a negative delta debits the account (account → writeoff)", async () => {
+    // Debiting the account: money flows out to writeoff, its balance falls, and
+    // the amount posted is the magnitude of the delta.
+    await expectAdjustment({
+      amount: 1200,
+      balance: -1200,
+      delta: -1200,
+      from: revenue,
+      to: WRITEOFF,
+    });
   });
 
   test("amount is the absolute value of the delta either way", async () => {
