@@ -16,7 +16,6 @@ import {
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -24,6 +23,7 @@ import {
 } from "#shared/demo/overrides.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { ok } from "#shared/response.ts";
 import {
   SETTINGS_FORMS,
@@ -63,10 +63,13 @@ export const handlePaymentProviderPost = settingsHandler({
     v === "none"
       ? settings.update.setPaymentProviderNone()
       : settings.update.paymentProvider(v as PaymentProviderType),
-  validate: (v) =>
-    v !== "none" && !isPaymentProvider(v)
-      ? t("error.invalid_payment_provider")
-      : null,
+  validate: (v) => {
+    if (v === "none") return null;
+    if (!isPaymentProvider(v)) return t("error.invalid_payment_provider");
+    // The settings page already switches off a provider that cannot take the
+    // site currency; refuse it here too so the choice can never be saved.
+    return providerCurrencyBlock(v, settings.currency);
+  },
 });
 
 /**
@@ -79,12 +82,10 @@ export const handleEmbedHostsPost = settingsHandler({
     v === ""
       ? t("success.embed_hosts_removed")
       : t("success.embed_hosts_updated"),
-  save: (v) =>
-    settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
-  validate: (v) => {
-    if (v === "") return null;
-    return validateEmbedHosts(v);
-  },
+  // No empty-value special case: an empty list parses to "" and validates as
+  // fine, so clearing the hosts is just the normal path with nothing in it.
+  save: (v) => settings.update.embedHosts(parseEmbedHosts(v).join(", ")),
+  validate: validateEmbedHosts,
 });
 
 /**
@@ -236,7 +237,8 @@ export const handleResetDatabasePost = advancedSettingsRoute(
       return errorPage(phraseResult.error, "settings-reset-database");
     }
 
-    await logActivity("Database reset initiated");
+    // No activity-log line here: the reset drops every table, so a row written
+    // now is destroyed before the response is sent and nobody can ever read it.
     await deleteStorageAndResetDatabase();
 
     // Redirect to setup page since the database is now empty

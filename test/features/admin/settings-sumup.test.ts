@@ -55,7 +55,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         expect(response.status).toBe(302);
         expectFlash(
           response,
-          expect.stringContaining("does not support your site currency"),
+          "SumUp cannot take payments in AUD. Choose a different payment provider.",
           false,
         );
       } finally {

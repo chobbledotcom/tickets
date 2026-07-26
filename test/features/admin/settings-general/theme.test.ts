@@ -6,6 +6,7 @@ import { settings } from "#shared/db/settings.ts";
 import {
   expectFlash,
   expectHtmlResponse,
+  redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
@@ -73,6 +74,7 @@ describeAdminSettings(() => {
       const response = await postTheme({ theme: "dark" });
       expect(response.status).toBe(302);
       expectFlash(response, "Theme set to dark");
+      expect(redirectFormId(response)).toBe("settings-theme");
     });
 
     test("updates theme to light successfully", async () => {
