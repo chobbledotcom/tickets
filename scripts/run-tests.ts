@@ -104,7 +104,7 @@ const COVERAGE_EXCLUSIONS = [
   // Harness infrastructure: inside a harness run every isolate takes the
   // prebuilt-snapshot arm, and outside one only the build-it-here arm runs,
   // so no single coverage run can reach both. The round-trip behaviour is
-  // unit-tested in test/lib/test-utils/test-state.test.ts.
+  // unit-tested in test/test-utils/test-state.test.ts.
   "test/test-utils/test-state.ts",
 ];
 

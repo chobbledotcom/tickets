@@ -65,20 +65,24 @@ export const resolveProjectImportOrNull = (
   return null;
 };
 
-/** Shared setup every kind of test uses, whatever it is about. */
-const SHARED_SETUP_DIR = "test/test-utils/";
+/**
+ * Start-up helpers that say nothing about what a test is for. `describeWithEnv`
+ * and the env overlay begin nearly every test and reach the database, config and
+ * storage on the way. Only these two are listed, not all of `test-utils/`:
+ * helpers like `session.ts` drive real pages, so what they reach genuinely is
+ * the test's subject (see TODO.md for the wider fix).
+ */
+const SHARED_SETUP_FILES = ["test/test-utils/db.ts", "test/test-utils/env.ts"];
 
 /**
  * Every `src/` file `testFile` exercises: the ones it imports itself, plus the
  * ones imported by any `test/` helper it reaches. Helper files are followed;
  * sources are collected and not followed. Each file is read once.
  *
- * Shared setup under `test/test-utils/` is *not* followed. A helper sitting
- * beside a test says what that test is about, but `describeWithEnv` and friends
- * are how nearly every test starts up, and they reach the database, config and
- * storage. Counting those as subjects would say a test of one small module is
- * about a dozen modules, which then hides it from the "this test sits away from
- * the code it covers" list — the very thing the list exists to find.
+ * The start-up helpers listed above are not followed: counting what they reach
+ * would say a test of one small module is about a dozen modules, which then
+ * hides it from the "this test sits away from the code it covers" list — the
+ * very thing the list exists to find.
  *
  * `testTreeFiles` is every file in the test tree. A resolved path outside that
  * set is not followed, which keeps a specifier quoted as fixture data — the
@@ -99,7 +103,7 @@ export const collectTestSubjects = async (
   const shouldFollow = (path: string): boolean =>
     testTreeFiles.has(path) &&
     !visited.has(path) &&
-    !path.startsWith(SHARED_SETUP_DIR);
+    !SHARED_SETUP_FILES.includes(path);
   while (queue.length > 0) {
     const current = queue.shift()!;
     const specifiers = parseImportSpecifiers(await readText(current));

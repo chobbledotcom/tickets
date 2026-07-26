@@ -317,14 +317,22 @@ describe("runMutationStep", () => {
     );
   });
 
-  test("skips when changed sources have no matching tests", async () => {
-    await expectSkip(
-      fakeGit({ base: "origin/main", diff: ok("src/a.ts\nsrc/b.ts\n") }),
-      [
-        `${MUTATION_NOTICE_PREFIX}changed src files but no matching test files ` +
-          "— skipping mutation.",
-      ],
-    );
+  test("still runs when changed sources have no matching tests", async () => {
+    // Skipping here would pass the very case the run exists to reject: a
+    // changed source with no test at its mirror. It runs with no selected
+    // tests so the direct-test requirement is what decides.
+    let mutated: { sources: string[]; tests: string[] } | null = null;
+    const code = await runMutationStep({
+      allTestFiles: () => Promise.resolve([]),
+      log: () => {},
+      run: fakeGit({ base: "origin/main", diff: ok("src/a.ts\nsrc/b.ts\n") }),
+      runMutation: (files) => {
+        mutated = files;
+        return Promise.resolve(0);
+      },
+    });
+    expect(code).toBe(0);
+    expect(mutated).toEqual({ sources: ["src/a.ts", "src/b.ts"], tests: [] });
   });
 
   test("mutates changed src against every matching direct test", async () => {

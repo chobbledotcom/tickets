@@ -475,7 +475,7 @@ deploy's first request cannot clobber...") with a concurrent cold GET.
 
 ## Dead-export scanner matches raw text (from PR #1745 review)
 
-`test/lib/code-quality/detectors.ts` scans raw file contents when deciding
+`test/scripts/code-quality/detectors.ts` scans raw file contents when deciding
 whether an export is used (`IMPORT_CLAUSES` → `isSymbolImported` /
 `importedSymbolsOf`, and `isUsedInSameFile`). A clause-shaped snippet inside a
 comment, JSDoc, or string literal therefore registers a phantom "usage" — a
@@ -557,7 +557,7 @@ pre-existing behaviors carried over unchanged from `main`, not regressions.*
 
 ### 1. `skipTemplateSubstitution` should skip comment contents
 
-`test/lib/code-quality/detectors.ts` — the template-substitution scanner tracks
+`test/scripts/code-quality/detectors.ts` — the template-substitution scanner tracks
 brace depth but does not skip comments, so a `}` inside a comment inside a
 `${...}` prematurely closes the substitution; a later nested backtick can then
 end the outer template early and leak commas into `parseArgList`. Repro shape:
@@ -1549,3 +1549,33 @@ they test — it now lives at `test/test-utils/parents-gate/helpers.ts`, so they
 belong in `test/test-utils/parents-gate/helpers.test.ts` — keep the rendering
 case in the integration tree, and let the settings case sit with the other
 settings behaviour.
+
+## Let the misplaced-test list see past request helpers
+
+*Origin: Codex reviews on PRs #1926 and #1929 (test reorganisation).*
+
+The misplaced-test list only considers a test that resolves to exactly one
+source. Start-up helpers (`describeWithEnv`, the env overlay) used to drag the
+database, config and storage in as extra subjects, which pushed real findings
+over that limit and hid them; those two helpers are now skipped.
+
+The blanket version of that skip — ignoring all of `test/test-utils/` — is not
+safe, and the numbers show why. It raises the list from 1 entry to 8, but at
+least two of the new entries are wrong in a way that would damage the suite if
+followed: `test/features/app/request/organic-maintenance.test.ts` and
+`test/features/admin/built-sites/server.test.ts` drive real pages through
+`session.ts` and import a database module only to check the result. Skipping
+`session.ts` throws away the route they are actually about and leaves the
+incidental database import as the sole subject, so the list recommends moving a
+correctly placed HTTP suite into a database mirror.
+
+The fix is in the report rather than the walk: a test that loads the app should
+count as an integration test however it reaches it. Today `findMisplacedTests`
+only checks for a direct `#routes` import, so reaching the app through a helper
+is invisible to it. Make that check consider the whole walk (including helpers,
+and route modules under `#routes/…`, not just the entry itself), and the blanket
+skip becomes safe — worth roughly seven extra genuine findings.
+
+Starting points: `findMisplacedTests` in `scripts/unit-tests-report-imports.ts`
+(the `test.imports.includes(appEntry)` guard and the `subjects.length !== 1`
+guard), and `SHARED_SETUP_FILES` in `scripts/test-subjects.ts`.
