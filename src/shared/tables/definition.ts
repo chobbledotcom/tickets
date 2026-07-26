@@ -1,20 +1,14 @@
 /**
- * The pure declaration of a typed table: its columns, the keys the user may
- * reference in a configurable layout, and the one pure layout definition
- * attached to those renderers.
+ * The pure declaration of a typed table: its columns and, for configurable
+ * tables, the keys the user may reference in a saved layout.
  *
  * No rendering lives here — `renderTable` (in `#templates/components/table.tsx`)
- * takes a `TableDefinition` and produces the JSX. This keeps the table's
- * shape — header, cell, key, Raw value — pure data, so `src/shared/db/settings.ts`
- * and other non-UI code can parse/validate a saved layout without importing
- * any JSX.
+ * takes a `TableDefinition` and produces the JSX. Configurable layouts stay
+ * pure so settings code can parse them without importing any JSX.
  */
 
 import type { TableColumn } from "#shared/tables/column.ts";
-import {
-  defineTableLayout,
-  type TableLayoutDefinition,
-} from "#shared/tables/layout.ts";
+import type { TableLayoutDefinition } from "#shared/tables/layout.ts";
 
 type TableColumns<TRow, TContext, TKey extends string> = readonly TableColumn<
   TRow,
@@ -22,13 +16,7 @@ type TableColumns<TRow, TContext, TKey extends string> = readonly TableColumn<
   TKey
 >[];
 
-type TableParts<TRow, TContext, TKey extends string> = {
-  readonly columns: TableColumns<TRow, TContext, TKey>;
-  readonly layout: TableLayoutDefinition<TKey>;
-};
-
-/** A typed table's declaration: columns, configurable keys, and the layout
- *  helpers bound to those keys. Produced by {@link defineTable}. */
+/** A typed table's declaration, produced by {@link defineTable}. */
 export type TableDefinition<
   TRow,
   TContext = undefined,
@@ -36,34 +24,28 @@ export type TableDefinition<
 > = {
   /** The full column set, in declared order. */
   readonly columns: TableColumns<TRow, TContext, TKey>;
-  /** Column key → column definition lookup. */
-  readonly columnMap: ReadonlyMap<TKey, TableColumn<TRow, TContext, TKey>>;
+};
+
+/** A table whose columns are bound to a saved-layout parser. */
+export type ConfigurableTableDefinition<
+  TRow,
+  TContext = undefined,
+  TKey extends string = string,
+> = TableDefinition<TRow, TContext, TKey> & {
   /** The pure key/default/parser contract shared with non-UI settings code. */
   readonly layout: TableLayoutDefinition<TKey>;
 };
 
-const buildColumnMap = <TRow, TContext, TKey extends string>(
+const validateColumns = <TRow, TContext, TKey extends string>(
   columns: TableColumns<TRow, TContext, TKey>,
-): ReadonlyMap<TKey, TableColumn<TRow, TContext, TKey>> => {
-  const map = new Map<TKey, TableColumn<TRow, TContext, TKey>>();
-  for (const column of columns) {
-    map.set(column.key, column);
-  }
-  return map;
-};
-
-/** Build a typed table definition from a column list + options. Pure: no
- *  JSX, no rows — the result is metadata plus a parse/validate pair bound to
- *  the table's keys. */
-const buildTable = <TRow, TContext, TKey extends string>({
-  columns,
-  layout,
-}: TableParts<TRow, TContext, TKey>): TableDefinition<TRow, TContext, TKey> => {
+): void => {
   if (columns.length === 0) {
     throw new Error("defineTable: columns cannot be empty");
   }
-  const columnMap = buildColumnMap(columns);
-  return { columnMap, columns, layout };
+  const keys = columns.map((column) => column.key);
+  if (new Set(keys).size !== keys.length) {
+    throw new Error("defineTable: column keys must be unique");
+  }
 };
 
 /** Build an ordinary fixed table whose declared order is its only layout. */
@@ -74,11 +56,8 @@ export const defineTable = <
 >(
   columns: TableColumns<TRow, TContext, TKey>,
 ): TableDefinition<TRow, TContext, TKey> => {
-  const keys = columns.map((column) => column.key);
-  return buildTable({
-    columns,
-    layout: defineTableLayout({ options: keys }, keys),
-  });
+  validateColumns(columns);
+  return { columns };
 };
 
 type ColumnRenderer<TRow, TContext, TKey extends string> = Omit<
@@ -90,7 +69,7 @@ type ColumnRenderer<TRow, TContext, TKey extends string> = Omit<
 export const attachTableRenderers = <TRow, TContext, TKey extends string>(
   layout: TableLayoutDefinition<TKey>,
   renderers: Readonly<Record<TKey, ColumnRenderer<TRow, TContext, TKey>>>,
-): TableDefinition<TRow, TContext, TKey> => {
+): ConfigurableTableDefinition<TRow, TContext, TKey> => {
   const columns = layout.keys.map((key) => {
     const renderer = renderers[key];
     if (renderer === undefined) {
@@ -106,7 +85,8 @@ export const attachTableRenderers = <TRow, TContext, TKey extends string>(
       `attachTableRenderers: renderer key "${extraKey}" is not in the layout`,
     );
   }
-  return buildTable({ columns, layout });
+  validateColumns(columns);
+  return { columns, layout };
 };
 
 /** Look up a column by key, throwing loudly if it isn't in the table's set.
@@ -115,10 +95,10 @@ export const columnOrThrow = <TRow, TContext, TKey extends string>(
   table: TableDefinition<TRow, TContext, TKey>,
   key: TKey,
 ): TableColumn<TRow, TContext, TKey> => {
-  const column = table.columnMap.get(key);
+  const column = table.columns.find((candidate) => candidate.key === key);
   if (column === undefined) {
     throw new Error(
-      `Column "${key}" is not in the table's set (have ${[...table.columnMap.keys()].join(", ")})`,
+      `Column "${key}" is not in the table's set (have ${table.columns.map((candidate) => candidate.key).join(", ")})`,
     );
   }
   return column;

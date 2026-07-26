@@ -23,10 +23,11 @@ import {
   type ColumnKind,
   colClass,
 } from "#templates/components/table-columns.ts";
+import { renderFilteredValue } from "#templates/components/table-filters.ts";
 
 /* jscpd:ignore-end */
 
-type TableRenderShell<TRow, TContext, TKey extends string> = {
+type TableRenderShell<TRow, TContext> = {
   /** Empty-state body rendered in a single `<td colspan>` when rows is
    *  empty. When omitted, an empty rows array renders no body at all. */
   readonly empty?: Child | undefined;
@@ -42,15 +43,14 @@ type TableRenderShell<TRow, TContext, TKey extends string> = {
   readonly rowAttrs?:
     | ((row: TRow, context: TContext) => TableAttrs)
     | undefined;
-  /** Optional cell renderer installed by configurable tables. */
-  readonly renderCell?: TableCellRenderer<TRow, TContext, TKey> | undefined;
 };
 
 type TableRenderFrame<TRow, TContext, TKey extends string> = TableRenderShell<
   TRow,
-  TContext,
-  TKey
+  TContext
 > & {
+  /** Saved Liquid expressions keyed by configurable column key. */
+  readonly filters?: ReadonlyMap<TKey, string> | undefined;
   /** Add the standard move-up/down column when the site is writable. */
   readonly reorder?: ReorderColumnOptions<TRow> | undefined;
 };
@@ -59,23 +59,14 @@ type TableContextOptions<TContext> = [TContext] extends [undefined]
   ? { readonly context?: undefined }
   : { readonly context: TContext };
 
-export type TableCellRenderer<TRow, TContext, TKey extends string> = (
-  column: TableColumn<TRow, TContext, TKey>,
-  row: TRow,
-  context: TContext,
-  index: number,
-  rows: readonly TRow[],
-) => Child;
-
 /** Per-render options for column selection, context, row state, and framing. */
 type TableRenderOptions<TRow, TContext, TKey extends string> = TableRenderFrame<
   TRow,
   TContext,
   TKey
 > & {
-  /** The column keys to render, in order. Defaults to the table's
-   *  layout defaults. Pass the parsed layout's `columnKeys` to honour a
-   *  user-configured order. */
+  /** The column keys to render, in order. Defaults to the table's declared
+   *  columns. Pass a parsed layout's keys to honour a configured order. */
   readonly columnKeys?: readonly TKey[] | undefined;
   /** Column keys that should NOT render even when listed in `columnKeys`.
    *  The attendee table uses this to hide columns whose data is entirely
@@ -83,54 +74,44 @@ type TableRenderOptions<TRow, TContext, TKey extends string> = TableRenderFrame<
   readonly hiddenKeys?: ReadonlySet<TKey> | undefined;
 } & TableContextOptions<TContext>;
 
-/** The set of `ColumnKind` literal values, for runtime disambiguation between
- *  a `class` (ColumnKind — to be turned into `col-<kind>`) and a `className`
- *  (free-form string — used verbatim). Both are typed as `string` at runtime
- *  since `ColumnKind` is a string-literal union. */
-const COLUMN_KINDS: ReadonlySet<string> = new Set([
-  "reorder",
-  "amount",
-  "quantity",
-  "actions",
-]);
-
-/** Convert one part to its CSS class contribution, or `undefined` when it
- *  contributes nothing (boolean false, empty string, or a numeric/boolean
- *  cell-attr value the caller is just passing through). A ColumnKind value
- *  ("amount", "quantity", etc.) maps to `col-amount`, `col-quantity`, and a
- *  free-form className string is used verbatim. */
-const partToClass = (
-  part: ColumnKind | string | number | boolean | undefined,
-): string | undefined => {
-  if (part === undefined || part === false || part === null) return;
-  if (typeof part === "number" || typeof part === "boolean") return;
-  if (part === "") return;
-  return COLUMN_KINDS.has(part) ? colClass(part as ColumnKind) : part;
-};
-
 /** Combine a column's class kind (e.g. "amount"), a column's free-form
  *  className (e.g. "actions-col"), and a cell's own class attribute (from
  *  `cellAttrs`) into one class string for the <td> or <th>. Returns the
  *  empty string for an all-empty input so the renderer can emit no class
  *  attribute at all. */
 const combineClasses = (
-  ...parts: readonly (ColumnKind | string | number | boolean | undefined)[]
+  kind: ColumnKind | undefined,
+  ...names: readonly (string | number | boolean | undefined)[]
 ): string =>
-  parts
-    .map(partToClass)
-    .filter((c): c is string => c !== undefined)
+  [kind === undefined ? undefined : colClass(kind), ...names]
+    .filter((name): name is string => typeof name === "string" && name !== "")
     .join(" ");
 
-/** Build the translated text shared by a table column's header and guide row. */
-export const tableColumnText = (
-  label: () => string,
-  description: () => string,
-  header: () => Child = label,
-): { description: () => string; header: () => Child; label: () => string } => ({
-  description,
-  header,
-  label,
-});
+type TranslatedColumnText = {
+  description: () => string;
+  header: () => Child;
+  label: () => string;
+};
+
+type TableColumnText = (
+  key: string,
+  headerKey?: string,
+) => TranslatedColumnText;
+
+/** Bind one table's translation prefix to its column metadata. */
+export const tableColumnText =
+  (prefix: string): TableColumnText =>
+  (key, headerKey) => {
+    const label = (): string => t(`${prefix}.${key}.label`);
+    return {
+      description: (): string => t(`${prefix}.${key}.description`),
+      header:
+        headerKey === undefined
+          ? label
+          : (): string => t(`${prefix}.${key}.${headerKey}`),
+      label,
+    };
+  };
 
 const resolveColumnText = (text: Child | (() => Child)): Child =>
   typeof text === "function" ? text() : text;
@@ -149,55 +130,27 @@ const splitCellAttrs = (
   return { class: customClass, rest };
 };
 
-/** The shared scrolling table shell wrapping one header, body, and footer. */
-const TableShell = ({
-  body,
-  bodyAttrs,
-  foot,
-  headerRow,
-  scrollClass,
-  tableClass,
-}: {
-  body: Child;
-  bodyAttrs?: Record<string, string> | undefined;
-  foot?: Child | undefined;
-  headerRow: JSX.Element;
-  scrollClass?: string | undefined;
-  tableClass?: string | undefined;
-}): JSX.Element => (
-  <div
-    class={
-      scrollClass === undefined ? "table-scroll" : `table-scroll ${scrollClass}`
-    }
-  >
-    <table class={tableClass}>
-      <thead>{headerRow}</thead>
-      <tbody {...(bodyAttrs ?? {})}>{body}</tbody>
-      {foot !== undefined && <tfoot>{foot}</tfoot>}
-    </table>
-  </div>
-);
 const TableCell = <TRow, TContext, TKey extends string>({
   column,
   row,
   ctx,
   index,
   rows,
-  renderCell,
+  filter,
 }: {
   column: TableColumn<TRow, TContext, TKey>;
   row: TRow;
   ctx: TContext;
   index: number;
   rows: readonly TRow[];
-  renderCell: TableCellRenderer<TRow, TContext, TKey> | undefined;
+  filter: string | undefined;
 }): JSX.Element => {
   const attrs = splitCellAttrs(column.cellAttrs?.(row, ctx));
   const className = combineClasses(column.class, column.className, attrs.class);
   const content =
-    renderCell === undefined
-      ? column.cell(row, ctx, index, rows)
-      : renderCell(column, row, ctx, index, rows);
+    filter !== undefined && column.rawValue !== undefined
+      ? renderFilteredValue(filter, column.rawValue(row, ctx), column.key)
+      : column.cell(row, ctx, index, rows);
   const cellAttrs =
     className === "" ? attrs.rest : { class: className, ...attrs.rest };
   return column.rowHeader ? (
@@ -229,9 +182,11 @@ const resolveColumns = <TRow, TContext, TKey extends string>(
   columnKeys: readonly TKey[] | undefined,
   hiddenKeys: ReadonlySet<TKey> | undefined,
 ): readonly TableColumn<TRow, TContext, TKey>[] => {
-  const requested = columnKeys ?? table.layout.defaultColumnKeys;
+  if (columnKeys === undefined) {
+    return table.columns;
+  }
   const result: TableColumn<TRow, TContext, TKey>[] = [];
-  for (const key of requested) {
+  for (const key of columnKeys) {
     if (hiddenKeys?.has(key)) continue;
     result.push(columnOrThrow(table, key));
   }
@@ -249,31 +204,33 @@ const renderColumns = <TRow, TContext, TKey extends string>(
     options.reorder === undefined || isReadOnly()
       ? undefined
       : reorderColumn<TRow, TContext>(options.reorder);
-  const colCount = columns.length + (reorder === undefined ? 0 : 1);
+  const renderedColumns: {
+    column: TableColumn<TRow, TContext>;
+    filter: string | undefined;
+  }[] = [];
+  if (reorder !== undefined) {
+    renderedColumns.push({ column: reorder, filter: undefined });
+  }
+  for (const column of columns) {
+    renderedColumns.push({
+      column,
+      filter: options.filters?.get(column.key),
+    });
+  }
   const body: Child =
     rows.length === 0 && options.empty !== undefined ? (
       <tr>
-        <td colspan={colCount}>{options.empty}</td>
+        <td colspan={renderedColumns.length}>{options.empty}</td>
       </tr>
     ) : (
       rows.map((row, index) => (
         <tr {...(options.rowAttrs?.(row, ctx) ?? {})}>
-          {reorder !== undefined && (
-            <TableCell
-              column={reorder}
-              ctx={ctx}
-              index={index}
-              renderCell={undefined}
-              row={row}
-              rows={rows}
-            />
-          )}
-          {columns.map((column) => (
+          {renderedColumns.map(({ column, filter }) => (
             <TableCell
               column={column}
               ctx={ctx}
+              filter={filter}
               index={index}
-              renderCell={options.renderCell}
               row={row}
               rows={rows}
             />
@@ -282,19 +239,23 @@ const renderColumns = <TRow, TContext, TKey extends string>(
       ))
     );
 
-  return TableShell({
-    body,
-    bodyAttrs: options.bodyAttrs,
-    foot: options.foot,
-    headerRow: (
-      <tr>
-        {reorder !== undefined && headerCell(reorder)}
-        {columns.map(headerCell)}
-      </tr>
-    ),
-    scrollClass: options.scrollClass,
-    tableClass: options.tableClass,
-  });
+  return (
+    <div
+      class={
+        options.scrollClass === undefined
+          ? "table-scroll"
+          : `table-scroll ${options.scrollClass}`
+      }
+    >
+      <table class={options.tableClass}>
+        <thead>
+          <tr>{renderedColumns.map(({ column }) => headerCell(column))}</tr>
+        </thead>
+        <tbody {...(options.bodyAttrs ?? {})}>{body}</tbody>
+        {options.foot !== undefined && <tfoot>{options.foot}</tfoot>}
+      </table>
+    </div>
+  );
 };
 
 /** Render the table from its definition + rows + options. Returns the full

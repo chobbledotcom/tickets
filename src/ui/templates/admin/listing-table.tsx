@@ -30,13 +30,14 @@ import {
 import type { ListingWithCount } from "#shared/types.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable, tableColumnText } from "#templates/components/table.tsx";
-import { filteredTableCells } from "#templates/components/table-filters.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
 type ListingRenderer = Omit<
   TableColumn<ListingWithCount, undefined, ListingColumnKey>,
   "key"
 >;
+
+const listingColumnText = tableColumnText("listings_table.column");
 
 // ---------------------------------------------------------------------------
 // Column definitions
@@ -53,11 +54,7 @@ const nameCell = (e: ListingWithCount, href: string): JSX.Element => (
 );
 
 const name: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.name.label"),
-    () => t("listings_table.column.name.description"),
-    () => t("listings_table.column.name.header"),
-  ),
+  ...listingColumnText("name", "header"),
   cell: (e) => nameCell(e, `/admin/listing/${e.id}`),
 };
 
@@ -68,107 +65,71 @@ const editorName: ListingRenderer = {
 };
 
 const description: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.description.label"),
-    () => t("listings_table.column.description.description"),
-  ),
+  ...listingColumnText("description"),
   cell: (e) => e.description,
   className: "cell-description",
 };
 
 const status: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.status.label"),
-    () => t("listings_table.column.status.description"),
-  ),
+  ...listingColumnText("status"),
   cell: (e) => (e.active ? t("common.active") : t("common.inactive")),
 };
 
 const attendees: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.attendees.label"),
-    () => t("listings_table.column.attendees.description"),
-  ),
+  ...listingColumnText("attendees"),
   cell: (e) => `${e.attendee_count} / ${e.max_attendees}`,
 };
 
 const tickets: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.tickets.label"),
-    () => t("listings_table.column.tickets.description"),
-  ),
+  ...listingColumnText("tickets"),
   cell: (e) => String(e.tickets_count),
   rawValue: (e) => e.tickets_count,
 };
 
 const revenue: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.revenue.label"),
-    () => t("listings_table.column.revenue.description"),
-  ),
+  ...listingColumnText("revenue"),
   cell: (e) => formatCurrency(e.income),
   rawValue: (e) => e.income,
 };
 
 const cost: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.cost.label"),
-    () => t("listings_table.column.cost.description"),
-  ),
+  ...listingColumnText("cost"),
   cell: (e) => formatCurrency(e.cost),
   rawValue: (e) => e.cost,
 };
 
 const profit: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.profit.label"),
-    () => t("listings_table.column.profit.description"),
-  ),
+  ...listingColumnText("profit"),
   cell: (e) => formatCurrency(e.profit),
   rawValue: (e) => e.profit,
 };
 
 const created: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.created.label"),
-    () => t("listings_table.column.created.description"),
-  ),
+  ...listingColumnText("created"),
   cell: (e) => new Date(e.created).toLocaleDateString(),
   rawValue: (e) => e.created,
 };
 
 const date: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.date.label"),
-    () => t("listings_table.column.date.description"),
-  ),
+  ...listingColumnText("date"),
   cell: (e) => (e.date ? new Date(e.date).toLocaleDateString() : ""),
   rawValue: (e) => e.date || "",
 };
 
 const location: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.location.label"),
-    () => t("listings_table.column.location.description"),
-  ),
+  ...listingColumnText("location"),
   cell: (e) => e.location,
 };
 
 const price: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.price.label"),
-    () => t("listings_table.column.price.description"),
-  ),
+  ...listingColumnText("price"),
   cell: (e) =>
     e.unit_price > 0 ? String(e.unit_price) : t("listings_table.free"),
   rawValue: (e) => e.unit_price,
 };
 
 const renewal: ListingRenderer = {
-  ...tableColumnText(
-    () => t("listings_table.column.renewal.label"),
-    () => t("listings_table.column.renewal.description"),
-  ),
+  ...listingColumnText("renewal"),
   cell: (e) =>
     e.months_per_unit > 0
       ? t("listings_table.column.renewal.value", {
@@ -242,13 +203,13 @@ export const renderListingsTableSection = (
 ): JSX.Element => {
   const table = resolveTable(args.table);
   return renderTable(table, args.listings, {
-    columnKeys: args.columnKeys ?? table.layout.defaultColumnKeys,
+    columnKeys:
+      args.columnKeys ??
+      (table === listingTable
+        ? listingTable.layout.defaultColumnKeys
+        : undefined),
     empty: args.emptyText,
-    renderCell: filteredTableCells<
-      ListingWithCount,
-      undefined,
-      ListingColumnKey
-    >(args.filters ?? new Map<ListingColumnKey, string>()),
+    filters: args.filters,
     rowAttrs: (listing) => (listing.active ? {} : { class: "inactive-row" }),
   });
 };

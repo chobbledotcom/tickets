@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderTable } from "#templates/components/table.tsx";
-import { filteredTableCells } from "#templates/components/table-filters.ts";
 
 type ValueRow = { readonly value: unknown };
 
@@ -18,9 +17,7 @@ const filterableTable = defineTable<ValueRow>([
 const renderFilteredCell = (value: unknown, expression: string): string =>
   String(
     renderTable(filterableTable, [{ value }], {
-      renderCell: filteredTableCells<ValueRow, undefined, string>(
-        new Map([["value", expression]]),
-      ),
+      filters: new Map([["value", expression]]),
     }),
   );
 
@@ -62,9 +59,7 @@ describe("filtered table cells", () => {
     ]);
     const html = String(
       renderTable(table, [{ value: "ignored" }], {
-        renderCell: filteredTableCells<ValueRow, undefined, string>(
-          new Map([["value", "value | upcase"]]),
-        ),
+        filters: new Map([["value", "value | upcase"]]),
       }),
     );
 

@@ -47,4 +47,10 @@ describe("table layouts", () => {
       'defineTableLayout: default key "missing" is not configurable',
     );
   });
+
+  test("rejects duplicate configurable keys", () => {
+    expect(() =>
+      defineTableLayout({ options: ["name", "name"] }, ["name"]),
+    ).toThrow("defineTableLayout: column keys must be unique");
+  });
 });

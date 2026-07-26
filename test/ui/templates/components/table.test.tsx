@@ -37,20 +37,18 @@ describe("typed table rendering", () => {
   });
 
   test("uses the label as the default column header", () => {
-    const defaults = tableColumnText(
-      () => "Name",
-      () => "Stored name",
+    const listingColumnText = tableColumnText("listings_table.column");
+    const defaults = listingColumnText("description");
+    expect(defaults.label()).toBe(t("listings_table.column.description.label"));
+    expect(defaults.description()).toBe(
+      t("listings_table.column.description.description"),
     );
-    expect(defaults.label()).toBe("Name");
-    expect(defaults.description()).toBe("Stored name");
-    expect(defaults.header()).toBe("Name");
-    expect(
-      tableColumnText(
-        () => "Name",
-        () => "Stored name",
-        () => "Listing name",
-      ).header(),
-    ).toBe("Listing name");
+    expect(defaults.header()).toBe(
+      t("listings_table.column.description.label"),
+    );
+    expect(listingColumnText("name", "header").header()).toBe(
+      t("listings_table.column.name.header"),
+    );
   });
 
   test("renders row values, attributes, classes, and an empty state", () => {

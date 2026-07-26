@@ -3,7 +3,6 @@ import { isServicing } from "#shared/db/attendees/kind.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
-import type { AttendeeTableRow } from "#shared/types.ts";
 import { attendeeTable } from "#templates/attendee-table/columns.tsx";
 import { createStatusRenderer } from "#templates/attendee-table/status.tsx";
 import type {
@@ -16,7 +15,6 @@ import {
   sortAttendeeRows,
 } from "#templates/attendee-table/values.ts";
 import { renderTable } from "#templates/components/table.tsx";
-import { filteredTableCells } from "#templates/components/table-filters.ts";
 
 const buildColumnOptions = (
   options: AttendeeTableOptions,
@@ -46,12 +44,8 @@ export const AttendeeTable = (options: AttendeeTableOptions): JSX.Element => {
     columnKeys: layout.columnKeys,
     context: buildColumnOptions(options),
     empty: options.emptyMessage ?? t("admin.attendee_table.no_attendees"),
+    filters: layout.filters,
     hiddenKeys: hiddenAttendeeColumnKeys(rows, options),
-    renderCell: filteredTableCells<
-      AttendeeTableRow,
-      AttendeeColumnOpts,
-      AttendeeColumnKey
-    >(layout.filters),
     rowAttrs: (row) =>
       isServicing(row.attendee.kind)
         ? { class: "servicing-event", "data-servicing": "true" }

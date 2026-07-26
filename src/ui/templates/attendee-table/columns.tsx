@@ -26,21 +26,17 @@ type AttendeeRenderer = Omit<
   "key"
 >;
 
+const attendeeColumnText = tableColumnText("admin.attendee_table.column");
+
 const name: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.name.label"),
-    () => t("admin.attendee_table.column.name.description"),
-  ),
+  ...attendeeColumnText("name"),
   cell: (row) => (
     <a href={attendeeAdminPath(row.attendee)}>{row.attendee.name}</a>
   ),
 };
 
 const listings: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.listings.label"),
-    () => t("admin.attendee_table.column.listings.description"),
-  ),
+  ...attendeeColumnText("listings"),
   cell: (row) => {
     const links = row.listings.map((listing, index) => (
       <>
@@ -58,27 +54,18 @@ const listings: AttendeeRenderer = {
 };
 
 const date: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.date.label"),
-    () => t("admin.attendee_table.column.date.description"),
-  ),
+  ...attendeeColumnText("date"),
   cell: (row) => (row.attendee.date ? formatDateLabel(row.attendee.date) : ""),
   rawValue: (row) => row.attendee.date || "",
 };
 
 const email: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.email.label"),
-    () => t("admin.attendee_table.column.email.description"),
-  ),
+  ...attendeeColumnText("email"),
   cell: (row) => row.attendee.email || "",
 };
 
 const phone: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.phone.label"),
-    () => t("admin.attendee_table.column.phone.description"),
-  ),
+  ...attendeeColumnText("phone"),
   cell: (row, options) => {
     if (!row.attendee.phone) return "";
     const normalized = normalizePhone(row.attendee.phone, options.phonePrefix);
@@ -87,27 +74,18 @@ const phone: AttendeeRenderer = {
 };
 
 const address: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.address.label"),
-    () => t("admin.attendee_table.column.address.description"),
-  ),
+  ...attendeeColumnText("address"),
   cell: (row) => formatAddressInline(row.attendee.address || ""),
 };
 
 const special_instructions: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.special_instructions.label"),
-    () => t("admin.attendee_table.column.special_instructions.description"),
-  ),
+  ...attendeeColumnText("special_instructions"),
   cell: (row) =>
     formatInstructionsInline(row.attendee.special_instructions || ""),
 };
 
 const answers: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.answers.label"),
-    () => t("admin.attendee_table.column.answers.description"),
-  ),
+  ...attendeeColumnText("answers"),
   cell: (row, options) => {
     const { short, tooltip } = getAnswerDisplay(
       row.attendee.id,
@@ -124,19 +102,13 @@ const answers: AttendeeRenderer = {
 };
 
 const qty: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.qty.label"),
-    () => t("admin.attendee_table.column.qty.description"),
-  ),
+  ...attendeeColumnText("qty"),
   cell: (row) => String(row.attendee.quantity),
   class: "quantity",
 };
 
 const ticket: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.ticket.label"),
-    () => t("admin.attendee_table.column.ticket.description"),
-  ),
+  ...attendeeColumnText("ticket"),
   cell: (row, options) => {
     if (isServicing(row.attendee.kind)) {
       return (
@@ -155,22 +127,16 @@ const ticket: AttendeeRenderer = {
 };
 
 const registered: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.registered.label"),
-    () => t("admin.attendee_table.column.registered.description"),
-  ),
+  ...attendeeColumnText("registered"),
   cell: (row) => formatDatetimeShort(row.attendee.created),
   rawValue: (row) => row.attendee.created,
 };
 
 const status: AttendeeRenderer = {
-  ...tableColumnText(
-    () => t("admin.attendee_table.column.status.label"),
-    () => t("admin.attendee_table.column.status.description"),
-    () => "",
-  ),
+  ...attendeeColumnText("status"),
   cell: (row, options) => options.renderStatus(row),
   className: "actions-col",
+  header: "",
   headerClassName: "actions-col",
 };
 

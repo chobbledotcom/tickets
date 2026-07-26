@@ -17,13 +17,11 @@ const columns: TableColumn<Row>[] = [
 ];
 
 describe("defineTable", () => {
-  test("builds a fixed layout from the declared columns", () => {
+  test("keeps fixed tables to their declared columns", () => {
     const table = defineTable(columns);
 
-    expect(table.layout.defaultColumnKeys).toEqual(["name", "status"]);
-    expect(table.layout.keys).toEqual(["name", "status"]);
-    expect(table.layout.defaultTemplate).toBe("{{name}}, {{status}}");
-    expect(table.layout.parse("")).toBe(table.layout.defaultLayout);
+    expect(table.columns).toBe(columns);
+    expect("layout" in table).toBe(false);
   });
 
   test("attaches every renderer to a configurable layout", () => {
@@ -60,7 +58,7 @@ describe("defineTable", () => {
         { cell: (row) => row.name, header: "First", key: "name" },
         { cell: (row) => row.name, header: "Second", key: "name" },
       ]),
-    ).toThrow("defineTableLayout: column keys must be unique");
+    ).toThrow("defineTable: column keys must be unique");
   });
 
   test("rejects a layout renderer that is missing", () => {

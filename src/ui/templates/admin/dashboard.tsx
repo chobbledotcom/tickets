@@ -314,9 +314,9 @@ export const adminListingsPage = (
   // no CSV export (that route stays staff-only and exports ledger revenue).
   const isEditor = session.adminLevel === "editor";
   const table = isEditor ? editorListingTable : listingTable;
-  const { columnKeys, filters } = isEditor
-    ? table.layout.defaultLayout
-    : (listingColumnLayout ?? table.layout.defaultLayout);
+  const layout = isEditor
+    ? undefined
+    : (listingColumnLayout ?? listingTable.layout.defaultLayout);
   const activeListings = activeOnly(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
@@ -340,10 +340,10 @@ export const adminListingsPage = (
       title={t("terms.listings")}
     >
       <ListingsTableBlock
-        columnKeys={columnKeys}
+        columnKeys={layout?.columnKeys}
         csvExport={!isEditor}
         csvHref={csvExportHref("all", activeAttributeFilters)}
-        filters={filters}
+        filters={layout?.filters}
         headerHtml={attributeFilterHtml}
         listings={filterByAttribute(activeListings)}
         table={table}
@@ -353,9 +353,9 @@ export const adminListingsPage = (
         <>
           <h2>{t("admin.dashboard.deactivated")}</h2>
           {renderListingsTableSection({
-            columnKeys,
+            columnKeys: layout?.columnKeys,
             emptyText: t("admin.dashboard.no_listings"),
-            filters,
+            filters: layout?.filters,
             listings: filterByAttribute(deactivatedListings),
             table,
           })}

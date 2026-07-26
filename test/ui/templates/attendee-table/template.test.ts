@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
+import { columnOrThrow } from "#shared/tables/definition.ts";
 import {
   type AttendeeColumnOpts,
   type AttendeeTableRow,
@@ -13,7 +14,7 @@ const headersOf = (html: string): (string | undefined)[] =>
   [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map((match) => match[1]);
 
 const rawValue = (key: AttendeeColumnKey, row: AttendeeTableRow): unknown => {
-  const read = attendeeTable.columnMap.get(key)?.rawValue;
+  const read = columnOrThrow(attendeeTable, key).rawValue;
   if (read === undefined) throw new Error(`Column ${key} has no raw value`);
   const opts: AttendeeColumnOpts = {
     allowedDomain: "example.com",
