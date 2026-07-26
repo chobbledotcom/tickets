@@ -18,12 +18,15 @@ import { concatBytes, fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
  */
 export const ENCRYPTION_PREFIX = "enc:1:";
 
+/** Key length AES-256 takes, in bytes. */
+export const AES_KEY_BYTES = 32;
+
 export const decodeKeyBytes = (keyString: string): Uint8Array => {
   const keyBytes = fromBase64(keyString);
 
-  if (keyBytes.length !== 32) {
+  if (keyBytes.length !== AES_KEY_BYTES) {
     throw new Error(
-      `DB_ENCRYPTION_KEY must be 32 bytes (256 bits), got ${keyBytes.length} bytes`,
+      `DB_ENCRYPTION_KEY must be ${AES_KEY_BYTES} bytes (256 bits), got ${keyBytes.length} bytes`,
     );
   }
 
@@ -184,7 +187,7 @@ const GCM_TAG_BYTES = 16;
  * blocking stays negligible. Larger blobs (files/backups) use Web Crypto, which
  * is faster above this size and offloads to a threadpool instead of blocking.
  */
-const NODE_AES_MAX_BYTES = 64 * 1024;
+export const NODE_AES_MAX_BYTES = 64 * 1024;
 
 /**
  * AES-256-GCM encrypt via node:crypto (synchronous, raw key bytes).
@@ -217,6 +220,56 @@ const nodeAesGcmDecrypt = (
   decipher.setAuthTag(tag);
   return concatBytes(decipher.update(body), decipher.final());
 };
+
+/** Hands back the Web Crypto key the large-payload path needs. Nothing imports
+ * a key until a payload is actually big enough to want one. */
+export type WebKeySource = () => Promise<CryptoKey>;
+
+/** Curried by usage, then by key bytes, so each entry point below already has
+ * the key source it would otherwise have to spell out. */
+const importsAesKey =
+  (usage: "encrypt" | "decrypt") =>
+  (keyBytes: Uint8Array): WebKeySource =>
+  () =>
+    crypto.subtle.importKey(
+      "raw",
+      keyBytes as BufferSource,
+      { name: "AES-GCM" },
+      false,
+      [usage],
+    );
+
+const importsEncryptKey = importsAesKey("encrypt");
+const importsDecryptKey = importsAesKey("decrypt");
+
+/**
+ * AES-GCM encrypt with raw key bytes, using whichever implementation is faster
+ * for this payload — see {@link NODE_AES_MAX_BYTES}.
+ *
+ * `webKey` lets a caller that already holds (or caches) the matching Web Crypto
+ * key hand it over instead of importing a fresh one; it is only called when the
+ * payload is large enough to take the Web Crypto path.
+ */
+export const aesGcmEncryptBytes = async (
+  data: Uint8Array,
+  keyBytes: Uint8Array,
+  webKey: WebKeySource = importsEncryptKey(keyBytes),
+): Promise<AesGcmEncrypted> =>
+  data.length <= NODE_AES_MAX_BYTES
+    ? nodeAesGcmEncrypt(data, keyBytes)
+    : await aesGcmEncryptRaw(data as BufferSource, await webKey());
+
+/** AES-GCM decrypt with raw key bytes. The mirror of {@link aesGcmEncryptBytes};
+ * note it measures the ciphertext, which carries the authentication tag. */
+export const aesGcmDecryptBytes = async (
+  iv: Uint8Array,
+  ciphertext: Uint8Array,
+  keyBytes: Uint8Array,
+  webKey: WebKeySource = importsDecryptKey(keyBytes),
+): Promise<Uint8Array> =>
+  ciphertext.length <= NODE_AES_MAX_BYTES
+    ? nodeAesGcmDecrypt(iv, ciphertext, keyBytes)
+    : new Uint8Array(await aesGcmDecryptRaw(iv, ciphertext, await webKey()));
 
 /** Format IV + ciphertext as a prefixed base64 string */
 export const formatPrefixed = (
@@ -328,13 +381,11 @@ const BINARY_HEADER_SIZE = BINARY_MAGIC.length + 1 + 12; // magic + version + IV
  * Overhead is only 33 bytes (vs ~76% bloat in the legacy text format).
  */
 export const encryptBytes = async (data: Uint8Array): Promise<Uint8Array> => {
-  const { ciphertext, iv } =
-    data.length <= NODE_AES_MAX_BYTES
-      ? nodeAesGcmEncrypt(data, getEncryptionKeyBytes())
-      : await aesGcmEncryptRaw(
-          data as BufferSource,
-          await importEncryptionKey(),
-        );
+  const { ciphertext, iv } = await aesGcmEncryptBytes(
+    data,
+    getEncryptionKeyBytes(),
+    importEncryptionKey,
+  );
   const result = new Uint8Array(BINARY_HEADER_SIZE + ciphertext.length);
   result.set(BINARY_MAGIC, 0);
   result[BINARY_MAGIC.length] = BINARY_VERSION;
@@ -367,11 +418,12 @@ export const decryptBytes = async (
   }
   const iv = encrypted.slice(BINARY_MAGIC.length + 1, BINARY_HEADER_SIZE);
   const ciphertext = encrypted.slice(BINARY_HEADER_SIZE);
-  if (ciphertext.length <= NODE_AES_MAX_BYTES) {
-    return nodeAesGcmDecrypt(iv, ciphertext, getEncryptionKeyBytes());
-  }
-  const key = await importEncryptionKey();
-  return new Uint8Array(await aesGcmDecryptRaw(iv, ciphertext, key));
+  return await aesGcmDecryptBytes(
+    iv,
+    ciphertext,
+    getEncryptionKeyBytes(),
+    importEncryptionKey,
+  );
 };
 
 /**

@@ -164,39 +164,53 @@ const setupTestState = async (): Promise<() => Promise<void>> => {
  * The built assets are left in place: they are gitignored build output, and
  * keeping them is what lets the next run skip the build (see
  * static-assets/cache.ts).
+ *
+ * stripe-mock spends most of a second loading its API spec before it accepts a
+ * connection, and it needs nothing else the harness makes. So it is started
+ * first and only waited for at the end: that wait runs while the assets and the
+ * run-wide test state are prepared, which is otherwise dead time on every run.
+ * Nothing in either of those steps talks to Stripe, and the Stripe client reads
+ * STRIPE_MOCK_HOST/PORT afresh every time it is built, so setting them once the
+ * mock is up is still in time for the first test.
  */
 export const withTestHarness = async <T>(
   task: (resources: TestHarnessResources) => Promise<T>,
 ): Promise<T> => {
-  const staticAssets = await prepareStaticAssets({ quiet: true });
-  let stripeMockProcess: Awaited<ReturnType<typeof startStripeMock>> | null =
-    null;
+  const startingStripeMock = startStripeMock();
+  // A start failure is surfaced where it is awaited below, and again by the
+  // cleanup. Claiming it here as well keeps it from also being reported as an
+  // unhandled rejection when a step before that await throws first.
+  startingStripeMock.catch(() => {});
+
+  let staticAssets: StaticAssetBuild | null = null;
   let cleanupTestState: (() => Promise<void>) | null = null;
 
   return withCleanup(async () => {
-    stripeMockProcess = await startStripeMock();
-    const mockEnv = stripeMockEnv(stripeMockProcess.port);
+    const assets = await prepareStaticAssets({ quiet: true });
+    staticAssets = assets;
+    cleanupTestState = await setupTestState();
+    const mockEnv = stripeMockEnv((await startingStripeMock).port);
     harnessLog("stripe-mock running on port", mockEnv.STRIPE_MOCK_PORT);
     return withEnvironment(
       {
         STRIPE_MOCK_HOST: mockEnv.STRIPE_MOCK_HOST,
         STRIPE_MOCK_PORT: mockEnv.STRIPE_MOCK_PORT,
       },
-      async () => {
-        cleanupTestState = await setupTestState();
-        return await task({ staticAssets });
-      },
+      () => task({ staticAssets: assets }),
     );
   }, [
+    // Wait on the start rather than a "did it finish" flag: an earlier step
+    // failing must still stop a mock that came up after that failure.
     async () => {
-      if (!stripeMockProcess) return;
+      const mock = await startingStripeMock.catch(() => null);
+      if (!mock) return;
       harnessLog("Stopping stripe-mock...");
-      await stripeMockProcess.stop();
+      await mock.stop();
     },
     async () => {
       if (cleanupTestState) await cleanupTestState();
     },
-    () => staticAssets.dispose(),
+    () => staticAssets?.dispose(),
   ]);
 };
 

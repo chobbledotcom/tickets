@@ -5,9 +5,11 @@
 import { lazyRef, ttlCache } from "#fp";
 import { registerCache } from "#shared/cache-registry.ts";
 import {
+  AES_KEY_BYTES,
+  aesGcmDecryptBytes,
   aesGcmDecryptRaw,
+  aesGcmEncryptBytes,
   aesGcmEncryptRaw,
-  aesGcmEncryptText,
   decryptWithKey,
   formatPrefixed,
   getEncryptionKeyString,
@@ -21,7 +23,7 @@ import type {
   PasswordHash,
   WrappedKey,
 } from "./sealed.ts";
-import { fromBase64 } from "./utils.ts";
+import { fromBase64, getRandomBytes } from "./utils.ts";
 
 /**
  * =============================================================================
@@ -343,14 +345,21 @@ export const hybridEncrypt = async (
   plaintext: string,
   publicKey: CryptoKey,
 ): Promise<OwnerKeyEncrypted> => {
-  // Generate random AES key and encrypt the data
-  const aesKey = await generateDataKey();
-  const { iv, ciphertext } = await aesGcmEncryptText(plaintext, aesKey);
+  // The one-off AES key is used once and then wrapped by RSA, so it is made and
+  // kept as raw bytes: RSA needs those bytes anyway, and the small payloads this
+  // handles encrypt faster from bytes than through a Web Crypto key object.
+  const aesKeyBytes = getRandomBytes(AES_KEY_BYTES);
+  const { iv, ciphertext } = await aesGcmEncryptBytes(
+    new TextEncoder().encode(plaintext),
+    aesKeyBytes,
+  );
 
-  // Export and encrypt the AES key with RSA
-  const rawAesKey = await crypto.subtle.exportKey("raw", aesKey);
   const wrappedKey = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, rawAesKey),
+    await crypto.subtle.encrypt(
+      { name: "RSA-OAEP" },
+      publicKey,
+      aesKeyBytes as BufferSource,
+    ),
   );
 
   return formatPrefixed(
@@ -400,25 +409,19 @@ export const hybridDecrypt = async (
 
   const [encryptedKey, iv, ciphertext] = parts as [string, string, string];
 
-  // Decrypt the AES key with RSA
-  const rawAesKey = await crypto.subtle.decrypt(
-    { name: "RSA-OAEP" },
-    privateKey,
-    fromBase64(encryptedKey) as BufferSource,
+  // Unwrap the one-off AES key with RSA, then decrypt straight from its bytes
+  const rawAesKey = new Uint8Array(
+    await crypto.subtle.decrypt(
+      { name: "RSA-OAEP" },
+      privateKey,
+      fromBase64(encryptedKey) as BufferSource,
+    ),
   );
 
-  // Import the AES key and decrypt the data
-  const aesKey = await crypto.subtle.importKey(
-    "raw",
-    rawAesKey,
-    { length: 256, name: "AES-GCM" },
-    false,
-    ["decrypt"],
-  );
-  const plaintext = await aesGcmDecryptRaw(
+  const plaintext = await aesGcmDecryptBytes(
     fromBase64(iv),
     fromBase64(ciphertext),
-    aesKey,
+    rawAesKey,
   );
 
   const result = new TextDecoder().decode(plaintext);
