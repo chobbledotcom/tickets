@@ -27,6 +27,7 @@ import {
   providerValue,
 } from "#shared/config.ts";
 import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
+import { databaseHostFor } from "#shared/db/host.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getHostEmailConfig } from "#shared/email.ts";
@@ -238,6 +239,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       subdomainSuffix: getBunnyDnsSubdomainSuffix(),
     },
     database: {
+      host: databaseHostFor(getEnv("DB_URL") ?? ""),
       hostConfigured: !!getEnv("DB_URL"),
       schemaHash: SCHEMA_HASH,
       schemaInSync: settings.getCachedRaw("db_schema_hash") === SCHEMA_HASH,
