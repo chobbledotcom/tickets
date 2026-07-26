@@ -10,6 +10,7 @@ import {
   expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
+  redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -43,18 +44,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         expect.stringContaining("Confirmation phrase does not match"),
         false,
       );
-    });
-
-    test("logs activity when database reset is initiated", async () => {
-      await adminFormPost("/admin/settings/reset-database", {
-        confirm_phrase:
-          "The site will be fully reset and all data will be lost.",
-      });
-
-      // After reset, the activity_log table is wiped, so we can't check it.
-      // Instead, verify the reset succeeded (redirects to /setup/)
-      // The logActivity call happens before resetDatabase() so it was logged
-      // but the table is then dropped. This test verifies no error is thrown.
     });
 
     test("deletes storage files for all listings during admin reset", async () => {
@@ -127,6 +116,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         expect.stringContaining("Confirmation phrase does not match"),
         false,
       );
+      expect(redirectFormId(response)).toBe("settings-reset-database");
     });
 
     test("resets database and redirects to setup on correct phrase", async () => {

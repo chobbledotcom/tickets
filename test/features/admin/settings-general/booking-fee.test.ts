@@ -6,6 +6,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
   expectHtmlResponse,
+  redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
@@ -37,6 +38,7 @@ describeAdminSettings(() => {
       const response = await postBookingFee("1.5");
       expect(response.status).toBe(302);
       expectFlash(response, "Booking fee set to 1.5%");
+      expect(redirectFormId(response)).toBe("settings-booking-fee");
 
       expect(settings.bookingFee).toBe("1.5");
     });

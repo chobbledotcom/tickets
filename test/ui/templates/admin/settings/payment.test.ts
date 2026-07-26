@@ -188,6 +188,20 @@ describe("settings payment forms", () => {
       expect(html).toContain('id="sumup-test-btn"');
       expect(html).toContain('id="sumup-test-result"');
     });
+
+    test("masks the stored API key", () => {
+      const html = render(SumUpForm, {
+        paymentProvider: "sumup",
+        sumupKeyConfigured: true,
+      });
+      const field = html.match(/<input[^>]*name="sumup_api_key"[^>]*>/)?.[0];
+      expect(field).toContain(`value="${MASK_SENTINEL}"`);
+    });
+
+    test("leaves the API key field empty when no key is stored", () => {
+      const html = render(SumUpForm, { paymentProvider: "sumup" });
+      expect(html).not.toContain(MASK_SENTINEL);
+    });
   });
 
   describe("SquareForm", () => {
@@ -259,6 +273,7 @@ describe("settings payment forms", () => {
       expect(html).toContain('href="/admin/guide#payment-setup"');
       expect(html).toContain("No webhook signature key is configured");
       expect(html).toContain("Follow the steps above to set one up");
+      expect(html).not.toContain(MASK_SENTINEL);
     });
 
     test("swaps in the configured hint once a key is stored", () => {
@@ -269,6 +284,10 @@ describe("settings payment forms", () => {
       });
       expect(html).toContain("A webhook signature key is currently configured");
       expect(html).toContain("Enter a new key below to replace it");
+      const field = html.match(
+        /<input[^>]*name="square_webhook_signature_key"[^>]*>/,
+      )?.[0];
+      expect(field).toContain(`value="${MASK_SENTINEL}"`);
     });
   });
 

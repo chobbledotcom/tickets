@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
+import {
+  expectFlash,
+  redirectFormId,
+  testRequiresAuth,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -40,6 +44,7 @@ describeWithEnv("server (admin settings: calendar feeds)", { db: true }, () => {
       expect(settings.calendarFeedsEnabled).toBe(true);
       expect(settings.calendarFeedsGroupBy).toBe("attendees");
       expectFlash(response, expect.stringContaining("Calendar feeds enabled"));
+      expect(redirectFormId(response)).toBe("settings-calendar-feeds");
     });
 
     test("enables listing-grouped calendar feeds", async () => {

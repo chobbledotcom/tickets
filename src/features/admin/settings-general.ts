@@ -16,7 +16,6 @@ import {
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -240,7 +239,8 @@ export const handleResetDatabasePost = advancedSettingsRoute(
       return errorPage(phraseResult.error, "settings-reset-database");
     }
 
-    await logActivity("Database reset initiated");
+    // No activity-log line here: the reset drops every table, so a row written
+    // now is destroyed before the response is sent and nobody can ever read it.
     await deleteStorageAndResetDatabase();
 
     // Redirect to setup page since the database is now empty
