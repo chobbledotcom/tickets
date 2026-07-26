@@ -5,9 +5,7 @@ import {
   formatSummaryLines,
   rel,
   summarize,
-  survivorLocation,
 } from "#scripts/mutation/summary.ts";
-import { projectRoot } from "#scripts/project-root.ts";
 import { fakeResult } from "./fixtures.ts";
 
 describe("scoring a mutation run", () => {

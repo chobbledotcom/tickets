@@ -7,12 +7,7 @@ import {
   writeStepSummary,
 } from "#scripts/mutation/summary.ts";
 import { tempFile } from "#test-utils/files.ts";
-import {
-  fakeResult,
-  plain,
-  timingSummary,
-  withStepSummary,
-} from "./fixtures.ts";
+import { fakeResult, timingSummary, withStepSummary } from "./fixtures.ts";
 
 describe("the Markdown mutation report", () => {
   /** The Markdown one writeStepSummary call appended. */
