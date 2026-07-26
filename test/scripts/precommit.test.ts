@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  type CommandResult,
-  runCommand,
-  runInteractiveCommand,
-} from "#scripts/precommit/git.ts";
+import { runCommand, runInteractiveCommand } from "#scripts/precommit/git.ts";
 import {
   getMergeConflictWarning,
   parseMergeTreeConflictedPaths,
@@ -21,14 +17,14 @@ import {
   currentTerminalState,
 } from "#scripts/precommit/terminal.ts";
 
-const ok = (stdout = ""): CommandResult => ({
+const ok = (stdout = ""): CapturedOutput => ({
   code: 0,
   stderr: "",
   stdout,
   success: true,
 });
 
-const fail = (code: number, stdout = "", stderr = ""): CommandResult => ({
+const fail = (code: number, stdout = "", stderr = ""): CapturedOutput => ({
   code,
   stderr,
   stdout,
@@ -36,13 +32,13 @@ const fail = (code: number, stdout = "", stderr = ""): CommandResult => ({
 });
 
 /** A 40-char SHA stdout line built from a single repeated character. */
-const sha = (c: string): CommandResult => ok(`${c.repeat(40)}\n`);
+const sha = (c: string): CapturedOutput => ok(`${c.repeat(40)}\n`);
 
 /** The six git-metadata responses getMergeConflictWarning reads before
  *  merge-tree: inside-work-tree, the remote URL, then four resolved SHAs. */
 const gitMeta = (
   remote = "git@github.com:chobbledotcom/tickets.git",
-): CommandResult[] => [
+): CapturedOutput[] => [
   ok("true\n"),
   ok(`${remote}\n`),
   sha("a"),
@@ -53,12 +49,12 @@ const gitMeta = (
 
 /** A `run` that returns each queued response in turn, then fail(128). */
 const runFrom =
-  (responses: CommandResult[]) =>
-  (_cmd: string[]): Promise<CommandResult> =>
+  (responses: CapturedOutput[]) =>
+  (_cmd: string[]): Promise<CapturedOutput> =>
     Promise.resolve(responses.shift() ?? fail(128));
 
 /** A merge-tree (--name-only) failure listing the given conflicted paths. */
-const mergeTreeConflict = (...paths: string[]): CommandResult =>
+const mergeTreeConflict = (...paths: string[]): CapturedOutput =>
   fail(
     1,
     [
@@ -72,8 +68,8 @@ const mergeTreeConflict = (...paths: string[]): CommandResult =>
 
 /** Like runFrom, but records every command for later assertion. */
 const runRecording = (
-  responses: CommandResult[],
-): { calls: string[][]; run: (cmd: string[]) => Promise<CommandResult> } => {
+  responses: CapturedOutput[],
+): { calls: string[][]; run: (cmd: string[]) => Promise<CapturedOutput> } => {
   const calls: string[][] = [];
   return {
     calls,
@@ -85,7 +81,7 @@ const runRecording = (
 };
 
 /** Push context responses for a clean branch with one unpushed commit. */
-const pushReady = (): CommandResult[] => [
+const pushReady = (): CapturedOutput[] => [
   ok("true\n"),
   ok(""),
   ok("Ready\n"),
@@ -98,7 +94,7 @@ const pushReady = (): CommandResult[] => [
 /** A `push` that records its invocations (so a test can assert it ran or not). */
 const trackPush = (): {
   calls: string[][];
-  push: (cmd: string[]) => Promise<CommandResult>;
+  push: (cmd: string[]) => Promise<CapturedOutput>;
 } => {
   const calls: string[][] = [];
   return {
@@ -349,7 +345,7 @@ describe("precommit push prompt", () => {
   });
 
   test("does not build context outside a git work tree", async () => {
-    const run = (_cmd: string[]): Promise<CommandResult> =>
+    const run = (_cmd: string[]): Promise<CapturedOutput> =>
       Promise.resolve(fail(128));
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();

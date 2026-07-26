@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { CommandResult, RunCommand } from "#scripts/precommit/git.ts";
+import type { RunCommand } from "#scripts/precommit/git.ts";
 import {
   type ChangedFiles,
   changedFiles,
@@ -10,15 +10,16 @@ import {
   runMutationStep,
   STALE_BASE_SOURCE_LIMIT,
 } from "#scripts/precommit/mutation-step.ts";
+import type { CapturedOutput } from "#scripts/process.ts";
 
-const ok = (stdout = ""): CommandResult => ({
+const ok = (stdout = ""): CapturedOutput => ({
   code: 0,
   stderr: "",
   stdout,
   success: true,
 });
 
-const fail = (stderr = ""): CommandResult => ({
+const fail = (stderr = ""): CapturedOutput => ({
   code: 1,
   stderr,
   stdout: "",
@@ -32,7 +33,7 @@ const fail = (stderr = ""): CommandResult => ({
  * diffs `base...HEAD`.
  */
 const fakeGit =
-  (opts: { base?: string | null; diff: CommandResult }): RunCommand =>
+  (opts: { base?: string | null; diff: CapturedOutput }): RunCommand =>
   (cmd) =>
     cmd[1] === "rev-parse"
       ? Promise.resolve(cmd.at(-1) === (opts.base ?? null) ? ok() : fail())

@@ -65,14 +65,7 @@ describe("the terminal mutation report", () => {
   });
 
   test("formats phase timing work in terminal summaries", () => {
-    expect(
-      formatSummaryLines(timingSummary())
-        .map((line) =>
-          // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour
-          line.replace(/\u001b\[[0-9;]*m/g, ""),
-        )
-        .slice(-5),
-    ).toEqual([
+    expect(formatSummaryLines(timingSummary()).map(plain).slice(-5)).toEqual([
       "",
       "  phase timings (cumulative elapsed):",
       "    lint: 4ms in 1 run(s)",

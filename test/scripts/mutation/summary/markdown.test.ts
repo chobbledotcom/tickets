@@ -7,7 +7,12 @@ import {
   writeStepSummary,
 } from "#scripts/mutation/summary.ts";
 import { tempFile } from "#test-utils/files.ts";
-import { fakeResult, timingSummary, withStepSummary } from "./fixtures.ts";
+import {
+  fakeResult,
+  plain,
+  timingSummary,
+  withStepSummary,
+} from "./fixtures.ts";
 
 describe("the Markdown mutation report", () => {
   /** The Markdown one writeStepSummary call appended. */
@@ -116,10 +121,9 @@ describe("the Markdown mutation report", () => {
 
     await withStepSummary(file.path, () => writeStepSummary(summarize([])));
 
-    expect(
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour
-      logs.map((line) => line.replace(/\u001b\[[0-9;]*m/g, "")),
-    ).toEqual(["Wrote Markdown summary to $GITHUB_STEP_SUMMARY."]);
+    expect(logs.map(plain)).toEqual([
+      "Wrote Markdown summary to $GITHUB_STEP_SUMMARY.",
+    ]);
   });
 
   test("writes phase timing work in Markdown summaries", async () => {

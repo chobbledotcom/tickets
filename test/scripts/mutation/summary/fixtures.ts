@@ -28,7 +28,6 @@ export const fakeResult = (
   timings: [],
 });
 
-/** Run something with GITHUB_STEP_SUMMARY set, and read back what it wrote. */
 export const withStepSummary = async (
   path: string | null,
   run: () => void,
