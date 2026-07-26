@@ -33,6 +33,7 @@ Feature: Listings that share a day limit are counted together
       And 3 Saturday places are booked starting in 11 days
       When a customer tries to book 2 Weekend places starting in 10 days
       Then they are told the Weekend has no room for those days
+      And the Weekend holds no stays at all
       And a Saturday stay starting in 10 days can still be booked
 
   @rule:bookings.one-order-is-checked-against-the-shared-limit

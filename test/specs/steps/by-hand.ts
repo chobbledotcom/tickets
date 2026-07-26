@@ -2,7 +2,8 @@
 
 import { Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { csvDateRange } from "#routes/admin/attendees-csv.ts";
+import { t } from "#i18n";
+import { scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   downloadAttendeeList,
   organiserAddsBooking,
@@ -24,10 +25,11 @@ import {
 const downloadedList = (world: TicketsWorld): string =>
   requiredWorldValue(world.firstBody, "the downloaded list");
 
-/** The date column the site writes for a stay between two days, so a story
- * checks the real column rather than a hand-built copy of it. */
+/** The date column a story expects for a stay, written out from its first and
+ * last day. Built here rather than by the code that writes the file, so a
+ * change to how the file words a range fails the story. */
 const columnFor = (world: TicketsWorld, from: number, to: number): string =>
-  csvDateRange(dayFromToday(world, from), dayFromToday(world, to + 1));
+  `${dayFromToday(world, from)} to ${dayFromToday(world, to)}`;
 
 When(
   "the organiser adds a {word} booking starting in {int} days",
@@ -52,6 +54,11 @@ Then(
   "the organiser is told the days have no room",
   function (this: TicketsWorld): void {
     expect(this.bookingWasTaken).toBe(false);
+    // It has to be refused for want of room: any other failure would otherwise
+    // count as the days being held.
+    expect(scenarioBrowser(this).pageText).toContain(
+      t("error.not_enough_spots"),
+    );
   },
 );
 

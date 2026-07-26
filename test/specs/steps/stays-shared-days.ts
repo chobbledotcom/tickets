@@ -168,3 +168,12 @@ Then(
     expect((await staysOn(this, "Long")).length).toBe(0);
   },
 );
+
+Then(
+  "the {word} holds no stays at all",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    // A refused booking must leave nothing behind, or the day it was refused
+    // for would quietly lose room to a stay nobody can use.
+    expect((await staysOn(this, name)).length).toBe(0);
+  },
+);
