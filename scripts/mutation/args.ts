@@ -124,7 +124,7 @@ const applyPositionals = (parsed: ParsedArgs, positional: string[]): void => {
       parsed.error ??=
         `Unexpected positional argument(s) alongside --source/--test: ${stray}. ` +
         "A glob likely expanded to multiple files — quote it " +
-        `(e.g. --source 'src/lib/forms/*.ts') or pass repeated --source/--test flags.`;
+        `(e.g. --source 'src/shared/forms/*.ts') or pass repeated --source/--test flags.`;
     }
     return;
   }
@@ -133,8 +133,8 @@ const applyPositionals = (parsed: ParsedArgs, positional: string[]): void => {
   if (positional.length > 2) {
     parsed.error ??=
       `Too many positional arguments (${positional.length}). Quote your globs ` +
-      `so the shell can't expand them — e.g. 'src/lib/forms/*.ts' ` +
-      `'test/lib/forms/*.test.ts' — or pass repeated --source/--test flags.`;
+      `so the shell can't expand them — e.g. 'src/shared/forms/*.ts' ` +
+      `'test/shared/forms/*.test.ts' — or pass repeated --source/--test flags.`;
   }
 };
 
