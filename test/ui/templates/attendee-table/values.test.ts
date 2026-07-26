@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   formatAddressInline,
   sortAttendeeRows,
-} from "#templates/attendee-table.tsx";
+} from "#templates/attendee-table/values.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import { attendeeTableSuite, makeRow, namedListingRow } from "./shared.ts";
 

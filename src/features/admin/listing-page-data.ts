@@ -58,7 +58,7 @@ import {
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
 import type { AttendeeFilter } from "#templates/admin/listings/types.ts";
-import type { TableQuestionData } from "#templates/attendee-table.tsx";
+import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import {
   filterByDate,
   loadGroupContext,

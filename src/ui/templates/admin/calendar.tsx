@@ -12,18 +12,20 @@ import {
   agentFilterParam,
   renderAgentFilter,
 } from "#shared/logistics-filter.ts";
-import type { AdminSession, Attendee, LogisticsAgent } from "#shared/types.ts";
+import type {
+  AdminSession,
+  Attendee,
+  AttendeeTableRow,
+  LogisticsAgent,
+} from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import {
   AvailabilityChecker,
   type AvailabilityRow,
 } from "#templates/admin/availability-checker.tsx";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
-import {
-  AttendeeTable,
-  type AttendeeTableRow,
-  type TableQuestionData,
-} from "#templates/attendee-table.tsx";
+import { AttendeeTable } from "#templates/attendee-table/component.tsx";
+import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";

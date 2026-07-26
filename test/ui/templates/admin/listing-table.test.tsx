@@ -11,7 +11,7 @@ import {
   listingTable,
   renderListingsTableSection,
 } from "#templates/admin/listing-table.tsx";
-import { AttendeeTable } from "#templates/attendee-table.tsx";
+import { AttendeeTable } from "#templates/attendee-table/component.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 

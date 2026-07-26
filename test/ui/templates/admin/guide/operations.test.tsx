@@ -5,7 +5,7 @@ import type { GuideSection } from "#templates/admin/guide/components.tsx";
 import { renderGuideSections } from "#templates/admin/guide/components.tsx";
 import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { listingTable } from "#templates/admin/listing-table.tsx";
-import { attendeeTable } from "#templates/attendee-table.tsx";
+import { attendeeTable } from "#templates/attendee-table/columns.tsx";
 
 const sections = operationsSections();
 

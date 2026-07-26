@@ -10,7 +10,7 @@ import {
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
 import { listingTable } from "#templates/admin/listing-table.tsx";
-import { attendeeTable } from "#templates/attendee-table.tsx";
+import { attendeeTable } from "#templates/attendee-table/columns.tsx";
 import { renderColumnReference } from "#templates/components/table.tsx";
 
 /** The "Default order: `<code>`" line a table-columns FAQ answer opens with. */

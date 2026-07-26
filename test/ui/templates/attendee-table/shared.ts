@@ -1,9 +1,7 @@
 import { beforeAll, describe } from "@std/testing/bdd";
-import type {
-  AttendeeTableOptions,
-  AttendeeTableRow,
-} from "#templates/attendee-table.tsx";
-import { AttendeeTable } from "#templates/attendee-table.tsx";
+import type { AttendeeTableRow } from "#shared/types.ts";
+import { AttendeeTable } from "#templates/attendee-table/component.tsx";
+import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 

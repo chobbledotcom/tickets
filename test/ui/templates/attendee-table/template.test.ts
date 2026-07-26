@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { AttendeeColumnKey } from "#shared/tables/configurable.ts";
 import { columnOrThrow } from "#shared/tables/definition.ts";
-import {
-  type AttendeeColumnOpts,
-  type AttendeeTableRow,
-  attendeeTable,
-} from "#templates/attendee-table.tsx";
+import type { AttendeeTableRow } from "#shared/types.ts";
+import { attendeeTable } from "#templates/attendee-table/columns.tsx";
+import type { AttendeeColumnOpts } from "#templates/attendee-table/types.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import { attendeeTableSuite, makeOpts, makeRow, render } from "./shared.ts";
 

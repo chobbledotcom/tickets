@@ -1,8 +1,6 @@
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import {
-  AttendeeTable,
-  type AttendeeTableOptions,
-} from "#templates/attendee-table.tsx";
+import { AttendeeTable } from "#templates/attendee-table/component.tsx";
+import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 
 type SharedAttendeeTableOptions = Pick<
   AttendeeTableOptions,
