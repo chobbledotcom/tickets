@@ -6,6 +6,7 @@ import {
   createDatabaseSnapshot,
   type SnapshotClientFactory,
 } from "#scripts/database-snapshot-lib.ts";
+import { verifyTursoUploadFile } from "#scripts/turso-migration-file.ts";
 import { directoryNames, withTempDir } from "#test-utils/files.ts";
 
 describe("database snapshot", () => {
@@ -71,6 +72,7 @@ describe("database snapshot", () => {
       );
 
       expect(await directoryNames(dir)).toEqual(["snapshot.sqlite", "source"]);
+      await verifyTursoUploadFile(outputPath, createClient);
 
       const snapshot = createClient({
         intMode: "bigint",

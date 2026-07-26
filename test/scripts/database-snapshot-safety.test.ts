@@ -7,6 +7,7 @@ import {
   createDatabaseSnapshot,
   type SnapshotClient,
   type SnapshotClientFactory,
+  type SnapshotQueryResult,
   type SnapshotRequest,
 } from "#scripts/database-snapshot-lib.ts";
 import { directoryNames, pathExists, withTempDir } from "#test-utils/files.ts";
@@ -72,7 +73,100 @@ const expectExistingFilePreserved = async (
   expect(await Deno.readTextFile(existingPath)).toBe(content);
 };
 
+const assertAbortedSnapshot = async (
+  started: Promise<void>,
+  snapshot: Promise<unknown>,
+  controller: AbortController,
+  interruption: unknown,
+  isClosed: () => boolean,
+  dir: string,
+): Promise<void> => {
+  await started;
+  controller.abort(interruption);
+  await expect(snapshot).rejects.toBe(interruption);
+  expect(isClosed()).toBe(true);
+  expect(await directoryNames(dir)).toEqual([]);
+};
+
 describe("database snapshot safety", () => {
+  test("stops a source sync when its signal is aborted", () =>
+    withTempDir(async (dir) => {
+      const controller = new AbortController();
+      const interruption = new Error("snapshot interrupted");
+      const syncStarted = Promise.withResolvers<void>();
+      const syncNeverFinishes = new Promise<unknown>(() => {});
+      let closed = false;
+      const snapshot = createDatabaseSnapshot(
+        request(join(dir, "snapshot.sqlite")),
+        () =>
+          replicaClient(
+            () => {
+              syncStarted.resolve();
+              return syncNeverFinishes;
+            },
+            () => {
+              closed = true;
+            },
+          ),
+        undefined,
+        controller.signal,
+      );
+
+      await assertAbortedSnapshot(
+        syncStarted.promise,
+        snapshot,
+        controller,
+        interruption,
+        () => closed,
+        dir,
+      );
+    }));
+
+  test("stops verification when its signal is aborted", () =>
+    withTempDir(async (dir) => {
+      const controller = new AbortController();
+      const interruption = new Error("verification interrupted");
+      const checkpointStarted = Promise.withResolvers<void>();
+      const checkpointNeverFinishes = new Promise<SnapshotQueryResult>(
+        () => {},
+      );
+      let closed = false;
+      const factory: SnapshotClientFactory = (config) => {
+        const path = fromFileUrl(config.url);
+        if (config.syncUrl) {
+          return replicaClient(async () => {
+            await Deno.writeTextFile(path, "snapshot");
+            return {};
+          });
+        }
+        return localClient(
+          () => {
+            checkpointStarted.resolve();
+            return checkpointNeverFinishes;
+          },
+          () => {
+            closed = true;
+          },
+        );
+      };
+
+      const snapshot = createDatabaseSnapshot(
+        request(join(dir, "snapshot.sqlite")),
+        factory,
+        undefined,
+        controller.signal,
+      );
+
+      await assertAbortedSnapshot(
+        checkpointStarted.promise,
+        snapshot,
+        controller,
+        interruption,
+        () => closed,
+        dir,
+      );
+    }));
+
   test("refuses an existing output before syncing", () =>
     withTempDir(async (dir) => {
       const outputPath = join(dir, "snapshot.sqlite");
