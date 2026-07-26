@@ -11,7 +11,7 @@ import {
 import type { TicketCtx } from "#routes/public/types.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { resolved } from "#test/lib/booking-model-fixtures.ts";
+import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
 
 /** Direct, pure tests of the folded-booking API's child-selection layer —
  * `parseApiChildSelections` (parse the `children` body) and

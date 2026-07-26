@@ -42,6 +42,7 @@ const getSettingsPageState = async () => {
     businessEmail: settings.businessEmail,
     calendarFeedsEnabled: settings.calendarFeedsEnabled,
     calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
+    currency: settings.currency,
     embedHosts: settings.embedHosts,
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
     headerImageUrl: settings.headerImageUrl,

@@ -6,7 +6,7 @@ import {
   balancePaymentPage,
   balanceSettledPage,
 } from "#templates/public/balance.tsx";
-import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
+import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 describe("public balance templates", () => {

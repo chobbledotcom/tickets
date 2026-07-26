@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { twoListingsAttendees } from "#test/lib/attendee-read-helpers.ts";
+import { twoListingsAttendees } from "#test/integration/server/attendee-read-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";

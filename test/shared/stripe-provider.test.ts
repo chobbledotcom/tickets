@@ -7,8 +7,8 @@ import {
   lineFor,
   stripeCheckoutSession,
   stripeClient,
-} from "#test/lib/stripe/fixtures.ts";
-import { describeStripe } from "#test/lib/stripe/harness.ts";
+} from "#test/test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";

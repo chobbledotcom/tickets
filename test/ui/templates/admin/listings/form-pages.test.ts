@@ -4,7 +4,7 @@ import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
 import {
   editPanelHtml,
   registerListingTemplateHooks,
-} from "#test/templates/admin/listings/helpers.ts";
+} from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 

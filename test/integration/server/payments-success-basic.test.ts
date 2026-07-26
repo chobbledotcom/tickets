@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
-import { twoListingsAttendees } from "#test/lib/attendee-read-helpers.ts";
+import { twoListingsAttendees } from "#test/integration/server/attendee-read-helpers.ts";
 import {
   expectHtmlResponse,
   expectRedirect,

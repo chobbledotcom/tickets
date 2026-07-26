@@ -175,7 +175,7 @@
       }
     },
     {
-      "includes": ["test/lib/code-quality/**"],
+      "includes": ["test/scripts/code-quality/**"],
       "linter": {
         "rules": {
           "suspicious": {

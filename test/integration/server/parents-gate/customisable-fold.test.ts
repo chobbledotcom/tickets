@@ -5,7 +5,7 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import {
   firstBookableDate,
   stubCheckoutIntent,
-} from "#test/lib/server-parents-gate/helpers.ts";
+} from "#test/test-utils/parents-gate/helpers.ts";
 import { expectCapturedItemPriced } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

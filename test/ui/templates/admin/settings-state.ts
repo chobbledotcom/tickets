@@ -8,6 +8,7 @@ export const defaultSettingsState = (): SettingsPageState => ({
   businessEmail: "",
   calendarFeedsEnabled: false,
   calendarFeedsGroupBy: "attendees",
+  currency: "GBP",
   embedHosts: "",
   enabledFeatures: DEFAULT_ENABLED_FEATURES,
   headerImageUrl: "",

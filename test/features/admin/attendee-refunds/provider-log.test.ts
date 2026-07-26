@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   createPaidListing,
   setupRefundTest,
-} from "#test/lib/server-refunds-helpers.ts";
+} from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";

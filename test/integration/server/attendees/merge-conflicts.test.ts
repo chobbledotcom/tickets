@@ -6,7 +6,7 @@ import { queryAll } from "#shared/db/client.ts";
 import {
   createDualPackageAttendee,
   dualPackageRows,
-} from "#test/lib/server-attendees/helpers.ts";
+} from "#test/test-utils/attendees/helpers.ts";
 import {
   assignMergeAnswers,
   mergeNonConflictingAnswer,
@@ -14,7 +14,7 @@ import {
   mergePairWithQuestion,
   mergeWithAnswerConflict,
   submitMerge,
-} from "#test/lib/server-attendees/merge.ts";
+} from "#test/test-utils/attendees/merge.ts";
 import {
   expectFlash,
   expectHtmlResponse,

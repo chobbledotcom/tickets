@@ -12,7 +12,9 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   PAYMENT_PROVIDER_IDS,
   PAYMENT_PROVIDERS,
+  providerCurrencyBlock,
 } from "#shared/payment-providers.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
@@ -23,7 +25,35 @@ import {
   getStripeKeyFields,
   getSumupFields,
 } from "#templates/fields/admin.ts";
+
 /* jscpd:ignore-end */
+
+/** One payment-provider choice. A provider that cannot take the site's currency
+ *  is shown switched off, with the reason beside it — the operator learns before
+ *  pasting a key, not after. The site currency is set once at setup and never
+ *  changes, so this cannot switch off a provider already in use. */
+const ProviderOption = ({
+  currency,
+  id,
+  selected,
+}: {
+  currency: string;
+  id: PaymentProviderType;
+  selected: boolean;
+}): JSX.Element => {
+  const currencyBlock = providerCurrencyBlock(id, currency);
+  return (
+    <RadioOption
+      checked={selected}
+      disabled={currencyBlock !== null}
+      name="payment_provider"
+      value={id}
+    >
+      {PAYMENT_PROVIDERS[id].label}
+      {currencyBlock && <small class="notice">{currencyBlock}</small>}
+    </RadioOption>
+  );
+};
 
 export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
   <SaveForm
@@ -44,13 +74,11 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
         {t("settings.payment_none")}
       </RadioOption>
       {PAYMENT_PROVIDER_IDS.map((id) => (
-        <RadioOption
-          checked={s.paymentProvider === id}
-          name="payment_provider"
-          value={id}
-        >
-          {PAYMENT_PROVIDERS[id].label}
-        </RadioOption>
+        <ProviderOption
+          currency={s.currency}
+          id={id}
+          selected={s.paymentProvider === id}
+        />
       ))}
     </fieldset>
   </SaveForm>

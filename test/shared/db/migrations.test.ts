@@ -23,7 +23,7 @@ import {
 import {
   markCurrentSchemaMigrationPending,
   markMigrationsForRerun,
-} from "#test/lib/db/migration-test-helpers.ts";
+} from "#test/test-utils/db/migration-test-helpers.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

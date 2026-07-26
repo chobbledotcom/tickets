@@ -5,7 +5,7 @@ import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
-import { postExpectingNoCheckout } from "#test/routes/_shared-checkout.ts";
+import { postExpectingNoCheckout } from "#test/integration/routes/_shared-checkout.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";

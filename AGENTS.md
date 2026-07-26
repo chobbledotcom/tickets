@@ -185,7 +185,7 @@ pad a message with general knowledge the reader already has.
 All user-facing text is in the message catalog at `src/locales/en/*.json`,
 reached through `t("key")` (see `src/shared/i18n.ts`). Changing what a user
 reads is a **catalog edit, not a template edit** — the `i18n-coverage` test
-(`test/lib/i18n-coverage.test.ts`) fails the build when a new hard-coded string
+(`test/scripts/i18n-coverage.test.ts`) fails the build when a new hard-coded string
 appears in a template. Write copy once, in the catalog, and every surface that
 shows it stays worded the same.
 
@@ -719,14 +719,14 @@ logging and table-scoped cache invalidation stay automatic.
 Instead, use `deno task test:files`, which runs only the files you pass but reuses the full runner's setup — it builds the static client assets the app reads at import time, starts stripe-mock with `STRIPE_MOCK_HOST/PORT` exported, and removes any assets it generated afterwards. This means a fresh checkout can run a subset of the suite without manual preparation or leftover build artifacts:
 
 ```bash
-deno task test:files test/lib/dates.test.ts
+deno task test:files test/shared/dates.test.ts
 ```
 
 Arguments are forwarded verbatim to `deno test`, so multiple files, directories, and flags such as `--filter` all work:
 
 ```bash
-deno task test:files test/lib/dates.test.ts --filter "formats date"
-deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks/*.test.ts
+deno task test:files test/shared/dates.test.ts --filter "formats date"
+deno task test:files test/integration/server-balance-webhook.test.ts test/integration/server/webhooks/*.test.ts
 deno task test:files specs/payments/capacity-after-payment.feature
 deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-payment.feature
 ```
@@ -736,13 +736,13 @@ deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-
 For a pure unit test that imports neither the app nor Stripe, you can skip the harness and run `deno test` directly on the file (fastest, but it fails on a missing `src/ui/static/*.js` asset or an unstarted stripe-mock if the test does import them):
 
 ```bash
-deno test --no-check --allow-all test/lib/dates.test.ts
+deno test --no-check --allow-all test/shared/dates.test.ts
 ```
 
 To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars to the port you chose:
 
 ```bash
-STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/lib/stripe-mock.test.ts
+STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/integration/stripe-mock-ports.test.ts
 ```
 
 ## Environment Variables
@@ -1009,10 +1009,10 @@ a code change nothing would have caught.
 
 ```bash
 # Mutate a module's operators and run its mapped tests
-deno task mutation src/shared/dates.ts test/lib/dates.test.ts
+deno task mutation src/shared/dates.ts test/shared/dates.test.ts
 
 # Globs and exhaustive mode (every operator replacement, not just one each)
-deno task mutation 'src/lib/forms/*.ts' 'test/lib/forms/*.test.ts' --exhaustive
+deno task mutation 'src/shared/forms/*.ts' 'test/shared/forms/*.test.ts' --exhaustive
 ```
 
 It reports a mutation score and lists each survivor as
@@ -1183,17 +1183,17 @@ shows up in the report:
 - **Render once, assert many.** A suite making many assertions about ONE page
   in its default fixture state uses `cachedAdminPage(path)` — the page
   renders a single time and every test asserts against the cached HTML
-  (`test/lib/server-guide.test.ts` is the reference). Tests that alter
+  (`test/integration/server/guide.test.ts` is the reference). Tests that alter
   config, env, or fixture data still fetch their own copy.
 - **Seed volume with a batch, not a loop.** When a test needs many rows (e.g.
   filling a pagination page), create ONE record through the production path
   and clone its rows in a single batch — see `seedFillerAttendees` in
-  `test/lib/server-attendees-list.test.ts` — instead of running the full
+  `test/integration/server/attendees-list.test.ts` — instead of running the full
   production write path N times.
 - **Shard inherently heavy suites.** A suite that is minutes of sequential
   work by nature (the migration restore/chain suites) is split into shard
   files driven by one factory so `deno test --parallel` spreads it across
-  workers — see `test/lib/db/migration-restore/` (shard by
+  workers — see `test/integration/db/migration-restore/` (shard by
   `index % shardCount`, which stays balanced as the list grows).
 - **Keep heavy SDKs out of module load.** Every test isolate — a group of
   files under the full runner, each named file under `test:files` — evaluates

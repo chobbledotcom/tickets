@@ -6,7 +6,7 @@ import {
   editPanelHtml,
   registerListingTemplateHooks,
   withBuilder,
-} from "#test/templates/admin/listings/helpers.ts";
+} from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
