@@ -12,17 +12,17 @@ import {
 } from "#test/specs/support/bulk-money.ts";
 import { listingIdFor, minorUnits } from "#test/specs/support/money.ts";
 import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
-import {
   assertRenderedIncome,
   attendeeLegsOfKind,
   incomeOf,
   owedBy,
   sumOfAllBalances,
   worldBalance,
-} from "#test-utils/money/reads.ts";
+} from "#test/specs/support/money-reads.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 

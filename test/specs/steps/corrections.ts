@@ -33,10 +33,6 @@ import {
   minorUnits,
 } from "#test/specs/support/money.ts";
 import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
-import {
   adminPageHtml,
   assertEditPageIncome,
   assertRenderedIncome,
@@ -49,7 +45,11 @@ import {
   modifierRevenueOf,
   owedBy,
   worldBalance,
-} from "#test-utils/money/reads.ts";
+} from "#test/specs/support/money-reads.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 

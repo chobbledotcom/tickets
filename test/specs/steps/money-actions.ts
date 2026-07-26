@@ -25,9 +25,7 @@ import {
   sellPlacesAt,
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { singleItem } from "#test-utils/factories.ts";
-import { withStripeSuccess } from "#test-utils/money/drivers.ts";
+import { withStripeSuccess } from "#test/specs/support/money-drivers.ts";
 import {
   adminPageHtml,
   incomeLedgerArticle,
@@ -37,7 +35,9 @@ import {
   owedBy,
   sumOfAllBalances,
   worldBalance,
-} from "#test-utils/money/reads.ts";
+} from "#test/specs/support/money-reads.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { singleItem } from "#test-utils/factories.ts";
 
 // jscpd:ignore-end
 

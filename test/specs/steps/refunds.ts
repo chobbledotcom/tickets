@@ -12,7 +12,6 @@ import {
   listingIdFor,
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
   adminPageHtml,
   assertEditPageIncome,
@@ -21,7 +20,8 @@ import {
   incomeOf,
   owedBy,
   sumOfAllBalances,
-} from "#test-utils/money/reads.ts";
+} from "#test/specs/support/money-reads.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 

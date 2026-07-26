@@ -9,13 +9,13 @@ import { WRITEOFF } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
+import { worldBalance } from "#test/specs/support/money-reads.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
-import { worldBalance } from "#test-utils/money/reads.ts";
 
 /** What the site holds and what it has parked, before a correction is made, so
  * a story can prove a correction moved one and not the other. */
