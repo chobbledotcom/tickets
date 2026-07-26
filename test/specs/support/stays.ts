@@ -6,6 +6,7 @@
  */
 
 import { expect } from "@std/expect";
+import { addDays } from "#shared/dates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
@@ -27,23 +28,27 @@ export const staysOn = (
   name: string,
 ): Promise<Attendee[]> => getAttendeesRaw(stayListing(world, name).id);
 
-/** The stay booked most recently on a listing. Fails loudly when nothing has
- * been booked, so a story never carries on with no stay to talk about. */
+/** The stay booked most recently on a listing — the highest id, so the answer
+ * does not depend on the order the rows come back in. Fails loudly when nothing
+ * has been booked, so a story never carries on with no stay to talk about. */
 export const newestStayOn = async (
   world: TicketsWorld,
   name: string,
 ): Promise<number> => {
   const booked = await staysOn(world, name);
-  const newest = booked.at(-1);
-  if (!newest) throw new Error(`No stay has been booked on the ${name}`);
-  return newest.id;
+  if (booked.length === 0) {
+    throw new Error(`No stay has been booked on the ${name}`);
+  }
+  return Math.max(...booked.map((stay) => stay.id));
 };
 
-/** A day counted forward from today, written the way the site writes days. */
-export const dayFromToday = (days: number): string => {
-  const day = new Date();
-  day.setUTCDate(day.getUTCDate() + days);
-  return day.toISOString().slice(0, 10);
+/** A day counted forward from the Scenario's own first day, written the way the
+ * site writes days. The first day is fixed the first time it is asked for, so a
+ * Scenario running across midnight cannot set a stay up against one day and
+ * then check it against the next. */
+export const dayFromToday = (world: TicketsWorld, days: number): string => {
+  world.firstDay ??= new Date().toISOString().slice(0, 10);
+  return addDays(world.firstDay, days);
 };
 
 /** A listing booked by the day, where each booking covers `days` days and each

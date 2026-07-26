@@ -16,6 +16,7 @@ export interface TicketsWorld extends World {
   daysOffered?: string[];
   evidenceValues: Map<string, string>;
   firstBody?: string;
+  firstDay?: string;
   firstFailureData?: string;
   firstStatus?: number;
   groupId?: number;

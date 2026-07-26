@@ -70,7 +70,7 @@ Given(
     onWeekend: number,
     startsIn: number,
   ): Promise<void> {
-    const day = dayFromToday(startsIn);
+    const day = dayFromToday(this, startsIn);
     await visitorBooks(this, stayListing(this, "Saturday"), {
       ...guest(1),
       day,
@@ -93,7 +93,7 @@ When(
   ): Promise<void> {
     const attempt = await visitorTriesToBook(stayListing(this, "Saturday"), {
       ...guest(3),
-      day: dayFromToday(startsIn),
+      day: dayFromToday(this, startsIn),
       places,
     });
     this.customerBrowser = attempt.browser;
@@ -110,7 +110,7 @@ When(
   ): Promise<void> {
     await visitorBooks(this, stayListing(this, "Weekend"), {
       ...guest(4),
-      day: dayFromToday(startsIn),
+      day: dayFromToday(this, startsIn),
       places,
     });
   },
@@ -135,7 +135,7 @@ When(
     await browser.submitForm(
       {
         ...{ email: guest(5).email, name: guest(5).who },
-        date: dayFromToday(10),
+        date: dayFromToday(this, 10),
         [`quantity_${short.id}`]: String(onShort),
         [`quantity_${long.id}`]: String(onLong),
       },

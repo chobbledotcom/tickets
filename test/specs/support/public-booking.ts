@@ -1,11 +1,13 @@
 /**
  * How a visitor books, for every story that needs one. A visitor uses their own
  * browser and is never signed in as the organiser, and they can only send the
- * fields the served page actually offers — so a page that stops rendering one
- * fails the story instead of quietly passing.
+ * fields the served page actually offers — every field is checked against the
+ * rendered form first, so a page that stops offering one fails the story
+ * instead of quietly accepting a request no real visitor could make.
  */
 
 import { expect } from "@std/expect";
+import { bookingError } from "#shared/booking/form.ts";
 import type { Listing } from "#shared/types.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
@@ -39,18 +41,21 @@ export const visitorTriesToBook = async (
   const browser = new TestBrowser();
   await browser.visit(`/ticket/${listing.slug}`);
   expect(browser.pageText).toContain(listing.name);
-  await browser.submitForm(
-    {
-      email: choices.email,
-      name: choices.who,
-      [`quantity_${listing.id}`]: String(choices.places ?? 1),
-      ...(choices.day === undefined ? {} : { date: choices.day }),
-      ...(choices.dayCount === undefined
-        ? {}
-        : { day_count: String(choices.dayCount) }),
-    },
-    "Continue",
-  );
+  const fields = {
+    email: choices.email,
+    name: choices.who,
+    [`quantity_${listing.id}`]: String(choices.places ?? 1),
+    ...(choices.day === undefined ? {} : { date: choices.day }),
+    ...(choices.dayCount === undefined
+      ? {}
+      : { day_count: String(choices.dayCount) }),
+  };
+  // Only send what the page offers. A form that drops or renames a control
+  // fails here rather than letting the story post something a visitor cannot.
+  for (const field of Object.keys(fields)) {
+    expect(browser.currentHtml).toContain(`name="${field}"`);
+  }
+  await browser.submitForm(fields, "Continue");
   return { browser, wasBooked: browser.pageText.includes(THANK_YOU) };
 };
 
@@ -66,6 +71,19 @@ export const visitorBooks = async (
   world.customerBrowser = browser;
   world.attendeeName = choices.who;
   return browser;
+};
+
+/** The visitor was turned away because the listing had no room — not because
+ * of some other error. Any page without the thank-you text would otherwise
+ * count as "refused", including a validation or server error. */
+export const expectRefusedForWantOfRoom = (
+  attempt: BookingAttempt,
+  listingName: string,
+): void => {
+  expect(attempt.wasBooked).toBe(false);
+  expect(attempt.browser.pageText).toContain(
+    bookingError.withName(listingName),
+  );
 };
 
 /** The days the page offers as a stay's first day. Read from the served date

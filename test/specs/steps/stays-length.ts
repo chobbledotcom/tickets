@@ -12,7 +12,10 @@ import {
   rememberStayListing,
   stayListing,
 } from "#test/specs/support/stays.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { expectListingActivityLogContains } from "#test-utils/assertions.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
 import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";
@@ -38,15 +41,15 @@ Given(
   ): Promise<void> {
     const { group, listingA, listingB } =
       await twoGroupedListingsBookedOnAdjacentDays({
-        cap: this.sharedDayLimit ?? 10,
-        dateA: dayFromToday(10),
-        dateB: dayFromToday(11),
+        cap: requiredWorldValue(this.sharedDayLimit, "the shared day limit"),
+        dateA: dayFromToday(this, 10),
+        dateB: dayFromToday(this, 11),
         quantity: onFirst,
         secondQuantity: onSecond,
       });
     rememberStayListing(this, FIRST, listingA);
     rememberStayListing(this, SECOND, listingB);
-    this.sharedDayOver = dayFromToday(11);
+    this.sharedDayOver = dayFromToday(this, 11);
     this.groupId = group.id;
   },
 );
@@ -67,7 +70,7 @@ Given(
     days: number,
     startsIn: number,
   ): Promise<void> {
-    this.stayStartsOn = dayFromToday(startsIn);
+    this.stayStartsOn = dayFromToday(this, startsIn);
     await visitorBooks(this, stayListing(this, "Retreat"), {
       ...guest(1),
       day: this.stayStartsOn,
@@ -119,14 +122,24 @@ Then(
 Then(
   "a {word} stay can no longer start in {int} days",
   function (this: TicketsWorld, name: string, startsIn: number): Promise<void> {
-    return expectStayCanBeBooked(this, name, dayFromToday(startsIn), false);
+    return expectStayCanBeBooked(
+      this,
+      name,
+      dayFromToday(this, startsIn),
+      false,
+    );
   },
 );
 
 Then(
   "a {word} stay can start in {int} days again",
   function (this: TicketsWorld, name: string, startsIn: number): Promise<void> {
-    return expectStayCanBeBooked(this, name, dayFromToday(startsIn), true);
+    return expectStayCanBeBooked(
+      this,
+      name,
+      dayFromToday(this, startsIn),
+      true,
+    );
   },
 );
 

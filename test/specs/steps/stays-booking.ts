@@ -2,11 +2,11 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { bookingError } from "#shared/booking/form.ts";
 import { addDays, formatDateRangeLabel } from "#shared/dates.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   daysOfferedFor,
+  expectRefusedForWantOfRoom,
   visitorBooks,
   visitorTriesToBook,
 } from "#test/specs/support/public-booking.ts";
@@ -48,7 +48,7 @@ const bookStay = async (
   places = 1,
   dayCount?: number,
 ): Promise<void> => {
-  world.stayStartsOn = dayFromToday(startsIn);
+  world.stayStartsOn = dayFromToday(world, startsIn);
   await visitorBooks(world, stayListing(world, name), {
     ...guest(order),
     day: world.stayStartsOn,
@@ -68,7 +68,7 @@ const tryToBook = async (
 ): Promise<void> => {
   const attempt = await visitorTriesToBook(stayListing(world, name), {
     ...guest(9),
-    day: dayFromToday(startsIn),
+    day: dayFromToday(world, startsIn),
     places,
   });
   world.customerBrowser = attempt.browser;
@@ -88,7 +88,13 @@ export const expectStayCanBeBooked = async (
     ...who,
     day,
   });
-  expect(attempt.wasBooked).toBe(expected);
+  if (expected) {
+    expect(attempt.wasBooked).toBe(true);
+    return;
+  }
+  // A refusal has to be for want of room: any other error would otherwise
+  // count as the days being held.
+  expectRefusedForWantOfRoom(attempt, name);
 };
 
 Given(
@@ -139,7 +145,7 @@ Given(
 Given(
   "the organiser closes the day {int} days from now for a holiday",
   async function (this: TicketsWorld, closedIn: number): Promise<void> {
-    this.closedDayOn = dayFromToday(closedIn);
+    this.closedDayOn = dayFromToday(this, closedIn);
     await createTestHoliday({
       endDate: this.closedDayOn,
       name: "Closed for a holiday",
@@ -246,11 +252,12 @@ Then(
 Then(
   "they are told the {word} has no room for those days",
   function (this: TicketsWorld, name: string): void {
-    expect(this.bookingWasTaken).toBe(false);
-    // The reason the site itself gives for a named listing, so the story cannot
-    // pass on some other refusal.
-    expect(this.customerBrowser?.pageText).toContain(
-      bookingError.withName(name),
+    expectRefusedForWantOfRoom(
+      {
+        browser: requiredWorldValue(this.customerBrowser, "the page shown"),
+        wasBooked: this.bookingWasTaken === true,
+      },
+      name,
     );
   },
 );
@@ -258,7 +265,12 @@ Then(
 Then(
   "a {word} stay starting in {int} days can still be booked",
   function (this: TicketsWorld, name: string, startsIn: number): Promise<void> {
-    return expectStayCanBeBooked(this, name, dayFromToday(startsIn), true);
+    return expectStayCanBeBooked(
+      this,
+      name,
+      dayFromToday(this, startsIn),
+      true,
+    );
   },
 );
 
@@ -292,13 +304,13 @@ Then("the closed day is not offered", function (this: TicketsWorld): void {
 Then(
   "the day {int} days from now is not offered either",
   function (this: TicketsWorld, day: number): void {
-    expect(offeredDays(this)).not.toContain(dayFromToday(day));
+    expect(offeredDays(this)).not.toContain(dayFromToday(this, day));
   },
 );
 
 Then(
   "the day {int} days from now is still offered",
   function (this: TicketsWorld, day: number): void {
-    expect(offeredDays(this)).toContain(dayFromToday(day));
+    expect(offeredDays(this)).toContain(dayFromToday(this, day));
   },
 );
