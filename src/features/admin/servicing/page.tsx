@@ -96,17 +96,13 @@ const servicingListingsTable = defineTable<
   ListingWithCount,
   ReadonlyMap<number, number>
 >([
-  translatedTableColumn<ListingWithCount, ReadonlyMap<number, number>>(
-    "listing",
-    "servicing.column.listing",
-    (listing) => (
-      <>
-        {listing.name}
-        {listing.active ? "" : <em> {t("servicing.inactive")}</em>}
-      </>
-    ),
-  ),
-  translatedTableColumn<ListingWithCount, ReadonlyMap<number, number>>(
+  translatedTableColumn("listing", "servicing.column.listing", (listing) => (
+    <>
+      {listing.name}
+      {listing.active ? "" : <em> {t("servicing.inactive")}</em>}
+    </>
+  )),
+  translatedTableColumn(
     "quantity",
     "servicing.column.quantity",
     (listing, quantities) => (
@@ -164,7 +160,7 @@ const servicingCostsTable = defineTable<
   ServicingCostRecord,
   ServicingCostTableContext
 >([
-  translatedTableColumn<ServicingCostRecord, ServicingCostTableContext>(
+  translatedTableColumn(
     "listing",
     "servicing.column.listing",
     (cost, context) => {
@@ -176,25 +172,17 @@ const servicingCostsTable = defineTable<
       );
     },
   ),
-  translatedTableColumn<ServicingCostRecord, ServicingCostTableContext>(
-    "date",
-    "servicing.column.date",
-    (cost) => formatDateLabel(cost.date.slice(0, 10)),
+  translatedTableColumn("date", "servicing.column.date", (cost) =>
+    formatDateLabel(cost.date.slice(0, 10)),
   ),
   {
-    ...translatedTableColumn<ServicingCostRecord, ServicingCostTableContext>(
-      "amount",
-      "servicing.column.amount",
-      (cost) => formatCurrency(cost.amount),
+    ...translatedTableColumn("amount", "servicing.column.amount", (cost) =>
+      formatCurrency(cost.amount),
     ),
     class: "amount",
   },
-  translatedTableColumn<ServicingCostRecord, ServicingCostTableContext>(
-    "note",
-    "servicing.column.note",
-    (cost) => cost.memo,
-  ),
-  translatedTableColumn<ServicingCostRecord, ServicingCostTableContext>(
+  translatedTableColumn("note", "servicing.column.note", (cost) => cost.memo),
+  translatedTableColumn(
     "actions",
     "servicing.column.actions",
     (cost, context) => {
@@ -222,17 +210,13 @@ const servicingEventsTable = defineTable<
   ServicingEventSummary,
   ReadonlyMap<number, string>
 >([
-  translatedTableColumn<ServicingEventSummary, ReadonlyMap<number, string>>(
-    "name",
-    "servicing.column.name",
-    (event) => <ServicingEventEditLink event={event} />,
+  translatedTableColumn("name", "servicing.column.name", (event) => (
+    <ServicingEventEditLink event={event} />
+  )),
+  translatedTableColumn("date", "servicing.column.date", (event) =>
+    servicingEventDateLabel(event.date),
   ),
-  translatedTableColumn<ServicingEventSummary, ReadonlyMap<number, string>>(
-    "date",
-    "servicing.column.date",
-    (event) => servicingEventDateLabel(event.date),
-  ),
-  translatedTableColumn<ServicingEventSummary, ReadonlyMap<number, string>>(
+  translatedTableColumn(
     "listings",
     "servicing.column.listings",
     (event, listingNames) =>
@@ -241,7 +225,7 @@ const servicingEventsTable = defineTable<
           listingNames.get(booking.listingId) ?? t("servicing.deleted_listing"),
       )(event.bookings).join(", "),
   ),
-  translatedTableColumn<ServicingEventSummary, ReadonlyMap<number, string>>(
+  translatedTableColumn(
     "quantity",
     "servicing.column.quantity",
     (event) => event.totalQuantity,

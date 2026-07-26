@@ -5,6 +5,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { tableRowContaining } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const API_KEY = {
@@ -31,7 +32,8 @@ describe("API key pages in read-only mode", () => {
       {},
     );
 
-    expect(html).toContain("Saturday 11 July 2026");
-    expect(html).toContain("Sunday 12 July 2026");
+    expect(tableRowContaining(html, "Deploy key")).toContain(
+      "<td>Saturday 11 July 2026</td><td>Sunday 12 July 2026</td>",
+    );
   });
 });

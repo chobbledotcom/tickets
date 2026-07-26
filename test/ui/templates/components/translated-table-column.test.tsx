@@ -6,13 +6,14 @@ import { renderTable } from "#templates/components/table.tsx";
 import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { withEnv } from "#test-utils/env.ts";
 
-const table = defineTable([
-  translatedTableColumn<{ value: string }>(
-    "name",
-    "common.name",
-    (row) => row.value,
-  ),
-]);
+const nameColumn = translatedTableColumn<{ value: string }, "name">(
+  "name",
+  "common.name",
+  (row) => row.value,
+);
+const exactKey: "name" = nameColumn.key;
+const table = defineTable([nameColumn]);
+void exactKey;
 
 const headerWith = (replacement: string): string => {
   using _env = withEnv({ I18N_REPLACEMENTS: `name|${replacement}` });

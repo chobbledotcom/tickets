@@ -270,17 +270,12 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       // Column headers render because at least one attendee has each field.
       expect(body).toContain("<th>Email</th>");
       expect(body).toContain("<th>Phone</th>");
-      // The contact-bearing attendee's row shows the values.
       expect(tableRowContaining(body, "WithContact")).toContain(
-        "with@test.com",
+        '<td>with@test.com</td><td><a href="tel:+44712345678">0712345678</a></td>',
       );
-      expect(tableRowContaining(body, "WithContact")).toContain("0712345678");
-      // The no-contact attendee's row shows empty cells for those columns.
-      expect(tableRowContaining(body, "NoContact")).toContain("<td></td>");
-      expect(tableRowContaining(body, "NoContact")).not.toContain(
-        "with@test.com",
+      expect(tableRowContaining(body, "NoContact")).toContain(
+        "<td></td><td></td>",
       );
-      expect(tableRowContaining(body, "NoContact")).not.toContain("0712345678");
     });
 
     test("does not show date column for standard listing in admin view", async () => {

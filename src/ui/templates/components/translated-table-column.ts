@@ -8,11 +8,15 @@ export const translatedTableHeader =
     t(key);
 
 /** Build a keyed table column whose header is translated when rendered. */
-export const translatedTableColumn = <TRow, TContext = undefined>(
-  key: string,
+export const translatedTableColumn = <
+  TRow,
+  const TKey extends string,
+  TContext = undefined,
+>(
+  key: TKey,
   headerKey: string,
-  cell: TableColumn<TRow, TContext>["cell"],
-): TableColumn<TRow, TContext> => ({
+  cell: TableColumn<TRow, TContext, TKey>["cell"],
+): TableColumn<TRow, TContext, TKey> => ({
   cell,
   header: translatedTableHeader(headerKey),
   key,
