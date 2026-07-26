@@ -8,13 +8,13 @@ import {
   askForRefund,
   bookingId,
   buyOnePlace,
+  correctIncomeTo,
   listingIdFor,
   sellPlacesAt,
   soleBookingOn,
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { runStripeSuccess } from "#test-utils/money/drivers.ts";
 import {
@@ -26,7 +26,6 @@ import {
   sumOfAllBalances,
   worldBalance,
 } from "#test-utils/money/reads.ts";
-import { adminFormPost } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -109,14 +108,7 @@ Given(
   "the organiser corrected the Festival income to 100.00",
   async function (this: TicketsWorld): Promise<void> {
     const listingId = listingIdFor(this, FESTIVAL);
-    const { response } = await adminFormPost(
-      `/admin/listing/${listingId}/income`,
-      { income: "100.00" },
-    );
-    await expectFlashRedirect(
-      `/admin/listing/${listingId}/edit`,
-      "Listing income corrected.",
-    )(response);
+    await correctIncomeTo(this, listingId, "100.00");
     expect(await incomeOf(listingId)).toBe(10000);
   },
 );

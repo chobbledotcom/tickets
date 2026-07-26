@@ -20,6 +20,7 @@ import {
   withRefundMock,
 } from "#test-utils/money/drivers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** The id of a listing the story put on sale, by the name it used. */
 export const listingIdFor = (world: TicketsWorld, name: string): number =>
@@ -42,6 +43,9 @@ export const sellPlacesAt = async (
   const listing = await createTestListing({
     maxAttendees: 50,
     name,
+    // Keep the site's own thank-you page, so a story can read what the customer
+    // is shown rather than being sent off to another site.
+    thankYouUrl: "",
     unitPrice: minorUnits(pounds),
   });
   world.listingIds.set(name, listing.id);
@@ -134,6 +138,44 @@ export const askForRefund = async (
     await browser.submitForm({ confirm_identifier: who }, "Refund Attendee");
     world.refundCalls = () => mockRefund.calls.length;
   });
+};
+
+/** Set a listing's income through the correction form on its own edit page, and
+ * check the organiser is told it worked — a failed save redirects too, so a bare
+ * redirect would not show the difference. */
+export const correctIncomeTo = async (
+  world: TicketsWorld,
+  listingId: number,
+  pounds: string,
+): Promise<void> => {
+  const browser = await adminBrowser(world);
+  await browser.visit(`/admin/listing/${listingId}/edit`);
+  // The page must offer the correction box; the browser posts the form's own
+  // action and token, so a broken form fails here.
+  expect(browser.currentHtml).toContain('id="income"');
+  await browser.submitForm({ income: pounds }, "Save income correction");
+  expect(browser.containsText("Listing income corrected.")).toBe(true);
+};
+
+/** A member of the public books one free place through the listing's own page. */
+export const bookFreePlace = async (
+  world: TicketsWorld,
+  listing: Listing,
+  who: string,
+  email: string,
+): Promise<void> => {
+  // Their own browser, never signed in: this is what a visitor can do.
+  const browser = new TestBrowser();
+  await browser.visit(`/ticket/${listing.slug}`);
+  expect(browser.pageText).toContain(listing.name);
+  await browser.submitForm(
+    { email, name: who, [`quantity_${listing.id}`]: "1" },
+    "Continue",
+  );
+  expect(browser.pageText).toContain("Thank you for your order");
+  world.customerBrowser = browser;
+  world.attendeeId = await soleBookingOn(listing.id);
+  world.attendeeName = who;
 };
 
 /** How many times the provider was asked to hand money back. */

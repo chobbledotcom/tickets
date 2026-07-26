@@ -13,18 +13,18 @@ import {
 } from "#shared/accounting/queries.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   askForRefund,
+  bookFreePlace,
   bookingId,
   buyOnePlace,
+  correctIncomeTo,
   expectRefundMessage,
   listingIdFor,
   sellPlacesAt,
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { withStripeSuccess } from "#test-utils/money/drivers.ts";
 import {
@@ -45,23 +45,6 @@ const SHOW = "Show";
 const REPEAT = "Repeat";
 const RECONCILED = "Reconciled";
 
-/** Set a listing's income through the correction form on its own edit page, and
- * check the organiser is told it worked — a failed save redirects too, so a bare
- * redirect would not show the difference. */
-const correctIncomeTo = async (
-  world: TicketsWorld,
-  listingId: number,
-  pounds: string,
-): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${listingId}/edit`);
-  // The page must offer the correction box; the browser posts the form's own
-  // action and token, so a broken form fails here.
-  expect(browser.currentHtml).toContain('id="income"');
-  await browser.submitForm({ income: pounds }, "Save income correction");
-  expect(browser.containsText("Listing income corrected.")).toBe(true);
-};
-
 /** The amount shown on one row of the money breakdown, found by that row's own
  * label — so a figure belonging to a different row can never satisfy a check. */
 const breakdownRowAmount = (breakdown: string, label: string): string => {
@@ -78,14 +61,7 @@ When(
   "a customer books a free Free Meetup place",
   async function (this: TicketsWorld): Promise<void> {
     const listing = await sellPlacesAt(this, FREE_MEETUP, "0.00");
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Free Guest",
-      "free@example.com",
-    );
-    this.attendeeId = attendee.id;
-    this.attendeeName = "Free Guest";
+    await bookFreePlace(this, listing, "Free Guest", "free@example.com");
   },
 );
 
