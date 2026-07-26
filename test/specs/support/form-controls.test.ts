@@ -7,7 +7,10 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { whyValueCannotBeSent } from "#test/specs/support/public-booking.ts";
+import {
+  optionsOffered,
+  whyValueCannotBeSent,
+} from "#test/specs/support/form-controls.ts";
 
 describe("what a visitor can send", () => {
   const chooser = (options: string, attributes = 'name="date"') =>
@@ -114,5 +117,19 @@ describe("what a visitor can send", () => {
     expect(whyValueCannotBeSent("<p>nothing here</p>", "date", "x")).toBe(
       "the page has no date to fill in",
     );
+  });
+
+  describe("the values a dropdown offers", () => {
+    test("lists them in the order the page renders them", () => {
+      expect(
+        optionsOffered(chooser(`${PLACEHOLDER}${OPEN_DAY}`), "date"),
+      ).toEqual(["", "2026-08-10"]);
+    });
+
+    test("throws when the page has no such dropdown", () => {
+      expect(() => optionsOffered("<p>nothing here</p>", "date")).toThrow(
+        "The page offers no date to choose",
+      );
+    });
   });
 });
