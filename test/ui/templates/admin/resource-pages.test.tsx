@@ -70,8 +70,10 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
     guideFooter: <p data-guide-footer="true">Synthetic widget guide</p>,
     intro: <p data-list-intro="true">Manage synthetic widgets.</p>,
     reorder: {
-      action: ({ id }) => (direction) =>
-        `/admin/widgets/${id}/move-${direction}`,
+      action:
+        ({ id }) =>
+        (direction) =>
+          `/admin/widgets/${id}/move-${direction}`,
       header: "Order",
       titles: { down: "Move down", up: "Move up" },
     },

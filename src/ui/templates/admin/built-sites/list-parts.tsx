@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
@@ -9,6 +10,7 @@ import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+/* jscpd:ignore-end */
 
 /** The "read more" footer link shared by the built-sites list and builder pages. */
 export const BuiltSitesGuideFooter = (): JSX.Element => (

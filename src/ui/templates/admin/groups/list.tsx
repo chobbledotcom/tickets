@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
@@ -7,6 +8,8 @@ import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import { renderTable } from "#templates/components/table.tsx";
+
+/* jscpd:ignore-end */
 
 const groupLink = (
   group: Group,

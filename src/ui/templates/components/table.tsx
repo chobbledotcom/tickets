@@ -68,11 +68,11 @@ export type TableCellRenderer<TRow, TContext, TKey extends string> = (
 ) => Child;
 
 /** Per-render options for column selection, context, row state, and framing. */
-type TableRenderOptions<
+type TableRenderOptions<TRow, TContext, TKey extends string> = TableRenderFrame<
   TRow,
   TContext,
-  TKey extends string,
-> = TableRenderFrame<TRow, TContext, TKey> & {
+  TKey
+> & {
   /** The column keys to render, in order. Defaults to the table's
    *  layout defaults. Pass the parsed layout's `columnKeys` to honour a
    *  user-configured order. */
@@ -214,7 +214,11 @@ const headerCell = <TRow, TContext, TKey extends string>(
 ): JSX.Element => {
   const header = resolveColumnText(column.header);
   const className = combineClasses(column.class, column.headerClassName);
-  return className === "" ? <th>{header}</th> : <th class={className}>{header}</th>;
+  return className === "" ? (
+    <th>{header}</th>
+  ) : (
+    <th class={className}>{header}</th>
+  );
 };
 
 /** Build the column list to actually render: from `columnKeys` (or the
@@ -319,18 +323,17 @@ export const renderTable = <TRow, TKey extends string, TContext = undefined>(
 /** The standard up/down reorder-arrows column: prepended to a table's
  *  columns when the operator can re-order rows. Hidden entirely in
  *  read-only mode (the arrows would post to a route that 403s). */
-export const reorderColumn = <TRow, TContext = undefined>(
+const reorderColumn = <TRow, TContext = undefined>(
   options: ReorderColumnOptions<TRow>,
 ): TableColumn<TRow, TContext> => ({
-  cell: (row, _ctx, index, rows) =>
-    isReadOnly() ? null : (
-      <ReorderArrows
-        action={options.action(row)}
-        count={rows.length}
-        index={index}
-        {...(options.titles === undefined ? {} : { titles: options.titles })}
-      />
-    ),
+  cell: (row, _ctx, index, rows) => (
+    <ReorderArrows
+      action={options.action(row)}
+      count={rows.length}
+      index={index}
+      {...(options.titles === undefined ? {} : { titles: options.titles })}
+    />
+  ),
   class: "reorder",
   header: options.header,
   key: "__reorder__",

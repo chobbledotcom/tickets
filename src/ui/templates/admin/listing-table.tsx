@@ -17,11 +17,11 @@
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import {
   configurableTableLayouts,
   type ListingColumnKey,
 } from "#shared/tables/configurable.ts";
-import type { TableColumn } from "#shared/tables/column.ts";
 import {
   attachTableRenderers,
   columnOrThrow,
@@ -223,9 +223,7 @@ export const editorListingTable = defineTable<
 
 /** The staff listing table by default; editors see `editorListingTable`
  *  (a money-free, edit-linked subset). */
-type ListingTableVariant =
-  | typeof listingTable
-  | typeof editorListingTable;
+type ListingTableVariant = typeof listingTable | typeof editorListingTable;
 
 /** Shared input: the rows, the parsed column layout, and an optional variant. */
 type ListingTableArgs = {

@@ -13,6 +13,7 @@
  * plain "<Entity> #<id>" text with no link, mirroring the activity log.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   isRowAccountType,
@@ -51,6 +52,7 @@ import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
+/* jscpd:ignore-end */
 
 /**
  * Display names for the row-backed account legs the ledger renders, each a

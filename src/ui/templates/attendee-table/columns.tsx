@@ -4,11 +4,11 @@ import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { requireValue } from "#shared/required-value.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import {
   type AttendeeColumnKey,
   configurableTableLayouts,
 } from "#shared/tables/configurable.ts";
-import type { TableColumn } from "#shared/tables/column.ts";
 import { attachTableRenderers } from "#shared/tables/definition.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
