@@ -1539,3 +1539,26 @@ skip becomes safe — worth roughly seven extra genuine findings.
 Starting points: `findMisplacedTests` in `scripts/unit-tests-report-imports.ts`
 (the `test.imports.includes(appEntry)` guard and the `subjects.length !== 1`
 guard), and `SHARED_SETUP_FILES` in `scripts/test-subjects.ts`.
+
+## Let Deno-hosted sites with a Bunny database be migrated
+
+`POST /instance/site-credentials` (`src/features/instance.ts`) only returns
+sites whose `hostingProvider` is `"bunny"`, but the builder also supports
+`hostingProvider: "deno"` with `dbProvider: "bunny"`. Those sites hold a Bunny
+database and cannot be moved with `deno task migrate:sites`, because the menu
+never sees them.
+
+A reviewer on PR #1940 suggested returning the hosting provider and id from the
+endpoint and dispatching the secret update through `resolveHostingProvider`
+(`src/shared/site-assignment.ts`), which is the right shape. It was left out of
+that PR because relaxing the filter changes what the deploy workflow receives:
+`.github/workflows/deploy-clients.yml` posts new code to
+`api.bunny.net/compute/script/<script_id>` for every site the endpoint returns,
+so a Deno-hosted site appearing in that list would break the deploy. Doing this
+properly means the workflow (and `.github/actions/backup-site/action.yml`) must
+learn to skip or handle non-Bunny hosting first.
+
+Starting points: the `hostingProvider === "bunny"` filter in
+`src/features/instance.ts`, `setSiteSecrets` in
+`src/shared/site-assignment.ts`, and the per-site loop in
+`.github/workflows/deploy-clients.yml`.

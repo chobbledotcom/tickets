@@ -31,7 +31,12 @@ export const makeDebugState = (
     storageBackend: "none",
     subdomainSuffix: "",
   },
-  database: { hostConfigured: false, schemaHash: "", schemaInSync: false },
+  database: {
+    host: null,
+    hostConfigured: false,
+    schemaHash: "",
+    schemaInSync: false,
+  },
   domain: "localhost",
   email: {
     apiKeyConfigured: false,
