@@ -149,7 +149,7 @@ describe("static asset cache", () => {
   });
 
   describe("trackFile", () => {
-    test("reports the size and modified time of a real file", async () => {
+    test("reports the content hash and modified time of a real file", async () => {
       const dir = await Deno.makeTempDir();
       try {
         const path = join(dir, "asset.js");

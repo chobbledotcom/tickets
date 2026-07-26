@@ -68,13 +68,19 @@ const parseOrNull = (text: string): unknown => {
   }
 };
 
-/** How a file looks right now, or null when it is not there. */
+/**
+ * How a file looks right now, or null when it is not there.
+ *
+ * The contents are read first and the modified time asked for afterwards, never
+ * side by side. A file saved during the read then reports a time at least as
+ * new as the bytes we got — which reads as "moved under the build" and throws
+ * the record away. The other order could pair new bytes with an old time, and
+ * that combination looks trustworthy when it is not.
+ */
 export const trackFile = async (path: string): Promise<TrackedFile | null> => {
   try {
-    const [contents, info] = await Promise.all([
-      Deno.readFile(path),
-      Deno.stat(path),
-    ]);
+    const contents = await Deno.readFile(path);
+    const info = await Deno.stat(path);
     // Number() of a Date is its timestamp, and of the null a platform without
     // modified times reports, 0 — so every platform gets one plain number.
     return { hash: await sha256Hex(contents), mtime: Number(info.mtime), path };
