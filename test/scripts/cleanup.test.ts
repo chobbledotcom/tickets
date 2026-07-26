@@ -190,9 +190,30 @@ describe("releaseWhenStarted", () => {
       },
     );
 
-    await withCleanup(() => Promise.resolve("done"), [cleanup]);
+    await expect(
+      withCleanup(() => Promise.resolve("done"), [cleanup]),
+    ).rejects.toThrow("could not start");
 
     expect(released).toBe(0);
+  });
+
+  test("reports a failed start alongside the failure that came first", async () => {
+    const cleanup = releaseWhenStarted(
+      Promise.reject(new Error("could not start")),
+      () => {},
+    );
+
+    // Both went wrong at once. Neither may be dropped: the setup failure says
+    // what stopped the run, the start failure says why the resource is missing.
+    const error = await withCleanup(
+      () => Promise.reject(new Error("setup failed")),
+      [cleanup],
+    ).catch((thrown: unknown) => thrown as AggregateError);
+
+    expect(error.errors.map((each: Error) => each.message)).toEqual([
+      "setup failed",
+      "could not start",
+    ]);
   });
 
   test("surfaces a failure to release the resource", async () => {

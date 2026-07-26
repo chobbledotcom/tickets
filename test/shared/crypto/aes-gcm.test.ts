@@ -23,12 +23,10 @@ const tagLength = async (): Promise<number> =>
 const SMALL_PAYLOAD_BYTES = 64;
 const BIG_PAYLOAD_BYTES = 256 * 1024;
 
-/** Bytes that are easy to compare and long enough to span many AES blocks. */
-const payload = (length: number): Uint8Array => {
-  const bytes = new Uint8Array(length);
-  for (let i = 0; i < length; i++) bytes[i] = i % 251;
-  return bytes;
-};
+/** Bytes that are easy to compare and long enough to span many AES blocks. A
+ * prime step keeps the pattern from lining up with the 16-byte block size. */
+const payload = (length: number): Uint8Array =>
+  new Uint8Array(length).map((_, index) => index % 251);
 
 /**
  * Assert two byte arrays hold the same bytes, comparing their base64 form.

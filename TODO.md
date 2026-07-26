@@ -1547,33 +1547,30 @@ guard), and `SHARED_SETUP_FILES` in `scripts/test-subjects.ts`.
 *Origin: mutation run while speeding up owner-key encryption (PR #1945).*
 
 `deno task mutation --source src/shared/crypto/encryption.ts --test
-test/shared/crypto/encryption.test.ts --test
-test/shared/crypto/encryption/aes-gcm-bytes.test.ts` reports **42 survivors**
-out of 117 mutants. None of them were introduced by that change; they are gaps
-the run happened to surface. They fall into three groups.
+test/shared/crypto/encryption.test.ts` reports **41 survivors out of 90**, a
+score of 54%. None came from that change; they are gaps the run happened to
+surface. They fall into three groups.
 
 **The binary file format** (`encryptBytes` / `decryptBytes`, the `ENCB` header —
-roughly lines 374 to 421). Nearly every survivor is here: the magic bytes, the
+roughly lines 254 to 301). Most of the survivors are here: the magic bytes, the
 version byte, the header offsets, and both format errors can all be mutated
 without a direct test noticing. These functions are only reached today through
 integration tests (`test/features/images.test.ts`,
 `test/integration/attachment-route.test.ts`,
 `test/ui/templates/admin/settings/header-image.test.ts`), which the direct-test
-run does not include. They want unit tests in
-`test/shared/crypto/encryption/` covering the header layout byte by byte, a
-wrong magic, and a wrong version.
+run does not include. They want unit tests in `test/shared/crypto/` covering the
+header layout byte by byte, a wrong magic, and a wrong version.
 
-**Key caching and change notification** (lines 62 to 142): clearing the two
+**Key caching and change notification** (lines 65 to 136): clearing the two
 resolved-key caches and running the registered change callbacks can be removed
 without a test failing. A test that changes the key and then checks the *next*
 encryption uses the new one would close this.
 
-**Key import flags** (line 116, and line 238 in the newer shared helper):
-`false` → `true` on the `extractable` argument of `crypto.subtle.importKey`.
-No behaviour can tell these apart, because the keys are never exported — they
-are genuine equivalent mutants. Either record both in
-`scripts/mutation/equivalent-mutants.txt` with that reasoning, or find an
-assertion on the imported key itself. Note `importRsaKey` in
+**The key import flag** (line 119): `false` → `true` on the `extractable`
+argument of `crypto.subtle.importKey`. No behaviour can tell these apart,
+because the key is never exported — a genuine equivalent mutant. Either record
+it in `scripts/mutation/equivalent-mutants.txt` with that reasoning, or find an
+assertion on the imported key itself. `importRsaKey` in
 `src/shared/crypto/keys.ts` has the same shape.
 
 Start with the binary format: it is the bulk of the count and the group where a

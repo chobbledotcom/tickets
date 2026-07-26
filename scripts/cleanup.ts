@@ -76,22 +76,27 @@ export const withCleanup = async <T>(
  * setup after it can fail while the resource is still on its way. Checking a
  * "did it finish" variable at clean-up time would miss it and leak whatever
  * arrived afterwards, so the returned task waits for the start to settle and
- * releases whatever it produced. A start that failed has nothing to release,
- * and its error is left to whoever awaited the start itself.
+ * releases whatever it produced.
+ *
+ * A start that failed has nothing to release, and raises its own error rather
+ * than dropping it: the work may well have failed first and never reached the
+ * point of awaiting the start, and a failure nobody ever sees is worse than one
+ * reported twice.
  */
 export const releaseWhenStarted = <T>(
   starting: Promise<T>,
   release: (started: T) => void | Promise<void>,
 ): CleanupTask => {
-  // Claim the rejection now: without this, a start that fails while the caller
-  // is still busy elsewhere is reported as an unhandled rejection.
+  // Claim the outcome now: without this, a start that fails while the caller is
+  // still busy elsewhere is reported as an unhandled rejection.
   const settled = starting.then(
-    (started) => started,
-    () => null,
+    (started) => ({ started }),
+    (error: unknown) => ({ error }),
   );
   return async () => {
-    const started = await settled;
-    if (started !== null) await release(started);
+    const outcome = await settled;
+    if ("error" in outcome) throw outcome.error;
+    await release(outcome.started);
   };
 };
 
