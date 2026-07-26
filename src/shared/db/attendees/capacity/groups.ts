@@ -5,6 +5,7 @@ import { dateToRange } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { columnMapByIds } from "#shared/db/query.ts";
+import type { BatchLookup } from "#shared/request-cache.ts";
 import type { ListingType } from "#shared/types.ts";
 import { getListingGroupMembership, useListingById } from "./listing.ts";
 import {
@@ -31,7 +32,7 @@ const uniquePositiveGroupIds = (groupIds: number[]): number[] =>
 /** Run a lookup over distinct capped-group candidates, skipping an empty query. */
 const cappedGroupQuery = async <T>(
   groupIds: number[],
-  queryFor: (ids: number[]) => Promise<Map<number, T>>,
+  queryFor: BatchLookup<T>,
 ): Promise<Map<number, T>> => {
   const ids = uniquePositiveGroupIds(groupIds);
   return ids.length === 0 ? new Map() : queryFor(ids);
