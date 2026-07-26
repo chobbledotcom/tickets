@@ -3,22 +3,18 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
+import { submitRenderedForm } from "#test/specs/support/admin.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  TEST_ADMIN_PASSWORD,
-  TEST_ADMIN_USERNAME,
-} from "#test-utils/internal.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   createServicingEvent,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -29,30 +25,6 @@ const ANNUAL_INSPECTION = "Annual Inspection";
 const STUDIO_LISTING = "Ceramics Studio Sessions";
 const STUDIO_HOLD = "Studio floor treatment";
 const STUDIO_HOLD_DATE = "2099-07-06";
-
-const adminBrowser = async (world: TicketsWorld): Promise<TestBrowser> => {
-  if (world.testBrowser) return world.testBrowser;
-  const browser = new TestBrowser();
-  await browser.visit("/admin/");
-  await browser.submitForm(
-    { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
-    "Login",
-  );
-  world.testBrowser = browser;
-  return browser;
-};
-
-const submitRenderedForm = async (
-  world: TicketsWorld,
-  path: string,
-  buttonText: string,
-  values: Record<string, string> = {},
-): Promise<TestBrowser> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(path);
-  await browser.submitForm(values, buttonText);
-  return browser;
-};
 
 const createHoldViaProduction = async (
   world: TicketsWorld,

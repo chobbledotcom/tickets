@@ -17,6 +17,10 @@ import {
   clearTestEncryptionKey,
   setupTestEncryptionKey,
 } from "#test-utils/env.ts";
+import {
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
+} from "#test-utils/internal.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** Invalidate every in-process cache after a fresh-install / destructive DB write. */
@@ -52,6 +56,18 @@ export const setupAndLogin = async (browser: TestBrowser): Promise<void> => {
   if (browser.containsText("Migration complete")) {
     await browser.clickLink("Back to dashboard");
   }
+};
+
+/** A fresh browser logged in as the seeded admin through the real login form.
+ * Use this on a database that already went through the setup ceremony. */
+export const loggedInAdminBrowser = async (): Promise<TestBrowser> => {
+  const browser = new TestBrowser();
+  await browser.visit("/admin/");
+  await browser.submitForm(
+    { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
+    "Login",
+  );
+  return browser;
 };
 
 /** Register the standard e2e browser lifecycle (fresh encryption key + DB +

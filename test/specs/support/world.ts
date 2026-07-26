@@ -6,6 +6,8 @@ export interface TicketsWorld extends World {
   attendeeId?: number;
   attendeeIds?: number[];
   attendeeName?: string;
+  backupZip?: Uint8Array;
+  bookingPath?: string;
   cleanup: Array<() => void | Promise<void>>;
   evidenceValues: Map<string, string>;
   firstBody?: string;
