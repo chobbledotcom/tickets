@@ -81,6 +81,7 @@ describe("screenshot browser contracts", () => {
         await page.close();
       }
     } finally {
+      releaseSprite();
       await server.shutdown();
       await server.finished;
     }
@@ -105,6 +106,19 @@ describe("screenshot browser contracts", () => {
 
       const capture = await capturePreparedPage(page, "#target");
       const metadata = await sharp(capture.png).metadata();
+      if (!metadata.width || !metadata.height) {
+        throw new Error("The browser contract PNG has no dimensions");
+      }
+      const centerPixel = await sharp(capture.png)
+        .extract({
+          height: 1,
+          left: Math.floor(metadata.width / 2),
+          top: Math.floor(metadata.height / 2),
+          width: 1,
+        })
+        .removeAlpha()
+        .raw()
+        .toBuffer();
 
       expect(page.viewportSize()).toEqual({ height: 844, width: 390 });
       expect(
@@ -116,6 +130,7 @@ describe("screenshot browser contracts", () => {
         height: 2064,
         width: 464,
       });
+      expect([...centerPixel]).toEqual([1, 2, 3]);
     } finally {
       await page.close();
     }
