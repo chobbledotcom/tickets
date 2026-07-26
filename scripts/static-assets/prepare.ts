@@ -20,8 +20,9 @@ import {
 import { staticAssetOutputFiles } from "./outfiles.ts";
 import type { StaticAssetBuild } from "./session.ts";
 
-const loadBuild = (): Promise<typeof import("../build-static-assets.ts")> =>
-  import("../build-static-assets.ts");
+const loadBuild = (): Promise<
+  typeof import("#scripts/build-static-assets.ts")
+> => import("#scripts/build-static-assets.ts");
 
 /** True when every file the last build read and wrote is still untouched. */
 export const staticAssetsAreUpToDate = async (
