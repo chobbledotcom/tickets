@@ -12,8 +12,7 @@ export type RadioOptionProps = {
   name: string;
   value: string;
   checked: boolean;
-  /** Show the option but refuse it — the browser blocks the click and leaves
-   * the value out of the submission. Say why beside it. */
+  /** Shown but unpickable. Say why beside it. */
   disabled?: boolean | undefined;
   children: Child;
 };

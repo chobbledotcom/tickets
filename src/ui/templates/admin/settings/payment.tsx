@@ -28,10 +28,9 @@ import {
 
 /* jscpd:ignore-end */
 
-/** One payment-provider choice. A provider that cannot take the site's currency
- *  is shown switched off, with the reason beside it — the operator learns before
- *  pasting a key, not after. The site currency is set once at setup and never
- *  changes, so this cannot switch off a provider already in use. */
+/** One payment-provider choice, switched off with a reason when the site
+ *  currency rules it out. Currency is write-once at setup, so a provider
+ *  already in use can never be switched off underneath the operator. */
 const ProviderOption = ({
   currency,
   id,
