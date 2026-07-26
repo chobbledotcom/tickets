@@ -10,10 +10,14 @@
  * The result still offers the incremental rebuild the mutation runner needs. It
  * just waits until something asks: the first call to `affected`, `rebuild`, or
  * `restore` starts the real build, and a plain test run never makes one.
+ *
+ * The choice itself lives in `buildOrReuseStaticAssets`, where both arms are
+ * unit tested. All that is left here is reading the real freshness answer and
+ * handing on `quiet`.
  */
 
 import { staticAssetsAreUpToDate } from "./cache.ts";
-import { deferStaticAssetBuild, type StaticAssetBuild } from "./session.ts";
+import { buildOrReuseStaticAssets, type StaticAssetBuild } from "./session.ts";
 
 const loadBuild = (): Promise<
   typeof import("#scripts/build-static-assets.ts")
@@ -25,9 +29,7 @@ const loadBuild = (): Promise<
  */
 export const prepareStaticAssets = async (
   options: { quiet?: boolean } = {},
-): Promise<StaticAssetBuild> => {
-  const build = async (): Promise<StaticAssetBuild> =>
-    await (await loadBuild()).runStaticAssetBuild(options.quiet ?? false);
-  if (await staticAssetsAreUpToDate()) return deferStaticAssetBuild(build);
-  return await build();
-};
+): Promise<StaticAssetBuild> =>
+  buildOrReuseStaticAssets(await staticAssetsAreUpToDate(), async () =>
+    (await loadBuild()).runStaticAssetBuild(options.quiet ?? false),
+  );

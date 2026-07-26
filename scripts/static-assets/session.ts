@@ -58,6 +58,17 @@ export const deferStaticAssetBuild = (
   };
 };
 
+/**
+ * The build a run should work with: when the assets on disk are already
+ * current, one that waits until something actually asks; otherwise the real
+ * build, run now, because the assets have to exist before any test starts.
+ */
+export const buildOrReuseStaticAssets = async (
+  upToDate: boolean,
+  build: () => Promise<StaticAssetBuild>,
+): Promise<StaticAssetBuild> =>
+  upToDate ? deferStaticAssetBuild(build) : await build();
+
 export const fileExists = async (file: string): Promise<boolean> => {
   try {
     await Deno.stat(file);

@@ -183,6 +183,9 @@ export const runStaticAssetBuild = async (
   quiet: boolean,
 ): Promise<StaticAssetBuild> => {
   let contexts: Awaited<ReturnType<typeof createBundleContexts>> = [];
+  // Noted before anything is read, so a source saved mid-build is recognised
+  // as one we cannot vouch for — see writeStaticAssetManifest.
+  const startedAt = Date.now();
   return withGeneratedOutputRollback(
     staticAssetOutputFiles(),
     async () => {
@@ -206,17 +209,17 @@ export const runStaticAssetBuild = async (
           };
         }),
       );
-      await writeStaticAssetManifest(
-        [
+      await writeStaticAssetManifest({
+        inputs: [
           ...bundles.flatMap((built) =>
             built.inputs.map((input) => resolve(Deno.cwd(), input)),
           ),
           ...(await cssBuild),
           ...BUILD_DEFINITION_FILES.map((file) => resolve(projectRoot, file)),
-          ...staticAssetOutputFiles(),
         ],
-        staticAssetOutputFiles(),
-      );
+        outputs: staticAssetOutputFiles(),
+        startedAt,
+      });
       return createStaticAssetBuild(bundles, {
         resolve: (file) => resolve(Deno.cwd(), file),
         stop: () => esbuild.stop(),

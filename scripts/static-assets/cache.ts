@@ -136,31 +136,68 @@ export const readStaticAssetManifest = async (
   return parsed.success ? parsed.output : null;
 };
 
+/** What one finished build read, wrote, and started at. */
+export interface CompletedStaticAssetBuild {
+  /** Every file the bundler and stylesheet compiler read. */
+  inputs: readonly string[];
+  /** Every asset the build promised to leave on disk. */
+  outputs: readonly string[];
+  /** When the build began, as milliseconds since the epoch. */
+  startedAt: number;
+}
+
+/** Inputs saved once the build was already reading, so we cannot tell whether
+ * the assets were made from the old contents or the new ones. */
+const changedDuringBuild = (
+  files: readonly TrackedFile[],
+  outputs: readonly string[],
+  startedAt: number,
+): TrackedFile[] => {
+  const isOutput = new Set(outputs);
+  return files.filter(
+    (file) => !isOutput.has(file.path) && file.mtime >= startedAt,
+  );
+};
+
 /**
  * Record what this build was made from, so the next run can skip it.
  *
  * Every asset the build promised to produce must be on disk: a record that
  * names an output it did not track would claim a cache hit for a file that is
  * not there, and the next run would skip the build and then fail reading it.
- * The record is written to a temporary file and renamed into place, so a run
- * that is killed mid-write leaves the old record rather than half a new one.
+ * That is a broken build, so it throws.
+ *
+ * A source saved *while* the build was running is different — nothing is
+ * broken, we simply cannot say which version of it the assets were made from.
+ * Recording it would pin the new timestamp to possibly-old output and hide the
+ * change from every later run. So no record is written at all, and the next run
+ * rebuilds. Skipping the record is always safe; it only costs one build.
+ *
+ * The record is written under a name no other run will pick and renamed into
+ * place, so neither an interrupted run nor a second runner racing this one can
+ * leave half a record behind.
  */
 export const writeStaticAssetManifest = async (
-  paths: readonly string[],
-  outputs: readonly string[],
+  build: CompletedStaticAssetBuild,
   path = STATIC_ASSET_MANIFEST_PATH,
 ): Promise<void> => {
-  const tracked = await Promise.all(unique([...paths].sort()).map(trackFile));
+  const paths = unique([...build.inputs, ...build.outputs].sort());
+  const tracked = await Promise.all(paths.map(trackFile));
   const files = tracked.filter((file): file is TrackedFile => file !== null);
   const found = new Set(files.map((file) => file.path));
-  const missing = outputs.filter((output) => !found.has(output));
+  const missing = build.outputs.filter((output) => !found.has(output));
   if (missing.length > 0) {
     throw new Error(
       `Static asset build did not leave every asset on disk: ${missing.join(", ")}`,
     );
   }
-  const pending = `${path}.pending`;
-  await Deno.writeTextFile(pending, JSON.stringify({ files, outputs }));
+  const raced = changedDuringBuild(files, build.outputs, build.startedAt);
+  if (raced.length > 0) return;
+  const pending = `${path}.${crypto.randomUUID()}.pending`;
+  await Deno.writeTextFile(
+    pending,
+    JSON.stringify({ files, outputs: build.outputs }),
+  );
   await Deno.rename(pending, path);
 };
 

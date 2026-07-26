@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  type CompletedStaticAssetBuild,
   lookUpTrackedFiles,
   manifestStillMatches,
   readStaticAssetManifest,
@@ -11,6 +12,7 @@ import {
   writeStaticAssetManifest,
 } from "#scripts/static-assets/cache.ts";
 import {
+  buildOrReuseStaticAssets,
   deferStaticAssetBuild,
   type StaticAssetBuild,
   type StaticBundle,
@@ -32,6 +34,58 @@ const disk =
   (entries: StaticAssetManifest["files"]) =>
   (path: string): StaticAssetManifest["files"][number] | null =>
     entries.find((entry) => entry.path === path) ?? null;
+
+// The tests write their files now, so a build that "began" a minute from now
+// is one whose every input had already settled before it started reading.
+const startedAt = Date.now() + 60_000;
+
+/** A build that began before its inputs were last saved — the racy case. */
+const startedBeforeInputsSettled = Date.now() - 60_000;
+
+/**
+ * A throwaway directory holding a record, one source file and one built asset,
+ * cleaned up afterwards. Both files are written before the body runs, unless
+ * `leaveAssetMissing` asks for the build-produced-nothing case. `write` records
+ * a build over them, defaulting to the ordinary one: this source and this
+ * asset, both settled before the build began.
+ */
+const withBuildDir = async (
+  body: (files: {
+    asset: string;
+    dir: string;
+    record: string;
+    source: string;
+    write: (over?: Partial<CompletedStaticAssetBuild>) => Promise<void>;
+  }) => Promise<void>,
+  leaveAssetMissing = false,
+): Promise<void> => {
+  const dir = await Deno.makeTempDir();
+  const files = {
+    asset: join(dir, "built.js"),
+    dir,
+    record: join(dir, "record.json"),
+    source: join(dir, "source.ts"),
+  };
+  try {
+    await Deno.writeTextFile(files.source, "a");
+    if (!leaveAssetMissing) await Deno.writeTextFile(files.asset, "bb");
+    await body({
+      ...files,
+      write: (over = {}) =>
+        writeStaticAssetManifest(
+          {
+            inputs: [files.source],
+            outputs: [files.asset],
+            startedAt,
+            ...over,
+          },
+          files.record,
+        ),
+    });
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+};
 
 describe("static asset cache", () => {
   describe("manifestStillMatches", () => {
@@ -143,131 +197,166 @@ describe("static asset cache", () => {
 
   describe("reading and writing the record", () => {
     test("writes each file once, sorted, dropping any that vanished", async () => {
-      const dir = await Deno.makeTempDir();
-      try {
-        const record = join(dir, "record.json");
-        const b = join(dir, "b.js");
-        const a = join(dir, "a.js");
-        await Deno.writeTextFile(a, "a");
-        await Deno.writeTextFile(b, "bb");
-
-        await writeStaticAssetManifest(
-          [b, a, b, join(dir, "vanished.js")],
-          [b],
-          record,
-        );
+      await withBuildDir(async ({ asset, dir, record, source, write }) => {
+        await write({ inputs: [source, source, join(dir, "vanished.js")] });
         const written = await readStaticAssetManifest(record);
 
-        expect(written?.files.map((file) => file.path)).toEqual([a, b]);
-        expect(written?.files.map((file) => file.size)).toEqual([1, 2]);
-        expect(written?.outputs).toEqual([b]);
-      } finally {
-        await Deno.remove(dir, { recursive: true });
-      }
+        expect(written?.files.map((file) => file.path)).toEqual(
+          [asset, source].sort(),
+        );
+        expect(written?.files.map((file) => file.size).sort()).toEqual([1, 2]);
+        expect(written?.outputs).toEqual([asset]);
+      });
     });
 
     test("reports no record when the file is not there", async () => {
-      const dir = await Deno.makeTempDir();
-      try {
-        expect(await readStaticAssetManifest(join(dir, "none.json"))).toBe(
-          null,
-        );
-      } finally {
-        await Deno.remove(dir, { recursive: true });
-      }
+      await withBuildDir(async ({ record }) => {
+        expect(await readStaticAssetManifest(record)).toBe(null);
+      });
     });
 
     test("refuses to record a build that left an asset missing", async () => {
-      const dir = await Deno.makeTempDir();
-      try {
-        const record = join(dir, "record.json");
-        const source = join(dir, "source.ts");
-        const asset = join(dir, "built.js");
-        await Deno.writeTextFile(source, "x");
-
-        await expect(
-          writeStaticAssetManifest([source], [asset], record),
-        ).rejects.toThrow(`did not leave every asset on disk: ${asset}`);
+      await withBuildDir(async ({ asset, record, write }) => {
+        await expect(write()).rejects.toThrow(
+          `did not leave every asset on disk: ${asset}`,
+        );
         expect(await readStaticAssetManifest(record)).toBe(null);
-      } finally {
-        await Deno.remove(dir, { recursive: true });
-      }
+      }, true);
     });
 
     test("keeps the previous record when a write is interrupted", async () => {
-      const dir = await Deno.makeTempDir();
-      try {
-        const record = join(dir, "record.json");
-        const asset = join(dir, "built.js");
-        await Deno.writeTextFile(asset, "x");
-        await writeStaticAssetManifest([asset], [asset], record);
+      await withBuildDir(async ({ asset, dir, record, source, write }) => {
+        await Deno.writeTextFile(source, "x");
+        await Deno.writeTextFile(asset, "built");
+        await write();
 
         await expect(
-          writeStaticAssetManifest([asset], [join(dir, "gone.js")], record),
+          write({ outputs: [join(dir, "gone.js")] }),
         ).rejects.toThrow("did not leave every asset on disk");
 
         expect((await readStaticAssetManifest(record))?.outputs).toEqual([
           asset,
         ]);
-      } finally {
-        await Deno.remove(dir, { recursive: true });
-      }
+      });
+    });
+
+    // One rule at the two timings that matter. A build only owns assets it
+    // wrote itself; a source that moved after it started reading is one it
+    // cannot vouch for, so nothing is recorded and the next run rebuilds.
+    const timings = [
+      {
+        name: "records nothing when a source was saved while the build ran",
+        recorded: false,
+        startedAt: () => Promise.resolve(startedBeforeInputsSettled),
+      },
+      {
+        name: "still records when only the assets were written during the build",
+        recorded: true,
+        startedAt: async (source: string) =>
+          ((await trackFile(source))?.mtime ?? 0) + 1,
+      },
+    ];
+
+    for (const timing of timings) {
+      test(timing.name, async () => {
+        await withBuildDir(async ({ asset, record, source, write }) => {
+          await write({ startedAt: await timing.startedAt(source) });
+
+          expect(
+            (await readStaticAssetManifest(record))?.outputs ?? null,
+          ).toEqual(timing.recorded ? [asset] : null);
+        });
+      });
+    }
+
+    test("leaves no working file behind when two runs record at once", async () => {
+      await withBuildDir(async ({ asset, dir, record, write }) => {
+        await Promise.all([write(), write(), write()]);
+
+        expect((await readStaticAssetManifest(record))?.outputs).toEqual([
+          asset,
+        ]);
+        const left = [];
+        for await (const entry of Deno.readDir(dir)) left.push(entry.name);
+        expect(left.filter((name) => name.endsWith(".pending"))).toEqual([]);
+      });
     });
 
     test("ignores a record left half-written", async () => {
-      const dir = await Deno.makeTempDir();
-      try {
-        const record = join(dir, "record.json");
+      await withBuildDir(async ({ record }) => {
         await Deno.writeTextFile(record, '{"files":[{"path":"a.js"');
         expect(await readStaticAssetManifest(record)).toBe(null);
-      } finally {
-        await Deno.remove(dir, { recursive: true });
-      }
+      });
     });
 
     test("ignores a record whose shape it does not recognise", async () => {
-      const dir = await Deno.makeTempDir();
-      try {
-        const record = join(dir, "record.json");
+      await withBuildDir(async ({ record }) => {
         await Deno.writeTextFile(
           record,
           JSON.stringify({ files: [{ path: "a.js" }], outputs: [] }),
         );
         expect(await readStaticAssetManifest(record)).toBe(null);
-      } finally {
-        await Deno.remove(dir, { recursive: true });
-      }
+      });
     });
   });
 
   describe("staticAssetsAreUpToDate", () => {
     test("says no when this working copy has no record of a build", async () => {
-      const dir = await Deno.makeTempDir();
-      try {
-        expect(await staticAssetsAreUpToDate(join(dir, "none.json"))).toBe(
-          false,
-        );
-      } finally {
-        await Deno.remove(dir, { recursive: true });
-      }
+      await withBuildDir(async ({ record }) => {
+        expect(await staticAssetsAreUpToDate(record)).toBe(false);
+      });
     });
 
     test("says no when the record is for a different set of assets", async () => {
-      const dir = await Deno.makeTempDir();
-      try {
-        const record = join(dir, "record.json");
-        const built = join(dir, "built.js");
-        await Deno.writeTextFile(built, "x");
-        await writeStaticAssetManifest([built], [built], record);
+      await withBuildDir(async ({ asset, record, source, write }) => {
+        await Deno.writeTextFile(source, "x");
+        await Deno.writeTextFile(asset, "built");
+        await write();
 
         expect(await staticAssetsAreUpToDate(record)).toBe(false);
-      } finally {
-        await Deno.remove(dir, { recursive: true });
-      }
+      });
     });
 
     test("says yes right after the real build recorded itself", async () => {
       expect(await staticAssetsAreUpToDate()).toBe(true);
+    });
+  });
+
+  describe("buildOrReuseStaticAssets", () => {
+    const session = (): StaticAssetBuild => ({
+      affected: () => Promise.resolve([]),
+      dispose: () => Promise.resolve(),
+      rebuild: () => Promise.resolve(true),
+      restore: () => Promise.resolve(),
+    });
+
+    test("builds straight away when the assets are out of date", async () => {
+      const built = { count: 0 };
+      const ready = session();
+
+      const result = await buildOrReuseStaticAssets(false, () => {
+        built.count += 1;
+        return Promise.resolve(ready);
+      });
+
+      expect(built.count).toBe(1);
+      expect(result).toBe(ready);
+    });
+
+    test("waits, and builds nothing, when the assets are current", async () => {
+      const built = { count: 0 };
+
+      const result = await buildOrReuseStaticAssets(true, () => {
+        built.count += 1;
+        return Promise.resolve(session());
+      });
+
+      expect(built.count).toBe(0);
+      // Still a usable build — it just holds off until something asks.
+      await result.dispose();
+      expect(built.count).toBe(0);
+      expect(await result.rebuild([])).toBe(true);
+      expect(built.count).toBe(1);
     });
   });
 

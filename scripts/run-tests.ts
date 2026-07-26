@@ -108,9 +108,11 @@ const COVERAGE_EXCLUSIONS = [
   "test/test-utils/test-state.ts",
   // Harness infrastructure, same shape as the line above: the harness has
   // already made the assets current before any test isolate starts, so inside
-  // a coverage run only the "already up to date" arm can ever be taken. Both
-  // pieces it is built from — staticAssetsAreUpToDate and
-  // deferStaticAssetBuild — are unit-tested in
+  // a coverage run only the "already up to date" arm can ever be taken —
+  // rebuilding the shared assets mid-run to reach the other one would race
+  // every isolate still loading them. What is left in the file is wiring: the
+  // choice itself is buildOrReuseStaticAssets, and it and
+  // staticAssetsAreUpToDate are both unit-tested, each arm, in
   // test/scripts/static-asset-cache.test.ts.
   "scripts/static-assets/prepare.ts",
 ];
