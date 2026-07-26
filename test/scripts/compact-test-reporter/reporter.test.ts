@@ -199,6 +199,7 @@ Deno.test("compact TAP reporter grows the estimated total when it is exceeded", 
 
 Deno.test("hasReporterArg detects both Deno reporter flag forms", () => {
   expect(hasReporterArg(["test/"])).toBe(false);
+  expect(hasReporterArg(["--reporter"])).toBe(true);
   expect(hasReporterArg(["--reporter", "dot", "test/"])).toBe(true);
   expect(hasReporterArg(["--reporter=tap", "test/"])).toBe(true);
 });

@@ -75,6 +75,20 @@ describe("printing the run summary", () => {
     ]);
   });
 
+  test("lists a lone failure under the same heading", () => {
+    const { errors } = printed(
+      summary({ failed: 1, failures: [{ message: "boom", name: "only" }] }),
+      1,
+      "",
+    );
+
+    expect(errors).toEqual([
+      "\nFAILED 3 passed, 1 failed",
+      "\nFailed tests:",
+      "  unknown location - only",
+    ]);
+  });
+
   test("shows the run's own output, minus Deno's own failure line", () => {
     const { errors } = printed(
       summary({ failed: 1 }),
@@ -127,6 +141,8 @@ describe("running deno test with the compact reporter", () => {
     expect(code).toBe(0);
     expect(logs).toContain("Running tests...");
     expect(logs).toContain("\nPASS 1 passed");
+    // CI in the environment hides the progress bar.
+    expect(logs).toContain("ok   works");
   });
 
   test("reports a failing file and exits with its code", async () => {

@@ -48,11 +48,68 @@ describe("reading a failure's diagnostic block", () => {
   });
 
   test("says so when the failure has no block at all", () => {
-    const failure = onlyFailure(["not ok 1 - no block", "ok 2 - next"]);
+    const { failures, out } = report(["not ok 1 - no block", "ok 2 - next"]);
 
-    expect(failure.message).toBe(
+    expect(failures[0]?.message).toBe(
       "No TAP diagnostic was emitted for this failure.",
     );
+    expect(out).toEqual(["ok   next"]);
+  });
+
+  test("reads a block the run ended without closing", () => {
+    const failure = onlyFailure([
+      "not ok 1 - cut short",
+      "  ---",
+      "  message: the run stopped here",
+    ]);
+
+    expect(failure.message).toBe("the run stopped here");
+  });
+
+  test("keeps a message with a quote only at its end", () => {
+    const failure = onlyFailure([
+      "not ok 1 - trailing quote",
+      "  ---",
+      '  message: it said "hi"',
+      "  ...",
+    ]);
+
+    expect(failure.message).toBe('it said "hi"');
+  });
+
+  test("keeps a message with a quote only at its start", () => {
+    const failure = onlyFailure([
+      "not ok 1 - leading quote",
+      "  ---",
+      "  message: 'tis broken",
+      "  ...",
+    ]);
+
+    expect(failure.message).toBe("'tis broken");
+  });
+
+  test("keeps the block text when the message line is empty", () => {
+    const failure = onlyFailure([
+      "not ok 1 - empty message",
+      "  ---",
+      "  message:",
+      "  ...",
+    ]);
+
+    expect(failure.message).toBe("message:");
+  });
+
+  test("measures the block's indent from its shortest indented line", () => {
+    const failure = onlyFailure([
+      "not ok 1 - one-letter line",
+      "  ---",
+      "  message: |-",
+      "      first",
+      "    x",
+      "  ...",
+    ]);
+
+    expect(failure.message).toBe("  first\nx");
   });
 
   test("records a failure left pending when the stream ends", () => {
@@ -204,6 +261,45 @@ describe("finding where a failure happened", () => {
     expect(err[2]).toBe("     boom");
   });
 
+  test("prints just the file when the diagnostic gives no line", () => {
+    const { err } = report([
+      "not ok 1 - file only",
+      "  ---",
+      "  message: boom",
+      "  at:",
+      "    file: test/example.test.ts",
+      "  ...",
+    ]);
+
+    expect(err[1]).toBe("     at test/example.test.ts");
+  });
+
+  test("prints the file and line when the diagnostic gives no column", () => {
+    const { err } = report([
+      "not ok 1 - no column",
+      "  ---",
+      "  message: boom",
+      "  at:",
+      "    file: test/example.test.ts",
+      "    line: 9",
+      "  ...",
+    ]);
+
+    expect(err[1]).toBe("     at test/example.test.ts:9");
+  });
+
+  test("names the project root itself when a frame points at it", () => {
+    const root = pathToFileURL(cwd).href;
+    const failure = onlyFailure([
+      "not ok 1 - at the root",
+      "  ---",
+      `  message: "boom at (${root}:3:1)"`,
+      "  ...",
+    ]);
+
+    expect(failure.location).toEqual({ column: 1, file: ".", line: 3 });
+  });
+
   test("prints 'unknown location' when nothing pins the failure down", () => {
     const { err } = report([
       "not ok 1 - unpinned",
@@ -219,6 +315,10 @@ describe("finding where a failure happened", () => {
 describe("reading TAP result lines", () => {
   test("names a result line that carries no test name", () => {
     expect(onlyFailure(["not ok 1"]).name).toBe("(unnamed test)");
+  });
+
+  test("keeps an empty name empty rather than calling it unnamed", () => {
+    expect(onlyFailure(["not ok 1 - "]).name).toBe("");
   });
 
   test("drops a SKIP or TODO directive from the name", () => {

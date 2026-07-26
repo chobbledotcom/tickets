@@ -48,8 +48,8 @@ const PROGRESS_WIDTH = 24;
 const TEST_RESULT_RE = /^\s*(not\s+)?ok\s+\d+(?:\s+-\s+(.*))?$/;
 const PLAN_RE = /^\s*(\d+)\.\.(\d+)(?:\s+#.*)?$/;
 const STEP_FAILURE_RE = /^\d+\s+test\s+steps?\s+failed\.$/;
-const REPORTER_FLAGS = new Set(["--reporter"]);
-const FILE_ARG_VALUE_FLAGS = new Set([
+/** Deno test flags that take a separate value, which is never a file path. */
+export const FILE_ARG_VALUE_FLAGS = new Set([
   "--cert",
   "--config",
   "--conditions",
@@ -238,9 +238,9 @@ const locationFromStack = (
 ): Location | undefined => {
   const matches = message.match(/file:\/\/[^\s)]+:\d+:\d+/g) ?? [];
   for (const match of matches) {
+    // The pattern ends in :line:column, so both colons are always there.
     const columnSplit = match.lastIndexOf(":");
     const lineSplit = match.lastIndexOf(":", columnSplit - 1);
-    if (lineSplit === -1 || columnSplit === -1) continue;
 
     const url = match.slice(0, lineSplit);
     let file: string;
@@ -263,12 +263,7 @@ const locationFromStack = (
 };
 
 export const hasReporterArg = (args: string[]): boolean =>
-  args.some(
-    (arg, index) =>
-      REPORTER_FLAGS.has(arg) ||
-      arg.startsWith("--reporter=") ||
-      args[index - 1] === "--reporter",
-  );
+  args.some((arg) => arg === "--reporter" || arg.startsWith("--reporter="));
 
 const collectFileArgs = (args: string[]): string[] => {
   const files: string[] = [];
@@ -336,7 +331,7 @@ export const estimateTapEventCount = async (
 
 export class CompactTapReporter {
   #cwd: string;
-  #estimatedTotal?: number | undefined;
+  #estimatedTotal: number;
   #hideProgress: boolean;
   #stdout: (line: string) => void;
   #stderr: (line: string) => void;
@@ -349,7 +344,7 @@ export class CompactTapReporter {
 
   constructor(options: CompactTapReporterOptions) {
     this.#cwd = options.cwd;
-    this.#estimatedTotal = options.estimatedTotal;
+    this.#estimatedTotal = options.estimatedTotal ?? 0;
     this.#hideProgress = options.hideProgress ?? false;
     this.#stdout = options.stdout ?? console.log;
     this.#stderr = options.stderr ?? console.error;
@@ -464,19 +459,19 @@ export class CompactTapReporter {
   }
 
   #growEstimatedTotal(total: number): void {
-    if (!Number.isFinite(total) || total <= 0) return;
-    this.#estimatedTotal = Math.max(this.#estimatedTotal ?? 0, total);
+    if (total <= 0) return;
+    this.#estimatedTotal = Math.max(this.#estimatedTotal, total);
   }
 
+  /** A bar and a count; the total grows whenever the run outruns it. */
   #progress(): string {
     if (this.#hideProgress) return "";
 
+    // A result line is what asks for progress, so at least one test is done
+    // and growing the total by it always leaves a total of one or more.
     const done = this.#passed + this.#failed;
     this.#growEstimatedTotal(done);
     const total = this.#estimatedTotal;
-    if (!total) {
-      return `[${String(done).padStart(4, " ")} done]`;
-    }
 
     const shownDone = Math.min(done, total);
     const fill = Math.min(
