@@ -21,7 +21,6 @@
  */
 
 import { join } from "node:path";
-import { createClient } from "@libsql/client";
 import * as v from "valibot";
 import { lazyRef, once } from "#fp";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -39,6 +38,7 @@ import {
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { createTestDbClient } from "#test-utils/db-client.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {
   TEST_ADMIN_PASSWORD,
@@ -159,11 +159,8 @@ const buildTestSchemaSql = once(async (): Promise<string> => {
 
 /** Build the full test schema plus the default attendee status into `path`. */
 const createGoldenDbAt = async (path: string): Promise<void> => {
-  const client = createClient({ url: `file:${path}` });
+  const client = await createTestDbClient(path);
   setDb(client);
-  await client.executeMultiple(
-    "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
-  );
   await client.executeMultiple(await buildTestSchemaSql());
   await ensureDefaultAttendeeStatus();
   attendeeStatuses.invalidate();
@@ -354,9 +351,8 @@ export const writeTestState = async (dir: string): Promise<void> => {
     DB_URL: `file:${workPath}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
-  const client = createClient({ url: `file:${workPath}` });
+  const client = await createTestDbClient(workPath);
   setDb(client);
-  await client.executeMultiple("PRAGMA synchronous=OFF;");
   try {
     const { state } = await runSetupCeremony("GB");
     await Deno.writeTextFile(join(dir, STATE_JSON_FILE), JSON.stringify(state));
