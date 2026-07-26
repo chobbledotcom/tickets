@@ -14,12 +14,11 @@ import type { SpecCatalog } from "#scripts/specs/types.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { resolveEvidenceScenario } from "./resolve.ts";
 import {
+  EVIDENCE_REPOSITORY,
   type EvidenceCaptureDeclaration,
   type EvidenceManifest,
   EvidenceManifestSchema,
 } from "./schema.ts";
-
-const REPOSITORY = "chobbledotcom/tickets" as const;
 
 export interface EvidenceBundle {
   assets: Map<string, Uint8Array>;
@@ -223,7 +222,7 @@ export const buildEvidenceBundle = async (
       }),
   );
   const manifest = v.parse(EvidenceManifestSchema, {
-    app: { commit: input.commit, repository: REPOSITORY },
+    app: { commit: input.commit, repository: EVIDENCE_REPOSITORY },
     captures,
     schemaVersion: 1,
   });

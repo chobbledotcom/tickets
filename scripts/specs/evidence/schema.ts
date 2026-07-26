@@ -8,6 +8,7 @@ import { integerAtLeast } from "#shared/validation/number.ts";
 const STABLE_ID_PATTERN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const HEX_SHA_PATTERN = /^[a-f0-9]{64}$/;
 const COMMIT_PATTERN = /^[a-f0-9]{40}$/;
+export const EVIDENCE_REPOSITORY = "chobbledotcom/tickets" as const;
 const TrimmedTextSchema = v.pipe(v.string(), v.trim());
 const TrimmedNonEmptyTextSchema = v.pipe(TrimmedTextSchema, v.nonEmpty());
 
@@ -139,7 +140,7 @@ const EvidenceCapturesSchema = v.pipe(
 export const EvidenceManifestSchema = v.strictObject({
   app: v.strictObject({
     commit: matchingText(COMMIT_PATTERN),
-    repository: v.literal("chobbledotcom/tickets"),
+    repository: v.literal(EVIDENCE_REPOSITORY),
   }),
   captures: EvidenceCapturesSchema,
   schemaVersion: v.literal(1),

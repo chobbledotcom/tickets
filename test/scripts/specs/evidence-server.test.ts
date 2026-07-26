@@ -18,5 +18,6 @@ describe("Cucumber evidence loopback server", () => {
     } finally {
       await server.close();
     }
+    await expect(fetch(`${server.baseUrl}/ready`)).rejects.toThrow();
   });
 });

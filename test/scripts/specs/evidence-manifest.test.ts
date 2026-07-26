@@ -10,7 +10,10 @@ import {
   buildEvidenceBundle,
   writeEvidenceBundle,
 } from "#scripts/specs/evidence/manifest.ts";
-import { parseEvidenceDeclarations } from "#scripts/specs/evidence/schema.ts";
+import {
+  EVIDENCE_REPOSITORY,
+  parseEvidenceDeclarations,
+} from "#scripts/specs/evidence/schema.ts";
 import { requireValue } from "#shared/required-value.ts";
 import {
   outlineFeature,
@@ -172,7 +175,7 @@ describe("Cucumber evidence manifest", () => {
     expect(first.manifest).toEqual({
       app: {
         commit: "a".repeat(40),
-        repository: "chobbledotcom/tickets",
+        repository: EVIDENCE_REPOSITORY,
       },
       captures: [
         {

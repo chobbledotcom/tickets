@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import {
+  EVIDENCE_REPOSITORY,
   EvidenceManifestSchema,
   evidenceTagExpression,
   parseEvidenceDeclarations,
@@ -69,7 +70,7 @@ describe("Cucumber evidence schema", () => {
     const manifest = {
       app: {
         commit: "a".repeat(40),
-        repository: "chobbledotcom/tickets",
+        repository: EVIDENCE_REPOSITORY,
       },
       captures: [
         {
