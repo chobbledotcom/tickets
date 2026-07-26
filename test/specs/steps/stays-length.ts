@@ -77,7 +77,7 @@ Given(
 );
 
 When(
-  "the organiser makes each {word} stay {int} days long",
+  "the organiser makes each {word} stay {int} day(s) long",
   async function (
     this: TicketsWorld,
     name: string,

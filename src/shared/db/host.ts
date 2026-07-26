@@ -1,11 +1,8 @@
-import * as v from "valibot";
-
 /**
  * Who runs a database, worked out from its address alone. This module is pure:
  * callers pass a URL, it never reads the environment.
  */
-const DatabaseHostSchema = v.picklist(["bunny", "turso", "local", "other"]);
-export type DatabaseHost = v.InferOutput<typeof DatabaseHostSchema>;
+export type DatabaseHost = "bunny" | "turso" | "local" | "other";
 
 /** The address endings that name the company running a hosted database. */
 const HOSTED_ENDINGS: Record<"bunny" | "turso", string> = {

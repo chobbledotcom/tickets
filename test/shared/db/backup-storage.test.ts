@@ -42,6 +42,11 @@ describeWithEnv("backup storage", { db: true }, () => {
       expect(dbName()).toBe("my-site-myorg");
     });
 
+    test("drops only the part before the first dash", () => {
+      using _env = withEnv({ DB_URL: "libsql://a-tickets.lite.bunnydb.net" });
+      expect(dbName()).toBe("tickets");
+    });
+
     test("returns full hostname segment when no dash", () => {
       using _env = withEnv({ DB_URL: "libsql://standalone.turso.io" });
       expect(dbName()).toBe("standalone");
