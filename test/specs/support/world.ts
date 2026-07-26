@@ -14,10 +14,14 @@ export interface TicketsWorld extends World {
   backupZip?: Uint8Array;
   bookingPath?: string;
   bookingWasTaken?: boolean;
+  bulkRefundMessage?: string;
   cleanup: Array<() => void | Promise<void>>;
   closedDayOn?: string;
+  confirmName?: string;
   customerBrowser?: TestBrowser;
   daysOffered?: string[];
+  duplicateId?: number;
+  duplicateToken?: string;
   evidenceValues: Map<string, string>;
   firstBody?: string;
   firstDay?: string;
@@ -28,6 +32,8 @@ export interface TicketsWorld extends World {
   lengthChangeMessage?: string;
   listingId?: number;
   listingIds: Map<string, number>;
+  mergeOutcome?: { applied: boolean; message: string };
+  mergePreviewHtml?: string;
   modifierId?: number;
   newStayLength?: number;
   orderCatalogSpec?: JourneyCatalogSpec;
@@ -46,6 +52,7 @@ export interface TicketsWorld extends World {
   stayStartsOn?: string;
   testBrowser?: TestBrowser;
   ticketToken?: string;
+  writeoffBefore?: number;
 }
 
 export const cleanupWorld = (
