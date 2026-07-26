@@ -63,6 +63,27 @@ describe("legIdentityDiff", () => {
     expect(legIdentityDiff(legFacts, { ...legFacts, kind: "fee" })).toEqual([
       "kind",
     ]);
+    expect(
+      legIdentityDiff(legFacts, {
+        ...legFacts,
+        source: account("attendee", 2),
+      }),
+    ).toEqual(["source"]);
+    expect(
+      legIdentityDiff(legFacts, {
+        ...legFacts,
+        destination: account("revenue", 2),
+      }),
+    ).toEqual(["destination"]);
+    expect(
+      legIdentityDiff(legFacts, {
+        ...legFacts,
+        occurredAt: "2026-01-02T00:00:00.000Z",
+      }),
+    ).toEqual(["occurredAt"]);
+    expect(legIdentityDiff(legFacts, { ...legFacts, reversesId: 7 })).toEqual([
+      "reversesId",
+    ]);
   });
 });
 

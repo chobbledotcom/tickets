@@ -266,13 +266,8 @@ export const submitRefund = async (
   return response;
 };
 
-// -- Attendee-edit driver (scrapes the real edit form) -------------------- //
+// -- Attendee-balance driver ---------------------------------------------- //
 
-/** Extract the hidden/select fields the attendee edit form round-trips
- *  (`line_listing_*`, `qty_*`, `line_key_*`, `line_package_*`, `status_id`)
- *  from the rendered edit page, so a balance correction re-submits the EXACT
- *  booking and changes only the owed figure — exactly what a browser would
- *  post back. */
 /** Move an attendee's owed balance through the ledger — the proper path now the
  *  attendee form no longer edits balances. `MANUAL_ATTENDEE_WRITEOFF` lowers what
  *  they owe (a goodwill write-off), `MANUAL_ATTENDEE_CHARGE` raises it, each by
