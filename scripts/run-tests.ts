@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-all
+
 /**
  * Full test runner: builds static assets and starts stripe-mock (via the
  * shared test harness), runs the whole suite, and—with --coverage—enforces
@@ -6,6 +7,7 @@
  * harness once the run completes.
  */
 
+import { requireValue } from "#shared/required-value.ts";
 import { COVERAGE_OUTPUT_DIR } from "./coverage-output.ts";
 import { denoCommand } from "./process.ts";
 import { projectRoot } from "./project-root.ts";
@@ -34,7 +36,10 @@ const MAX_GITHUB_ANNOTATIONS = 100;
  * one. */
 const capturedLineNumbers = (record: string, pattern: RegExp): number[] =>
   Array.from(record.matchAll(pattern), (match) =>
-    Number.parseInt(match[1], 10),
+    Number.parseInt(
+      requireValue(match[1], "Coverage pattern did not capture a line number"),
+      10,
+    ),
   );
 
 /** Extract uncovered line numbers from DA: entries in an lcov record */

@@ -4,7 +4,6 @@ import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type Attendee,
   type Group,
@@ -21,16 +20,13 @@ import {
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
 import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
-import {
-  renderListingRows,
-  renderListingTable,
-} from "#templates/admin/listing-table.tsx";
+import { renderListingsTableSection } from "#templates/admin/listing-table.tsx";
 import { MoneySummaryBlock } from "#templates/admin/listings/ledger-section.tsx";
 import {
   PublicTicketLink,
   UnavailablePublicUrlRow,
 } from "#templates/admin/share-rows.tsx";
-import type { TableQuestionData } from "#templates/attendee-table.tsx";
+import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import { GroupCapacityMeter } from "#templates/components/capacity.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
@@ -43,7 +39,6 @@ import {
   PageRegions,
 } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { TableScroll } from "#templates/components/table-scroll.tsx";
 
 const totalAttendeeCount = sumOf(
   (listing: ListingWithCount) => listing.attendee_count,
@@ -179,12 +174,6 @@ export const GroupOverviewPanel = ({
   questionData?: TableQuestionData;
 }): JSX.Element => {
   const { columnKeys, filters } = settings.listingColumnLayout;
-  const listingRows = renderListingRows({
-    columnKeys,
-    emptyText: t("groups.detail.no_listings"),
-    filters,
-    listings,
-  });
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
     buildEmbedSnippets(ticketUrl);
@@ -261,9 +250,12 @@ export const GroupOverviewPanel = ({
 
       <PageBlock>
         <h2>{t("terms.listings")}</h2>
-        <TableScroll>
-          <Raw html={renderListingTable(columnKeys, listingRows)} />
-        </TableScroll>
+        {renderListingsTableSection({
+          columnKeys,
+          emptyText: t("groups.detail.no_listings"),
+          filters,
+          listings,
+        })}
       </PageBlock>
 
       {!isReadOnly() && ungroupedListings.length > 0 && (

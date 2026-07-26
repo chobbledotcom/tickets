@@ -67,14 +67,11 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["shared/forms/message-fields.tsx", 1],
   ["shared/forms/rendering.tsx", 4],
   ["ui/templates/admin/api-keys.tsx", 2],
-  ["ui/templates/admin/attendees.tsx", 3],
   ["ui/templates/admin/calendar.tsx", 1],
   ["ui/templates/admin/guide/accounts.tsx", 1],
-  ["ui/templates/admin/guide/components.tsx", 3],
   ["ui/templates/admin/guide/domains.tsx", 2],
   ["ui/templates/admin/guide/email.tsx", 8],
   ["ui/templates/admin/guide/integrations.tsx", 6],
-  ["ui/templates/admin/guide/operations.tsx", 3],
   ["ui/templates/admin/guide/payments.tsx", 3],
   ["ui/templates/admin/guide/tickets.tsx", 11],
   ["ui/templates/admin/listings/form-values.tsx", 1],
@@ -100,10 +97,13 @@ const T_CALL = /(?<![A-Za-z0-9_$])t\(\s*(["'`])([^"'`]+)\1/g;
 /** Hard-coded user-facing JSX attribute values. */
 const ATTR =
   /\b(placeholder|title|aria-label|alt|label)\s*=\s*(["'])([^"'{][^"']*)\2/g;
-/** Hard-coded user-facing object-property values (field definitions in .ts
- * modules build labels/placeholders/hints as object properties, not JSX). */
+/** Hard-coded user-facing object-property values in copy definition modules. */
 const PROP =
-  /\b(placeholder|title|label|hint|hintHtml|legend|summary|description)\s*:\s*(["'])([^"'{][^"']*)\2/g;
+  /\b(placeholder|title|label|hint|hintHtml|legend|summary|description|header|empty|emptyText)\s*:\s*(["'])([^"'{][^"']*)\2/g;
+/** Table configs are object properties in both .ts and .tsx. Template strings
+ * are included because a header often contains a row or attendee name. */
+const TABLE_PROP =
+  /\b(header|empty|emptyText)\s*:\s*(["'`])([^"'`{][^"'`]*)\2/g;
 /** JSX text node: capitalised words containing a lowercase letter. The (?<!=)
  * skips `=> Foo<…>` arrow-return generics, which are types, not copy. */
 const TEXT = /(?<!=)>\s*([A-Z][A-Za-z][A-Za-z ,.'!?&():-]{1,})\s*</g;
@@ -116,7 +116,8 @@ const isCommentLine = (line: string): boolean => {
 
 /** Prose needing translation has a lowercase letter; bare numbers/symbols
  * (placeholder="0", "ID", "£") are locale-independent and don't count. */
-const wordy = (s: string): boolean => /[a-z]/.test(s);
+const wordy = (s: string): boolean =>
+  /[a-z]/.test(s.replaceAll(/\$\{[^}]*\}/g, ""));
 
 /** The files the backward scan covers: every .ts/.tsx under templates plus the
  * explicit extra copy-bearing modules. */
@@ -127,7 +128,6 @@ const scanTargets = (): string[] => [
 
 const relFromSrc = (file: string): string => file.slice(SRC_DIR.length + 1);
 
-/** Object-property labels are a .ts-module idiom; .tsx uses JSX instead. */
 const isTsModule = (file: string): boolean => file.endsWith(".ts");
 
 const missingMessageReferences = (file: string): string[] => {
@@ -170,9 +170,16 @@ const jsxLeftovers = (line: string, lineNo: number): string[] => [
   ),
 ];
 
-/** Hard-coded strings in object-property definitions on one line (.ts only). */
-const propLeftovers = (line: string, lineNo: number): string[] =>
-  matchesOnLine(line, lineNo, PROP, 3, (m, v, n) => `L${n} ${m[1]}: "${v}"`);
+/** Hard-coded strings in object-property definitions on one line. TS copy
+ * modules use the full set; TSX adds table configs to its JSX scan. */
+const propLeftovers = (line: string, lineNo: number, isTs: boolean): string[] =>
+  matchesOnLine(
+    line,
+    lineNo,
+    isTs ? PROP : TABLE_PROP,
+    3,
+    (m, v, n) => `L${n} ${m[1]}: "${v}"`,
+  );
 
 /** Hard-coded user-facing strings still present in a file's source. */
 const leftoverLiterals = (src: string, isTs: boolean): string[] => {
@@ -181,12 +188,46 @@ const leftoverLiterals = (src: string, isTs: boolean): string[] => {
     if (isCommentLine(line)) return;
     const lineNo = idx + 1;
     hits.push(...jsxLeftovers(line, lineNo));
-    if (isTs) hits.push(...propLeftovers(line, lineNo));
+    hits.push(...propLeftovers(line, lineNo, isTs));
   });
   return hits;
 };
 
 describe("i18n coverage", () => {
+  test("object copy properties are scanned in TS and TSX without false positives", () => {
+    const dollar = String.fromCodePoint(36);
+    const nameExpression = `${dollar}{name}`;
+    const translationExpression = `${dollar}{t("common.name")}`;
+    expect(
+      leftoverLiterals(
+        'const table = { header: "Name", empty: "No rows", emptyText: `No results` };',
+        false,
+      ),
+    ).toEqual([
+      'L1 header: "Name"',
+      'L1 empty: "No rows"',
+      'L1 emptyText: "No results"',
+    ]);
+    expect(
+      leftoverLiterals(
+        'const field = { label: "Name", header: "Value" };',
+        true,
+      ),
+    ).toEqual(['L1 label: "Name"', 'L1 header: "Value"']);
+    expect(
+      leftoverLiterals(
+        `const table = { header: \`Keep (${nameExpression})\` };`,
+        false,
+      ),
+    ).toEqual([`L1 header: "Keep (${nameExpression})"`]);
+    expect(
+      leftoverLiterals(
+        `const table = { header: t("common.name"), empty: "", emptyText: \`${translationExpression}: ${nameExpression}\` };`,
+        false,
+      ),
+    ).toEqual([]);
+  });
+
   test("the manifest owns every English catalog", () => {
     const files = Array.from(Deno.readDirSync("src/locales/en"))
       .filter((entry) => entry.isFile && entry.name.endsWith(".json"))

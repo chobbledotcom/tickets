@@ -7,15 +7,15 @@ import {
 } from "#shared/admin-features.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms/flash.tsx";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
-import {
-  type DataColumn,
-  dataTable,
-} from "#templates/components/data-table.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
 /* jscpd:ignore-end */
@@ -31,19 +31,23 @@ const featureRows = (enabledFeatures: EnabledFeatures): FeatureRow[] =>
     feature,
   }));
 
-const featureColumns: DataColumn<FeatureRow>[] = [
+const featureColumns: TableColumn<FeatureRow>[] = [
   {
     cell: ({ feature }) => (
       <a href={`/admin/features/${feature.slug}`}>{t(feature.labelKey)}</a>
     ),
-    header: t("features.column.feature"),
+    header: translatedTableHeader("features.column.feature"),
+    key: "feature",
   },
   {
     cell: ({ enabled }) =>
       t(enabled ? "features.status.enabled" : "features.status.disabled"),
-    header: t("features.column.status"),
+    header: translatedTableHeader("features.column.status"),
+    key: "status",
   },
 ];
+
+const featureTable = defineTable(featureColumns);
 
 /** The settings-page feature summary. It is deliberately not an editor: each
  * linked detail page explains one feature before offering its switch. */
@@ -54,7 +58,7 @@ export const FeaturesTable = ({
 }): JSX.Element => (
   <TitledArticle id="settings-features" title={t("features.title")}>
     <p>{t("features.intro")}</p>
-    {dataTable(featureColumns)(featureRows(enabledFeatures))}
+    {renderTable(featureTable, featureRows(enabledFeatures))}
   </TitledArticle>
 );
 

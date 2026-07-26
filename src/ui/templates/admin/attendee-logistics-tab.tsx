@@ -21,13 +21,14 @@ import {
 } from "#routes/admin/attendee-logistics.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { LogisticsSection } from "#templates/admin/attendee-form.tsx";
+import { defineTable } from "#shared/tables/definition.ts";
+import { LogisticsSection } from "#templates/admin/attendee-form/logistics.tsx";
 import { TitledSection } from "#templates/admin/entity-pages.tsx";
 import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -96,6 +97,43 @@ const PinnedLocation = ({ data }: LogisticsTabProps): JSX.Element => {
 /** A leg's time and (drop-off or collection) label in the others table. */
 const legLabel = (time: string): string => time || "—";
 
+const otherAttendeesTable = defineTable<OtherAttendeeLine>([
+  {
+    cell: (line) => (
+      <a href={`/admin/attendees/${line.attendeeId}/logistics`}>{line.name}</a>
+    ),
+    header: () => t("attendee_logistics.col_attendee"),
+    key: "attendee",
+  },
+  {
+    cell: (line) => (
+      <>
+        {line.listingName}
+        {line.quantity > 1 ? (
+          <span class="muted small"> ×{line.quantity}</span>
+        ) : null}
+      </>
+    ),
+    header: () => t("terms.listing"),
+    key: "listing",
+  },
+  {
+    cell: (line) => formatDateRangeLabel(line.startAt, line.endAt),
+    header: () => t("attendee_logistics.col_dates"),
+    key: "dates",
+  },
+  {
+    cell: (line) => legLabel(line.startTime),
+    header: () => t("attendee_logistics.col_start"),
+    key: "start",
+  },
+  {
+    cell: (line) => legLabel(line.endTime),
+    header: () => t("attendee_logistics.col_end"),
+    key: "end",
+  },
+]);
+
 /** The "Other Attendees" list: everyone else booked on overlapping dates,
  * each linking to their own Logistics tab. Renders nothing when empty. */
 const OtherAttendees = ({
@@ -107,33 +145,7 @@ const OtherAttendees = ({
   return (
     <TitledSection titleKey="attendee_logistics.others_heading">
       <p class="small">{t("attendee_logistics.others_hint")}</p>
-      <DataTable
-        columns={[
-          { header: t("attendee_logistics.col_attendee") },
-          { header: t("terms.listing") },
-          { header: t("attendee_logistics.col_dates") },
-          { header: t("attendee_logistics.col_start") },
-          { header: t("attendee_logistics.col_end") },
-        ]}
-        rows={others.map((line) => (
-          <tr>
-            <td>
-              <a href={`/admin/attendees/${line.attendeeId}/logistics`}>
-                {line.name}
-              </a>
-            </td>
-            <td>
-              {line.listingName}
-              {line.quantity > 1 ? (
-                <span class="muted small"> ×{line.quantity}</span>
-              ) : null}
-            </td>
-            <td>{formatDateRangeLabel(line.startAt, line.endAt)}</td>
-            <td>{legLabel(line.startTime)}</td>
-            <td>{legLabel(line.endTime)}</td>
-          </tr>
-        ))}
-      />
+      {renderTable(otherAttendeesTable, others)}
     </TitledSection>
   );
 };

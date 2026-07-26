@@ -12,6 +12,7 @@ import { runWithRequestId } from "#shared/logger.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { runWithSubrequestBudget } from "#shared/subrequest-budget.ts";
+import { runWithAdminFooterContext } from "#templates/admin/footer.tsx";
 
 /** Run one response builder inside every request-scoped store. */
 export const runWithRequestScopes = (
@@ -33,6 +34,7 @@ export const runWithRequestScopes = (
     runWithCsrfContext,
     runWithSavedFormContext,
     runWithSettingsAudit,
+    runWithAdminFooterContext,
   ];
 
   return scopes.reduceRight<() => Promise<Response>>(

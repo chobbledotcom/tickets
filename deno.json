@@ -21,7 +21,7 @@
     "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi test/",
     "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli e2e-payments",
     "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli e2e-payments",
-    "typecheck": "deno check src/**/*.ts src/**/*.tsx test/**/*.ts cli/**/*.ts scripts/database-snapshot.ts scripts/restore.ts scripts/turso-migration.ts scripts/mutation.ts scripts/mutation/**/*.ts scripts/precommit.ts scripts/precommit/**/*.ts scripts/check-copy.ts scripts/check-copy/**/*.ts scripts/specs/**/*.ts scripts/run-specs.ts scripts/run-spec-evidence.ts scripts/check-specs.ts scripts/test-quality-audit.ts scripts/bench/bundle-composition/**/*.ts scripts/screenshots.ts scripts/screenshots/**/*.ts && deno check --config=e2e-payments/deno.json e2e-payments/src/**/*.ts",
+    "typecheck": "deno check src test cli scripts && deno check --config=e2e-payments/deno.json e2e-payments/src",
     "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
     "precommit": "deno run -A scripts/precommit.ts",

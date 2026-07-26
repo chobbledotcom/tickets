@@ -9,7 +9,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
-import type { TableQuestionData } from "#templates/attendee-table.tsx";
+import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import {
   CapacityMeter,
   capacityLevel,

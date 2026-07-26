@@ -13,6 +13,7 @@
  * plain "<Entity> #<id>" text with no link, mirroring the activity log.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   isRowAccountType,
@@ -30,6 +31,8 @@ import { isReadOnly } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
@@ -45,10 +48,11 @@ import {
   transferEventLabel,
 } from "#templates/admin/ledger/formatting.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { dataTable } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
+/* jscpd:ignore-end */
 
 /**
  * Display names for the row-backed account legs the ledger renders, each a
@@ -197,18 +201,20 @@ export const amountCell = (
   );
 
 /** One column of a ledger-style table: its header key, how a row renders into
- * its cell, and an optional alignment class applied to both. */
+ *  its cell, and an optional alignment class applied to both. */
 export type LedgerColumn<Row> = {
   headerKey: string;
   cell: (row: Row) => JSX.Element | string;
   class?: ColumnKind;
+  key: string;
 };
 
 /** The right-aligned money column shape shared by every ledger table. */
 export const amountColumn = <Row,>(
+  key: string,
   headerKey: string,
   cell: (row: Row) => JSX.Element | string,
-): LedgerColumn<Row> => ({ cell, class: "amount", headerKey });
+): LedgerColumn<Row> => ({ cell, class: "amount", headerKey, key });
 
 /**
  * Render a scrollable table from a column spec — the one place a ledger
@@ -223,13 +229,22 @@ export const LedgerColumnsTable = <Row,>({
   columns: LedgerColumn<Row>[];
   rows: Row[];
 }): JSX.Element =>
-  dataTable(
-    columns.map((column) => ({
-      cell: column.cell,
-      header: t(column.headerKey),
-      ...(column.class === undefined ? {} : { class: column.class }),
-    })),
-  )(rows, { empty: t("admin.ledger.empty") });
+  renderTable(
+    defineTable(
+      columns.map((column) => {
+        const base: Omit<TableColumn<Row>, "class"> = {
+          cell: (row) => column.cell(row),
+          header: t(column.headerKey),
+          key: column.key,
+        };
+        return column.class === undefined
+          ? base
+          : { ...base, class: column.class };
+      }),
+    ),
+    rows,
+    { empty: t("admin.ledger.empty") },
+  );
 
 /** The shared leading column: a transfer's business time. */
 export const timeColumn = <Row,>(
@@ -237,6 +252,7 @@ export const timeColumn = <Row,>(
 ): LedgerColumn<Row> => ({
   cell: (row) => formatDatetimeShort(occurredAt(row)),
   headerKey: "admin.ledger.col.time",
+  key: "time",
 });
 
 /**
@@ -269,7 +285,7 @@ const transferColumns = (
 ): LedgerColumn<Transfer>[] => [
   timeColumn((transfer: Transfer) => transfer.occurredAt),
   ...activity,
-  amountColumn<Transfer>("admin.ledger.col.amount", (transfer) =>
+  amountColumn<Transfer>("amount", "admin.ledger.col.amount", (transfer) =>
     amountCell(transfer, amountLabel(transfer), returnUrl),
   ),
 ];
@@ -277,7 +293,11 @@ const transferColumns = (
 const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
   transferColumns(
     [
-      { cell: transferEventLabel, headerKey: "admin.ledger.col.event" },
+      {
+        cell: transferEventLabel,
+        headerKey: "admin.ledger.col.event",
+        key: "event",
+      },
       {
         cell: (transfer) => (
           <>
@@ -286,6 +306,7 @@ const LedgerTable = makeTransferTable((accountCell, returnUrl) =>
           </>
         ),
         headerKey: "admin.ledger.col.from_to",
+        key: "from_to",
       },
     ],
     (transfer) => formatCurrency(transfer.amount),
@@ -299,6 +320,7 @@ const HumanLedgerTable = makeTransferTable((accountCell, returnUrl) =>
       {
         cell: (transfer) => humanDescription(transfer, accountCell),
         headerKey: "admin.ledger.col.activity",
+        key: "activity",
       },
     ],
     (transfer) => formatSignedCurrency(humanAmount(transfer)),

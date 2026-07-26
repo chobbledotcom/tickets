@@ -30,7 +30,6 @@ export {
   countCheckedInRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
-export { formatAddressInline } from "#templates/attendee-table.tsx";
 
 export const nearCapacity = (listing: ListingWithCount): boolean =>
   capacityLevel(listing.attendee_count, listing.max_attendees).nearLimit;

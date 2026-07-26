@@ -12,6 +12,7 @@ import { t } from "#i18n";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import { editPanel } from "#templates/admin/admin-page.tsx";
 import {
   defineAdminResourcePages,
@@ -20,12 +21,9 @@ import {
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
-import {
-  type DataColumn,
-  reorderColumn,
-} from "#templates/components/data-table.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 
 /* jscpd:ignore-end */
 
@@ -44,24 +42,18 @@ const statusBadges = (s: AttendeeStatus): JSX.Element => (
   </>
 );
 
-/** Columns for the attendee-statuses table — declared once so header/cell
- *  order can't drift. The reorder column carries the move-up/move-down
- *  controls as one typed column. */
-const statusColumns: DataColumn<AttendeeStatus>[] = [
-  reorderColumn({
-    action: (status) => (direction) =>
-      `${LIST_PATH}/${status.id}/move-${direction}`,
-    header: t("statuses.order_header"),
-    titles: {
-      down: t("statuses.move_down_title"),
-      up: t("statuses.move_up_title"),
-    },
-  }),
+/** The attendee-status data columns; ordering controls are added by the shared
+ * table renderer. */
+const statusColumns: TableColumn<AttendeeStatus>[] = [
   writableNameColumn(
     (s) => `${LIST_PATH}/${s.id}`,
     (s) => s.name,
   ),
-  { cell: (s) => statusBadges(s), header: t("statuses.flags_header") },
+  {
+    cell: (s) => statusBadges(s),
+    header: translatedTableHeader("statuses.flags_header"),
+    key: "flags",
+  },
 ];
 
 /** One named checkbox for a status flag. */
@@ -187,6 +179,15 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
       </GuideFooter>
     ),
     intro: <ProseIntro html={t("statuses.attendee_statuses_description")} />,
+    reorder: {
+      action: (status) => (direction) =>
+        `${LIST_PATH}/${status.id}/move-${direction}`,
+      header: translatedTableHeader("statuses.order_header"),
+      titles: {
+        down: t("statuses.move_down_title"),
+        up: t("statuses.move_up_title"),
+      },
+    },
   },
   renderFields: renderStatusFields,
 });

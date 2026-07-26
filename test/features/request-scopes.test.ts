@@ -11,6 +11,11 @@ import {
   BUNNY_SUBREQUEST_LIMIT,
   countExternalSubrequest,
 } from "#shared/subrequest-budget.ts";
+import {
+  markAdminFooter,
+  renderAdminFooter,
+  runWithAdminFooterContext,
+} from "#templates/admin/footer.tsx";
 
 describe("request scopes", () => {
   test("binds request values while building the response", async () => {
@@ -47,6 +52,21 @@ describe("request scopes", () => {
       requestMatches: true,
       serverMatches: true,
     });
+  });
+
+  test("keeps an ambient admin footer marker out of a request", async () => {
+    await runWithAdminFooterContext(async () => {
+      markAdminFooter("owner");
+
+      const response = await runWithRequestScopes(
+        new Request("https://example.com/public"),
+        undefined,
+        () => Promise.resolve(new Response(renderAdminFooter())),
+      );
+
+      expect(await response.text()).toBe("");
+    });
+    expect(renderAdminFooter()).toBe("");
   });
 
   test("keeps queued work inside the request subrequest budget", async () => {

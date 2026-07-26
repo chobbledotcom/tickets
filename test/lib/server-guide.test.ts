@@ -444,6 +444,19 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "undergoing maintenance",
       );
     });
+
+    test("contains the translated table column guide", async () => {
+      await guide(
+        t("guide.sections.column_order"),
+        t("guide.a.customise_table_columns"),
+        t("guide.table_columns.default_order"),
+        t("guide.table_columns.attendee_hidden"),
+        t("guide.a.column_format_filters"),
+        t("guide.table_reference.tag"),
+        t("guide.table_reference.label"),
+        t("guide.table_reference.description"),
+      );
+    });
   });
 
   describe("guide section structure", () => {

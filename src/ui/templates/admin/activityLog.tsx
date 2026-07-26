@@ -3,17 +3,18 @@
  */
 
 /* jscpd:ignore-start */
-import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { Child, SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, errorCodeLabel } from "#shared/logger.ts";
+import { requireValue } from "#shared/required-value.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -127,42 +128,51 @@ const attendeeRefLink = (
     ),
   );
 
-const ActivityLogRow = ({
-  entry,
-  refs,
-}: {
-  entry: ActivityLogEntry;
-  refs?: ActivityLogRefs | undefined;
-}): string =>
-  String(
-    <tr>
-      <td>{formatDatetimeShort(entry.created)}</td>
-      <td>
+const activityLogTable = defineTable<
+  ActivityLogEntry,
+  ActivityLogRefs | undefined
+>([
+  {
+    cell: (entry) => formatDatetimeShort(entry.created),
+    header: () => t("admin.log.col.time"),
+    key: "time",
+  },
+  {
+    cell: (entry) => (
+      <>
         {entry.message.includes(SQUARE_SIGNATURE_LABEL) ? (
           <SquareSignatureHint />
         ) : null}
         {entry.message}
-      </td>
-      {refs ? (
-        <>
-          <td>{attendeeRefLink(entry.attendee_id, refs.attendees)}</td>
-          <td>{refLink(entry.listing_id, refs.listings, "/admin/listing")}</td>
-        </>
-      ) : null}
-    </tr>,
-  );
+      </>
+    ),
+    header: () => t("admin.log.col.activity"),
+    key: "activity",
+  },
+  {
+    cell: (entry, refs) =>
+      attendeeRefLink(
+        entry.attendee_id,
+        requireValue(refs, "Activity attendee column requires references")
+          .attendees,
+      ),
+    header: () => t("terms.attendee"),
+    key: "attendee",
+  },
+  {
+    cell: (entry, refs) =>
+      refLink(
+        entry.listing_id,
+        requireValue(refs, "Activity listing column requires references")
+          .listings,
+        "/admin/listing",
+      ),
+    header: () => t("terms.listing"),
+    key: "listing",
+  },
+]);
 
-/** Generate activity log table rows */
-const activityLogRows = (
-  entries: ActivityLogEntry[],
-  refs?: ActivityLogRefs,
-): string =>
-  entries.length > 0
-    ? pipe(
-        map((entry: ActivityLogEntry) => ActivityLogRow({ entry, refs })),
-        joinStrings,
-      )(entries)
-    : `<tr><td colspan="${refs ? 4 : 2}">${t("admin.log.no_activity")}</td></tr>`;
+const ACTIVITY_COLUMNS = ["time", "activity"] as const;
 
 /**
  * The Time/Activity log table, scrollable on narrow screens. Shared by the
@@ -177,20 +187,12 @@ export const ActivityLogTable = ({
 }: {
   entries: ActivityLogEntry[];
   refs?: ActivityLogRefs;
-}): JSX.Element => {
-  const baseColumns = [
-    { header: t("admin.log.col.time") },
-    { header: t("admin.log.col.activity") },
-  ];
-  const columns = refs
-    ? [
-        ...baseColumns,
-        { header: t("terms.attendee") },
-        { header: t("terms.listing") },
-      ]
-    : baseColumns;
-  return <DataTable columns={columns} rows={activityLogRows(entries, refs)} />;
-};
+}): JSX.Element =>
+  renderTable(activityLogTable, entries, {
+    columnKeys: refs === undefined ? ACTIVITY_COLUMNS : undefined,
+    context: refs,
+    empty: t("admin.log.no_activity"),
+  });
 
 /**
  * Admin activity log page for a specific listing

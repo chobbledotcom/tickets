@@ -164,11 +164,13 @@ export const adminQuestionsPage = (
           </a>
         ),
         header: t("questions.question_column"),
+        key: "question",
       },
       {
         cell: (question) => question.answers.length,
         class: "quantity",
         header: t("questions.answers_column"),
+        key: "answers",
       },
       {
         cell: (question) =>
@@ -179,6 +181,7 @@ export const adminQuestionsPage = (
         }),
         class: "quantity",
         header: t("questions.listings_column"),
+        key: "listings",
       },
     ],
     emptyText: t("questions.no_questions"),

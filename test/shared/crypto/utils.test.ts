@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
   base64ToBase64Url,
+  concatBytes,
   constantTimeEqual,
   fromBase64,
   fromBase64Url,
@@ -52,6 +53,16 @@ describe("constantTimeEqual", () => {
 });
 
 describe("encoding helpers", () => {
+  it("joins byte arrays in order", () => {
+    expect(
+      concatBytes(
+        new Uint8Array([0, 1]),
+        new Uint8Array(),
+        new Uint8Array([2, 3]),
+      ),
+    ).toEqual(new Uint8Array([0, 1, 2, 3]));
+  });
+
   it("converts bytes to standard base64 and back", () => {
     const bytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
     const encoded = toBase64(bytes);
