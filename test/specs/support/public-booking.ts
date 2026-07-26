@@ -62,6 +62,38 @@ export const optionsOffered = (html: string, field: string): string[] => {
   return [...chooser.matchAll(/value="([^"]*)"/g)].map((option) => option[1]!);
 };
 
+/** The box the visitor types in for one field, if it is one — its opening tag,
+ * so its attributes can be read. */
+const boxFor = (html: string, field: string): string | null => {
+  for (const box of html.matchAll(/<(?:input|textarea)\s([^>]*)>/g)) {
+    if (box[1]!.includes(`name="${field}"`)) return box[0];
+  }
+  return null;
+};
+
+/** A control a visitor could really use to send this value. It must not be
+ * switched off, and it must not be a fixed value the page decided for them —
+ * either would let a story post something no visitor could. */
+const expectControlCanSend = (
+  html: string,
+  field: string,
+  chosen: string,
+): void => {
+  const chooser = chooserFor(html, field);
+  const control = chooser ?? boxFor(html, field);
+  expect(control).not.toBeNull();
+  expect(control).not.toContain("disabled");
+  if (chooser) {
+    expect(optionsOffered(html, field)).toContain(chosen);
+    return;
+  }
+  // A hidden box carries whatever the page put in it; the visitor cannot type
+  // over it, so the story may only send that same value.
+  if (control!.includes('type="hidden"')) {
+    expect(control).toContain(`value="${chosen}"`);
+  }
+};
+
 /** Try to place an order through a page the site serves. Returns what the
  * visitor was shown rather than throwing, so a story can prove a refusal as
  * well as a booking. */
@@ -90,15 +122,12 @@ export const visitorTriesToOrder = async (
       ? {}
       : { day_count: String(choices.dayCount) }),
   };
-  // Only send what the page offers: every control must be rendered, and any
-  // value picked from a dropdown — a day, a stay length, a quantity — must be
-  // one that dropdown lists. Checking by "is this field a dropdown?" rather
-  // than by name covers each new field for free.
+  // Only send what a visitor could send: every control must be rendered, usable,
+  // and able to carry this value — a dropdown must list it, and a fixed hidden
+  // box must already hold it. Asking what kind of control each field is, rather
+  // than naming fields, covers each new one for free.
   for (const [field, chosen] of Object.entries(fields)) {
-    expect(browser.currentHtml).toContain(`name="${field}"`);
-    if (chooserFor(browser.currentHtml, field)) {
-      expect(optionsOffered(browser.currentHtml, field)).toContain(chosen);
-    }
+    expectControlCanSend(browser.currentHtml, field, chosen);
   }
   await browser.submitForm(fields, "Continue");
   return { browser, wasBooked: browser.pageText.includes(THANK_YOU) };
