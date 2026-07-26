@@ -7,7 +7,11 @@ import {
 import type { ScriptIo } from "#scripts/script-runner.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { requireSuccess } from "#shared/result.ts";
-import type { TursoApi, TursoDatabaseCredentials } from "#shared/turso-api.ts";
+import {
+  slugifyForTurso,
+  type TursoApi,
+  type TursoDatabaseCredentials,
+} from "#shared/turso-api.ts";
 
 /** Everything a migration needs from the outside world, so tests can stand in. */
 export interface TursoMigrationDeps extends ScriptIo {
@@ -206,15 +210,29 @@ const migrateSnapshot = async (
   return { cleanupError, credentials, tempDirectory };
 };
 
-/** Refuse to carry on when the chosen Turso database name is already taken. */
-const requireFreeDatabaseName = async (
+/**
+ * Find a Turso name nobody is using. A name that is taken is a conflict only
+ * the person running this can settle, so they are asked for another one rather
+ * than the migration guessing or stopping.
+ */
+const freeDatabaseName = async (
+  deps: TursoMigrationDeps,
   api: TursoApi,
   organization: string,
-  name: string,
-): Promise<void> => {
-  if (requireSuccess(await api.databaseExists(organization, name))) {
-    throw new Error(`Turso database already exists: ${organization}/${name}`);
+  wanted: string,
+): Promise<string> => {
+  let name = wanted;
+  while (requireSuccess(await api.databaseExists(organization, name))) {
+    deps.stdout(`Turso database already exists: ${organization}/${name}`);
+    name = slugifyForTurso(
+      requiredAnswer(
+        deps.prompt("Choose another Turso database name:"),
+        "Turso database name",
+      ),
+    );
+    deps.signal.throwIfAborted();
   }
+  return name;
 };
 
 /** Where a database is being copied from. */
@@ -244,12 +262,12 @@ export const migrateDatabase = async (
   deps: TursoMigrationDeps,
   api: TursoApi,
   source: MigrationSource,
-  name: string,
+  wanted: string,
 ): Promise<MigrationOutcome> => {
   const checked = checkedSource(source);
   deps.stdout("Checking the Turso account...");
   const target = await resolveTursoTarget(deps, api);
-  await requireFreeDatabaseName(api, target.organization, name);
+  const name = await freeDatabaseName(deps, api, target.organization, wanted);
   deps.stdout(`Destination database: ${target.organization}/${name}`);
   deps.stdout(`Turso group: ${target.group}`);
   const outcome = await migrateSnapshot(deps, api, checked, target, name);

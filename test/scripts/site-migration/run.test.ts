@@ -4,6 +4,7 @@ import {
   MIGRATE_SITES_USAGE,
   runSiteMigrationTui,
 } from "#scripts/site-migration/run.ts";
+import { okResult } from "#shared/result.ts";
 import {
   bunnySite,
   siteMigrationCliState,
@@ -202,6 +203,24 @@ describe("site migration TUI", () => {
     expect(state.stderr).toContain(
       "Remove this directory: /tmp/turso-migration-test",
     );
+  });
+
+  test("asks for another name when the site name is already taken", async () => {
+    const taken = new Set(["first-site"]);
+    const state = siteMigrationCliState({
+      api: {
+        databaseExists: (_organization, name) =>
+          Promise.resolve(okResult(taken.has(name))),
+      },
+      promptAnswers: ["1", "first-site", "First Site Two", "q"],
+    });
+
+    expect(await runSiteMigrationTui(state.deps)).toBe(0);
+
+    expect(state.stdout).toContain(
+      "Turso database already exists: personal/first-site",
+    );
+    expect(state.createRequests[0]?.name).toBe("first-site-two");
   });
 
   test("keeps going after one site fails", async () => {

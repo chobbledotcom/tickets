@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { secureUrlCheck } from "#scripts/secure-url.ts";
 import { type DatabaseHost, databaseHostFor } from "#shared/db/host.ts";
 
 /** One site as the main instance reports it, with its database credentials. */
@@ -26,13 +27,19 @@ export interface MainInstance {
   url: string;
 }
 
+/** The key and the database tokens are only ever sent over an encrypted link. */
+const requireSecureMainSite = secureUrlCheck(new Set(["https:"]));
+
 /** Ask the live main site for every built site and its database credentials. */
 export const fetchSites = async (
   instance: MainInstance,
   fetcher: typeof fetch,
   signal: AbortSignal,
 ): Promise<SiteWithHost[]> => {
-  const base = instance.url.replace(/\/+$/, "");
+  const base = requireSecureMainSite(instance.url, "Main site address").replace(
+    /\/+$/,
+    "",
+  );
   const response = await fetcher(`${base}/instance/site-credentials`, {
     headers: { Authorization: `Bearer ${instance.key}` },
     method: "POST",

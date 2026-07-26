@@ -63,6 +63,33 @@ describe("site credentials", () => {
     ]);
   });
 
+  test("refuses to send the key over a plain connection", async () => {
+    let called = false;
+    await expect(
+      fetchSites(
+        { key: "main-key", url: "http://main.example.com" },
+        () => {
+          called = true;
+          return Promise.resolve(jsonResponse({ sites: [] }));
+        },
+        signal,
+      ),
+    ).rejects.toThrow(
+      "Main site address must use TLS. Plain connections are allowed only for loopback.",
+    );
+    expect(called).toBe(false);
+  });
+
+  test("allows a plain connection to this machine", async () => {
+    const sites = await fetchSites(
+      { key: "main-key", url: "http://localhost:3000" },
+      () => Promise.resolve(jsonResponse({ sites: [] })),
+      signal,
+    );
+
+    expect(sites).toEqual([]);
+  });
+
   test("fails when the main site refuses the key", async () => {
     await expect(
       fetchSites(
