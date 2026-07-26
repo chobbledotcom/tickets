@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
 import {
   requiredWorldValue,
@@ -15,6 +16,7 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   completePaidOrder,
+  runStripeSuccess,
   submitRefund,
   withRefundMock,
 } from "#test-utils/money/drivers.ts";
@@ -68,6 +70,53 @@ export const buyOnePlace = async (
   world.attendeeName = who;
   return attendeeId;
 };
+
+/** The one booking a checkout made on a listing. Fails loudly when there is
+ * not exactly one, so a story can never carry on against an arbitrary row. */
+export const soleBookingOn = async (listingId: number): Promise<number> => {
+  const bookings = await getAttendeesRaw(listingId);
+  if (bookings.length !== 1) {
+    throw new Error(
+      `Expected one booking on listing ${listingId}, found ${bookings.length}`,
+    );
+  }
+  return bookings[0]!.id;
+};
+
+/** Sell one place with an extra charge on top and pay the whole amount, the way
+ * a real checkout does: the signed total must match what the site re-derives. */
+export const buyPlaceWithExtra = async (
+  world: TicketsWorld,
+  name: string,
+  pounds: string,
+  extraPounds: string,
+  who: string,
+  modifierId?: number,
+): Promise<void> => {
+  await setupStripe();
+  // The story may already have put this listing on sale (with its extra charge
+  // attached), so reuse it rather than selling a second one of the same name.
+  const listingId =
+    world.listingIds.get(name) ?? (await sellPlacesAt(world, name, pounds)).id;
+  const price = minorUnits(pounds);
+  await runStripeSuccess({
+    email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
+    items: JSON.stringify([{ e: listingId, p: price, q: 1 }]),
+    ...(modifierId === undefined
+      ? {}
+      : { modifiers: [{ i: modifierId, q: 1 }] }),
+    name: who,
+    paymentIntent: `pi_${name.toLowerCase().replaceAll(" ", "_")}`,
+    sessionId: `cs_${name.toLowerCase().replaceAll(" ", "_")}`,
+    total: price + minorUnits(extraPounds),
+  });
+  world.attendeeId = await soleBookingOn(listingId);
+  world.attendeeName = who;
+};
+
+/** One of the booking's own admin pages. */
+export const bookingPagePath = (world: TicketsWorld, page: string): string =>
+  `/admin/attendees/${bookingId(world)}/${page}`;
 
 /** Ask for a refund with the provider answering `succeeds`, keeping the reply
  * and how many times the provider was asked. */
