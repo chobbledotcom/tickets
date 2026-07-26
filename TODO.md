@@ -585,18 +585,12 @@ bug (harmless today because of the multiplier workaround).*
 
 ### Keep the rule — stop the user hitting it blind
 
-- **SumUp is offered on a currency it can't use.** `src/features/admin/
-  settings-sumup.ts` rejects the key at save when `!isSumupCurrency(settings.
-  currency)`, but the SumUp radio in `src/ui/templates/admin/settings/
-  payment.tsx` is shown to everyone, so the operator only learns after pasting a
-  key — and currency is write-once after `/setup`, so they're cornered. Fix:
-  thread `currency` into `SettingsPageState` (add the field, set it in both
-  builders in `src/features/admin/settings-page.ts` ~lines 40 and 119 from
-  `settings.currency`) and render a note (or disable the radio) when
-  `!isSumupCurrency(currency)` — "SumUp isn't available for your currency (JPY)".
-  Cover both branches in `test/ui/templates/admin/settings.test.ts`. This is the
-  sharpest, highest-value trap; deferred here only because it needs the currency
-  threaded through, not just a copy tweak.
+- ~~**SumUp is offered on a currency it can't use.**~~ **Done.** The provider
+  registry (`src/shared/payment-providers.ts`) now records each provider's
+  currencies (`null` = takes them all), and `providerCurrencyBlock(id, currency)`
+  turns that into the one sentence every surface shows. The settings page renders
+  an unusable provider switched off with the reason beside it, the provider
+  choice refuses to save, and the SumUp credentials save keeps its refusal.
 
 - **An answer's price-modifier dropdown silently omits the operator's modifier.**
   `src/features/admin/questions.ts` (`answerTriggerModifiers`) only lists

@@ -28,6 +28,8 @@ export type SettingsPageState = {
   stripeKeyConfigured: boolean;
   stripeKeyMode: string | null;
   paymentProvider: string | null;
+  /** The site's ISO currency code — decides which providers can be picked. */
+  currency: string;
   squareTokenConfigured: boolean;
   squareSandbox: boolean;
   squareWebhookConfigured: boolean;
