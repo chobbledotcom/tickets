@@ -61,7 +61,7 @@ const SKIPPED_FILE_NAMES = new Set([
   // deliberately leaves behind — carrying it over would claim a build that is
   // not there.
   ".static-assets-cache.json",
-  ".static-assets-cache.json.lock",
+  ".static-assets-build.lock",
   ".test-junit.xml",
   "bunny-script.ts",
   "bunny-script.ts.map",

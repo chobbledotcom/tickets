@@ -7,6 +7,7 @@ import { fromFileUrl, resolve } from "@std/path";
 import * as esbuild from "esbuild";
 import * as sass from "sass";
 import { projectRoot } from "./project-root.ts";
+import { withStaticAssetBuildLock } from "./static-assets/build-lock.ts";
 import { writeStaticAssetManifest } from "./static-assets/cache.ts";
 import {
   CSS_ENTRY,
@@ -178,8 +179,17 @@ const createBundleContexts = async (): Promise<
 
 /** Bundle and compile every browser asset from scratch. `quiet` has no
  *  default on purpose: `prepareStaticAssets` is the one place that decides it,
- *  so the two entry points cannot drift. */
-export const runStaticAssetBuild = async (
+ *  so the two entry points cannot drift.
+ *
+ *  Runs under the shared build lock, so this is the one place any writer of
+ *  `src/ui/static/` can be — the test harness, `deno task build:static`, and
+ *  the edge build alike. */
+export const runStaticAssetBuild = (
+  quiet: boolean,
+): Promise<StaticAssetBuild> =>
+  withStaticAssetBuildLock(() => buildEveryStaticAsset(quiet));
+
+const buildEveryStaticAsset = async (
   quiet: boolean,
 ): Promise<StaticAssetBuild> => {
   let contexts: Awaited<ReturnType<typeof createBundleContexts>> = [];

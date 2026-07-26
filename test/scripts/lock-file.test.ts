@@ -16,7 +16,7 @@ const file = await Deno.open(Deno.args[0], {
   read: true,
   write: true,
 });
-await file.lock();
+await file.lock(true);
 await Deno.stdout.write(new TextEncoder().encode("locked\\n"));
 await Deno.stdin.read(new Uint8Array(1));
 file.close();
@@ -28,7 +28,7 @@ const file = await Deno.open(Deno.args[0], {
   read: true,
   write: true,
 });
-await file.lock();
+await file.lock(true);
 await Deno.stdout.write(new TextEncoder().encode("locked\\n"));
 Deno.exit(0);
 `;

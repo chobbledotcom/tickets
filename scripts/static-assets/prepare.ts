@@ -16,11 +16,7 @@
  * handing on `quiet`.
  */
 
-import { withFileLock } from "#scripts/lock-file.ts";
-import {
-  STATIC_ASSET_MANIFEST_PATH,
-  staticAssetsAreUpToDate,
-} from "./cache.ts";
+import { staticAssetsAreUpToDate } from "./cache.ts";
 import { buildOrReuseStaticAssets, type StaticAssetBuild } from "./session.ts";
 
 const loadBuild = (): Promise<
@@ -31,17 +27,13 @@ const loadBuild = (): Promise<
  * The built browser assets a test run needs, built only if they are missing or
  * out of date.
  *
- * Two runs starting at once take turns. Otherwise both would build into the
- * same files, and the slower one could overwrite the faster one's assets after
- * it had already recorded them — leaving a record that vouches for bundles it
- * did not produce. Taking turns also means the second run usually finds the
- * first one's assets already current and skips its own build entirely.
+ * Two runs starting at once cannot build into each other: the lock lives
+ * around the build itself (see build-lock.ts), so it covers every writer of
+ * these files rather than only this path.
  */
 export const prepareStaticAssets = async (
   options: { quiet?: boolean } = {},
 ): Promise<StaticAssetBuild> =>
-  withFileLock(`${STATIC_ASSET_MANIFEST_PATH}.lock`, async () =>
-    buildOrReuseStaticAssets(await staticAssetsAreUpToDate(), async () =>
-      (await loadBuild()).runStaticAssetBuild(options.quiet ?? false),
-    ),
+  buildOrReuseStaticAssets(await staticAssetsAreUpToDate(), async () =>
+    (await loadBuild()).runStaticAssetBuild(options.quiet ?? false),
   );
