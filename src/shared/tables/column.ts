@@ -58,7 +58,7 @@ export type TableColumn<
    *  the <th>; use `headerClassName` for that. */
   readonly className?: string;
   /** A free-form class applied to this column's <th> only. Use when the
-   *  header and body cells need different classes (e.g. the attendee name
+   *  header and body cells need different classes (e.g. the attendee status
    *  column's empty header but action-classed body cells). */
   readonly headerClassName?: string;
   /** Per-cell attributes (e.g. `{"data-id": row.id}`). Useful for tables

@@ -70,6 +70,21 @@ describe("typed table rendering", () => {
     );
   });
 
+  test("hides default-order columns named in hiddenKeys", () => {
+    const table = defineTable<{ hidden: string; shown: string }>([
+      { cell: (row) => row.shown, header: "Shown", key: "shown" },
+      { cell: (row) => row.hidden, header: "Hidden", key: "hidden" },
+    ]);
+
+    const html = String(
+      renderTable(table, [{ hidden: "Remove", shown: "Keep" }], {
+        hiddenKeys: new Set<"shown" | "hidden">(["hidden"]),
+      }),
+    );
+    expect(html).toContain("<thead><tr><th>Shown</th></tr></thead>");
+    expect(html).toContain("<tbody><tr><td>Keep</td></tr></tbody>");
+  });
+
   test("renders attributes derived from each row", () => {
     const table = defineTable<{ active: boolean; name: string }>([
       { cell: (row) => row.name, header: "Name", key: "name" },

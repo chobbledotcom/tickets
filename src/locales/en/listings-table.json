@@ -37,7 +37,7 @@
   "listings_table.column.location.label": "Location",
   "listings_table.column.location.description": "Shows the listing location.",
   "listings_table.column.price.label": "Price",
-  "listings_table.column.price.description": "Shows the ticket price in the smallest currency unit.",
+  "listings_table.column.price.description": "Shows the ticket price in the site's currency.",
   "listings_table.column.renewal.label": "Renewal",
   "listings_table.column.renewal.description": "Shows the renewal term in months.",
   "listings_table.column.renewal.value": "{months, plural, one {Renewal (# month)} other {Renewal (# months)}}",

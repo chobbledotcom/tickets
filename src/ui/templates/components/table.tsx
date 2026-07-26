@@ -8,7 +8,7 @@
  */
 
 /* jscpd:ignore-start */
-import { filter, map, pipe } from "#fp";
+import { filter, map } from "#fp";
 import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
@@ -183,13 +183,13 @@ const resolveColumns = <TRow, TContext, TKey extends string>(
   columnKeys: readonly TKey[] | undefined,
   hiddenKeys: ReadonlySet<TKey> | undefined,
 ): readonly TableColumn<TRow, TContext, TKey>[] => {
-  if (columnKeys === undefined) {
-    return table.columns;
-  }
-  return pipe(
-    filter((key: TKey) => !hiddenKeys?.has(key)),
-    map((key: TKey) => columnOrThrow(table, key)),
-  )(columnKeys);
+  const columns =
+    columnKeys === undefined
+      ? table.columns
+      : map((key: TKey) => columnOrThrow(table, key))(columnKeys);
+  return filter(
+    (column: TableColumn<TRow, TContext, TKey>) => !hiddenKeys?.has(column.key),
+  )(columns);
 };
 
 /** Render the table from a fixed column list, rows, and framing options. */

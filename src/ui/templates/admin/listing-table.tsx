@@ -3,8 +3,7 @@
  * composition helpers (`ListingsTableBlock`, `renderListingsTableSection`)
  * used by the dashboard, listings index, and group detail page.
  *
- * Listings are the only admin table whose column order is user-configurable:
- * the operator picks which columns appear (and in what order) via a
+ * The operator picks which listing columns appear, and in what order, via a
  * Liquid-style template saved in `listing_column_order`.
  *
  * Editors see a fixed, money-free variant (`editorListingTable`) whose name
