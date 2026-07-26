@@ -6,6 +6,13 @@ import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl, resolve } from "@std/path";
 import * as esbuild from "esbuild";
 import * as sass from "sass";
+import { projectRoot } from "./project-root.ts";
+import { writeStaticAssetManifest } from "./static-assets/cache.ts";
+import {
+  CSS_ENTRY,
+  STATIC_ASSET_OUTFILES,
+  staticAssetOutputFiles,
+} from "./static-assets/outfiles.ts";
 import { withGeneratedOutputRollback } from "./static-assets/output-rollback.ts";
 import {
   createStaticAssetBuild,
@@ -24,8 +31,6 @@ import {
  */
 const configPath = fromFileUrl(new URL("../deno.json", import.meta.url));
 
-const STATIC_DIR = "./src/ui/static";
-
 /**
  * The loader ships its own esbuild type declarations, whose PluginBuild type can
  * drift from the npm esbuild package even though the runtime plugin shape is the
@@ -34,32 +39,15 @@ const STATIC_DIR = "./src/ui/static";
 const denoLoaderPlugins = (): esbuild.Plugin[] =>
   denoPlugins({ configPath }) as unknown as esbuild.Plugin[];
 
-/**
- * Output files produced by {@link buildStaticAssets}, keyed by bundle. These
- * are generated build artifacts (gitignored), so the test harness uses this
- * list to clean up any it generates after a run.
- */
-export const STATIC_ASSET_OUTFILES = {
-  admin: `${STATIC_DIR}/admin.js`,
-  contact: `${STATIC_DIR}/contact.js`,
-  css: `${STATIC_DIR}/style.css`,
-  embed: `${STATIC_DIR}/embed.js`,
-  iframeResizerChild: `${STATIC_DIR}/iframe-resizer-child.js`,
-  iframeResizerParent: `${STATIC_DIR}/iframe-resizer-parent.js`,
-  logisticsMap: `${STATIC_DIR}/logistics-map.js`,
-  markdownEditor: `${STATIC_DIR}/markdown-editor.js`,
-  order: `${STATIC_DIR}/order.js`,
-  scanner: `${STATIC_DIR}/scanner.js`,
-} as const;
-
-/** Source SCSS stylesheet compiled to {@link STATIC_ASSET_OUTFILES.css}. */
-const CSS_ENTRY = `${STATIC_DIR}/style.scss`;
-
-/** Compile the SCSS stylesheet to the served CSS file. */
-const buildCss = async (quiet = false): Promise<void> => {
-  const { css } = sass.compile(CSS_ENTRY, { style: "compressed" });
+/** Compile the SCSS stylesheet to the served CSS file, reporting every
+ *  stylesheet it read so the build cache can watch them all. */
+const buildCss = async (quiet = false): Promise<string[]> => {
+  const { css, loadedUrls } = sass.compile(CSS_ENTRY, { style: "compressed" });
   await Deno.writeTextFile(STATIC_ASSET_OUTFILES.css, css);
   if (!quiet) console.log(`CSS build complete: ${STATIC_ASSET_OUTFILES.css}`);
+  return loadedUrls
+    .filter((url) => url.protocol === "file:")
+    .map((url) => fromFileUrl(url));
 };
 
 /** A browser bundle built the standard way (bundled, minified, IIFE, deno
@@ -143,9 +131,13 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
 const outfileOf = (bundle: StaticBundle): string =>
   resolve(Deno.cwd(), bundle.options.outfile);
 
-const outputFiles = (): string[] => [
-  resolve(Deno.cwd(), STATIC_ASSET_OUTFILES.css),
-  ...STATIC_JS_BUNDLES.map(outfileOf),
+/** Files outside the bundled sources that still decide the build's output:
+ *  the import map and lockfile every bundle resolves through, and the bundle
+ *  list itself. A change to any of them must force a rebuild. */
+const BUILD_DEFINITION_FILES = [
+  "deno.json",
+  "deno.lock",
+  "scripts/build-static-assets.ts",
 ];
 
 const inputsOf = (
@@ -183,13 +175,15 @@ const createBundleContexts = async (): Promise<
   }
 };
 
-export const buildStaticAssets = async (
-  options: { quiet?: boolean } = {},
+/** Bundle and compile every browser asset from scratch. `quiet` has no
+ *  default on purpose: `prepareStaticAssets` is the one place that decides it,
+ *  so the two entry points cannot drift. */
+export const runStaticAssetBuild = async (
+  quiet: boolean,
 ): Promise<StaticAssetBuild> => {
-  const quiet = options.quiet ?? false;
   let contexts: Awaited<ReturnType<typeof createBundleContexts>> = [];
   return withGeneratedOutputRollback(
-    outputFiles(),
+    staticAssetOutputFiles(),
     async () => {
       contexts = await createBundleContexts();
       const cssBuild = buildCss(quiet);
@@ -211,6 +205,17 @@ export const buildStaticAssets = async (
           };
         }),
       );
+      await writeStaticAssetManifest(
+        [
+          ...bundles.flatMap((built) =>
+            built.inputs.map((input) => resolve(Deno.cwd(), input)),
+          ),
+          ...(await cssBuild),
+          ...BUILD_DEFINITION_FILES.map((file) => resolve(projectRoot, file)),
+          ...staticAssetOutputFiles(),
+        ],
+        staticAssetOutputFiles(),
+      );
       return createStaticAssetBuild(bundles, {
         resolve: (file) => resolve(Deno.cwd(), file),
         stop: () => esbuild.stop(),
@@ -223,6 +228,6 @@ export const buildStaticAssets = async (
 };
 
 if (import.meta.main) {
-  const build = await buildStaticAssets();
+  const build = await runStaticAssetBuild(false);
   await build.dispose();
 }

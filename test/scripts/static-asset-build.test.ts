@@ -96,12 +96,15 @@ const fixture = (
 };
 
 describe("static asset build session", () => {
-  test("finds every bundle affected by a source file", () => {
+  test("finds every bundle affected by a source file", async () => {
     const { admin, scanner, session } = fixture();
 
-    expect(session.affected("client/shared.ts")).toEqual([admin, scanner]);
-    expect(session.affected("client/admin.ts")).toEqual([admin]);
-    expect(session.affected("client/other.ts")).toEqual([]);
+    expect(await session.affected("client/shared.ts")).toEqual([
+      admin,
+      scanner,
+    ]);
+    expect(await session.affected("client/admin.ts")).toEqual([admin]);
+    expect(await session.affected("client/other.ts")).toEqual([]);
   });
 
   test("rebuilds only the selected bundles", async () => {

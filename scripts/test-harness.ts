@@ -3,25 +3,16 @@
  *
  * Both the full runner (`run-tests.ts`) and the focused runner
  * (`run-test-files.ts`) need the same environment before any test can import
- * the app: the static client assets must be built (the app reads them at
+ * the app: the static client assets must be present (the app reads them at
  * module load, see src/features/assets.ts) and stripe-mock must be running
  * with STRIPE_MOCK_HOST/PORT exported. This module owns that lifecycle so a
- * fresh checkout can run either runner without manual preparation, and so any
- * generated assets are cleaned up afterwards rather than left in the tree.
+ * fresh checkout can run either runner without manual preparation. The assets
+ * are only rebuilt when their sources changed, so a repeat run pays nothing
+ * for them.
  */
 
-import { join } from "node:path";
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
-import {
-  buildStaticAssets,
-  STATIC_ASSET_OUTFILES,
-} from "./build-static-assets.ts";
-import {
-  failAfterCleanups,
-  removeIfPresent,
-  runCleanups,
-  withCleanup,
-} from "./cleanup.ts";
+import { failAfterCleanups, withCleanup } from "./cleanup.ts";
 import {
   estimateTapEventCount,
   hasReporterArg,
@@ -33,7 +24,8 @@ import {
 } from "./coverage-output.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
-import { fileExists, type StaticAssetBuild } from "./static-assets/session.ts";
+import { prepareStaticAssets } from "./static-assets/prepare.ts";
+import type { StaticAssetBuild } from "./static-assets/session.ts";
 import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
 import { JUNIT_PATH } from "./test-durations.ts";
 import { withEnvironment } from "./test-environment.ts";
@@ -42,36 +34,6 @@ const verboseHarness = Deno.env.get("TICKETS_TEST_HARNESS_VERBOSE") === "1";
 
 const harnessLog = (...args: unknown[]): void => {
   if (verboseHarness) console.log(...args);
-};
-
-/**
- * Build the static client assets, returning a cleanup function that removes
- * only the outputs this call generated. Outputs that already existed (e.g. a
- * developer's prior `deno task build:static`) remain after cleanup, while a
- * fresh checkout is restored to its asset-free state once tests finish.
- */
-interface HarnessStaticAssets {
-  build: StaticAssetBuild;
-  cleanup(): Promise<void>;
-}
-
-const setupStaticAssets = async (): Promise<HarnessStaticAssets> => {
-  const generated: string[] = [];
-  for (const outfile of Object.values(STATIC_ASSET_OUTFILES)) {
-    const path = join(projectRoot, outfile);
-    if (!(await fileExists(path))) generated.push(path);
-  }
-
-  const build = await buildStaticAssets({ quiet: true });
-
-  return {
-    build,
-    cleanup: () =>
-      runCleanups([
-        () => build.dispose(),
-        ...generated.map((path) => () => removeIfPresent(path)),
-      ]),
-  };
 };
 
 export interface TestHarnessResources {
@@ -195,16 +157,18 @@ const setupTestState = async (): Promise<() => Promise<void>> => {
 };
 
 /**
- * Run `task` with the full test environment in place: built static assets, a
- * running stripe-mock with STRIPE_MOCK_HOST/PORT exported, and the run-wide
- * prebuilt test state exported as TICKETS_TEST_STATE_DIR. Afterwards the mock
- * is stopped and any freshly generated static assets and prebuilt state are
- * removed, leaving the working tree as it was found even if `task` throws.
+ * Run `task` with the full test environment in place: up-to-date static
+ * assets, a running stripe-mock with STRIPE_MOCK_HOST/PORT exported, and the
+ * run-wide prebuilt test state exported as TICKETS_TEST_STATE_DIR. Afterwards
+ * the mock is stopped and the prebuilt state removed, even if `task` throws.
+ * The built assets are left in place: they are gitignored build output, and
+ * keeping them is what lets the next run skip the build (see
+ * static-assets/cache.ts).
  */
 export const withTestHarness = async <T>(
   task: (resources: TestHarnessResources) => Promise<T>,
 ): Promise<T> => {
-  const staticAssets = await setupStaticAssets();
+  const staticAssets = await prepareStaticAssets({ quiet: true });
   let stripeMockProcess: Awaited<ReturnType<typeof startStripeMock>> | null =
     null;
   let cleanupTestState: (() => Promise<void>) | null = null;
@@ -220,7 +184,7 @@ export const withTestHarness = async <T>(
       },
       async () => {
         cleanupTestState = await setupTestState();
-        return await task({ staticAssets: staticAssets.build });
+        return await task({ staticAssets });
       },
     );
   }, [
@@ -232,7 +196,7 @@ export const withTestHarness = async <T>(
     async () => {
       if (cleanupTestState) await cleanupTestState();
     },
-    staticAssets.cleanup,
+    () => staticAssets.dispose(),
   ]);
 };
 

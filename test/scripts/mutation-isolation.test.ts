@@ -127,6 +127,7 @@ describe("mutation isolation paths", () => {
     expect(shouldCopySnapshotPath("coverage-test/lcov.info")).toBe(false);
     expect(shouldCopySnapshotPath("local.db-wal")).toBe(false);
     expect(shouldCopySnapshotPath("src/ui/static/order.js")).toBe(false);
+    expect(shouldCopySnapshotPath(".static-assets-cache.json")).toBe(false);
   });
 
   test("rewrites only absolute project paths", () => {

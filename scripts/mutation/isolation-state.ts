@@ -57,6 +57,10 @@ const SKIPPED_FILE_NAMES = new Set([
   ".build-tag",
   ".db-key",
   ".env",
+  // Describes the assets of the checkout it was written in, which this copy
+  // deliberately leaves behind — carrying it over would claim a build that is
+  // not there.
+  ".static-assets-cache.json",
   ".test-junit.xml",
   "bunny-script.ts",
   "bunny-script.ts.map",

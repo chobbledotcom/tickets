@@ -8,7 +8,7 @@ export interface StaticBundle {
 }
 
 export interface StaticAssetBuild {
-  affected(file: string): StaticBundle[];
+  affected(file: string): Promise<StaticBundle[]>;
   dispose(): Promise<void>;
   rebuild(bundles: StaticBundle[]): Promise<boolean>;
   restore(bundles: StaticBundle[]): Promise<void>;
@@ -105,7 +105,7 @@ export const createStaticAssetBuild = (
   const graph = buildGraph(bundles, files.resolve);
   const byBundle = new Map(bundles.map((built) => [built.bundle, built]));
   return {
-    affected: (file) => graph.get(files.resolve(file)) ?? [],
+    affected: (file) => Promise.resolve(graph.get(files.resolve(file)) ?? []),
     dispose: () =>
       runCleanups([
         () => disposeStaticBundleContexts(bundles),
