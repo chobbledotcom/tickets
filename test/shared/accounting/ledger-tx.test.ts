@@ -79,11 +79,12 @@ describe("db > accounting > ledger-tx", () => {
   ): Promise<void> => {
     using _time = new FakeTime(new Date("2026-06-21T00:00:00.000Z"));
     await inOwnTx(correct)(4, target);
-    const [leg, ...rest] = await allTransfers();
-    expect(rest).toEqual([]);
+    const legs = await allTransfers();
+    expect(legs).toHaveLength(1);
+    const leg = legs[0]!;
     const parts = [kind, 4, delta, nowIso()];
-    expect(leg!.reference).toBe(await legReference(parts));
-    expect(leg!.eventGroup).toBe(await eventGroup(parts));
+    expect(leg.reference).toBe(await legReference(parts));
+    expect(leg.eventGroup).toBe(await eventGroup(parts));
   };
 
   test("an income correction is filed under its own kind", async () => {
