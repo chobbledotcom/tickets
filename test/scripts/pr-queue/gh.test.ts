@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   askGh,
   askGraphQL,
@@ -9,12 +10,14 @@ import {
   type GhRunner,
   refetchUnknownMergeability,
   resolveRepo,
+  runGhCommand,
 } from "#scripts/pr-queue/gh.ts";
 import type { GraphQlPr } from "#scripts/pr-queue/types.ts";
+import { captureCommands } from "#test-utils/command-capture.ts";
 
 /** A stand-in `gh` that answers each call in turn and records what it was asked. */
 const ghSaying = (
-  ...replies: Array<Partial<Awaited<ReturnType<GhRunner>>>>
+  ...replies: Partial<Awaited<ReturnType<GhRunner>>>[]
 ): { calls: string[][]; run: GhRunner } => {
   const calls: string[][] = [];
   let call = 0;
@@ -42,12 +45,44 @@ const failureFrom = async (call: Promise<unknown>): Promise<GhFailure> => {
 const pr = (number: number, mergeable: string): GraphQlPr =>
   ({ mergeable, mergeStateStatus: "UNKNOWN", number }) as GraphQlPr;
 
+describe("running the gh command itself", () => {
+  test("runs gh with both streams captured", async () => {
+    const captured = captureCommands({
+      code: 2,
+      signal: null,
+      stderr: new TextEncoder().encode("nope"),
+      stdout: new TextEncoder().encode("hi"),
+      success: false,
+    });
+    const commandNamespace = Deno as unknown as {
+      Command: typeof captured.Command;
+    };
+    using _command = stub(commandNamespace, "Command", captured.Command);
+
+    expect(await runGhCommand(["pr", "list"])).toEqual({
+      code: 2,
+      stderr: "nope",
+      stdout: "hi",
+      success: false,
+      timedOut: false,
+    });
+    expect(captured.commands[0]?.command).toBe("gh");
+    expect(captured.commands[0]?.options.args).toEqual(["pr", "list"]);
+    expect(captured.commands[0]?.options.stdout).toBe("piped");
+    expect(captured.commands[0]?.options.stderr).toBe("piped");
+  });
+});
+
 describe("asking gh for something", () => {
   test("hands back what gh printed", async () => {
     const { calls, run } = ghSaying({ stdout: "answer" });
 
     expect(await askGh(run, ["repo", "view"], "could not look")).toBe("answer");
     expect(calls).toEqual([["repo", "view"]]);
+  });
+
+  test("gives gh a minute before calling it hung", async () => {
+    expect(GH_TIMEOUT_MS).toBe(60_000);
   });
 
   test("says how long it waited when gh hangs", async () => {
@@ -58,6 +93,13 @@ describe("asking gh for something", () => {
       `could not look: gh timed out after ${GH_TIMEOUT_MS / 1000}s`,
     );
     expect(failure.exitCode).toBe(1);
+  });
+
+  test("names the failure with the message it was given", async () => {
+    const { run } = ghSaying({ code: 1, stderr: "no" });
+
+    const failure = await failureFrom(askGh(run, ["repo"], "could not look"));
+    expect(failure.name).toBe("GhFailure");
   });
 
   test("passes gh's own complaint and exit code on", async () => {
@@ -105,6 +147,14 @@ describe("running a GraphQL query", () => {
     expect(failure.exitCode).toBe(1);
   });
 
+  test("says which call failed when gh itself fails", async () => {
+    const { run } = ghSaying({ code: 3, stderr: "bad token" });
+
+    expect((await failureFrom(askGraphQL(run, "query {}"))).message).toBe(
+      "gh api graphql failed:\nbad token",
+    );
+  });
+
   test("accepts a reply that carries an empty problem list", async () => {
     const { run } = ghSaying({ stdout: '{"data":{"ok":1},"errors":[]}' });
 
@@ -138,9 +188,19 @@ describe("working out which repo to report on", () => {
   test("rejects a --repo with a trailing path", async () => {
     const { run } = ghSaying();
 
-    expect(
-      (await failureFrom(resolveRepo(run, "owner/name/extra"))).message,
-    ).toBe('--repo must be "owner/name", got "owner/name/extra"');
+    const failure = await failureFrom(resolveRepo(run, "owner/name/extra"));
+    expect(failure.message).toBe(
+      '--repo must be "owner/name", got "owner/name/extra"',
+    );
+    expect(failure.exitCode).toBe(1);
+  });
+
+  test("tells you how to name a repo when gh cannot find one", async () => {
+    const { run } = ghSaying({ code: 1, stderr: "not a repository" });
+
+    expect((await failureFrom(resolveRepo(run))).message).toBe(
+      "Could not detect repo (run inside a gh repo, or pass --repo):\nnot a repository",
+    );
   });
 
   test("rejects a --repo with an empty half", async () => {
@@ -211,6 +271,23 @@ describe("asking again about pull requests GitHub has not settled", () => {
     expect(calls.length).toBe(1);
     expect(calls[0]?.[3]).toContain("pr7: pullRequest(number: 7)");
     expect(calls[0]?.[3]).not.toContain("pr8");
+  });
+
+  test("asks about every unsettled pull request in one query", async () => {
+    const { calls, run } = ghSaying({ stdout: '{"data":{"repository":{}}}' });
+
+    await refetchUnknownMergeability(
+      run,
+      "me",
+      "repo",
+      [pr(3, "UNKNOWN"), pr(4, "UNKNOWN")],
+      noWait,
+    );
+
+    expect(calls[0]?.[3]).toContain(
+      "pr3: pullRequest(number: 3) { mergeable mergeStateStatus }\n" +
+        "pr4: pullRequest(number: 4) { mergeable mergeStateStatus }",
+    );
   });
 
   test("waits a short time first, then longer between tries", async () => {
@@ -286,6 +363,27 @@ describe("fetching the whole queue", () => {
       "-f",
       "owner=me",
     ]);
+  });
+
+  test("settles a pull request GitHub had not worked out yet", async () => {
+    const { run } = ghSaying(
+      { stdout: queueReply(false, [pr(2, "UNKNOWN")]) },
+      {
+        stdout: JSON.stringify({
+          data: {
+            repository: {
+              pr2: { mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" },
+            },
+          },
+        }),
+      },
+    );
+
+    const { prs } = await fetchQueue(run, "query {}", "me", "repo", () =>
+      Promise.resolve(),
+    );
+
+    expect(prs[0]?.mergeable).toBe("CONFLICTING");
   });
 
   test("fails loudly when the reply has no pull requests in it", async () => {

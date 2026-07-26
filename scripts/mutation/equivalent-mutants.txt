@@ -970,3 +970,7 @@ scripts/mutation/summary.ts:92:33  ?? → ||   # the survivors group is an array
 
 # Lock file: the handle exists only to carry the advisory lock.
 scripts/lock-file.ts:4:41  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
+
+# Process helpers: the timer handle before the timer exists.
+scripts/process.ts:60:17  0 → 1   # the promise body runs straight away and overwrites this handle, so its starting value is never the one cleared
+scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it and replacing it store the same timer id

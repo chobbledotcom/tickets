@@ -145,7 +145,9 @@ export const refetchUnknownMergeability = async (
   name: string,
   prs: GraphQlPr[],
   wait: (ms: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms)),
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    }),
 ): Promise<void> => {
   let pending = prs.filter((pr) => pr.mergeable === "UNKNOWN");
   for (
@@ -187,6 +189,7 @@ export const fetchQueue = async (
   query: string,
   owner: string,
   name: string,
+  wait?: (ms: number) => Promise<void>,
 ): Promise<{ prs: GraphQlPr[]; morePrs: boolean }> => {
   const data = await askGraphQL(run, query, { name, owner });
   // Any GraphQL error has already thrown, so a good response for a real repo
@@ -204,6 +207,6 @@ export const fetchQueue = async (
     }
   ).repository;
   const prs = pullRequests.nodes;
-  await refetchUnknownMergeability(run, owner, name, prs);
+  await refetchUnknownMergeability(run, owner, name, prs, wait);
   return { morePrs: pullRequests.pageInfo.hasNextPage, prs };
 };

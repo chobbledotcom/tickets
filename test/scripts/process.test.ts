@@ -1,11 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  INHERIT_STDIO,
   processExists,
+  removeTree,
   runDeno,
   stopProcess,
   stopProcessNow,
 } from "#scripts/process.ts";
+import { tempDir } from "#test-utils/files.ts";
 
 const stopped = (code = 0): Deno.CommandStatus => ({
   code,
@@ -45,6 +48,26 @@ const fakeChild = (
 };
 
 describe("script process helpers", () => {
+  test("shares the terminal with the child on all three streams", () => {
+    expect(INHERIT_STDIO).toEqual({
+      stderr: "inherit",
+      stdin: "inherit",
+      stdout: "inherit",
+    });
+  });
+
+  test("removes a folder that still has things in it", async () => {
+    using dir = tempDir();
+    Deno.mkdirSync(`${dir.path}/nested`);
+    Deno.writeTextFileSync(`${dir.path}/nested/file.txt`, "bye");
+
+    await removeTree(`${dir.path}/nested`);
+
+    expect(() => Deno.statSync(`${dir.path}/nested`)).toThrow(
+      Deno.errors.NotFound,
+    );
+  });
+
   test("runs the current Deno executable", async () => {
     const result = await runDeno(["eval", "Deno.exit(7)"], Deno.cwd());
 
@@ -79,6 +102,31 @@ describe("script process helpers", () => {
     await stopProcess(process.child, 1);
 
     expect(process.calls).toEqual([undefined, "SIGKILL"]);
+  });
+
+  test("waits for a force-stopped child to actually end", async () => {
+    const order: string[] = [];
+    let endKilled: (() => void) | undefined;
+    const process = fakeChild((signal, finish) => {
+      if (signal === "SIGKILL") {
+        endKilled = () => {
+          order.push("child ended");
+          finish();
+        };
+      }
+    });
+
+    const stopping = stopProcess(process.child, 1, () => {
+      order.push("cleaned up");
+      return Promise.resolve();
+    });
+
+    // Let the timeout lapse and the force-stop happen, then end the child.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    endKilled?.();
+    await stopping;
+
+    expect(order).toEqual(["child ended", "cleaned up"]);
   });
 
   test("still closes resources when the graceful signal fails", async () => {
