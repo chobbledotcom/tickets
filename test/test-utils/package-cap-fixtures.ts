@@ -61,3 +61,18 @@ export const packageTree = (
     ],
     slugs: ["pkg"],
   });
+
+/** A two-bundle cart beside a plain listing: packages 3 (member 7) and
+ * 4 (member 8) with listing 9 standalone. */
+export const twoPackageCart = (
+  overrides3: Partial<TreePackage> = {},
+  overrides4: Partial<TreePackage> = {},
+): BookingTree =>
+  buildBookingTree({
+    listings: [resolved({ id: 7 }), resolved({ id: 8 }), resolved({ id: 9 })],
+    packages: [
+      treePackage(3, [7], overrides3),
+      treePackage(4, [8], overrides4),
+    ],
+    slugs: ["a", "b", "c"],
+  });
