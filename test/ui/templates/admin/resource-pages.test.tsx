@@ -23,6 +23,11 @@ const entity: SyntheticResource = {
   id: 17,
   name: "Widget & One",
 };
+const secondEntity: SyntheticResource = {
+  code: "W-18",
+  id: 18,
+  name: "Widget Two",
+};
 
 const config: AdminResourcePagesConfig<SyntheticResource> = {
   active: "/admin/settings",
@@ -64,6 +69,12 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
     empty: <p>No synthetic widgets.</p>,
     guideFooter: <p data-guide-footer="true">Synthetic widget guide</p>,
     intro: <p data-list-intro="true">Manage synthetic widgets.</p>,
+    reorder: {
+      action: ({ id }) => (direction) =>
+        `/admin/widgets/${id}/move-${direction}`,
+      header: "Order",
+      titles: { down: "Move down", up: "Move up" },
+    },
   },
   renderFields: (current) => (
     <input
@@ -93,7 +104,7 @@ describe("admin resource page factory", () => {
 
   test("renders the synthetic list schema and writable row link", () => {
     const html = listPage(
-      [entity],
+      [entity, secondEntity],
       false,
       "Could not load widgets.",
       "Widgets loaded.",
@@ -104,11 +115,15 @@ describe("admin resource page factory", () => {
     expect(html).toContain(
       '<p data-list-intro="true">Manage synthetic widgets.</p>',
     );
-    expect(html).toContain("<th>Name</th><th>Code</th>");
+    expect(html).toContain(
+      '<th class="col-reorder">Order</th><th>Name</th><th>Code</th>',
+    );
     expect(html).toContain(
       '<a href="/admin/widgets/17/edit">Widget &amp; One</a>',
     );
     expect(html).toContain("<td>W-17</td>");
+    expect(html).toContain('action="/admin/widgets/17/move-down"');
+    expect(html).toContain('action="/admin/widgets/18/move-up"');
     expect(html).toContain(
       '<a href="/admin/widgets/new">Add synthetic widget</a>',
     );
@@ -131,6 +146,8 @@ describe("admin resource page factory", () => {
     expect(html).toContain("<span>Widget &amp; One</span>");
     expect(html).not.toContain('href="/admin/widgets/17/edit"');
     expect(html).not.toContain('href="/admin/widgets/new"');
+    expect(html).not.toContain('class="col-reorder"');
+    expect(html).not.toContain("/move-");
     expect(html).toContain("Synthetic widget guide");
   });
 

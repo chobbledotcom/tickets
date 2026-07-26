@@ -21,11 +21,11 @@ import {
   configurableTableLayouts,
   type ListingColumnKey,
 } from "#shared/tables/configurable.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import {
   attachTableRenderers,
   columnOrThrow,
   defineTable,
-  type TableColumn,
 } from "#shared/tables/definition.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
@@ -223,12 +223,12 @@ export const editorListingTable = defineTable<
 
 /** The staff listing table by default; editors see `editorListingTable`
  *  (a money-free, edit-linked subset). */
-export type ListingTableVariant =
+type ListingTableVariant =
   | typeof listingTable
   | typeof editorListingTable;
 
 /** Shared input: the rows, the parsed column layout, and an optional variant. */
-export type ListingTableArgs = {
+type ListingTableArgs = {
   listings: ListingWithCount[];
   readonly columnKeys?: readonly ListingColumnKey[] | undefined;
   readonly filters?: ReadonlyMap<ListingColumnKey, string> | undefined;

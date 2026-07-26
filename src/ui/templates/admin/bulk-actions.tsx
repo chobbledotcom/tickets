@@ -18,7 +18,8 @@ import {
 } from "#shared/bulk-replace.ts";
 import { settings } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";

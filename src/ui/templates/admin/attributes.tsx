@@ -12,7 +12,8 @@ import type {
   AttributeOption,
   AttributeWithOptions,
 } from "#shared/db/attributes.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";

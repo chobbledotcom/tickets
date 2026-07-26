@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import {
   itemsOrEmptyNote,
   reorderableListPage,

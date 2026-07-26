@@ -14,7 +14,11 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type {
+  ReorderColumnOptions,
+  TableColumn,
+} from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   type FlashPageRenderer,
@@ -60,6 +64,8 @@ export type ResourceLabels = {
  *  list page is hand-rolled (logistics), which never call `listPage`. */
 export type ResourceList<TEntity> = {
   columns: readonly TableColumn<TEntity>[];
+  /** Optional move controls, hidden with their column in read-only mode. */
+  reorder?: ReorderColumnOptions<TEntity>;
   /** Empty-state markup when the list has no rows (nothing when omitted). */
   empty?: Child;
   /** Optional intro markup rendered before the table (e.g. a prose heading). */
@@ -137,7 +143,9 @@ export const defineAdminResourcePages = <TEntity extends { id: number }>(
       <>
         {list.intro}
         {entities.length > 0
-          ? renderTable(defineTable(list.columns), entities)
+          ? renderTable(defineTable(list.columns), entities, {
+              reorder: list.reorder,
+            })
           : list.empty}
         {list.guideFooter}
       </>,

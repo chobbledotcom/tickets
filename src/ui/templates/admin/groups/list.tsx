@@ -1,6 +1,7 @@
 import { t } from "#i18n";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Group } from "#shared/types.ts";
 import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";

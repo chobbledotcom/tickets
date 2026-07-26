@@ -12,7 +12,7 @@ import { t } from "#i18n";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
-import type { TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import { editPanel } from "#templates/admin/admin-page.tsx";
 import {
   defineAdminResourcePages,
@@ -23,7 +23,6 @@ import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { reorderColumn } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -42,22 +41,8 @@ const statusBadges = (s: AttendeeStatus): JSX.Element => (
   </>
 );
 
-/** The reorder column for the attendee-statuses table — declared once so the
- *  header/cell order can't drift. */
-const statusReorderColumn: TableColumn<AttendeeStatus> =
-  reorderColumn<AttendeeStatus>({
-    action: (status) => (direction) =>
-      `${LIST_PATH}/${status.id}/move-${direction}`,
-    header: t("statuses.order_header"),
-    titles: {
-      down: t("statuses.move_down_title"),
-      up: t("statuses.move_up_title"),
-    },
-  });
-
-/** Columns for the attendee-statuses table. The `name` column's `key` is
- *  duplicated across the staff (no reorder) and owner (with reorder) variants,
- *  which is fine since only one variant renders at a time. */
+/** The attendee-status data columns; ordering controls are added by the shared
+ * table renderer. */
 const statusColumns: TableColumn<AttendeeStatus>[] = [
   writableNameColumn(
     (s) => `${LIST_PATH}/${s.id}`,
@@ -68,11 +53,6 @@ const statusColumns: TableColumn<AttendeeStatus>[] = [
     header: t("statuses.flags_header"),
     key: "flags",
   },
-];
-
-const statusColumnsWithReorder: TableColumn<AttendeeStatus>[] = [
-  statusReorderColumn,
-  ...statusColumns,
 ];
 
 /** One named checkbox for a status flag. */
@@ -191,13 +171,22 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
         {t("statuses.add_status_button")}
       </ActionButton>
     ),
-    columns: statusColumnsWithReorder,
+    columns: statusColumns,
     guideFooter: (
       <GuideFooter href="/admin/guide#attendee-statuses">
         {t("statuses.guide_link")}
       </GuideFooter>
     ),
     intro: <ProseIntro html={t("statuses.attendee_statuses_description")} />,
+    reorder: {
+      action: (status) => (direction) =>
+        `${LIST_PATH}/${status.id}/move-${direction}`,
+      header: t("statuses.order_header"),
+      titles: {
+        down: t("statuses.move_down_title"),
+        up: t("statuses.move_up_title"),
+      },
+    },
   },
   renderFields: renderStatusFields,
 });

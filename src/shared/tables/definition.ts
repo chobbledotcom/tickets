@@ -10,16 +10,11 @@
  * any JSX.
  */
 
-import type {
-  ReorderColumnOptions,
-  TableColumn,
-} from "#shared/tables/column.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import {
   defineTableLayout,
   type TableLayoutDefinition,
 } from "#shared/tables/layout.ts";
-
-export type { ReorderColumnOptions, TableColumn };
 
 type TableColumns<TRow, TContext, TKey extends string> = readonly TableColumn<
   TRow,

@@ -8,10 +8,8 @@ import {
   type AttendeeColumnKey,
   configurableTableLayouts,
 } from "#shared/tables/configurable.ts";
-import {
-  attachTableRenderers,
-  type TableColumn,
-} from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { attachTableRenderers } from "#shared/tables/definition.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
 import { noQuantityIndicator } from "#templates/attendee-table/status.tsx";

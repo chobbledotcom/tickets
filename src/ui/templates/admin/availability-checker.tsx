@@ -16,7 +16,8 @@ import { sort } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import { renderTable } from "#templates/components/table.tsx";
 import { OrderCartButtonBody } from "#templates/public/order-gallery.tsx";
 /* jscpd:ignore-end */

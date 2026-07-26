@@ -8,11 +8,11 @@
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import {
-  defineTable,
-  type ReorderColumnOptions,
-  type TableColumn,
-} from "#shared/tables/definition.ts";
+import type {
+  ReorderColumnOptions,
+  TableColumn,
+} from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";

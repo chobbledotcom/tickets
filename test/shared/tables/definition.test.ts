@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import type { TableColumn } from "#shared/tables/column.ts";
 import {
   attachTableRenderers,
   columnOrThrow,
   defineTable,
-  type TableColumn,
 } from "#shared/tables/definition.ts";
 import { defineTableLayout } from "#shared/tables/layout.ts";
 

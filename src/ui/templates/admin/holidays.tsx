@@ -12,7 +12,8 @@ import { t } from "#i18n";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { editPanel } from "#templates/admin/admin-page.tsx";
 import {

@@ -13,7 +13,8 @@ import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import {
   type AdminSession,
   type Image,

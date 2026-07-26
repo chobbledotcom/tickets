@@ -56,7 +56,8 @@ import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { SelectedQuestionAnswers } from "#shared/db/question-types.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import {
   type AdminSession,
   type Attendee,

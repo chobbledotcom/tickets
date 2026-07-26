@@ -15,9 +15,9 @@ import type {
   AttendeeMergeDiffBookingItem,
   AttendeeMergeDiffPiiField,
 } from "#shared/merge/attendee-merge-types.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
 import {
   defineTable,
-  type TableColumn,
   type TableDefinition,
 } from "#shared/tables/definition.ts";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";

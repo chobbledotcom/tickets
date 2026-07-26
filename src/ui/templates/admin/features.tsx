@@ -7,7 +7,8 @@ import {
 } from "#shared/admin-features.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms/flash.tsx";
-import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { BackButton } from "#templates/components/actions.tsx";

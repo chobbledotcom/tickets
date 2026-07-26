@@ -16,8 +16,6 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { ReorderProps } from "#templates/components/reorder.tsx";
 import type { ColumnKind } from "#templates/components/table-columns.ts";
 
-export type { ColumnKind };
-
 /** Attributes a column's cell can attach to its <td>: the values a caller
  *  may need (data-* attributes for JS hooks, simple class overrides). The
  *  `class` key overlaps with the column-level `class` kind, so the renderer
@@ -64,7 +62,7 @@ export type TableColumn<
   /** Per-cell attributes (e.g. `{"data-id": row.id}`). Useful for tables
    *  whose rows carry data attributes consumed by client-side JS hooks
    *  (the duplicate-preview table). The `class` key, if set here, merges
-   *  with `class`, `className`, and `headerClassName` for that one cell. */
+   *  with `class` and `className` for that one cell. */
   readonly cellAttrs?: (row: TRow, ctx: TContext) => TableAttrs;
   /** Render each body cell as a semantic row header. */
   readonly rowHeader?: boolean;

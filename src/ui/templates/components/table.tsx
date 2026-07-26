@@ -17,7 +17,7 @@ import type {
   TableColumn,
 } from "#shared/tables/column.ts";
 import type { TableDefinition } from "#shared/tables/definition.ts";
-import { columnOrThrow } from "#shared/tables/definition.ts";
+import { columnOrThrow, defineTable } from "#shared/tables/definition.ts";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 import {
   type ColumnKind,
@@ -68,7 +68,7 @@ export type TableCellRenderer<TRow, TContext, TKey extends string> = (
 ) => Child;
 
 /** Per-render options for column selection, context, row state, and framing. */
-export type TableRenderOptions<
+type TableRenderOptions<
   TRow,
   TContext,
   TKey extends string,
@@ -209,20 +209,13 @@ const TableCell = <TRow, TContext, TKey extends string>({
   );
 };
 
-/** Render a th element with `header` content, applying `className` only
- *  when non-empty so the renderer can emit no class attribute at all.
- *  Lifted out so the positional-and-typed renderers share one shape; both
- *  call this so a `<th>` element's structure can never drift between them. */
-const renderHeaderCell = (header: Child, className: string): JSX.Element =>
-  className === "" ? <th>{header}</th> : <th class={className}>{header}</th>;
-
 const headerCell = <TRow, TContext, TKey extends string>(
   column: TableColumn<TRow, TContext, TKey>,
-): JSX.Element =>
-  renderHeaderCell(
-    resolveColumnText(column.header),
-    combineClasses(column.class, column.headerClassName),
-  );
+): JSX.Element => {
+  const header = resolveColumnText(column.header);
+  const className = combineClasses(column.class, column.headerClassName);
+  return className === "" ? <th>{header}</th> : <th class={className}>{header}</th>;
+};
 
 /** Build the column list to actually render: from `columnKeys` (or the
  *  table's default), minus any hidden keys. Validates that each requested
@@ -346,43 +339,46 @@ export const reorderColumn = <TRow, TContext = undefined>(
 /** Convenience: render the column-reference table shown in the admin guide.
  *  The same `<div class="table-scroll"><table>` shell as every other table,
  *  with one row per column showing its `{{key}}` tag, label, and description. */
-type ColumnReferenceTable = {
+type ColumnReferenceSource = {
   readonly columns: readonly Pick<
     TableColumn<never, never>,
     "description" | "key" | "label"
   >[];
 };
 
+type ColumnReferenceRow = {
+  readonly description: string;
+  readonly key: string;
+  readonly label: string;
+};
+
+const columnReferenceTable = defineTable<ColumnReferenceRow>([
+  {
+    cell: (row) => <code>{`{{${row.key}}}`}</code>,
+    header: () => t("guide.table_reference.tag"),
+    key: "tag",
+  },
+  {
+    cell: (row) => row.label,
+    header: () => t("guide.table_reference.label"),
+    key: "label",
+  },
+  {
+    cell: (row) => row.description,
+    header: () => t("guide.table_reference.description"),
+    key: "description",
+  },
+]);
+
 export const renderColumnReference = (
-  table: ColumnReferenceTable,
+  table: ColumnReferenceSource,
 ): JSX.Element => {
   const rows = table.columns.flatMap((column) => {
     const label = resolveGuideText(column.label);
     const description = resolveGuideText(column.description);
     return label === undefined || description === undefined
       ? []
-      : [
-          <tr>
-            <td>
-              <code>{`{{${column.key}}}`}</code>
-            </td>
-            <td>{label}</td>
-            <td>{description}</td>
-          </tr>,
-        ];
+      : [{ description, key: column.key, label }];
   });
-  return (
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>{t("guide.table_reference.tag")}</th>
-            <th>{t("guide.table_reference.label")}</th>
-            <th>{t("guide.table_reference.description")}</th>
-          </tr>
-        </thead>
-        <tbody>{rows}</tbody>
-      </table>
-    </div>
-  );
+  return renderTable(columnReferenceTable, rows);
 };
