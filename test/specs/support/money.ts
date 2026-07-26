@@ -51,6 +51,7 @@ export const sellPlacesAt = async (
     unitPrice: minorUnits(pounds),
   });
   world.listingIds.set(name, listing.id);
+  world.listingId = listing.id;
   return listing;
 };
 

@@ -21,6 +21,7 @@ import {
   correctIncomeTo,
   expectRefundMessage,
   listingIdFor,
+  minorUnits,
   sellPlacesAt,
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
@@ -82,11 +83,18 @@ Then("no booking fee is recorded", async (): Promise<void> => {
   expect(await sumOfAllBalances()).toBe(0);
 });
 
+/** One customer buys one place, whatever the story calls the listing. The
+ * premise is checked here: the sale counted, so what a later step reads means
+ * something. */
 Given(
-  "a customer paid 45.00 for a Show place",
-  async function (this: TicketsWorld): Promise<void> {
-    await buyOnePlace(this, SHOW, "45.00", "No Refund");
-    expect(await incomeOf(listingIdFor(this, SHOW))).toBe(4500);
+  "a customer paid {word} for a {word} place",
+  async function (
+    this: TicketsWorld,
+    price: string,
+    listing: string,
+  ): Promise<void> {
+    await buyOnePlace(this, listing, price, `${listing} Buyer`);
+    expect(await incomeOf(listingIdFor(this, listing))).toBe(minorUnits(price));
   },
 );
 
@@ -118,13 +126,6 @@ Then(
     expect(legsOfKind(legs, "refund_cash").length).toBe(0);
     expect(kindsOf(legs)).toEqual(["payment", "sale"]);
     expect(await sumOfAllBalances()).toBe(0);
-  },
-);
-
-Given(
-  "a customer paid 60.00 for a Repeat place",
-  async function (this: TicketsWorld): Promise<void> {
-    await buyOnePlace(this, REPEAT, "60.00", "Repeat Buyer");
   },
 );
 
@@ -180,13 +181,6 @@ Then(
       "adjustment",
     );
     expect(corrections.length).toBe(1);
-  },
-);
-
-Given(
-  "a customer paid 50.00 for a Reconciled place",
-  async function (this: TicketsWorld): Promise<void> {
-    await buyOnePlace(this, RECONCILED, "50.00", "Recon Buyer");
   },
 );
 

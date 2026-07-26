@@ -27,14 +27,6 @@ import {
 
 const CONCERT = "Concert";
 
-Given(
-  "a customer paid 45.00 for a Concert place",
-  async function (this: TicketsWorld): Promise<void> {
-    await buyOnePlace(this, CONCERT, "45.00", "Refundee");
-    expect(await incomeOf(listingIdFor(this, CONCERT))).toBe(4500);
-  },
-);
-
 When(
   "the organiser refunds the booking",
   function (this: TicketsWorld): Promise<void> {
