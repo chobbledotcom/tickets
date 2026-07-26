@@ -1640,3 +1640,30 @@ Starting points: the `hostingProvider === "bunny"` filter in
 `src/features/instance.ts`, `setSiteSecrets` in
 `src/shared/site-assignment.ts`, and the per-site loop in
 `.github/workflows/deploy-clients.yml`.
+
+---
+
+## Split the hybrid encryption section out of `src/shared/crypto/keys.ts`
+
+*Origin: reviewer suggestion on PR #1945.*
+
+`keys.ts` is 499 lines and holds three separate jobs: KEK derivation, symmetric
+key wrapping, and hybrid RSA+AES encryption. The hybrid section is the natural
+one to lift out — `hybridEncrypt`, `hybridDecrypt`, their TTL decrypt cache,
+`encryptWithOwnerKey` / `decryptWithOwnerKey`, and the RSA key import pair. That
+would leave `keys.ts` about 370 lines and focused on keys, and would sit
+naturally beside `src/shared/crypto/aes-gcm.ts`.
+
+It was left out of #1945 because that PR did not cause the overage: `keys.ts`
+was already 494 lines before it and grew by five. (The same rule did apply to
+`encryption.ts` there, which the change pushed from 391 to 443, and that one was
+split.)
+
+The move itself is mechanical, but it is wide: `encryptWithOwnerKey` and
+`decryptWithOwnerKey` are used across attendee PII, the activity log, email
+preferences, and bulk email drafts, so every importer needs repointing.
+Remember `src/docs/crypto.ts`, which re-exports whole crypto modules for the
+generated API docs — a moved export silently disappears from them otherwise.
+
+Starting point: the "Hybrid Encryption" section of `src/shared/crypto/keys.ts`,
+and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
