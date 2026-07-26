@@ -37,6 +37,7 @@ describe("Turso migration CLI", () => {
       },
     ]);
     expect(state.snapshotSignals).toEqual([state.deps.signal]);
+    expect(state.verifySignals).toEqual([state.deps.signal]);
     expect(state.createRequests).toEqual([
       {
         group: "default",

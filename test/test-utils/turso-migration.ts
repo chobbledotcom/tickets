@@ -28,6 +28,7 @@ export interface TursoMigrationCliState {
   stderr: string[];
   stdout: string[];
   uploads: string[];
+  verifySignals: AbortSignal[];
 }
 
 export const tursoMigrationCliState = (
@@ -57,6 +58,7 @@ export const tursoMigrationCliState = (
     stderr: [],
     stdout: [],
     uploads: [],
+    verifySignals: [],
   };
   const apiBehavior = fakeTursoApi(options.api);
   const api: TursoApi = {
@@ -113,8 +115,9 @@ export const tursoMigrationCliState = (
       state.uploads.push(path);
       return Promise.resolve();
     },
-    verifyUploadFile: (_path: string, _signal: AbortSignal) => {
+    verifyUploadFile: (_path: string, signal: AbortSignal) => {
       state.events.push("verify");
+      state.verifySignals.push(signal);
       return Promise.resolve();
     },
     ...options.deps,
