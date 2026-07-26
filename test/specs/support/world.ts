@@ -1,6 +1,10 @@
 import type { World } from "@cucumber/cucumber";
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
 import type { Listing } from "#shared/types.ts";
+import type {
+  JourneyCatalogSpec,
+  OrderJourneyCtx,
+} from "#test-utils/order-journey.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 export interface TicketsWorld extends World {
@@ -26,6 +30,9 @@ export interface TicketsWorld extends World {
   listingIds: Map<string, number>;
   modifierId?: number;
   newStayLength?: number;
+  orderCatalogSpec?: JourneyCatalogSpec;
+  orderCtx?: OrderJourneyCtx;
+  orderDay?: string;
   placeholderId?: number;
   questionId?: number;
   refundCalls?: () => number;

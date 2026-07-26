@@ -46,9 +46,24 @@ const THANK_YOU = "Thank you for your order";
  * dropdown at all (a typed-in name or email). The name may sit anywhere among
  * the tag's attributes — an `id` often comes first — so the opening tag is
  * matched whole and its attributes read from it. */
-const chooserFor = (html: string, field: string): string | null => {
-  for (const chooser of html.matchAll(/<select\s([^>]*)>[\s\S]*?<\/select>/g)) {
-    if (chooser[1]!.includes(`name="${field}"`)) return chooser[0];
+const chooserFor = (
+  html: string,
+  field: string,
+): { attributes: string; options: string } | null => {
+  for (const chooser of html.matchAll(
+    /<select\s([^>]*)>([\s\S]*?)<\/select>/g,
+  )) {
+    if (chooser[1]!.includes(`name="${field}"`)) {
+      return { attributes: chooser[1]!, options: chooser[2]! };
+    }
+  }
+  return null;
+};
+
+/** The one option carrying this value, or null when the dropdown has none. */
+const optionFor = (options: string, value: string): string | null => {
+  for (const option of options.matchAll(/<option\s([^>]*)>/g)) {
+    if (option[1]!.includes(`value="${value}"`)) return option[0];
   }
   return null;
 };
@@ -59,7 +74,9 @@ const chooserFor = (html: string, field: string): string | null => {
 export const optionsOffered = (html: string, field: string): string[] => {
   const chooser = chooserFor(html, field);
   if (!chooser) throw new Error(`The page offers no ${field} to choose`);
-  return [...chooser.matchAll(/value="([^"]*)"/g)].map((option) => option[1]!);
+  return [...chooser.options.matchAll(/value="([^"]*)"/g)].map(
+    (option) => option[1]!,
+  );
 };
 
 /** The box the visitor types in for one field, if it is one — its opening tag,
@@ -80,17 +97,23 @@ const expectControlCanSend = (
   chosen: string,
 ): void => {
   const chooser = chooserFor(html, field);
-  const control = chooser ?? boxFor(html, field);
-  expect(control).not.toBeNull();
-  expect(control).not.toContain("disabled");
   if (chooser) {
-    expect(optionsOffered(html, field)).toContain(chosen);
+    // The dropdown itself must be usable, and so must the one option being
+    // picked — a placeholder option switched off elsewhere in the list is
+    // perfectly normal and says nothing about this choice.
+    expect(chooser.attributes).not.toContain("disabled");
+    const option = optionFor(chooser.options, chosen);
+    expect(option).not.toBeNull();
+    expect(option).not.toContain("disabled");
     return;
   }
+  const box = boxFor(html, field);
+  expect(box).not.toBeNull();
+  expect(box).not.toContain("disabled");
   // A hidden box carries whatever the page put in it; the visitor cannot type
   // over it, so the story may only send that same value.
-  if (control!.includes('type="hidden"')) {
-    expect(control).toContain(`value="${chosen}"`);
+  if (box!.includes('type="hidden"')) {
+    expect(box).toContain(`value="${chosen}"`);
   }
 };
 
