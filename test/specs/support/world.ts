@@ -15,6 +15,7 @@ export interface TicketsWorld extends World {
   bookingPath?: string;
   bookingWasTaken?: boolean;
   bulkRefundMessage?: string;
+  cashBefore?: number;
   cleanup: Array<() => void | Promise<void>>;
   closedDayOn?: string;
   confirmName?: string;

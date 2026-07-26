@@ -4,6 +4,7 @@ import { load } from "@std/dotenv";
 import { basename, dirname, join, resolve, toFileUrl } from "@std/path";
 import * as v from "valibot";
 import { withCleanup } from "#scripts/cleanup.ts";
+import { secureUrlCheck } from "#scripts/secure-url.ts";
 import { getEnv } from "#shared/env.ts";
 
 export const SNAPSHOT_USAGE = "Usage: deno task snapshot --out <path.sqlite>";
@@ -94,7 +95,6 @@ const IntegrityRowsSchema = v.pipe(
 );
 
 const SECURE_DATABASE_PROTOCOLS = new Set(["https:", "libsql:"]);
-const HTTP_LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 const invalidUsage = (): never => {
   throw new Error(SNAPSHOT_USAGE);
@@ -124,29 +124,8 @@ const requiredEnv = (key: string, readEnv: SnapshotEnvReader): string => {
   return value;
 };
 
-const requireRemoteDatabaseUrl = (value: string): string => {
-  try {
-    const url = new URL(value);
-    const secure = SECURE_DATABASE_PROTOCOLS.has(url.protocol);
-    const loopback = HTTP_LOOPBACK_HOSTNAMES.has(url.hostname);
-    const plaintext =
-      url.protocol === "http:" ||
-      (url.protocol === "libsql:" &&
-        url.searchParams.getAll("tls").at(-1) === "0");
-    if (
-      url.hostname &&
-      (secure || url.protocol === "http:") &&
-      (!plaintext || loopback)
-    ) {
-      return value;
-    }
-  } catch {
-    // Invalid URLs share the same clear configuration error as local URLs.
-  }
-  throw new Error(
-    "DB_URL must use TLS. Plain connections are allowed only for loopback.",
-  );
-};
+const requireRemoteDatabaseUrl = (value: string): string =>
+  secureUrlCheck(SECURE_DATABASE_PROTOCOLS)(value, "DB_URL");
 
 export const readSnapshotRequest = (
   options: SnapshotOptions,

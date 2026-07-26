@@ -15,16 +15,16 @@ import {
 } from "#test/specs/support/merging.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
-import {
   adminPageHtml,
   incomeOf,
   norm,
   owedBy,
   sumOfAllBalances,
-} from "#test-utils/money/reads.ts";
+} from "#test/specs/support/money-reads.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 

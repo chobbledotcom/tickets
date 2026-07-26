@@ -6,17 +6,23 @@
  * costs about half a second, and the test harness does it before every run —
  * even `deno task test:files` on one small file, where it was most of the wall
  * clock. The client sources almost never change between two runs, so after a
- * build we write down every file that went into it (its size and modified
- * time) plus every file that came out. The next run compares that list against
- * the disk: if nothing moved, the assets on disk are already correct and the
- * build is skipped entirely — esbuild and sass are never even loaded.
+ * build we write down every file that went into it plus every file that came
+ * out, each one as a hash of its contents. The next run hashes them again: if
+ * every file is byte-for-byte what it was, the assets on disk are already
+ * correct and the build is skipped entirely — esbuild and sass are never even
+ * loaded.
  *
- * A file is identified by a hash of its contents, not by its size and modified
- * time. Those two can agree while the contents differ — two same-length saves
- * inside one clock tick, or a copy that keeps timestamps — and the whole point
- * of the record is that a skipped build would have produced the very same
- * bytes. Reading and hashing everything costs about ten milliseconds against a
- * build of half a second, and it never says "unchanged" when it is not.
+ * Contents decide it, not size and modified time. Those two can agree while
+ * the bytes differ — two same-length saves inside one clock tick, or a copy
+ * that keeps timestamps — and the whole point of the record is that a skipped
+ * build would have produced the very same output. It also means re-saving a
+ * file without changing it, or a checkout that rewrites timestamps, is not a
+ * reason to rebuild. Reading and hashing everything costs about ten
+ * milliseconds against a build of half a second.
+ *
+ * A modified time is still recorded, but only to spot a source that moved
+ * while the build was reading it (see `sourcesMovedUnderBuild`). It plays no
+ * part in deciding whether a file changed.
  */
 
 import { join } from "node:path";
