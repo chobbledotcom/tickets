@@ -30,8 +30,8 @@ const buildCommand = (
 };
 
 /** Run a command, capturing its stdout/stderr as decoded strings. */
-export const runCommand: RunCommand = (cmd, options = {}) =>
-  captureOutput(
+export const runCommand: RunCommand = async (cmd, options = {}) =>
+  await captureOutput(
     buildCommand(cmd, { ...options, stderr: "piped", stdout: "piped" }),
   );
 
