@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   formatProgressLine,
   formatSummaryLines,
@@ -93,10 +94,80 @@ describe("mutation summary", () => {
     ]);
   });
 
-  test("formats phase timing work in terminal summaries", () => {
-    expect(formatSummaryLines(timingSummary()).join("\n")).toContain(
-      "direct-tests: 10ms in 1 run(s)",
+  /** The terminal report as plain lines, with any colour codes removed. */
+  const terminalLines = (results: MutantResult[]): string[] =>
+    formatSummaryLines(summarize(results)).map((line) =>
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour
+      line.replace(/\u001b\[[0-9;]*m/g, ""),
     );
+
+  test("calls a terminal run with nothing to mutate inconclusive", () => {
+    expect(terminalLines([])).toEqual([
+      "\nMutation testing summary",
+      "  No mutable operators were found — nothing to mutate.",
+      "  Result is INCONCLUSIVE (a mutation score needs ≥1 mutant).",
+    ]);
+  });
+
+  test("tells the terminal when every mutant is a known-equivalent", () => {
+    expect(terminalLines([fakeResult("ignored", 1, "??", "||")])).toEqual([
+      "\nMutation testing summary",
+      "  All 1 mutant(s) suppressed as known-equivalent — nothing killable.",
+    ]);
+  });
+
+  test("lines the terminal counts up under their labels", () => {
+    expect(
+      terminalLines([
+        fakeResult("killed", 1, "===", "!=="),
+        fakeResult("timed-out", 2, "while", "(removed)"),
+        fakeResult("ignored", 3, "??", "||"),
+      ]),
+    ).toEqual([
+      "\nMutation testing summary",
+      "  mutants:   3",
+      "  killed:    1",
+      "  timed out: 1",
+      "  survived:  0",
+      "  ignored:   1",
+      "  score:     100.0%  (detected 2/2, 1 suppressed)",
+      "\nAll mutants were detected. (1 suppressed as known-equivalent)",
+    ]);
+  });
+
+  test("lists the terminal survivors under their own heading", () => {
+    expect(
+      terminalLines([
+        fakeResult("killed", 1, "===", "!=="),
+        fakeResult("survived", 4, "return x", "return undefined"),
+      ]),
+    ).toEqual([
+      "\nMutation testing summary",
+      "  mutants:   2",
+      "  killed:    1",
+      "  timed out: 0",
+      "  survived:  1",
+      "  score:     50.0%  (detected 1/2)",
+      "\nSurvivors — these mutations did not fail any test:",
+      "  src/example.ts:4:3  return x → return undefined",
+    ]);
+  });
+
+  test("formats phase timing work in terminal summaries", () => {
+    expect(
+      formatSummaryLines(timingSummary())
+        .map((line) =>
+          // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour
+          line.replace(/\u001b\[[0-9;]*m/g, ""),
+        )
+        .slice(-5),
+    ).toEqual([
+      "",
+      "  phase timings (cumulative elapsed):",
+      "    lint: 4ms in 1 run(s)",
+      "    direct-tests: 10ms in 1 run(s)",
+      "\nAll mutants were detected.",
+    ]);
   });
 
   test("writes phase timing work in Markdown summaries", async () => {
@@ -104,6 +175,17 @@ describe("mutation summary", () => {
     const markdown = await withStepSummary(file.path, () =>
       writeStepSummary(timingSummary()),
     );
+    expect(markdown.split("\n").slice(-10, -3)).toEqual([
+      "",
+      "### Phase timings",
+      "",
+      "These are cumulative phase times across mutant attempts. Parallel test" +
+        " batches count once per stage.",
+      "",
+      "| phase | runs | time |",
+      "| --- | ---: | ---: |",
+    ]);
+    expect(markdown).toContain("| lint | 1 | 4ms |");
     expect(markdown).toContain("| direct-tests | 1 | 10ms |");
   });
 
@@ -294,6 +376,32 @@ describe("mutation summary", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  test("keeps earlier step summaries when it writes another", async () => {
+    using file = tempFile({ prefix: "mutation-summary-append-" });
+    const text = await withStepSummary(file.path, () => {
+      writeStepSummary(summarize([]));
+      writeStepSummary(summarize([fakeResult("ignored", 1, "??", "||")]));
+    });
+
+    expect(text).toContain("Inconclusive");
+    expect(text).toContain("nothing killable");
+  });
+
+  test("says on the console where the Markdown summary went", async () => {
+    using file = tempFile({ prefix: "mutation-summary-log-" });
+    const logs: string[] = [];
+    using _log = stub(console, "log", (line?: unknown) => {
+      logs.push(String(line));
+    });
+
+    await withStepSummary(file.path, () => writeStepSummary(summarize([])));
+
+    expect(
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour
+      logs.map((line) => line.replace(/\u001b\[[0-9;]*m/g, "")),
+    ).toEqual(["Wrote Markdown summary to $GITHUB_STEP_SUMMARY."]);
   });
 
   test("ignores absent or unwritable GitHub step summary paths", async () => {

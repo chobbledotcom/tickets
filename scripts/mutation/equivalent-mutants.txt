@@ -963,3 +963,7 @@ scripts/compact-test-reporter.ts:350:34  ?? → ||   # the stderr option is a fu
 scripts/compact-test-reporter.ts:384:21  --- → ""   # a line that trims to nothing has already returned above, so comparing the trimmed line with "" is never true
 scripts/compact-test-reporter.ts:384:42  ... → ""   # same line, same reason
 scripts/compact-test-reporter.ts:443:44  ?? → ||   # locationFromStack returns a location object or undefined, and objects are always truthy
+
+# Mutation summary: grouped results are arrays or absent, never falsy-but-set.
+scripts/mutation/summary.ts:65:69  ?? → ||   # Object.groupBy gives each status a non-empty array or nothing at all, and an array is always truthy
+scripts/mutation/summary.ts:92:33  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
