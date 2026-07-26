@@ -12,6 +12,7 @@ describe("Cucumber story catalog", () => {
   test("reads every story from the repository catalog", async () => {
     expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
       "attendees.editing-and-moving",
+      "attendees.merging-duplicate-bookings",
       "attendees.no-quantity-tickets",
       "attendees.removing-one-part-of-an-order",
       "bookings.backup-and-restore",
@@ -26,8 +27,10 @@ describe("Cucumber story catalog", () => {
       "payments.income-figures-explained",
       "payments.one-payment-many-listings",
       "payments.paying-for-a-mixed-order",
+      "payments.paying-more-than-the-asking-price",
       "payments.provider-choice",
       "payments.refunding-a-booking",
+      "payments.refunding-everyone-at-once",
       "payments.repeated-money-actions",
       "servicing.hold-and-cost",
     ]);
