@@ -100,3 +100,15 @@ Feature: An organiser refunds a booking
       When the organiser refunds the first customer
       Then no money is left unaccounted for
       And the Festival earnings and the refunded customer's balance agree
+
+  @rule:payments.a-turned-down-refund-changes-nothing
+  @surface:admin
+  Rule: A refund the provider turns down changes nothing
+    The organiser is told it failed, and the books are exactly as they were.
+
+    @case:payment.declined-refund-changes-nothing
+    Scenario: The payment provider turns down the refund
+      Given a customer paid 45.00 for a Show place
+      When the organiser asks for a refund and the provider turns it down
+      Then the organiser is told the refund failed
+      And the Show has still earned 45.00 and no money was handed back

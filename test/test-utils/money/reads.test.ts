@@ -6,28 +6,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { formatCurrency } from "#shared/currency.ts";
-import {
-  incomeLedgerArticle,
-  signedCurrency,
-} from "#test-utils/money/reads.ts";
+import { incomeLedgerArticle } from "#test-utils/money/reads.ts";
 
 describe("money reads", () => {
-  describe("signedCurrency", () => {
-    test("leads a positive figure with a plus", () => {
-      expect(signedCurrency(500)).toBe(`+${formatCurrency(500)}`);
-    });
-
-    test("leads a negative figure with a minus sign, not a hyphen", () => {
-      expect(signedCurrency(-500)).toBe(`−${formatCurrency(500)}`);
-      expect(signedCurrency(-500)).not.toContain("-");
-    });
-
-    test("treats zero as a positive figure", () => {
-      expect(signedCurrency(0)).toBe(`+${formatCurrency(0)}`);
-    });
-  });
-
   describe("incomeLedgerArticle", () => {
     const page = [
       "<p>£99 elsewhere on the page</p>",

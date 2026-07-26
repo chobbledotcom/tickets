@@ -22,7 +22,6 @@ export interface TicketsWorld extends World {
   placeholderId?: number;
   questionId?: number;
   refundCalls?: () => number;
-  refundResponse?: Response;
   secondBody?: string;
   secondStatus?: number;
   servicingEventId?: number;

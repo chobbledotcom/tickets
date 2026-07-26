@@ -130,12 +130,6 @@ export const assertRenderedModifierRevenue = async (
   expect(list).toContain(formatted);
 };
 
-/** The breakdown template's signed-magnitude format (a leading +/− with a U+2212
- *  minus), replicated so a test can assert the exact reconciliation figures the
- *  page renders. Only non-zero figures are ever rendered as a signed row. */
-export const signedCurrency = (value: number): string =>
-  `${value < 0 ? "−" : "+"}${formatCurrency(Math.abs(value))}`;
-
 /** Slice the `#income-ledger` reconciliation article out of a listing detail
  *  page, so a figure is asserted WITHIN the breakdown and can't accidentally
  *  match an unrelated figure elsewhere on the page. */

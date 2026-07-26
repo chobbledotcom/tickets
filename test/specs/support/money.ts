@@ -8,16 +8,15 @@ import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
+import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   completePaidOrder,
   runStripeSuccess,
-  submitRefund,
   withRefundMock,
 } from "#test-utils/money/drivers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -118,16 +117,21 @@ export const buyPlaceWithExtra = async (
 export const bookingPagePath = (world: TicketsWorld, page: string): string =>
   `/admin/attendees/${bookingId(world)}/${page}`;
 
-/** Ask for a refund with the provider answering `succeeds`, keeping the reply
- * and how many times the provider was asked. */
+/** Ask for a refund the way the organiser does: open the booking's refund page,
+ * type the name it asks for into its own form, and submit that form. The
+ * provider answers `succeeds`. Keeps how many times it was asked. */
 export const askForRefund = async (
   world: TicketsWorld,
   succeeds: boolean,
 ): Promise<void> => {
-  const attendeeId = requiredWorldValue(world.attendeeId, "attendee id");
   const who = requiredWorldValue(world.attendeeName, "attendee name");
+  const browser = await adminBrowser(world);
   await withRefundMock(succeeds, async (mockRefund: Stub) => {
-    world.refundResponse = await submitRefund(attendeeId, who);
+    await browser.visit(bookingPagePath(world, "refund"));
+    // The page must offer the confirm-by-typing box; the browser carries the
+    // page's own token and action, so a broken form fails here.
+    expect(browser.currentHtml).toContain('name="confirm_identifier"');
+    await browser.submitForm({ confirm_identifier: who }, "Refund Attendee");
     world.refundCalls = () => mockRefund.calls.length;
   });
 };
@@ -136,15 +140,16 @@ export const askForRefund = async (
 export const timesProviderWasAsked = (world: TicketsWorld): number =>
   requiredWorldValue(world.refundCalls, "refund calls")();
 
-/** The message the organiser was shown after asking for a refund. */
+/** Where the organiser landed after asking for a refund, and what they were
+ * told there. */
 export const expectRefundMessage = (
   world: TicketsWorld,
   path: string,
   message: string,
-  succeeded: boolean,
-): Promise<Response> =>
-  expectFlashRedirect(
-    path,
-    expect.stringContaining(message),
-    succeeded,
-  )(requiredWorldValue(world.refundResponse, "refund response"));
+): void => {
+  // Read the page the refund left behind — asking for an admin browser here
+  // would navigate away from it first.
+  const browser = scenarioBrowser(world);
+  expect(browser.currentUrl).toBe(path);
+  expect(browser.containsText(message)).toBe(true);
+};

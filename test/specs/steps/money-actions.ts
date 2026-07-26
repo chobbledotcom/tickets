@@ -11,7 +11,7 @@ import {
   accountBalance,
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
-import { formatCurrency } from "#shared/currency.ts";
+import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import {
   askForRefund,
@@ -23,6 +23,7 @@ import {
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { withStripeSuccess } from "#test-utils/money/drivers.ts";
@@ -33,7 +34,6 @@ import {
   kindsOf,
   legsOfKind,
   owedBy,
-  signedCurrency,
   sumOfAllBalances,
   worldBalance,
 } from "#test-utils/money/reads.ts";
@@ -46,7 +46,9 @@ const SHOW = "Show";
 const REPEAT = "Repeat";
 const RECONCILED = "Reconciled";
 
-/** Set a listing's income to the given figure through the real correction form. */
+/** Set a listing's income to the given figure through the real correction form,
+ * and check the organiser is told it worked — a failed save redirects too, so a
+ * bare redirect would not show the difference. */
 const correctIncomeTo = async (
   listingId: number,
   pounds: string,
@@ -55,7 +57,10 @@ const correctIncomeTo = async (
     `/admin/listing/${listingId}/income`,
     { income: pounds },
   );
-  expect(response.status).toBe(302);
+  await expectFlashRedirect(
+    `/admin/listing/${listingId}/edit`,
+    "Listing income corrected.",
+  )(response);
 };
 
 When(
@@ -108,11 +113,10 @@ When(
 Then(
   "the organiser is told the refund failed",
   async function (this: TicketsWorld): Promise<void> {
-    await expectRefundMessage(
+    expectRefundMessage(
       this,
       `/admin/attendees/${bookingId(this)}/refund`,
       "Refund failed",
-      false,
     );
     expect(timesProviderWasAsked(this)).toBe(1);
   },
@@ -214,13 +218,13 @@ Then(
     );
     expect(breakdown).toContain("Money in and out");
     expect(breakdown).toContain("Gross ticket sales");
-    expect(breakdown).toContain(signedCurrency(5000));
+    expect(breakdown).toContain(formatSignedCurrency(5000));
     expect(breakdown).toContain("Income corrections");
-    expect(breakdown).toContain(signedCurrency(-1000));
+    expect(breakdown).toContain(formatSignedCurrency(-1000));
     expect(breakdown).toContain("Total income earned");
     expect(breakdown).toContain(formatCurrency(4000));
     expect(breakdown).toContain("Refunds");
-    expect(breakdown).toContain(signedCurrency(-5000));
+    expect(breakdown).toContain(formatSignedCurrency(-5000));
     expect(breakdown).toContain("Net after refunds and costs");
   },
 );

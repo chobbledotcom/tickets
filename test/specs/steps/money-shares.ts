@@ -14,6 +14,7 @@ import {
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { runStripeSuccess } from "#test-utils/money/drivers.ts";
 import {
@@ -112,7 +113,10 @@ Given(
       `/admin/listing/${listingId}/income`,
       { income: "100.00" },
     );
-    expect(response.status).toBe(302);
+    await expectFlashRedirect(
+      `/admin/listing/${listingId}/edit`,
+      "Listing income corrected.",
+    )(response);
     expect(await incomeOf(listingId)).toBe(10000);
   },
 );

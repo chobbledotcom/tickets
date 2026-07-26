@@ -45,11 +45,10 @@ When(
 Then(
   "the customer is handed back 45.00 once",
   async function (this: TicketsWorld): Promise<void> {
-    await expectRefundMessage(
+    expectRefundMessage(
       this,
       bookingPagePath(this, "actions"),
       "Refund issued",
-      true,
     );
     expect(timesProviderWasAsked(this)).toBe(1);
     // One full refund of the whole payment, returned where it came from.
@@ -88,11 +87,10 @@ Given(
   async function (this: TicketsWorld): Promise<void> {
     await buyOnePlace(this, CONCERT, "45.00", "Logged Guest");
     await askForRefund(this, true);
-    await expectRefundMessage(
+    expectRefundMessage(
       this,
       bookingPagePath(this, "actions"),
       "Refund issued",
-      true,
     );
     // The money event is on the customer's own history for anyone to see.
     expect(await adminPageHtml(bookingPagePath(this, "activity"))).toContain(
@@ -111,11 +109,10 @@ When(
 Then(
   "the organiser is told it was already refunded",
   async function (this: TicketsWorld): Promise<void> {
-    await expectRefundMessage(
+    expectRefundMessage(
       this,
       bookingPagePath(this, "refund"),
       "already been refunded",
-      false,
     );
   },
 );
