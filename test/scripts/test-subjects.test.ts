@@ -167,7 +167,7 @@ describe("test subjects", () => {
       ).toEqual(["src/shared/csrf.ts", "src/ui/templates/table/component.tsx"]);
     });
 
-    test("ignores what shared setup reaches, keeping the real subject alone", async () => {
+    test("ignores what start-up setup reaches, keeping the real subject alone", async () => {
       // describeWithEnv-style setup starts nearly every test and touches the
       // database and config. Counting those would bury the one module the
       // test is actually about.

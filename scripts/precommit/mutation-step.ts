@@ -204,16 +204,17 @@ export const runMutationStep = async (
     await deps.allTestFiles(),
     changed.tests,
   );
-  if (tests.length === 0) {
-    deps.log(
-      `${MUTATION_NOTICE_PREFIX}changed src files but no matching test files — ` +
-        "skipping mutation.",
-    );
-    return 0;
-  }
+  // No selected tests is not a reason to skip: a changed source with no test at
+  // its mirror is exactly what the run must reject. runMutationTesting checks
+  // every changed source for a direct test before running anything, so it fails
+  // with "No direct test mirrors X" instead of passing quietly. A source with no
+  // mutants to begin with still passes.
   deps.log(
-    `Mutation-testing ${changed.sources.length} changed src file(s) against ` +
-      `${tests.length} selected test file(s); every mutant must be killed.`,
+    tests.length === 0
+      ? `Mutation-testing ${changed.sources.length} changed src file(s); each ` +
+          "one needs a test at its mirror path."
+      : `Mutation-testing ${changed.sources.length} changed src file(s) against ` +
+          `${tests.length} selected test file(s); every mutant must be killed.`,
   );
   const code = await deps.runMutation({ sources: changed.sources, tests });
   return code === 2 ? 0 : code;
