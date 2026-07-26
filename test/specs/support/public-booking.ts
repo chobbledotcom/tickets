@@ -43,10 +43,15 @@ export interface BookingAttempt {
 const THANK_YOU = "Thank you for your order";
 
 /** The dropdown on the page for one field, or null when the field is not a
- * dropdown at all (a typed-in name or email). */
-const chooserFor = (html: string, field: string): string | null =>
-  html.match(new RegExp(`<select name="${field}"[\\s\\S]*?</select>`))?.[0] ??
-  null;
+ * dropdown at all (a typed-in name or email). The name may sit anywhere among
+ * the tag's attributes — an `id` often comes first — so the opening tag is
+ * matched whole and its attributes read from it. */
+const chooserFor = (html: string, field: string): string | null => {
+  for (const chooser of html.matchAll(/<select\s([^>]*)>[\s\S]*?<\/select>/g)) {
+    if (chooser[1]!.includes(`name="${field}"`)) return chooser[0];
+  }
+  return null;
+};
 
 /** The values a dropdown on the page offers. Throws when the page has no such
  * dropdown, so "the option is missing" and "the control is missing" stay
