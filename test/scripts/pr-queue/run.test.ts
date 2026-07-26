@@ -4,20 +4,13 @@ import { PR_QUEUE_USAGE } from "#scripts/pr-queue/args.ts";
 import type { GhRunner } from "#scripts/pr-queue/gh.ts";
 import { runPrQueue } from "#scripts/pr-queue/run.ts";
 import type { GraphQlPr } from "#scripts/pr-queue/types.ts";
-import { ghSaying, makePr } from "./fixtures.ts";
+import { ghSaying, makePr, queueReply } from "./fixtures.ts";
 
 /** One open pull request, with the fields this report sorts and prints by. */
 const openPr = (over: Partial<GraphQlPr> = {}): GraphQlPr => ({
   ...makePr(),
   ...over,
 });
-
-const queueReply = (nodes: GraphQlPr[], hasNextPage = false): string =>
-  JSON.stringify({
-    data: {
-      repository: { pullRequests: { nodes, pageInfo: { hasNextPage } } },
-    },
-  });
 
 /** Run the report over a stand-in `gh`, collecting both output streams. */
 const report = async (

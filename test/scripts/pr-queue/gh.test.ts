@@ -9,7 +9,7 @@ import {
 } from "#scripts/pr-queue/gh.ts";
 import type { GraphQlPr } from "#scripts/pr-queue/types.ts";
 import { captureCommands } from "#test-utils/command-capture.ts";
-import { ghSaying } from "./fixtures.ts";
+import { ghSaying, queueReply } from "./fixtures.ts";
 
 /** The failure a call threw, so its message and exit code can be checked. */
 const failureFrom = async (call: Promise<unknown>): Promise<GhFailure> => {
@@ -20,13 +20,6 @@ const failureFrom = async (call: Promise<unknown>): Promise<GhFailure> => {
 
 const pr = (number: number, mergeable: string): GraphQlPr =>
   ({ mergeable, mergeStateStatus: "UNKNOWN", number }) as GraphQlPr;
-
-const queueReply = (nodes: GraphQlPr[], hasNextPage = false): string =>
-  JSON.stringify({
-    data: {
-      repository: { pullRequests: { nodes, pageInfo: { hasNextPage } } },
-    },
-  });
 
 const settledReply = (numbers: number[]): string =>
   JSON.stringify({

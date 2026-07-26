@@ -106,6 +106,14 @@ const buildChecks = (
   };
 };
 
+/** A GraphQL reply carrying a page of open pull requests. */
+export const queueReply = (nodes: GraphQlPr[], hasNextPage = false): string =>
+  JSON.stringify({
+    data: {
+      repository: { pullRequests: { nodes, pageInfo: { hasNextPage } } },
+    },
+  });
+
 /** A stand-in `gh` that answers each call in turn and records what it was asked. */
 export const ghSaying = (
   ...replies: Partial<Awaited<ReturnType<GhRunner>>>[]
