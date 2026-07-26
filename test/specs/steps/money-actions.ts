@@ -11,8 +11,9 @@ import {
   accountBalance,
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
-import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
+import { formatSignedCurrency } from "#shared/currency.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   askForRefund,
   bookingId,
@@ -23,7 +24,6 @@ import {
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { withStripeSuccess } from "#test-utils/money/drivers.ts";
@@ -37,7 +37,6 @@ import {
   sumOfAllBalances,
   worldBalance,
 } from "#test-utils/money/reads.ts";
-import { adminFormPost } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
@@ -46,21 +45,33 @@ const SHOW = "Show";
 const REPEAT = "Repeat";
 const RECONCILED = "Reconciled";
 
-/** Set a listing's income to the given figure through the real correction form,
- * and check the organiser is told it worked — a failed save redirects too, so a
- * bare redirect would not show the difference. */
+/** Set a listing's income through the correction form on its own edit page, and
+ * check the organiser is told it worked — a failed save redirects too, so a bare
+ * redirect would not show the difference. */
 const correctIncomeTo = async (
+  world: TicketsWorld,
   listingId: number,
   pounds: string,
 ): Promise<void> => {
-  const { response } = await adminFormPost(
-    `/admin/listing/${listingId}/income`,
-    { income: pounds },
+  const browser = await adminBrowser(world);
+  await browser.visit(`/admin/listing/${listingId}/edit`);
+  // The page must offer the correction box; the browser posts the form's own
+  // action and token, so a broken form fails here.
+  expect(browser.currentHtml).toContain('id="income"');
+  await browser.submitForm({ income: pounds }, "Save income correction");
+  expect(browser.containsText("Listing income corrected.")).toBe(true);
+};
+
+/** The amount shown on one row of the money breakdown, found by that row's own
+ * label — so a figure belonging to a different row can never satisfy a check. */
+const breakdownRowAmount = (breakdown: string, label: string): string => {
+  const row = breakdown.match(
+    new RegExp(
+      `<th[^>]*>(?:<strong>)?${label}(?:</strong>)?</th>\\s*<td[^>]*>(?:<strong>)?([^<]*)`,
+    ),
   );
-  await expectFlashRedirect(
-    `/admin/listing/${listingId}/edit`,
-    "Listing income corrected.",
-  )(response);
+  if (!row) throw new Error(`the breakdown has no ${label} row`);
+  return row[1]!;
 };
 
 When(
@@ -177,8 +188,8 @@ When(
   "the organiser sets the Repeat income to 40.00 twice",
   async function (this: TicketsWorld): Promise<void> {
     const listingId = listingIdFor(this, REPEAT);
-    await correctIncomeTo(listingId, "40.00");
-    await correctIncomeTo(listingId, "40.00");
+    await correctIncomeTo(this, listingId, "40.00");
+    await correctIncomeTo(this, listingId, "40.00");
   },
 );
 
@@ -206,7 +217,7 @@ Given(
 Given(
   "the organiser corrected the Reconciled income to 40.00",
   function (this: TicketsWorld): Promise<void> {
-    return correctIncomeTo(listingIdFor(this, RECONCILED), "40.00");
+    return correctIncomeTo(this, listingIdFor(this, RECONCILED), "40.00");
   },
 );
 
@@ -217,15 +228,21 @@ Then(
       await adminPageHtml(`/admin/listing/${listingIdFor(this, RECONCILED)}`),
     );
     expect(breakdown).toContain("Money in and out");
-    expect(breakdown).toContain("Gross ticket sales");
-    expect(breakdown).toContain(formatSignedCurrency(5000));
-    expect(breakdown).toContain("Income corrections");
-    expect(breakdown).toContain(formatSignedCurrency(-1000));
-    expect(breakdown).toContain("Total income earned");
-    expect(breakdown).toContain(formatCurrency(4000));
-    expect(breakdown).toContain("Refunds");
-    expect(breakdown).toContain(formatSignedCurrency(-5000));
-    expect(breakdown).toContain("Net after refunds and costs");
+    // Each figure is read from its own row: the 50.00 sale, the 10.00 taken off
+    // by the correction, the 40.00 that leaves as earned income, the 50.00
+    // handed back, and the 10.00 the listing is down overall.
+    const amountOn = (label: string): string =>
+      breakdownRowAmount(breakdown, label);
+    expect(amountOn("Gross ticket sales")).toBe(formatSignedCurrency(5000));
+    expect(amountOn("Income corrections")).toBe(formatSignedCurrency(-1000));
+    // The two subtotal rows drop a leading plus but keep a real minus.
+    expect(amountOn("Total income earned")).toBe(
+      formatSignedCurrency(4000, false),
+    );
+    expect(amountOn("Refunds")).toBe(formatSignedCurrency(-5000));
+    expect(amountOn("Net after refunds and costs")).toBe(
+      formatSignedCurrency(-1000, false),
+    );
   },
 );
 
