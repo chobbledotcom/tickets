@@ -88,33 +88,49 @@ const boxFor = (html: string, field: string): string | null => {
   return null;
 };
 
-/** A control a visitor could really use to send this value. It must not be
- * switched off, and it must not be a fixed value the page decided for them —
- * either would let a story post something no visitor could. */
+/**
+ * Why a visitor could not send this value through the page's own control, or
+ * null when they could. A control must be rendered, not switched off, and able
+ * to carry the value: a dropdown has to offer it as a usable option, and a
+ * hidden box has to already hold it, because the visitor cannot type over one.
+ *
+ * Pure, so the rules can be checked directly against a page's markup.
+ */
+export const whyValueCannotBeSent = (
+  html: string,
+  field: string,
+  chosen: string,
+): string | null => {
+  const chooser = chooserFor(html, field);
+  if (chooser) {
+    if (chooser.attributes.includes("disabled")) {
+      return `the ${field} chooser is switched off`;
+    }
+    // Only the option being picked matters — a placeholder switched off
+    // elsewhere in the list is normal and says nothing about this choice.
+    const option = optionFor(chooser.options, chosen);
+    if (!option) return `the ${field} chooser does not offer "${chosen}"`;
+    if (option.includes("disabled")) {
+      return `the ${field} option "${chosen}" is switched off`;
+    }
+    return null;
+  }
+  const box = boxFor(html, field);
+  if (!box) return `the page has no ${field} to fill in`;
+  if (box.includes("disabled")) return `the ${field} box is switched off`;
+  if (box.includes('type="hidden"') && !box.includes(`value="${chosen}"`)) {
+    return `the ${field} box is fixed at something other than "${chosen}"`;
+  }
+  return null;
+};
+
+/** A control a visitor could really use to send this value. */
 const expectControlCanSend = (
   html: string,
   field: string,
   chosen: string,
 ): void => {
-  const chooser = chooserFor(html, field);
-  if (chooser) {
-    // The dropdown itself must be usable, and so must the one option being
-    // picked — a placeholder option switched off elsewhere in the list is
-    // perfectly normal and says nothing about this choice.
-    expect(chooser.attributes).not.toContain("disabled");
-    const option = optionFor(chooser.options, chosen);
-    expect(option).not.toBeNull();
-    expect(option).not.toContain("disabled");
-    return;
-  }
-  const box = boxFor(html, field);
-  expect(box).not.toBeNull();
-  expect(box).not.toContain("disabled");
-  // A hidden box carries whatever the page put in it; the visitor cannot type
-  // over it, so the story may only send that same value.
-  if (box!.includes('type="hidden"')) {
-    expect(box).toContain(`value="${chosen}"`);
-  }
+  expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
 };
 
 /** Try to place an order through a page the site serves. Returns what the
