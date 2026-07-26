@@ -6,7 +6,7 @@ const SiteCredentialsSchema = v.object({
   dbToken: v.string(),
   dbUrl: v.string(),
   name: v.string(),
-  scriptId: v.number(),
+  scriptId: v.string(),
 });
 
 const SiteCredentialsResponseSchema = v.object({

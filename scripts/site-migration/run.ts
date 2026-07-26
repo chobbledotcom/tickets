@@ -14,6 +14,7 @@ import {
   runMigrationTask,
   type TursoMigrationDeps,
 } from "#scripts/turso-migration-steps.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { slugifyForTurso, type TursoApi } from "#shared/turso-api.ts";
 
 export const MIGRATE_SITES_USAGE = "Usage: deno task migrate:sites";
@@ -25,7 +26,7 @@ export interface SiteMigrationDeps extends TursoMigrationDeps {
   fetchSites: (instance: MainInstance) => Promise<SiteWithHost[]>;
   setSiteSecrets: (
     bunnyApiKey: string,
-    scriptId: number,
+    scriptId: string,
     secrets: [string, string][],
   ) => Promise<void>;
 }
@@ -70,6 +71,9 @@ const requireBunnySite = (site: SiteWithHost): void => {
 
 /** Make the person type the site name before anything is changed. */
 const confirmSite = (deps: SiteMigrationDeps, site: SiteWithHost): void => {
+  deps.stdout(
+    "The site keeps taking bookings while its database is copied. Any booking made during the copy stays in the old database and is lost. Run this when the site is quiet.",
+  );
   const typed = requiredAnswer(
     deps.prompt(`Type the site name to confirm (${site.name}):`),
     "Site name",
@@ -77,6 +81,49 @@ const confirmSite = (deps: SiteMigrationDeps, site: SiteWithHost): void => {
   if (typed !== site.name) {
     throw new Error(
       "Site name does not match. Please type the exact name to confirm.",
+    );
+  }
+};
+
+/** The two secrets that tell a site where its database is. */
+const databaseSecrets = (source: {
+  dbToken: string;
+  dbUrl: string;
+}): [string, string][] => [
+  [DATABASE_SECRET_NAMES.url, source.dbUrl],
+  [DATABASE_SECRET_NAMES.token, source.dbToken],
+];
+
+/**
+ * Point the site at its new database. If only part of the change lands, put the
+ * old database address back so the site keeps working, and say what happened.
+ */
+const repointSite = async (
+  deps: SiteMigrationDeps,
+  site: SiteWithHost,
+  bunnyApiKey: string,
+  credentials: { dbToken: string; dbUrl: string },
+): Promise<void> => {
+  try {
+    await deps.setSiteSecrets(
+      bunnyApiKey,
+      site.scriptId,
+      databaseSecrets(credentials),
+    );
+  } catch (error) {
+    try {
+      await deps.setSiteSecrets(
+        bunnyApiKey,
+        site.scriptId,
+        databaseSecrets(site),
+      );
+    } catch (undoError) {
+      throw new Error(
+        `${errorMessage(error)}. ${site.name} could not be put back on its old database either: ${errorMessage(undoError)}. Set DB_URL and DB_TOKEN by hand.`,
+      );
+    }
+    throw new Error(
+      `${errorMessage(error)}. ${site.name} was put back on its old database.`,
     );
   }
 };
@@ -96,13 +143,16 @@ const migrateSite = async (
     { dbToken: site.dbToken, dbUrl: site.dbUrl },
     slugifyForTurso(site.name),
   );
+  // Say what is left behind before the cutover, so a later failure cannot hide it.
+  const leftBehind = reportCleanupError(deps, outcome);
+  deps.signal.throwIfAborted();
   deps.stdout("Pointing the site at the new database...");
-  await deps.setSiteSecrets(bunnyApiKey, site.scriptId, [
-    [DATABASE_SECRET_NAMES.url, outcome.credentials.dbUrl],
-    [DATABASE_SECRET_NAMES.token, outcome.credentials.dbToken],
-  ]);
+  await repointSite(deps, site, bunnyApiKey, outcome.credentials);
   deps.stdout(`${site.name} now uses its Turso database.`);
-  return reportCleanupError(deps, outcome) ? 1 : 0;
+  deps.stdout(
+    `Last step, by hand: open the built site "${site.name}" on the main site and save the new DB_URL and DB_TOKEN printed above. Until you do, backups before a deploy still use the old database.`,
+  );
+  return leftBehind ? 1 : 0;
 };
 
 /** One round of the menu: list the sites, pick one, and migrate it. */

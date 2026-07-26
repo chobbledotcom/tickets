@@ -22,13 +22,13 @@ describe("site credentials", () => {
                 dbToken: "token-a",
                 dbUrl: "libsql://abc-one.lite.bunnydb.net",
                 name: "one",
-                scriptId: 1,
+                scriptId: "1",
               },
               {
                 dbToken: "token-b",
                 dbUrl: "libsql://two-org.turso.io",
                 name: "two",
-                scriptId: 2,
+                scriptId: "2",
               },
             ],
           }),
@@ -51,14 +51,14 @@ describe("site credentials", () => {
         dbUrl: "libsql://abc-one.lite.bunnydb.net",
         host: "bunny",
         name: "one",
-        scriptId: 1,
+        scriptId: "1",
       },
       {
         dbToken: "token-b",
         dbUrl: "libsql://two-org.turso.io",
         host: "turso",
         name: "two",
-        scriptId: 2,
+        scriptId: "2",
       },
     ]);
   });

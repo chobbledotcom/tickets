@@ -19,9 +19,7 @@ await runDenoScript(async (io) =>
     setSiteSecrets: async (bunnyApiKey, scriptId, secrets) => {
       // The Bunny client reads its key from the environment, like a site does.
       Deno.env.set("BUNNY_API_KEY", bunnyApiKey);
-      requireSuccess(
-        await bunnyHostingProvider.setSecrets(String(scriptId), secrets),
-      );
+      requireSuccess(await bunnyHostingProvider.setSecrets(scriptId, secrets));
     },
   }),
 );

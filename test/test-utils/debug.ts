@@ -32,7 +32,7 @@ export const makeDebugState = (
     subdomainSuffix: "",
   },
   database: {
-    host: "local",
+    host: null,
     hostConfigured: false,
     schemaHash: "",
     schemaInSync: false,

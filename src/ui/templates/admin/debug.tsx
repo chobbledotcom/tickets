@@ -76,7 +76,7 @@ export type DebugPageState = {
     registeredSubdomain: string;
   };
   database: {
-    host: DatabaseHost;
+    host: DatabaseHost | null;
     hostConfigured: boolean;
     schemaInSync: boolean;
     schemaHash: string;
@@ -441,7 +441,7 @@ const DEBUG_SECTIONS: readonly DebugSectionSpec[] = [
       statusRow("DB_URL", database.hostConfigured),
       {
         label: t("debug.field.database_host"),
-        value: t(`debug.host.${database.host}`),
+        value: database.host === null ? "—" : t(`debug.host.${database.host}`),
       },
       { label: t("debug.field.effective_domain"), value: domain },
       {

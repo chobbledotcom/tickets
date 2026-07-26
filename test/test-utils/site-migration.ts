@@ -17,14 +17,14 @@ export interface SiteMigrationCliState
   deps: SiteMigrationDeps;
   secretUpdates: {
     bunnyApiKey: string;
-    scriptId: number;
+    scriptId: string;
     secrets: string[][];
   }[];
   sites: SiteWithHost[];
 }
 
 /** A site on a Bunny database, as the main site would report it. */
-export const bunnySite = (name: string, scriptId: number): SiteWithHost => ({
+export const bunnySite = (name: string, scriptId: string): SiteWithHost => ({
   dbToken: `${name}-token`,
   dbUrl: `libsql://abc-${name}.lite.bunnydb.net`,
   host: databaseHostFor(`libsql://abc-${name}.lite.bunnydb.net`),
@@ -35,7 +35,7 @@ export const bunnySite = (name: string, scriptId: number): SiteWithHost => ({
 export const siteMigrationCliState = (
   options: SiteMigrationCliOptions = {},
 ): SiteMigrationCliState => {
-  const sites = options.sites ?? [bunnySite("first-site", 42)];
+  const sites = options.sites ?? [bunnySite("first-site", "42")];
   const secretUpdates: SiteMigrationCliState["secretUpdates"] = [];
   const base = tursoMigrationCliState({
     ...options,

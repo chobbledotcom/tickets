@@ -205,6 +205,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
   const googleWalletEnvConfigured = settings.googleWallet.hostConfig !== null;
   const paymentProvider = settings.paymentProvider;
+  const dbUrl = getEnv("DB_URL");
 
   return {
     appleWallet: {
@@ -239,8 +240,8 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       subdomainSuffix: getBunnyDnsSubdomainSuffix(),
     },
     database: {
-      host: databaseHostFor(getEnv("DB_URL") ?? ""),
-      hostConfigured: !!getEnv("DB_URL"),
+      host: dbUrl === undefined ? null : databaseHostFor(dbUrl),
+      hostConfigured: dbUrl !== undefined,
       schemaHash: SCHEMA_HASH,
       schemaInSync: settings.getCachedRaw("db_schema_hash") === SCHEMA_HASH,
     },

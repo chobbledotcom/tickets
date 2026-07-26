@@ -185,6 +185,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         debugRow("CDN hostname", "—"),
         debugRow("Custom domain", "—"),
         debugStatusRow("DB_URL", false),
+        debugRow("Database host", "—"),
         debugRow("Read-only from", "—"),
         debugStatusRow("Renewal URL", false),
       );
