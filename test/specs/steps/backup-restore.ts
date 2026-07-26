@@ -3,7 +3,11 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { restoreFromZip } from "#shared/db/backup.ts";
-import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
+import {
+  adminBrowser,
+  resetScenarioBrowser,
+  scenarioBrowser,
+} from "#test/specs/support/browser.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -43,7 +47,7 @@ const emptyAndSetUpAgain = async (world: TicketsWorld): Promise<void> => {
   await resetDatabase();
   await initDb({ allowMissingSettings: true });
   invalidateAllCaches();
-  world.testBrowser = undefined;
+  resetScenarioBrowser(world);
   await setupAndLogin(scenarioBrowser(world));
 };
 
