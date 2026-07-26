@@ -2,6 +2,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+// jscpd:ignore-end
+import { setupListingAndAttendee } from "#test/lib/server-attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -21,9 +23,6 @@ import {
   adminListingPage,
   setupAdminTest,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
-import { setupListingAndAttendee } from "./helpers.ts";
 
 describeWithEnv(
   "server (admin attendees) > resend notification",

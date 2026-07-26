@@ -5,6 +5,7 @@ import {
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
+import { linkStoredImage } from "#test/lib/server-images/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   cdnOkResponse,
@@ -14,7 +15,6 @@ import {
   withStorageMock,
 } from "#test-utils/mocks.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
-import { linkStoredImage } from "./helpers.ts";
 
 /** Submit a POST to /admin/listing/:id/delete with confirmation */
 const submitListingDelete = (

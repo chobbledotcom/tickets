@@ -3,6 +3,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getDb } from "#shared/db/client.ts";
+// jscpd:ignore-end
+import { setupListingAndAttendee } from "#test/lib/server-attendees/helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertAdminHtml,
@@ -20,9 +22,6 @@ import {
   adminListingPage,
   setupAdminTest,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
-import { setupListingAndAttendee } from "./helpers.ts";
 
 /** A listing plus "John Doe" attendee with the thank-you URL set — shared
  *  setup for the checkin auth, 404, and CSRF tests. */

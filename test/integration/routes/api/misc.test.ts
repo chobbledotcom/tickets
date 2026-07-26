@@ -3,10 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { jsonRequest } from "#test-utils/mocks.ts";
-
 import {
   bookListing,
   describePublicApi,
@@ -15,7 +11,10 @@ import {
   fetchAvailability,
   fetchListingBySlug,
   fetchListingsList,
-} from "./helpers.ts";
+} from "#test/routes/api/helpers.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { jsonRequest } from "#test-utils/mocks.ts";
 
 describePublicApi(() => {
   describe("OPTIONS /api/*", () => {

@@ -2,6 +2,10 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import {
+  addAnswer,
+  createQuestion,
+} from "#test/lib/server-questions/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -20,7 +24,6 @@ import {
   testCsrfToken,
 } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
-import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("POST /admin/questions/:id/listings", () => {

@@ -7,6 +7,7 @@ import {
   listingsTable,
 } from "#shared/db/listings/records.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
+import { expectImageErrorRedirect } from "#test/lib/server-images/helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { PDF_BYTES } from "#test-utils/factories.ts";
@@ -20,7 +21,6 @@ import {
   withStorageMock,
 } from "#test-utils/mocks.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
-import { expectImageErrorRedirect } from "./helpers.ts";
 
 /** Build form data for listing edit with all required fields */
 const editFormData = async (

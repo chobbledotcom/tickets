@@ -4,6 +4,10 @@ import { handleRequest } from "#routes";
 import { getImagesForItem } from "#shared/db/images.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
+import {
+  expectImageErrorRedirect,
+  linkStoredImage,
+} from "#test/lib/server-images/helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { PDF_BYTES } from "#test-utils/factories.ts";
@@ -18,7 +22,6 @@ import {
 } from "#test-utils/mocks.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
-import { expectImageErrorRedirect, linkStoredImage } from "./helpers.ts";
 
 /** Submit an item Images-tab multipart request with an image file attached. */
 const submitListingImageUpload = (

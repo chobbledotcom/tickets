@@ -2,6 +2,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+// jscpd:ignore-end
+import {
+  createDualPackageAttendee,
+  dualPackageRows,
+  expectFlashPage,
+  firstAttendee,
+  setupListingAndAttendee,
+} from "#test/lib/server-attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -23,15 +31,6 @@ import {
   setupListingAndLogin,
   testCookie,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
-import {
-  createDualPackageAttendee,
-  dualPackageRows,
-  expectFlashPage,
-  firstAttendee,
-  setupListingAndAttendee,
-} from "./helpers.ts";
 
 describeWithEnv(
   "server (admin attendees) > attendee edit",

@@ -3,6 +3,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+// jscpd:ignore-end
+import { setupListingAndAttendee } from "#test/lib/server-attendees/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -23,9 +25,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-
-// jscpd:ignore-end
-import { setupListingAndAttendee } from "./helpers.ts";
 
 /** A listing plus "John Doe" attendee, with the thank-you URL set — the
  *  shared setup for the delete GET/POST/DELETE auth and 404 tests. */

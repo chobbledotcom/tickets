@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
+import { enablePublicOrder } from "#test/lib/order-page-helpers.ts";
 import {
   assertPublicHtml,
   expectRedirect,
@@ -22,7 +23,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import { enablePublicOrder } from "./order-page-helpers.ts";
 
 describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
   describe("availability guard", () => {

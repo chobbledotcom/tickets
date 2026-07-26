@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { twoListingsAttendees } from "#test/lib/attendee-read-helpers.ts";
+import { expectBasicTicketBookingRedirectsToThanks } from "#test/lib/server-public/basic-ticket-booking.ts";
 import {
   expectFlash,
   expectReservedRedirectWithTokens,
@@ -23,7 +24,6 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
-import { expectBasicTicketBookingRedirectsToThanks } from "./basic-ticket-booking.ts";
 
 // jscpd:ignore-end
 

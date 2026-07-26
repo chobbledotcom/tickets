@@ -4,6 +4,12 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import {
+  enablePublicOrder,
+  fetchAvailability,
+  orderDate,
+  selectOrder,
+} from "#test/lib/order-page-helpers.ts";
 import { expectRedirect, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -13,12 +19,6 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  enablePublicOrder,
-  fetchAvailability,
-  orderDate,
-  selectOrder,
-} from "./order-page-helpers.ts";
 
 describeWithEnv(
   "server (public order) — selection and live availability",
