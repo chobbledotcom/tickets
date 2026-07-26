@@ -5,7 +5,11 @@ import {
   revenueAccount,
   WORLD,
 } from "#shared/accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import {
+  accountBalance,
+  allTransfers,
+  transfersByAccount,
+} from "#shared/accounting/queries.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
@@ -126,12 +130,6 @@ export const assertRenderedModifierRevenue = async (
   expect(list).toContain(formatted);
 };
 
-/** The breakdown template's signed-magnitude format (a leading +/− with a U+2212
- *  minus), replicated so a test can assert the exact reconciliation figures the
- *  page renders. Only non-zero figures are ever rendered as a signed row. */
-export const signedCurrency = (value: number): string =>
-  `${value < 0 ? "−" : "+"}${formatCurrency(Math.abs(value))}`;
-
 /** Slice the `#income-ledger` reconciliation article out of a listing detail
  *  page, so a figure is asserted WITHIN the breakdown and can't accidentally
  *  match an unrelated figure elsewhere on the page. */
@@ -149,3 +147,11 @@ export const kindsOf = (legs: Transfer[]): string[] =>
 
 export const legsOfKind = (legs: Transfer[], kind: string): Transfer[] =>
   legs.filter((leg) => leg.kind === kind);
+
+/** The legs of one kind posted to an attendee's own ledger account — e.g. the
+ *  `refund_cash` legs (the money handed back) on their account. */
+export const attendeeLegsOfKind = async (
+  attendeeId: number,
+  kind: string,
+): Promise<Transfer[]> =>
+  legsOfKind(await transfersByAccount(attendeeAccount(attendeeId)), kind);

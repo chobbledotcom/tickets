@@ -12,11 +12,14 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
+import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { withTransaction } from "#shared/db/client.ts";
+import { type TxScope, withTransaction } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
+import { nowIso } from "#shared/now.ts";
 import {
   postListingSale,
   postModifierLeg,
@@ -62,6 +65,72 @@ describe("db > accounting > ledger-tx", () => {
     await inOwnTx(ledgerTx.correct.income)(1, 8000);
     expect((await allTransfers()).length).toBe(afterFirst);
     expect(await readIncome(1)).toBe(8000);
+  });
+
+  /** A correction is filed under a key built from its own kind, so two kinds can
+   *  never be taken for each other. Every expected part is spelled out and the
+   *  key is rebuilt with the production helpers, so the check reads the same
+   *  key a replay would. */
+  const expectFiledUnderKind = async (
+    correct: (tx: TxScope, id: number, target: number) => Promise<void>,
+    kind: string,
+    target: number,
+    delta: number,
+  ): Promise<void> => {
+    using _time = new FakeTime(new Date("2026-06-21T00:00:00.000Z"));
+    await inOwnTx(correct)(4, target);
+    const legs = await allTransfers();
+    expect(legs).toHaveLength(1);
+    const leg = legs[0]!;
+    const parts = [kind, 4, delta, nowIso()];
+    expect(leg.reference).toBe(await legReference(parts));
+    expect(leg.eventGroup).toBe(await eventGroup(parts));
+  };
+
+  test("an income correction is filed under its own kind", async () => {
+    await expectFiledUnderKind(
+      ledgerTx.correct.income,
+      "income-adjust",
+      500,
+      500,
+    );
+  });
+
+  test("a modifier-revenue correction is filed under its own kind", async () => {
+    await expectFiledUnderKind(
+      ledgerTx.correct.modifierRevenue,
+      "modifier-revenue-adjust",
+      500,
+      500,
+    );
+  });
+
+  test("an owed correction is filed under its own kind", async () => {
+    // Crediting the attendee lowers what they owe, so the change is negative.
+    await expectFiledUnderKind(
+      ledgerTx.correct.owed,
+      "balance-adjust",
+      500,
+      -500,
+    );
+  });
+
+  test("two kinds of correction in the same millisecond both post", async () => {
+    // Freeze the clock so both posts share one millisecond, and use the same id
+    // and the same size of change, so the ONLY thing keeping the two apart is
+    // the kind of correction each one is. Without that, the second would hash
+    // identically to the first and be dropped as a replay — a modifier's
+    // revenue correction would silently vanish behind a listing's.
+    using _time = new FakeTime(new Date("2026-06-21T00:00:00.000Z"));
+    await inOwnTx(ledgerTx.correct.income)(4, 500);
+    await inOwnTx(ledgerTx.correct.modifierRevenue)(4, 500);
+
+    const legs = await allTransfers();
+    expect(legs.length).toBe(2);
+    expect(new Set(legs.map((leg) => leg.eventGroup)).size).toBe(2);
+    expect(new Set(legs.map((leg) => leg.reference)).size).toBe(2);
+    // And each figure really moved onto its own target.
+    expect(await readIncome(4)).toBe(500);
   });
 
   test("correct.income lowers income onto a lower target", async () => {
