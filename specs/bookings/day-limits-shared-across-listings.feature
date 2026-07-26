@@ -27,6 +27,14 @@ Feature: Listings that share a day limit are counted together
       When a customer books 5 Weekend places starting in 11 days
       Then the Weekend holds 2 stays of 5 places
 
+    @case:shared-days.a-later-day-of-the-stay-is-full
+    Scenario: The second day of a stay is already full on the other listing
+      Given a Saturday and a Weekend listing sharing 3 places a day
+      And 3 Saturday places are booked starting in 11 days
+      When a customer tries to book 2 Weekend places starting in 10 days
+      Then they are told the Weekend has no room for those days
+      And a Saturday stay starting in 10 days can still be booked
+
   @rule:bookings.one-order-is-checked-against-the-shared-limit
   Rule: One order booking two listings is refused when a shared day goes over
     Both parts of the order are counted together on the days they share, and

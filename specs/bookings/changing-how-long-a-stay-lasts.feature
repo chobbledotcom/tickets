@@ -34,6 +34,24 @@ Feature: An organiser changes how long a stay lasts
       Then the organiser sees that stay now runs for 2 days
       And a Lodge stay can start in 12 days again
 
+  @rule:bookings.room-follows-the-stay-length-both-ways
+  @surface:admin
+  Rule: Room follows the stay length, however often it changes
+    Stretching stays takes room from the later days, and shrinking them gives it
+    back — even when more was booked in between.
+
+    @case:stay-length.room-follows-a-stretch-then-a-shrink
+    Scenario: The organiser stretches stays, takes another booking, then shrinks them back
+      Given a Lodge that is booked 1 day at a time, with room for 2 places a day
+      And a customer booked a Lodge stay starting in 10 days
+      When the organiser makes each Lodge stay 3 days long
+      And a customer books a Lodge stay starting in 10 days
+      Then no Lodge stay can start on any of those 3 days
+      When the organiser makes each Lodge stay 1 day long
+      Then a Lodge stay can start in 11 days again
+      And a Lodge stay can start in 12 days again
+      And a Lodge stay can no longer start in 10 days
+
   @rule:bookings.a-length-change-that-breaks-a-shared-limit-is-flagged
   @surface:admin
   Rule: The organiser is warned when a longer stay breaks a shared day limit
