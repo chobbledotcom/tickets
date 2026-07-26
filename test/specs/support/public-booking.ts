@@ -14,6 +14,10 @@
 import { expect } from "@std/expect";
 import { bookingError } from "#shared/booking/form.ts";
 import type { Listing } from "#shared/types.ts";
+import {
+  optionsOffered,
+  whyValueCannotBeSent,
+} from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -42,56 +46,13 @@ export interface BookingAttempt {
 
 const THANK_YOU = "Thank you for your order";
 
-/** The dropdown on the page for one field, or null when the field is not a
- * dropdown at all (a typed-in name or email). The name may sit anywhere among
- * the tag's attributes — an `id` often comes first — so the opening tag is
- * matched whole and its attributes read from it. */
-const chooserFor = (html: string, field: string): string | null => {
-  for (const chooser of html.matchAll(/<select\s([^>]*)>[\s\S]*?<\/select>/g)) {
-    if (chooser[1]!.includes(`name="${field}"`)) return chooser[0];
-  }
-  return null;
-};
-
-/** The values a dropdown on the page offers. Throws when the page has no such
- * dropdown, so "the option is missing" and "the control is missing" stay
- * separate failures. */
-export const optionsOffered = (html: string, field: string): string[] => {
-  const chooser = chooserFor(html, field);
-  if (!chooser) throw new Error(`The page offers no ${field} to choose`);
-  return [...chooser.matchAll(/value="([^"]*)"/g)].map((option) => option[1]!);
-};
-
-/** The box the visitor types in for one field, if it is one — its opening tag,
- * so its attributes can be read. */
-const boxFor = (html: string, field: string): string | null => {
-  for (const box of html.matchAll(/<(?:input|textarea)\s([^>]*)>/g)) {
-    if (box[1]!.includes(`name="${field}"`)) return box[0];
-  }
-  return null;
-};
-
-/** A control a visitor could really use to send this value. It must not be
- * switched off, and it must not be a fixed value the page decided for them —
- * either would let a story post something no visitor could. */
+/** A control a visitor could really use to send this value. */
 const expectControlCanSend = (
   html: string,
   field: string,
   chosen: string,
 ): void => {
-  const chooser = chooserFor(html, field);
-  const control = chooser ?? boxFor(html, field);
-  expect(control).not.toBeNull();
-  expect(control).not.toContain("disabled");
-  if (chooser) {
-    expect(optionsOffered(html, field)).toContain(chosen);
-    return;
-  }
-  // A hidden box carries whatever the page put in it; the visitor cannot type
-  // over it, so the story may only send that same value.
-  if (control!.includes('type="hidden"')) {
-    expect(control).toContain(`value="${chosen}"`);
-  }
+  expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
 };
 
 /** Try to place an order through a page the site serves. Returns what the
