@@ -1,12 +1,12 @@
 #!/usr/bin/env -S deno run --allow-all
 
-import {
-  offTerminationSignals,
-  onTerminationSignals,
-} from "#scripts/mutation/child-process.ts";
 import { auditEquivalentMutants } from "#scripts/mutation/equivalent-audit.ts";
 import { EQUIVALENT_MUTANTS_FILE } from "#scripts/mutation/ignore.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import {
+  offTerminationSignals,
+  onTerminationSignals,
+} from "#scripts/termination-signals.ts";
 
 const usage = `Usage: deno task mutation:audit-equivalents [--write]
 

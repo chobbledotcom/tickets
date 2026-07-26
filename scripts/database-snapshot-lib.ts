@@ -21,6 +21,11 @@ export interface SnapshotQueryResult {
   rows: readonly Readonly<Record<string, unknown>>[];
 }
 
+export interface SnapshotQueryCheck {
+  sql: string;
+  verify: (result: SnapshotQueryResult) => void;
+}
+
 export interface SnapshotClient {
   close(): void;
   execute(sql: string): Promise<SnapshotQueryResult>;
@@ -221,10 +226,42 @@ const withSnapshotClient = <Result>(
   return withCleanup(() => run(client), [() => client.close()]);
 };
 
+const waitForOrAbort = async <Result>(
+  operation: () => Promise<Result>,
+  signal?: AbortSignal,
+): Promise<Result> => {
+  if (signal === undefined) return await operation();
+  signal.throwIfAborted();
+  const interrupted = Promise.withResolvers<never>();
+  const stop = (): void => interrupted.reject(signal.reason);
+  signal.addEventListener("abort", stop, { once: true });
+  try {
+    return await Promise.race([operation(), interrupted.promise]);
+  } finally {
+    signal.removeEventListener("abort", stop);
+  }
+};
+
+export const checkLocalSnapshot = (
+  path: string,
+  factory: SnapshotClientFactory,
+  checks: SnapshotQueryCheck[],
+  signal?: AbortSignal,
+): Promise<void> =>
+  withSnapshotClient(factory, { url: toFileUrl(path).href }, async (client) => {
+    for (const check of checks) {
+      signal?.throwIfAborted();
+      check.verify(
+        await waitForOrAbort(() => client.execute(check.sql), signal),
+      );
+    }
+  });
+
 const syncReplica = (
   path: string,
   request: SnapshotRequest,
   factory: SnapshotClientFactory,
+  signal?: AbortSignal,
 ): Promise<unknown> =>
   withSnapshotClient(
     factory,
@@ -233,7 +270,7 @@ const syncReplica = (
       syncUrl: request.dbUrl,
       url: toFileUrl(path).href,
     },
-    (client) => client.sync(),
+    (client) => waitForOrAbort(() => client.sync(), signal),
   );
 
 const verifyRows = (
@@ -244,22 +281,27 @@ const verifyRows = (
   if (!v.safeParse(schema, result.rows).success) throw new Error(message);
 };
 
-const checkpointAndVerify = (
-  path: string,
-  factory: SnapshotClientFactory,
-): Promise<void> =>
-  withSnapshotClient(factory, { url: toFileUrl(path).href }, async (client) => {
-    verifyRows(
-      CheckpointRowsSchema,
-      await client.execute("PRAGMA wal_checkpoint(TRUNCATE)"),
-      "Database snapshot checkpoint did not empty the WAL",
-    );
-    verifyRows(
-      IntegrityRowsSchema,
-      await client.execute("PRAGMA integrity_check"),
-      "Database snapshot integrity check failed",
-    );
-  });
+const snapshotQueryCheck = (
+  schema: v.GenericSchema,
+  sql: string,
+  message: string,
+): SnapshotQueryCheck => ({
+  sql,
+  verify: (result) => verifyRows(schema, result, message),
+});
+
+const SNAPSHOT_QUERY_CHECKS = [
+  snapshotQueryCheck(
+    CheckpointRowsSchema,
+    "PRAGMA wal_checkpoint(TRUNCATE)",
+    "Database snapshot checkpoint did not empty the WAL",
+  ),
+  snapshotQueryCheck(
+    IntegrityRowsSchema,
+    "PRAGMA integrity_check",
+    "Database snapshot integrity check failed",
+  ),
+];
 
 const fileSizeOrNull = async (path: string): Promise<number | null> => {
   const info = await statOrNull(path);
@@ -294,6 +336,7 @@ export const createDatabaseSnapshot = async (
   request: SnapshotRequest,
   factory: SnapshotClientFactory,
   writeProgress: SnapshotProgressWriter = ignoreSnapshotProgress,
+  signal?: AbortSignal,
 ): Promise<string> => {
   const outputPath = resolve(request.outputPath);
   const outputDirectory = dirname(outputPath);
@@ -308,9 +351,14 @@ export const createDatabaseSnapshot = async (
   return await withCleanup(async () => {
     const temporaryPath = join(temporaryDirectory, "snapshot.sqlite");
     writeProgress(SNAPSHOT_PROGRESS.syncing);
-    await syncReplica(temporaryPath, request, factory);
+    await syncReplica(temporaryPath, request, factory, signal);
     writeProgress(SNAPSHOT_PROGRESS.verifying);
-    await checkpointAndVerify(temporaryPath, factory);
+    await checkLocalSnapshot(
+      temporaryPath,
+      factory,
+      SNAPSHOT_QUERY_CHECKS,
+      signal,
+    );
     await requireEmptyWal(temporaryPath);
     writeProgress(SNAPSHOT_PROGRESS.publishing);
     await publishSnapshot(temporaryPath, outputPath);
