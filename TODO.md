@@ -1553,6 +1553,7 @@ can be split into a folder of the same names and each pair stays mirrored (which
 is what the mutation gate wants). Out of scope for #1944, whose job was closing
 the mutation gaps rather than moving the file around; the file scores 100% as it
 stands, so the split can be a pure move.
+
 ---
 
 ## Mutation gaps in `src/shared/crypto/encryption.ts`
