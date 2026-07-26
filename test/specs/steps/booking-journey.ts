@@ -2,12 +2,12 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
+import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { ALL_CHECKBOXES, type TestBrowser } from "#test-utils/test-browser.ts";
+import { ALL_CHECKBOXES, TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -18,6 +18,13 @@ const SIZES = ["Small", "Medium", "Large"];
 const CHOSEN_SIZE = "Medium";
 const CUSTOMER = "Jane Doe";
 const CUSTOMER_EMAIL = "jane@example.com";
+
+/** The customer is a member of the public: their own browser, never signed in
+ * as the organiser, so the journey proves what a real visitor can do. */
+const customerBrowser = (world: TicketsWorld): TestBrowser => {
+  world.customerBrowser ??= new TestBrowser();
+  return world.customerBrowser;
+};
 
 const listingId = (world: TicketsWorld): number =>
   requiredWorldValue(world.listingIds.get(LISTING), `${LISTING} listing id`);
@@ -103,7 +110,7 @@ Given(
 When(
   "a customer books one Summer Concert place and picks the Medium size",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = scenarioBrowser(this);
+    const browser = customerBrowser(this);
     await browser.visit(requiredWorldValue(this.bookingPath, "booking path"));
     // A group page asks for a quantity per listing and renders the question's
     // answers as radios, so both field names are read from the served form.
@@ -131,7 +138,7 @@ When(
 Then(
   "the customer can open a ticket for Summer Concert",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = scenarioBrowser(this);
+    const browser = customerBrowser(this);
     await browser.clickLink("View your ticket");
     expect(browser.currentUrl).toMatch(/^\/t\//);
     expect(browser.containsText(LISTING)).toBe(true);
@@ -141,7 +148,7 @@ Then(
 Then(
   "the Summer Concert attendee list shows the customer and their email",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = scenarioBrowser(this);
+    const browser = await adminBrowser(this);
     await browser.visit(`/admin/listing/${listingId(this)}/attendees`);
     expect(browser.containsText(CUSTOMER)).toBe(true);
     expect(browser.containsText(CUSTOMER_EMAIL)).toBe(true);
@@ -151,7 +158,7 @@ Then(
 Then(
   "the Summer Concert list download shows the customer picked Medium",
   async function (this: TicketsWorld): Promise<void> {
-    const browser = scenarioBrowser(this);
+    const browser = await adminBrowser(this);
     await browser.visit(`/admin/listing/${listingId(this)}/attendees`);
     await browser.clickLink("Export CSV");
     const [headerLine, dataLine] = browser.currentHtml.split("\n");

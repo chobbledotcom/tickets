@@ -16,7 +16,10 @@ import {
   lineIndexOnPage,
   openAttendeeEditor,
 } from "#test-utils/e2e.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
+import {
+  extractFormEntries,
+  type TestBrowser,
+} from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -115,15 +118,31 @@ const expectSavedDetails = async (
   }
 };
 
+/** The places the editor would send for one listing's line. Read from the
+ * line's own box, so a place moved to another line — or dropped — is caught. */
+const placesShownForListing = (
+  browser: TestBrowser,
+  listingId: string,
+): string => {
+  const field = `qty_${lineIndexOnPage(browser, listingId)}`;
+  const entry = extractFormEntries(browser.currentHtml).find(
+    ([name]) => name === field,
+  );
+  if (!entry) throw new Error(`the editor has no ${field} box`);
+  return entry[1];
+};
+
 /** The booking kept its places, and the check-in is exactly as it was. */
-const expectKeptBooking = async (
+const expectKeptBooking = (
   world: TicketsWorld,
   person: Rename,
   checkedIn: boolean,
-): Promise<void> => {
-  const html = scenarioBrowser(world).currentHtml;
-  expect(html).toContain(`value="${person.places}"`);
-  expect(html.includes("Checked in")).toBe(checkedIn);
+): void => {
+  const browser = scenarioBrowser(world);
+  expect(placesShownForListing(browser, listingIdFor(world, ART_CLASS))).toBe(
+    person.places,
+  );
+  expect(browser.currentHtml.includes("Checked in")).toBe(checkedIn);
 };
 
 /** Save one listing's places for the attendee whose editor is open. The editor
@@ -189,15 +208,15 @@ Then(
 
 Then(
   "Alice Johnson still has two Art Class places and is still checked in",
-  function (this: TicketsWorld): Promise<void> {
-    return expectKeptBooking(this, ALICE, true);
+  function (this: TicketsWorld): void {
+    expectKeptBooking(this, ALICE, true);
   },
 );
 
 Then(
   "Robert Jones still has one Art Class place and is not checked in",
-  function (this: TicketsWorld): Promise<void> {
-    return expectKeptBooking(this, BOB, false);
+  function (this: TicketsWorld): void {
+    expectKeptBooking(this, BOB, false);
   },
 );
 
