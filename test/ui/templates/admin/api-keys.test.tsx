@@ -5,6 +5,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { tableRowContaining } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const API_KEY = {
@@ -22,5 +23,17 @@ describe("API key pages in read-only mode", () => {
     const html = adminApiKeysPage([API_KEY], OWNER_SESSION, {});
     expect(html).toContain("Deploy key");
     expect(html).not.toContain('action="/admin/api-keys"');
+  });
+
+  test("formats created and last-used dates consistently", () => {
+    const html = adminApiKeysPage(
+      [{ ...API_KEY, lastUsed: "2026-07-12T11:00:00.000Z" }],
+      OWNER_SESSION,
+      {},
+    );
+
+    expect(tableRowContaining(html, "Deploy key")).toContain(
+      "<td>Saturday 11 July 2026</td><td>Sunday 12 July 2026</td>",
+    );
   });
 });

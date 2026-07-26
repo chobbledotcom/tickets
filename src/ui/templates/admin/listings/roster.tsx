@@ -1,10 +1,13 @@
 import { fieldById, map, pipe } from "#fp";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { type Attendee, isPaidListing } from "#shared/types.ts";
+import {
+  type Attendee,
+  type AttendeeTableRow,
+  isPaidListing,
+} from "#shared/types.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
-import type { AttendeeTableRow } from "#templates/attendee-table.tsx";
 import {
   AddAttendeeSection,
   AttendeesSection,

@@ -12,6 +12,8 @@ import type {
   AttributeOption,
   AttributeWithOptions,
 } from "#shared/db/attributes.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
@@ -21,13 +23,14 @@ import {
   FormSections,
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
 import {
   itemsOrEmptyNote,
   reorderableListPage,
   reorderCountTable,
 } from "#templates/components/reorder-list.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import {
   type ListingPanelProps,
   listingChoicePanel,
@@ -37,6 +40,34 @@ import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
 
 export const attributeNameFlat = (name: string): string =>
   name.replace(/\r?\n/g, " / ");
+
+const AttributeListingLink = ({
+  listing,
+}: {
+  listing: AttributeListingRow;
+}): JSX.Element => (
+  <a
+    class={listing.active ? undefined : "muted"}
+    href={`/admin/listing/${listing.id}`}
+  >
+    {listing.name}
+  </a>
+);
+
+const attributeListingColumns: readonly TableColumn<AttributeListingRow>[] = [
+  {
+    cell: (listing) => <AttributeListingLink listing={listing} />,
+    header: translatedTableHeader("terms.listing"),
+    key: "listing",
+  },
+  {
+    cell: (listing) => listing.optionTexts.join(", "),
+    header: translatedTableHeader("attributes.options_column"),
+    key: "options",
+  },
+];
+
+const attributeListingsTable = defineTable(attributeListingColumns);
 
 export const adminAttributesPage = (
   attributes: AttributeWithOptions[],
@@ -55,11 +86,13 @@ export const adminAttributesPage = (
           </a>
         ),
         header: t("attributes.attribute_column"),
+        key: "attribute",
       },
       {
         cell: (attribute) => attribute.options.length,
         class: "quantity",
         header: t("attributes.options_column"),
+        key: "options",
       },
     ],
     emptyText: t("attributes.none"),
@@ -86,23 +119,11 @@ const AttributeListingsTable = ({
   emptyText: string;
   showOptions: boolean;
 }): JSX.Element =>
-  itemsOrEmptyNote(listings, emptyText, (rows) => (
-    <DataTable
-      columns={[
-        { header: t("terms.listing") },
-        ...(showOptions ? [{ header: t("attributes.options_column") }] : []),
-      ]}
-      rows={rows.map((listing) => [
-        <a
-          class={listing.active ? undefined : "muted"}
-          href={`/admin/listing/${listing.id}`}
-        >
-          {listing.name}
-        </a>,
-        ...(showOptions ? [listing.optionTexts.join(", ")] : []),
-      ])}
-    />
-  ));
+  itemsOrEmptyNote(listings, <em>{emptyText}</em>, (rows) =>
+    renderTable(attributeListingsTable, rows, {
+      columnKeys: showOptions ? ["listing", "options"] : ["listing"],
+    }),
+  );
 
 /** The data the attribute detail page shows beyond the attribute itself: how
  * many listings use each option, and which listings use the attribute. */

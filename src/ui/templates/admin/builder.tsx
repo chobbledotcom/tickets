@@ -6,13 +6,15 @@ import { t } from "#i18n";
 import { builderForm } from "#routes/admin/builder.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
-import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 /* jscpd:ignore-start */
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 /* jscpd:ignore-end */
 
 export type BuiltSiteDisplay = {
@@ -20,6 +22,14 @@ export type BuiltSiteDisplay = {
   siteUrl: string;
   created: string;
 };
+
+const builtSitesTable = defineTable<BuiltSiteDisplay>([
+  translatedTableColumn("name", "common.name", (site) => site.name),
+  translatedTableColumn("url", "builder.table_url", (site) => (
+    <NewTabUrl url={site.siteUrl} />
+  )),
+  translatedTableColumn("built", "builder.table_built", (site) => site.created),
+]);
 
 /** Form to create a new site */
 const BuilderForm = (): JSX.Element => (
@@ -60,14 +70,7 @@ const BuiltSitesTable = ({
       <em>{t("builder.no_sites_yet")}</em>
     </p>
   ) : (
-    <DataTable
-      columns={namedColumns("builder.table_url", "builder.table_built")}
-      rows={sites.map((site) => [
-        site.name,
-        <NewTabUrl url={site.siteUrl} />,
-        site.created,
-      ])}
-    />
+    renderTable(builtSitesTable, sites)
   );
 
 export const adminBuilderPage = flashDataPage<BuiltSiteDisplay[]>(

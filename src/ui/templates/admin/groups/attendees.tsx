@@ -1,14 +1,16 @@
 import { t } from "#i18n";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
-import type { Attendee, Group, ListingWithCount } from "#shared/types.ts";
+import type {
+  Attendee,
+  AttendeeTableRow,
+  Group,
+  ListingWithCount,
+} from "#shared/types.ts";
 import {
   AttendeeTableBlock,
   attendeeTableOptions,
 } from "#templates/admin/attendee-table-block.tsx";
-import type {
-  AttendeeTableRow,
-  TableQuestionData,
-} from "#templates/attendee-table.tsx";
+import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 
 /** Keep one row per booking line so each line has its own check-in button. */
 const buildAttendeeRows = (

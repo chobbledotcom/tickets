@@ -1,3 +1,4 @@
+// test-groups: run-alone
 /**
  * The shared production handler (`src/serve-app.ts`): lazy one-time boot, the
  * unhandled-error 503 guard, the production N+1 notify-only mode, and the dev

@@ -12,6 +12,8 @@ import { t } from "#i18n";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import { editPanel } from "#templates/admin/admin-page.tsx";
 import {
@@ -19,24 +21,29 @@ import {
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
-import {
-  type DataColumn,
-  dataTable,
-} from "#templates/components/data-table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 
 /* jscpd:ignore-end */
 
 /** Columns for the holidays table — declared once so the header order and
  *  cell order can't drift apart. */
-const holidayColumns = (): DataColumn<Holiday>[] => [
+const holidayColumns = (): TableColumn<Holiday>[] => [
   writableNameColumn(
     (holiday) => `/admin/holidays/${holiday.id}`,
     (holiday) => holiday.name,
   ),
-  { cell: (h) => h.start_date, header: t("holidays.col.start_date") },
-  { cell: (h) => h.end_date, header: t("holidays.col.end_date") },
+  {
+    cell: (h) => h.start_date,
+    header: t("holidays.col.start_date"),
+    key: "start_date",
+  },
+  {
+    cell: (h) => h.end_date,
+    header: t("holidays.col.end_date"),
+    key: "end_date",
+  },
 ];
 
 /** Shared holidays table used by the holiday settings page and dashboard. */
@@ -46,7 +53,8 @@ export const HolidayTable = ({
 }: {
   holidays: Holiday[];
   scrollClass: string;
-}): string => String(dataTable(holidayColumns())(holidays, { scrollClass }));
+}): string =>
+  String(renderTable(defineTable(holidayColumns()), holidays, { scrollClass }));
 
 /** Holiday create/edit form values. Kept as a public export because the
  *  demo/replay harness and tests read it directly. */

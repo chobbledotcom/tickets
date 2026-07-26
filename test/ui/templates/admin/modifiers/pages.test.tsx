@@ -63,7 +63,7 @@ describe("adminModifiersPage", () => {
 
   test("shows an empty state when there are no modifiers", () => {
     const html = adminModifiersPage([], OWNER_SESSION);
-    expect(html).toContain("No modifiers configured");
+    expect(html).toContain("<p>No modifiers configured.</p>");
   });
 
   test("hides create and edit actions in read-only mode", () => {

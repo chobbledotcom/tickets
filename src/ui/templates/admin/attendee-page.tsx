@@ -16,6 +16,7 @@ import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
   AttendeeNotesSection,
@@ -23,7 +24,6 @@ import {
 } from "#templates/admin/attendee-notes.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { MaybeButtonLink } from "#templates/components/actions.tsx";
-import { dataTable } from "#templates/components/data-table.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import {
   PageBlock,
@@ -31,6 +31,7 @@ import {
 } from "#templates/components/page-structure.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { quantityLabel } from "#templates/public/order-summary.tsx";
 /* jscpd:ignore-end */
 
@@ -193,32 +194,39 @@ const PreviousBookingsTable = ({
 }: {
   bookings: PreviousBooking[];
 }): JSX.Element =>
-  dataTable<PreviousBooking>([
-    {
-      cell: (booking) => (
-        <a href={`/admin/attendees/${booking.attendeeId}`}>
-          {formatDatetimeShort(booking.created)}
-        </a>
-      ),
-      header: t("attendee_form.col_booking_date"),
-    },
-    {
-      cell: (booking) => booking.statusName ?? t("attendee_form.status_none"),
-      header: t("attendee_form.col_status"),
-    },
-    {
-      cell: (booking) =>
-        booking.items
-          .map((item) => quantityLabel(item.quantity, item.name))
-          .join(", "),
-      header: t("attendee_form.col_items"),
-    },
-    {
-      cell: (booking) => formatCurrency(booking.totalValue),
-      class: "amount",
-      header: t("attendee_form.col_value"),
-    },
-  ])(bookings);
+  renderTable(
+    defineTable<PreviousBooking>([
+      {
+        cell: (booking) => (
+          <a href={`/admin/attendees/${booking.attendeeId}`}>
+            {formatDatetimeShort(booking.created)}
+          </a>
+        ),
+        header: t("attendee_form.col_booking_date"),
+        key: "date",
+      },
+      {
+        cell: (booking) => booking.statusName ?? t("attendee_form.status_none"),
+        header: t("attendee_form.col_status"),
+        key: "status",
+      },
+      {
+        cell: (booking) =>
+          booking.items
+            .map((item) => quantityLabel(item.quantity, item.name))
+            .join(", "),
+        header: t("attendee_form.col_items"),
+        key: "items",
+      },
+      {
+        cell: (booking) => formatCurrency(booking.totalValue),
+        class: "amount",
+        header: t("attendee_form.col_value"),
+        key: "value",
+      },
+    ]),
+    bookings,
+  );
 
 /** The shared summary line count above the tables: total previous bookings plus
  * each channel's message total. */

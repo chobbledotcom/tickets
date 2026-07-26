@@ -246,6 +246,21 @@ export const expectHtmlResponse = async (
   ...substrings: string[]
 ): Promise<string> => expectHtml(response, { contains: substrings, status });
 
+/** Return the complete table row containing the given text. */
+export const tableRowContaining = (html: string, text: string): string => {
+  for (
+    let start = html.indexOf("<tr");
+    start >= 0;
+    start = html.indexOf("<tr", start + 1)
+  ) {
+    const end = html.indexOf("</tr>", start);
+    if (end === -1) break;
+    const row = html.slice(start, end + 5);
+    if (row.includes(text)) return row;
+  }
+  throw new Error(`No table row containing "${text}" found`);
+};
+
 /** Assert an HTTP response's body HTML. Works with any request method —
  *  `adminGet`, `handleRequest(mockRequest(...))`, direct handler calls —
  *  because it takes the `Response` itself. Supports optional status check,

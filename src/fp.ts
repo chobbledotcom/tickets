@@ -103,7 +103,7 @@ export function pipe(
  */
 export const filter =
   <T>(predicate: (item: T) => boolean) =>
-  (array: T[]): T[] =>
+  (array: readonly T[]): T[] =>
     array.filter(predicate);
 
 /**
@@ -111,7 +111,7 @@ export const filter =
  */
 export const map =
   <T, U>(fn: (item: T) => U) =>
-  (array: T[]): U[] =>
+  (array: readonly T[]): U[] =>
     array.map(fn);
 
 /**

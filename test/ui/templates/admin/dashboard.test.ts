@@ -4,13 +4,13 @@ import {
   NO_QUANTITY_PREFIX,
   QTY_PREFIX,
 } from "#routes/admin/attendee-form-lines.ts";
-import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   activeListingStatsSection,
   adminDashboardPage,
   adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
+import { listingTable } from "#templates/admin/listing-table.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
@@ -50,7 +50,7 @@ describe("adminDashboardPage", () => {
     const listings = [testListingWithCount({ name: "My Test Listing" })];
     const html = adminDashboardPage(listings, OWNER_SESSION);
     expect(html).toContain("My Test Listing");
-    expect(html).toContain("Listing Name");
+    expect(html).toContain("Listing name");
   });
 
   test("renders the add-listing and add-attendee quick actions", () => {
@@ -267,7 +267,7 @@ describe("adminDashboardPage with column template filters", () => {
       [],
       undefined,
       null,
-      COLUMN_LAYOUTS.listing.parse('{{name}}, {{created | date: "%B %Y"}}'),
+      listingTable.layout.parse('{{name}}, {{created | date: "%B %Y"}}'),
     );
     expect(html).toContain("April 2026");
   });
@@ -283,11 +283,9 @@ describe("adminDashboardPage with column template filters", () => {
       [],
       undefined,
       null,
-      COLUMN_LAYOUTS.listing.parse("{{name}}, {{created}}"),
+      listingTable.layout.parse("{{name}}, {{created}}"),
     );
-    // Default uses toLocaleDateString — locale format, not Liquid strftime
-    expect(html).toContain("2026");
-    expect(html).not.toContain("April 2026");
+    expect(html).toContain("Friday 10 April 2026");
   });
 });
 

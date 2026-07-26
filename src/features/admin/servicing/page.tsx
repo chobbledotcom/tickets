@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { fieldById, filter, identity, map, mapById } from "#fp";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
@@ -13,6 +14,7 @@ import { type Field, requireChoiceOptions } from "#shared/forms/field.ts";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import { isOwnerRole, type ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import {
@@ -21,10 +23,13 @@ import {
 } from "#templates/admin/servicing-events.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
-import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { buildServicingFieldSchema } from "./form-model.ts";
+
+/* jscpd:ignore-end */
 
 const SERVICING_FORM_ID = "servicing-form";
 
@@ -87,29 +92,29 @@ const listingFormQuantities = (
     )(event?.bookings ?? []),
   ]);
 
-const listingRows = (
-  listings: ListingWithCount[],
-  event: ServicingEvent | null,
-  { quantities }: ServicingPrefill,
-) => {
-  const formQuantities = listingFormQuantities(listings, event, quantities);
-  return map((listing: ListingWithCount) => (
-    <tr>
-      <td>
-        {listing.name}
-        {listing.active ? "" : <em> {t("servicing.inactive")}</em>}
-      </td>
-      <td>
-        <input
-          min="0"
-          name={`quantity_${listing.id}`}
-          type="number"
-          value={String(formQuantities.get(listing.id)!)}
-        />
-      </td>
-    </tr>
-  ))(listings);
-};
+const servicingListingsTable = defineTable<
+  ListingWithCount,
+  ReadonlyMap<number, number>
+>([
+  translatedTableColumn("listing", "servicing.column.listing", (listing) => (
+    <>
+      {listing.name}
+      {listing.active ? "" : <em> {t("servicing.inactive")}</em>}
+    </>
+  )),
+  translatedTableColumn(
+    "quantity",
+    "servicing.column.quantity",
+    (listing, quantities) => (
+      <input
+        min="0"
+        name={`quantity_${listing.id}`}
+        type="number"
+        value={String(quantities.get(listing.id)!)}
+      />
+    ),
+  ),
+]);
 
 const costFields = (listings: ListingWithCount[]): Field[] => [
   {
@@ -131,38 +136,101 @@ const costFields = (listings: ListingWithCount[]): Field[] => [
   },
 ];
 
-const costRows = (
-  costs: ServicingCostRecord[],
-  listingNames: Map<number, string>,
-  eventId: number,
-  session: AuthSession,
-) =>
-  map((cost: ServicingCostRecord) => {
-    const listingName = listingNames.get(cost.listingId);
-    const ledgerHref =
-      isOwnerRole(session.adminLevel) && listingName !== undefined
+type ServicingCostTableContext = {
+  eventId: number;
+  listingNames: ReadonlyMap<number, string>;
+  session: AuthSession;
+};
+
+const costListingDisplay = (
+  cost: ServicingCostRecord,
+  context: ServicingCostTableContext,
+): { ledgerHref: string | null; name: string } => {
+  const listingName = context.listingNames.get(cost.listingId);
+  return {
+    ledgerHref:
+      isOwnerRole(context.session.adminLevel) && listingName !== undefined
         ? listingLedgerHref(cost.listingId)
-        : null;
-    return [
-      ledgerHref === null ? (
-        (listingName ?? t("servicing.deleted_listing"))
+        : null,
+    name: listingName ?? t("servicing.deleted_listing"),
+  };
+};
+
+const servicingCostsTable = defineTable<
+  ServicingCostRecord,
+  ServicingCostTableContext
+>([
+  translatedTableColumn(
+    "listing",
+    "servicing.column.listing",
+    (cost, context) => {
+      const listing = costListingDisplay(cost, context);
+      return listing.ledgerHref === null ? (
+        listing.name
       ) : (
-        <a href={ledgerHref}>{listingName}</a>
-      ),
-      formatDateLabel(cost.date.slice(0, 10)),
+        <a href={listing.ledgerHref}>{listing.name}</a>
+      );
+    },
+  ),
+  translatedTableColumn("date", "servicing.column.date", (cost) =>
+    formatDateLabel(cost.date.slice(0, 10)),
+  ),
+  {
+    ...translatedTableColumn("amount", "servicing.column.amount", (cost) =>
       formatCurrency(cost.amount),
-      cost.memo,
-      <>
-        <CsrfForm action={`/admin/servicing/${eventId}/cost/${cost.id}`}>
-          <PriceInput name="amount" value={toMajorUnits(cost.amount)} />
-          <SubmitButton icon="save">{t("servicing.action.edit")}</SubmitButton>
-        </CsrfForm>
-        {ledgerHref !== null && (
-          <a href={ledgerHref}>{t("servicing.action.view_money_history")}</a>
-        )}
-      </>,
-    ];
-  })(costs);
+    ),
+    class: "amount",
+  },
+  translatedTableColumn("note", "servicing.column.note", (cost) => cost.memo),
+  translatedTableColumn(
+    "actions",
+    "servicing.column.actions",
+    (cost, context) => {
+      const { ledgerHref } = costListingDisplay(cost, context);
+      return (
+        <>
+          <CsrfForm
+            action={`/admin/servicing/${context.eventId}/cost/${cost.id}`}
+          >
+            <PriceInput name="amount" value={toMajorUnits(cost.amount)} />
+            <SubmitButton icon="save">
+              {t("servicing.action.edit")}
+            </SubmitButton>
+          </CsrfForm>
+          {ledgerHref !== null && (
+            <a href={ledgerHref}>{t("servicing.action.view_money_history")}</a>
+          )}
+        </>
+      );
+    },
+  ),
+]);
+
+const servicingEventsTable = defineTable<
+  ServicingEventSummary,
+  ReadonlyMap<number, string>
+>([
+  translatedTableColumn("name", "servicing.column.name", (event) => (
+    <ServicingEventEditLink event={event} />
+  )),
+  translatedTableColumn("date", "servicing.column.date", (event) =>
+    servicingEventDateLabel(event.date),
+  ),
+  translatedTableColumn(
+    "listings",
+    "servicing.column.listings",
+    (event, listingNames) =>
+      map(
+        (booking: { listingId: number }) =>
+          listingNames.get(booking.listingId) ?? t("servicing.deleted_listing"),
+      )(event.bookings).join(", "),
+  ),
+  translatedTableColumn(
+    "quantity",
+    "servicing.column.quantity",
+    (event) => event.totalQuantity,
+  ),
+]);
 
 export const renderServicingPage = ({
   costListingNames = new Map(),
@@ -205,13 +273,9 @@ export const renderServicingPage = ({
             start_date: firstBookingDate(event, prefill),
           })}
         />
-        <DataTable
-          columns={[
-            textCol("servicing.column.listing"),
-            textCol("servicing.column.quantity"),
-          ]}
-          rows={listingRows(listings, event, prefill)}
-        />
+        {renderTable(servicingListingsTable, listings, {
+          context: listingFormQuantities(listings, event, prefill.quantities),
+        })}
         <SubmitButton icon={event ? "save" : "plus"}>
           {t(
             event
@@ -259,16 +323,13 @@ export const renderServicingPage = ({
           {costs.length > 0 && (
             <>
               <h2>{t("servicing.recorded_costs")}</h2>
-              <DataTable
-                columns={[
-                  textCol("servicing.column.listing"),
-                  textCol("servicing.column.date"),
-                  { class: "amount", header: t("servicing.column.amount") },
-                  textCol("servicing.column.note"),
-                  textCol("servicing.column.actions"),
-                ]}
-                rows={costRows(costs, costListingNames, event.id, session)}
-              />
+              {renderTable(servicingCostsTable, costs, {
+                context: {
+                  eventId: event.id,
+                  listingNames: costListingNames,
+                  session,
+                },
+              })}
             </>
           )}
         </>
@@ -277,61 +338,27 @@ export const renderServicingPage = ({
   );
 };
 
-const serviceEventListRows = (
-  events: ServicingEventSummary[],
-  listings: ListingWithCount[],
-) => {
-  const listingNames = fieldById("name")(listings);
-  return map((event: ServicingEventSummary) => {
-    const names = map(
-      (booking: { listingId: number }) =>
-        listingNames.get(booking.listingId) ?? t("servicing.deleted_listing"),
-    )(event.bookings).join(", ");
-    return (
-      <tr class="servicing-event" data-servicing="true">
-        <td>
-          <ServicingEventEditLink event={event} />
-        </td>
-        <td>{servicingEventDateLabel(event.date)}</td>
-        <td>{names}</td>
-        <td>{event.totalQuantity}</td>
-      </tr>
-    );
-  })(events);
-};
-
 export const renderServicingList = (
   session: AuthSession,
   events: ServicingEventSummary[],
   listings: ListingWithCount[],
-): string => {
-  const rows = serviceEventListRows(events, listings);
-  return String(
+): string =>
+  String(
     <AdminPage
       active="/admin/servicing"
       session={session}
       title={t("servicing.title")}
     >
-      <DataTable
-        columns={[
-          textCol("servicing.column.name"),
-          textCol("servicing.column.date"),
-          textCol("servicing.column.listings"),
-          textCol("servicing.column.quantity"),
-        ]}
-        rows={
-          rows.length > 0
-            ? rows
-            : [
-                <tr>
-                  <td colspan="4">{t("servicing.empty")}</td>
-                </tr>,
-              ]
-        }
-      />
+      {renderTable(servicingEventsTable, events, {
+        context: fieldById("name")(listings),
+        empty: t("servicing.empty"),
+        rowAttrs: () => ({
+          class: "servicing-event",
+          "data-servicing": "true",
+        }),
+      })}
       <GuideFooter href="/admin/guide#servicing">
         {t("servicing.guide_link")}
       </GuideFooter>
     </AdminPage>,
   );
-};

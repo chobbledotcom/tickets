@@ -8,7 +8,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import type { CheckedInStats } from "#templates/admin/detail-rows.tsx";
-import type { TableQuestionData } from "#templates/attendee-table.tsx";
+import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 
 export type DateOption = { value: string; label: string };
 

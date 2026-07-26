@@ -43,7 +43,7 @@ import type {
 import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ContactInfo } from "#shared/types.ts";
-import { AttendeeMergePanel } from "#templates/admin/attendees.tsx";
+import { AttendeeMergePanel } from "#templates/admin/attendees/merge-panel.tsx";
 
 /* jscpd:ignore-end */
 

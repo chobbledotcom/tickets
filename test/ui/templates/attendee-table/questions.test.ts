@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  AttendeeTable,
-  type TableQuestionData,
-} from "#templates/attendee-table.tsx";
+import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
-import { attendeeTableSuite, makeOpts, makeRow } from "./shared.ts";
+import { attendeeTableSuite, makeOpts, makeRow, render } from "./shared.ts";
 
 attendeeTableSuite(() => {
   const questionData: TableQuestionData = {
@@ -26,7 +23,7 @@ attendeeTableSuite(() => {
   };
 
   const renderAnswers = (attendeeId: number): string =>
-    AttendeeTable(
+    render(
       makeOpts({
         questionData,
         rows: [makeRow({ attendee: testAttendee({ id: attendeeId }) })],
@@ -60,13 +57,13 @@ attendeeTableSuite(() => {
   });
 
   test("omits Answers when question data is absent", () => {
-    const html = AttendeeTable(makeOpts());
+    const html = render(makeOpts());
     expect(html).not.toContain("<th>Answers</th>");
     expect(html).not.toContain("answers-cell");
   });
 
   test("omits Answers when the question list is empty", () => {
-    const html = AttendeeTable(
+    const html = render(
       makeOpts({
         questionData: { attendeeAnswerMap: new Map(), questions: [] },
       }),
@@ -75,7 +72,7 @@ attendeeTableSuite(() => {
   });
 
   test("counts Answers in an empty table layout", () => {
-    const html = AttendeeTable(makeOpts({ questionData, rows: [] }));
+    const html = render(makeOpts({ questionData, rows: [] }));
     expect(html).toContain("<th>Answers</th>");
     expect(html).toContain("No attendees yet");
     expect(html).toContain('colspan="6"');

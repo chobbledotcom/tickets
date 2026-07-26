@@ -94,9 +94,9 @@ import {
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import {
   AttendeeFormPanel,
-  type AttendeeFormTemplateData,
   attendeeFormPage,
 } from "#templates/admin/attendee-form.tsx";
 /* jscpd:ignore-end */

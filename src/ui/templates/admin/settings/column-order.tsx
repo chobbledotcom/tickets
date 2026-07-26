@@ -8,44 +8,44 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
-import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
-import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
+import type { TableLayoutDefinition } from "#shared/tables/layout.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { textSettingsSection } from "#templates/components/settings-field-section.tsx";
 
 /* jscpd:ignore-end */
 
-const listingDefault = COLUMN_LAYOUTS.listing.defaultTemplate;
-const attendeeDefault = COLUMN_LAYOUTS.attendee.defaultTemplate;
+/** Shape describing a configurable-columns table for the column-order form:
+ *  a typed `columns` array the form reads available keys from. */
+type ConfigurableColumns<TKey extends string> = {
+  keys: readonly TKey[];
+};
 
 /** Render available column tags as helper text */
-const AvailableTags = ({
+const AvailableTags = <TKey extends string>({
   columns,
 }: {
-  columns: Record<string, { label: string }>;
+  columns: ConfigurableColumns<TKey>;
 }): JSX.Element => (
   <small>
     {t("settings.column_order.available")}{" "}
-    {Object.keys(columns)
-      .map((key) => `{{${key}}}`)
-      .join(", ")}
+    {columns.keys.map((key) => `{{${key}}}`).join(", ")}
   </small>
 );
 
-type ColumnOrderConfig = {
+type ColumnOrderConfig<TKey extends string> = {
   action: string;
   descriptionKey: string;
   submitLabelKey: string;
   titleKey: string;
   placeholder: string;
-  columns: Record<string, { label: string }>;
+  columns: TableLayoutDefinition<TKey>;
   getValue: (s: AdvancedSettingsPageState) => string;
 };
 
 /** A single column-order settings form. The two exports below specialise it. */
-const columnOrderForm = (cfg: ColumnOrderConfig) =>
+const columnOrderForm = <TKey extends string>(cfg: ColumnOrderConfig<TKey>) =>
   textSettingsSection<AdvancedSettingsPageState>((s) => ({
     action: cfg.action,
     description: <Raw html={t(cfg.descriptionKey)} />,
@@ -65,20 +65,20 @@ const columnOrderForm = (cfg: ColumnOrderConfig) =>
 
 export const ListingColumnOrderForm = columnOrderForm({
   action: "/admin/settings/listing-column-order",
-  columns: LISTING_TABLE_COLUMNS,
+  columns: configurableTableLayouts.listing,
   descriptionKey: "settings.column_order.listing_desc",
   getValue: (s) => s.listingColumnOrder,
-  placeholder: listingDefault,
+  placeholder: configurableTableLayouts.listing.defaultTemplate,
   submitLabelKey: "settings.column_order.listing_submit",
   titleKey: "settings.column_order.listing_title",
 });
 
 export const AttendeeColumnOrderForm = columnOrderForm({
   action: "/admin/settings/attendee-column-order",
-  columns: ATTENDEE_TABLE_COLUMNS,
+  columns: configurableTableLayouts.attendee,
   descriptionKey: "settings.column_order.attendee_desc",
   getValue: (s) => s.attendeeColumnOrder,
-  placeholder: attendeeDefault,
+  placeholder: configurableTableLayouts.attendee.defaultTemplate,
   submitLabelKey: "settings.column_order.attendee_submit",
   titleKey: "settings.column_order.attendee_title",
 });

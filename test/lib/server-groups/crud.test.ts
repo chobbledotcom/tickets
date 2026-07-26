@@ -44,7 +44,8 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
 
     test("shows empty list when no groups exist", async () => {
       const response = await adminGet("/admin/groups");
-      await expectHtmlResponse(response, 200, "Groups", "No groups configured");
+      const html = await expectHtmlResponse(response, 200, "Groups");
+      expect(html).toContain("<p>No groups configured.</p>");
     });
 
     test("shows groups in table when present", async () => {

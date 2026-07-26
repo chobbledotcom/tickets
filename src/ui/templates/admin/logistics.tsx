@@ -16,6 +16,8 @@ import { t } from "#i18n";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
 import { editPanel, successListPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
@@ -26,25 +28,24 @@ import {
   CheckboxLabel,
   SectionFieldset,
 } from "#templates/components/aggregate-sections.tsx";
-import {
-  type DataColumn,
-  dataTable,
-} from "#templates/components/data-table.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
 
 /* jscpd:ignore-end */
 
 /** Single-column table of logistics agents (name linking to edit). */
-const agentColumns: DataColumn<LogisticsAgent>[] = [
+const agentColumns: TableColumn<LogisticsAgent>[] = [
   {
     cell: (agent) => (
       <WritableLink href={`/admin/logistics/${agent.id}`}>
         {agent.name}
       </WritableLink>
     ),
-    header: t("common.name"),
+    header: translatedTableHeader("common.name"),
+    key: "name",
   },
 ];
 
@@ -59,7 +60,7 @@ const AgentsSection = ({
     {agents.length === 0 ? (
       <p>{t("logistics.no_agents_yet")}</p>
     ) : (
-      dataTable(agentColumns)(agents)
+      renderTable(defineTable(agentColumns), agents)
     )}
     <WritableOnly>
       <SaveForm

@@ -12,6 +12,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
   type RenderedFieldsSaveForm,
@@ -35,9 +36,11 @@ export const collectionPage =
     String(
       <AdminPage
         actions={
-          <ActionButton href={`${base}/new`} icon="plus">
-            {t(`${messages}.add`)}
-          </ActionButton>
+          <WritableOnly>
+            <ActionButton href={`${base}/new`} icon="plus">
+              {t(`${messages}.add`)}
+            </ActionButton>
+          </WritableOnly>
         }
         active={base}
         flash={<Flash success={successMessage} />}

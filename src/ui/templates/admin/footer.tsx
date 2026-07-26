@@ -24,6 +24,7 @@ import {
   type QueryLogEntry,
   sqlWallClockMs,
 } from "#shared/db/query-log.ts";
+import { createRequestScoped } from "#shared/request-scoped.ts";
 import { type AdminLevel, isStaffRole } from "#shared/types.ts";
 import { getUptimeSeconds } from "#shared/uptime.ts";
 
@@ -38,12 +39,18 @@ export type DebugFooterData = {
 /** Set while an admin page renders so its footer is emitted by the Layout. Holds
  * the viewer's role so the footer's utility links can be gated (e.g. the
  * activity log is staff-only; the guide is hidden from delivery agents). */
-const _adminFooterStore = { adminLevel: null as AdminLevel | null };
+const adminFooterScope = createRequestScoped(() => ({
+  adminLevel: null as AdminLevel | null,
+}));
+
+/** Run one request with an isolated admin footer marker. */
+export const runWithAdminFooterContext = <T,>(fn: () => T): T =>
+  adminFooterScope.run(fn);
 
 /** Flag the current render as an admin page so its footer (with logout) shows,
  * recording the viewer's role for the footer's role-aware links. */
 export const markAdminFooter = (adminLevel: AdminLevel): void => {
-  _adminFooterStore.adminLevel = adminLevel;
+  adminFooterScope.current().adminLevel = adminLevel;
 };
 
 /** Total query work: the sum of every query's duration, counting concurrent
@@ -154,8 +161,9 @@ export const adminFooterHtml = (
  * Edge). Consumes and resets the admin-page flag.
  */
 export const renderAdminFooter = (): string => {
-  const adminLevel = _adminFooterStore.adminLevel;
-  _adminFooterStore.adminLevel = null;
+  const store = adminFooterScope.current();
+  const adminLevel = store.adminLevel;
+  store.adminLevel = null;
   if (!adminLevel) return "";
   const debug = isFooterDebugEnabled()
     ? {
