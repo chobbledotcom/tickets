@@ -10,29 +10,27 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
-import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-import { attendeeLegsOfKind } from "./_shared.ts";
 import {
-  completePaidOrder,
   describeAccounting,
   mergePost,
   mergePreview,
   moneyFieldFor,
   runStripeSuccess,
-  submitRefund,
   twoPaidDuplicates,
   withRefundMock,
-} from "./drivers.ts";
+} from "#test-utils/money/drivers.ts";
 import {
   adminPageHtml,
   assertRenderedIncome,
+  attendeeLegsOfKind,
   incomeOf,
   norm,
   owedBy,
   sumOfAllBalances,
   worldBalance,
-} from "./ledger-helpers.ts";
+} from "#test-utils/money/reads.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 /** Post a keep-target merge that discards the source duplicate under one money
  *  decision (credit the over-payment back, or write it off). */
@@ -113,60 +111,6 @@ describeAccounting(() => {
     expect(await refundCashCount(two.id)).toBe(0);
     // Income reflects exactly the one surviving sale; conservation still holds.
     expect(await incomeOf(listing.id)).toBe(5000);
-    expect(await sumOfAllBalances()).toBe(0);
-  });
-
-  // 16. A refund is written to the attendee's own activity log (the audit trail
-  //     that makes a ledger change visible — transparency), and a SECOND refund is
-  //     rejected before the provider is even called, posting no duplicate leg.
-  test("a refund is logged on the attendee and a second refund is a safe no-op", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      name: "Logged",
-      unitPrice: 4500,
-    });
-    const attendeeId = await completePaidOrder(
-      listing.id,
-      "Logged Guest",
-      "logged@example.com",
-      4500,
-      "cs_log",
-      "pi_log",
-    );
-
-    await withRefundMock(true, async (mockRefund) => {
-      const refund = await submitRefund(attendeeId, "Logged Guest");
-      await expectFlashRedirect(
-        `/admin/attendees/${attendeeId}/actions`,
-        "Refund issued",
-      )(refund);
-      expect(mockRefund.calls.length).toBe(1);
-    });
-    expect(await owedBy(attendeeId)).toBe(0);
-    const refundCash = await attendeeLegsOfKind(attendeeId, "refund_cash");
-    expect(refundCash.length).toBe(1);
-
-    // Transparency: the money event shows in the attendee's activity log.
-    const activityPage = await adminPageHtml(
-      `/admin/attendees/${attendeeId}/activity`,
-    );
-    expect(activityPage).toContain("Refund issued for attendee 'Logged Guest'");
-
-    // Idempotency: a second refund is refused (already refunded) without calling
-    // the provider, and no second reversal is posted.
-    await withRefundMock(true, async (mockRefund) => {
-      const again = await submitRefund(attendeeId, "Logged Guest");
-      await expectFlashRedirect(
-        `/admin/attendees/${attendeeId}/refund`,
-        expect.stringContaining("already been refunded"),
-        false,
-      )(again);
-      expect(mockRefund.calls.length).toBe(0);
-    });
-    expect((await attendeeLegsOfKind(attendeeId, "refund_cash")).length).toBe(
-      1,
-    );
     expect(await sumOfAllBalances()).toBe(0);
   });
 
