@@ -15,7 +15,7 @@ const SCRATCH_MODULES: Record<string, string> = {
   "entry.ts": [
     'import "./static-dep.ts";',
     'import "data:text/typescript,export const zero = 0;";',
-    'export const load = () => import("#test/lib/dynamic-dep.ts");',
+    'export const load = () => import("./dynamic-dep.ts");',
     "",
   ].join("\n"),
   "static-dep.ts": "export const staticDep = 1;\n",

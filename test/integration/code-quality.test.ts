@@ -352,7 +352,7 @@ const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
  */
 const isCodeQualityFile = (relativePath: string): boolean =>
   relativePath === "test/integration/code-quality.test.ts" ||
-  relativePath.startsWith("test/lib/code-quality/");
+  relativePath.startsWith("test/scripts/code-quality/");
 
 describe("code quality", () => {
   /** Cached file lists and contents, populated once on first use */

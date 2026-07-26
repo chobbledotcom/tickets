@@ -135,8 +135,8 @@ describe("extractTypeShapes", () => {
 
   test("ignores import type and export-from re-exports", () => {
     const src = [
-      'import type { A } from "#test/lib/code-quality/a.ts";',
-      'export type { B } from "#test/lib/code-quality/b.ts";',
+      'import type { A } from "./a.ts";',
+      'export type { B } from "./b.ts";',
     ].join("\n");
     expect(extractTypeShapes(src)).toEqual([]);
   });

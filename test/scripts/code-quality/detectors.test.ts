@@ -248,38 +248,38 @@ describe("detectRelativeImport", () => {
   });
 
   test("flags a static named import", () => {
-    expect(detect('import { x } from "#test/lib/b.ts";')).toEqual(
-      violation('import { x } from "#test/lib/b.ts"'),
+    expect(detect('import { x } from "../b.ts";')).toEqual(
+      violation('import { x } from "../b.ts"'),
     );
   });
 
   test("flags a static default import", () => {
-    expect(detect('import x from "#test/lib/b.ts";')).toEqual(
-      violation('import x from "#test/lib/b.ts"'),
+    expect(detect('import x from "../b.ts";')).toEqual(
+      violation('import x from "../b.ts"'),
     );
   });
 
   test("flags a static namespace import", () => {
-    expect(detect('import * as ns from "#test/lib/b.ts";')).toEqual(
-      violation('import * as ns from "#test/lib/b.ts"'),
+    expect(detect('import * as ns from "../b.ts";')).toEqual(
+      violation('import * as ns from "../b.ts"'),
     );
   });
 
   test("flags a static type-only import", () => {
-    expect(detect('import type { Foo } from "#test/lib/b.ts";')).toEqual(
-      violation('import type { Foo } from "#test/lib/b.ts"'),
+    expect(detect('import type { Foo } from "../b.ts";')).toEqual(
+      violation('import type { Foo } from "../b.ts"'),
     );
   });
 
   test("flags a single-line dynamic import", () => {
-    expect(detect('const mod = await import("#test/lib/b.ts");')).toEqual(
-      violation('import("#test/lib/b.ts"'),
+    expect(detect('const mod = await import("../b.ts");')).toEqual(
+      violation('import("../b.ts"'),
     );
   });
 
   test("flags the ./../ form", () => {
-    expect(detect('import { x } from "#test/lib/b.ts";')).toEqual(
-      violation('import { x } from "#test/lib/b.ts"'),
+    expect(detect('import { x } from "./../b.ts";')).toEqual(
+      violation('import { x } from "./../b.ts"'),
     );
   });
 
@@ -291,7 +291,7 @@ describe("detectRelativeImport", () => {
       ");",
     ].join("\n");
     expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:2: import( "#test/lib/setup.ts"... (use a # alias instead of a ../ relative import)',
+      'src/a.ts:2: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
     ]);
   });
 
@@ -303,7 +303,7 @@ describe("detectRelativeImport", () => {
       ");",
     ].join("\n");
     expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import( "#test/lib/setup.ts"... (use a # alias instead of a ../ relative import)',
+      'src/a.ts:1: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
     ]);
   });
 
@@ -318,7 +318,7 @@ describe("detectRelativeImport", () => {
       ");",
     ].join("\n");
     expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import( "#test/lib/setup.ts"... (use a # alias instead of a ../ relative import)',
+      'src/a.ts:1: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
     ]);
   });
 
@@ -331,21 +331,21 @@ describe("detectRelativeImport", () => {
       ");",
     ].join("\n");
     expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import( "#test/lib/setup.ts"... (use a # alias instead of a ../ relative import)',
+      'src/a.ts:1: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
     ]);
   });
 
   test("flags a multi-line static import whose `from` is on a new line", () => {
-    const contents = ["import { x }", '  from "#test/lib/b.ts";'].join("\n");
+    const contents = ["import { x }", '  from "../b.ts";'].join("\n");
     expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import { x } from "#test/lib/b.ts"... (use a # alias instead of a ../ relative import)',
+      'src/a.ts:1: import { x } from "../b.ts"... (use a # alias instead of a ../ relative import)',
     ]);
   });
 
   test("flags a multi-line static import whose specifier is on a new line", () => {
     const contents = ["import { x } from", '  "../b.ts";'].join("\n");
     expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import { x } from "#test/lib/b.ts"... (use a # alias instead of a ../ relative import)',
+      'src/a.ts:1: import { x } from "../b.ts"... (use a # alias instead of a ../ relative import)',
     ]);
   });
 
@@ -356,16 +356,14 @@ describe("detectRelativeImport", () => {
       '  "../b.ts";',
     ].join("\n");
     expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import { x } from "#test/lib/b.ts"... (use a # alias instead of a ../ relative import)',
+      'src/a.ts:1: import { x } from "../b.ts"... (use a # alias instead of a ../ relative import)',
     ]);
   });
 
   test("reports every offending import, not just the first", () => {
-    expect(
-      detect('import "../a.ts";\nimport { y } from "#test/lib/b.ts";'),
-    ).toEqual([
+    expect(detect('import "../a.ts";\nimport { y } from "../b.ts";')).toEqual([
       'src/a.ts:1: import "../a.ts"... (use a # alias instead of a ../ relative import)',
-      'src/a.ts:2: import { y } from "#test/lib/b.ts"... (use a # alias instead of a ../ relative import)',
+      'src/a.ts:2: import { y } from "../b.ts"... (use a # alias instead of a ../ relative import)',
     ]);
   });
 
@@ -374,9 +372,7 @@ describe("detectRelativeImport", () => {
   });
 
   test("does not flag a sibling named import", () => {
-    expect(detect('import { x } from "#test/lib/code-quality/b.ts";')).toEqual(
-      [],
-    );
+    expect(detect('import { x } from "./b.ts";')).toEqual([]);
   });
 
   test("does not flag a # alias import", () => {
@@ -394,24 +390,22 @@ describe("detectRelativeImport", () => {
     expect(detect(contents)).toEqual([]);
   });
 
-  test('does not flag `from "#test/lib/x"` inside a line comment', () => {
-    expect(detect('// from "#test/lib/b.ts"')).toEqual([]);
-    expect(detect('// import { x } from "#test/lib/b.ts";')).toEqual([]);
+  test('does not flag `from "../x"` inside a line comment', () => {
+    expect(detect('// from "../b.ts"')).toEqual([]);
+    expect(detect('// import { x } from "../b.ts";')).toEqual([]);
   });
 
-  test('does not flag `from "#test/lib/x"` inside a block comment', () => {
-    expect(detect('/* from "#test/lib/b.ts" */')).toEqual([]);
-    expect(detect('/*\n import { x } from "#test/lib/b.ts";\n*/')).toEqual([]);
+  test('does not flag `from "../x"` inside a block comment', () => {
+    expect(detect('/* from "../b.ts" */')).toEqual([]);
+    expect(detect('/*\n import { x } from "../b.ts";\n*/')).toEqual([]);
   });
 
-  test('does not flag `from "#test/lib/x"` inside a string literal', () => {
+  test('does not flag `from "../x"` inside a string literal', () => {
     // A test fixture may quote an import statement as data; the walk skips
     // strings, so the inner text never parses as an import.
     expect(detect("const c = 'from \"../b.ts\"';")).toEqual([]);
     expect(detect('const c = "import { x } from \\"../b.ts\\";";')).toEqual([]);
-    expect(detect('const c = `import { x } from "#test/lib/b.ts";`;')).toEqual(
-      [],
-    );
+    expect(detect('const c = `import { x } from "../b.ts";`;')).toEqual([]);
   });
 
   test("does not flag a template specifier whose static prefix is not parent-walking", () => {
@@ -458,27 +452,25 @@ describe("detectRelativeImport", () => {
   });
 
   test("flags a named re-export from a parent path", () => {
-    expect(detect('export { x } from "#test/lib/b.ts";')).toEqual(
-      violation('export { x } from "#test/lib/b.ts"'),
+    expect(detect('export { x } from "../b.ts";')).toEqual(
+      violation('export { x } from "../b.ts"'),
     );
   });
 
   test("flags a namespace re-export from a parent path", () => {
-    expect(detect('export * from "#test/lib/b.ts";')).toEqual(
-      violation('export * from "#test/lib/b.ts"'),
+    expect(detect('export * from "../b.ts";')).toEqual(
+      violation('export * from "../b.ts"'),
     );
   });
 
   test("flags a type-only re-export from a parent path", () => {
-    expect(detect('export type { Foo } from "#test/lib/b.ts";')).toEqual(
-      violation('export type { Foo } from "#test/lib/b.ts"'),
+    expect(detect('export type { Foo } from "../b.ts";')).toEqual(
+      violation('export type { Foo } from "../b.ts"'),
     );
   });
 
   test("does not flag a re-export from a sibling or package", () => {
-    expect(detect('export { x } from "#test/lib/code-quality/b.ts";')).toEqual(
-      [],
-    );
+    expect(detect('export { x } from "./b.ts";')).toEqual([]);
     expect(detect('export { x } from "valibot";')).toEqual([]);
   });
 
@@ -527,9 +519,7 @@ describe("extractExports", () => {
   });
 
   test("ignores re-exports", () => {
-    expect(
-      extractExports('export { x } from "#test/lib/code-quality/y.ts";'),
-    ).toEqual([]);
+    expect(extractExports('export { x } from "./y.ts";')).toEqual([]);
   });
 
   test("returns an empty list when there are no exports", () => {
@@ -560,12 +550,9 @@ describe("isUsedInSameFile", () => {
 
 describe("isSymbolImported", () => {
   test("detects a named import", () => {
-    expect(
-      isSymbolImported(
-        "foo",
-        'import { foo, bar } from "#test/lib/code-quality/x.ts";',
-      ),
-    ).toBe(true);
+    expect(isSymbolImported("foo", 'import { foo, bar } from "./x.ts";')).toBe(
+      true,
+    );
   });
 
   test("returns false when the symbol is only defined, not imported", () => {
@@ -573,29 +560,23 @@ describe("isSymbolImported", () => {
   });
 
   test("returns false when a different symbol is imported", () => {
-    expect(
-      isSymbolImported(
-        "foo",
-        'import { bar } from "#test/lib/code-quality/x.ts";',
-      ),
-    ).toBe(false);
+    expect(isSymbolImported("foo", 'import { bar } from "./x.ts";')).toBe(
+      false,
+    );
   });
 
   test("detects a destructured dynamic import", () => {
     expect(
       isSymbolImported(
         "foo",
-        'const { foo: renamed } = await import("#test/lib/code-quality/x.ts");',
+        'const { foo: renamed } = await import("./x.ts");',
       ),
     ).toBe(true);
   });
 
   test("returns false when a dynamic import destructures other symbols", () => {
     expect(
-      isSymbolImported(
-        "foo",
-        'const { bar } = await import("#test/lib/code-quality/x.ts");',
-      ),
+      isSymbolImported("foo", 'const { bar } = await import("./x.ts");'),
     ).toBe(false);
   });
 
@@ -621,23 +602,17 @@ describe("isSymbolImported", () => {
     expect(
       isSymbolImported(
         "renamed",
-        'const { foo: renamed } = await import("#test/lib/code-quality/x.ts");',
+        'const { foo: renamed } = await import("./x.ts");',
       ),
     ).toBe(false);
     expect(
-      isSymbolImported(
-        "baz",
-        'import { bar as baz } from "#test/lib/code-quality/x.ts";',
-      ),
+      isSymbolImported("baz", 'import { bar as baz } from "./x.ts";'),
     ).toBe(false);
   });
 
   test("reads through an inline type keyword to the imported name", () => {
     expect(
-      isSymbolImported(
-        "Foo",
-        'import { type Foo, bar } from "#test/lib/code-quality/x.ts";',
-      ),
+      isSymbolImported("Foo", 'import { type Foo, bar } from "./x.ts";'),
     ).toBe(true);
   });
 });
@@ -645,11 +620,8 @@ describe("isSymbolImported", () => {
 describe("importedSymbolsOf", () => {
   test("collects each import item's source-side name across the corpus", () => {
     const corpus = mapOf([
-      [
-        "a.ts",
-        'import { foo, bar as baz } from "#test/lib/code-quality/x.ts";\nconst y = 1;',
-      ],
-      ["b.ts", 'import {\n  quux,\n} from "#test/lib/code-quality/y.ts";'],
+      ["a.ts", 'import { foo, bar as baz } from "./x.ts";\nconst y = 1;'],
+      ["b.ts", 'import {\n  quux,\n} from "./y.ts";'],
     ]);
     // `bar as baz` names the export `bar`; the alias `baz` must not count.
     expect(importedSymbolsOf(corpus)).toEqual(new Set(["bar", "foo", "quux"]));
@@ -663,28 +635,20 @@ describe("importedSymbolsOf", () => {
 
   test("collects symbols pulled in via destructured dynamic imports", () => {
     const corpus = mapOf([
-      [
-        "a.ts",
-        'const { lazyThing } = await import("#test/lib/code-quality/x.ts");',
-      ],
+      ["a.ts", 'const { lazyThing } = await import("./x.ts");'],
     ]);
     expect(importedSymbolsOf(corpus)).toEqual(new Set(["lazyThing"]));
   });
 
   test("collects only the source-side name of an aliased dynamic import", () => {
     const corpus = mapOf([
-      [
-        "a.ts",
-        'const { foo: renamed } = await import("#test/lib/code-quality/x.ts");',
-      ],
+      ["a.ts", 'const { foo: renamed } = await import("./x.ts");'],
     ]);
     expect(importedSymbolsOf(corpus)).toEqual(new Set(["foo"]));
   });
 
   test("tokenizes a corpus only once, serving repeat queries from the cache", () => {
-    const corpus = mapOf([
-      ["a.ts", 'import { once } from "#test/lib/code-quality/x.ts";'],
-    ]);
+    const corpus = mapOf([["a.ts", 'import { once } from "./x.ts";']]);
     expect(importedSymbolsOf(corpus)).toBe(importedSymbolsOf(corpus));
   });
 });
@@ -708,7 +672,7 @@ describe("isUsedInProductionCode", () => {
         "a.ts",
         mapOf([
           ["a.ts", "export const foo = 1;"],
-          ["b.ts", 'import { foo } from "#test/lib/code-quality/a.ts";'],
+          ["b.ts", 'import { foo } from "./a.ts";'],
         ]),
         mapOf([]),
       ),
@@ -721,9 +685,7 @@ describe("isUsedInProductionCode", () => {
         "foo",
         "a.ts",
         mapOf([["a.ts", "export const foo = 1;"]]),
-        mapOf([
-          ["t.tsx", 'import { foo } from "#test/lib/code-quality/a.ts";'],
-        ]),
+        mapOf([["t.tsx", 'import { foo } from "./a.ts";']]),
       ),
     ).toBe(true);
   });
@@ -748,7 +710,7 @@ describe("isUsedInTests", () => {
     expect(
       isUsedInTests(
         "foo",
-        mapOf([["x.test.ts", 'import { foo } from "#test/lib/a.ts";']]),
+        mapOf([["x.test.ts", 'import { foo } from "../a.ts";']]),
       ),
     ).toBe(true);
   });
@@ -766,14 +728,12 @@ describe("isPrimarilyReExportModule", () => {
   });
 
   test("true when re-exports dominate", () => {
-    const content =
-      'export { a } from "#test/lib/code-quality/a.ts";\nexport { b } from "#test/lib/code-quality/b.ts";';
+    const content = 'export { a } from "./a.ts";\nexport { b } from "./b.ts";';
     expect(isPrimarilyReExportModule(content)).toBe(true);
   });
 
   test("false when direct exports tie the re-export count", () => {
-    const content =
-      'export { a } from "#test/lib/code-quality/a.ts";\nexport const b = 1;';
+    const content = 'export { a } from "./a.ts";\nexport const b = 1;';
     expect(isPrimarilyReExportModule(content)).toBe(false);
   });
 });
@@ -789,7 +749,7 @@ describe("findTestOnlyExportViolations", () => {
         "shared/a.ts",
         src("export const helper = 1;"),
         mapOf([]),
-        mapOf([["x.test.ts", 'import { helper } from "#test/lib/a.ts";']]),
+        mapOf([["x.test.ts", 'import { helper } from "../a.ts";']]),
         [],
       ),
     ).toEqual(['shared/a.ts: "helper" is exported but only used in tests']);
@@ -802,13 +762,10 @@ describe("findTestOnlyExportViolations", () => {
         "shared/a.ts",
         mapOf([
           ["a.ts", "export const helper = 1;"],
-          [
-            "b.ts",
-            'import { helper } from "#test/lib/code-quality/a.ts";\nhelper();',
-          ],
+          ["b.ts", 'import { helper } from "./a.ts";\nhelper();'],
         ]),
         mapOf([]),
-        mapOf([["x.test.ts", 'import { helper } from "#test/lib/a.ts";']]),
+        mapOf([["x.test.ts", 'import { helper } from "../a.ts";']]),
         [],
       ),
     ).toEqual([]);
@@ -834,9 +791,7 @@ describe("findTestOnlyExportViolations", () => {
         "shared/a.ts",
         src("export const setFooForTest = 1;"),
         mapOf([]),
-        mapOf([
-          ["x.test.ts", 'import { setFooForTest } from "#test/lib/a.ts";'],
-        ]),
+        mapOf([["x.test.ts", 'import { setFooForTest } from "../a.ts";']]),
         ["shared/a.ts:setFooForTest"],
       ),
     ).toEqual([]);
@@ -847,11 +802,9 @@ describe("findTestOnlyExportViolations", () => {
       findTestOnlyExportViolations(
         "a.ts",
         "shared/a.ts",
-        src(
-          'export { x } from "#test/lib/code-quality/x.ts";\nexport { z } from "#test/lib/code-quality/z.ts";',
-        ),
+        src('export { x } from "./x.ts";\nexport { z } from "./z.ts";'),
         mapOf([]),
-        mapOf([["x.test.ts", 'import { x } from "#test/lib/a.ts";']]),
+        mapOf([["x.test.ts", 'import { x } from "../a.ts";']]),
         [],
       ),
     ).toEqual([]);
