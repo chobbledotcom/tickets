@@ -7,17 +7,18 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
+} from "#test-utils/internal.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
-  adminPost,
-  assertRedirectPathname,
   createServicingEvent,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import { extractFormEntries } from "#test-utils/test-browser.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -25,48 +26,32 @@ const ROOM_A = "Room A";
 const ANNUAL_ROOM = "Annual Room";
 const BOILER_SERVICE = "Boiler Service";
 const ANNUAL_INSPECTION = "Annual Inspection";
+const STUDIO_LISTING = "Ceramics Studio Sessions";
+const STUDIO_HOLD = "Studio floor treatment";
+const STUDIO_HOLD_DATE = "2099-07-06";
 
-/** GET a rendered admin page and return its HTML and CSRF token. */
-const getRenderedForm = async (
-  path: string,
-): Promise<{ csrfToken: string; html: string }> => {
-  const html = await renderAdminPage(path);
-  const csrfToken = extractCsrfToken(html);
-  if (!csrfToken) throw new Error(`No CSRF token on ${path}`);
-  return { csrfToken, html };
+const adminBrowser = async (world: TicketsWorld): Promise<TestBrowser> => {
+  if (world.testBrowser) return world.testBrowser;
+  const browser = new TestBrowser();
+  await browser.visit("/admin/");
+  await browser.submitForm(
+    { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
+    "Login",
+  );
+  world.testBrowser = browser;
+  return browser;
 };
 
-const findForms = (html: string): Array<{ action: string; body: string }> => {
-  const re = /<form\s[^>]*action="([^"]*)"[^>]*>([\s\S]*?)<\/form>/gi;
-  const forms: Array<{ action: string; body: string }> = [];
-  for (const match of html.matchAll(re)) {
-    forms.push({ action: match[1]!, body: match[2]! });
-  }
-  return forms;
-};
-
-/** Find the form whose submit button matches `buttonText`, submit it with
- *  `overrides` merged on top of the rendered fields. Drives through the
- *  real rendered form per the AGENTS.md guidance. */
 const submitRenderedForm = async (
+  world: TicketsWorld,
   path: string,
   buttonText: string,
-  overrides: Record<string, string> = {},
-): Promise<Response> => {
-  const { csrfToken, html } = await getRenderedForm(path);
-  const form = findForms(html).find((f) =>
-    new RegExp(`>${buttonText}<`, "i").test(f.body),
-  );
-  if (!form) throw new Error(`No form with button "${buttonText}" on ${path}`);
-  const params = new URLSearchParams();
-  for (const [key, value] of extractFormEntries(form.body)) {
-    params.append(key, value);
-  }
-  for (const [key, value] of Object.entries(overrides)) {
-    params.set(key, value);
-  }
-  params.set("csrf_token", csrfToken);
-  return adminPost(form.action, Object.fromEntries(params));
+  values: Record<string, string> = {},
+): Promise<TestBrowser> => {
+  const browser = await adminBrowser(world);
+  await browser.visit(path);
+  await browser.submitForm(values, buttonText);
+  return browser;
 };
 
 const createHoldViaProduction = async (
@@ -103,6 +88,54 @@ Given(
 );
 
 Given(
+  "Ceramics Studio Sessions is available for service work",
+  async function (this: TicketsWorld): Promise<void> {
+    const listing = await createTestListing({
+      bookableDays: ["Monday", "Tuesday"],
+      durationDays: 1,
+      listingType: "daily",
+      location: "Kiln Yard Studios",
+      maxAttendees: 16,
+      maximumDaysAfter: 50_000,
+      maxQuantity: 8,
+      minimumDaysBefore: 0,
+      name: STUDIO_LISTING,
+      unitPrice: 2_800,
+    });
+    this.holdListingId = listing.id;
+    this.listingIds.set(STUDIO_LISTING, listing.id);
+  },
+);
+
+When(
+  "the organiser creates a two-day Studio floor treatment hold for four places",
+  async function (this: TicketsWorld): Promise<void> {
+    const listingId = requiredWorldValue(
+      this.listingIds.get(STUDIO_LISTING),
+      "studio listing id",
+    );
+    const browser = await submitRenderedForm(
+      this,
+      "/admin/servicing/new",
+      "Create Service Event",
+      {
+        day_count: "2",
+        name: STUDIO_HOLD,
+        [`quantity_${listingId}`]: "4",
+        start_date: STUDIO_HOLD_DATE,
+      },
+    );
+    const match = browser.currentUrl.match(/^\/admin\/servicing\/(\d+)$/);
+    if (!match) {
+      throw new Error("Creating the service hold did not open its edit page");
+    }
+    const eventId = Number(requiredWorldValue(match[1], "service event id"));
+    this.servicingEventId = eventId;
+    this.evidenceValues.set("servicingEventId", String(eventId));
+  },
+);
+
+Given(
   "an organiser has created an Annual Inspection hold on Annual Room",
   async function (this: TicketsWorld): Promise<void> {
     await createHoldViaProduction(this, ANNUAL_ROOM, ANNUAL_INSPECTION, {
@@ -116,7 +149,7 @@ When(
   "the organiser duplicates the service event",
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
-    await submitRenderedForm(`/admin/servicing/${id}`, "Duplicate");
+    await submitRenderedForm(this, `/admin/servicing/${id}`, "Duplicate");
   },
 );
 
@@ -124,7 +157,11 @@ When(
   "the organiser deletes the service event",
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
-    await submitRenderedForm(`/admin/servicing/${id}`, "Delete Service Event");
+    await submitRenderedForm(
+      this,
+      `/admin/servicing/${id}`,
+      "Delete Service Event",
+    );
   },
 );
 
@@ -132,7 +169,8 @@ When(
   "the organiser records a cost of 90.00 for Boiler Service",
   async function (this: TicketsWorld): Promise<void> {
     const id = requiredWorldValue(this.servicingEventId, "service event id");
-    const response = await submitRenderedForm(
+    const browser = await submitRenderedForm(
+      this,
       `/admin/servicing/${id}`,
       "Record service event cost",
       {
@@ -140,15 +178,15 @@ When(
         memo: "Boiler part",
       },
     );
-    assertRedirectPathname(response, `/admin/servicing/${id}`);
+    expect(browser.currentUrl).toBe(`/admin/servicing/${id}`);
   },
 );
 
 Then(
-  "the admin dashboard shows the Boiler Service hold",
+  "the admin dashboard shows the Studio floor treatment hold",
   async function (this: TicketsWorld): Promise<void> {
     const body = await renderAdminPage("/admin/");
-    expect(body).toContain(BOILER_SERVICE);
+    expect(body).toContain(STUDIO_HOLD);
   },
 );
 
@@ -162,20 +200,19 @@ Then(
 );
 
 Then(
-  "the admin dashboard no longer shows Boiler Service",
-  async function (this: TicketsWorld): Promise<void> {
-    const body = await renderAdminPage("/admin/");
-    expect(body).not.toContain(BOILER_SERVICE);
-  },
-);
-
-Then(
-  "the public site does not show Boiler Service",
+  "the public site does not show Studio floor treatment",
   async function (this: TicketsWorld): Promise<void> {
     await enablePublicSite();
     const response = await awaitTestRequest("/");
     expect(response.status).toBe(200);
-    const body = await response.text();
+    expect(await response.text()).not.toContain(STUDIO_HOLD);
+  },
+);
+
+Then(
+  "the admin dashboard no longer shows Boiler Service",
+  async function (this: TicketsWorld): Promise<void> {
+    const body = await renderAdminPage("/admin/");
     expect(body).not.toContain(BOILER_SERVICE);
   },
 );

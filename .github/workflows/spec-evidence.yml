@@ -1,0 +1,78 @@
+name: Specification evidence
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 4 1 * *"
+  workflow_dispatch:
+
+env:
+  STRIPE_MOCK_VERSION: "0.188.0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: specification-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Deno
+        uses: ./.github/actions/setup-deno
+
+      - name: Cache stripe-mock
+        uses: actions/cache@v4
+        with:
+          path: .bin
+          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: |
+          version="$(deno eval '
+            const config = JSON.parse(await Deno.readTextFile("deno.json"));
+            const version = config.imports.playwright.match(/^npm:playwright@(.+)$/)?.[1];
+            if (!version) throw new Error("playwright must be pinned in deno.json");
+            console.log(version);
+          ')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium and system dependencies
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: deno run -A npm:playwright@${{ steps.playwright.outputs.version }} install --with-deps chromium
+
+      - name: Install Chromium system dependencies
+        if: steps.chromium-cache.outputs.cache-hit == 'true'
+        run: deno run -A npm:playwright@${{ steps.playwright.outputs.version }} install-deps chromium
+
+      - name: Test screenshot browser contracts
+        run: deno task test:screenshot-contract
+
+      - name: Capture specification evidence
+        run: deno task specs:evidence
+
+      - name: Upload specification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: tickets-evidence
+          path: reports/evidence
+          if-no-files-found: error
+          retention-days: 90
