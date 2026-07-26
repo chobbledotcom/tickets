@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
-  FILE_ARG_VALUE_FLAGS,
   estimateTapEventCount,
+  FILE_ARG_VALUE_FLAGS,
 } from "#scripts/compact-test-reporter.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 
