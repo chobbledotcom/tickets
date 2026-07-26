@@ -15,6 +15,9 @@ bunny-script.ts.map
 .build-tag
 src/ui/static/*.js
 src/ui/static/style.css
+.static-assets-cache.json
+.static-assets-cache.json.*.pending
+.static-assets-build.lock
 .test-junit.xml
 
 .bin/

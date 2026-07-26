@@ -20,7 +20,7 @@ import { fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
 import { ASSETS } from "#src/shared/images/wasm-assets.ts";
-import { buildStaticAssets } from "./build-static-assets.ts";
+import { runStaticAssetBuild } from "./build-static-assets.ts";
 import { minifyCss } from "./css-minify.ts";
 import {
   buildAssetPathsModule,
@@ -176,7 +176,7 @@ export const buildEdgeBundle = async (
 
   // --- Step 1: Build client bundles ---
   if (!options.skipClientBuild) {
-    const staticAssets = await buildStaticAssets();
+    const staticAssets = await runStaticAssetBuild(false);
     await staticAssets.dispose();
   }
 

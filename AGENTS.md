@@ -696,7 +696,7 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task start` - Run the server
 - `deno task test` - Run the full suite
 - `deno task test:coverage` - Run the full suite with coverage
-- `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
+- `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (makes sure the static assets are current, starts stripe-mock, cleans up after)
 - `deno task test:screenshot-contract` - Run the real-browser screenshot timing and responsive-layout contracts (requires Chromium)
 - `deno task specs` - Run every Cucumber Feature through the shared test harness and write ignored Messages, HTML, and JUnit reports under `reports/`
 - `deno task specs:evidence` - Run only cases with declared screenshot captures, one at a time, and write the versioned manifest plus PNG assets under `reports/evidence/`; the task requires a clean Git worktree so the manifest commit matches the captured code
@@ -717,7 +717,9 @@ logging and table-scoped cache invalidation stay automatic.
 
 **Do NOT use `deno task test -- --filter`** to debug a specific test — it still loads the entire test suite and is very slow.
 
-Instead, use `deno task test:files`, which runs only the files you pass but reuses the full runner's setup — it builds the static client assets the app reads at import time, starts stripe-mock with `STRIPE_MOCK_HOST/PORT` exported, and removes any assets it generated afterwards. This means a fresh checkout can run a subset of the suite without manual preparation or leftover build artifacts:
+Instead, use `deno task test:files`, which runs only the files you pass but reuses the full runner's setup — it makes sure the static client assets the app reads at import time are current, and starts stripe-mock with `STRIPE_MOCK_HOST/PORT` exported. This means a fresh checkout can run a subset of the suite without manual preparation.
+
+Both runners *skip* the asset build when nothing it depends on has changed. After a build they record every file it read and wrote (size and modified time) in `.static-assets-cache.json`, and the next run compares that list against the disk: if it still matches, the assets on disk are already correct and esbuild and sass are never even loaded. That is about 0.8s off every run, so the built assets are now left in the tree afterwards (they are gitignored build output, and keeping them is what makes the next run fast). Touch any client source, stylesheet, `deno.json`, or `deno.lock` and the next run rebuilds.
 
 ```bash
 deno task test:files test/shared/dates.test.ts

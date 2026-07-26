@@ -272,7 +272,7 @@ export const createFilePlan = async (
   directTestFiles: string[],
 ): Promise<FileMutationPlan> => {
   const original = await Deno.readTextFile(file);
-  const affected = rebuilder ? rebuilder.affected(file) : [];
+  const affected = rebuilder ? await rebuilder.affected(file) : [];
   const assets =
     rebuilder && affected.length > 0
       ? {
