@@ -44,7 +44,7 @@ const adminFooterScope = createRequestScoped(() => ({
 }));
 
 /** Run one request with an isolated admin footer marker. */
-export const runWithAdminFooterContext = <T>(fn: () => T): T =>
+export const runWithAdminFooterContext = <T,>(fn: () => T): T =>
   adminFooterScope.run(fn);
 
 /** Flag the current render as an admin page so its footer (with logout) shows,
