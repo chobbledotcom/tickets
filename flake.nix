@@ -57,13 +57,9 @@
               echo "  pc                   - run precommit"
               echo "  nix run .#docker     - build container image"
               echo "  nix run .#docker-start - build and run container"
-              # Throwaway defaults so `deno task start` works in a fresh
-              # checkout, but only when the caller has not set the variable at
-              # all. An unconditional export would beat the caller's own
-              # environment, because Deno's --env-file leaves a variable that
-              # is already set alone. These use ''${VAR-...}, not ''${VAR:-...},
-              # so a deliberately empty value still reaches startup validation
-              # and fails there instead of being quietly replaced.
+              # Throwaway defaults for a fresh checkout. ''${VAR-...} fills in
+              # only an unset variable, so the caller's own value wins — even a
+              # deliberately empty one, which must fail startup validation.
               export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(openssl rand -base64 32)}"
               export DB_URL="''${DB_URL-:memory:}"
               export PORT="''${PORT-8080}"
