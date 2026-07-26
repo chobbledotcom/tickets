@@ -180,7 +180,6 @@ src/shared/rest/crud-api.ts:572:27  ?? → ||   # extraRoutes is a route object 
 # already-ascending array, so swapping the comparator changes nothing.
 src/shared/checkout-pricing.ts:167:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
-
 # attendee-form-model: `?? → ||` where the left operand can never be a
 # falsy-but-non-null value, so the two operators always agree.
 src/features/admin/attendee-form-model.ts:304:55  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
@@ -919,10 +918,13 @@ src/features/api/folded-booking.ts:176:53  1 → 0   # the thankYouUrl guard che
 src/features/api/folded-booking.ts:301:70  0 → 1   # feeSubtotal flows into priceCheckout → owedOrderForLedger, which drops all extras and sets total to 0; bookingFactsFromOrder reads extras (empty) → bookingFee: 0 regardless. The feeSubtotal value never reaches any observable output.
 src/features/api/folded-booking.ts:381:17  1 → 0   # base.dayCount is read only by parentResolvedDuration → childDaysFromParent(parent, dayCount, 1), which uses its first argument (dayCount) only in the parent.customisable_days branch; processParentApiBooking rejects customisable parents at line 335 before reaching the fold, so that branch is unreachable. For daily parents the function returns clampDurationDays(parent.duration_days), and for standard parents it returns 1 (the standardValue) — neither reads dayCount, so 1 and 0 produce the same duration and thus the same fold output for every reachable input.
 
-
 # Test-tree scan: the subject lookup's default for an unselected path.
 scripts/test-tree-scan.ts:62:53  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
 
 # Mutation test map: null-coalescing and the integration split.
 scripts/mutation/test-map.ts:87:7  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
 scripts/mutation/test-map.ts:119:46  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
+
+# SumUp client: values that are never falsy apart from null.
+src/shared/sumup.ts:215:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
+src/shared/sumup.ts:254:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree

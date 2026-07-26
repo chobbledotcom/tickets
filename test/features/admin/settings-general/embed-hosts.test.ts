@@ -139,6 +139,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
         "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
         "Embed host restrictions removed",
       )(response);
+      expect(settings.embedHosts).toBe("");
     });
 
     test("rejects invalid host pattern", async () => {
