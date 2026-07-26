@@ -381,7 +381,7 @@ deliberately left for later:*
   import-time work moved behind `once()`/dynamic import pays for itself ~250×
   per run — profile with a `performance.now()` probe around `import("#test-utils")`
   under `deno test` before and after.
-- **`test/lib/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
+- **`test/integration/stripe-mock-ports.test.ts` (~4s)** spawns real child processes
   to test the harness's port handling; each spawn is inherently slow. If it
   grows, the port-conflict cases could stub the child-process layer the same
   way the supervisor tests do.
@@ -406,27 +406,6 @@ sorting, display, duration spans) are date-selection logic and should stay as
 they are. Nothing further planned here.
 
 ---
-
-## Strengthen the idempotent-replay assertion in the payments confirmation test
-
-*Origin: CodeRabbit review on PR #1690 (payments test split).*
-
-`test/lib/server-payments/confirm.test.ts`, the test **"handles replay of same
-session (idempotent)"**, asserts `expect([200, 302]).toContain(response.status)`.
-This hedge was moved verbatim from the old `server-payments.test.ts` monolith —
-it accepts either branch, so it would not catch a regression that flips the
-replay from one path to the other.
-
-Pinning it to a single deterministic status is a real behavioural question, not
-a mechanical edit: the test books an attendee directly (payment intent
-`pi_test_123`) and then replays the same signed session, and the current code
-does **not** dedupe on payment-intent (the in-test comment spells this out), so
-the outcome depends on the capacity check rather than a defined idempotency
-contract. Deciding the single correct status means first deciding what replaying
-an already-booked payment intent *should* do (reject as duplicate? re-render the
-existing ticket?) and likely adding payment-intent uniqueness — out of scope for
-a test-only file split. Starting point: `src/features/api/payment-processing.ts`
-(the `/payment/success` finalize path) and `#shared/db/processed-payments.ts`.
 
 ## Payment-processing review follow-ups (from PR #1692)
 
@@ -459,19 +438,6 @@ and storage overrides have different lifetimes and need a separate decision.
 Benchmark before and after: the synthetic result was about 38us/request for
 eleven scopes versus 2us for one. This needs a dedicated PR because it crosses
 eleven state modules and their concurrency contracts.
-
-## Cross-request pending work vs. restore (from PR #1714)
-
-PR #1714 makes the restore-confirm handler drain its own request's pending
-work before `restoreFromZip()`, so a queued script-version write can't land
-after the replay and clobber the restored commit. Residual window (Codex):
-pending work is scoped per request, so when a *concurrent* request ran
-`initDb()` its queued marker write is invisible to the restore's flush.
-Requires a cold deploy-boot racing an owner restore on one isolate; impact is
-only the flash's commit hint. Fix direction: an isolate-level in-flight set
-in `src/shared/pending-work.ts` + `flushAllPendingWork()` for the restore
-path; extend the race harness in `test/lib/server-backup.test.ts` ("a
-deploy's first request cannot clobber...") with a concurrent cold GET.
 
 ## Dead-export scanner matches raw text (from PR #1745 review)
 
@@ -831,7 +797,7 @@ The full runner now shares isolates between test files
 (`test/test-utils/test-state.ts`). The remaining wall-clock tail is a handful
 of genuinely long suites, which now bound the slowest groups:
 
-- **Migration chain shards** (`test/lib/db/migration-restore/`, ~20s each ×4
+- **Migration chain shards** (`test/integration/db/migration-restore/`, ~20s each ×4
   shards). They already shard by `index % shardCount`; raising the shard count
   (4 → 8) would halve each shard and shorten the tail groups. Purely
   mechanical — the factory takes the count.
@@ -1261,7 +1227,7 @@ of scope for #1873, and a starting point.*
   reading `applyRenewalsForEntries` in `src/shared/webhook.ts` to confirm it
   calls `console.error` (or `logError`) on a missing site-token match.
 
-- **Extract scanning helpers from `test/lib/code-quality.test.ts` into a
+- **Extract scanning helpers from `test/integration/code-quality.test.ts` into a
   focused module.** CodeRabbit suggested (PR #1872 review) pulling
   `forEachScannedFile`, `collectLineViolations`, `collectFileViolations`,
   `scanSourceLines`, `scanSourceFiles`, `ensureLoaded`, the `getAll*Files`
@@ -1270,7 +1236,7 @@ of scope for #1873, and a starting point.*
   path constants out of the test file — they're file-discovery and scanning
   plumbing, not test assertions. The file is currently 699 lines (under the
   Biome 1,000-line hard ceiling but over the 400-line soft target). A
-  `test/lib/code-quality/scan-context.ts` module exporting `ScanContext`,
+  `test/scripts/code-quality/scan-context.ts` module exporting `ScanContext`,
   `loadScanContext`, `collectLineViolations`, `collectFileViolations`, and
   the path constants would let the test file import them and keep only the
   assertions and per-rule config. Start from the file-discovery helpers

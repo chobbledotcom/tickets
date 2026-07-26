@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: "Source glob to mutate (quote globs, e.g. 'src/lib/forms/*.ts')"
+        description: "Source glob to mutate (quote globs, e.g. 'src/shared/forms/*.ts')"
         required: true
         default: "src/shared/dates.ts"
       test:
