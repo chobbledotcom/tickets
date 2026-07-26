@@ -22,7 +22,6 @@ import {
   onTerminationSignals,
 } from "#scripts/termination-signals.ts";
 import { withTestHarness } from "#scripts/test-harness.ts";
-import { scanTestTree } from "#scripts/test-tree-scan.ts";
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { createFilePlan, type FileMutationPlan } from "./evaluate.ts";
 import {
@@ -370,15 +369,7 @@ const mutate = async (
 export const runMutationTesting = async (
   options: MutationOptions,
 ): Promise<number> => {
-  // What each selected test exercises, read through its helpers, so a test that
-  // proves a source from outside that source's mirror still runs for it.
-  const selected = new Set(options.testFiles);
-  const scan = await scanTestTree({ isTest: (path) => selected.has(path) });
-  const testMap = buildMutationTestMap(
-    options.sourceFiles,
-    options.testFiles,
-    scan.subjectsOf,
-  );
+  const testMap = buildMutationTestMap(options.sourceFiles, options.testFiles);
   for (const target of testMap.targets) {
     if (target.directTestFiles.length > 0) continue;
     const source = await Deno.readTextFile(target.sourceFile);

@@ -40,25 +40,18 @@ const ownsTest = (prefix: string, testFile: string): boolean => {
   return base === prefix || base.startsWith(`${prefix}/`);
 };
 
-/** The `src/` files a test exercises — its own imports plus the ones its
- * helpers make on its behalf. `scripts/test-subjects.ts` computes these; the
- * default reports none, which leaves selection on the path mirror alone. */
-export type SubjectsOf = (testFile: string) => readonly string[];
-
-const NO_SUBJECTS: SubjectsOf = () => [];
-
 /** Select every direct test for the changed sources, plus broad integration
  * tests changed on this branch. Changed shared Cucumber code selects every
  * Feature because any story may use it.
  *
- * A source with no test at its mirror falls back to the tests that exercise it
- * through a helper, so a source is never mutated with nothing to catch the
- * mutants merely because its test sits elsewhere. */
+ * Selection is by the mirror path alone: a source whose test sits elsewhere is
+ * reported as missing its direct suite (see `requireDirectMutationTests`) so
+ * the test gets moved, rather than quietly running whatever reaches the source
+ * through a shared helper. */
 export const selectMutationTests = (
   sourceFiles: string[],
   allTestFiles: string[],
   changedTestFiles: string[],
-  subjectsOf: SubjectsOf = NO_SUBJECTS,
 ): string[] => {
   const prefixes = map(testPrefix)(sourceFiles);
   const direct = filter(
@@ -66,27 +59,11 @@ export const selectMutationTests = (
       !isIntegrationTest(testFile) &&
       prefixes.some((prefix) => ownsTest(prefix, testFile)),
   )(allTestFiles);
-  const unmirrored = filter(
-    (sourceFile: string) =>
-      !direct.some((testFile) => ownsTest(testPrefix(sourceFile), testFile)),
-  )(sourceFiles);
-  const bySubject = filter(
-    (testFile: string) =>
-      !isIntegrationTest(testFile) &&
-      unmirrored.some((sourceFile) =>
-        subjectsOf(testFile).includes(sourceFile),
-      ),
-  )(unmirrored.length === 0 ? [] : allTestFiles);
   const changedIntegration = filter(isIntegrationTest)(changedTestFiles);
   const affectedFeatures = changedTestFiles.some(isSharedSpecCode)
     ? filter(isFeaturePath)(allTestFiles)
     : [];
-  return unique([
-    ...direct,
-    ...bySubject,
-    ...changedIntegration,
-    ...affectedFeatures,
-  ]);
+  return unique([...direct, ...changedIntegration, ...affectedFeatures]);
 };
 
 interface OwnedTest {
@@ -110,30 +87,24 @@ const mirrorOwnerOrNull = (
   )[0] ?? null;
 
 const ownedTest =
-  (prefixes: string[], subjectsOf: SubjectsOf) =>
-  (testFile: string): OwnedTest => {
-    if (isIntegrationTest(testFile)) return { owner: null, testFile };
-    const mirrored = mirrorOwnerOrNull(prefixes, testFile);
-    if (mirrored !== null) return { owner: mirrored, testFile };
-    // No mirror: fall back to a source it exercises through its helpers, so a
-    // test that proves a source from another folder still runs for it.
-    const exercised = filter((prefix: string) =>
-      subjectsOf(testFile).some((source) => testPrefix(source) === prefix),
-    )(prefixes);
-    return { owner: exercised[0] ?? null, testFile };
-  };
+  (prefixes: string[]) =>
+  (testFile: string): OwnedTest => ({
+    owner: isIntegrationTest(testFile)
+      ? null
+      : mirrorOwnerOrNull(prefixes, testFile),
+    testFile,
+  });
 
 /** Pair selected sources with their mirrored tests. Only explicit
  * integration/e2e/Cucumber paths may remain unmatched. */
 export const buildMutationTestMap = (
   sourceFiles: string[],
   testFiles: string[],
-  subjectsOf: SubjectsOf = NO_SUBJECTS,
 ): MutationTestMap => {
   const sources = [...new Set(sourceFiles)];
   const tests = [...new Set(testFiles)];
   const prefixes = map(testPrefix)(sources);
-  const ownedTests = map(ownedTest(prefixes, subjectsOf))(tests);
+  const ownedTests = map(ownedTest(prefixes))(tests);
   const misplaced = chooseTestFiles(
     ({ owner, testFile }) => owner === null && !isIntegrationTest(testFile),
   )(ownedTests);

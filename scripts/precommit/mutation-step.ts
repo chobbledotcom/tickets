@@ -82,9 +82,6 @@ export interface MutationStepDeps {
   log: (message: string) => void;
   run: RunCommand;
   runMutation: RunMutation;
-  /** What each test exercises, read through its helpers. Optional: without it
-   *  selection uses the path mirror alone, which is what the unit tests do. */
-  testSubjects?(): Promise<Map<string, readonly string[]>>;
 }
 
 const isSourceFile = (path: string): boolean =>
@@ -202,12 +199,10 @@ export const runMutationStep = async (
     deps.log("No changed src files — nothing to mutation-test.");
     return 0;
   }
-  const subjects = (await deps.testSubjects?.()) ?? new Map();
   const tests = selectMutationTests(
     changed.sources,
     await deps.allTestFiles(),
     changed.tests,
-    (testFile) => subjects.get(testFile) ?? [],
   );
   if (tests.length === 0) {
     deps.log(

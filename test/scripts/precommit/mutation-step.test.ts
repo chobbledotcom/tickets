@@ -307,28 +307,6 @@ describe("runMutationStep", () => {
     expect(mutatedSources).toBe(STALE_BASE_SOURCE_LIMIT);
   });
 
-  test("selects a test that exercises a changed source through its helpers", async () => {
-    let selected: string[] = [];
-    const code = await runMutationStep({
-      allTestFiles: () => Promise.resolve(["test/ui/rendering.test.ts"]),
-      log: () => {},
-      run: fakeGit({
-        base: "origin/main",
-        diff: ok("src/ui/component.tsx\n"),
-      }),
-      runMutation: (files) => {
-        selected = files.tests;
-        return Promise.resolve(0);
-      },
-      testSubjects: () =>
-        Promise.resolve(
-          new Map([["test/ui/rendering.test.ts", ["src/ui/component.tsx"]]]),
-        ),
-    });
-    expect(code).toBe(0);
-    expect(selected).toEqual(["test/ui/rendering.test.ts"]);
-  });
-
   test("passes without running mutation when no src files changed", async () => {
     await expectSkip(
       fakeGit({
