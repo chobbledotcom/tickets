@@ -72,6 +72,16 @@ describe("validateTransfer", () => {
 
   it("accepts a valid positive-integer reverses id", () => {
     expect(validateTransfer({ ...base, reversesId: 5 }).ok).toBe(true);
+    // The smallest real row id must pass: the rule rejects 0 and below, not 1.
+    expect(validateTransfer({ ...base, reversesId: 1 }).ok).toBe(true);
+  });
+
+  it("accepts the smallest amount there can be", () => {
+    // One minor unit is a real amount; only zero and below are rejected.
+    expect(validateTransfer({ ...base, amount: 1 })).toEqual({
+      ok: true,
+      value: { ...base, amount: 1 },
+    });
   });
 
   it("accepts a non-canonical instant (no milliseconds or an offset)", () => {

@@ -25,6 +25,14 @@ describe("accountKey", () => {
     );
   });
 
+  it("does not collide when the split between type and id moves", () => {
+    // With no separator at all both of these would read "abc"; the separator
+    // keeps the (type, id) split unambiguous.
+    expect(accountKey({ id: "c", type: "ab" })).not.toBe(
+      accountKey({ id: "bc", type: "a" }),
+    );
+  });
+
   it("does not collide when a part contains a space", () => {
     // A space separator would map both of these to "a b c"; the NUL separator
     // keeps them distinct.
