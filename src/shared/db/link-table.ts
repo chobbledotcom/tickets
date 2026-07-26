@@ -16,6 +16,7 @@
  */
 
 import { reduce, requiredMapValue, unique } from "#fp";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   deleteByField,
   executeBatch,
@@ -25,6 +26,7 @@ import {
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
+import { requestBatchCache } from "#shared/request-cache.ts";
 
 /** A link write run on a caller's open write transaction. */
 type TxIdsWrite = (
@@ -106,6 +108,40 @@ export const linkTableSide = (
     ];
   };
 
+  /** Read the linked ids for several keys in one bounded query. Every key
+   * asked for is present in the result, including keys with no links. */
+  const fetchIdsByKeys = async (
+    keys: number[],
+  ): Promise<Map<number, number[]>> => {
+    const idsByKey = new Map(keys.map((id) => [id, [] as number[]]));
+    if (keys.length === 0) return idsByKey;
+    const rows = await queryAll<{ key_id: number; value_id: number }>(
+      `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
+         FROM ${table}
+         WHERE ${keyColumn} IN (${inPlaceholders(keys)})
+         ORDER BY ${keyColumn}, ${valueColumn}`,
+      keys,
+    );
+    return reduce(
+      (
+        acc: Map<number, number[]>,
+        row: { key_id: number; value_id: number },
+      ) => {
+        requiredMapValue(acc, row.key_id, "Unexpected link key").push(
+          row.value_id,
+        );
+        return acc;
+      },
+      idsByKey,
+    )(rows);
+  };
+
+  // Rendering a page asks the same side for overlapping key sets several
+  // times, so each key is read from the database once per request. Any write
+  // to the table clears what this request remembered.
+  const linksByKey = requestBatchCache(fetchIdsByKeys);
+  registerTableInvalidation([table], linksByKey.invalidate);
+
   const linkSide: LinkTableSide = {
     addIdsTx: async (tx, keyId, ids) => {
       const deduped = dedupe(ids);
@@ -126,30 +162,7 @@ export const linkTableSide = (
         keyId,
         `Missing link result for ${keyColumn} ${keyId}`,
       ),
-    getIdsByKeys: async (keyIds) => {
-      const keys = unique([...keyIds]);
-      const idsByKey = new Map(keys.map((id) => [id, [] as number[]]));
-      if (keys.length === 0) return idsByKey;
-      const rows = await queryAll<{ key_id: number; value_id: number }>(
-        `SELECT ${keyColumn} AS key_id, ${valueColumn} AS value_id
-         FROM ${table}
-         WHERE ${keyColumn} IN (${inPlaceholders(keys)})
-         ORDER BY ${keyColumn}, ${valueColumn}`,
-        keys,
-      );
-      return reduce(
-        (
-          acc: Map<number, number[]>,
-          row: { key_id: number; value_id: number },
-        ) => {
-          requiredMapValue(acc, row.key_id, "Unexpected link key").push(
-            row.value_id,
-          );
-          return acc;
-        },
-        idsByKey,
-      )(rows);
-    },
+    getIdsByKeys: (keyIds) => linksByKey.getMany(keyIds),
     getIdsTx: (tx, keyId) =>
       readIds(
         async (statement) =>

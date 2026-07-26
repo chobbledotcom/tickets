@@ -97,7 +97,9 @@ describeWithEnv(
 
       // One classification decides regular-group liveness; the other decides
       // the individual listing cards. Adding groups must not add either query.
-      expect(childLinkBatches.length).toBe(2);
+      // Both classifications ask for the same child links, and a request reads
+      // each listing's links once, so the two share a single query.
+      expect(childLinkBatches.length).toBe(1);
       expect(batchedMembers.length).toBe(1);
       expect(singleGroupMembers.length).toBe(0);
       expect(seen.length).toBe(first.length);
