@@ -1545,6 +1545,7 @@ source is mutation-tested, three quarters of the file is unrelated work.
 
 Out of scope for #1926, which was file moves only — separating these needs edits
 inside the tests. Starting point: move the two helper cases next to the helper
-they test (`test/lib/server-parents-gate/helpers.ts`), keep the rendering case in
-the integration tree, and let the settings case sit with the other settings
-behaviour.
+they test — it now lives at `test/test-utils/parents-gate/helpers.ts`, so they
+belong in `test/test-utils/parents-gate/helpers.test.ts` — keep the rendering
+case in the integration tree, and let the settings case sit with the other
+settings behaviour.
