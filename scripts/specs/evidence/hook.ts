@@ -30,16 +30,18 @@ export const captureScenarioEvidence = async (
   loadCapture: () => Promise<CaptureScenario>,
 ): Promise<void> => {
   if (mode !== "1") return;
+  // initialize() enables notify-only when the first page is served, but it is
+  // memoized. Enable it for every later capture too, then restore strict test
+  // behavior before the next scenario starts.
+  setN1GuardNotifyOnly(true);
   try {
     const capture = await loadCapture();
     await capture(world, hook);
   } finally {
     // The capture's loopback server serves requests through serveHandler,
     // whose memoized initialize() flips the N+1 guard to notify-only on its
-    // first call (src/serve-app.ts). specs:evidence runs scenarios serially
-    // in one isolate (parallel: 0), so without resetting here that flipped
-    // guard would leak into the next scenario and silence its N+1 checks.
-    // Restore the default throw mode so one capture cannot weaken the next.
+    // first call (src/serve-app.ts). Restore the default throw mode so one
+    // capture cannot weaken the next scenario's checks.
     setN1GuardNotifyOnly(null);
   }
 };

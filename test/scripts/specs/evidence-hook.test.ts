@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   captureScenarioEvidence,
   EVIDENCE_HOOK_TIMEOUT_MS,
@@ -57,12 +58,8 @@ describe("Cucumber evidence hook", () => {
   });
 });
 
-// serveHandler in src/serve-app.ts flips the N+1 guard to notify-only on its
-// first call inside the loopback capture server. specs:evidence runs serially
-// in one isolate (parallel: 0), so the flip would leak to later scenarios and
-// silence their N+1 checks. captureScenarioEvidence's cleanup must restore the
-// default throw mode. The check below uses the public transaction guard, which
-// shares the same reportGuardViolation path as the N+1 read guard.
+// The checks below use the public transaction guard, which shares the same
+// reportGuardViolation path as the N+1 read guard.
 const expectGuardThrowsOnN1Violation = (): void =>
   runWithQueryLogContext(() => {
     expect(() =>
@@ -73,13 +70,32 @@ const expectGuardThrowsOnN1Violation = (): void =>
     ).toThrow(/Interactive transaction too chatty/);
   });
 
+const expectGuardAllowsN1Violation = async (): Promise<void> => {
+  await runWithQueryLogContext(async () => {
+    expect(() =>
+      enforceTransactionRoundTripGuard(
+        TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
+        "SELECT 1",
+      ),
+    ).not.toThrow();
+    // Let the notify-only logger finish before its console stub is restored.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+};
+
 describe("Cucumber evidence hook restores the N+1 guard after capture", () => {
   beforeEach(() => setN1GuardNotifyOnly(null));
   afterEach(() => setN1GuardNotifyOnly(null));
 
-  test("restores the default throw mode after a successful capture", async () => {
-    setN1GuardNotifyOnly(true);
+  test("enables notify-only mode for every capture", async () => {
+    using _consoleError = stub(console, "error");
+    const loadCapture = () => Promise.resolve(expectGuardAllowsN1Violation);
 
+    await captureScenarioEvidence(world, hook, "1", loadCapture);
+    await captureScenarioEvidence(world, hook, "1", loadCapture);
+  });
+
+  test("restores the default throw mode after a successful capture", async () => {
     await captureScenarioEvidence(world, hook, "1", () =>
       Promise.resolve(() => Promise.resolve()),
     );
@@ -88,8 +104,6 @@ describe("Cucumber evidence hook restores the N+1 guard after capture", () => {
   });
 
   test("restores the default throw mode even when the capture itself throws", async () => {
-    setN1GuardNotifyOnly(true);
-
     await expect(
       captureScenarioEvidence(world, hook, "1", () =>
         Promise.resolve(() => Promise.reject(new Error("capture boom"))),
