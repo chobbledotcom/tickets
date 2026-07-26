@@ -919,9 +919,6 @@ src/features/api/folded-booking.ts:176:53  1 → 0   # the thankYouUrl guard che
 src/features/api/folded-booking.ts:301:70  0 → 1   # feeSubtotal flows into priceCheckout → owedOrderForLedger, which drops all extras and sets total to 0; bookingFactsFromOrder reads extras (empty) → bookingFee: 0 regardless. The feeSubtotal value never reaches any observable output.
 src/features/api/folded-booking.ts:381:17  1 → 0   # base.dayCount is read only by parentResolvedDuration → childDaysFromParent(parent, dayCount, 1), which uses its first argument (dayCount) only in the parent.customisable_days branch; processParentApiBooking rejects customisable parents at line 335 before reaching the fold, so that branch is unreachable. For daily parents the function returns clampDurationDays(parent.duration_days), and for standard parents it returns 1 (the standardValue) — neither reads dayCount, so 1 and 0 produce the same duration and thus the same fold output for every reachable input.
 
-# Test-subject walk: the src/ branch's `continue` only skips a guard that would
-# take the same path anyway.
-scripts/test-subjects.ts:90:9  continue; → (removed)   # a resolved `src/` path is never a member of testTreeFiles (that set only holds files under test/), so falling through reaches `if (!testTreeFiles.has(resolved) ...) continue;` and continues there instead — same walk, same subjects, for every possible input
 
 # Test-tree scan: the subject lookup's default for an unselected path.
 scripts/test-tree-scan.ts:62:53  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback

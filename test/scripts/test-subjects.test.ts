@@ -167,6 +167,31 @@ describe("test subjects", () => {
       ).toEqual(["src/shared/csrf.ts", "src/ui/templates/table/component.tsx"]);
     });
 
+    test("ignores what shared setup reaches, keeping the real subject alone", async () => {
+      // describeWithEnv-style setup starts nearly every test and touches the
+      // database and config. Counting those would bury the one module the
+      // test is actually about.
+      const files = {
+        "test/shared/email.test.ts": [
+          `import { sendEmail } from "#shared/email.ts";`,
+          `import { describeWithEnv } from "#test-utils/db.ts";`,
+        ].join("\n"),
+        "test/test-utils/db.ts": [
+          `import { getDb } from "#shared/db/client.ts";`,
+          `import { settings } from "#shared/db/settings.ts";`,
+        ].join("\n"),
+      };
+      const read = readerFor(files);
+      expect(
+        await collectTestSubjects(
+          "test/shared/email.test.ts",
+          read,
+          IMPORT_MAP,
+          testTreeOf(files),
+        ),
+      ).toEqual(["src/shared/email.ts"]);
+    });
+
     test("follows helpers through more than one hop", async () => {
       const files = {
         "test/a.test.ts": `import { one } from "#test/first.ts";`,
