@@ -26,6 +26,11 @@ const STRIPE_MOCK_HOST = "localhost";
 
 export const STRIPE_MOCK_FAILED_TO_START = "stripe-mock failed to start";
 const START_CONFIRM_DELAY_MS = 50;
+/** How often to re-check whether stripe-mock is listening yet. It takes most of
+ * a second to load its API spec, so a coarse poll spends its last tick asleep
+ * on a mock that is already up. The pair below keeps the same 10-second ceiling. */
+const START_POLL_DELAY_MS = 10;
+const START_MAX_ATTEMPTS = 1_000;
 const START_ATTEMPTS = 5;
 const STOP_TIMEOUT_MS = 2_000;
 const START_LOCK_NAME = "stripe-mock.start.lock";
@@ -239,8 +244,8 @@ const confirmOwnedStripeMock = (
   waitForOwnedStripeMock(
     spawned.process,
     port,
-    options.maxAttempts ?? 100,
-    options.delayMs ?? 100,
+    options.maxAttempts ?? START_MAX_ATTEMPTS,
+    options.delayMs ?? START_POLL_DELAY_MS,
     options.confirmDelayMs ?? START_CONFIRM_DELAY_MS,
   );
 

@@ -1540,6 +1540,84 @@ Starting points: `findMisplacedTests` in `scripts/unit-tests-report-imports.ts`
 (the `test.imports.includes(appEntry)` guard and the `subjects.length !== 1`
 guard), and `SHARED_SETUP_FILES` in `scripts/test-subjects.ts`.
 
+---
+
+## Mutation gaps in `src/shared/crypto/encryption.ts`
+
+*Origin: mutation run while speeding up owner-key encryption (PR #1945).*
+
+`deno task mutation --source src/shared/crypto/encryption.ts --test
+test/shared/crypto/encryption.test.ts` reports **41 survivors out of 90**, a
+score of 54%. None came from that change; they are gaps the run happened to
+surface. They fall into three groups.
+
+**The binary file format** (`encryptBytes` / `decryptBytes`, the `ENCB` header —
+roughly lines 254 to 301). Most of the survivors are here: the magic bytes, the
+version byte, the header offsets, and both format errors can all be mutated
+without a direct test noticing. These functions are only reached today through
+integration tests (`test/features/images.test.ts`,
+`test/integration/attachment-route.test.ts`,
+`test/ui/templates/admin/settings/header-image.test.ts`), which the direct-test
+run does not include. They want unit tests in `test/shared/crypto/` covering the
+header layout byte by byte, a wrong magic, and a wrong version.
+
+**Key caching and change notification** (lines 65 to 136): clearing the two
+resolved-key caches and running the registered change callbacks can be removed
+without a test failing. A test that changes the key and then checks the *next*
+encryption uses the new one would close this.
+
+**The key import flag** (line 119): `false` → `true` on the `extractable`
+argument of `crypto.subtle.importKey`. No behaviour can tell these apart,
+because the key is never exported — a genuine equivalent mutant. Either record
+it in `scripts/mutation/equivalent-mutants.txt` with that reasoning, or find an
+assertion on the imported key itself. `importRsaKey` in
+`src/shared/crypto/keys.ts` has the same shape.
+
+Start with the binary format: it is the bulk of the count and the group where a
+surviving mutant would represent a real risk to stored files.
+
+---
+
+## `expect(...).toEqual(...)` is very slow on byte arrays
+
+*Origin: a new encryption test showed up in the slow-test report (PR #1945).*
+
+@std/expect compares a typed array one element at a time, at roughly **8.6
+microseconds per byte**. Measured on equal `Uint8Array`s:
+
+| size | `expect().toEqual()` | `equal()` from `@std/assert` |
+| --- | --- | --- |
+| 64 bytes | 0.60ms | — |
+| 4 KB | 21.8ms | — |
+| 64 KB | 566ms | 0.4ms |
+
+So a single 64KB comparison costs more than the whole 500ms slow-test
+threshold, and even a 64-byte one is not free. `@std/assert`'s `equal` gives the
+same answer about 1,400 times faster, and comparing the two arrays' base64
+form is faster still and just as exact.
+
+About 148 assertions in `test/` compare byte-ish values this way (images,
+attachments, backups, encryption). Most are small, but the cost is linear, so
+the ones handling real file data are paying a lot.
+
+The suite already solves exactly this shape of problem for `toContain` in
+`test/test-utils/fast-expect.ts`, which is installed in every isolate through
+`deno test --preload`. The same trick should work here, with one thing to sort
+out first: `toContain` could be reimplemented outright because its semantics are
+one `.includes` call, whereas `toEqual` has a lot of behaviour worth keeping
+(asymmetric matchers, how it treats `undefined` properties). So the override
+must handle only the case it is fast at — both sides being the same typed-array
+kind — and hand everything else to the built-in. `expect.extend` replaces a
+matcher outright, so the first job is finding whether the built-in `toEqual` can
+still be reached from inside the replacement; if it cannot, a separate named
+helper used at the byte-comparing sites is the fallback.
+
+`test/shared/crypto/aes-gcm.test.ts` has a local
+`expectSameBytes` showing the base64 approach. Applying it there took that file
+from 3,690ms to 39ms.
+
+---
+
 ## Let Deno-hosted sites with a Bunny database be migrated
 
 `POST /instance/site-credentials` (`src/features/instance.ts`) only returns
@@ -1562,3 +1640,30 @@ Starting points: the `hostingProvider === "bunny"` filter in
 `src/features/instance.ts`, `setSiteSecrets` in
 `src/shared/site-assignment.ts`, and the per-site loop in
 `.github/workflows/deploy-clients.yml`.
+
+---
+
+## Split the hybrid encryption section out of `src/shared/crypto/keys.ts`
+
+*Origin: reviewer suggestion on PR #1945.*
+
+`keys.ts` is 499 lines and holds three separate jobs: KEK derivation, symmetric
+key wrapping, and hybrid RSA+AES encryption. The hybrid section is the natural
+one to lift out — `hybridEncrypt`, `hybridDecrypt`, their TTL decrypt cache,
+`encryptWithOwnerKey` / `decryptWithOwnerKey`, and the RSA key import pair. That
+would leave `keys.ts` about 370 lines and focused on keys, and would sit
+naturally beside `src/shared/crypto/aes-gcm.ts`.
+
+It was left out of #1945 because that PR did not cause the overage: `keys.ts`
+was already 494 lines before it and grew by five. (The same rule did apply to
+`encryption.ts` there, which the change pushed from 391 to 443, and that one was
+split.)
+
+The move itself is mechanical, but it is wide: `encryptWithOwnerKey` and
+`decryptWithOwnerKey` are used across attendee PII, the activity log, email
+preferences, and bulk email drafts, so every importer needs repointing.
+Remember `src/docs/crypto.ts`, which re-exports whole crypto modules for the
+generated API docs — a moved export silently disappears from them otherwise.
+
+Starting point: the "Hybrid Encryption" section of `src/shared/crypto/keys.ts`,
+and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
