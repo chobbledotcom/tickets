@@ -42,17 +42,19 @@ export interface BookingAttempt {
 
 const THANK_YOU = "Thank you for your order";
 
+/** The dropdown on the page for one field, or null when the field is not a
+ * dropdown at all (a typed-in name or email). */
+const chooserFor = (html: string, field: string): string | null =>
+  html.match(new RegExp(`<select name="${field}"[\\s\\S]*?</select>`))?.[0] ??
+  null;
+
 /** The values a dropdown on the page offers. Throws when the page has no such
  * dropdown, so "the option is missing" and "the control is missing" stay
  * separate failures. */
 export const optionsOffered = (html: string, field: string): string[] => {
-  const chooser = html.match(
-    new RegExp(`<select name="${field}"[\\s\\S]*?</select>`),
-  );
+  const chooser = chooserFor(html, field);
   if (!chooser) throw new Error(`The page offers no ${field} to choose`);
-  return [...chooser[0].matchAll(/value="([^"]*)"/g)].map(
-    (option) => option[1]!,
-  );
+  return [...chooser.matchAll(/value="([^"]*)"/g)].map((option) => option[1]!);
 };
 
 /** Try to place an order through a page the site serves. Returns what the
@@ -83,15 +85,15 @@ export const visitorTriesToOrder = async (
       ? {}
       : { day_count: String(choices.dayCount) }),
   };
-  // Only send what the page offers: the control must be rendered, and anything
-  // picked from a dropdown must be one of the values it lists.
-  for (const field of Object.keys(fields)) {
+  // Only send what the page offers: every control must be rendered, and any
+  // value picked from a dropdown — a day, a stay length, a quantity — must be
+  // one that dropdown lists. Checking by "is this field a dropdown?" rather
+  // than by name covers each new field for free.
+  for (const [field, chosen] of Object.entries(fields)) {
     expect(browser.currentHtml).toContain(`name="${field}"`);
-  }
-  for (const field of ["date", "day_count"] as const) {
-    const chosen = fields[field];
-    if (chosen === undefined) continue;
-    expect(optionsOffered(browser.currentHtml, field)).toContain(chosen);
+    if (chooserFor(browser.currentHtml, field)) {
+      expect(optionsOffered(browser.currentHtml, field)).toContain(chosen);
+    }
   }
   await browser.submitForm(fields, "Continue");
   return { browser, wasBooked: browser.pageText.includes(THANK_YOU) };

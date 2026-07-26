@@ -25,6 +25,7 @@ export interface TicketsWorld extends World {
   listingId?: number;
   listingIds: Map<string, number>;
   modifierId?: number;
+  newStayLength?: number;
   placeholderId?: number;
   questionId?: number;
   refundCalls?: () => number;

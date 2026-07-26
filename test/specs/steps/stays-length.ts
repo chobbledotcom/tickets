@@ -90,6 +90,7 @@ When(
 When(
   "the organiser makes each stay on the first listing {int} days long",
   async function (this: TicketsWorld, days: number): Promise<void> {
+    this.newStayLength = days;
     this.lengthChangeMessage = await changeStayLength(this, FIRST, days);
   },
 );
@@ -151,8 +152,18 @@ Then(
 Then(
   "the warning is kept in the listing's history",
   async function (this: TicketsWorld): Promise<void> {
+    const listing = stayListing(this, FIRST);
+    // Both entries matter: the ordinary record of the change every edit gets,
+    // and the warning about the day that went over.
     await expectListingActivityLogContains(
-      stayListing(this, FIRST).id,
+      listing.id,
+      `Listing '${listing.name}' duration changed to ${requiredWorldValue(
+        this.newStayLength,
+        "the new stay length",
+      )} day(s)`,
+    );
+    await expectListingActivityLogContains(
+      listing.id,
       `Duration change caused group capacity overflow on ${this.sharedDayOver}`,
     );
   },

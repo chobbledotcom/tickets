@@ -22,7 +22,9 @@ export const guest = (order: number): { email: string; who: string } => ({
   who: `Guest ${order}`,
 });
 
-/** Every stay booked on a listing so far, newest last. */
+/** Every stay booked on a listing so far, newest first — the order the site
+ * itself returns them in. Callers that want a particular one should pick it
+ * out rather than trusting a position. */
 export const staysOn = (
   world: TicketsWorld,
   name: string,
