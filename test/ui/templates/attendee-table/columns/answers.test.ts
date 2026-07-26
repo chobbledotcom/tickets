@@ -1,8 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { TableQuestionData } from "#templates/attendee-table/types.ts";
+import {
+  attendeeTableSuite,
+  makeOpts,
+  makeRow,
+  render,
+} from "#test/ui/templates/attendee-table/shared.ts";
 import { testAttendee, testRadioQuestion } from "#test-utils/factories.ts";
-import { attendeeTableSuite, makeOpts, makeRow, render } from "./shared.ts";
 
 attendeeTableSuite(() => {
   const questionData: TableQuestionData = {
