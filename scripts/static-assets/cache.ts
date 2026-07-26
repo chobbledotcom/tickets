@@ -159,6 +159,13 @@ export interface CompletedStaticAssetBuild {
   startedAt: number;
 }
 
+/** Modified times are not always as precise as our clock: some filesystems
+ * keep them only to the nearest second, which would round a save made just
+ * after the build began to just before it. Comparing against the start of that
+ * second is the safe direction — at worst a build whose sources settled moments
+ * earlier goes unrecorded, and the next run rebuilds. */
+const startOfSecond = (ms: number): number => Math.floor(ms / 1000) * 1000;
+
 /**
  * Did any source move under the build? True when a source was saved once the
  * build was already reading — so we cannot tell which version the assets were
@@ -170,11 +177,12 @@ const sourcesMovedUnderBuild = (
   look: (path: string) => TrackedFile | null,
 ): boolean => {
   const isOutput = new Set(build.outputs);
+  const began = startOfSecond(build.startedAt);
   return build.inputs
     .filter((input) => !isOutput.has(input))
     .some((input) => {
       const current = look(input);
-      return current === null || current.mtime >= build.startedAt;
+      return current === null || current.mtime >= began;
     });
 };
 

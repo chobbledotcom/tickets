@@ -177,19 +177,19 @@ const createBundleContexts = async (): Promise<
   }
 };
 
-/** Bundle and compile every browser asset from scratch. `quiet` has no
- *  default on purpose: `prepareStaticAssets` is the one place that decides it,
- *  so the two entry points cannot drift.
- *
- *  Runs under the shared build lock, so this is the one place any writer of
- *  `src/ui/static/` can be — the test harness, `deno task build:static`, and
- *  the edge build alike. */
+/** Bundle and compile every browser asset from scratch, waiting for its turn
+ *  at the shared build lock. `quiet` has no default on purpose: the callers
+ *  decide it, so the entry points cannot drift. */
 export const runStaticAssetBuild = (
   quiet: boolean,
 ): Promise<StaticAssetBuild> =>
   withStaticAssetBuildLock(() => buildEveryStaticAsset(quiet));
 
-const buildEveryStaticAsset = async (
+/** The build itself, with the lock already held. Only for a caller that took
+ *  the lock so it could decide something first — `prepareStaticAssets` asks
+ *  again, once it is its turn, whether the assets still need building at all.
+ *  Taking the lock twice in one process would wait on itself forever. */
+export const buildEveryStaticAsset = async (
   quiet: boolean,
 ): Promise<StaticAssetBuild> => {
   let contexts: Awaited<ReturnType<typeof createBundleContexts>> = [];

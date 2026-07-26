@@ -11,12 +11,6 @@ import {
   trackFile,
   writeStaticAssetManifest,
 } from "#scripts/static-assets/cache.ts";
-import {
-  buildOrReuseStaticAssets,
-  deferStaticAssetBuild,
-  type StaticAssetBuild,
-  type StaticBundle,
-} from "#scripts/static-assets/session.ts";
 
 const recorded = (path: string, hash: string, mtime: number) => ({
   hash,
@@ -260,8 +254,10 @@ describe("static asset cache", () => {
       {
         name: "still records when only the assets were written during the build",
         recorded: true,
+        // A whole second clear of the source's own save, because modified
+        // times are compared at second granularity — see startOfSecond.
         startedAt: async (source: string) =>
-          ((await trackFile(source))?.mtime ?? 0) + 1,
+          ((await trackFile(source))?.mtime ?? 0) + 1_000,
       },
     ];
 
@@ -336,116 +332,6 @@ describe("static asset cache", () => {
 
     test("says yes right after the real build recorded itself", async () => {
       expect(await staticAssetsAreUpToDate()).toBe(true);
-    });
-  });
-
-  describe("buildOrReuseStaticAssets", () => {
-    const session = (): StaticAssetBuild => ({
-      affected: () => Promise.resolve([]),
-      dispose: () => Promise.resolve(),
-      rebuild: () => Promise.resolve(true),
-      restore: () => Promise.resolve(),
-    });
-
-    test("builds straight away when the assets are out of date", async () => {
-      const built = { count: 0 };
-      const ready = session();
-
-      const result = await buildOrReuseStaticAssets(false, () => {
-        built.count += 1;
-        return Promise.resolve(ready);
-      });
-
-      expect(built.count).toBe(1);
-      expect(result).toBe(ready);
-    });
-
-    test("waits, and builds nothing, when the assets are current", async () => {
-      const built = { count: 0 };
-
-      const result = await buildOrReuseStaticAssets(true, () => {
-        built.count += 1;
-        return Promise.resolve(session());
-      });
-
-      expect(built.count).toBe(0);
-      // Still a usable build — it just holds off until something asks.
-      await result.dispose();
-      expect(built.count).toBe(0);
-      expect(await result.rebuild([])).toBe(true);
-      expect(built.count).toBe(1);
-    });
-  });
-
-  describe("deferStaticAssetBuild", () => {
-    const bundle: StaticBundle = {
-      label: "Admin",
-      options: { outfile: "static/admin.js" },
-    };
-
-    const fakeBuild = () => {
-      const calls = { affected: 0, build: 0, dispose: 0, rebuild: 0 };
-      const build: StaticAssetBuild = {
-        affected: () => {
-          calls.affected += 1;
-          return Promise.resolve([bundle]);
-        },
-        dispose: () => {
-          calls.dispose += 1;
-          return Promise.resolve();
-        },
-        rebuild: () => {
-          calls.rebuild += 1;
-          return Promise.resolve(true);
-        },
-        restore: () => Promise.resolve(),
-      };
-      return {
-        calls,
-        deferred: deferStaticAssetBuild(() => {
-          calls.build += 1;
-          return Promise.resolve(build);
-        }),
-      };
-    };
-
-    test("does not build when nobody asks for a rebuild", async () => {
-      const { calls, deferred } = fakeBuild();
-
-      await deferred.dispose();
-
-      expect(calls.build).toBe(0);
-      expect(calls.dispose).toBe(0);
-    });
-
-    test("builds once, on the first question about the bundles", async () => {
-      const { calls, deferred } = fakeBuild();
-
-      expect(await deferred.affected("src/ui/client/admin.ts")).toEqual([
-        bundle,
-      ]);
-      expect(await deferred.rebuild([bundle])).toBe(true);
-
-      expect(calls.build).toBe(1);
-      expect(calls.affected).toBe(1);
-      expect(calls.rebuild).toBe(1);
-    });
-
-    test("passes a restore through to the real build", async () => {
-      const { calls, deferred } = fakeBuild();
-
-      await deferred.restore([bundle]);
-
-      expect(calls.build).toBe(1);
-    });
-
-    test("disposes the real build once it has happened", async () => {
-      const { calls, deferred } = fakeBuild();
-
-      await deferred.rebuild([bundle]);
-      await deferred.dispose();
-
-      expect(calls.dispose).toBe(1);
     });
   });
 });

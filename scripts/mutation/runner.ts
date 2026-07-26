@@ -358,13 +358,14 @@ const mutate = async (
  * Entry point: run mutation testing, returning a process exit code.
  *
  * Known limitation: under --harness, a SIGINT/SIGTERM that lands during
- * withTestHarness's *setup* (building static assets, starting stripe-mock) —
+ * withTestHarness's *setup* (preparing static assets, starting stripe-mock) —
  * before mutate() installs its handlers — takes Deno's default exit, so a
- * freshly started stripe-mock and generated `src/ui/static/*.js` can be left
- * behind. Both self-heal on the next run (the harness reuses an existing mock
- * and rebuilds/cleans generated assets), and this brief window is shared by the
- * regular test runners. Signals during the baseline and mutation phases are
- * handled gracefully by mutate().
+ * freshly started stripe-mock can be left behind. It self-heals on the next run
+ * (the harness reuses an existing mock), and this brief window is shared by the
+ * regular test runners. Built assets are deliberately kept either way — they
+ * are what lets the next run skip the build — and a run killed mid-build simply
+ * leaves no record, so the next run rebuilds. Signals during the baseline and
+ * mutation phases are handled gracefully by mutate().
  */
 export const runMutationTesting = async (
   options: MutationOptions,

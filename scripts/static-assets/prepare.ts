@@ -16,6 +16,7 @@
  * handing on `quiet`.
  */
 
+import { withStaticAssetBuildLock } from "./build-lock.ts";
 import { staticAssetsAreUpToDate } from "./cache.ts";
 import { buildOrReuseStaticAssets, type StaticAssetBuild } from "./session.ts";
 
@@ -24,16 +25,36 @@ const loadBuild = (): Promise<
 > => import("#scripts/build-static-assets.ts");
 
 /**
+ * Wait for the build lock, then ask again whether a build is still needed. The
+ * run that was waiting usually finds the run ahead of it has just made these
+ * very assets, and takes them instead of building the same thing over.
+ */
+const buildUnlessAnotherRunGotThereFirst = (
+  quiet: boolean,
+): Promise<StaticAssetBuild> =>
+  withStaticAssetBuildLock(async () => {
+    const { buildEveryStaticAsset, runStaticAssetBuild } = await loadBuild();
+    return buildOrReuseStaticAssets(
+      await staticAssetsAreUpToDate(),
+      // Already holding the lock, so build directly. A rebuild asked for later
+      // (only the mutation runner does) happens long after this lock is gone,
+      // so that one goes back through the locked entry point.
+      () => buildEveryStaticAsset(quiet),
+      () => runStaticAssetBuild(quiet),
+    );
+  });
+
+/**
  * The built browser assets a test run needs, built only if they are missing or
  * out of date.
  *
- * Two runs starting at once cannot build into each other: the lock lives
- * around the build itself (see build-lock.ts), so it covers every writer of
- * these files rather than only this path.
+ * The common case — assets already current — answers from a handful of `stat`
+ * calls and never touches the lock. Only a run that thinks it must build waits
+ * its turn, and then checks once more.
  */
 export const prepareStaticAssets = async (
   options: { quiet?: boolean } = {},
 ): Promise<StaticAssetBuild> =>
-  buildOrReuseStaticAssets(await staticAssetsAreUpToDate(), async () =>
-    (await loadBuild()).runStaticAssetBuild(options.quiet ?? false),
+  buildOrReuseStaticAssets(await staticAssetsAreUpToDate(), () =>
+    buildUnlessAnotherRunGotThereFirst(options.quiet ?? false),
   );
