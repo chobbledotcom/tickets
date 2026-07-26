@@ -726,7 +726,7 @@ Arguments are forwarded verbatim to `deno test`, so multiple files, directories,
 
 ```bash
 deno task test:files test/shared/dates.test.ts --filter "formats date"
-deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks/*.test.ts
+deno task test:files test/integration/server-balance-webhook.test.ts test/integration/server/webhooks/*.test.ts
 deno task test:files specs/payments/capacity-after-payment.feature
 deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-payment.feature
 ```
@@ -742,7 +742,7 @@ deno test --no-check --allow-all test/shared/dates.test.ts
 To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars to the port you chose:
 
 ```bash
-STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/lib/stripe-mock.test.ts
+STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/integration/stripe-mock-ports.test.ts
 ```
 
 ## Environment Variables
@@ -1012,7 +1012,7 @@ a code change nothing would have caught.
 deno task mutation src/shared/dates.ts test/shared/dates.test.ts
 
 # Globs and exhaustive mode (every operator replacement, not just one each)
-deno task mutation 'src/lib/forms/*.ts' 'test/lib/forms/*.test.ts' --exhaustive
+deno task mutation 'src/shared/forms/*.ts' 'test/shared/forms/*.test.ts' --exhaustive
 ```
 
 It reports a mutation score and lists each survivor as

@@ -144,7 +144,7 @@ export const changedFiles = async (
 };
 
 /**
- * The notice lines (stale base, no merge base, no matching tests, …) emitted on
+ * The notice lines (stale base, no merge base, …) emitted on
  * `stdout`, joined for display — or undefined when there are none. Wired as the
  * mutation step's `summary` so these stay visible even though the precommit
  * runner swallows a passing step's output. A normal mutation *run* emits none,
@@ -166,8 +166,10 @@ export const mutationNoticeSummary = (stdout: string): string | undefined => {
  *   - More than `STALE_BASE_SOURCE_LIMIT` changed src files → skip (pass) with a
  *     fetch hint; the local base ref is almost certainly stale.
  *   - No changed src files → nothing to prove; pass.
- *   - Changed src but no matching direct or affected integration tests → skip
- *     (pass). The 100%-coverage gate still applies.
+ *   - Changed src but nothing selected to run → the run still goes ahead, with
+ *     no tests. A source with no test at its mirror is what this gate exists to
+ *     reject, so the runner's missing-direct-test check decides, not a skip. A
+ *     source with nothing to mutate still passes (see code 2 below).
  *   - Otherwise → map every mirror-located direct test to each changed source,
  *     then use affected integration/e2e/Cucumber tests as the later stage. The runner's
  *     exit code passes through, except
