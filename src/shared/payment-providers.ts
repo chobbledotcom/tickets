@@ -21,8 +21,7 @@ export type PaymentProviderMeta = {
    * webhooks are unsigned (authenticity is re-established via the provider API
    * instead — see `PaymentProvider.requiresWebhookSignature`). */
   readonly webhookSignatureHeader: string | null;
-  /** The currencies the provider can take payments in, or `null` when it takes
-   * every currency a site can be set to. Codes are upper-case ISO 4217. */
+  /** Upper-case ISO 4217 codes, or `null` when it takes every currency. */
   readonly currencies: ReadonlySet<string> | null;
   /** The provider's checkout-metadata caps: the longest value it accepts, an
    * optional limit on how many entries a session may carry, and whether the
@@ -54,9 +53,7 @@ export const PAYMENT_PROVIDERS = {
     webhookSignatureHeader: "stripe-signature",
   },
   sumup: {
-    // SumUp's checkout API takes only these currencies (mirrors the SDK's
-    // Currency union). Many site currencies — AUD, CAD, INR, JPY — are missing,
-    // so the settings page hides SumUp from sites that cannot use it.
+    // Mirrors the SumUp SDK's Currency union.
     currencies: new Set([
       "BGN",
       "BRL",
@@ -88,11 +85,7 @@ export const PAYMENT_PROVIDER_IDS = Object.keys(
   PAYMENT_PROVIDERS,
 ) as PaymentProviderType[];
 
-/**
- * Why a provider cannot be used with the given site currency, or `null` when it
- * can. One message for every place that has to say it: the settings radio note,
- * the provider-choice save, and the SumUp credentials save.
- */
+/** Why a provider cannot take the site currency, or `null` when it can. */
 export const providerCurrencyBlock = (
   id: PaymentProviderType,
   currency: string,

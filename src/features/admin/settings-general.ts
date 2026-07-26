@@ -66,8 +66,7 @@ export const handlePaymentProviderPost = settingsHandler({
   validate: (v) => {
     if (v === "none") return null;
     if (!isPaymentProvider(v)) return t("error.invalid_payment_provider");
-    // The settings page already switches off a provider that cannot take the
-    // site currency; refuse it here too so the choice can never be saved.
+    // The page switches this off already; refuse it here too.
     return providerCurrencyBlock(v, settings.currency);
   },
 });
@@ -82,8 +81,7 @@ export const handleEmbedHostsPost = settingsHandler({
     v === ""
       ? t("success.embed_hosts_removed")
       : t("success.embed_hosts_updated"),
-  // No empty-value special case: an empty list parses to "" and validates as
-  // fine, so clearing the hosts is just the normal path with nothing in it.
+  // An empty list parses to "" and validates fine, so clearing needs no case.
   save: (v) => settings.update.embedHosts(parseEmbedHosts(v).join(", ")),
   validate: validateEmbedHosts,
 });
@@ -237,8 +235,7 @@ export const handleResetDatabasePost = advancedSettingsRoute(
       return errorPage(phraseResult.error, "settings-reset-database");
     }
 
-    // No activity-log line here: the reset drops every table, so a row written
-    // now is destroyed before the response is sent and nobody can ever read it.
+    // No activity-log line: the reset drops the table it would be written to.
     await deleteStorageAndResetDatabase();
 
     // Redirect to setup page since the database is now empty
