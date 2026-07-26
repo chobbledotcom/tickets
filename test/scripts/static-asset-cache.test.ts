@@ -29,19 +29,22 @@ const disk =
   (path: string): StaticAssetManifest["files"][number] | null =>
     entries.find((entry) => entry.path === path) ?? null;
 
-// The tests write their files now, so a build that "began" a minute from now
-// is one whose every input had already settled before it started reading.
-const startedAt = Date.now() + 60_000;
-
-/** A build that began before its inputs were last saved — the racy case. */
-const startedBeforeInputsSettled = Date.now() - 60_000;
+/**
+ * Fixed times, stamped onto the fixture files, so nothing here depends on when
+ * the tests happen to run. A build that began a second after the source was
+ * saved is one whose input had settled first; the asset carries a later time
+ * because a build always writes its own output after it starts.
+ */
+const SOURCE_SAVED_AT = 1_700_000_000_000;
+const BUILD_BEGAN_AT = SOURCE_SAVED_AT + 1_000;
+const ASSET_WRITTEN_AT = BUILD_BEGAN_AT + 1_000;
 
 /**
  * A throwaway directory holding a record, one source file and one built asset,
  * cleaned up afterwards. Both files are written before the body runs, unless
- * `leaveAssetMissing` asks for the build-produced-nothing case. `write` records
- * a build over them, defaulting to the ordinary one: this source and this
- * asset, both settled before the build began.
+ * `leaveAssetMissing` asks for the build-produced-nothing case, and both are
+ * given the fixed times above. `write` records a build over them, defaulting to
+ * the ordinary one: a build that began after the source settled.
  */
 const withBuildDir = async (
   body: (files: {
@@ -62,7 +65,19 @@ const withBuildDir = async (
   };
   try {
     await Deno.writeTextFile(files.source, "a");
-    if (!leaveAssetMissing) await Deno.writeTextFile(files.asset, "bb");
+    await Deno.utime(
+      files.source,
+      new Date(SOURCE_SAVED_AT),
+      new Date(SOURCE_SAVED_AT),
+    );
+    if (!leaveAssetMissing) {
+      await Deno.writeTextFile(files.asset, "bb");
+      await Deno.utime(
+        files.asset,
+        new Date(ASSET_WRITTEN_AT),
+        new Date(ASSET_WRITTEN_AT),
+      );
+    }
     await body({
       ...files,
       write: (over = {}) =>
@@ -70,7 +85,7 @@ const withBuildDir = async (
           {
             inputs: [files.source],
             outputs: [files.asset],
-            startedAt,
+            startedAt: BUILD_BEGAN_AT,
             ...over,
           },
           files.record,
@@ -227,9 +242,7 @@ describe("static asset cache", () => {
     });
 
     test("keeps the previous record when a write is interrupted", async () => {
-      await withBuildDir(async ({ asset, dir, record, source, write }) => {
-        await Deno.writeTextFile(source, "x");
-        await Deno.writeTextFile(asset, "built");
+      await withBuildDir(async ({ asset, dir, record, write }) => {
         await write();
 
         await expect(
@@ -243,28 +256,26 @@ describe("static asset cache", () => {
     });
 
     // One rule at the two timings that matter. A build only owns assets it
-    // wrote itself; a source that moved after it started reading is one it
-    // cannot vouch for, so nothing is recorded and the next run rebuilds.
+    // wrote itself — the fixture's asset is stamped later than the build began,
+    // and is still fine — while a source that moved after it started reading is
+    // one it cannot vouch for, so nothing is recorded and the next run rebuilds.
     const timings = [
       {
         name: "records nothing when a source was saved while the build ran",
         recorded: false,
-        startedAt: () => Promise.resolve(startedBeforeInputsSettled),
+        startedAt: SOURCE_SAVED_AT - 60_000,
       },
       {
         name: "still records when only the assets were written during the build",
         recorded: true,
-        // A whole second clear of the source's own save, because modified
-        // times are compared at second granularity — see startOfSecond.
-        startedAt: async (source: string) =>
-          ((await trackFile(source))?.mtime ?? 0) + 1_000,
+        startedAt: BUILD_BEGAN_AT,
       },
     ];
 
     for (const timing of timings) {
       test(timing.name, async () => {
-        await withBuildDir(async ({ asset, record, source, write }) => {
-          await write({ startedAt: await timing.startedAt(source) });
+        await withBuildDir(async ({ asset, record, write }) => {
+          await write({ startedAt: timing.startedAt });
 
           expect(
             (await readStaticAssetManifest(record))?.outputs ?? null,
@@ -321,9 +332,7 @@ describe("static asset cache", () => {
     });
 
     test("says no when the record is for a different set of assets", async () => {
-      await withBuildDir(async ({ asset, record, source, write }) => {
-        await Deno.writeTextFile(source, "x");
-        await Deno.writeTextFile(asset, "built");
+      await withBuildDir(async ({ record, write }) => {
         await write();
 
         expect(await staticAssetsAreUpToDate(record)).toBe(false);
