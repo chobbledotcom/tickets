@@ -23,7 +23,11 @@ import {
 } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
+  addAttendee,
+  createListing,
+  gotoListing,
   lineIndexOnPage,
+  loggedInAdminBrowser,
   openAttendeeEditor,
   setupAndLogin,
 } from "#test-utils/e2e.ts";
@@ -47,6 +51,7 @@ import {
   withSetting,
 } from "#test-utils/settings.ts";
 import { lastLogMessage } from "#test-utils/settings-handlers.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
 
 describe("test-utils — db-backed & settings contracts", () => {
   afterEach(() => {
@@ -56,6 +61,19 @@ describe("test-utils — db-backed & settings contracts", () => {
   describe("strict DB-backed utility contracts", () => {
     beforeEach(async () => {
       await createTestDbWithSetup();
+    });
+
+    test("the admin journey helpers create a listing, add to its roster, and index its editor line", async () => {
+      const browser = await loggedInAdminBrowser();
+      const listingId = await createListing(browser, { name: "Helper Class" });
+      await addAttendee(browser, { name: "Helper Person", quantity: "2" });
+
+      expect(browser.containsText("Added Helper Person")).toBe(true);
+      // gotoListing finds the same listing again from the dashboard.
+      expect(await gotoListing(browser, "Helper Class")).toBe(listingId);
+      await openAttendeeEditor(browser);
+      expect(browser.containsText("Helper Person")).toBe(true);
+      expect(lineIndexOnPage(browser, listingId)).toBe("0");
     });
 
     test("getListingWithActivityLogOrNull reads through the test admin session", async () => {
@@ -293,6 +311,18 @@ describe("test-utils — db-backed & settings contracts", () => {
   });
 
   describe("e2e helper contracts", () => {
+    test("getCheckboxValues reads every value offered for one checkbox field", () => {
+      const browser = new TestBrowser();
+      browser.currentHtml = [
+        '<input type="checkbox" name="listing_ids" value="4">',
+        '<input type="checkbox" name="listing_ids" value="9">',
+        '<input type="checkbox" name="question_ids" value="1">',
+      ].join("");
+
+      expect(browser.getCheckboxValues("listing_ids")).toEqual(["4", "9"]);
+      expect(browser.getCheckboxValues("missing_ids")).toEqual([]);
+    });
+
     test("setupAndLogin follows the migration-complete interstitial", async () => {
       const actions: string[] = [];
       const browser = {

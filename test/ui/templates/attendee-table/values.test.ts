@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   formatAddressInline,
+  formatInstructionsInline,
   sortAttendeeRows,
 } from "#templates/attendee-table/values.ts";
 import { testAttendee } from "#test-utils/factories.ts";
@@ -122,6 +123,24 @@ attendeeTableSuite(() => {
       ];
       sortAttendeeRows(rows);
       expect(rows.map((row) => row.attendee.id)).toEqual([2, 1]);
+    });
+  });
+
+  describe("formatInstructionsInline", () => {
+    test("returns an empty string for empty input", () => {
+      expect(formatInstructionsInline("")).toBe("");
+    });
+
+    test("puts every line on one line", () => {
+      expect(formatInstructionsInline("No nuts\nUses a wheelchair")).toBe(
+        "No nuts Uses a wheelchair",
+      );
+    });
+
+    test("collapses blank lines and trims the ends", () => {
+      expect(formatInstructionsInline("  No nuts\n\nLate arrival  ")).toBe(
+        "No nuts Late arrival",
+      );
     });
   });
 
