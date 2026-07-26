@@ -4,7 +4,7 @@
  * process, so the whole thing can be run in a test.
  */
 
-import { red, yellow } from "../precommit/colors.ts";
+import { red, yellow } from "#scripts/precommit/colors.ts";
 import { PR_QUEUE_USAGE, parsePrQueueArgs } from "./args.ts";
 import {
   fetchQueue,
