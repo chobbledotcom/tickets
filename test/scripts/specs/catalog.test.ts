@@ -11,8 +11,13 @@ const FEATURE_PATH = "specs/payments/capacity-after-payment.feature";
 describe("Cucumber story catalog", () => {
   test("reads every story from the repository catalog", async () => {
     expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
+      "attendees.editing-and-moving",
       "attendees.no-quantity-tickets",
+      "bookings.backup-and-restore",
+      "bookings.book-through-the-site",
+      "bookings.volunteer-sign-up",
       "payments.capacity-after-payment",
+      "payments.provider-choice",
       "servicing.hold-and-cost",
     ]);
   });

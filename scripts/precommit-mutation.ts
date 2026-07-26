@@ -21,7 +21,6 @@ import { runMutationStep } from "./precommit/mutation-step.ts";
 import { projectRoot } from "./project-root.ts";
 import { collectFeaturePaths } from "./specs/catalog.ts";
 import { collectTestFiles } from "./test-groups.ts";
-import { scanTestTree } from "./test-tree-scan.ts";
 
 /** Per-mutant timeout floor; mirrors `deno task mutation`'s default. */
 const MUTANT_TIMEOUT_MS = 10_000;
@@ -49,14 +48,6 @@ if (import.meta.main) {
       run: runCommand,
       runMutation: ({ sources, tests }) =>
         runMutationInSnapshot(mutationArgs(sources, tests)),
-      testSubjects: async () => {
-        const scan = await scanTestTree({
-          isTest: (path: string) => /\.test\.tsx?$/.test(path),
-        });
-        return new Map(
-          [...scan.testTreeFiles].map((path) => [path, scan.subjectsOf(path)]),
-        );
-      },
     }),
   );
   Deno.exit(code);

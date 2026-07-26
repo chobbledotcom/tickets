@@ -923,11 +923,9 @@ src/features/api/folded-booking.ts:381:17  1 → 0   # base.dayCount is read onl
 # take the same path anyway.
 scripts/test-subjects.ts:90:9  continue; → (removed)   # a resolved `src/` path is never a member of testTreeFiles (that set only holds files under test/), so falling through reaches `if (!testTreeFiles.has(resolved) ...) continue;` and continues there instead — same walk, same subjects, for every possible input
 
-# Mutation test map: null-coalescing and the integration split.
-scripts/mutation/test-map.ts:112:7  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
-scripts/mutation/test-map.ts:152:28  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
-
-# Precommit mutation gate: helper-subject lookup defaults.
-scripts/precommit/mutation-step.ts:205:49  ?? → ||   # deps.testSubjects?.() yields either a Map (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
-scripts/precommit/mutation-step.ts:210:41  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
+# Test-tree scan: the subject lookup's default for an unselected path.
 scripts/test-tree-scan.ts:62:53  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
+
+# Mutation test map: null-coalescing and the integration split.
+scripts/mutation/test-map.ts:87:7  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
+scripts/mutation/test-map.ts:119:46  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree

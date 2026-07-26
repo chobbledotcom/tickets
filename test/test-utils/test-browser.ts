@@ -198,7 +198,7 @@ const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
     .map((tag) => controlValue(tag, "on"));
 
 /** Sentinel value that tells `appendFormValue` to auto-select every checkbox value. */
-const ALL_CHECKBOXES = "__ALL_CHECKBOXES__";
+export const ALL_CHECKBOXES = "__ALL_CHECKBOXES__";
 
 /**
  * Append a single user-provided form value, first removing any prior entry for
@@ -492,11 +492,6 @@ export class TestBrowser {
   /** Find all links on the current page */
   get links(): LinkMatch[] {
     return findAllLinks(this.currentHtml);
-  }
-
-  /** Extract all checkbox values for a given field name from the current page */
-  getCheckboxValues(fieldName: string): string[] {
-    return extractCheckboxValues(this.currentHtml, fieldName);
   }
 
   /**
