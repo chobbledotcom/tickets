@@ -10,6 +10,7 @@ import { WORLD } from "#shared/accounting/accounts.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
+import { visitorBooks } from "#test/specs/support/public-booking.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -22,7 +23,6 @@ import {
 } from "#test-utils/money/drivers.ts";
 import { attendeeLegsOfKind } from "#test-utils/money/reads.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** The id of a listing the story put on sale, by the name it used. */
 export const listingIdFor = (world: TicketsWorld, name: string): number =>
@@ -166,18 +166,8 @@ export const bookFreePlace = async (
   who: string,
   email: string,
 ): Promise<void> => {
-  // Their own browser, never signed in: this is what a visitor can do.
-  const browser = new TestBrowser();
-  await browser.visit(`/ticket/${listing.slug}`);
-  expect(browser.pageText).toContain(listing.name);
-  await browser.submitForm(
-    { email, name: who, [`quantity_${listing.id}`]: "1" },
-    "Continue",
-  );
-  expect(browser.pageText).toContain("Thank you for your order");
-  world.customerBrowser = browser;
+  await visitorBooks(world, listing, { email, who });
   world.attendeeId = await soleBookingOn(listing.id);
-  world.attendeeName = who;
 };
 
 /** How many times the provider was asked to hand money back. */

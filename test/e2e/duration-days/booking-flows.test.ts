@@ -6,6 +6,7 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { checkGroupCapAfterDurationChange } from "#shared/db/attendees/update.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
@@ -13,7 +14,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
-import { twoGroupedListingsBookedOnAdjacentDays } from "./helpers.ts";
 
 describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () => {
   describe("edge cases", () => {

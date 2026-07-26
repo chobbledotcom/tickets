@@ -8,13 +8,13 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
 import {
   createDailyTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
-import { twoGroupedListingsBookedOnAdjacentDays } from "./helpers.ts";
 
 describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
   describe("public ticket page", () => {

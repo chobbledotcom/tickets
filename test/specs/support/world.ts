@@ -1,5 +1,6 @@
 import type { World } from "@cucumber/cucumber";
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
+import type { Listing } from "#shared/types.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 export interface TicketsWorld extends World {
@@ -8,14 +9,19 @@ export interface TicketsWorld extends World {
   attendeeName?: string;
   backupZip?: Uint8Array;
   bookingPath?: string;
+  bookingWasTaken?: boolean;
   cleanup: Array<() => void | Promise<void>>;
+  closedDayOn?: string;
   customerBrowser?: TestBrowser;
+  daysOffered?: string[];
   evidenceValues: Map<string, string>;
   firstBody?: string;
   firstFailureData?: string;
   firstStatus?: number;
+  groupId?: number;
   groupSlug?: string;
   holdListingId?: number;
+  lengthChangeMessage?: string;
   listingId?: number;
   listingIds: Map<string, number>;
   modifierId?: number;
@@ -26,6 +32,10 @@ export interface TicketsWorld extends World {
   secondStatus?: number;
   servicingEventId?: number;
   sessionId?: string;
+  sharedDayLimit?: number;
+  sharedDayOver?: string;
+  stayListings?: Map<string, Listing>;
+  stayStartsOn?: string;
   testBrowser?: TestBrowser;
   ticketToken?: string;
 }
