@@ -15,11 +15,11 @@
  *   deno task unit-tests-report --json     # machine-readable report
  */
 
+import { cachingReader, collectTestSubjects } from "./test-subjects.ts";
 import {
   findMisplacedTests,
   formatMisplacedSection,
   resolveImportToSourceOrNull,
-  resolveTestImports,
   type TestImports,
 } from "./unit-tests-report-imports.ts";
 import {
@@ -36,7 +36,7 @@ import {
 import { walkFiles } from "./walk-files.ts";
 
 /** A test file with both its line count (for the ratio report) and the `src/`
- *  paths it imports (for the misplaced-test worklist). */
+ *  paths it exercises, its own and its helpers' (for the misplaced worklist). */
 type TestFile = FileLines & TestImports;
 
 /** Walk `root`, keep the files matching `keep`, and build a record from each
@@ -73,15 +73,23 @@ if (import.meta.main) {
       path,
     }),
   );
-  const tests = await collect<TestFile>(
-    options.testRoot,
-    isTestPath,
-    (path, text) => ({
-      imports: resolveTestImports(text, importMap, options.srcRoot),
-      lines: countLines(text),
+  const readText = cachingReader((path: string) => Deno.readTextFile(path));
+  const testTreeFiles = new Set<string>();
+  for await (const path of walkFiles(options.testRoot)) testTreeFiles.add(path);
+  const tests: TestFile[] = [];
+  for (const path of testTreeFiles) {
+    if (!isTestPath(path)) continue;
+    tests.push({
+      imports: await collectTestSubjects(
+        path,
+        readText,
+        importMap,
+        testTreeFiles,
+      ),
+      lines: countLines(await readText(path)),
       path,
-    }),
-  );
+    });
+  }
   const report = buildReport(sources, tests, options);
   // `#routes` is the app entry point; a test importing it is integration, not a
   // single-source unit, so it never counts as a misplaced mirror.
