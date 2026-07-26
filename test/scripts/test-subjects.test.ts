@@ -7,11 +7,15 @@ import {
 } from "#scripts/test-subjects.ts";
 
 const IMPORT_MAP = {
+  "#cli/": "./cli/",
   "#fp": "./src/fp.ts",
+  "#scripts/": "./scripts/",
   "#shared/": "./src/shared/",
   "#test-utils/": "./test/test-utils/",
   "#test/": "./test/",
   "#ui/": "./src/ui/",
+  // A non-alias key that still points into src: only `#` specifiers count.
+  "legacy/": "./src/legacy/",
 };
 
 /** Reads from an in-memory tree; an unknown path throws, as a real read would. */
@@ -73,6 +77,36 @@ describe("test subjects", () => {
           "test/ui/templates/table/component.test.tsx",
         ),
       ).toBe("test/ui/shared.ts");
+    });
+
+    test("resolves an alias that points at a tooling script", () => {
+      expect(
+        resolveProjectImportOrNull(
+          "#scripts/path.ts",
+          IMPORT_MAP,
+          "test/scripts/path.test.ts",
+        ),
+      ).toBe("scripts/path.ts");
+    });
+
+    test("resolves an alias that points at a command-line entry", () => {
+      expect(
+        resolveProjectImportOrNull(
+          "#cli/backup.ts",
+          IMPORT_MAP,
+          "test/scripts/backup.test.ts",
+        ),
+      ).toBe("cli/backup.ts");
+    });
+
+    test("ignores a bare import-map key that is not a # alias", () => {
+      expect(
+        resolveProjectImportOrNull(
+          "legacy/thing.ts",
+          IMPORT_MAP,
+          "test/shared/a.test.ts",
+        ),
+      ).toBeNull();
     });
 
     test("returns null for a module outside the project", () => {

@@ -25,13 +25,13 @@ import {
   workRoot,
   writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
-import { pathExists } from "#test-utils/files.ts";
 import {
   captureMutationCommand,
   runQuietMutationCommand,
   withTempDir,
   writeMovedRunRecord,
-} from "./mutation-isolation-helpers.ts";
+} from "#test/scripts/mutation/isolation-helpers.ts";
+import { pathExists } from "#test-utils/files.ts";
 
 const cleanPassedRunWithRemoveError = async (
   root: string,

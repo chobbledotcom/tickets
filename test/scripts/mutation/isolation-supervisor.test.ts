@@ -13,14 +13,14 @@ import {
   withMutationRunLock,
   writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
-import { pathExists } from "#test-utils/files.ts";
 import {
   captureConsole,
   captureMutationCommand,
   runQuietMutationCommand,
   withTempDir,
   writeFakeMutationScript,
-} from "./mutation-isolation-helpers.ts";
+} from "#test/scripts/mutation/isolation-helpers.ts";
+import { pathExists } from "#test-utils/files.ts";
 
 const wait = async (milliseconds: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));

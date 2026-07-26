@@ -59,6 +59,87 @@ describe("mutation test map", () => {
     });
   });
 
+  test("falls back to a test that exercises a source through a helper", () => {
+    expect(
+      selectMutationTests(
+        ["src/ui/table/component.tsx"],
+        ["test/ui/table/rendering.test.ts", "test/shared/other.test.ts"],
+        [],
+        (testFile) =>
+          testFile === "test/ui/table/rendering.test.ts"
+            ? ["src/ui/table/component.tsx"]
+            : [],
+      ),
+    ).toEqual(["test/ui/table/rendering.test.ts"]);
+  });
+
+  test("prefers the mirrored test and ignores helper matches for that source", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        ["test/shared/a.test.ts", "test/elsewhere.test.ts"],
+        [],
+        () => ["src/shared/a.ts"],
+      ),
+    ).toEqual(["test/shared/a.test.ts"]);
+  });
+
+  test("never selects an integration test through the helper fallback", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        ["test/integration/a.test.ts"],
+        [],
+        () => ["src/shared/a.ts"],
+      ),
+    ).toEqual([]);
+  });
+
+  test("gives an unmirrored test to the source its helpers exercise", () => {
+    expect(
+      buildMutationTestMap(
+        ["src/ui/table/component.tsx"],
+        ["test/ui/table/rendering.test.ts"],
+        () => ["src/ui/table/component.tsx"],
+      ),
+    ).toEqual({
+      integrationTestFiles: [],
+      targets: [
+        {
+          directTestFiles: ["test/ui/table/rendering.test.ts"],
+          sourceFile: "src/ui/table/component.tsx",
+        },
+      ],
+    });
+  });
+
+  test("still rejects an unmirrored test that exercises no selected source", () => {
+    expect(() =>
+      buildMutationTestMap(
+        ["src/shared/a.ts"],
+        ["test/shared/stray.test.ts"],
+        () => ["src/shared/unselected.ts"],
+      ),
+    ).toThrow("Mutation tests must mirror a selected source");
+  });
+
+  test("mirrors a tooling source to its test/ path", () => {
+    expect(
+      buildMutationTestMap(
+        ["scripts/test-subjects.ts"],
+        ["test/scripts/test-subjects.test.ts"],
+      ),
+    ).toEqual({
+      integrationTestFiles: [],
+      targets: [
+        {
+          directTestFiles: ["test/scripts/test-subjects.test.ts"],
+          sourceFile: "scripts/test-subjects.ts",
+        },
+      ],
+    });
+  });
+
   test("keeps explicit integration tests for the later stage", () => {
     const result = buildMutationTestMap(
       ["src/shared/a.ts"],
@@ -196,8 +277,27 @@ describe("mutation test map", () => {
 
   test("requires mutable sources to have a mirror-located direct test", () => {
     expect(() => requireDirectMutationTests("src/shared/a.ts", 1, [])).toThrow(
-      "No direct test mirrors src/shared/a.ts",
+      "No direct test mirrors src/shared/a.ts. " +
+        "Move its test to the matching path under test/.",
     );
+  });
+
+  test("accepts a single direct test file", () => {
+    expect(
+      requireDirectMutationTests("src/shared/a.ts", 3, [
+        "test/shared/a.test.ts",
+      ]),
+    ).toBe(undefined);
+  });
+
+  test("runs all Features when shared Cucumber support code changes", () => {
+    expect(
+      selectMutationTests(
+        ["src/shared/a.ts"],
+        ["test/shared/a.test.ts", "specs/payments/a.feature"],
+        ["test/specs/support/world.ts"],
+      ),
+    ).toEqual(["test/shared/a.test.ts", "specs/payments/a.feature"]);
   });
 
   test("allows sources without operators to omit a direct test", () => {

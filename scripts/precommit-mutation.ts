@@ -21,6 +21,8 @@ import { runMutationStep } from "./precommit/mutation-step.ts";
 import { projectRoot } from "./project-root.ts";
 import { collectFeaturePaths } from "./specs/catalog.ts";
 import { collectTestFiles } from "./test-groups.ts";
+import { cachingReader, collectTestSubjects } from "./test-subjects.ts";
+import { collectFiles } from "./walk-files.ts";
 
 /** Per-mutant timeout floor; mirrors `deno task mutation`'s default. */
 const MUTANT_TIMEOUT_MS = 10_000;
@@ -48,6 +50,32 @@ if (import.meta.main) {
       run: runCommand,
       runMutation: ({ sources, tests }) =>
         runMutationInSnapshot(mutationArgs(sources, tests)),
+      testSubjects: async () => {
+        const importMap = JSON.parse(
+          await Deno.readTextFile("deno.json"),
+        ).imports;
+        const readText = cachingReader((path: string) =>
+          Deno.readTextFile(path),
+        );
+        const testTreeFiles = new Set(await collectFiles("test", () => true));
+        const entries = await Promise.all(
+          [...testTreeFiles]
+            .filter((path) => /\.test\.tsx?$/.test(path))
+            .map(
+              async (path) =>
+                [
+                  path,
+                  await collectTestSubjects(
+                    path,
+                    readText,
+                    importMap,
+                    testTreeFiles,
+                  ),
+                ] as const,
+            ),
+        );
+        return new Map(entries);
+      },
     }),
   );
   Deno.exit(code);

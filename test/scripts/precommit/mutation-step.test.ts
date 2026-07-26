@@ -80,6 +80,34 @@ describe("partitionChanged", () => {
     expect(result).toEqual({ sources: [], tests: [] });
   });
 
+  test("ignores a test-shaped file outside the test tree", () => {
+    expect(partitionChanged(["e2e-payments/src/tunnel.test.ts"])).toEqual({
+      sources: [],
+      tests: [],
+    });
+  });
+
+  test("ignores a non-TypeScript file inside the Cucumber support tree", () => {
+    expect(partitionChanged(["test/specs/support/fixture.json"])).toEqual({
+      sources: [],
+      tests: [],
+    });
+  });
+
+  test("ignores a non-Feature file inside the specs tree", () => {
+    expect(partitionChanged(["specs/README.md"])).toEqual({
+      sources: [],
+      tests: [],
+    });
+  });
+
+  test("ignores a Feature file outside the specs tree", () => {
+    expect(partitionChanged(["docs/tour.feature"])).toEqual({
+      sources: [],
+      tests: [],
+    });
+  });
+
   test("separates a mixed changed set into sources and tests", () => {
     const result = partitionChanged([
       "src/shared/dates.ts",
@@ -97,13 +125,18 @@ describe("partitionChanged", () => {
  *  test can assert the base ref `changedFiles` resolved. */
 const recordingGit = (
   opts: Parameters<typeof fakeGit>[0],
-): { diffArgs: () => string[] | undefined; run: RunCommand } => {
+): {
+  calls: () => string[][];
+  diffArgs: () => string[] | undefined;
+  run: RunCommand;
+} => {
   const inner = fakeGit(opts);
-  let diffArgs: string[] | undefined;
+  const calls: string[][] = [];
   return {
-    diffArgs: () => diffArgs,
+    calls: () => calls,
+    diffArgs: () => calls.find((cmd) => cmd[1] === "diff"),
     run: (cmd) => {
-      if (cmd[1] === "diff") diffArgs = cmd;
+      calls.push([...cmd]);
       return inner(cmd);
     },
   };
@@ -119,6 +152,15 @@ describe("changedFiles", () => {
       "--name-only",
       "--diff-filter=ACMR",
       "origin/main...HEAD",
+    ]);
+  });
+
+  test("asks git whether each candidate base ref exists", async () => {
+    const git = recordingGit({ base: "main", diff: ok("") });
+    await changedFiles(git.run);
+    expect(git.calls().slice(0, 2)).toEqual([
+      ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
+      ["git", "rev-parse", "--verify", "--quiet", "main"],
     ]);
   });
 
@@ -176,6 +218,14 @@ describe("mutationNoticeSummary", () => {
       `${MUTATION_NOTICE_PREFIX}stale base, run git fetch\n` +
         `${MUTATION_NOTICE_PREFIX}no changed tests`,
     );
+  });
+
+  test("returns a lone notice on its own", () => {
+    expect(
+      mutationNoticeSummary(
+        ["baseline ok", `${MUTATION_NOTICE_PREFIX}stale base`].join("\n"),
+      ),
+    ).toBe(`${MUTATION_NOTICE_PREFIX}stale base`);
   });
 
   test("returns undefined when there are no notices", () => {
@@ -255,6 +305,28 @@ describe("runMutationStep", () => {
     });
     expect(code).toBe(0);
     expect(mutatedSources).toBe(STALE_BASE_SOURCE_LIMIT);
+  });
+
+  test("selects a test that exercises a changed source through its helpers", async () => {
+    let selected: string[] = [];
+    const code = await runMutationStep({
+      allTestFiles: () => Promise.resolve(["test/ui/rendering.test.ts"]),
+      log: () => {},
+      run: fakeGit({
+        base: "origin/main",
+        diff: ok("src/ui/component.tsx\n"),
+      }),
+      runMutation: (files) => {
+        selected = files.tests;
+        return Promise.resolve(0);
+      },
+      testSubjects: () =>
+        Promise.resolve(
+          new Map([["test/ui/rendering.test.ts", ["src/ui/component.tsx"]]]),
+        ),
+    });
+    expect(code).toBe(0);
+    expect(selected).toEqual(["test/ui/rendering.test.ts"]);
   });
 
   test("passes without running mutation when no src files changed", async () => {
