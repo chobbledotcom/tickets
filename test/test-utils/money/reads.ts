@@ -5,7 +5,11 @@ import {
   revenueAccount,
   WORLD,
 } from "#shared/accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import {
+  accountBalance,
+  allTransfers,
+  transfersByAccount,
+} from "#shared/accounting/queries.ts";
 import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
@@ -149,3 +153,11 @@ export const kindsOf = (legs: Transfer[]): string[] =>
 
 export const legsOfKind = (legs: Transfer[], kind: string): Transfer[] =>
   legs.filter((leg) => leg.kind === kind);
+
+/** The legs of one kind posted to an attendee's own ledger account — e.g. the
+ *  `refund_cash` legs (the money handed back) on their account. */
+export const attendeeLegsOfKind = async (
+  attendeeId: number,
+  kind: string,
+): Promise<Transfer[]> =>
+  legsOfKind(await transfersByAccount(attendeeAccount(attendeeId)), kind);

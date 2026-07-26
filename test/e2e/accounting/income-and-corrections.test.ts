@@ -21,16 +21,13 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
-import { adminFormPost } from "#test-utils/session.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-import { attendeeLegsOfKind } from "./_shared.ts";
 import {
   completePaidOrder,
   describeAccounting,
   postAttendeeBalanceEntry,
   submitRefund,
   withRefundMock,
-} from "./drivers.ts";
+} from "#test-utils/money/drivers.ts";
 import {
   adminPageHtml,
   assertEditPageIncome,
@@ -38,6 +35,7 @@ import {
   assertRenderedModifierRevenue,
   assertRenderedOwed,
   assertStatementBalance,
+  attendeeLegsOfKind,
   incomeOf,
   kindsOf,
   legsOfKind,
@@ -45,7 +43,9 @@ import {
   owedBy,
   sumOfAllBalances,
   worldBalance,
-} from "./ledger-helpers.ts";
+} from "#test-utils/money/reads.ts";
+import { adminFormPost } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describeAccounting(() => {
   test("a real public paid order recognises income shown on the admin pages", async () => {
