@@ -12,8 +12,6 @@ import {
   getQuestionsWithListingIds,
   listingQuestions,
 } from "#shared/db/questions/queries.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   addAnswer,
   createAttendee,
@@ -21,7 +19,9 @@ import {
   createQuestionWithAnswers,
   expectQuestionTexts,
   seedQuestionWithAndWithoutAnswers,
-} from "./helpers.ts";
+} from "#test/shared/db/questions/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("custom questions", { db: true }, () => {
   describe("getQuestionsWithListingIds", () => {
