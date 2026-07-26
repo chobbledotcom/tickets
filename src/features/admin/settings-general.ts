@@ -82,12 +82,10 @@ export const handleEmbedHostsPost = settingsHandler({
     v === ""
       ? t("success.embed_hosts_removed")
       : t("success.embed_hosts_updated"),
-  save: (v) =>
-    settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
-  validate: (v) => {
-    if (v === "") return null;
-    return validateEmbedHosts(v);
-  },
+  // No empty-value special case: an empty list parses to "" and validates as
+  // fine, so clearing the hosts is just the normal path with nothing in it.
+  save: (v) => settings.update.embedHosts(parseEmbedHosts(v).join(", ")),
+  validate: validateEmbedHosts,
 });
 
 /**
