@@ -967,3 +967,6 @@ scripts/compact-test-reporter.ts:443:44  ?? → ||   # locationFromStack returns
 # Mutation summary: grouped results are arrays or absent, never falsy-but-set.
 scripts/mutation/summary.ts:65:69  ?? → ||   # Object.groupBy gives each status a non-empty array or nothing at all, and an array is always truthy
 scripts/mutation/summary.ts:92:33  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
+
+# Lock file: the handle exists only to carry the advisory lock.
+scripts/lock-file.ts:4:41  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock

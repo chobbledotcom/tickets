@@ -84,7 +84,11 @@ describe("the real copy catalog", () => {
   test("holds the English copy the site shows people", () => {
     const catalog = readCatalog(CATALOG_DIR);
     expect(catalog.length).toBeGreaterThan(100);
-    expect(catalog.map((e) => e.file)).toContain("common.json");
+    expect(catalog).toContainEqual({
+      file: "common.json",
+      key: "common.cancel",
+      value: "Cancel",
+    });
   });
 
   test("passes every mechanical simple-language check", () => {

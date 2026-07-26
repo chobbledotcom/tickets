@@ -1,6 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { toDisplayPath } from "#scripts/project-root.ts";
+import { projectRoot, toDisplayPath } from "#scripts/project-root.ts";
+
+describe("projectRoot", () => {
+  test("points at the folder holding the project's own config", async () => {
+    const config = await Deno.readTextFile(`${projectRoot}/deno.json`);
+
+    expect(JSON.parse(config).tasks.precommit).toBeDefined();
+  });
+});
 
 describe("toDisplayPath", () => {
   test("strips a leading ./ from a relative path", () => {

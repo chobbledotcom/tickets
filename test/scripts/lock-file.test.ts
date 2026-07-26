@@ -81,6 +81,39 @@ describe("withFileLock", () => {
   beforeEach(() => removeIfPresent(LOCK_PATH));
   afterEach(() => removeIfPresent(LOCK_PATH));
 
+  test("creates the lock file when it is not there yet", async () => {
+    await withFileLock(LOCK_PATH, () => Promise.resolve());
+
+    expect((await Deno.stat(LOCK_PATH)).isFile).toBe(true);
+  });
+
+  test("keeps two holders in this process from overlapping", async () => {
+    const order: string[] = [];
+    const firstInside = Promise.withResolvers<void>();
+    const releaseFirst = Promise.withResolvers<void>();
+
+    const first = withFileLock(LOCK_PATH, async () => {
+      order.push("first in");
+      firstInside.resolve();
+      await releaseFirst.promise;
+      order.push("first out");
+    });
+    await firstInside.promise;
+
+    const second = withFileLock(LOCK_PATH, () => {
+      order.push("second in");
+      return Promise.resolve();
+    });
+    // Give the second holder real time to take the lock if it can.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(order).toEqual(["first in"]);
+
+    releaseFirst.resolve();
+    await Promise.all([first, second]);
+
+    expect(order).toEqual(["first in", "first out", "second in"]);
+  });
+
   test("runs the task and returns its value", async () => {
     await expect(
       withFileLock(LOCK_PATH, () => Promise.resolve("checked")),
