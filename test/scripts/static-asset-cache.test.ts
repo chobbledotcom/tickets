@@ -18,10 +18,10 @@ import {
   type StaticBundle,
 } from "#scripts/static-assets/session.ts";
 
-const recorded = (path: string, size: number, mtime: number) => ({
+const recorded = (path: string, hash: string, mtime: number) => ({
+  hash,
   mtime,
   path,
-  size,
 });
 
 const manifest = (
@@ -89,8 +89,8 @@ const withBuildDir = async (
 
 describe("static asset cache", () => {
   describe("manifestStillMatches", () => {
-    const input = recorded("/p/src/admin.ts", 10, 500);
-    const output = recorded("/p/static/admin.js", 20, 600);
+    const input = recorded("/p/src/admin.ts", "aaa", 500);
+    const output = recorded("/p/static/admin.js", "bbb", 600);
     const record = manifest([input, output], [output.path]);
 
     test("accepts a build whose every file is untouched", () => {
@@ -99,24 +99,26 @@ describe("static asset cache", () => {
       ).toBe(true);
     });
 
-    test("rejects a build when a source file changed size", () => {
+    test("rejects a build when a source file's contents changed", () => {
       expect(
         manifestStillMatches(
           record,
           [output.path],
-          disk([recorded(input.path, 11, 500), output]),
+          disk([recorded(input.path, "changed", 500), output]),
         ),
       ).toBe(false);
     });
 
-    test("rejects a build when a source file was written again", () => {
+    test("accepts a build when only a file's modified time moved", () => {
+      // Re-saving the same bytes, or a checkout that rewrites timestamps, is
+      // not a reason to rebuild — the assets would come out identical.
       expect(
         manifestStillMatches(
           record,
           [output.path],
-          disk([recorded(input.path, 10, 501), output]),
+          disk([recorded(input.path, input.hash, 999), output]),
         ),
-      ).toBe(false);
+      ).toBe(true);
     });
 
     test("rejects a build when an output file is gone", () => {
@@ -154,10 +156,11 @@ describe("static asset cache", () => {
         await Deno.writeTextFile(path, "hello");
         const info = await Deno.stat(path);
 
+        // SHA-256 of "hello".
         expect(await trackFile(path)).toEqual({
+          hash: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
           mtime: info.mtime?.getTime() ?? 0,
           path,
-          size: 5,
         });
       } finally {
         await Deno.remove(dir, { recursive: true });
@@ -183,10 +186,13 @@ describe("static asset cache", () => {
         await Deno.writeTextFile(present, "abc");
 
         const look = await lookUpTrackedFiles(
-          manifest([recorded(present, 3, 1), recorded(gone, 1, 1)], [present]),
+          manifest(
+            [recorded(present, "abc", 1), recorded(gone, "gone", 1)],
+            [present],
+          ),
         );
 
-        expect(look(present)?.size).toBe(3);
+        expect(look(present)?.hash).toMatch(/^[0-9a-f]{64}$/);
         expect(look(gone)).toBe(null);
         expect(look(join(dir, "never-recorded.js"))).toBe(null);
       } finally {
@@ -196,15 +202,17 @@ describe("static asset cache", () => {
   });
 
   describe("reading and writing the record", () => {
-    test("writes each file once, sorted, dropping any that vanished", async () => {
-      await withBuildDir(async ({ asset, dir, record, source, write }) => {
-        await write({ inputs: [source, source, join(dir, "vanished.js")] });
+    test("writes each file once, in a settled order", async () => {
+      await withBuildDir(async ({ asset, record, source, write }) => {
+        await write({ inputs: [source, source] });
         const written = await readStaticAssetManifest(record);
 
         expect(written?.files.map((file) => file.path)).toEqual(
           [asset, source].sort(),
         );
-        expect(written?.files.map((file) => file.size).sort()).toEqual([1, 2]);
+        expect(
+          written?.files.every((file) => /^[0-9a-f]{64}$/.test(file.hash)),
+        ).toBe(true);
         expect(written?.outputs).toEqual([asset]);
       });
     });
@@ -268,6 +276,15 @@ describe("static asset cache", () => {
         });
       });
     }
+
+    test("records nothing when a source vanished under the build", async () => {
+      await withBuildDir(async ({ dir, record, write }) => {
+        // The build read it, then it was renamed or deleted before we looked.
+        await write({ inputs: [join(dir, "deleted-since.ts")] });
+
+        expect(await readStaticAssetManifest(record)).toBe(null);
+      });
+    });
 
     test("leaves no working file behind when two runs record at once", async () => {
       await withBuildDir(async ({ asset, dir, record, write }) => {

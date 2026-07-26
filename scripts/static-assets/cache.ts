@@ -11,23 +11,29 @@
  * the disk: if nothing moved, the assets on disk are already correct and the
  * build is skipped entirely — esbuild and sass are never even loaded.
  *
- * Size plus modified time, rather than a hash of the contents, keeps the check
- * to one `stat` per file. It errs towards rebuilding (a fresh checkout rewrites
- * modified times), never towards serving a stale asset.
+ * A file is identified by a hash of its contents, not by its size and modified
+ * time. Those two can agree while the contents differ — two same-length saves
+ * inside one clock tick, or a copy that keeps timestamps — and the whole point
+ * of the record is that a skipped build would have produced the very same
+ * bytes. Reading and hashing everything costs about ten milliseconds against a
+ * build of half a second, and it never says "unchanged" when it is not.
  */
 
 import { join } from "node:path";
 import * as v from "valibot";
 import { unique } from "#fp";
+import { sha256Hex } from "#scripts/checksum.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { staticAssetOutputFiles } from "./outfiles.ts";
 
-/** How a file looked when the assets were last built. */
+/** How a file looked when the assets were last built: a hash of its contents,
+ * plus when it was last saved (used only to spot a source that moved while the
+ * build was reading it). */
 const TrackedFileSchema = v.object({
+  hash: v.string(),
   mtime: v.number(),
   path: v.string(),
-  size: v.number(),
 });
 
 export type TrackedFile = v.InferOutput<typeof TrackedFileSchema>;
@@ -65,23 +71,24 @@ const parseOrNull = (text: string): unknown => {
 /** How a file looks right now, or null when it is not there. */
 export const trackFile = async (path: string): Promise<TrackedFile | null> => {
   try {
-    const info = await Deno.stat(path);
+    const [contents, info] = await Promise.all([
+      Deno.readFile(path),
+      Deno.stat(path),
+    ]);
     // Number() of a Date is its timestamp, and of the null a platform without
     // modified times reports, 0 — so every platform gets one plain number.
-    return { mtime: Number(info.mtime), path, size: info.size };
+    return { hash: await sha256Hex(contents), mtime: Number(info.mtime), path };
   } catch (error) {
     rethrowUnlessNotFound(error);
     return null;
   }
 };
 
+/** Same file, byte for byte. Only the contents decide it. */
 const sameFile = (
   recorded: TrackedFile,
   current: TrackedFile | null,
-): boolean =>
-  current !== null &&
-  current.size === recorded.size &&
-  current.mtime === recorded.mtime;
+): boolean => current !== null && current.hash === recorded.hash;
 
 const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((entry, index) => entry === b[index]);
@@ -146,17 +153,23 @@ export interface CompletedStaticAssetBuild {
   startedAt: number;
 }
 
-/** Inputs saved once the build was already reading, so we cannot tell whether
- * the assets were made from the old contents or the new ones. */
-const changedDuringBuild = (
-  files: readonly TrackedFile[],
-  outputs: readonly string[],
-  startedAt: number,
-): TrackedFile[] => {
-  const isOutput = new Set(outputs);
-  return files.filter(
-    (file) => !isOutput.has(file.path) && file.mtime >= startedAt,
-  );
+/**
+ * Did any source move under the build? True when a source was saved once the
+ * build was already reading — so we cannot tell which version the assets were
+ * made from — or has gone entirely since the build read it. Assets the build
+ * wrote itself are exempt: it always writes those after it starts.
+ */
+const sourcesMovedUnderBuild = (
+  build: CompletedStaticAssetBuild,
+  look: (path: string) => TrackedFile | null,
+): boolean => {
+  const isOutput = new Set(build.outputs);
+  return build.inputs
+    .filter((input) => !isOutput.has(input))
+    .some((input) => {
+      const current = look(input);
+      return current === null || current.mtime >= build.startedAt;
+    });
 };
 
 /**
@@ -167,11 +180,12 @@ const changedDuringBuild = (
  * not there, and the next run would skip the build and then fail reading it.
  * That is a broken build, so it throws.
  *
- * A source saved *while* the build was running is different — nothing is
- * broken, we simply cannot say which version of it the assets were made from.
- * Recording it would pin the new timestamp to possibly-old output and hide the
- * change from every later run. So no record is written at all, and the next run
- * rebuilds. Skipping the record is always safe; it only costs one build.
+ * A source that moved under the build — saved, renamed or deleted once the
+ * build was already reading — is different. Nothing is broken; we simply cannot
+ * say which version of it the assets were made from. Recording it would pin the
+ * new contents to possibly-old output and hide the change from every later run.
+ * So no record is written at all, and the next run rebuilds. Skipping the
+ * record is always safe; it only costs one build.
  *
  * The record is written under a name no other run will pick and renamed into
  * place, so neither an interrupted run nor a second runner racing this one can
@@ -191,8 +205,8 @@ export const writeStaticAssetManifest = async (
       `Static asset build did not leave every asset on disk: ${missing.join(", ")}`,
     );
   }
-  const raced = changedDuringBuild(files, build.outputs, build.startedAt);
-  if (raced.length > 0) return;
+  const byPath = new Map(files.map((file) => [file.path, file]));
+  if (sourcesMovedUnderBuild(build, (path) => byPath.get(path) ?? null)) return;
   const pending = `${path}.${crypto.randomUUID()}.pending`;
   await Deno.writeTextFile(
     pending,
