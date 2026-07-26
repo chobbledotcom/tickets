@@ -41,7 +41,7 @@ interface CompleteRunSpecsOptions {
   tags: string;
 }
 
-export interface SpecRunControls {
+interface SpecRunControls {
   beforeRun?: (catalog: SpecCatalog) => void | Promise<void>;
   env?: Record<string, string>;
   onSuccess?: (

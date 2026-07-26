@@ -4,7 +4,7 @@ import {
   isAllowedEvidenceRequest,
   resolveEvidencePath,
 } from "#scripts/specs/evidence/browser.ts";
-import { defineEvidenceCapture } from "#scripts/specs/evidence/capture.ts";
+import { defineEvidenceCapture } from "#scripts/specs/evidence/capture-flow.ts";
 import type { EvidenceCaptureDeclaration } from "#scripts/specs/evidence/schema.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { validFeature } from "#test/scripts/specs/profile-fixture.ts";
@@ -27,11 +27,13 @@ interface CaptureCalls {
   }>;
   browserClosed: number;
   browserContexts: unknown[];
+  captures: Array<{ element: string | undefined; page: unknown }>;
   contextClosed: number;
   continued: string[];
   cookies: unknown[];
   css: string[];
   goto: unknown[];
+  page: unknown;
   serverClosed: number;
   timeout: number[];
   waited: number;
@@ -41,11 +43,13 @@ interface CaptureFixtureOptions {
   blockedUrl?: string;
   browserCloseError?: Error;
   captureError?: Error;
+  contextCloseError?: Error;
   cookie?: string;
   declarations?: readonly EvidenceCaptureDeclaration[];
   feature?: string;
   hookPickle?: number;
   launchError?: Error;
+  serverCloseError?: Error;
 }
 
 const twoCaseFeature = validFeature.replace(
@@ -73,16 +77,28 @@ const captureFixture = (
     attachments: [],
     browserClosed: 0,
     browserContexts: [],
+    captures: [],
     contextClosed: 0,
     continued: [],
     cookies: [],
     css: [],
     goto: [],
+    page: null,
     serverClosed: 0,
     timeout: [],
     waited: 0,
   };
   let routeRequest: ((url: string) => Promise<void>) | undefined;
+  const page = {
+    goto: (path: string, navigation: unknown) => {
+      calls.goto.push({ navigation, path });
+      return Promise.resolve(null);
+    },
+    setDefaultTimeout: (timeout: number) => {
+      calls.timeout.push(timeout);
+    },
+  };
+  calls.page = page;
   const context = {
     addCookies: (cookies: unknown[]) => {
       calls.cookies.push(...cookies);
@@ -90,18 +106,11 @@ const captureFixture = (
     },
     close: () => {
       calls.contextClosed += 1;
-      return Promise.resolve();
+      return options.contextCloseError
+        ? Promise.reject(options.contextCloseError)
+        : Promise.resolve();
     },
-    newPage: () =>
-      Promise.resolve({
-        goto: (path: string, navigation: unknown) => {
-          calls.goto.push({ navigation, path });
-          return Promise.resolve(null);
-        },
-        setDefaultTimeout: (timeout: number) => {
-          calls.timeout.push(timeout);
-        },
-      }),
+    newPage: () => Promise.resolve(page),
     route: (_pattern: string, handler: (route: never) => Promise<void>) => {
       routeRequest = async (url: string) => {
         let continued = false;
@@ -139,7 +148,8 @@ const captureFixture = (
     },
   };
   const capture = defineEvidenceCapture({
-    capturePage: async () => {
+    capturePage: async (page, element) => {
+      calls.captures.push({ element, page });
       if (!routeRequest) throw new Error("Evidence route was not installed");
       await routeRequest(
         options.blockedUrl ?? "http://127.0.0.1:4321/icons.svg",
@@ -159,7 +169,9 @@ const captureFixture = (
       baseUrl: "http://127.0.0.1:4321",
       close: () => {
         calls.serverClosed += 1;
-        return Promise.resolve();
+        return options.serverCloseError
+          ? Promise.reject(options.serverCloseError)
+          : Promise.resolve();
       },
     }),
     waitForPage: () => {
@@ -200,6 +212,11 @@ const expectCaptureClosed = (calls: CaptureCalls): void => {
     server: calls.serverClosed,
   }).toEqual({ browser: 1, context: 1, server: 1 });
 };
+
+const errorMessages = (error: unknown): string[] =>
+  error instanceof AggregateError
+    ? error.errors.flatMap(errorMessages)
+    : [String(error)];
 
 describe("Cucumber evidence browser boundary", () => {
   test("fills encoded World values into a declared path", () => {
@@ -264,6 +281,10 @@ describe("Cucumber evidence capture", () => {
     ]);
     expect(calls.timeout).toEqual([60_000]);
     expect(calls.waited).toBe(1);
+    expect(calls.captures.map(({ element }) => element)).toEqual([
+      "#payment-result",
+    ]);
+    expect(calls.captures[0]?.page).toBe(calls.page);
     expect(calls.continued).toEqual(["http://127.0.0.1:4321/icons.svg"]);
     expect(calls.css[0]).toContain("--test-colour: blue");
     expect(calls.attachments).toEqual([
@@ -337,5 +358,23 @@ describe("Cucumber evidence capture", () => {
 
     await expect(capture(world, hook)).rejects.toThrow("browser close failed");
     expect(calls.serverClosed).toBe(1);
+  });
+
+  test("reports capture and cleanup failures together", async () => {
+    const { calls, capture, hook, world } = captureFixture({
+      browserCloseError: new Error("browser close failed"),
+      captureError: new Error("capture failed"),
+      contextCloseError: new Error("context close failed"),
+      serverCloseError: new Error("server close failed"),
+    });
+
+    const error = await capture(world, hook).catch((reason) => reason);
+    expect(errorMessages(error)).toEqual([
+      "Error: capture failed",
+      "Error: context close failed",
+      "Error: browser close failed",
+      "Error: server close failed",
+    ]);
+    expectCaptureClosed(calls);
   });
 });

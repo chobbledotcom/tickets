@@ -141,6 +141,8 @@ describe("Cucumber evidence schema", () => {
       ],
       [{ ...capture, steps: [] }],
       [{ ...capture, steps: [{ keyword: "*", text: "anything happens" }] }],
+      [{ ...capture, case: { ...capture.case, name: " " } }],
+      [{ ...capture, rule: { ...capture.rule, description: "" } }],
       [
         capture,
         {

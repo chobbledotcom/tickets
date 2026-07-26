@@ -26,7 +26,7 @@ export interface EvidenceBundle {
   manifest: EvidenceManifest;
 }
 
-interface BuildEvidenceBundleInput {
+export interface EvidenceBundleInput {
   catalog: SpecCatalog;
   commit: string;
   declarations: readonly EvidenceCaptureDeclaration[];
@@ -132,7 +132,7 @@ const collectAttachment = (
 };
 
 const collectAttachments = (
-  input: BuildEvidenceBundleInput,
+  input: EvidenceBundleInput,
 ): Map<string, CollectedAttachment> => {
   const expected = new Set(
     input.declarations.flatMap((declaration) =>
@@ -166,7 +166,7 @@ const imageSize = async (
 };
 
 export const buildEvidenceBundle = async (
-  input: BuildEvidenceBundleInput,
+  input: EvidenceBundleInput,
 ): Promise<EvidenceBundle> => {
   const attachments = collectAttachments(input);
   const assets = new Map<string, Uint8Array>();

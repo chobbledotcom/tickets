@@ -63,6 +63,9 @@ jobs:
         if: steps.chromium-cache.outputs.cache-hit == 'true'
         run: deno run -A npm:playwright@${{ steps.playwright.outputs.version }} install-deps chromium
 
+      - name: Test screenshot browser contracts
+        run: deno task test:screenshot-contract
+
       - name: Capture specification evidence
         run: deno task specs:evidence
 
@@ -72,3 +75,4 @@ jobs:
           name: tickets-evidence
           path: reports/evidence
           if-no-files-found: error
+          retention-days: 90

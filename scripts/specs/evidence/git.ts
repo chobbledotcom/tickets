@@ -1,4 +1,4 @@
-import { type RunCommand, runCommand } from "#scripts/precommit/git.ts";
+import type { RunCommand } from "#scripts/precommit/git.ts";
 
 const gitOutput = async (
   run: RunCommand,
@@ -31,5 +31,3 @@ export const defineEvidenceCommit =
     }
     return commit;
   };
-
-export const evidenceCommit = defineEvidenceCommit(runCommand);

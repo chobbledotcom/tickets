@@ -50,7 +50,7 @@ export interface SpecCatalog {
   stories: SpecStory[];
 }
 
-export interface SpecCaseContext {
+interface SpecCaseContext {
   rule: SpecRule;
   specCase: SpecItem;
   story: SpecStory;

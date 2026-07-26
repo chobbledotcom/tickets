@@ -60,11 +60,11 @@ const EvidenceCaptureDeclarationsSchema = v.pipe(
 
 const EvidenceItemSchema = v.strictObject({
   id: stableId("manifest item id"),
-  name: v.string(),
+  name: TrimmedNonEmptyTextSchema,
 });
 
 const NamedEvidenceItemSchema = v.strictObject({
-  description: v.string(),
+  description: TrimmedNonEmptyTextSchema,
   ...EvidenceItemSchema.entries,
 });
 
