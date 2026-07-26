@@ -13,8 +13,11 @@
  * way. It stops at the `src/` boundary — a source's own imports are not the
  * test's subjects, or every test would exercise the whole tree.
  *
- * Both the unit-test coverage report and the mutation gate's test selection use
- * it, so "which source does this test cover?" has one answer in both places.
+ * The unit-test coverage report uses this to work out which source each test
+ * covers. The mutation gate deliberately does not: it selects tests by the
+ * mirror path alone, so a source whose test sits elsewhere is reported as
+ * missing its direct suite and gets moved, rather than quietly running whatever
+ * reaches it through a shared helper.
  * Reading files is the caller's job: pass a `readText`, and the walk stays pure
  * enough to unit-test from an in-memory map.
  */
