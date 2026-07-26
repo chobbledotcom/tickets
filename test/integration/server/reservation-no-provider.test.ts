@@ -2,12 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { requirePublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { settings } from "#shared/db/settings.ts";
-import { bookFreeOrder } from "#test/lib/server-reservation/_shared-setup.ts";
+import { bookFreeOrder } from "#test/integration/server/_shared-setup.ts";
 import {
   createOptionalAddOn,
   latestAttendee,
   submitBuyerOrder,
-} from "#test/lib/server-reservation/helpers.ts";
+} from "#test/test-utils/reservation/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {

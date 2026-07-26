@@ -27,7 +27,7 @@ import {
   setupWithListing,
   signedMeta,
   webhookRequest,
-} from "#test/lib/webhook-price-signature/helpers.ts";
+} from "#test/integration/webhook-price-signature/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";

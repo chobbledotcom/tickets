@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { payMoreListing } from "#test/lib/server-public/can-pay-more-listing.ts";
+import { payMoreListing } from "#test/integration/server/public/can-pay-more-listing.ts";
 import { expectCheckoutRedirect, expectFlash } from "#test-utils/assertions.ts";
 import { hasCheckedInput, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

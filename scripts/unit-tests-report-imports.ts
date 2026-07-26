@@ -28,7 +28,7 @@ import {
 /** A test file paired with the `src/` paths it imports, resolved from aliases. */
 export type TestImports = {
   path: string;
-  imports: string[];
+  imports: readonly string[];
 };
 
 /** The `deno.json` import map: each `#`-alias to the path it maps to. */

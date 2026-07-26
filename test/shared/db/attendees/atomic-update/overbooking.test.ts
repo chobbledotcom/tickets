@@ -5,7 +5,7 @@ import {
   expectMixedStandardAndDailyLines,
   submitNewAttendeeForm,
   tomorrowInTz,
-} from "#test/lib/server-attendee-form/helpers.ts";
+} from "#test/test-utils/attendee-form/helpers.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

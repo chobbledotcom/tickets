@@ -7,7 +7,7 @@ import {
   type TicketListing,
 } from "#shared/booking/model.ts";
 import type { BookingNode, BookingTree } from "#shared/booking/tree.ts";
-import { treePackage } from "#test/lib/package-cap-fixtures.ts";
+import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A resolved package-member line for buildBookingTree inputs. */

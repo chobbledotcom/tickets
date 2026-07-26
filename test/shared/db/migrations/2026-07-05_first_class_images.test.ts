@@ -14,7 +14,7 @@ import { additive } from "#shared/db/migrations/verify.ts";
 import {
   columnNames,
   tableRowCount,
-} from "#test/lib/db/migration-test-helpers.ts";
+} from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";

@@ -4,7 +4,7 @@ import {
   createPaidListing,
   markAsRefunded,
   setupRefundTest,
-} from "#test/lib/server-refunds-helpers.ts";
+} from "#test/features/admin/refunds-helpers.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,

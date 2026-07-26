@@ -7,7 +7,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { WebhookEvent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import { configureSquare } from "#test/lib/square/fixtures.ts";
+import { configureSquare } from "#test/test-utils/square/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockWebhookRequest, withMocks } from "#test-utils/mocks.ts";
 

@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
+import {
+  createMergePair,
+  runMerge,
+} from "#test/shared/merge/attendee-merge/helpers.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createMergePair, runMerge } from "./helpers.ts";
 
 describeWithEnv("attendee merge cleanup", { db: true }, () => {
   test("removes checkout stages for both merged attendees", async () => {
