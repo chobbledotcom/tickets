@@ -177,13 +177,9 @@ describe("fetching the queue", () => {
       stdout: queueReply([pr(1, "MERGEABLE")], true),
     });
 
-    const { morePrs, prs } = await fetchQueue(
-      run,
-      "query {}",
-      "me",
-      "repo",
-      noWait,
-    );
+    // No waiting function passed: nothing here is unsettled, so the real one
+    // is never actually waited on.
+    const { morePrs, prs } = await fetchQueue(run, "query {}", "me", "repo");
 
     expect(morePrs).toBe(true);
     expect(prs.map((p) => p.number)).toEqual([1]);

@@ -8,6 +8,7 @@
  */
 
 import { captureOutput } from "#scripts/process.ts";
+import { delay } from "#shared/now.ts";
 import { stripControlChars } from "./sanitize.ts";
 import type { GraphQlPr } from "./types.ts";
 
@@ -143,10 +144,7 @@ const refetchUnknownMergeability = async (
   owner: string,
   name: string,
   prs: GraphQlPr[],
-  wait: (ms: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => {
-      setTimeout(resolve, ms);
-    }),
+  wait: (ms: number) => Promise<void> = delay,
 ): Promise<void> => {
   let pending = prs.filter((pr) => pr.mergeable === "UNKNOWN");
   for (

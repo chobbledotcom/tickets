@@ -114,21 +114,28 @@ export const queueReply = (nodes: GraphQlPr[], hasNextPage = false): string =>
     },
   });
 
-/** A stand-in `gh` that answers each call in turn and records what it was asked. */
+/**
+ * A stand-in `gh` that answers each call in turn and records what it was asked.
+ * Once the answers run out it keeps repeating the last one.
+ */
 export const ghSaying = (
-  ...replies: Partial<Awaited<ReturnType<GhRunner>>>[]
+  firstReply: Partial<Awaited<ReturnType<GhRunner>>> = {},
+  ...laterReplies: Partial<Awaited<ReturnType<GhRunner>>>[]
 ): { calls: string[][]; run: GhRunner } => {
   const calls: string[][] = [];
-  let call = 0;
+  const remaining = [...laterReplies];
+  let reply = firstReply;
   const run: GhRunner = (args) => {
     calls.push(args);
-    const reply = replies[Math.min(call++, replies.length - 1)] ?? {};
+    const answering = reply;
+    const next = remaining.shift();
+    if (next) reply = next;
     return Promise.resolve({
       code: 0,
       stderr: "",
       stdout: "",
       timedOut: false,
-      ...reply,
+      ...answering,
     });
   };
   return { calls, run };
