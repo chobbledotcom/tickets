@@ -49,10 +49,13 @@ describe("Cucumber evidence style", () => {
 
       for (const name of [
         "--border-radius",
+        "--color-accent",
         "--color-bg",
         "--color-bg-secondary",
         "--color-link",
+        "--color-secondary",
         "--color-secondary-accent",
+        "--color-shadow",
         "--color-table",
         "--color-text",
         "--color-text-secondary",
