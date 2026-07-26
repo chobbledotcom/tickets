@@ -928,3 +928,6 @@ scripts/mutation/test-map.ts:119:46  && → ||   # ownedTest gives every integra
 # SumUp client: values that are never falsy apart from null.
 src/shared/sumup.ts:215:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
 src/shared/sumup.ts:254:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+
+# Bundle AST bench: the parser's filename argument is a diagnostic label only.
+scripts/bench/bundle-composition/javascript-ast.ts:17:28  bundle.js → ""   # oxc uses the name only to label diagnostics and to pick a language from its extension; "bundle.js" and "" both select the default JavaScript parser, and the only parser output this module reads is errors[0].message (which never contains the name) and the node count
