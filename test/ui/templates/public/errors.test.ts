@@ -10,7 +10,7 @@ import {
   siteNotActivatedPage,
   temporaryErrorPage,
 } from "#templates/public/errors.tsx";
-import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
+import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 

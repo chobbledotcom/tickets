@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createQuestion } from "#test/lib/server-questions/helpers.ts";
+import { createQuestion } from "#test/test-utils/questions/helpers.ts";
 import {
   expectFlash,
   expectFlashRedirect,

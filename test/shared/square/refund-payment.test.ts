@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import type { RefundPaymentInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
-import { withSquareClient } from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
+import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 describeSquare(() => {

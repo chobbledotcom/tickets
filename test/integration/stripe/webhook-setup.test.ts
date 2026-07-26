@@ -3,11 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { describeStripe } from "#test/lib/stripe/harness.ts";
+import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import {
   newWebhookApiCalls,
   setupWithWebhookApi,
-} from "#test/lib/stripe/webhook-mocks.ts";
+} from "#test/test-utils/stripe/webhook-mocks.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withFetchMock } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";

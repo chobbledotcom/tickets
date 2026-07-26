@@ -11,7 +11,7 @@ import {
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { uploadRaw } from "#shared/storage.ts";
-import { useLocalStoragePath } from "#test/lib/_shared-site-update.ts";
+import { useLocalStoragePath } from "#test/test-utils/_shared-site-update.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

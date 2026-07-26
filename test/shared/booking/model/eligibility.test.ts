@@ -18,7 +18,7 @@ import {
   resolved,
   today,
   weekdayOf,
-} from "#test/lib/booking-model-fixtures.ts";
+} from "#test/test-utils/booking-model-fixtures.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 describe("booking model — child eligibility", () => {

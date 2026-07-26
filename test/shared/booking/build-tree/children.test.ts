@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { resolved } from "#test/lib/booking-model-fixtures.ts";
-import { treePackage } from "#test/lib/package-cap-fixtures.ts";
+import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
+import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 
 /** A parent (id 1) with one required child (id 9), for tests that only need
  * to vary the child's own listing fields or the surrounding tree input. */

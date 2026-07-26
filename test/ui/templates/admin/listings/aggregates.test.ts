@@ -5,7 +5,7 @@ import {
   ListingAggregateMismatchNotice,
   ListingAggregateMismatchRow,
 } from "#templates/admin/listings/aggregates.tsx";
-import { registerListingTemplateHooks } from "#test/templates/admin/listings/helpers.ts";
+import { registerListingTemplateHooks } from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 

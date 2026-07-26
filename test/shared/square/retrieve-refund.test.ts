@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { retrievePayment, squareApi } from "#shared/square.ts";
-import { withSquareClient } from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
+import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 
 describeSquare(() => {
   describe("retrieveOrder", () => {

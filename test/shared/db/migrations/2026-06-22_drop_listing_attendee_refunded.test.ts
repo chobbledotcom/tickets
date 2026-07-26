@@ -6,7 +6,7 @@ import { recreateTable } from "#shared/db/migrations/schema-sync.ts";
 import {
   columnNames,
   seedPreDropLedgerColumns,
-} from "#test/lib/db/migration-test-helpers.ts";
+} from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

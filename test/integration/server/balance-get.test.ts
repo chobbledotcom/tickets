@@ -10,7 +10,7 @@ import {
   expectRecap,
   getPayPage,
   settle,
-} from "#test/lib/server-balance-helpers.ts";
+} from "#test/integration/balance-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 

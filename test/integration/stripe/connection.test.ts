@@ -14,8 +14,8 @@ import {
   signedWebhook,
   stripeClient,
   withBalanceAndList,
-} from "#test/lib/stripe/fixtures.ts";
-import { describeStripe } from "#test/lib/stripe/harness.ts";
+} from "#test/test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 

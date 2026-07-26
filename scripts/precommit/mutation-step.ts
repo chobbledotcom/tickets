@@ -144,7 +144,7 @@ export const changedFiles = async (
 };
 
 /**
- * The notice lines (stale base, no merge base, no matching tests, …) emitted on
+ * The notice lines (stale base, no merge base, …) emitted on
  * `stdout`, joined for display — or undefined when there are none. Wired as the
  * mutation step's `summary` so these stay visible even though the precommit
  * runner swallows a passing step's output. A normal mutation *run* emits none,
@@ -166,8 +166,10 @@ export const mutationNoticeSummary = (stdout: string): string | undefined => {
  *   - More than `STALE_BASE_SOURCE_LIMIT` changed src files → skip (pass) with a
  *     fetch hint; the local base ref is almost certainly stale.
  *   - No changed src files → nothing to prove; pass.
- *   - Changed src but no matching direct or affected integration tests → skip
- *     (pass). The 100%-coverage gate still applies.
+ *   - Changed src but nothing selected to run → the run still goes ahead, with
+ *     no tests. A source with no test at its mirror is what this gate exists to
+ *     reject, so the runner's missing-direct-test check decides, not a skip. A
+ *     source with nothing to mutate still passes (see code 2 below).
  *   - Otherwise → map every mirror-located direct test to each changed source,
  *     then use affected integration/e2e/Cucumber tests as the later stage. The runner's
  *     exit code passes through, except
@@ -204,16 +206,17 @@ export const runMutationStep = async (
     await deps.allTestFiles(),
     changed.tests,
   );
-  if (tests.length === 0) {
-    deps.log(
-      `${MUTATION_NOTICE_PREFIX}changed src files but no matching test files — ` +
-        "skipping mutation.",
-    );
-    return 0;
-  }
+  // No selected tests is not a reason to skip: a changed source with no test at
+  // its mirror is exactly what the run must reject. runMutationTesting checks
+  // every changed source for a direct test before running anything, so it fails
+  // with "No direct test mirrors X" instead of passing quietly. A source with no
+  // mutants to begin with still passes.
   deps.log(
-    `Mutation-testing ${changed.sources.length} changed src file(s) against ` +
-      `${tests.length} selected test file(s); every mutant must be killed.`,
+    tests.length === 0
+      ? `Mutation-testing ${changed.sources.length} changed src file(s); each ` +
+          "one needs a test at its mirror path."
+      : `Mutation-testing ${changed.sources.length} changed src file(s) against ` +
+          `${tests.length} selected test file(s); every mutant must be killed.`,
   );
   const code = await deps.runMutation({ sources: changed.sources, tests });
   return code === 2 ? 0 : code;

@@ -12,7 +12,7 @@ import {
   packageTree,
   tl,
   treePackage,
-} from "#test/lib/package-cap-fixtures.ts";
+} from "#test/test-utils/package-cap-fixtures.ts";
 
 // PARENT_CHILD_GROUP_UNITS is 2, so a pool of 5 spots fits floor(5/2)=2
 // tickets — used across the group-sharing tests below.

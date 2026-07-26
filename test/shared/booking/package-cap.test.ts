@@ -5,8 +5,8 @@ import {
   groupCapacityInfo,
   packageLimitInfo,
 } from "#shared/booking/package-cap.ts";
-import { resolved } from "#test/lib/booking-model-fixtures.ts";
-import { tl } from "#test/lib/package-cap-fixtures.ts";
+import { resolved } from "#test/test-utils/booking-model-fixtures.ts";
+import { tl } from "#test/test-utils/package-cap-fixtures.ts";
 
 describe("groupCapacityInfo", () => {
   test("wraps the remaining and group-id maps together", () => {
