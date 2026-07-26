@@ -13,8 +13,6 @@ import {
 import type { CapturedOutput } from "#scripts/process.ts";
 import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 
-const ok = capturedOk;
-
 const fail = (stderr = ""): CapturedOutput => capturedFail(1, stderr);
 
 /**
@@ -27,7 +25,9 @@ const fakeGit =
   (opts: { base?: string | null; diff: CapturedOutput }): RunCommand =>
   (cmd) =>
     cmd[1] === "rev-parse"
-      ? Promise.resolve(cmd.at(-1) === (opts.base ?? null) ? ok() : fail())
+      ? Promise.resolve(
+          cmd.at(-1) === (opts.base ?? null) ? capturedOk() : fail(),
+        )
       : Promise.resolve(opts.diff);
 
 describe("partitionChanged", () => {
@@ -136,7 +136,10 @@ const recordingGit = (
 
 describe("changedFiles", () => {
   test("diffs origin/main...HEAD for the branch's files", async () => {
-    const git = recordingGit({ base: "origin/main", diff: ok("src/a.ts\n") });
+    const git = recordingGit({
+      base: "origin/main",
+      diff: capturedOk("src/a.ts\n"),
+    });
     await changedFiles(git.run);
     expect(git.diffArgs()).toEqual([
       "git",
@@ -148,7 +151,7 @@ describe("changedFiles", () => {
   });
 
   test("asks git whether each candidate base ref exists", async () => {
-    const git = recordingGit({ base: "main", diff: ok("") });
+    const git = recordingGit({ base: "main", diff: capturedOk("") });
     await changedFiles(git.run);
     expect(git.calls().slice(0, 2)).toEqual([
       ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
@@ -157,7 +160,7 @@ describe("changedFiles", () => {
   });
 
   test("falls back to local main when origin/main is absent", async () => {
-    const git = recordingGit({ base: "main", diff: ok("") });
+    const git = recordingGit({ base: "main", diff: capturedOk("") });
     await changedFiles(git.run);
     expect(git.diffArgs()?.at(-1)).toBe("main...HEAD");
   });
@@ -166,7 +169,7 @@ describe("changedFiles", () => {
     const changed = await changedFiles(
       fakeGit({
         base: "origin/main",
-        diff: ok("src/a.ts\n  test/a.test.ts  \n\n"),
+        diff: capturedOk("src/a.ts\n  test/a.test.ts  \n\n"),
       }),
     );
     expect(changed).toEqual({
@@ -176,7 +179,9 @@ describe("changedFiles", () => {
   });
 
   test("returns null when neither origin/main nor main exists", async () => {
-    expect(await changedFiles(fakeGit({ diff: ok("src/a.ts\n") }))).toBe(null);
+    expect(
+      await changedFiles(fakeGit({ diff: capturedOk("src/a.ts\n") })),
+    ).toBe(null);
   });
 
   test("returns null on a shallow clone with no merge base", async () => {
@@ -252,11 +257,14 @@ describe("runMutationStep", () => {
   };
 
   test("skips with a notice when the diff cannot be scoped", async () => {
-    await expectSkip(fakeGit({ diff: ok("src/a.ts\ntest/a.test.ts\n") }), [
-      `${MUTATION_NOTICE_PREFIX}no base commit to diff against — missing ` +
-        "origin/main/main, or a shallow clone with no merge base. If shallow, " +
-        "run `git fetch --unshallow`; skipping mutation.",
-    ]);
+    await expectSkip(
+      fakeGit({ diff: capturedOk("src/a.ts\ntest/a.test.ts\n") }),
+      [
+        `${MUTATION_NOTICE_PREFIX}no base commit to diff against — missing ` +
+          "origin/main/main, or a shallow clone with no merge base. If shallow, " +
+          "run `git fetch --unshallow`; skipping mutation.",
+      ],
+    );
   });
 
   test("skips with a fetch hint when the changed set looks stale-base huge", async () => {
@@ -267,7 +275,7 @@ describe("runMutationStep", () => {
     await expectSkip(
       fakeGit({
         base: "origin/main",
-        diff: ok(`${sources.join("\n")}\ntest/a.test.ts\n`),
+        diff: capturedOk(`${sources.join("\n")}\ntest/a.test.ts\n`),
       }),
       [
         `${MUTATION_NOTICE_PREFIX}${STALE_BASE_SOURCE_LIMIT + 1} changed src ` +
@@ -288,7 +296,7 @@ describe("runMutationStep", () => {
       log: () => {},
       run: fakeGit({
         base: "origin/main",
-        diff: ok(`${sources.join("\n")}\ntest/a.test.ts\n`),
+        diff: capturedOk(`${sources.join("\n")}\ntest/a.test.ts\n`),
       }),
       runMutation: (files) => {
         mutatedSources = files.sources.length;
@@ -303,7 +311,7 @@ describe("runMutationStep", () => {
     await expectSkip(
       fakeGit({
         base: "origin/main",
-        diff: ok("docs/guide.md\ntest/a.test.ts\n"),
+        diff: capturedOk("docs/guide.md\ntest/a.test.ts\n"),
       }),
       ["No changed src files — nothing to mutation-test."],
     );
@@ -317,7 +325,10 @@ describe("runMutationStep", () => {
     const code = await runMutationStep({
       allTestFiles: () => Promise.resolve([]),
       log: () => {},
-      run: fakeGit({ base: "origin/main", diff: ok("src/a.ts\nsrc/b.ts\n") }),
+      run: fakeGit({
+        base: "origin/main",
+        diff: capturedOk("src/a.ts\nsrc/b.ts\n"),
+      }),
       runMutation: (files) => {
         mutated = files;
         return Promise.resolve(0);
@@ -336,7 +347,7 @@ describe("runMutationStep", () => {
       log: (message) => logs.push(message),
       run: fakeGit({
         base: "origin/main",
-        diff: ok("src/a.ts\ntest/a.test.ts\n"),
+        diff: capturedOk("src/a.ts\ntest/a.test.ts\n"),
       }),
       runMutation: (files) => {
         received = files;
@@ -360,7 +371,7 @@ describe("runMutationStep", () => {
       log: () => {},
       run: fakeGit({
         base: "origin/main",
-        diff: ok("src/a.ts\ntest/a.test.ts\n"),
+        diff: capturedOk("src/a.ts\ntest/a.test.ts\n"),
       }),
       runMutation: () => Promise.resolve(1),
     });
@@ -373,7 +384,7 @@ describe("runMutationStep", () => {
       log: () => {},
       run: fakeGit({
         base: "origin/main",
-        diff: ok("src/types.ts\ntest/a.test.ts\n"),
+        diff: capturedOk("src/types.ts\ntest/a.test.ts\n"),
       }),
       runMutation: () => Promise.resolve(2),
     });
