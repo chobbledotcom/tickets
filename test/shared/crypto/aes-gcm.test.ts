@@ -6,9 +6,22 @@ import {
   aesGcmDecryptRaw,
   aesGcmEncryptBytes,
   aesGcmEncryptRaw,
-  NODE_AES_MAX_BYTES,
-} from "#shared/crypto/encryption.ts";
+} from "#shared/crypto/aes-gcm.ts";
 import { getRandomBytes } from "#shared/crypto/utils.ts";
+
+/**
+ * How many bytes the authentication tag takes, read from the module's own
+ * output rather than repeated here: encrypting nothing leaves a ciphertext that
+ * is the tag and nothing else.
+ */
+const tagLength = async (): Promise<number> =>
+  (await aesGcmEncryptBytes(new Uint8Array(0), getRandomBytes(AES_KEY_BYTES)))
+    .ciphertext.length;
+
+/** Sizes either side of the payload size at which the module swaps
+ * implementation, so both are exercised without naming the size itself. */
+const SMALL_PAYLOAD_BYTES = 64;
+const BIG_PAYLOAD_BYTES = 256 * 1024;
 
 /** Bytes that are easy to compare and long enough to span many AES blocks. */
 const payload = (length: number): Uint8Array => {
@@ -29,9 +42,6 @@ const expectSameBytes = (actual: Uint8Array, expected: Uint8Array): void => {
   expect(actual.toBase64()).toBe(expected.toBase64());
 };
 
-/** The 16-byte AES-GCM authentication tag appended to every ciphertext. */
-const GCM_TAG_BYTES = 16;
-
 /** Stands in where the size threshold means no Web Crypto key may be asked for. */
 const refuseWebKey = (): Promise<CryptoKey> => {
   throw new Error("asked for a Web Crypto key below the size threshold");
@@ -51,13 +61,12 @@ const asWebKey = (
   );
 
 describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
-  // Both sides of the size threshold, plus the exact boundary, so the small and
-  // large implementations are each exercised by every case below.
+  // The module switches implementation above a payload size it keeps to itself.
+  // These sit either side of it, so both implementations run every case below.
   const sizes = [
     ["empty", 0],
-    ["small", 64],
-    ["at the size threshold", NODE_AES_MAX_BYTES],
-    ["over the size threshold", NODE_AES_MAX_BYTES + 1],
+    ["small", SMALL_PAYLOAD_BYTES],
+    ["big enough to change implementation", BIG_PAYLOAD_BYTES],
   ] as const;
 
   for (const [label, size] of sizes) {
@@ -113,13 +122,13 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
     expect(first.ciphertext.toBase64()).not.toBe(second.ciphertext.toBase64());
   });
 
-  it("appends the 16-byte authentication tag to the ciphertext", async () => {
+  it("appends the authentication tag to the ciphertext", async () => {
     const keyBytes = getRandomBytes(AES_KEY_BYTES);
     const data = payload(100);
 
     const { ciphertext } = await aesGcmEncryptBytes(data, keyBytes);
 
-    expect(ciphertext.length).toBe(data.length + GCM_TAG_BYTES);
+    expect(ciphertext.length).toBe(data.length + (await tagLength()));
   });
 
   it("rejects a payload decrypted with the wrong key", async () => {
@@ -144,9 +153,11 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
     ).rejects.toThrow();
   });
 
-  it("takes a caller's Web Crypto key instead of importing one", async () => {
+  // A big payload is handed to Web Crypto, so a caller that already holds the
+  // matching key can supply it rather than have one imported.
+  it("takes a caller's Web Crypto key for a big payload", async () => {
     const keyBytes = getRandomBytes(AES_KEY_BYTES);
-    const data = payload(NODE_AES_MAX_BYTES + 1);
+    const data = payload(BIG_PAYLOAD_BYTES);
     let imports = 0;
     const webKey = (usage: "encrypt" | "decrypt") => () => {
       imports += 1;
@@ -169,28 +180,47 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
     expect(imports).toBe(2);
   });
 
-  // Each side measures the bytes it is handed, and the ciphertext carries a
-  // 16-byte tag the plaintext does not — so the two thresholds are checked
-  // separately, each against the largest input that must stay off Web Crypto.
-  it("encrypts a payload at the threshold without a Web Crypto key", async () => {
-    const { ciphertext } = await aesGcmEncryptBytes(
-      payload(NODE_AES_MAX_BYTES),
-      getRandomBytes(AES_KEY_BYTES),
+  it("never asks for a Web Crypto key for a small payload", async () => {
+    const keyBytes = getRandomBytes(AES_KEY_BYTES);
+    const data = payload(SMALL_PAYLOAD_BYTES);
+
+    const { iv, ciphertext } = await aesGcmEncryptBytes(
+      data,
+      keyBytes,
       refuseWebKey,
     );
-
-    expect(ciphertext.length).toBe(NODE_AES_MAX_BYTES + GCM_TAG_BYTES);
-  });
-
-  it("decrypts ciphertext at the threshold without a Web Crypto key", async () => {
-    const keyBytes = getRandomBytes(AES_KEY_BYTES);
-    const data = payload(NODE_AES_MAX_BYTES - GCM_TAG_BYTES);
-    const { iv, ciphertext } = await aesGcmEncryptBytes(data, keyBytes);
-    expect(ciphertext.length).toBe(NODE_AES_MAX_BYTES);
 
     expectSameBytes(
       await aesGcmDecryptBytes(iv, ciphertext, keyBytes, refuseWebKey),
       data,
     );
+  });
+
+  // Anything shorter than the tag never came from this format. Reading a tag out
+  // of it would take bytes from the wrong end, so it is refused by name.
+  it("refuses ciphertext too short to hold a tag", async () => {
+    const tag = await tagLength();
+    const keyBytes = getRandomBytes(AES_KEY_BYTES);
+
+    for (const length of [0, 1, tag - 1]) {
+      await expect(
+        aesGcmDecryptBytes(
+          getRandomBytes(12),
+          new Uint8Array(length),
+          keyBytes,
+        ),
+      ).rejects.toThrow(`${length} bytes cannot hold a ${tag}-byte`);
+    }
+  });
+
+  it("round-trips an empty payload, whose ciphertext is only the tag", async () => {
+    const keyBytes = getRandomBytes(AES_KEY_BYTES);
+    const { iv, ciphertext } = await aesGcmEncryptBytes(
+      new Uint8Array(0),
+      keyBytes,
+    );
+    expect(ciphertext.length).toBe(await tagLength());
+
+    expect((await aesGcmDecryptBytes(iv, ciphertext, keyBytes)).length).toBe(0);
   });
 });

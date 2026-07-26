@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
   failAfterCleanups,
+  releaseWhenStarted,
   removeIfPresent,
   runCleanups,
   withCleanup,
@@ -145,5 +146,62 @@ describe("script cleanup", () => {
     await removeIfPresent("generated.js");
 
     expect(paths).toEqual(["generated.js"]);
+  });
+});
+
+describe("releaseWhenStarted", () => {
+  /** A resource that takes a moment to arrive, like a spawned mock server. */
+  const arrivesLater = <T>(value: T): Promise<T> =>
+    new Promise((resolve) => setTimeout(() => resolve(value), 5));
+
+  test("releases a resource that only finished starting after the failure", async () => {
+    const stopped: string[] = [];
+    const starting = arrivesLater("mock");
+    const cleanup = releaseWhenStarted(starting, (started) => {
+      stopped.push(started);
+    });
+
+    // The work fails immediately — long before the resource is up. This is the
+    // case a "did it finish yet" check gets wrong, leaving the process behind.
+    await expect(
+      withCleanup(() => Promise.reject(new Error("setup failed")), [cleanup]),
+    ).rejects.toThrow("setup failed");
+
+    expect(stopped).toEqual(["mock"]);
+  });
+
+  test("releases a resource that had already started", async () => {
+    const stopped: string[] = [];
+    const cleanup = releaseWhenStarted(Promise.resolve("mock"), (started) => {
+      stopped.push(started);
+    });
+
+    await withCleanup(() => Promise.resolve("done"), [cleanup]);
+
+    expect(stopped).toEqual(["mock"]);
+  });
+
+  test("releases nothing when the resource never started", async () => {
+    let released = 0;
+    const cleanup = releaseWhenStarted(
+      Promise.reject(new Error("could not start")),
+      () => {
+        released += 1;
+      },
+    );
+
+    await withCleanup(() => Promise.resolve("done"), [cleanup]);
+
+    expect(released).toBe(0);
+  });
+
+  test("surfaces a failure to release the resource", async () => {
+    const cleanup = releaseWhenStarted(arrivesLater("mock"), () => {
+      throw new Error("could not stop the mock");
+    });
+
+    await expect(
+      withCleanup(() => Promise.resolve("done"), [cleanup]),
+    ).rejects.toThrow("could not stop the mock");
   });
 });

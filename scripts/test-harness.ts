@@ -12,7 +12,11 @@
  */
 
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
-import { failAfterCleanups, withCleanup } from "./cleanup.ts";
+import {
+  failAfterCleanups,
+  releaseWhenStarted,
+  withCleanup,
+} from "./cleanup.ts";
 import {
   estimateTapEventCount,
   hasReporterArg,
@@ -177,10 +181,10 @@ export const withTestHarness = async <T>(
   task: (resources: TestHarnessResources) => Promise<T>,
 ): Promise<T> => {
   const startingStripeMock = startStripeMock();
-  // A start failure is surfaced where it is awaited below, and again by the
-  // cleanup. Claiming it here as well keeps it from also being reported as an
-  // unhandled rejection when a step before that await throws first.
-  startingStripeMock.catch(() => {});
+  const stopStripeMock = releaseWhenStarted(startingStripeMock, (mock) => {
+    harnessLog("Stopping stripe-mock...");
+    return mock.stop();
+  });
 
   let staticAssets: StaticAssetBuild | null = null;
   let cleanupTestState: (() => Promise<void>) | null = null;
@@ -199,14 +203,7 @@ export const withTestHarness = async <T>(
       () => task({ staticAssets: assets }),
     );
   }, [
-    // Wait on the start rather than a "did it finish" flag: an earlier step
-    // failing must still stop a mock that came up after that failure.
-    async () => {
-      const mock = await startingStripeMock.catch(() => null);
-      if (!mock) return;
-      harnessLog("Stopping stripe-mock...");
-      await mock.stop();
-    },
+    stopStripeMock,
     async () => {
       if (cleanupTestState) await cleanupTestState();
     },

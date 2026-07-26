@@ -69,6 +69,32 @@ export const withCleanup = async <T>(
   return outcome.value;
 };
 
+/**
+ * Clean up something that is still being started.
+ *
+ * Starting a slow resource early so its wait overlaps other setup means the
+ * setup after it can fail while the resource is still on its way. Checking a
+ * "did it finish" variable at clean-up time would miss it and leak whatever
+ * arrived afterwards, so the returned task waits for the start to settle and
+ * releases whatever it produced. A start that failed has nothing to release,
+ * and its error is left to whoever awaited the start itself.
+ */
+export const releaseWhenStarted = <T>(
+  starting: Promise<T>,
+  release: (started: T) => void | Promise<void>,
+): CleanupTask => {
+  // Claim the rejection now: without this, a start that fails while the caller
+  // is still busy elsewhere is reported as an unhandled rejection.
+  const settled = starting.then(
+    (started) => started,
+    () => null,
+  );
+  return async () => {
+    const started = await settled;
+    if (started !== null) await release(started);
+  };
+};
+
 export const failAfterCleanups = (
   error: unknown,
   cleanups: readonly CleanupTask[],
