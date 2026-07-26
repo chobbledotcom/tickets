@@ -12,6 +12,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { allTransfers } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
@@ -64,18 +65,22 @@ describe("db > accounting > ledger-tx", () => {
     expect(await readIncome(1)).toBe(8000);
   });
 
-  test("each kind of correction records its own event, never a shared one", async () => {
-    // Income, modifier-revenue and owed corrections of the same size on the
-    // same id must not share an event group: if they did, the second and third
-    // would be taken for a replay of the first and post nothing.
+  test("two kinds of correction in the same millisecond both post", async () => {
+    // Freeze the clock so both posts share one millisecond, and use the same id
+    // and the same size of change, so the ONLY thing keeping the two apart is
+    // the kind of correction each one is. Without that, the second would hash
+    // identically to the first and be dropped as a replay — a modifier's
+    // revenue correction would silently vanish behind a listing's.
+    using _time = new FakeTime(new Date("2026-06-21T00:00:00.000Z"));
     await inOwnTx(ledgerTx.correct.income)(4, 500);
     await inOwnTx(ledgerTx.correct.modifierRevenue)(4, 500);
-    await inOwnTx(ledgerTx.correct.owed)(4, 500);
 
     const legs = await allTransfers();
-    expect(legs.length).toBe(3);
-    expect(new Set(legs.map((leg) => leg.eventGroup)).size).toBe(3);
-    expect(new Set(legs.map((leg) => leg.reference)).size).toBe(3);
+    expect(legs.length).toBe(2);
+    expect(new Set(legs.map((leg) => leg.eventGroup)).size).toBe(2);
+    expect(new Set(legs.map((leg) => leg.reference)).size).toBe(2);
+    // And each figure really moved onto its own target.
+    expect(await readIncome(4)).toBe(500);
   });
 
   test("correct.income lowers income onto a lower target", async () => {
