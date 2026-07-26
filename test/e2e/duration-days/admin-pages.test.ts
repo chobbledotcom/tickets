@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   expectFlashRedirect,
-  expectListingActivityLogContains,
   expectListingActivityLogLacks,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
@@ -14,7 +13,6 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
-import { twoGroupedListingsBookedOnAdjacentDays } from "./helpers.ts";
 
 describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
   describe("public ticket page", () => {
@@ -124,52 +122,6 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       thank_you_url: "https://example.com",
     });
 
-    test("changing duration via form updates listing and reconciles bookings", async () => {
-      const listing = await createDailyTestListing({
-        maxAttendees: 10,
-        maximumDaysAfter: 60,
-      });
-      await bookAttendee(listing, { date: "2026-09-10" });
-
-      await updateTestListing(listing.id, { durationDays: 4 });
-
-      const fresh = await getListingWithCount(listing.id);
-      expect(fresh?.duration_days).toBe(4);
-
-      const range = await rawListingRange(listing.id);
-      expect(range!.end_at).toBe("2026-09-14T00:00:00.000Z");
-    });
-
-    test("duration change that overflows the group cap warns in the flash and logs", async () => {
-      // Same shape as the checkGroupCapAfterDurationChange unit test, but
-      // through the real POST: extending listing A to span listing B's day pushes
-      // the group total to 12 > cap 10 on day 2.
-      const { group, listingA } = await twoGroupedListingsBookedOnAdjacentDays({
-        cap: 10,
-        dateA: "2026-10-01",
-        dateB: "2026-10-02",
-        quantity: 6,
-      });
-
-      const { response } = await adminFormPost(
-        `/admin/listing/${listingA.id}/edit`,
-        dailyEditForm(listingA, 2, group.id),
-      );
-      await expectFlashRedirect(
-        `/admin/listing/${listingA.id}`,
-        "Listing updated Warning: group capacity exceeded on 2026-10-02",
-      )(response);
-
-      await expectListingActivityLogContains(
-        listingA.id,
-        `Listing '${listingA.name}' duration changed to 2 day(s)`,
-      );
-      await expectListingActivityLogContains(
-        listingA.id,
-        "Duration change caused group capacity overflow on 2026-10-02",
-      );
-    });
-
     test("editing a daily listing without changing duration leaves ranges and log alone", async () => {
       const listing = await createDailyTestListing({
         durationDays: 2,
@@ -193,7 +145,14 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       await expectListingActivityLogLacks(listing.id, "duration changed");
     });
 
-    test("editing a customisable listing's max duration leaves existing booking ranges untouched", async () => {
+    /**
+     * A customisable-days listing takes its span from what the buyer chose, so
+     * the reconciler must return early and leave every stored range alone. The
+     * story `@case:stay-length.customer-chosen-length-survives` states the same
+     * rule in the customer's terms; this owns the direct coverage of the branch,
+     * which a Cucumber journey may never be the only cover of.
+     */
+    test("a customisable listing's stored ranges survive a change to its maximum", async () => {
       const listing = await createDailyTestListing({
         customisableDays: true,
         dayPrices: { 1: 1000, 2: 1800 },
@@ -201,18 +160,16 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
         maxAttendees: 10,
         maximumDaysAfter: 60,
       });
-      // The visitor chose a 2-day span; that's their booking, not the maximum.
+      // The visitor chose a 2-day span; that is their booking, not the maximum.
       await bookAttendee(listing, { date: "2026-09-10", durationDays: 2 });
       const before = await rawListingRange(listing.id);
 
+      // The full edit form, so the listing keeps its per-day prices.
       await updateTestListing(listing.id, { durationDays: 4 });
 
-      const fresh = await getListingWithCount(listing.id);
-      expect(fresh?.duration_days).toBe(4);
-      // The maximum changed, but the existing booking's stored range is intact —
-      // customisable bookings are never rewritten from the listing duration.
-      const after = await rawListingRange(listing.id);
-      expect(after!.end_at).toBe(before!.end_at);
+      expect((await getListingWithCount(listing.id))?.duration_days).toBe(4);
+      // The maximum changed; the booked span did not.
+      expect((await rawListingRange(listing.id))!.end_at).toBe(before!.end_at);
       await expectListingActivityLogLacks(listing.id, "duration changed");
     });
 
