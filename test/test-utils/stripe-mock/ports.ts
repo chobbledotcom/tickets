@@ -88,20 +88,26 @@ export const retryWhilePortTaken = async (
  * starting at that moment can take it. Ask again on a fresh port rather than
  * reading that as the failure this test came for.
  */
-export const expectStartFails = (
-  options: StartOptions,
+export const expectStartFailsWith = (
+  startOn: (port: number) => Promise<StartedStripeMock>,
   message?: string,
 ): Promise<void> =>
   retryWhilePortTaken(async () => {
     let portWasTaken = false;
     await withUnusedPort(async (port) => {
-      portWasTaken = await startFailedOrPortTaken(
-        () => startStripeMock({ ...options, port }),
-        message,
-      );
+      portWasTaken = await startFailedOrPortTaken(() => startOn(port), message);
     });
     return portWasTaken;
   });
+
+export const expectStartFails = (
+  options: StartOptions,
+  message?: string,
+): Promise<void> =>
+  expectStartFailsWith(
+    (port) => startStripeMock({ ...options, port }),
+    message,
+  );
 
 export const expectStripeMockFails = (
   options: StartOptions,

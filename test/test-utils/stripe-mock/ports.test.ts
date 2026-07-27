@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  expectStartFailsWith,
   PORT_STEAL_TRIES,
   retryWhilePortTaken,
   startFailedOrPortTaken,
@@ -66,5 +67,33 @@ describe("asking again when the port keeps being taken", () => {
       "kept succeeding",
     );
     expect(asked).toBe(PORT_STEAL_TRIES);
+  });
+});
+
+describe("expecting a start to fail", () => {
+  test("asks again on a fresh port when the first one was taken", async () => {
+    const portsTried: number[] = [];
+    let starts = 0;
+    await expectStartFailsWith((port) => {
+      portsTried.push(port);
+      starts += 1;
+      // The first port is taken by something else, so starting "works".
+      return starts === 1
+        ? startedMock()
+        : Promise.reject(new Error("no good"));
+    }, "no good");
+
+    expect(starts).toBe(2);
+    expect(portsTried[0]).not.toBe(portsTried[1]);
+  });
+
+  test("passes as soon as the start fails for the stated reason", async () => {
+    let starts = 0;
+    await expectStartFailsWith(() => {
+      starts += 1;
+      return Promise.reject(new Error("install lock write failed"));
+    }, "install lock write failed");
+
+    expect(starts).toBe(1);
   });
 });
