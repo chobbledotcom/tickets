@@ -215,6 +215,29 @@ describe("the lock that keeps two runs out of one folder", () => {
     });
   });
 
+  test("takes its own lock again when the folder goes before the lock opens", async () => {
+    await withTempDir(async (root) => {
+      const runFolder = join(root, ".mutation-runs", "mutation-swept-early");
+      let opens = 0;
+      const open = Deno.open;
+      // The first open lands after a clear-up removed the folder we just made.
+      using _open = stub(Deno, "open", ((path: string | URL, options) => {
+        if (!`${path}`.includes("mutation-swept-early")) {
+          return open(path, options);
+        }
+        opens += 1;
+        return opens === 1
+          ? Promise.reject(new Deno.errors.NotFound("swept"))
+          : open(path, options);
+      }) as typeof Deno.open);
+
+      expect(
+        await withMutationRunLock(runFolder, () => Promise.resolve("ran")),
+      ).toBe("ran");
+      expect(opens).toBe(2);
+    });
+  });
+
   test("gives up loudly when the run folder cannot be looked at", async () => {
     await withTempDir(async (root) => {
       const record = {

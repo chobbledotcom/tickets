@@ -140,8 +140,12 @@ export const withMutationRunLock = async <Result>(
   const record = { root: runRootPath };
   const oneGo = async () => {
     await Deno.mkdir(runRootPath, { recursive: true });
-    const file = await openLockFile(runLockPath(record));
-    return await underLockFile(file, record, waitHoweverLong, run);
+    // The folder can go between making it and opening the lock in it, which is
+    // another go rather than a failure. Any other open error is a real one.
+    const file = await nullIfNotFound(openLockFile(runLockPath(record)));
+    return file === null
+      ? null
+      : await underLockFile(file, record, waitHoweverLong, run);
   };
   let held = await oneGo();
   while (held === null) held = await oneGo();
