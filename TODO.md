@@ -2287,3 +2287,44 @@ half-finished checkout record (`src/shared/db/payments/legacy.ts`, around
 line 299), so it marks the tickets as ready to give out again — and keeps them.
 A finished payment should be believed even when its ticket field is empty; the
 half-finished record should only be read when there is no finished one.
+
+## Three more findings, one of them ours
+
+*Origin: Codex review on PR #1962, commit 1a40b5eb.*
+
+**Refreshing cannot repair a refund the books never recorded.** *This one was
+introduced while repairing this branch, in the change that stopped a refresh
+moving money on its own.* `refreshLoadedPayment`
+(`src/features/admin/attendees-edit.ts`, around line 205) only chases charges
+still waiting on the provider. If an earlier refresh got the money back but
+failed to write it into the books, there is nothing left to chase: the list
+comes back empty, so the page says the status is current and the books stay
+wrong, with no button that fixes it.
+
+The condition to fix is `allRefunded`. It currently means "we chased
+something and it all came back", and it needs to mean "nothing is still owed"
+— which is true both when this refresh brought the money back and when an
+earlier one already did. Then the books are written either way, and writing
+them again is safe, because a refund already recorded is left alone. Write the
+failing test first: a payment whose charges are all fully refunded but whose
+books have no refund entry, refreshed, must record it.
+
+**Copying old payments can stop early and fail the upgrade.** The copy takes
+twenty-five old ids at a time and treats a short page as the end
+(`2026-07-26_payment_aggregate.ts`, around line 239). A SumUp payment is known
+by two ids that merge into one, so a full page can come out short while there
+are still ids left. The copy then declares itself finished, the later check
+finds rows it did not copy, and the upgrade fails with a server error instead
+of the "still going" answer it should give. Decide the end from how many old
+ids there were, not how many payments came out.
+
+**An old copy of the site can delete payments mid-upgrade.** The upgrade takes
+several requests, and an older running copy of the site still recognises the
+schema in between. Writes to the old payment tables are blocked while this
+happens, but deletes are not
+(`src/shared/db/migrations/legacy-payment-retirement.ts`, around line 9), so
+that older copy can still tidy up payments or remove an attendee. If it
+removes a row before the upgrade has copied it, the check that everything was
+copied sees an empty table and is satisfied — the payment is gone with nothing
+saying so. Deletes need blocking too, with a way for the upgrade itself to
+clear rows it has already copied.
