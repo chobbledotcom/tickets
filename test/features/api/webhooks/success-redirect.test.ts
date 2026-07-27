@@ -13,7 +13,7 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("payment success redirect", { db: true }, () => {
-  const errors = setupErrorSpy();
+  setupErrorSpy();
 
   const expectPaidSessionParam = async (
     param: "session_id" | "orderId",
