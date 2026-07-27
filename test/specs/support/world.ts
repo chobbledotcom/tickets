@@ -3,6 +3,7 @@ import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
 import type { Listing } from "#shared/types.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";
+import type { WhereTheCodeLed } from "#test/specs/support/printed-code.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
 import type {
   JourneyCatalogSpec,
@@ -25,6 +26,7 @@ export interface TicketsWorld extends World {
   cashBefore?: number;
   cleanup: Array<() => void | Promise<void>>;
   closedDayOn?: string;
+  codeLedTo?: WhereTheCodeLed;
   confirmName?: string;
   customerBrowser?: TestBrowser;
   daysOffered?: Map<string, string[]>;
@@ -51,6 +53,8 @@ export interface TicketsWorld extends World {
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
   placeholderId?: number;
+  printedCode?: string;
+  printedCodeListing?: string;
   questionId?: number;
   raceListing?: string;
   raceLoser?: BookingAttempt;

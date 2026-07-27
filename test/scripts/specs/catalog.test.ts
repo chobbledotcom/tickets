@@ -22,6 +22,7 @@ describe("Cucumber story catalog", () => {
       "bookings.adding-a-booking-by-hand",
       "bookings.backup-and-restore",
       "bookings.book-through-the-site",
+      "bookings.booking-from-a-printed-code",
       "bookings.booking-several-days",
       "bookings.booking-through-the-api",
       "bookings.changes-after-people-have-booked",
