@@ -128,8 +128,10 @@ const waitForOwnedStripeMock = async (
     exited = true;
   });
 
-  const giveUpAt = Date.now() + budgetMs;
-  while (Date.now() < giveUpAt) {
+  // Counted on the clock that only goes forwards, so a system clock correction
+  // mid-start cannot cut the wait short or stretch it.
+  const giveUpAt = performance.now() + budgetMs;
+  while (performance.now() < giveUpAt) {
     if (exited) return false;
     if (await isStripeMockRunning(port)) {
       return await confirmProcessStillRunning(

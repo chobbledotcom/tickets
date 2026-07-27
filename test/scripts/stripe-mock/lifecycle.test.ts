@@ -22,6 +22,7 @@ import {
   writeCountingFailingMock,
   writeDiesWhileConfirmingMock,
   writeFailingMock,
+  writeShortLivedMock,
   writeSlowToListenMock,
   writeSlowToStopMock,
   writeWrongPortMock,
@@ -231,9 +232,12 @@ describe("starting stripe-mock", () => {
 
   test("lets the process that started it exit without stopping it first", async () => {
     await withTempStripeMockPaths(async (paths) => {
-      await writeSlowToListenMock(paths, 0);
+      // Serves its port for a while and then stops itself, so walking away from
+      // it here does not leave a listener behind for the rest of the machine.
+      await writeShortLivedMock(paths);
 
-      const finished = await runsToCompletion(`
+      const finished = await runsToCompletion(
+        `
         import { startStripeMock } from "#scripts/stripe-mock.ts";
         await startStripeMock({
           budgetMs: 1000,
@@ -241,9 +245,12 @@ describe("starting stripe-mock", () => {
           paths: ${JSON.stringify(paths)},
           port: ${await freePort()},
         });
-      `);
+      `,
+        4_000,
+      );
 
-      // A mock still counted as work to wait for would hold this open forever.
+      // A mock still counted as work to wait for would hold this open until the
+      // mock stopped by itself, which is long after the deadline above.
       expect(finished).toBe(true);
     });
   });

@@ -402,21 +402,46 @@ export const withFakeCurl = async (
     await body(fakeCurl);
   });
 
-/** A mock that opens its port, then dies while the starter is confirming it. */
-export const writeDiesWhileConfirmingMock = async (
+/** A mock that opens its port, then does whatever the given perl says next. */
+const writeListeningPerlMock = async (
   paths: TestStripeMockPaths,
-  aliveMs = 30,
+  afterListening: string,
 ): Promise<void> => {
   await Deno.writeTextFile(
     paths.binaryPath,
     [
       "#!/bin/sh",
-      'nc -l -p "$2" -s 127.0.0.1 -w 1 >/dev/null 2>&1 &',
-      `sleep ${aliveMs / 1000}`,
-      "exit 1",
+      `exec perl -MIO::Socket::INET -e 'my $socket=IO::Socket::INET->new(LocalAddr=>"127.0.0.1", LocalPort=>$ARGV[1], Proto=>"tcp", Listen=>5, Reuse=>1) or die $!; ${afterListening}' -- "$@"`,
     ].join("\n"),
   );
   await makeExecutable(paths.binaryPath);
+};
+
+/**
+ * A mock that serves its port for a while and then stops on its own, so a test
+ * that deliberately walks away from one does not leave it behind.
+ */
+export const writeShortLivedMock = async (
+  paths: TestStripeMockPaths,
+  lifetimeSeconds = 8,
+): Promise<void> => {
+  await writeListeningPerlMock(
+    paths,
+    `alarm ${lifetimeSeconds}; while (1) { my $client=$socket->accept(); close $client if $client; }`,
+  );
+};
+
+/** A mock that opens its port, then dies while the starter is confirming it. */
+export const writeDiesWhileConfirmingMock = async (
+  paths: TestStripeMockPaths,
+  aliveMs = 30,
+): Promise<void> => {
+  // The port is opened before the countdown starts, so a slow machine cannot
+  // turn this into a mock that died before it ever listened.
+  await writeListeningPerlMock(
+    paths,
+    `select(undef,undef,undef,${aliveMs / 1000}); exit 1`,
+  );
 };
 
 /** A mock that keeps its port shut until well after the first few polls. */
