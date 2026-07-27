@@ -105,8 +105,8 @@ Given(
 
 When(
   "the organiser stops selling the {word} as a bundle",
-  function (this: TicketsWorld, bundle: string): Promise<void> {
-    return organiserStopsBundling(this, bundle);
+  async function (this: TicketsWorld, bundle: string): Promise<void> {
+    this.bundleRefusal = await organiserStopsBundling(this, bundle);
   },
 );
 
@@ -120,7 +120,7 @@ When(
 When(
   "the organiser tries to delete the {word}",
   async function (this: TicketsWorld, bundle: string): Promise<void> {
-    this.bundleDeleteReply = await organiserDeletesBundle(this, bundle);
+    this.bundleRefusal = await organiserDeletesBundle(this, bundle);
   },
 );
 
@@ -130,7 +130,7 @@ Then(
     // The site's own words, so a refusal that stopped explaining itself — or
     // stopped happening at all — fails here rather than passing quietly.
     expect(
-      requiredWorldValue(this.bundleDeleteReply, "what the organiser was told"),
+      requiredWorldValue(this.bundleRefusal, "what the organiser was told"),
     ).toContain(t("error.sold_hidden_package"));
   },
 );

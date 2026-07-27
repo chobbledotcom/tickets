@@ -1700,3 +1700,25 @@ scaffolding to add inside a test migration.
 Starting point: `src/ui/client/scanner.js`, the confirmation branches around its
 handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
 for how a client script is driven without a real browser.
+
+---
+
+## Prove a bundle's blank price really charges the thing's own price
+
+*Origin: reviewer suggestion (Codex) on PR #1968.*
+
+The story `bookings.selling-things-as-one-bundle` proves the *saving* half of
+the blank-price rule: leaving a part's price empty on the bundle form stores no
+price of its own for that part. It does not prove the *charging* half — that the
+customer is then asked for that thing's own price rather than nothing.
+
+Its rule is worded to say only what it proves. Closing the gap needs a paid
+bundle taken all the way through a payment provider, which is what the money
+stories already set up (`test/specs/support/money-drivers.ts`), so the natural
+home is a scenario there rather than another one here. A bundle mixing an
+overridden part with a blank one, bought and paid for, should be charged the
+override plus the blank part's own price.
+
+Starting point: `packageMemberMaps` in `src/shared/db/groups.ts` for what counts
+as an override, and `test/integration/server/cart-packages.test.ts` for how a
+priced bundle reaches checkout today.

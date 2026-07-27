@@ -108,13 +108,15 @@ export const organiserSellsAsBundle = async (
   return browser.pageText;
 };
 
-/** The organiser stops selling this as a bundle, by clearing the box. */
+/** The organiser stops selling this as a bundle, by clearing the box. Keeps
+ * what they were told, because this is refused for a private bundle. */
 export const organiserStopsBundling = async (
   world: TicketsWorld,
   name: string,
-): Promise<void> => {
+): Promise<string> => {
   const browser = await bundlePage(world, name);
   await browser.submitForm({ is_package: [] }, "Save Changes");
+  return browser.pageText;
 };
 
 /** The organiser lets people see what is inside again. */

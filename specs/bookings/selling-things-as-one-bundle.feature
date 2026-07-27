@@ -5,15 +5,17 @@
 Feature: An organiser sells several things as one bundle
   An organiser can take a group of things they sell and offer the whole group as
   one bundle: a tent, a pitch and a breakfast sold together as a weekend. The
-  bundle charges its own price for each part, so a thing can cost less inside
+  bundle sets its own price for each part, so a thing can cost less inside
   the bundle than on its own. The organiser can also keep what is inside
   private, and sell the bundle purely by its own name.
 
-  @rule:bookings.a-bundle-charges-its-own-price-for-each-part
+  @rule:bookings.a-bundle-sets-its-own-price-for-each-part
   @surface:admin
-  Rule: A bundle charges its own price for each part
-    The organiser sets a price against each thing in the bundle. A price left
-    blank means the bundle charges whatever that thing costs on its own.
+  Rule: A bundle sets its own price for each part
+    The organiser sets a price against each thing in the bundle, and that is
+    what the bundle keeps. A price left blank is not a price of zero: the
+    bundle keeps none of its own for that thing, and the thing's own price
+    stands.
 
     @case:bundles.pricing-each-part
     Scenario: The organiser prices the things inside a bundle
@@ -38,6 +40,7 @@ Feature: An organiser sells several things as one bundle
       And the booking page never named the Breakfast
       And their ticket names the Weekend
       And their ticket never names the Tent
+      And their ticket never names the Breakfast
 
   @rule:bookings.a-private-bundle-that-has-sold-cannot-be-pulled-apart
   @surface:admin
@@ -56,6 +59,7 @@ Feature: An organiser sells several things as one bundle
       When the organiser tries to delete the Weekend
       Then the organiser is told to make its contents public first
       And the Weekend is still there
+      And their ticket names the Weekend
       And their ticket never names the Tent
 
     @case:bundles.unbundling-a-sold-private-bundle-is-refused
@@ -64,7 +68,8 @@ Feature: An organiser sells several things as one bundle
       And the organiser sells the Weekend as a private bundle
       And a customer buys the Weekend
       When the organiser stops selling the Weekend as a bundle
-      Then the Weekend is still sold as one bundle
+      Then the organiser is told to make its contents public first
+      And the Weekend is still sold as one bundle
 
     @case:bundles.deleting-is-allowed-once-the-parts-are-public
     Scenario: The organiser makes the contents public and then deletes the bundle
@@ -75,7 +80,9 @@ Feature: An organiser sells several things as one bundle
       And the organiser tries to delete the Weekend
       Then the Weekend is gone
       And the Tent is still for sale on its own
+      And the Breakfast is still for sale on its own
       And their ticket names the Tent
+      And their ticket names the Breakfast
 
   @rule:bookings.an-open-bundle-can-always-be-pulled-apart
   @surface:admin
