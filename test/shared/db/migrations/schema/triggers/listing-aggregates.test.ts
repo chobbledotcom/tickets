@@ -13,13 +13,14 @@ import {
   getListingWithCount,
   invalidateListingsCache,
 } from "#shared/db/listings/records.ts";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
 } from "#shared/db/migrations/schema/listing-aggregates.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import { BACKFILL_LISTING_AGGREGATES_SQL } from "#shared/db/migrations/schema-sync.ts";
-import { loadMigrations } from "#shared/db/migrations.ts";
+
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { readListingAggregates as aggregates } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

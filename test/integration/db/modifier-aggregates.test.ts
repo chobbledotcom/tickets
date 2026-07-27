@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import { loadMigrations } from "#shared/db/migrations.ts";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
+
 import {
   adjustModifierRevenue,
   getActiveModifiers,

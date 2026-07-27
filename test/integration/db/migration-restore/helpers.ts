@@ -18,6 +18,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import type { Trigger } from "#shared/db/migrations/schema/types.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
@@ -25,7 +26,6 @@ import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
-  loadMigrations,
   type Migration,
   SCHEMA_HASH,
   type SchemaRequirement,
