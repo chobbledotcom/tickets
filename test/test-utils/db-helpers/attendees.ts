@@ -314,6 +314,19 @@ export const createTestAttendeeWithToken = async (
   return { attendee, listing, token };
 };
 
+export const createTestAttendeeWithPhone = async (
+  phone = "+447700900123",
+): Promise<Attendee> => {
+  const { attendee } = await createTestAttendeeWithToken(
+    "Jane",
+    "jane@example.com",
+    { maxAttendees: 100 },
+    1,
+    phone,
+  );
+  return attendee;
+};
+
 /** Create a test attendee for "Alice" and fetch her ticket page body.
  *  Returns both the token (for further URL assertions) and the HTML body. */
 export const fetchAliceTicketPageBody = async (): Promise<{
