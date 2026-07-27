@@ -28,7 +28,7 @@ export const sendFirstSignalImmediately = (): Disposable => {
   }) as typeof Deno.addSignalListener);
 };
 
-export const failSnapshotRead = (reason: unknown): Disposable =>
+const failSnapshotRead = (reason: unknown): Disposable =>
   stub(Deno, "readDir", (() => {
     throw reason;
   }) as typeof Deno.readDir);
@@ -103,7 +103,7 @@ export const readOnlyRunRecord = async (
   return records[0]!;
 };
 
-export const runSimpleSnapshotMutation = (root: string): Promise<number> =>
+const runSimpleSnapshotMutation = (root: string): Promise<number> =>
   runMutationInSnapshot(["src/a.ts", "test/a.test.ts"], root);
 
 export const captureSimpleSnapshotMutation = (
