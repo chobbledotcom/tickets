@@ -6,12 +6,15 @@
  */
 
 import { expect } from "@std/expect";
-import { mapNotNullish } from "#fp";
+import { map, mapNotNullish } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
+import {
+  checkboxValueOffered,
+  whyValueCannotBeSent,
+} from "#test/specs/support/form-controls.ts";
 import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
@@ -74,16 +77,26 @@ const bundleForm = (
   world: TicketsWorld,
   parts: PartOfBundle[],
   html: string,
-): Record<string, string> => {
-  const values: Record<string, string> = {};
-  for (const part of parts) {
-    const box = `package_price_${stayListing(world, part.name).id}`;
-    expect(html).toContain(`name="${box}"`);
-    values[box] =
-      part.bundlePrice === undefined ? "" : part.bundlePrice.toFixed(2);
-  }
-  return values;
-};
+): Record<string, string> =>
+  Object.fromEntries(
+    map((part: PartOfBundle) => {
+      const box = `package_price_${stayListing(world, part.name).id}`;
+      const typed =
+        part.bundlePrice === undefined ? "" : part.bundlePrice.toFixed(2);
+      expect(html).toContain(`name="${box}"`);
+      expect(whyValueCannotBeSent(html, box, typed)).toBeNull();
+      return [box, typed] as const;
+    })(parts),
+  );
+
+/** One of the organiser's own choices on the bundle form, ticked or cleared.
+ * The box has to be there and be usable, so a page that stopped offering it
+ * fails the story rather than the choice being forced through underneath. */
+const choiceOnForm = (
+  html: string,
+  field: string,
+  wanted: boolean,
+): string[] => (wanted ? [checkboxValueOffered(html, field)] : []);
 
 /** The organiser's own page for one bundle. */
 const bundlePage = async (
@@ -102,19 +115,24 @@ export const organiserSellsAsBundle = async (
   world: TicketsWorld,
   name: string,
   parts: PartOfBundle[],
-  options: { keepPartsPrivate?: boolean } = {},
+  keepPartsPrivate: boolean,
 ): Promise<string> => {
   const browser = await bundlePage(world, name);
+  const page = browser.currentHtml;
   await browser.submitForm(
     {
-      ...bundleForm(world, parts, browser.currentHtml),
-      hide_package_listings: options.keepPartsPrivate ? ["1"] : [],
-      is_package: ["1"],
+      ...bundleForm(world, parts, page),
+      hide_package_listings: choiceOnForm(page, PRIVATE_BOX, keepPartsPrivate),
+      is_package: choiceOnForm(page, BUNDLE_BOX, true),
     },
     "Save Changes",
   );
   return browser.pageText;
 };
+
+/** The organiser's two choices on the bundle form. */
+const BUNDLE_BOX = "is_package";
+const PRIVATE_BOX = "hide_package_listings";
 
 /** The organiser stops selling this as a bundle, by clearing the box. Keeps
  * what they were told, because this is refused for a private bundle. */
@@ -123,7 +141,10 @@ export const organiserStopsBundling = async (
   name: string,
 ): Promise<string> => {
   const browser = await bundlePage(world, name);
-  await browser.submitForm({ is_package: [] }, "Save Changes");
+  await browser.submitForm(
+    { is_package: choiceOnForm(browser.currentHtml, BUNDLE_BOX, false) },
+    "Save Changes",
+  );
   return browser.pageText;
 };
 
@@ -133,11 +154,20 @@ export const organiserRevealsParts = async (
   name: string,
 ): Promise<void> => {
   const browser = await bundlePage(world, name);
-  await browser.submitForm({ hide_package_listings: [] }, "Save Changes");
+  await browser.submitForm(
+    {
+      hide_package_listings: choiceOnForm(
+        browser.currentHtml,
+        PRIVATE_BOX,
+        false,
+      ),
+    },
+    "Save Changes",
+  );
 };
 
 /** The bundle as the site has it now, or nothing if it is gone. */
-const storedBundle = (world: TicketsWorld, name: string) =>
+const storedBundleOrNull = (world: TicketsWorld, name: string) =>
   groups.table.findById(bundleNamed(world, name).id);
 
 /** Whether the site is still selling this as one bundle. */
@@ -145,7 +175,7 @@ export const isStillABundle = async (
   world: TicketsWorld,
   name: string,
 ): Promise<boolean> => {
-  const found = await storedBundle(world, name);
+  const found = await storedBundleOrNull(world, name);
   // A bundle that vanished is not the same as one that stopped being a bundle,
   // and answering "no" for both would hide a group the site destroyed.
   if (!found) throw new Error(`The ${name} is gone altogether`);
@@ -233,7 +263,7 @@ export const organiserDeletesBundle = async (
 export const bundleStillExists = async (
   world: TicketsWorld,
   name: string,
-): Promise<boolean> => (await storedBundle(world, name)) !== null;
+): Promise<boolean> => (await storedBundleOrNull(world, name)) !== null;
 
 /** A customer opens one of the bundle's parts on its own. Its page has to
  * answer, be that thing's page, and offer a way to book it — a row left in the
@@ -242,8 +272,10 @@ export const expectPartOnSaleAlone = async (
   world: TicketsWorld,
   part: string,
 ): Promise<void> => {
+  const listing = stayListing(world, part);
   const browser = new TestBrowser();
-  await browser.visit(`/ticket/${stayListing(world, part).slug}`);
+  await browser.visit(`/ticket/${listing.slug}`);
   expect(browser.pageText).toContain(part);
-  expect(browser.currentHtml).toContain('name="quantity_');
+  const box = `quantity_${listing.id}`;
+  expect(whyValueCannotBeSent(browser.currentHtml, box, "1")).toBeNull();
 };

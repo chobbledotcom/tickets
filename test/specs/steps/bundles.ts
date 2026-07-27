@@ -44,7 +44,6 @@ Given(
   },
 );
 
-/** The things the story grouped together, as the organiser will price them. */
 const partsOf = (world: TicketsWorld): ThingForSale[] => {
   const parts = world.bundleParts;
   if (!parts) throw new Error("The story grouped nothing together");
@@ -58,7 +57,7 @@ const sellAsBundle = async function (
   priced: PartOfBundle[],
   keepPartsPrivate: boolean,
 ): Promise<void> {
-  await organiserSellsAsBundle(this, bundle, priced, { keepPartsPrivate });
+  await organiserSellsAsBundle(this, bundle, priced, keepPartsPrivate);
 };
 
 When(

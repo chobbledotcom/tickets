@@ -81,7 +81,8 @@ Feature: An organiser sells several things as one bundle
       And the organiser sells the Weekend as a private bundle
       And a customer buys the Weekend
       When the organiser lets people see what is inside the Weekend
-      And the organiser stops selling the Weekend as a bundle
+      Then the Weekend is still sold as one bundle
+      When the organiser stops selling the Weekend as a bundle
       Then the Weekend is no longer sold as one bundle
       And their ticket names the Tent
       And their ticket names the Breakfast
@@ -92,7 +93,8 @@ Feature: An organiser sells several things as one bundle
       And the organiser sells the Weekend as a private bundle
       And a customer buys the Weekend
       When the organiser lets people see what is inside the Weekend
-      And the organiser tries to delete the Weekend
+      Then the Weekend is still sold as one bundle
+      When the organiser tries to delete the Weekend
       Then the Weekend is gone
       And the Tent is still for sale on its own
       And the Breakfast is still for sale on its own
