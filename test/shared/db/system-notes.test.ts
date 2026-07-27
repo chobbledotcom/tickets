@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { queryOne } from "#shared/db/client.ts";
+import { queryOne, withTransaction } from "#shared/db/client.ts";
 import {
   createOwnerNote,
   createSystemNote,
@@ -14,6 +14,7 @@ import {
   groupNotesByAttendee,
   loadNotesForAttendees,
   loadNotesForListing,
+  updateSystemNote,
 } from "#shared/db/system-notes.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -42,6 +43,22 @@ const rawNote = (attendeeId: number): Promise<{ note: string } | null> =>
   );
 
 describeWithEnv("db > system-notes", { db: true }, () => {
+  test("refuses to rewrite a note that is not this attendee's", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Owner of the note",
+      "note@example.com",
+    );
+
+    await expect(
+      withTransaction((transaction) =>
+        updateSystemNote(attendee.id, 9_999, "Rewritten", transaction),
+      ),
+    ).rejects.toThrow("was not found for attendee");
+  });
+
   test("loads notes scoped to one listing's attendees only", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const other = await createTestListing({ maxAttendees: 50 });
