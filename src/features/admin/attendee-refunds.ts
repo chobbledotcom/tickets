@@ -114,6 +114,17 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     }
     const { references, targets } = refund;
 
+    // Say plainly that payments are not set up, rather than letting the
+    // provider call fail and blaming the payment for maybe being refunded.
+    const { paymentsApi } = await import("#shared/payments.ts");
+    if (paymentsApi.getConfiguredProvider() === null) {
+      return refundError(
+        attendeeId,
+        t("payment.error.provider_not_configured"),
+        returnUrl,
+      );
+    }
+
     const refunded = await refundCandidateAtProvider(
       { attendee: data.attendee, references, targets },
       listingId,

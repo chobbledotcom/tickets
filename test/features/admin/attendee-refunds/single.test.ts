@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
   createPaidListing,
@@ -19,6 +20,7 @@ import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import {
   expectSingleRefundIssued,
   refundUrl,
@@ -201,7 +203,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await submitRefund(ctx);
       await expectFlashRedirect(
         `/admin/attendees/${ctx.attendee.id}/refund`,
-        expect.stringContaining("No payment provider configured"),
+        expect.stringContaining(t("payment.error.provider_not_configured")),
         false,
       )(response);
     });
@@ -267,6 +269,14 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "john@example.com",
         "pi_unrecorded",
       );
+      // The booking has a payment on record — as a migrated one does — but no
+      // ledger entries behind it.
+      await createAggregatePayment({
+        attendeeId: attendee.id,
+        charges: [{ amount: 500, reference: "pi_unrecorded" }],
+        paymentId: "pay_unrecorded",
+        state: "completed",
+      });
       const ctx: RefundCtx = {
         attendee,
         cookie: await testCookie(),
