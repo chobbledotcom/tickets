@@ -18,7 +18,10 @@ import {
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { refundHeaderProbe } from "#test/shared/stripe/refund-header-probe.ts";
-import { stripeCheckoutSession } from "#test/test-utils/stripe/fixtures.ts";
+import {
+  stripeCheckoutSession,
+  stripePaymentIntent,
+} from "#test/test-utils/stripe/fixtures.ts";
 
 const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   cancel_url: "https://example.com/cancel",
@@ -680,10 +683,7 @@ describe("Stripe request transport", () => {
         requested = String(input);
         requestInit = init;
         return Promise.resolve(
-          Response.json({
-            id: "pi_1",
-            latest_charge: { refunded: false },
-          }),
+          Response.json(stripePaymentIntent({ id: "pi_1" })),
         );
       },
       maxNetworkRetries: 0,

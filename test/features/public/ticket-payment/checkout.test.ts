@@ -19,11 +19,20 @@ import { providerCheckoutResult } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
+// A checkout always buys something, so the intent carries one line.
 const intent: CheckoutIntent = {
   address: "",
   date: null,
   email: "buyer@example.com",
-  items: [],
+  items: [
+    {
+      listingId: 7,
+      name: "Test Listing",
+      quantity: 1,
+      slug: "test-listing",
+      unitPrice: 1000,
+    },
+  ],
   name: "Buyer",
   phone: "",
   special_instructions: "",

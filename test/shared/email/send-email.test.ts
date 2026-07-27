@@ -223,7 +223,7 @@ describe("sendEmail", () => {
       { ...testConfig, provider: "invalid" as never },
       minimalMsg,
       undefined,
-      "unknown provider",
+      "Unknown email provider",
     );
   });
 });

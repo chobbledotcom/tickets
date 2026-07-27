@@ -1,4 +1,4 @@
-import type { ErrorCodeType } from "#shared/logger.ts";
+import { type ErrorCodeType, logError } from "#shared/logger.ts";
 
 export type VerifiedWebhookPayload =
   | { valid: true; value: unknown }
@@ -17,7 +17,13 @@ export const finishWebhookVerification = (
   if (!matched) return { error: "Signature verification failed", valid: false };
   try {
     return { valid: true, value: JSON.parse(payload) };
-  } catch {
+  } catch (error) {
+    // The signature matched, so this really is the provider talking and we
+    // still cannot read it. Say so, or the payment goes missing in silence.
+    logError({
+      code: errorCode,
+      detail: `invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    });
     return { error: `Invalid webhook JSON (${errorCode})`, valid: false };
   }
 };

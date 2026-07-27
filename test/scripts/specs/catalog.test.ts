@@ -34,6 +34,7 @@ describe("Cucumber story catalog", () => {
       "payments.free-bookings",
       "payments.income-figures-explained",
       "payments.one-payment-many-listings",
+      "payments.owner-payment-cases",
       "payments.paying-a-deposit",
       "payments.paying-for-a-mixed-order",
       "payments.paying-more-than-the-asking-price",
