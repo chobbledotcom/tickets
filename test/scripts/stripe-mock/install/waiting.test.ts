@@ -44,7 +44,10 @@ const triesWhileWaiting = async (
       }) as typeof Deno.open);
 
       await withInstallLockHeld(paths, async (releaseLock) => {
-        const letGo = wait(HELD_FOR_MS).then(releaseLock);
+        const letGo = (async () => {
+          await wait(HELD_FOR_MS);
+          await releaseLock();
+        })();
         await withFakeCurl(
           `cat ${JSON.stringify(fakeArchive.archivePath)}`,
           async (curl) => {
