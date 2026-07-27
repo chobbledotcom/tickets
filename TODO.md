@@ -1718,3 +1718,27 @@ Starting point: `tryAcquireInstallLock`/`removeStaleInstallLock` in
 and the one to copy; `activeByRecord` in `scripts/mutation/isolation-cleanup.ts`
 is the third; and `test/scripts/stripe-mock/install/stale-locks.test.ts` and
 `waiting.test.ts` say what the timing tests expect.
+
+## Tell a clear-up's hold on a run apart from the run's own
+
+*Origin: reviewer suggestion (Codex) on PR #1957.*
+
+`processBelongsToRun` in `scripts/mutation/isolation-cleanup.ts` decides a run
+belongs to the process in its record when that process is alive *and* somebody
+is holding the run's lock. A clear-up deleting that run's folder holds the same
+lock, so during a deletion the two are indistinguishable.
+
+That matters in one case: the record's process id has since been given to some
+unrelated program. `--kill` then reads "alive and locked" as proof and signals a
+process that has nothing to do with us. Deleting a whole checkout copy takes
+long enough for the window to be real.
+
+It needs the lock evidence tied to the run's own child rather than to whoever
+holds the lock — the holder could write who it is, or a clear-up could hold
+something a run never holds. Either is a change to what a lock means here, which
+is why it did not ride along with PR #1957.
+
+Starting point: `processBelongsToRun` and `removeRun` in
+`scripts/mutation/isolation-cleanup.ts`, `signalRun` in
+`scripts/mutation/isolation.ts` for what acts on the answer, and
+`scripts/held-lock-process.ts` for the process that holds a lock on our behalf.

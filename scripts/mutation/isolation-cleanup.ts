@@ -6,6 +6,7 @@
  */
 
 import { join } from "@std/path";
+import { chunk } from "#fp";
 import { statNumberOrNull, statOrNull } from "#scripts/not-found.ts";
 import { processExists, removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -114,16 +115,32 @@ interface CleanedRuns {
   skipped: MutationRunRecord[];
 }
 
+/**
+ * How many runs to clear away at once. Each one waits for its folder's lock in
+ * a process of its own, and a first run after a long time without one can find
+ * hundreds of folders waiting — enough processes at once to run a machine out
+ * of them.
+ */
+const RUNS_CLEARED_AT_ONCE = 8;
+
 /** Delete every run in `records` that is finished with, and say what happened. */
 export const removeFinishedRuns = async (
   records: MutationRunRecord[],
 ): Promise<CleanedRuns> => {
-  const results = await Promise.all(
-    records.map(async (record) => ({
-      outcome: await removeRun(record),
-      record,
-    })),
-  );
+  const results: {
+    outcome: RemoveRunResult | null;
+    record: MutationRunRecord;
+  }[] = [];
+  for (const someRuns of chunk(RUNS_CLEARED_AT_ONCE)(records)) {
+    results.push(
+      ...(await Promise.all(
+        someRuns.map(async (record) => ({
+          outcome: await removeRun(record),
+          record,
+        })),
+      )),
+    );
+  }
   return {
     failed: results
       .map(({ outcome }) => outcome)
