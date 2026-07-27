@@ -10,7 +10,6 @@ import {
 import {
   captureConsole,
   captureMutationCommand,
-  runQuietMutationCommand,
   withTempDir,
   writeFakeMutationScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
@@ -23,9 +22,13 @@ import {
   denoCommand,
   failRunningStatusWrite,
   failTextFileWrites,
+  finishedChild,
   readOnlyRunRecord,
+  recordingCommand,
+  runSimpleSnapshotMutation,
   SNAPSHOT_FAILED,
   sendFirstSignalImmediately,
+  waitForRecord,
   waitForRunningRecord,
   waitForRunRecord,
   withCapturedStopChild,
@@ -65,25 +68,26 @@ describe("running mutation inside a snapshot", () => {
 
   test("tells the child it is running inside a snapshot", async () => {
     await withTempDir(async (root) => {
-      const marker = join(root, "child-env.txt");
-      await writeFakeMutationScript(
-        root,
-        `await Deno.writeTextFile(${JSON.stringify(marker)},\n` +
-          `  Deno.env.get(${JSON.stringify(MUTATION_SNAPSHOT_CHILD_ENV)}) ?? "unset");\n`,
+      const starts: Deno.CommandOptions[] = [];
+      using _command = stub(
+        denoCommand,
+        "Command",
+        recordingCommand(finishedChild(42_426), starts),
       );
 
-      await runQuietMutationCommand(
-        ["src/a.ts", join(root, "test/a.test.ts")],
-        root,
-      );
+      await captureSimpleSnapshotMutation(root);
 
-      expect(await Deno.readTextFile(marker)).toBe("1");
+      expect(starts[0]?.env?.[MUTATION_SNAPSHOT_CHILD_ENV]).toBe("1");
     });
   });
 
   test("writes the run record before waiting for the lock", async () => {
     await withTempDir(async (root) => {
-      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+      using _command = stub(
+        denoCommand,
+        "Command",
+        recordingCommand(finishedChild(42_427), []),
+      );
       const holderInside = Promise.withResolvers<void>();
       const releaseHolder = Promise.withResolvers<void>();
 
@@ -97,10 +101,7 @@ describe("running mutation inside a snapshot", () => {
       );
       await holderInside.promise;
 
-      const running = runQuietMutationCommand(
-        ["src/a.ts", join(root, "test/a.test.ts")],
-        root,
-      );
+      const running = runSimpleSnapshotMutation(root);
       // The record must be on disk while the run is still queued, so a stray
       // run is findable before it ever starts.
       await waitForRunRecord(root);
@@ -108,6 +109,14 @@ describe("running mutation inside a snapshot", () => {
       releaseHolder.resolve();
       await holding;
       await running;
+    });
+  });
+
+  test("gives up waiting when no run record ever appears", async () => {
+    await withTempDir(async (root) => {
+      await expect(
+        waitForRecord(root, (records) => records[0], "no record", 2),
+      ).rejects.toThrow("no record");
     });
   });
 

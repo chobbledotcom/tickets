@@ -61,28 +61,34 @@ export const failRunningStatusWrite = () => {
 
 export const capturePlainSnapshotFailure = async (
   root: string,
-  extraFailure: (() => Disposable) | null = null,
 ): Promise<Awaited<ReturnType<typeof captureConsole>>> => {
   using _readDir = failSnapshotRead(SNAPSHOT_FAILED);
-  if (extraFailure) {
-    using _extraFailure = extraFailure();
-    return await captureSimpleSnapshotMutation(root);
-  }
   return await captureSimpleSnapshotMutation(root);
 };
 
-export const waitForRunningRecord = async (
+/** Keep reading the run records until one of them answers, or give up. */
+export const waitForRecord = async <Found>(
   root: string,
-): Promise<MutationRunRecord> => {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const record = (await readRunRecords(root)).find(
-      (candidate) => candidate.status === "running",
-    );
-    if (record) return record;
+  look: (records: MutationRunRecord[]) => Found | undefined,
+  giveUpMessage: string,
+  attempts = 200,
+): Promise<Found> => {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const found = look(await readRunRecords(root));
+    if (found !== undefined) return found;
     await wait(10);
   }
-  throw new Error("Mutation child did not start.");
+  throw new Error(giveUpMessage);
 };
+
+export const waitForRunningRecord = (
+  root: string,
+): Promise<MutationRunRecord> =>
+  waitForRecord(
+    root,
+    (records) => records.find((record) => record.status === "running"),
+    "Mutation child did not start.",
+  );
 
 export const writeRecords = async (
   records: MutationRunRecord[],
@@ -91,13 +97,12 @@ export const writeRecords = async (
 };
 
 /** Wait until the run has written its record, so the check is not a race. */
-export const waitForRunRecord = async (root: string): Promise<void> => {
-  for (let attempt = 0; attempt < 200; attempt++) {
-    if ((await readRunRecords(root)).length > 0) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error("The run never wrote its record while waiting for the lock.");
-};
+export const waitForRunRecord = (root: string): Promise<MutationRunRecord> =>
+  waitForRecord(
+    root,
+    (records) => records[0],
+    "The run never wrote its record while waiting for the lock.",
+  );
 
 export const readOnlyRunRecord = async (
   root: string,
@@ -142,6 +147,26 @@ export const childCommand = (child: Deno.ChildProcess) =>
     };
   };
 
+/** A stand-in command that records how each child was started. */
+export const recordingCommand = (
+  child: Deno.ChildProcess,
+  starts: Deno.CommandOptions[],
+) =>
+  function fakeCommand(..._args: unknown[]): {
+    spawn: () => Deno.ChildProcess;
+  } {
+    const [, options] = _args as [unknown, Deno.CommandOptions];
+    starts.push(options);
+    return { spawn: () => child };
+  };
+
+/** A child that has already finished with the given exit code. */
+export const finishedChild = (pid: number, code = 0): Deno.ChildProcess =>
+  ({
+    pid,
+    status: Promise.resolve({ code, signal: null, success: code === 0 }),
+  }) as unknown as Deno.ChildProcess;
+
 export const controlledChild = (
   pid: number,
   onKill: (
@@ -149,7 +174,8 @@ export const controlledChild = (
     finish: (status: Deno.CommandStatus) => void,
   ) => void,
 ) => {
-  let resolveStatus: (status: Deno.CommandStatus) => void = () => {};
+  // The Promise executor below runs at once, so this is set before any use.
+  let resolveStatus!: (status: Deno.CommandStatus) => void;
   const status = new Promise<Deno.CommandStatus>((resolve) => {
     resolveStatus = resolve;
   });
