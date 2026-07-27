@@ -20,7 +20,8 @@ export interface TicketsWorld extends World {
   closedDayOn?: string;
   confirmName?: string;
   customerBrowser?: TestBrowser;
-  daysOffered?: string[];
+  daysOffered?: Map<string, string[]>;
+  daysOfferedLastLook?: string;
   duplicateId?: number;
   duplicateToken?: string;
   evidenceValues: Map<string, string>;
@@ -42,6 +43,8 @@ export interface TicketsWorld extends World {
   orderDay?: string;
   placeholderId?: number;
   questionId?: number;
+  raceListing?: string;
+  raceWinners?: number;
   refundCalls?: () => number;
   secondBody?: string;
   secondStatus?: number;

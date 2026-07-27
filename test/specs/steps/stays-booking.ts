@@ -30,9 +30,19 @@ import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 const stayStart = (world: TicketsWorld): string =>
   requiredWorldValue(world.stayStartsOn, "the stay's first day");
 
-/** The days the page offered when the customer looked. */
+/** The days a listing's page offered when the customer looked at it. */
+export const offeredDaysOf = (world: TicketsWorld, name: string): string[] =>
+  requiredWorldValue(
+    world.daysOffered?.get(name),
+    `the days the ${name} page offered`,
+  );
+
+/** The days the page offered the last time a customer looked. */
 const offeredDays = (world: TicketsWorld): string[] =>
-  requiredWorldValue(world.daysOffered, "the days the page offered");
+  offeredDaysOf(
+    world,
+    requiredWorldValue(world.daysOfferedLastLook, "the listing looked at"),
+  );
 
 /** The day the organiser closed for a holiday. */
 const closedDay = (world: TicketsWorld): string =>
@@ -195,7 +205,9 @@ When(
 When(
   "a customer looks at the days the {word} offers",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    this.daysOffered = await daysOfferedFor(stayListing(this, name));
+    this.daysOffered ??= new Map();
+    this.daysOffered.set(name, await daysOfferedFor(stayListing(this, name)));
+    this.daysOfferedLastLook = name;
   },
 );
 

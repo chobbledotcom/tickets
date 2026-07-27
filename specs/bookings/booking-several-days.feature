@@ -53,6 +53,31 @@ Feature: A customer books a stay of several days
       Then they are told the Cabin has no room for those days
       And the Cabin still holds only the 2 stays it had
 
+  @rule:bookings.longer-stays-leave-fewer-days-to-start-on
+  Rule: Longer stays leave fewer days to start on
+    A stay has to finish inside the window the listing takes bookings for, so
+    the longer each stay is, the fewer days it can start on.
+
+    @case:stay.a-longer-stay-offers-fewer-start-days
+    Scenario: Two listings take bookings the same distance ahead
+      Given a Cabin that is booked 1 day at a time, with room for 5 places a day
+      And a Lodge that is booked 5 days at a time, with room for 5 places a day
+      When a customer looks at the days the Cabin offers
+      And a customer looks at the days the Lodge offers
+      Then the Lodge offers fewer days to start on than the Cabin
+      And the Lodge still offers some days
+
+  @rule:bookings.only-one-of-two-stays-booked-at-once-is-taken
+  Rule: Only one of two stays booked at the same moment is taken
+    Two customers can press Continue on the last place at the same moment. One
+    of them gets it and the other is refused — the day never goes over.
+
+    @case:stay.two-customers-race-for-the-last-stay
+    Scenario: Two customers book the last stay at the same moment
+      Given a Cabin that is booked 2 days at a time, with room for 1 place a day
+      When two customers try to book a Cabin stay starting in 10 days at once
+      Then only one of them got the stay
+
   @rule:bookings.a-stay-cannot-run-into-a-closed-day
   Rule: A stay is never offered a start day that runs into a closed day
     A holiday closes a day. A stay that would cover it cannot start, even when

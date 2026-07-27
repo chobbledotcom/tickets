@@ -60,11 +60,18 @@ export const openStayListing = async (
   name: string,
   days: number,
   placesADay: number,
-  options: { customerPicksDays?: boolean; groupId?: number } = {},
+  options: {
+    bookAheadDays?: number;
+    customerPicksDays?: boolean;
+    groupId?: number;
+  } = {},
 ): Promise<Listing> => {
   const listing = await createDailyTestListing({
     durationDays: days,
     maxAttendees: placesADay,
+    ...(options.bookAheadDays === undefined
+      ? {}
+      : { maximumDaysAfter: options.bookAheadDays }),
     // Room to book several places at once, and the site's own thank-you page, so
     // a story reads what the customer is actually shown.
     maxQuantity: placesADay,
