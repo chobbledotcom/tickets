@@ -17,6 +17,7 @@ import {
 import { validationFailure } from "#routes/api/payment-processing/refunds.ts";
 import type {
   BookingIntent,
+  BookingPayment,
   ListingValidation,
   PaymentFailureResult,
 } from "#routes/api/webhook-types.ts";
@@ -29,7 +30,6 @@ import {
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { resolveNamesConcealed } from "#shared/package-privacy.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
 
 /** Load a listing by ID or return a 404 "Listing not found" error payload. */
 const loadListingOr404 = async (
@@ -116,7 +116,7 @@ const bookingPaths = (intent: BookingIntent): BookingPaths => {
 
 /** Validate all booking items and return per-item pricing info or a failure result. */
 export const validateAllItems = async (
-  session: ValidatedPaymentSession,
+  session: BookingPayment,
   intent: BookingIntent,
 ): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const { allocations, foldedChildIds, standaloneLineIds } =

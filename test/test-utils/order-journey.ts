@@ -18,7 +18,6 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
@@ -28,28 +27,29 @@ import {
   SELECT_PREFIX,
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
-import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { Group, Listing } from "#shared/types.ts";
+import {
+  stripeCharge,
+  stripeCheckoutSession,
+  stripePaymentIntent,
+} from "#test/lib/stripe/fixtures.ts";
+import { loginTestAdminBrowser } from "#test-utils/admin-browser.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { openAttendeeEditor } from "#test-utils/e2e.ts";
-import {
-  TEST_ADMIN_PASSWORD,
-  TEST_ADMIN_USERNAME,
-} from "#test-utils/internal.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
   enablePublicSite,
   setupStripe,
   stubWebhookVerify,
 } from "#test-utils/settings.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
-import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** One package in a journey's catalog: its members sell inside the bundle at
  * the given price (each `quantity` per package unit, default 1). */
@@ -214,17 +214,6 @@ const mintCatalog = async (
   };
 };
 
-/** Log a fresh browser in as the seeded admin through the real login form. */
-const adminBrowser = async (): Promise<TestBrowser> => {
-  const browser = new TestBrowser();
-  await browser.visit("/admin/");
-  await browser.submitForm(
-    { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
-    "Login",
-  );
-  return browser;
-};
-
 /** The gallery's GET-form serialisation for the journey's picks. */
 const selectionUrl = (
   catalog: JourneyCatalog,
@@ -244,23 +233,54 @@ const selectionUrl = (
   return `/order?${picks.join("&")}`;
 };
 
-/** Complete the captured checkout through the provider webhook, exactly as
- * the app signed it: same intent, same metadata builder, same caps. */
+/** Complete the captured checkout through its signed provider notice. */
 const completePaidCheckout = async (
-  intent: CheckoutIntent,
+  checkout: PaymentCheckoutCreateSnapshot,
   sessionId: string,
 ): Promise<void> => {
-  const total = priceCheckout(intent).total;
-  const metadata = await assembleCheckoutMetadata("stripe", intent, total);
-  const verifyStub = await stubWebhookVerify(
-    checkoutSessionEvent({
-      amountTotal: total,
-      eventId: `evt_${sessionId}`,
-      metadata,
-      paymentIntent: `pi_${sessionId}`,
-      sessionId,
+  const amount = checkout.expected.amount;
+  const currency = checkout.expected.currency.toLowerCase();
+  const intentId = `pi_${sessionId}`;
+  using _session = stub(stripeApi, "lookupCheckoutSession", () =>
+    Promise.resolve({
+      status: "found" as const,
+      value: stripeCheckoutSession({
+        amount_total: amount,
+        currency,
+        id: sessionId,
+        metadata: checkout.metadata,
+        payment_intent: intentId,
+      }),
     }),
   );
+  using _intent = stub(stripeApi, "lookupPaymentIntent", () =>
+    Promise.resolve({
+      status: "found" as const,
+      value: stripePaymentIntent({
+        amount,
+        amount_received: amount,
+        currency,
+        id: intentId,
+        latest_charge: stripeCharge({
+          amount,
+          amount_captured: amount,
+          amount_refunded: 0,
+          currency,
+          id: `ch_${sessionId}`,
+          payment_intent: intentId,
+        }),
+      }),
+    }),
+  );
+  const verifyStub = await stubWebhookVerify({
+    eventId: `evt_${sessionId}`,
+    resource: {
+      id: sessionId,
+      kind: "stripe_checkout_session",
+      provider: "stripe",
+    },
+    type: "checkout.session.completed",
+  });
   try {
     const response = await handleRequest(
       mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
@@ -289,7 +309,7 @@ export const runOrderJourney = async (spec: {
   await enablePublicSite();
   await settings.update.orderEnabled(true);
   if (spec.paid) await setupStripe();
-  const browser = await adminBrowser();
+  const browser = await loginTestAdminBrowser();
   const catalog = await mintCatalog(spec.catalog);
 
   // The gallery offers every picked card, and the selection redirects to the
@@ -312,13 +332,20 @@ export const runOrderJourney = async (spec: {
     name: "Journey Buyer",
     ...filled,
   };
-  const captured: { intent: CheckoutIntent | null } = { intent: null };
+  const captured: { checkout: PaymentCheckoutCreateSnapshot | null } = {
+    checkout: null,
+  };
   const sessionId = "cs_order_journey";
   const checkoutStub = spec.paid
-    ? stub(stripePaymentProvider, "createCheckoutSession", (intent) => {
-        captured.intent = intent;
+    ? stub(stripePaymentProvider, "createCheckout", (checkout) => {
+        captured.checkout = checkout;
         return Promise.resolve({
           checkoutUrl: "https://journey.test/checkout",
+          session: {
+            id: sessionId,
+            kind: "stripe_checkout_session" as const,
+            provider: "stripe" as const,
+          },
           sessionId,
         });
       })
@@ -329,8 +356,8 @@ export const runOrderJourney = async (spec: {
       // A free order books immediately.
       expect(browser.currentUrl).toBe("/ticket/reserved");
     } else {
-      expect(captured.intent).not.toBeNull();
-      await completePaidCheckout(captured.intent!, sessionId);
+      expect(captured.checkout).not.toBeNull();
+      await completePaidCheckout(captured.checkout!, sessionId);
     }
   } finally {
     checkoutStub?.restore();

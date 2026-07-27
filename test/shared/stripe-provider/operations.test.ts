@@ -2,505 +2,277 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
-import type { StripeWebhookEvent } from "#shared/stripe/webhook.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
-  signedWebhook,
   stripeCheckoutSession,
   stripeClient,
+  stripeRefund,
 } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { stubPersistedStripeRefund } from "#test/lib/stripe/provider-fixtures.ts";
+import {
+  CHARGE_RESOURCE,
+  REFUND_RESOURCE,
+} from "#test/shared/db/payments/fixtures.ts";
+import { paymentCharge } from "#test/shared/payment-runtime/fixtures.ts";
+import {
+  checkoutIntent,
+  checkoutItem,
+  preparedCheckout,
+} from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { activateStripe } from "#test-utils/settings.ts";
-import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
-describeStripe("stripe-provider", () => {
-  describe("verifyWebhookSignature delegation", () => {
-    test("delegates to Stripe webhook verification", async () => {
-      const TEST_SECRET = "whsec_provider_verify_test";
-      await activateStripe(TEST_SECRET, "we_provider_test");
-
-      const listing: StripeWebhookEvent = {
-        data: { object: { id: "cs_test" } },
-        id: "evt_provider",
-        type: "checkout.session.completed",
-      };
-
-      const { payload, signature } = await signedWebhook(listing, TEST_SECRET);
-
-      const result = await stripePaymentProvider.verifyWebhookSignature(
-        payload,
-        signature,
-        "https://example.com/payment/webhook",
-        new TextEncoder().encode(payload),
-      );
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.listing.id).toBe("evt_provider");
-      }
-    });
-
-    test("returns error for invalid signature", async () => {
-      const TEST_SECRET = "whsec_provider_invalid_test";
-      await activateStripe(TEST_SECRET, "we_provider_inv");
-
-      const timestamp = Math.floor(Date.now() / 1000);
-      const body = '{"test": true}';
-      const result = await stripePaymentProvider.verifyWebhookSignature(
-        body,
-        `t=${timestamp},v1=invalid_sig`,
-        "https://example.com/payment/webhook",
-        new TextEncoder().encode(body),
-      );
-
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Signature verification failed");
-      }
-    });
+const pendingCharge = () =>
+  paymentCharge({
+    pendingRefund: REFUND_RESOURCE,
+    providerReference: CHARGE_RESOURCE,
+    refunded: { amount: 0, currency: "GBP" },
+    refundState: "pending",
   });
 
-  describe("setupWebhookEndpoint delegation", () => {
-    test("delegates to stripe.ts setupWebhookEndpoint", async () => {
-      // Mock stripeApi since setupWebhookEndpointImpl creates its own client
-      using _mockSetup = stub(stripeApi, "setupWebhookEndpoint", () =>
-        Promise.resolve({
-          endpointId: "we_provider_created",
-          secret: "whsec_provider_secret",
-          success: true,
-        }),
-      );
-      const result = await stripePaymentProvider.setupWebhookEndpoint(
-        "sk_test_mock",
-        "https://example.com/payment/webhook",
-      );
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.endpointId).toBe("we_provider_created");
-        expect(result.secret).toBe("whsec_provider_secret");
-      }
-    });
+describe("Stripe refunds", () => {
+  test("returns the exact pending refund resource from the initial response", async () => {
+    await withMocks(
+      () =>
+        stub(stripeApi, "requestRefund", () =>
+          Promise.resolve(stripeRefund({ status: "pending" })),
+        ),
+      async () => {
+        expect(
+          await stripePaymentProvider.refundCharge(
+            paymentCharge({ providerReference: CHARGE_RESOURCE }),
+            "refund-key",
+          ),
+        ).toEqual({
+          amount: { amount: 1_000, currency: "GBP" },
+          refund: REFUND_RESOURCE,
+          status: "pending",
+        });
+      },
+    );
   });
 
-  describe("refundPayment delegation", () => {
-    for (const [status, completed] of [
-      ["succeeded", true],
-      ["pending", false],
-      ["requires_action", false],
-      ["failed", false],
-      ["canceled", false],
-    ] as const) {
-      test(`returns ${completed} when Stripe reports ${status}`, async () => {
-        const client = await stripeClient();
-        await withMocks(
-          () =>
-            stub(client.refunds, "create", () =>
-              Promise.resolve({ id: `re_${status}`, status }),
+  for (const [name, refund] of [
+    ["id", stripeRefund({ id: "refund-wrong" })],
+    ["parent", stripeRefund({ payment_intent: "pi_other" })],
+    ["amount", stripeRefund({ amount: 999 })],
+    ["currency", stripeRefund({ currency: "eur" })],
+  ] as const) {
+    test(`rejects an initial refund with the wrong ${name}`, async () => {
+      await withMocks(
+        () => stub(stripeApi, "requestRefund", () => Promise.resolve(refund)),
+        async () => {
+          await expect(
+            stripePaymentProvider.refundCharge(
+              paymentCharge({ providerReference: CHARGE_RESOURCE }),
+              "refund-key",
             ),
-          async () => {
-            expect(
-              await stripePaymentProvider.refundPayment(`pi_${status}`),
-            ).toBe(completed);
-          },
+          ).rejects.toThrow();
+        },
+      );
+    });
+  }
+
+  test("polls one persisted pending refund through success without another POST", async () => {
+    const values = [
+      stripeRefund({ status: "pending" }),
+      stripeRefund({ status: "succeeded" }),
+    ];
+    await withMocks(
+      () => stubPersistedStripeRefund(() => values.shift()!),
+      async ({ create, retrieve }) => {
+        expect(
+          await stripePaymentProvider.refundCharge(
+            pendingCharge(),
+            "existing-key",
+          ),
+        ).toMatchObject({ refund: REFUND_RESOURCE, status: "pending" });
+        expect(
+          await stripePaymentProvider.refundCharge(
+            pendingCharge(),
+            "existing-key",
+          ),
+        ).toEqual({
+          amount: { amount: 1_000, currency: "GBP" },
+          refund: REFUND_RESOURCE,
+          status: "completed",
+        });
+        expect(retrieve.calls.map((call) => call.args)).toEqual([
+          [REFUND_RESOURCE.id],
+          [REFUND_RESOURCE.id],
+        ]);
+        expect(create.calls).toHaveLength(0);
+      },
+    );
+  });
+
+  test("polls one persisted pending refund through provider failure", async () => {
+    await withMocks(
+      () => stubPersistedStripeRefund(() => stripeRefund({ status: "failed" })),
+      async ({ create }) => {
+        expect(
+          await stripePaymentProvider.refundCharge(
+            pendingCharge(),
+            "existing-key",
+          ),
+        ).toEqual({
+          amount: { amount: 0, currency: "GBP" },
+          reason: "provider_failed",
+          refund: REFUND_RESOURCE,
+          status: "failed",
+        });
+        expect(create.calls).toHaveLength(0);
+      },
+    );
+  });
+
+  test("keeps a transient refund lookup pending", async () => {
+    await withMocks(
+      () =>
+        stub(stripeApi, "retrieveRefund", () =>
+          Promise.resolve({ status: "unavailable" as const }),
+        ),
+      async () => {
+        expect(
+          await stripePaymentProvider.refundCharge(
+            pendingCharge(),
+            "existing-key",
+          ),
+        ).toMatchObject({ refund: REFUND_RESOURCE, status: "pending" });
+      },
+    );
+  });
+
+  for (const [status, expected] of [
+    ["requires_action", "pending"],
+    ["canceled", "failed"],
+  ] as const) {
+    test(`maps an initial ${status} refund to ${expected}`, async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "requestRefund", () =>
+            Promise.resolve(stripeRefund({ status })),
+          ),
+        async () => {
+          expect(
+            await stripePaymentProvider.refundCharge(
+              paymentCharge({ providerReference: CHARGE_RESOURCE }),
+              "refund-key",
+            ),
+          ).toMatchObject({ refund: REFUND_RESOURCE, status: expected });
+        },
+      );
+    });
+  }
+
+  test("fails loudly for malformed persisted or returned refund data", async () => {
+    await expect(
+      stripePaymentProvider.refundCharge(
+        paymentCharge({
+          pendingRefund: { ...REFUND_RESOURCE, id: "refund-invalid" },
+          providerReference: CHARGE_RESOURCE,
+          refundState: "pending",
+        }),
+        "existing-key",
+      ),
+    ).rejects.toThrow();
+
+    await withMocks(
+      () =>
+        stub(stripeApi, "retrieveRefund", () =>
+          Promise.resolve({ status: "invalid" as const }),
+        ),
+      async () => {
+        await expect(
+          stripePaymentProvider.refundCharge(pendingCharge(), "existing-key"),
+        ).rejects.toThrow("returned invalid data");
+      },
+    );
+  });
+
+  test("returns a typed failure when Stripe creates no refund", async () => {
+    await withMocks(
+      () => stub(stripeApi, "requestRefund", () => Promise.resolve(null)),
+      async () => {
+        expect(
+          await stripePaymentProvider.refundCharge(
+            paymentCharge({ providerReference: CHARGE_RESOURCE }),
+            "refund-key",
+          ),
+        ).toMatchObject({ reason: "provider_failed", status: "failed" });
+      },
+    );
+  });
+});
+
+describeStripe("Stripe checkout identity", () => {
+  test("returns null when Stripe creates no Checkout Session", async () => {
+    await withMocks(
+      () => stub(stripeApi, "createCheckout", () => Promise.resolve(null)),
+      async () => {
+        expect(
+          await stripePaymentProvider.createCheckout(await preparedCheckout()),
+        ).toBeNull();
+      },
+    );
+  });
+
+  test("uses the local payment ID for metadata and idempotency", async () => {
+    await settings.update.bookingFee("5");
+    const client = await stripeClient();
+    const create = stub(client.checkout.sessions, "create", () =>
+      Promise.resolve(stripeCheckoutSession()),
+    );
+    await withMocks(
+      () => create,
+      async () => {
+        const checkout = await preparedCheckout(
+          checkoutIntent({ items: [checkoutItem({ quantity: 2 })] }),
+          "stripe",
+          "local-payment-123",
         );
-      });
-    }
-
-    test("returns false when Stripe returns null (no refund created)", async () => {
-      await withMocks(
-        () => stub(stripeApi, "refundPayment", () => Promise.resolve(null)),
-        async () => {
-          const result = await stripePaymentProvider.refundPayment("pi_null");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("returns false when refund fails", async () => {
-      const client = await stripeClient();
-      await withMocks(
-        () =>
-          stub(client.refunds, "create", () =>
-            Promise.reject(new Error("Refund failed")),
-          ),
-        async () => {
-          const result = await stripePaymentProvider.refundPayment("pi_fail");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("passes a stable SHA-256 idempotency key derived from the payment intent", async () => {
-      // A webhook redelivery of the same refund must reach Stripe with the
-      // same Idempotency-Key so the second call is deduplicated, not charged
-      // again. The key is a pure function of (provider, payment reference),
-      // so it is reproducible here without re-running the hash.
-      const client = await stripeClient();
-      const createStub = stub(client.refunds, "create", () =>
-        Promise.resolve({ id: "re_stable", status: "succeeded" }),
-      );
-      await withMocks(
-        () => createStub,
-        async () => {
-          expect(await stripePaymentProvider.refundPayment("pi_stable")).toBe(
-            true,
-          );
-        },
-      );
-
-      const [params, idempotencyKey] = createStub.calls[0]!.args;
-      expect(params).toEqual({ payment_intent: "pi_stable" });
-      expect(idempotencyKey).toBe(
-        "zMXoB60J9cW7f7GxpMobuLm6VM5BATENKpD_jsjvf4g",
-      );
-    });
-  });
-
-  describe("sanitizeStripeError edge cases", () => {
-    test("returns err.name when no statusCode/code/type and name is set", () => {
-      const err = new TypeError("something went wrong");
-      const detail = sanitizeStripeError(err);
-      expect(detail).toBe("TypeError");
-    });
-  });
-
-  describe("getMockConfig without STRIPE_MOCK_HOST", () => {
-    test("creates client without mock config when STRIPE_MOCK_HOST not set", async () => {
-      await settings.update.stripe.secretKey("sk_test_123");
-      using _env = withEnv({
-        STRIPE_MOCK_HOST: undefined,
-        STRIPE_MOCK_PORT: undefined,
-      });
-      const client = await stripeClient("sk_test_123");
-      expect(client.balance.retrieve).toBeInstanceOf(Function);
-    });
-  });
-
-  describe("retrievePaymentIntent", () => {
-    test("returns null when stripe key not set", async () => {
-      const result = await stripeApi.retrievePaymentIntent("pi_test_123");
-      expect(result).toBeNull();
-    });
-
-    test("returns null when Stripe API throws error", async () => {
-      const client = await stripeClient();
-      await withMocks(
-        () =>
-          stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
-            Promise.reject(new Error("Network error")),
-          ),
-        async (retrieveSpy) => {
-          const result = await stripeApi.retrievePaymentIntent("pi_test_123");
-          expect(result).toBeNull();
-          expect(retrieveSpy.calls[0]?.args).toEqual(["pi_test_123"]);
-        },
-      );
-    });
-  });
-
-  describe("isPaymentRefunded", () => {
-    /** isPaymentRefunded should return `expected` for the given intent lookup. */
-    const expectRefunded = (
-      client: Awaited<ReturnType<typeof stripeClient>>,
-      retrieveImpl: Awaited<
-        ReturnType<typeof stripeClient>
-      >["paymentIntents"]["retrieveWithLatestCharge"],
-      expected: boolean,
-    ) =>
-      withMocks(
-        () =>
-          stub(client.paymentIntents, "retrieveWithLatestCharge", retrieveImpl),
-        async () => {
-          const result =
-            await stripePaymentProvider.isPaymentRefunded("pi_check");
-          expect(result).toBe(expected);
-        },
-      );
-
-    test("returns true when latest_charge is refunded", async () => {
-      const client = await stripeClient();
-      await expectRefunded(
-        client,
-        () =>
-          Promise.resolve({
-            id: "pi_refunded",
-            latest_charge: { refunded: true },
-          }),
-        true,
-      );
-    });
-
-    test("returns false when latest_charge is not refunded", async () => {
-      const client = await stripeClient();
-      await expectRefunded(
-        client,
-        () =>
-          Promise.resolve({
-            id: "pi_not_refunded",
-            latest_charge: { refunded: false },
-          }),
-        false,
-      );
-    });
-
-    test("returns false when payment intent not found", async () => {
-      const client = await stripeClient();
-      await expectRefunded(
-        client,
-        () => Promise.reject(new Error("Not found")),
-        false,
-      );
-    });
-  });
-
-  describe("createCheckoutSession - via provider", () => {
-    test("returns null when session has no URL", async () => {
-      const client = await stripeClient();
-      await withMocks(
-        () =>
-          stub(client.checkout.sessions, "create", () =>
-            Promise.resolve(
-              stripeCheckoutSession({
-                id: "cs_multi_nourl",
-                url: null,
-              }),
-            ),
-          ),
-        async () => {
-          const result = await stripePaymentProvider.createCheckoutSession(
-            checkoutIntent({ email: "jane@example.com", name: "Jane" }),
-            "http://localhost:3000",
-          );
-          expect(result).toBeNull();
-        },
-      );
-    });
-  });
-
-  describe("metadata size limits", () => {
-    test("returns error when items metadata exceeds Stripe limit", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      // Generate enough items to exceed 500-char serialized metadata
-      const items = Array.from({ length: 40 }, (_, i) =>
-        checkoutItem({
-          listingId: i + 1,
-          name: `Listing ${i + 1}`,
-          slug: `listing-${i + 1}`,
-        }),
-      );
-      const result = await stripePaymentProvider.createCheckoutSession(
-        checkoutIntent({ email: "alice@example.com", items, name: "Alice" }),
-        "http://localhost:3000",
-      );
-      expect(result).not.toBeNull();
-      expect(result).toHaveProperty("error");
-      expect((result as { error: string }).error).toMatch(/too many listings/i);
-    });
-
-    test("returns null for non-PaymentUserError exceptions", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      // Stub stripeApi.createCheckoutSession to throw a generic error
-      // that propagates through to withUserError's catch
-      using _mockCreate = stub(stripeApi, "createCheckoutSession", () =>
-        Promise.reject(new TypeError("unexpected")),
-      );
-      const result = await stripePaymentProvider.createCheckoutSession(
-        checkoutIntent({ email: "john@example.com", name: "John" }),
-        "http://localhost:3000",
-      );
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("resolveWebhookSession", () => {
-    test("extracts session directly from listing with complete metadata", async () => {
-      const result = await stripePaymentProvider.resolveWebhookSession(
-        checkoutSessionEvent({
-          amountTotal: 2000,
-          eventId: "evt_resolve_1",
-          metadata: {
-            email: "alice@example.com",
-            items: '[{"e":1,"q":1,"p":0}]',
-            name: "Alice",
+        expect(await stripePaymentProvider.createCheckout(checkout)).toEqual({
+          checkoutUrl: stripeCheckoutSession().url,
+          session: {
+            id: stripeCheckoutSession().id,
+            kind: "stripe_checkout_session",
+            provider: "stripe",
           },
-          paymentIntent: "pi_resolve_1",
-          sessionId: "cs_resolve_1",
-        }),
-      );
-      expect(result).not.toBe("skip");
-      expect(result).not.toBe("retry");
-      expect(result).not.toBeNull();
-      if (result && result !== "retry" && result !== "skip") {
-        expect(result.id).toBe("cs_resolve_1");
-        expect(result.paymentStatus).toBe("paid");
-        expect(result.paymentReference).toBe("pi_resolve_1");
-        expect(result.amountTotal).toBe(2000);
-      }
-    });
+          sessionId: stripeCheckoutSession().id,
+        });
+      },
+    );
 
-    test("falls back to retrieveSession when listing lacks metadata", async () => {
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(null),
-      );
+    const [params, key] = create.calls[0]!.args;
+    expect(key).toBe("local-payment-123");
+    expect(params.metadata.payment_id).toBe("local-payment-123");
+    expect(params.success_url).toBe(
+      "http://localhost:3000/payment/success?payment_id=local-payment-123&session_id={CHECKOUT_SESSION_ID}",
+    );
+    expect(params.cancel_url).toBe(
+      "http://localhost:3000/payment/cancel?payment_id=local-payment-123&session_id={CHECKOUT_SESSION_ID}",
+    );
+    expect(
+      params.line_items.map((item) => item.price_data.product_data),
+    ).toEqual([
+      { description: "2 Tickets", name: "Ticket: General" },
+      { name: "Booking fee" },
+    ]);
+  });
 
-      try {
-        const result = await stripePaymentProvider.resolveWebhookSession(
-          checkoutSessionEvent({
-            amountTotal: 0,
-            eventId: "evt_no_meta",
-            metadata: {},
-            paymentIntent: "pi_no_meta",
-            sessionId: "cs_no_meta",
-          }),
-        );
-        // retrieveSession called with listing object id
-        expect(mockRetrieve.calls[0]!.args[0]).toBe("cs_no_meta");
-        expect(result).toBeNull();
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
+  test("keeps a canonical payment ID already present in metadata", async () => {
+    const client = await stripeClient();
+    using _create = stub(client.checkout.sessions, "create", (_params) =>
+      Promise.resolve(stripeCheckoutSession()),
+    );
+    const checkout = await preparedCheckout();
+    checkout.metadata.payment_id = checkout.localPaymentId;
 
-    test("returns null when listing has no id", async () => {
-      const result = await stripePaymentProvider.resolveWebhookSession({
-        data: {
-          object: {
-            some_field: "value",
-          },
-        },
-        id: "evt_no_obj_id",
-        type: "checkout.session.completed",
-      });
-      expect(result).toBeNull();
-    });
+    await stripePaymentProvider.createCheckout(checkout);
 
-    test("processes a webhook session whose snapshot lacked payment intent but fetched session has one", async () => {
-      await withMocks(
-        () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve(
-              stripeCheckoutSession({
-                id: "cs_lag_pi",
-                metadata: {
-                  email: "bob@example.com",
-                  items: '[{"e":1,"q":1,"p":0}]',
-                  name: "Bob",
-                },
-                payment_intent: "pi_fetched",
-              }),
-            ),
-          ),
-        async () => {
-          const result = await stripePaymentProvider.resolveWebhookSession(
-            checkoutSessionEvent({
-              amountTotal: 1000,
-              eventId: "evt_lag_pi",
-              metadata: {
-                email: "bob@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "Bob",
-              },
-              sessionId: "cs_lag_pi",
-            }),
-          );
-          expect(result).not.toBe("retry");
-          expect(result).not.toBe("skip");
-          expect(result).not.toBeNull();
-          if (result && result !== "retry" && result !== "skip") {
-            expect(result.paymentReference).toBe("pi_fetched");
-            expect(result.paymentStatus).toBe("paid");
-          }
-        },
-      );
-    });
-
-    test("retries when the fetched session still has no payment intent", async () => {
-      await withMocks(
-        () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve(
-              stripeCheckoutSession({
-                id: "cs_no_pi",
-                metadata: {
-                  email: "carol@example.com",
-                  items: '[{"e":1,"q":1,"p":0}]',
-                  name: "Carol",
-                },
-                payment_intent: null,
-              }),
-            ),
-          ),
-        async () => {
-          const result = await stripePaymentProvider.resolveWebhookSession(
-            checkoutSessionEvent({
-              amountTotal: 1000,
-              eventId: "evt_no_pi",
-              metadata: {
-                email: "carol@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "Carol",
-              },
-              sessionId: "cs_no_pi",
-            }),
-          );
-          expect(result).toBe("retry");
-        },
-      );
-    });
-
-    test("acknowledges when the fetched session has invalid metadata", async () => {
-      await withMocks(
-        () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve(
-              stripeCheckoutSession({
-                id: "cs_bad_meta",
-                metadata: {},
-                payment_intent: null,
-              }),
-            ),
-          ),
-        async () => {
-          const result = await stripePaymentProvider.resolveWebhookSession(
-            checkoutSessionEvent({
-              amountTotal: 1000,
-              eventId: "evt_bad_meta",
-              metadata: {},
-              sessionId: "cs_bad_meta",
-            }),
-          );
-          expect(result).toBeNull();
-        },
-      );
-    });
-
-    test("retries when the fetched session is null", async () => {
-      await withMocks(
-        () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve(null),
-          ),
-        async () => {
-          const result = await stripePaymentProvider.resolveWebhookSession(
-            checkoutSessionEvent({
-              amountTotal: 1000,
-              eventId: "evt_null_fetch",
-              metadata: {
-                email: "dave@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "Dave",
-              },
-              sessionId: "cs_null_fetch",
-            }),
-          );
-          expect(result).toBe("retry");
-        },
-      );
-    });
+    expect(_create.calls[0]?.args[0].metadata.payment_id).toBe(
+      checkout.localPaymentId,
+    );
   });
 });

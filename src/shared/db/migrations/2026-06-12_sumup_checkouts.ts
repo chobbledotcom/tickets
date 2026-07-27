@@ -1,6 +1,6 @@
-import { schemaMigration } from "./define.ts";
+import { legacyPaymentSchemaMigration } from "./legacy-payment-schema.ts";
 
-export default schemaMigration(
+export default legacyPaymentSchemaMigration(
   "2026-06-12_sumup_checkouts",
   "Add encrypted sumup_checkouts staging table for SumUp metadata",
   {

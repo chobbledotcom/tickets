@@ -2,6 +2,8 @@ import type Stripe from "stripe";
 import type { StripeFormValue } from "./form.ts";
 import { createStripeRequest, type StripeClientConfig } from "./request.ts";
 import {
+  type StripeAccount,
+  StripeAccountSchema,
   type StripeBalance,
   StripeBalanceSchema,
   type StripeCheckoutSession,
@@ -69,11 +71,13 @@ export interface StripeWebhookEndpointCreateParams {
 }
 
 export interface StripeClient {
+  accounts: { retrieve: () => Promise<StripeAccount> };
   balance: { retrieve: () => Promise<StripeBalance> };
   checkout: {
     sessions: {
       create: (
         params: StripeCheckoutSessionCreateParams,
+        idempotencyKey?: string,
       ) => Promise<StripeCheckoutSession>;
       retrieve: (
         id: Stripe.Checkout.Session["id"],
@@ -90,6 +94,7 @@ export interface StripeClient {
       params: Pick<Stripe.RefundCreateParams, "payment_intent">,
       idempotencyKey?: string,
     ) => Promise<StripeRefund>;
+    retrieve: (id: Stripe.Refund["id"]) => Promise<StripeRefund>;
   };
   webhookEndpoints: {
     create: (
@@ -112,17 +117,21 @@ export const createStripeClient = (
     `/v1/${resource}/${encodeURIComponent(id)}`;
 
   return {
+    accounts: {
+      retrieve: () => call("GET", "/v1/account", {}, StripeAccountSchema),
+    },
     balance: {
       retrieve: () => call("GET", "/v1/balance", {}, StripeBalanceSchema),
     },
     checkout: {
       sessions: {
-        create: (params) =>
+        create: (params, idempotencyKey) =>
           call(
             "POST",
             "/v1/checkout/sessions",
             { ...params },
             StripeCheckoutSessionSchema,
+            { idempotencyKey },
           ),
         retrieve: (id) =>
           call(
@@ -147,6 +156,8 @@ export const createStripeClient = (
         call("POST", "/v1/refunds", params, StripeRefundSchema, {
           idempotencyKey,
         }),
+      retrieve: (id) =>
+        call("GET", idPath("refunds", id), {}, StripeRefundSchema),
     },
     webhookEndpoints: {
       create: (params) =>

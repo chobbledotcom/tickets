@@ -1,5 +1,6 @@
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
 import { settings } from "#shared/db/settings.ts";
+import { getEnv } from "#shared/env.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
@@ -9,6 +10,10 @@ import {
   defineMaintenanceTasks,
   type MaintenanceTaskCheck,
 } from "#shared/maintenance/definition.ts";
+import {
+  PAYMENT_CASE_ALERT_TASK_BUDGET,
+  PAYMENT_MAINTENANCE_TASK_BUDGET,
+} from "#shared/payment-runtime/maintenance-budget.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
 const FAILURE_RETRY_MS = 5 * 60 * 1000;
@@ -31,7 +36,7 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     deadlineMs: 15_000,
     failureRetryIntervalMs: FAILURE_RETRY_MS,
     intervalMs: PRUNE_INTERVAL_MS,
-    maxDatabaseCalls: 2,
+    maxDatabaseCalls: 5,
     maxExternalCalls: 0,
     name: "database_pruning",
     run: async ({ checkpoint, requestFollowUp, setCheckpoint }) => {
@@ -72,5 +77,40 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
       }
     },
     wakePolicy: "organic_safe",
+  },
+  {
+    check: alwaysEnabled([]),
+    deadlineMs: 20_000,
+    failureRetryIntervalMs: 60_000,
+    intervalMs: 60_000,
+    maxDatabaseCalls: PAYMENT_MAINTENANCE_TASK_BUDGET.database,
+    maxExternalCalls: PAYMENT_MAINTENANCE_TASK_BUDGET.external,
+    name: "payment_reconciliation",
+    run: async (context) => {
+      const { runPaymentMaintenance } = await import(
+        "#shared/payment-runtime/maintenance.ts"
+      );
+      await runPaymentMaintenance(context);
+    },
+    wakePolicy: "scheduled_only",
+  },
+  {
+    check: {
+      ...alwaysEnabled([]),
+      enabled: () => Boolean(getEnv("NTFY_URL")),
+    },
+    deadlineMs: 10_000,
+    failureRetryIntervalMs: 60_000,
+    intervalMs: 60_000,
+    maxDatabaseCalls: PAYMENT_CASE_ALERT_TASK_BUDGET.database,
+    maxExternalCalls: PAYMENT_CASE_ALERT_TASK_BUDGET.external,
+    name: "payment_case_alerts",
+    run: async (context) => {
+      const { runPaymentCaseAlertMaintenance } = await import(
+        "#shared/payment-runtime/maintenance.ts"
+      );
+      await runPaymentCaseAlertMaintenance(context);
+    },
+    wakePolicy: "scheduled_only",
   },
 ]);

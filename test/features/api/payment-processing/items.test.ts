@@ -15,7 +15,10 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
+import {
+  expectRefundPaymentCall,
+  stubRefundPayment,
+} from "#test-utils/webhooks.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
   listingPair,
@@ -111,7 +114,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
       status: 410,
       success: false,
     });
-    expect(refund.calls[0]?.args).toEqual(["pi_cs_items_inactive"]);
+    expectRefundPaymentCall(refund, "pi_cs_items_inactive");
   });
 
   test("names the listing that closed in a visible multi-listing order", async () => {

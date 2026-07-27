@@ -2,11 +2,12 @@
  * Types for webhook route handlers (payment callbacks and provider webhooks)
  */
 
-import type {
-  BookingIntent,
-  ValidatedPaymentSession,
-} from "#shared/payments.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import type { PaymentSessionClaim } from "#shared/db/payments/claims.ts";
+import type { PaymentSession } from "#shared/db/payments/types.ts";
+import type { PaymentClientResult } from "#shared/payment-completion.ts";
+import type { PaymentResolution } from "#shared/payment-state/lifecycle.ts";
+import type { BookingIntent } from "#shared/payments.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
 export type { BookingIntent };
 
@@ -21,23 +22,22 @@ export type { BookingIntent };
  *
  * A session with no valid proof never reaches this type — it classifies as
  * `ignore` and is acknowledged without processing or refunding (see
- * classifySession). So every ValidatedSession is one we have proven is ours.
+ * The reconciler only creates this work after ownership and money resolve ready.
  */
-export type SignedVerdict =
-  | { verdict: "trusted"; agreed: number }
-  | { verdict: "mismatch"; agreed: number };
-
-/** Validated session data ready for processing */
-export type ValidatedSession = {
-  session: ValidatedPaymentSession;
-  intent: BookingIntent;
-  verdict: SignedVerdict;
+export type BookingPayment = {
+  amountTotal: number;
+  createdAt: string;
+  id: string;
+  paymentReference: string;
 };
 
-/** Result of session validation: either valid data or an error response */
-export type SessionValidation =
-  | { ok: true; data: ValidatedSession }
-  | { ok: false; response: Response };
+export type PaymentWork = {
+  claim: PaymentSessionClaim;
+  intent: BookingIntent;
+  payment: PaymentSession;
+  resolution: Extract<PaymentResolution, { status: "ready" }>;
+  session: BookingPayment;
+};
 
 /** Validate listing is eligible for post-payment registration */
 export type ListingValidation =
@@ -49,25 +49,8 @@ export type ListingValidation =
  * it lazily only when it needs a thank-you URL, and the listing may since have
  * been deleted (e.g. a settled balance line for a removed listing) without
  * changing the fact that the attendee exists and the payment succeeded. */
-type PaymentSuccess = {
-  success: true;
-  attendee: Pick<Attendee, "id">;
-  listingId: number;
-  ticketTokens: string[];
-};
-
-/** Failed payment result — refund status clarifies next steps for the user */
-type PaymentFailure = {
-  success: false;
-  error: string;
-  status?: number | undefined;
-  refunded?: boolean | undefined;
-  /** Internal diagnostic detail (not shown to users) */
-  detail?: string | undefined;
-};
-
 /** Result of processing a payment session */
-export type PaymentResult = PaymentSuccess | PaymentFailure;
+export type PaymentResult = PaymentClientResult;
 
 /** Narrowed failure type for formatPaymentError */
 export type PaymentFailureResult = PaymentResult & { success: false };

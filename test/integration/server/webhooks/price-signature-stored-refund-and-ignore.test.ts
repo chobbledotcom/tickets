@@ -4,9 +4,10 @@ import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
+import { getDb } from "#shared/db/client.ts";
+import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
+import { runPaymentReconciliationMaintenance } from "#shared/payment-runtime/maintenance.ts";
 import {
   expectAcknowledgedIgnore,
   expectNoAttendees,
@@ -24,6 +25,8 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { maintenanceContext } from "#test-utils/maintenance.ts";
+import { requirePaymentAggregateByProviderSession } from "#test-utils/payment-aggregate.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -34,106 +37,122 @@ describeWithEnv(
     // Delivers the webhook, then delivers it again, asserting both return the
     // same `processed` result. A redelivery must replay the first outcome —
     // never finalize a refunded booking or re-refund on the second pass.
-    const expectDeliveryReplays = async (processed: boolean) => {
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(processed);
+    const expectDeliveryReplays = async (
+      status: number,
+      expected: Record<string, unknown>,
+    ) => {
+      await assertJson(webhookRequest(), status, (json) => {
+        expect(json).toMatchObject(expected);
       });
-      await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(processed);
+      await assertJson(webhookRequest(), status, (json) => {
+        expect(json).toMatchObject(expected);
       });
     };
 
-    test("stores the booking, reverses the ledger with the reason code, and flags it", async () => {
+    const runDuePaymentMaintenance = async (paymentId: string) => {
+      await getDb().execute(
+        "UPDATE payment_sessions SET next_reconcile_at = 0 WHERE id = ?",
+        [paymentId],
+      );
+      await runPaymentReconciliationMaintenance(
+        maintenanceContext({ database: 21, external: 11, total: 32 }),
+      );
+    };
+
+    const priceChangedSession = (listingId: number, id: string) => ({
+      amount_total: 999,
+      id,
+      metadata: signedMeta(999, { items: singleItem(listingId, 1, 1000) }),
+    });
+
+    test("defers a stored refund's ledger and note until maintenance", async () => {
       const listing = await setupWithListing();
-      // Signed and charged at 999, but the live price is 1000 — a mid-checkout edit.
-      await expectReplayOutcome(
-        {
-          amount_total: 999,
-          id: "cs_ledger_reversal",
-          metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
+      await runWebhook(
+        priceChangedSession(listing.id, "cs_ledger_reversal"),
+        async (refund) => {
+          await assertJson(webhookRequest(), 200, (json) => {
+            expect(json).toMatchObject({
+              processed: false,
+              status: "fully_refunded",
+            });
+          });
+          const [attendee] = await getAttendeesRaw(listing.id);
+          expect(attendee?.quantity).toBe(0);
+          const account = attendeeAccount(attendee!.id);
+          expect(await transfersByAccount(account)).toEqual([]);
+          expect(
+            await getNotesForAttendee(attendee!.id, await getTestPrivateKey()),
+          ).toEqual([]);
+          const due =
+            await requirePaymentAggregateByProviderSession(
+              "cs_ledger_reversal",
+            );
+          expect(due.state).toBe("fully_refunded");
+          expect(due.completionState).toBe("pending");
+          expect(due.nextReconcileAt).not.toBeNull();
+
+          await runDuePaymentMaintenance(due.id);
+
+          const legs = await transfersByAccount(account);
+          const refundCash = legs.find((leg) => leg.kind === "refund_cash");
+          expect(refundCash?.memo).toBe("price_changed");
+          expect(balanceOf(account)(legs)).toBe(0);
+          expect(legs.some((leg) => leg.kind === "payment")).toBe(true);
+          expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
+          const notes = await getNotesForAttendee(
+            attendee!.id,
+            await getTestPrivateKey(),
+          );
+          expect(notes).toHaveLength(1);
+          expect(notes[0]!.note).toContain("price changed");
+          expect(notes[0]!.note).toContain(
+            `/admin/ledger/attendee/${attendee!.id}`,
+          );
+          const completed =
+            await requirePaymentAggregateByProviderSession(
+              "cs_ledger_reversal",
+            );
+          expect(completed.state).toBe("fully_refunded");
+          expect(completed.completionState).toBe("completed");
+          expect(refund.calls).toHaveLength(1);
         },
-        { processed: false, refundCalls: 1 },
-      );
-      const [attendee] = await getAttendeesRaw(listing.id);
-      expect(attendee).toBeDefined();
-      // Stored as a quantity-0 placeholder: it consumes no capacity and is not
-      // a ticket, just a kept record of a refunded booking.
-      expect(attendee!.quantity).toBe(0);
-
-      // The ledger holds ONLY the cash round-trip — a `payment` we received and
-      // a `refund_cash` returning it, stamped with the PII-free reason code — so
-      // the attendee nets back to zero. Crucially there is NO `sale` leg: the
-      // booking was never honoured, so no revenue is recognised and the
-      // quantity-0 line's projected price_paid stays 0 (the no-quantity invariant).
-      const account = attendeeAccount(attendee!.id);
-      const legs = await transfersByAccount(account);
-      const refundCash = legs.find((leg) => leg.kind === "refund_cash");
-      expect(refundCash?.memo).toBe("price_changed");
-      expect(balanceOf(account)(legs)).toBe(0);
-      expect(legs.some((leg) => leg.kind === "payment")).toBe(true);
-      expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
-
-      // The system note names the reason (PII-free) and links to the ledger.
-      const notes = await getNotesForAttendee(
-        attendee!.id,
-        await getTestPrivateKey(),
-      );
-      expect(notes).toHaveLength(1);
-      expect(notes[0]!.note).toContain("price changed");
-      expect(notes[0]!.note).toContain(
-        `/admin/ledger/attendee/${attendee!.id}`,
       );
     });
 
-    // ---- session-state invariants (regression: the finalize/store-refund seam) -
-    // The store-refund path hinges on a subtle transaction invariant: the attendee
-    // is created, but the payment session is deliberately NOT finalized, so the
-    // refund is recorded as the session's terminal outcome (and a replay shows the
-    // refund message) rather than a finalized success that would replay a ticket.
-    // This seam has been re-fought (e.g. the atomic-finalize change), and a green
-    // typecheck does NOT catch a regression here — only these assertions do.
-
-    test("a stored-refunded booking leaves the session unfinalized with a terminal refund", async () => {
+    test("a stored-refunded booking attaches its placeholder to a terminal refund", async () => {
       const listing = await setupWithListing();
       await expectReplayOutcome(
-        {
-          amount_total: 999,
-          id: "cs_unfinalized",
-          metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
-        },
+        priceChangedSession(listing.id, "cs_unfinalized"),
         { processed: false, refundCalls: 1 },
       );
-      // The booking exists in the diary…
-      expect((await getAttendeesRaw(listing.id)).length).toBe(1);
-      // …but the session is NOT finalized: attendee_id stays null and the refund
-      // is the terminal outcome. If a change finalizes it, a replay would wrongly
-      // hand the customer a ticket — so pin both fields.
-      const record = await isSessionProcessed("cs_unfinalized");
-      expect(record?.attendee_id).toBeNull();
-      expect(record?.failure_data).not.toBe("");
+      const [attendee] = await getAttendeesRaw(listing.id);
+      const payment =
+        await requirePaymentAggregateByProviderSession("cs_unfinalized");
+      expect(payment.attendeeId).toBe(attendee!.id);
+      expect(payment.completion?.kind).toBe("placeholder_refund");
+      expect(payment.state).toBe("fully_refunded");
     });
 
     test("a redelivery of a stored-refunded booking replays the refund — no re-create, no re-refund, no ticket", async () => {
       const listing = await setupWithListing();
       await runWebhook(
-        {
-          amount_total: 999,
-          id: "cs_replay_refund",
-          metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
-        },
+        priceChangedSession(listing.id, "cs_replay_refund"),
         async (refund) => {
           // The redelivery must replay the SAME refund outcome (processed:false), not
           // a finalized success (processed:true / a ticket) — and must not duplicate
           // the booking or re-refund. This is the exact failure an over-eager finalize
           // would cause, which the type system can't see.
-          await expectDeliveryReplays(false);
+          await expectDeliveryReplays(200, {
+            processed: false,
+            status: "fully_refunded",
+          });
           expect((await getAttendeesRaw(listing.id)).length).toBe(1);
           expect(refund.calls.length).toBe(1);
         },
       );
     });
 
-    test("a successful booking DOES finalize the session atomically (the contrast)", async () => {
+    test("a successful booking leaves completion due", async () => {
       const listing = await setupWithListing();
       await runWebhook(
         {
@@ -147,11 +166,12 @@ describeWithEnv(
             expect(json.processed).toBe(true);
           });
           const [attendee] = await getAttendeesRaw(listing.id);
-          // A success finalizes (attendee_id set in the same transaction as the
-          // attendee insert), so its replay returns the ticket. The store-refund path
-          // is the deliberate exception above; keep the two from drifting together.
-          const record = await isSessionProcessed("cs_finalized");
-          expect(record?.attendee_id).toBe(attendee!.id);
+          const payment =
+            await requirePaymentAggregateByProviderSession("cs_finalized");
+          expect(payment.attendeeId).toBe(attendee!.id);
+          expect(payment.state).toBe("processing");
+          expect(payment.completionState).toBe("pending");
+          expect(payment.nextReconcileAt).not.toBeNull();
         },
       );
     });
@@ -163,9 +183,14 @@ describeWithEnv(
       // — so a signed payment that hits an unexpected error after the charge is kept
       // at quantity 0 and refunded, not crash-looped over money already taken.
       const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-      const boom = stub(attendeesApi, "createBookingAtomic", () =>
-        Promise.reject(new Error("synthetic create failure")),
-      );
+      const createBooking = attendeesApi.createBookingAtomic;
+      let createCalls = 0;
+      const boom = stub(attendeesApi, "createBookingAtomic", (...args) => {
+        createCalls += 1;
+        return createCalls === 1
+          ? Promise.reject(new Error("synthetic create failure"))
+          : createBooking(...args);
+      });
       try {
         await runWebhook(
           {
@@ -177,9 +202,12 @@ describeWithEnv(
           async (refund) => {
             await expectStoredRefund(listing.id);
             expect(refund.calls.length).toBe(1);
-            const record = await isSessionProcessed("cs_crash_store");
-            expect(record?.attendee_id).toBeNull();
-            expect(record?.failure_data).not.toBe("");
+            const payment =
+              await requirePaymentAggregateByProviderSession("cs_crash_store");
+            expect(payment.completion?.kind).toBe("placeholder_refund");
+            expect(payment.state).toBe("fully_refunded");
+            expect(payment.completionState).toBe("pending");
+            expect(createCalls).toBe(2);
           },
         );
       } finally {
@@ -202,10 +230,12 @@ describeWithEnv(
         async (refund) => {
           await expectStoredRefund(999999);
           expect(refund.calls.length).toBe(1);
-          // Recorded as the session's terminal outcome (not finalized → no ticket).
-          const record = await isSessionProcessed("cs_missing_listing");
-          expect(record?.attendee_id).toBeNull();
-          expect(record?.failure_data).not.toBe("");
+          const payment =
+            await requirePaymentAggregateByProviderSession(
+              "cs_missing_listing",
+            );
+          expect(payment.completion?.kind).toBe("placeholder_refund");
+          expect(payment.state).toBe("fully_refunded");
         },
       );
     });
@@ -316,7 +346,9 @@ describeWithEnv(
       });
       try {
         const response = await redirectRequest("cs_foreign_redirect");
-        expect(await response.text()).toContain("not recognized");
+        expect(await response.text()).toContain(
+          "We could not find this payment.",
+        );
         expect(refund.calls.length).toBe(0);
       } finally {
         retrieve.restore();
@@ -326,27 +358,31 @@ describeWithEnv(
 
     // ---- failed-refund behaviour for a stored booking -------------------------
 
-    test("a stored booking whose refund fails is kept, flagged, and recorded as terminal", async () => {
+    test("a failed stored refund replays its durable retry response", async () => {
       const listing = await setupWithListing();
-      // The provider refund keeps failing and the payment is not yet refunded. The
-      // booking is already stored (signed by us → never dropped), so a retry must
-      // NOT re-create it: the outcome is recorded as terminal and the system note
-      // tells the operator to refund it manually, rather than looping a 503 retry
-      // that would duplicate the booking.
+      // The provider refund failed, so the stored placeholder remains due. A
+      // callback redelivery replays the retry response without creating or
+      // refunding it again; maintenance owns the next provider attempt.
       await runFailedRefund(
         "cs_refund_retry",
         false,
         listing.id,
         async (refund) => {
-          // A second delivery replays the recorded outcome — it does not re-create the
-          // attendee or re-attempt the (now operator-owned) refund.
-          await expectDeliveryReplays(false);
+          await expectDeliveryReplays(503, { status: "retry" });
           expect(refund.calls.length).toBe(1);
           const [attendee] = await getAttendeesRaw(listing.id);
           expect(attendee?.quantity).toBe(0);
-          expect(await getNoteRows([attendee!.id])).toHaveLength(1);
-          const record = await isSessionProcessed("cs_refund_retry");
-          expect(record?.failure_data).not.toBe("");
+          const payment =
+            await requirePaymentAggregateByProviderSession("cs_refund_retry");
+          const completion = payment.completion;
+          if (completion?.kind !== "placeholder_refund") {
+            throw new Error("Expected placeholder refund completion");
+          }
+          expect(completion.result.refund?.status).toBe("failed");
+          expect(completion.result.status).toBe(503);
+          expect(payment.completionState).toBe("pending");
+          expect(payment.nextReconcileAt).not.toBeNull();
+          expect(payment.state).toBe("refunding");
         },
       );
     });

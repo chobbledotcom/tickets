@@ -5,7 +5,6 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import {
   expectHtmlResponse,
   expectRedirect,
@@ -16,6 +15,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { requirePaymentAggregateByProviderSession } from "#test-utils/payment-aggregate.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
@@ -105,12 +105,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.pii_blob).not.toBe("");
 
-          // Verify tokens are NOT persisted in DB (redirect has them in URL, no need to store)
-          const { isSessionProcessed } = await import(
-            "#shared/db/processed-payments.ts"
+          const payment = await requirePaymentAggregateByProviderSession(
+            "cs_test_paid",
           );
-          const record = await isSessionProcessed("cs_test_paid");
-          expect(record?.ticket_tokens).toBe("");
+          expect(payment.ticketTokens).toHaveLength(1);
+          expect(payment.state).toBe("completed");
         },
       );
     });
@@ -274,10 +273,12 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             expect(attendees).toHaveLength(1);
             expect(attendees[0]!.quantity).toBe(1);
             expect(attendees[0]!.price_paid).toBe(1000);
-            const processed = await isSessionProcessed("cs_concurrent_confirm");
-            expect(processed?.attendee_id).toBe(attendees[0]!.id);
-            expect(processed?.failure_data).toBe("");
-            expect(processed?.ticket_tokens).toBe("");
+            const payment = await requirePaymentAggregateByProviderSession(
+              "cs_concurrent_confirm",
+            );
+            expect(payment.attendeeId).toBe(attendees[0]!.id);
+            expect(payment.state).toBe("completed");
+            expect(payment.ticketTokens).toHaveLength(1);
           } finally {
             releaseBooking.resolve();
             pauseWinner.restore();

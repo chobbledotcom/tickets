@@ -11,7 +11,11 @@ import {
   withBalanceAndList,
 } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import {
+  checkoutIntent,
+  checkoutItem,
+  preparedCheckout,
+} from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
@@ -20,15 +24,14 @@ describeStripe("stripe", () => {
     intent: CheckoutIntent,
   ): Promise<void> => {
     await settings.update.stripe.secretKey("sk_test_mock");
-    const session = await stripeApi.createCheckoutSession(
-      intent,
-      "http://localhost:3000",
+    const session = await stripeApi.createCheckout(
+      await preparedCheckout(intent),
     );
     expect(session?.id).toMatch(/^cs_test_/u);
     expect(session?.url).toMatch(/^https:\/\/checkout\.stripe\.com\//u);
   };
 
-  describe("createCheckoutSession - phone metadata", () => {
+  describe("createCheckout - phone metadata", () => {
     test("includes phone in metadata when provided", async () => {
       const listing = testListing({ unit_price: 1000 });
       await expectSessionCreated(
@@ -42,7 +45,7 @@ describeStripe("stripe", () => {
     });
   });
 
-  describe("createCheckoutSession - no email", () => {
+  describe("createCheckout - no email", () => {
     test("creates checkout session without customer_email when email is empty", async () => {
       const listing = testListing({ unit_price: 1000 });
       await expectSessionCreated(
@@ -56,7 +59,7 @@ describeStripe("stripe", () => {
     });
   });
 
-  describe("createCheckoutSession", () => {
+  describe("createCheckout", () => {
     test("creates multi-checkout session with phone metadata", async () => {
       await expectSessionCreated(
         checkoutIntent({
@@ -77,13 +80,14 @@ describeStripe("stripe", () => {
     });
 
     test("returns null when stripe key not set", async () => {
-      const result = await stripeApi.createCheckoutSession(
-        checkoutIntent({
-          email: "jane@example.com",
-          items: [checkoutItem({ name: "Listing A", slug: "listing-a" })],
-          name: "Jane Doe",
-        }),
-        "http://localhost:3000",
+      const result = await stripeApi.createCheckout(
+        await preparedCheckout(
+          checkoutIntent({
+            email: "jane@example.com",
+            items: [checkoutItem({ name: "Listing A", slug: "listing-a" })],
+            name: "Jane Doe",
+          }),
+        ),
       );
       expect(result).toBeNull();
     });
@@ -119,7 +123,10 @@ describeStripe("stripe", () => {
             Promise.reject("network failure string"),
           ),
         async () => {
-          const result = await stripeApi.refundPayment("pi_test_123");
+          const result = await stripeApi.refundPayment(
+            "pi_test_123",
+            "refund-key",
+          );
           expect(result).toBeNull();
         },
       );

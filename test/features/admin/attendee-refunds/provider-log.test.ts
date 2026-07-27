@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   createPaidListing,
+  createRefundableTestAttendee,
   setupRefundTest,
 } from "#test/lib/server-refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
   postRefundAll,
@@ -25,13 +25,15 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         await submitRefund(ctx);
       });
       expect(
-        loggedDetails().some((s) => s.includes("Admin refund failed")),
+        loggedDetails().some((s) =>
+          s.includes("Admin refund did not complete every payment"),
+        ),
       ).toBe(true);
     });
 
     test("a bulk refund the provider rejects is logged per attendee", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Bulk Fail",
         "bulkfail@example.com",
@@ -41,13 +43,15 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         await postRefundAll(listing);
       });
       expect(
-        loggedDetails().some((s) => s.includes("Admin bulk refund failed")),
+        loggedDetails().some((s) =>
+          s.includes("Admin refund did not complete every payment"),
+        ),
       ).toBe(true);
     });
 
     test("a bulk refund the provider throws on is logged as errored", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Bulk Throw",
         "bulkthrow@example.com",
@@ -60,7 +64,7 @@ describeWithEnv("server (admin refund provider logging)", { db: true }, () => {
         },
       );
       expect(
-        loggedDetails().some((s) => s.includes("Admin bulk refund errored")),
+        loggedDetails().some((s) => s.includes("Admin refund errored")),
       ).toBe(true);
     });
   });

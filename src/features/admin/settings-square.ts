@@ -12,7 +12,7 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
-import { testSquareConnection } from "#shared/square.ts";
+import { squareApi } from "#shared/square.ts";
 /* jscpd:ignore-end */
 import {
   validateSquareAccessToken,
@@ -42,7 +42,7 @@ export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
   secretField: "square_access_token",
   secretRequiredError: t("error.square_token_required"),
   successMessage: "Square credentials updated",
-  testFn: testSquareConnection,
+  testFn: () => squareApi.testSquareConnection(),
   validate: ({ locationId }, secret) => {
     if (isDemoMode()) return t("error.square_demo_mode");
     if (!locationId) return t("error.square_location_required");

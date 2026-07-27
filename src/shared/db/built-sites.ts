@@ -6,7 +6,13 @@
 import type { InValue } from "@libsql/client";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAll, queryOne, rowExistsForIdList } from "#shared/db/client.ts";
+import {
+  queryAll,
+  queryOne,
+  resultRows,
+  rowExistsForIdList,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { retryWrite } from "#shared/db/retry-write.ts";
 import type { Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
@@ -290,6 +296,46 @@ export const assignBuiltSite = (
     assignedAttendeeId: attendeeId,
     assignedListingId: listingId,
   }));
+
+/** Reserve one assignable site for a paid completion identity. The unique
+ * identity makes a replay return the first site instead of assigning another. */
+export const assignBuiltSiteForPayment = (
+  effectId: string,
+  attendeeId: number,
+  listingId: number,
+): Promise<BuiltSite | null> =>
+  withTransaction(async (transaction) => {
+    const existing = resultRows<BuiltSiteRow>(
+      await transaction.execute({
+        args: [effectId],
+        sql: `SELECT ${builtSiteSelectColumns}
+                FROM built_sites
+               WHERE assignment_effect = ?`,
+      }),
+    )[0];
+    const row =
+      existing ??
+      resultRows<BuiltSiteRow>(
+        await transaction.execute({
+          args: [effectId, attendeeId, listingId],
+          sql: `UPDATE built_sites
+                   SET assignable = 0,
+                       assignment_effect = ?,
+                       assigned_attendee_id = ?,
+                       assigned_listing_id = ?
+                 WHERE id = (
+                   SELECT id FROM built_sites
+                    WHERE assignable = 1 AND assignment_effect IS NULL
+                    ORDER BY id
+                    LIMIT 1
+                 )
+                 RETURNING ${builtSiteSelectColumns}`,
+        }),
+      )[0];
+    return row === undefined
+      ? null
+      : rowToBuiltSite(await rawBuiltSitesTable.fromDb(row));
+  });
 
 /** Look up a built site by renewal token index (HMAC blind index) */
 export const getBuiltSiteByRenewalTokenIndex = async (

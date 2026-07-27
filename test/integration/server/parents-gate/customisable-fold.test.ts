@@ -112,7 +112,7 @@ describeWithEnv(
         expect(res.status).toBe(302);
         // The folded order is customisable, so the chosen span is serialized on the
         // intent (the webhook reprices the child for the inherited 3-day span).
-        expect(getCaptured()?.dayCount).toBe(3);
+        expect(getCaptured()?.bookingIntent.dayCount).toBe(3);
         // The child is priced for the inherited 3 days (£30), never its 1-day £10.
         expectCapturedItemPriced(getCaptured(), child, 3000);
       } finally {

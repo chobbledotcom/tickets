@@ -80,10 +80,11 @@ import {
   type PackageStandIns,
   packageStandIns,
 } from "#shared/package-privacy.ts";
+import { createPaymentCheckout } from "#shared/payment-runtime/create.ts";
 import {
   type CheckoutIntent,
   type CheckoutItem,
-  getActivePaymentProvider,
+  paymentsApi,
 } from "#shared/payments.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
@@ -117,67 +118,46 @@ export const tryCheckoutRedirect = <T>(
   return checkoutResponse(sessionUrl);
 };
 
-/** Get active payment provider or return an error response */
-export const withPaymentProvider = async (
-  onMissing: () => Response,
-  fn: (
-    provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object,
-  ) => Promise<Response>,
-): Promise<Response> => {
-  const provider = await getActivePaymentProvider();
-  return provider ? fn(provider) : onMissing();
-};
-
 /** Generic checkout flow: resolve provider, create session, redirect or show error.
  * In iframe mode opens checkout in a popup window instead of a redirect. */
-export const runCheckoutFlow = (
+export const runCheckoutFlow = async (
   label: string,
   request: Request,
   intent: CheckoutIntent,
   onError: (msg: string, status: number) => Response,
 ): Promise<Response> => {
   logDebug("Payment", `Starting ${label} checkout`);
-  return withPaymentProvider(
-    () => {
-      logDebug(
-        "Payment",
-        `No payment provider configured for ${label} checkout`,
-      );
-      return onError(
-        "Payments are not configured. Please contact the administrator.",
-        500,
-      );
-    },
-    async (provider) => {
-      logDebug("Payment", `Using provider=${provider.type} for ${label}`);
-      const baseUrl = getBaseUrl(request);
-      logDebug("Payment", `Creating checkout session baseUrl=${baseUrl}`);
-      const result = await provider.createCheckoutSession(intent, baseUrl);
-      if (result && "error" in result) {
-        logDebug(
-          "Payment",
-          `Checkout validation error for ${label}: ${result.error}`,
-        );
-        return onError(result.error, 400);
-      }
-      logDebug(
-        "Payment",
-        `Checkout result for ${label}: ${
-          result ? `url=${result.checkoutUrl}` : "null"
-        }`,
-      );
-      return tryCheckoutRedirect(result?.checkoutUrl, () => {
-        logDebug(
-          "Payment",
-          `Checkout redirect failed for ${label}: no session URL`,
-        );
-        return onError(
-          "Failed to create payment session. Please try again.",
-          500,
-        );
-      });
-    },
+  if (paymentsApi.getConfiguredProvider() === null) {
+    logDebug("Payment", "No payment provider configured in settings");
+    logDebug("Payment", `No payment provider configured for ${label} checkout`);
+    return onError(
+      "Payments are not configured. Please contact the administrator.",
+      500,
+    );
+  }
+  const baseUrl = getBaseUrl(request);
+  logDebug("Payment", `Creating checkout session baseUrl=${baseUrl}`);
+  const result = await createPaymentCheckout(intent, baseUrl);
+  if (result && "error" in result) {
+    logDebug(
+      "Payment",
+      `Checkout validation error for ${label}: ${result.error}`,
+    );
+    return onError(result.error, 400);
+  }
+  logDebug(
+    "Payment",
+    `Checkout result for ${label}: ${
+      result ? `url=${result.checkoutUrl}` : "null"
+    }`,
   );
+  return tryCheckoutRedirect(result?.checkoutUrl, () => {
+    logDebug(
+      "Payment",
+      `Checkout redirect failed for ${label}: no session URL`,
+    );
+    return onError("Failed to create payment session. Please try again.", 500);
+  });
 };
 
 /** Whether all selected listings have available spots (one batched query). */

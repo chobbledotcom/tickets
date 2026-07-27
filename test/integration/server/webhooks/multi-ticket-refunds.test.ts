@@ -10,6 +10,7 @@ import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
   expectMergedMultiListingAttendee,
+  expectRefundPaymentCall,
   expectSessionFailed,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
@@ -137,7 +138,7 @@ describeWithEnv(
 
       // Verify refund was attempted exactly once
       expect(mockRefund.calls.length).toBe(1);
-      expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
+      expectRefundPaymentCall(mockRefund, "pi_multi_mismatch");
     });
 
     test("multi-ticket keeps and refunds when per-item p does not match unit_price * q for non-pay-more listing", async () => {

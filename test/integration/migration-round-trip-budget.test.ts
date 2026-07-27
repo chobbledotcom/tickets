@@ -90,7 +90,9 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
       },
       {
         args: pendingIds,
-        sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id IN (${inPlaceholders(pendingIds)})`,
+        sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id IN (${inPlaceholders(
+          pendingIds,
+        )})`,
       },
     ]);
     invalidateInitDbCache();
@@ -119,11 +121,13 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
       }
     }
     expect(finished).toBe(true);
-    expect(continuations).toBe(4);
+    expect(continuations).toBe(6);
 
     const result = await getDb().execute({
       args: pendingIds,
-      sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id IN (${inPlaceholders(pendingIds)}) ORDER BY id`,
+      sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id IN (${inPlaceholders(
+        pendingIds,
+      )}) ORDER BY id`,
     });
     expect(result.rows.map((row) => String(row.id))).toEqual(
       [...pendingIds].sort(),

@@ -12,6 +12,22 @@ import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import { initDb } from "#shared/db/migrations.ts";
+import { recordPaymentCase } from "#shared/db/payments/cases.ts";
+import {
+  acceptPaymentDecision,
+  getPaymentCaseDecisions,
+} from "#shared/db/payments/decisions.ts";
+import {
+  createPaymentSession,
+  getPaymentSessions,
+} from "#shared/db/payments/sessions.ts";
+import {
+  CHARGE_RESOURCE,
+  PAYMENT_CHECKOUT_CREATE,
+  PAYMENT_ID,
+  PAYMENT_TIME,
+  paymentSessionInput,
+} from "#test/shared/db/payments/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -75,6 +91,91 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       booked_quantity: 1,
       tickets_count: 1,
     });
+  });
+
+  test("restores an encrypted pending checkout creation snapshot exactly", async () => {
+    await createPaymentSession(
+      {
+        ...paymentSessionInput(PAYMENT_ID, null),
+        checkoutCreate: PAYMENT_CHECKOUT_CREATE,
+      },
+      PAYMENT_TIME,
+    );
+    const zip = await createBackupZip();
+
+    await restoreFromZip(zip);
+
+    const [payment] = await getPaymentSessions([PAYMENT_ID]);
+    expect(payment?.checkoutCreate).toEqual(PAYMENT_CHECKOUT_CREATE);
+    const raw = await queryOne<{ checkout_create: string }>(
+      "SELECT checkout_create FROM payment_sessions WHERE id = ?",
+      [PAYMENT_ID],
+    );
+    expect(raw?.checkout_create).toMatch(/^enc:1:/u);
+    expect(raw?.checkout_create).not.toContain(
+      PAYMENT_CHECKOUT_CREATE.bookingIntent.email,
+    );
+  });
+
+  test("restores encrypted owner payment decisions", async () => {
+    const input = paymentSessionInput();
+    if (input.session === null) throw new Error("Expected a payment session");
+    const paymentCase = (
+      await recordPaymentCase(
+        {
+          evidence: input.bookingIntent,
+          nextReconcileAt: null,
+          paymentId: PAYMENT_ID,
+          reason: "partial_refund",
+          resource: input.session,
+          state: "needs_action",
+        },
+        PAYMENT_TIME,
+      )
+    ).paymentCase;
+    const reviewedCharge = {
+      captured: { amount: 1_000, currency: "GBP" },
+      chargeId: 1,
+      providerReference: CHARGE_RESOURCE,
+      refunded: { amount: 0, currency: "GBP" },
+    } as const;
+    await acceptPaymentDecision(
+      paymentCase.id,
+      {
+        actorId: 1,
+        caseRevision: paymentCase.revision,
+        claimedAt: PAYMENT_TIME,
+        reason: "Checked before the backup",
+        reviewed: {
+          accountId: "acct-backup",
+          charges: [reviewedCharge],
+          kind: "charges",
+          mode: "test",
+          paymentId: PAYMENT_ID,
+          provider: "stripe",
+        },
+        selection: { kind: "refund_remaining" },
+      },
+      {
+        actorId: 1,
+        caseRevision: paymentCase.revision,
+        decidedAt: PAYMENT_TIME,
+        kind: "refund_remaining",
+        reason: "Checked before the backup",
+      },
+    );
+
+    await restoreFromZip(await createBackupZip());
+
+    expect(await getPaymentCaseDecisions(paymentCase.id)).toMatchObject([
+      {
+        decision: {
+          actorId: 1,
+          kind: "refund_remaining",
+          reason: "Checked before the backup",
+        },
+      },
+    ]);
   });
 
   test("keeps validation triggers active while importing rows", async () => {

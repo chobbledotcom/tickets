@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import type { CreatePaymentLinkInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
+import type { CreatePaymentLinkInput } from "#shared/square-client.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -11,7 +11,11 @@ import {
   withSquareClient,
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import {
+  checkoutIntent,
+  checkoutItem,
+  preparedCheckout,
+} from "#test-utils/checkout.ts";
 import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 
@@ -42,22 +46,26 @@ describeSquare(() => {
       await withSquareClient(
         linkResult("order_abc", "https://square.link/abc"),
         async ({ checkoutCreate }) => {
-          const result = await squareApi.createPaymentLink(
-            checkoutIntent({
-              email: "jane@example.com",
-              items: [
-                checkoutItem({
-                  listingId: 7,
-                  name: "Concert",
-                  quantity: 3,
-                  slug: "concert-2025",
-                  unitPrice: 2500,
-                }),
-              ],
-              name: "Jane Smith",
-              phone: "555-9876",
-            }),
-            "https://tickets.example.com",
+          const result = await squareApi.createCheckout(
+            await preparedCheckout(
+              checkoutIntent({
+                email: "jane@example.com",
+                items: [
+                  checkoutItem({
+                    listingId: 7,
+                    name: "Concert",
+                    quantity: 3,
+                    slug: "concert-2025",
+                    unitPrice: 2500,
+                  }),
+                ],
+                name: "Jane Smith",
+                phone: "555-9876",
+              }),
+              "square",
+              "square-single",
+              "https://tickets.example.com",
+            ),
           );
 
           expect(result).not.toBeNull();
@@ -84,21 +92,20 @@ describeSquare(() => {
           expect(metadata.name).toBe("Jane Smith");
           expect(metadata.email).toBe("jane@example.com");
           expect(metadata.phone).toBe("555-9876");
+          expect(args.order.metadata?.payment_id).toBe("square-single");
           const items = JSON.parse(metadata.items);
           expect(items).toEqual([{ e: 7, p: 7500, q: 3 }]);
 
           // Verify checkout options
           expect(args.checkoutOptions.redirectUrl).toBe(
-            "https://tickets.example.com/payment/success",
+            "https://tickets.example.com/payment/success?payment_id=square-single",
           );
 
           // Verify pre-populated data (phone is normalized: stripped + prefixed)
           expect(args.prePopulatedData.buyerEmail).toBe("jane@example.com");
           expect(args.prePopulatedData.buyerPhoneNumber).toBe("+5559876");
 
-          // Verify idempotency key is present
-          expect(typeof args.idempotencyKey).toBe("string");
-          expect(args.idempotencyKey.length).toBeGreaterThan(0);
+          expect(args.idempotencyKey).toBe("square-single");
           expect(debugMessages()).toContain(
             "[Square] Creating payment link for 1 listing(s)",
           );
@@ -117,21 +124,25 @@ describeSquare(() => {
         linkResult("order_fee", "https://square.link/fee"),
         async ({ checkoutCreate }) => {
           const listing = testListing({ unit_price: 1000 });
-          await squareApi.createPaymentLink(
-            checkoutIntent({
-              email: "jane@example.com",
-              items: [
-                checkoutItem({
-                  listingId: listing.id,
-                  name: listing.name,
-                  quantity: 2,
-                  slug: listing.slug,
-                  unitPrice: listing.unit_price,
-                }),
-              ],
-              name: "Jane",
-            }),
-            "https://tickets.example.com",
+          await squareApi.createCheckout(
+            await preparedCheckout(
+              checkoutIntent({
+                email: "jane@example.com",
+                items: [
+                  checkoutItem({
+                    listingId: listing.id,
+                    name: listing.name,
+                    quantity: 2,
+                    slug: listing.slug,
+                    unitPrice: listing.unit_price,
+                  }),
+                ],
+                name: "Jane",
+              }),
+              "square",
+              "square-fee",
+              "https://tickets.example.com",
+            ),
           );
 
           const args = checkoutCreate.calls[0]
@@ -150,9 +161,13 @@ describeSquare(() => {
       await withSquareClient(
         linkResult("order_xyz", "https://square.link/xyz"),
         async ({ checkoutCreate }) => {
-          await squareApi.createPaymentLink(
-            checkoutIntent(),
-            "http://localhost",
+          await squareApi.createCheckout(
+            await preparedCheckout(
+              checkoutIntent(),
+              "square",
+              "square-no-phone",
+              "http://localhost",
+            ),
           );
 
           const args = checkoutCreate.calls[0]
@@ -164,7 +179,7 @@ describeSquare(() => {
       );
     });
 
-    test("returns null when SDK response missing orderId", async () => {
+    test("rejects a malformed successful response", async () => {
       await configureSquare({ locationId: "L_loc_456" });
       await withSquareClient(
         {
@@ -174,17 +189,16 @@ describeSquare(() => {
             }),
         },
         async () => {
-          const result = await squareApi.createPaymentLink(
-            checkoutIntent(),
-            "http://localhost",
-          );
-          expect(result).toBeNull();
-          expect(debugMessages()).toContain(
-            "[Square] Payment link response missing orderId or url",
-          );
-          expect(debugMessages()).toContain(
-            "[Square] Payment link creation failed",
-          );
+          await expect(
+            squareApi.createCheckout(
+              await preparedCheckout(
+                checkoutIntent(),
+                "square",
+                "square-missing-id",
+                "http://localhost",
+              ),
+            ),
+          ).rejects.toThrow();
         },
       );
     });

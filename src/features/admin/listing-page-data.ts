@@ -33,8 +33,7 @@ import {
 } from "#shared/db/listing-parents.ts";
 import { getListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
-import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
-import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
+import { getAttendeeIdsWithPayments } from "#shared/db/payments/sessions.ts";
 import { getListingChoiceAnswerMap } from "#shared/db/questions/attendee-answers/reads.ts";
 import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -201,8 +200,6 @@ export const loadListingOverviewPanel = async (
   { listing, isChild, isHiddenPackageMember }: LoadedListing,
   canViewLedger = false,
 ): Promise<JSX.Element> => {
-  // Housekeeping the old detail view ran on every load: clear reservations
-  // whose payment window lapsed, concurrently with the page's own reads.
   const [stats, recalc, moneyTotals, groupContext, systemNotes, questionData] =
     await Promise.all([
       getListingOverviewStats(listing),
@@ -213,7 +210,6 @@ export const loadListingOverviewPanel = async (
       loadGroupContext(listing, null),
       loadNotesForListing(listing.id, requireRequestPrivateKey),
       loadOverviewQuestionData(listing.id),
-      deleteAllStaleReservations(),
     ]);
   const noteNames = await noteAuthorNames(systemNotes);
   return ListingOverviewPanel({
@@ -272,7 +268,7 @@ export const loadListingRosterPanel = async (
       filteredByDate.map((a) => a.id),
       requireRequestPrivateKey,
     ),
-    getAttendeeIdsWithPaymentReference(filteredByDate),
+    getAttendeeIdsWithPayments(filteredByDate),
   ]);
   return ListingRosterPanel({
     activeFilter,

@@ -1,5 +1,6 @@
 /** Fixed-size database pruning used by the maintenance task and owner actions. */
 
+import * as v from "valibot";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import { addressCachePruneStatement } from "#shared/db/address-cache.ts";
 import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
@@ -8,14 +9,16 @@ import {
   queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { paymentSessionAttendeeChangeStatement } from "#shared/db/payments/attendee.ts";
+import { redactPaymentHistoryPage } from "#shared/db/payments/redaction.ts";
+import type { PaymentHistoryRedactionCheckpoint } from "#shared/db/payments/redaction-page.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   MAINTENANCE_PRUNE_BATCH,
+  PAYMENT_HISTORY_REDACTION_MS,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
-  PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
-  PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
@@ -47,41 +50,7 @@ const boundedDelete = (
 const isoCutoff = (retentionMs: number): string =>
   new Date(nowMs() - retentionMs).toISOString();
 
-const paymentStatement = (): PruneStatement => ({
-  args: [isoCutoff(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
-  sql: `DELETE FROM processed_payments
-         WHERE rowid IN (
-           SELECT payment.rowid
-             FROM processed_payments AS payment
-            WHERE payment.processed_at < ?
-              AND (
-                payment.failure_data != ''
-                OR (
-                  payment.attendee_id IS NOT NULL
-                  AND (
-                    payment.payment_reference = ''
-                    OR NOT EXISTS (
-                      SELECT 1 FROM attendees AS attendee
-                       WHERE attendee.id = payment.attendee_id
-                    )
-                    OR EXISTS (
-                      SELECT 1 FROM transfers AS transfer
-                       WHERE transfer.kind = 'refund_cash'
-                         AND transfer.source_type = 'attendee'
-                         AND transfer.source_id = CAST(payment.attendee_id AS TEXT)
-                    )
-                  )
-                )
-              )
-            ORDER BY payment.rowid LIMIT ?
-         )`,
-});
-
 const pruneStatements = (): PruneStatement[] => [
-  paymentStatement(),
-  boundedDelete("sumup_checkouts", "created_at < ?", [
-    isoCutoff(PRUNE_SUMUP_RETENTION_MS),
-  ]),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoCutoff(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),
@@ -120,6 +89,7 @@ const orphanStatements = (): PruneStatement[] => {
     MAINTENANCE_PRUNE_BATCH,
   ];
   return [
+    paymentSessionAttendeeChangeStatement({ args, sql: ORPHAN_IDS }, null),
     ...attendeeDependentDeleteStatements({ args, sql: ORPHAN_IDS }),
     {
       args,
@@ -131,22 +101,76 @@ const orphanStatements = (): PruneStatement[] => {
 type InviteCandidate = Pick<User, "id" | "invite_expiry">;
 
 type InvitePage = {
-  checkpoint: string | null;
+  checkpoint: number | null;
   expiredIds: number[];
   hasMore: boolean;
 };
 
-const checkpointId = (checkpoint: string | null): number | null => {
-  if (checkpoint === null) return null;
-  const id = Number(checkpoint);
-  if (!Number.isSafeInteger(id) || id < 1) {
-    throw new Error(`Invalid invite pruning checkpoint: ${checkpoint}`);
+interface PruningCheckpoint extends PaymentHistoryRedactionCheckpoint {
+  inviteId: number | null;
+}
+
+const EMPTY_CHECKPOINT: PruningCheckpoint = {
+  caseId: null,
+  inviteId: null,
+  sessionId: null,
+  sessionUpdatedAt: null,
+};
+
+const pruningNumberSchema = (minimum: number) =>
+  v.nullable(v.pipe(v.number(), v.safeInteger(), v.minValue(minimum)));
+
+const PruningIdSchema = pruningNumberSchema(1);
+
+const PruningCheckpointSchema = v.pipe(
+  v.strictObject({
+    caseId: PruningIdSchema,
+    inviteId: PruningIdSchema,
+    sessionId: v.nullable(v.string()),
+    sessionUpdatedAt: pruningNumberSchema(0),
+  }),
+  v.check(
+    (checkpoint) =>
+      (checkpoint.sessionId === null) ===
+      (checkpoint.sessionUpdatedAt === null),
+    "Payment pruning checkpoint fields must be stored together",
+  ),
+);
+
+const parseCheckpoint = (checkpoint: string | null): PruningCheckpoint => {
+  if (checkpoint === null) return EMPTY_CHECKPOINT;
+  const oldInviteId = Number(checkpoint);
+  if (Number.isSafeInteger(oldInviteId) && oldInviteId >= 1) {
+    return { ...EMPTY_CHECKPOINT, inviteId: oldInviteId };
   }
-  return id;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(checkpoint);
+  } catch {
+    throw new Error(`Invalid database pruning checkpoint: ${checkpoint}`);
+  }
+  const result = v.safeParse(PruningCheckpointSchema, parsed);
+  if (!result.success) {
+    throw new Error(`Invalid database pruning checkpoint: ${checkpoint}`);
+  }
+  return result.output;
+};
+
+const storeCheckpoint = (checkpoint: PruningCheckpoint): string | null => {
+  if (
+    checkpoint.caseId === null &&
+    checkpoint.sessionId === null &&
+    checkpoint.inviteId !== null
+  ) {
+    return String(checkpoint.inviteId);
+  }
+  return Object.values(checkpoint).every((value) => value === null)
+    ? null
+    : JSON.stringify(checkpoint);
 };
 
 const expiredInvitePage = async (
-  checkpoint: string | null,
+  checkpoint: number | null,
 ): Promise<InvitePage> => {
   const rows = await queryAll<InviteCandidate>(
     `SELECT id, invite_expiry FROM users
@@ -156,11 +180,7 @@ const expiredInvitePage = async (
         AND (? IS NULL OR id > ?)
       ORDER BY id
       LIMIT ?`,
-    [
-      checkpointId(checkpoint),
-      checkpointId(checkpoint),
-      MAINTENANCE_PRUNE_BATCH + 1,
-    ],
+    [checkpoint, checkpoint, MAINTENANCE_PRUNE_BATCH + 1],
   );
   const candidates = rows.slice(0, MAINTENANCE_PRUNE_BATCH);
   const cutoff = now().getTime();
@@ -172,7 +192,7 @@ const expiredInvitePage = async (
   );
   const hasMore = rows.length > MAINTENANCE_PRUNE_BATCH;
   return {
-    checkpoint: hasMore ? String(candidates[candidates.length - 1]!.id) : null,
+    checkpoint: hasMore ? candidates[candidates.length - 1]!.id : null,
     expiredIds: inviteStates
       .filter(({ expired }) => expired)
       .map(({ id }) => id),
@@ -209,7 +229,12 @@ const lastResultIndexes = (batches: PruneStatement[][]): number[] =>
 export const runDatabasePruning = async (
   checkpoint: string | null = null,
 ): Promise<DatabasePruningResult> => {
-  const invitePage = await expiredInvitePage(checkpoint);
+  const saved = parseCheckpoint(checkpoint);
+  const invitePage = await expiredInvitePage(saved.inviteId);
+  const paymentPage = await redactPaymentHistoryPage(
+    saved,
+    nowMs() - PAYMENT_HISTORY_REDACTION_MS,
+  );
   const batches = [
     ...pruneStatements().map((statement) => [statement]),
     orphanStatements(),
@@ -218,6 +243,7 @@ export const runDatabasePruning = async (
   const results = await executeBatchWithResults(batches.flat());
   const fullBatch =
     invitePage.hasMore ||
+    paymentPage.followUp ||
     lastResultIndexes(batches).some(
       (index) => results[index]!.rowsAffected === MAINTENANCE_PRUNE_BATCH,
     );
@@ -226,5 +252,14 @@ export const runDatabasePruning = async (
     0,
   );
   if (deleted > 0) logDebug("Prune", `deleted ${deleted} expired rows`);
-  return { checkpoint: invitePage.checkpoint, fullBatch };
+  if (paymentPage.redacted > 0) {
+    logDebug("Prune", `redacted ${paymentPage.redacted} payment rows`);
+  }
+  return {
+    checkpoint: storeCheckpoint({
+      ...paymentPage.checkpoint,
+      inviteId: invitePage.checkpoint,
+    }),
+    fullBatch,
+  };
 };

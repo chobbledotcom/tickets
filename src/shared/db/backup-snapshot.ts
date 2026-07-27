@@ -5,6 +5,7 @@ import {
   resultRows,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { LEGACY_PAYMENT_TABLE_NAMES } from "#shared/db/migrations/legacy-payment-schema.ts";
 import { SCHEMA_TABLE_NAMES } from "#shared/db/migrations.ts";
 import { queryColumnSet } from "#shared/db/query.ts";
 import { readLimit } from "#shared/limits.ts";
@@ -24,12 +25,14 @@ const getExistingTableNames = (): Promise<Set<string>> =>
   queryColumnSet("SELECT name FROM sqlite_master WHERE type = 'table'", "name");
 
 /**
- * The schema's tables that currently exist, in SCHEMA (FK-dependency) order.
- * Skips tables a pending migration has not created yet.
+ * The current schema tables followed by the explicitly supported retired
+ * payment tables that currently exist. Unknown tables are never exported.
  */
-const existingSchemaTables = async (): Promise<string[]> => {
+const existingBackupTables = async (): Promise<string[]> => {
   const existing = await getExistingTableNames();
-  return SCHEMA_TABLE_NAMES.filter((table) => existing.has(table));
+  return [...SCHEMA_TABLE_NAMES, ...LEGACY_PAYMENT_TABLE_NAMES].filter(
+    (table) => existing.has(table),
+  );
 };
 
 /** Escape a SQL string value (single quotes doubled) */
@@ -117,10 +120,10 @@ export const exportTable = async (
   return { rowCount, sql: statements.join("\n") };
 };
 
-/** Create a full backup — one TableBackup per table in SCHEMA order.
- *  Skips tables that don't exist yet (e.g. new tables about to be created by a migration). */
+/** Create a full backup in restore order, including known retired payment
+ * tables while their replacement migration is still pending. */
 export const createBackup = async (): Promise<TableBackup[]> => {
-  const tables = await existingSchemaTables();
+  const tables = await existingBackupTables();
   const pageSize = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE);
   const firstPages = await queryBatch(
     tables.map((table) => tablePageStatement(table, 0, pageSize)),

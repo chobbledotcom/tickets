@@ -1,6 +1,6 @@
-import { schemaMigration } from "./define.ts";
+import { legacyPaymentSchemaMigration } from "./legacy-payment-schema.ts";
 
-export default schemaMigration(
+export default legacyPaymentSchemaMigration(
   "2026-07-10_processed_payments_attendee_index",
   "Add idx_processed_payments_attendee_id so admin rosters, exports, and " +
     "refund-all candidate loading range-scan a listing's retained charge " +

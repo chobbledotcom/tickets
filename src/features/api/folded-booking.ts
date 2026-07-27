@@ -40,11 +40,8 @@ import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
-import {
-  type CheckoutIntent,
-  type CheckoutItem,
-  getActivePaymentProvider,
-} from "#shared/payments.ts";
+import { createPaymentCheckout } from "#shared/payment-runtime/create.ts";
+import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import {
   type ContactInfo,
   isPaidListing,
@@ -276,9 +273,8 @@ const completeFoldedBooking = async (
       fold.dayCount,
     );
     if (!available) return soldOutResponse();
-    const provider = (await getActivePaymentProvider())!;
     const baseUrl = getBaseUrl(request);
-    const result = await provider.createCheckoutSession(intent, baseUrl);
+    const result = await createPaymentCheckout(intent, baseUrl);
     if (!result) return checkoutFailedResponse();
     return "error" in result
       ? checkoutFailedResponse(result.error)

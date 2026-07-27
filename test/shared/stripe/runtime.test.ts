@@ -6,10 +6,18 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   STRIPE_MAX_NETWORK_RETRIES,
   STRIPE_TIMEOUT_MS,
+  StripeApiError,
 } from "#shared/stripe/request.ts";
-import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
+import {
+  sanitizeStripeError,
+  stripeClientRuntime,
+} from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { stripeClient } from "#test/lib/stripe/fixtures.ts";
+import {
+  stripeClient,
+  stripePaymentIntent,
+  stripeRefund,
+} from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -115,6 +123,45 @@ describeStripe("Stripe client configuration", () => {
     });
   });
 
+  test("reports a malformed lookup response as invalid", async () => {
+    await settings.update.stripe.secretKey("sk_test_invalid_lookup");
+    await withFetchMock(async () => {
+      globalThis.fetch = () => Promise.resolve(Response.json({ id: "cs_bad" }));
+      expect(await stripeApi.lookupCheckoutSession("cs_bad")).toEqual({
+        status: "invalid",
+      });
+    });
+  });
+
+  for (const [name, error, status] of [
+    [
+      "not found",
+      new StripeApiError("missing", {
+        code: "resource_missing",
+        requestId: "req_missing",
+        statusCode: 404,
+        type: "invalid_request_error",
+      }),
+      "missing",
+    ],
+    ["temporarily unavailable", new TypeError("network"), "unavailable"],
+  ] as const) {
+    test(`classifies a ${name} lookup as ${status}`, async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.checkout.sessions, "retrieve", () =>
+            Promise.reject(error),
+          ),
+        async () => {
+          expect(await stripeApi.lookupCheckoutSession("cs_lookup")).toEqual({
+            status,
+          });
+        },
+      );
+    });
+  }
+
   test("does not retry mock-server failures", async () => {
     using _env = withEnv({
       STRIPE_MOCK_HOST: "mock.local",
@@ -152,6 +199,64 @@ describeStripe("Stripe client configuration", () => {
       debugSpy.restore();
       setSuppressDebugLogs(null);
     }
+  });
+
+  test("reports an unconfigured lookup as unavailable", async () => {
+    expect(await stripeApi.lookupCheckoutSession("cs_unconfigured")).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  test("creates a production client when no stripe-mock host is configured", async () => {
+    using _env = withEnv({
+      STRIPE_MOCK_HOST: undefined,
+      STRIPE_MOCK_PORT: undefined,
+    });
+    await settings.update.stripe.secretKey("sk_test_production_config");
+    expect(await stripeClientRuntime.get()).not.toBeNull();
+    expect(
+      stripeClientRuntime.create("sk_test_no_retries", 0).balance.retrieve,
+    ).toBeInstanceOf(Function);
+  });
+
+  test("uses safe fallback detail for a non-error value", () => {
+    expect(sanitizeStripeError("not an error")).toBe("unknown");
+  });
+
+  test("routes account, PaymentIntent, and Refund operations through the typed runtime", async () => {
+    const client = await stripeClient();
+    const account = { id: "acct_runtime" };
+    const intent = stripePaymentIntent();
+    const refund = stripeRefund();
+    await withMocks(
+      () => ({
+        account: stub(client.accounts, "retrieve", () =>
+          Promise.resolve(account),
+        ),
+        create: stub(client.refunds, "create", () => Promise.resolve(refund)),
+        intent: stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
+          Promise.resolve(intent),
+        ),
+        refund: stub(client.refunds, "retrieve", () => Promise.resolve(refund)),
+      }),
+      async () => {
+        expect(await stripeApi.retrieveAccount()).toEqual(account);
+        expect(await stripeApi.lookupPaymentIntent(intent.id)).toEqual({
+          status: "found",
+          value: intent,
+        });
+        expect(await stripeApi.retrievePaymentIntent(intent.id)).toEqual(
+          intent,
+        );
+        expect(await stripeApi.requestRefund(intent.id, "refund-key")).toEqual(
+          refund,
+        );
+        expect(await stripeApi.retrieveRefund(refund.id)).toEqual({
+          status: "found",
+          value: refund,
+        });
+      },
+    );
   });
 
   test("logs safe Stripe fields instead of the raw error message", async () => {

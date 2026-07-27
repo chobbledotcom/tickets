@@ -151,6 +151,7 @@ export const questionTables: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["site_data", "TEXT NOT NULL"],
         ["assignable", "INTEGER NOT NULL DEFAULT 0"],
+        ["assignment_effect", "TEXT DEFAULT NULL"],
         ["assigned_attendee_id", "INTEGER DEFAULT NULL"],
         ["assigned_listing_id", "INTEGER DEFAULT NULL"],
         createdColumn,
@@ -169,6 +170,11 @@ export const questionTables: [name: string, table: Table][] = [
         ],
       ],
       indexes: [
+        {
+          columns: ["assignment_effect"],
+          name: "idx_built_sites_assignment_effect",
+          unique: true,
+        },
         {
           columns: ["renewal_token_index"],
           name: "idx_built_sites_renewal_token_index",

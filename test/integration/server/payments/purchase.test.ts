@@ -77,15 +77,12 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     test("shows specific error when payment provider returns validation error", async () => {
       const listing = await setupPaidListing(1000);
 
-      // Mock createCheckoutSession to return a validation error result
-      const mockCreate = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () =>
-          Promise.resolve({
-            error:
-              "The payment processor rejected the phone number as invalid. Please correct it and try again.",
-          }),
+      // Mock provider creation to return a validation error result
+      const mockCreate = stub(stripePaymentProvider, "createCheckout", () =>
+        Promise.resolve({
+          error:
+            "The payment processor rejected the phone number as invalid. Please correct it and try again.",
+        }),
       );
 
       try {
@@ -176,8 +173,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
         expect(response.status).toBe(302);
         // The chosen span and its price are carried into the checkout intent.
-        expect(getCaptured()?.dayCount).toBe(2);
-        expect(getCaptured()?.items[0]?.unitPrice).toBe(1800);
+        expect(getCaptured()?.bookingIntent.dayCount).toBe(2);
+        expect(getCaptured()?.order.lines[0]?.amount).toBe(1800);
       } finally {
         checkout.restore();
       }
@@ -232,12 +229,15 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
         expect(response.status).toBe(302);
         const byId = new Map(
-          (getCaptured()?.modifiers ?? []).map((m) => [m.id, m]),
+          (getCaptured()?.bookingIntent.modifiers ?? []).map((modifier) => [
+            modifier.i,
+            modifier,
+          ]),
         );
         // The add-on is applied at the chosen quantity, the promo at quantity 1,
         // and the unselected add-on is absent.
-        expect(byId.get(addOn.id)?.quantity).toBe(2);
-        expect(byId.get(promo.id)?.quantity).toBe(1);
+        expect(byId.get(addOn.id)?.q).toBe(2);
+        expect(byId.get(promo.id)?.q).toBe(1);
         expect(byId.has(skippedAddOn.id)).toBe(false);
       } finally {
         checkout.restore();

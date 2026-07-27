@@ -100,8 +100,13 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-19_maintenance_checkpoint",
         "2026-07-21_activity_backfill_complete",
         "2026-07-22_maintenance_completion",
+        "2026-07-26_payment_aggregate",
+        "2026-07-26_payment_operator_decisions",
+        "2026-07-26_payment_completion",
+        "2026-07-26_payment_history_redaction",
+        "2026-07-26_retire_legacy_payment_tables",
       ],
-      schemaHash: "qxxe41",
+      schemaHash: "1qgowlk",
     });
   });
 
@@ -115,7 +120,8 @@ describe("db > migrations > schema change guard", () => {
     }).toEqual({
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
-      latestUpdate: "Keep completed maintenance work dormant.",
+      latestUpdate:
+        "Retire drained payment staging tables and redact old terminal payment evidence.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

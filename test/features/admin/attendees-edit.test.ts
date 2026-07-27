@@ -8,8 +8,11 @@ import { postTransfers } from "#shared/accounting/store.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import { execute } from "#shared/db/client.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+import {
+  confirmChargesFullyRefunded,
+  getPaymentCharges,
+  requestChargeRefund,
+} from "#shared/db/payments/charges.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
@@ -18,11 +21,30 @@ import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
+
+const attachRefundablePayment = async (
+  attendeeId: number,
+  paymentId: string,
+  reference: string,
+  amount: number,
+): Promise<void> => {
+  await setupStripe();
+  const payment = await createAggregatePayment({
+    attendeeId,
+    charges: [{ amount, reference }],
+    configuredAccount: true,
+    paymentId,
+  });
+  await Promise.all(
+    payment.charges.map((charge) => requestChargeRefund(charge.id)),
+  );
+};
 
 const setupBalanceRefresh = async (
   balanceSessionId: string,
@@ -46,6 +68,12 @@ const setupBalanceRefresh = async (
     listing.id,
     800,
   );
+  await attachRefundablePayment(
+    attendee.id,
+    "refresh-deposit-session",
+    "pi_refresh_deposit",
+    500,
+  );
   await postTransfers([
     {
       amount: 300,
@@ -57,12 +85,11 @@ const setupBalanceRefresh = async (
       source: WORLD,
     },
   ]);
-  await reserveSession(balanceSessionId);
-  await finalizeReservedPayment(
-    balanceSessionId,
+  await attachRefundablePayment(
     attendee.id,
-    "",
+    balanceSessionId,
     balancePaymentId,
+    300,
   );
   return attendee;
 };
@@ -172,6 +199,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
           occurredAt: OCCURRED_AT,
         }),
       );
+      await attachRefundablePayment(
+        attendee.id,
+        "pi_refresh_first_real",
+        "pi_refresh_first_real",
+        500,
+      );
 
       await submitRefreshPayment(attendee, () => Promise.resolve(true));
 
@@ -189,11 +222,15 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "refresh-balance-already-refunded",
         "pi_refresh_balance_done",
       );
-      await execute(
-        `UPDATE processed_payments
-            SET provider_refunded_at = ?
-          WHERE payment_session_id = ?`,
-        ["2026-07-01T00:01:00.000Z", "refresh-balance-already-refunded"],
+      const [charge] = await getPaymentCharges(
+        "refresh-balance-already-refunded",
+      );
+      if (charge === undefined || !("captured" in charge)) {
+        throw new Error("Expected a current payment charge");
+      }
+      await confirmChargesFullyRefunded(
+        "refresh-balance-already-refunded",
+        [{ captured: charge.captured, chargeId: charge.id }],
       );
 
       const queried = await submitRefreshPayment(attendee, (reference) =>
@@ -240,6 +277,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_not_refunded",
         500,
       );
+      await attachRefundablePayment(
+        attendee.id,
+        "refresh-not-refunded",
+        "pi_not_refunded",
+        500,
+      );
 
       const queried = await submitRefreshPayment(
         attendee,
@@ -260,6 +303,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         listing.id,
         "Refunded No Ledger",
         "refunded-no-ledger@example.com",
+        "pi_refunded_no_ledger",
+        500,
+      );
+      await attachRefundablePayment(
+        attendee.id,
+        "refresh-refunded-no-ledger",
         "pi_refunded_no_ledger",
         500,
       );

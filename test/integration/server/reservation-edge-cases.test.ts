@@ -23,7 +23,7 @@ import {
   setupReservationListing,
   stubPaidSession,
 } from "#test/lib/server-reservation/helpers.ts";
-import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { captureCheckoutSnapshot } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
@@ -119,14 +119,14 @@ describeWithEnv(
           "pi_cs_addon_sold",
           await response.text(),
         );
-        // The session is recorded as a terminal failure (placeholder kept, no
-        // ticket attendee): attendee_id stays null and failure_data is set.
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
+        const { requirePaymentAggregateByProviderSession } = await import(
+          "#test-utils/payment-aggregate.ts"
         );
-        const record = await isSessionProcessed("cs_addon_sold");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
+        const payment = await requirePaymentAggregateByProviderSession(
+          "cs_addon_sold",
+        );
+        expect(payment.completion?.kind).toBe("placeholder_refund");
+        expect(payment.state).toBe("fully_refunded");
       } finally {
         session.restore();
         refund.restore();
@@ -140,7 +140,7 @@ describeWithEnv(
         "UPDATE attendee_statuses SET is_public_default = 0",
       );
       attendeeStatuses.invalidate();
-      await expect(captureCheckoutIntent(listing)).rejects.toThrow(
+      await expect(captureCheckoutSnapshot(listing)).rejects.toThrow(
         "No attendee status has the required is_public_default flag",
       );
     });

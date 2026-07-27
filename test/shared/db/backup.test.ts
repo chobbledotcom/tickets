@@ -15,6 +15,7 @@ import {
 import { exportTable } from "#shared/db/backup-snapshot.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
+import { LEGACY_PAYMENT_TABLE_NAMES } from "#shared/db/migrations/legacy-payment-schema.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import {
@@ -88,6 +89,9 @@ describeWithEnv("backup", { db: true }, () => {
       // All tables present
       for (const table of SCHEMA_TABLE_NAMES) {
         expect(Object.keys(files)).toContain(`${table}.sql`);
+      }
+      for (const table of LEGACY_PAYMENT_TABLE_NAMES) {
+        expect(Object.keys(files)).not.toContain(`${table}.sql`);
       }
 
       // Manifest has correct schema hash

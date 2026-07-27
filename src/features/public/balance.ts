@@ -18,10 +18,8 @@ import {
   getAttendeeOrderSummary,
   type OrderSummary,
 } from "#shared/db/attendees/balance.ts";
-import {
-  type CheckoutIntent,
-  getActivePaymentProvider,
-} from "#shared/payments.ts";
+import { createPaymentCheckout } from "#shared/payment-runtime/create.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import {
   balanceInvalidPage,
   balanceNoItemsPage,
@@ -80,9 +78,6 @@ const handleBalancePost = (
     () => htmlResponse(balanceInvalidPage()),
     () =>
       withOutstanding(token, async ({ amount, attendeeId, summary }) => {
-        const provider = await getActivePaymentProvider();
-        if (!provider) return htmlResponse(balanceInvalidPage());
-
         const intent: CheckoutIntent = {
           address: "",
           balanceAttendeeId: attendeeId,
@@ -104,10 +99,7 @@ const handleBalancePost = (
           phone: "",
           special_instructions: "",
         };
-        const result = await provider.createCheckoutSession(
-          intent,
-          getBaseUrl(request),
-        );
+        const result = await createPaymentCheckout(intent, getBaseUrl(request));
         if (!result || "error" in result) {
           return htmlResponse(balanceInvalidPage());
         }

@@ -14,6 +14,7 @@ import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectRefundedWithNote,
+  expectRefundPaymentCall,
   expectSessionFailed,
   findKeptPlaceholder,
   stubRefundPayment,
@@ -141,7 +142,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
           // Verify exactly one refund was issued, for the right intent.
           expect(mockRefund.calls.length).toBe(1);
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
+          expectRefundPaymentCall(mockRefund, "pi_test_123");
         },
       );
     });
@@ -178,7 +179,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
           // Verify exactly one refund was issued, for the right intent.
           expect(mockRefund.calls.length).toBe(1);
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_second"]);
+          expectRefundPaymentCall(mockRefund, "pi_second");
 
           // The placeholder is kept alongside the original (sold-out) attendee,
           // with a system note recording the reason, and the session is filed

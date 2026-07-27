@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve, toFileUrl } from "@std/path";
 import * as v from "valibot";
 import { withCleanup } from "#scripts/cleanup.ts";
 import { getEnv } from "#shared/env.ts";
+import { recoverError } from "#shared/error-recovery.ts";
 
 export const SNAPSHOT_USAGE = "Usage: deno task snapshot --out <path.sqlite>";
 
@@ -170,14 +171,11 @@ const outputAlreadyExists = (path: string): Error =>
 
 const readOrNullIfMissing = async <Result>(
   read: () => Promise<Result>,
-): Promise<Result | null> => {
-  try {
-    return await read();
-  } catch (error) {
+): Promise<Result | null> =>
+  recoverError<Result | null>(read, (error) => {
     if (error instanceof Deno.errors.NotFound) return null;
     throw error;
-  }
-};
+  });
 
 const fileInfoOrNull =
   (getRead: () => (path: string) => Promise<Deno.FileInfo>) =>

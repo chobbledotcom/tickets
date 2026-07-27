@@ -5,7 +5,7 @@ import {
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import type {
   BookingIntent,
-  ValidatedSession,
+  BookingPayment,
 } from "#routes/api/webhook-types.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
@@ -34,7 +34,7 @@ type CommittedBookingRow = {
 export const committedEntries = async (
   attendeeId: number,
   ticketToken: string,
-  session: ValidatedSession["session"],
+  session: BookingPayment,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<CreatedEntry[]> => {

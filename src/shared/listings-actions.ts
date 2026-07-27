@@ -39,6 +39,7 @@ import {
   toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
+import { listingHasPendingPaymentCompletion } from "#shared/db/payments/completion-fence.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import {
   packageMemberBlock,
@@ -472,10 +473,14 @@ export const validateListingInput = async (
  * out of that set just as a deactivated one does. Returns the error to surface,
  * or null when the delete is safe.
  */
-export const deleteOrphanedAddOnError = (
+export const deleteOrphanedAddOnError = async (
   listingId: number,
-): Promise<string | null> =>
-  deactivationOrphanedAddOnError(new Set([listingId]));
+): Promise<string | null> => {
+  if (await listingHasPendingPaymentCompletion(listingId)) {
+    return t("payment.error.pending_completion_delete");
+  }
+  return deactivationOrphanedAddOnError(new Set([listingId]));
+};
 
 /**
  * Delete a listing: clean up its attachment, remove DB links, log activity.
@@ -484,6 +489,9 @@ export const deleteOrphanedAddOnError = (
 export const performListingDelete = async (
   listing: ListingWithCount,
 ): Promise<void> => {
+  if (await listingHasPendingPaymentCompletion(listing.id)) {
+    throw new Error(t("payment.error.pending_completion_delete"));
+  }
   await deleteListingAttachmentFile(listing, "listing deletion");
   await deleteListing(listing.id);
   await logActivity(

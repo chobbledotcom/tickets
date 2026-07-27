@@ -21,6 +21,7 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
+import { expectRefundPaymentCall } from "#test-utils/webhooks.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
@@ -173,7 +174,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const body = await response.text();
         expect(body).toContain("no longer accepting registrations");
         expect(body).not.toContain("Vanished Member XYZ");
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_stale_pkg_group"]);
+        expectRefundPaymentCall(mockRefund, "pi_stale_pkg_group");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

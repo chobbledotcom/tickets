@@ -17,12 +17,6 @@ import {
 describeWithEnv("payment callback params", { db: true }, () => {
   const errors = setupErrorSpy();
 
-  test("fails loudly when no payment route matches", async () => {
-    await expect(
-      routedResponse(mockRequest("/payment/not-a-route")),
-    ).rejects.toThrow("GET /payment/not-a-route");
-  });
-
   /** Assert a callback response is a 400 with the "Invalid payment callback" body. */
   const expectInvalidCallback = (response: Response): Promise<void> =>
     expectResponseWithText(response, 400, "Invalid payment callback");
@@ -141,7 +135,7 @@ describeWithEnv("payment callback params", { db: true }, () => {
     expect(html).toContain("https://example.com/alice-thanks");
   });
 
-  test("already-processed direct render after token-clearing redirect shows paid success", async () => {
+  test("already-processed redirect keeps the stable ticket URL", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 50,
@@ -157,28 +151,18 @@ describeWithEnv("payment callback params", { db: true }, () => {
     );
 
     try {
-      // First hit: no explicit thank-you URL, so the redirect path runs and
-      // clears the stored ticket tokens (line 155).
       const first = await routedResponse(
         mockRequest("/payment/success?session_id=cs_clearing"),
       );
-      // First hit is a redirect (302), not a direct render
       expect(first.status).toBe(302);
       const redirect = first.headers.get("location") ?? "";
       expect(redirect).toContain("/payment/success?tokens=");
 
-      // Second hit: tokens are now empty → falls to the direct-render
-      // already-processed path (line 172), which resolves the listing's
-      // thank-you URL via singleListingThankYou.
       const second = await routedResponse(
         mockRequest("/payment/success?session_id=cs_clearing"),
       );
-      expect(second.status).toBe(200);
-      const secondHtml = await second.text();
-      // paid: true must be rendered → data-payment-result="success"
-      expect(secondHtml).toContain('data-payment-result="success"');
-      // The listing's own thank-you URL is used
-      expect(secondHtml).toContain('href="https://example.com/listing-thanks"');
+      expect(second.status).toBe(302);
+      expect(second.headers.get("location")).toBe(redirect);
     } finally {
       retrieve.restore();
     }
@@ -192,9 +176,6 @@ describeWithEnv("payment callback params", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    const { clearSessionTokens } = await import(
-      "#shared/db/processed-payments.ts"
-    );
     const { stripeApi } = await import("#shared/stripe.ts");
     const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
@@ -226,12 +207,6 @@ describeWithEnv("payment callback params", { db: true }, () => {
       expect(firstHtml).toContain('data-payment-result="success"');
       expect(firstHtml).toContain("https://example.com/explicit-thanks");
 
-      // Simulate a webhook racing in and consuming the tokens
-      await clearSessionTokens("cs_explicit");
-
-      // Second hit: tokens now empty, but explicit thank-you is still in
-      // metadata. The explicit URL must win — not be replaced by the
-      // listing's own thank-you URL.
       const second = await routedResponse(
         mockRequest("/payment/success?session_id=cs_explicit"),
       );

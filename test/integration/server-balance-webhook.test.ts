@@ -8,8 +8,6 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { execute } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   createReserved,
@@ -19,6 +17,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { expectRefundPaymentCall } from "#test-utils/webhooks.ts";
 
 // Stubs the Stripe refund call to report a refund with the given id.
 const stubRefund = (id: string) =>
@@ -73,7 +72,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
     }
   });
 
-  test("a pruned balance replay is recovered, not refunded", async () => {
+  test("a completed balance payment replays without another refund", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
     // First delivery settles the balance and posts its payment leg.
@@ -84,16 +83,6 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       first.restore();
     }
 
-    // Prune the idempotency row; the balance payment leg stays in the ledger.
-    await execute(
-      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
-      ["2000-01-01T00:00:00.000Z", "cs_balance_replay"],
-    );
-    await runDatabasePruning();
-
-    // The replay: the balance is already paid (owed 0), so without the ledger
-    // preflight settleAttendeeBalance reports nothing_owed and refunds the
-    // already-paid customer. The preflight replays success instead.
     const refund = stubRefund("re_x");
     const second = stubBalanceSession(attendeeId, 1500, "cs_balance_replay");
     try {
@@ -204,7 +193,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
         mockRequest("/payment/success?session_id=cs_bal_stale"),
       );
       // The stale payment is refunded, not applied.
-      expect(refund.calls[0]!.args).toEqual(["pi_bal_stale"]);
+      expectRefundPaymentCall(refund, "pi_bal_stale");
       const html = await response.text();
       expect(html).toContain("balance for this booking changed");
       // The live balance is untouched — still outstanding.
@@ -229,7 +218,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_bal_amt"),
       );
-      expect(refund.calls[0]!.args).toEqual(["pi_bal_amt"]);
+      expectRefundPaymentCall(refund, "pi_bal_amt");
       expect(await response.text()).toContain("price for this listing changed");
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);

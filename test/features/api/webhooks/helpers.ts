@@ -1,41 +1,21 @@
+import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import type { Spy } from "@std/testing/mock";
 import { stub } from "@std/testing/mock";
 import { routePayment } from "#routes/api/webhooks.ts";
-import type {
-  ValidatedPaymentSession,
-  WebhookEvent,
-} from "#shared/payments.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
-import { mockWebhookRequest } from "#test-utils/mocks.ts";
 
 /** Call the payment router and fail loudly when the request matches no route. */
 export const routedResponse = async (request: Request): Promise<Response> => {
   const url = new URL(request.url);
   const response = await routePayment(request, url.pathname, request.method);
-  if (response === null) {
-    throw new Error(
-      `No payment route matched ${request.method} ${url.pathname}`,
-    );
-  }
+  assert(
+    response !== null,
+    `No payment route matched ${request.method} ${url.pathname}`,
+  );
   return response;
 };
-
-/** Webhook event id + type paired for stubWebhookVerify. */
-export const checkoutEvent = (
-  id: string,
-  type = "checkout.session.completed",
-): WebhookEvent => ({
-  data: { object: {} },
-  id,
-  type,
-});
-
-/** Send a signed webhook request and return the response. */
-export const sendWebhook = (): Promise<Response> =>
-  routedResponse(mockWebhookRequest({}, { "stripe-signature": "sig_valid" }));
 
 /** Assert an HTTP status and body substring. */
 export const expectResponseWithText = async (
@@ -57,11 +37,6 @@ export const expectLoggedErrorResponse = async (
 ): Promise<void> => {
   await expectResponseWithText(response, status, text);
   expect(errorContains(loggedText)).toBe(true);
-};
-
-/** Restore all stubs in reverse order (like a finally block). */
-export const restoreAll = (...stubs: Spy[]): void => {
-  for (const s of stubs.reverse()) s.restore();
 };
 
 /** Create a listing and fill it to capacity so a subsequent booking fails. */
@@ -107,57 +82,3 @@ export const stubRetrieveSession = async (
     >),
   );
 };
-
-/** Set up a Stripe webhook test: resolve stub + verify stub, return the
- * webhook response, and restore both stubs afterwards. */
-export const stripeWebhookResponse = async (
-  resolve: Spy,
-  eventId: string,
-  eventType = "checkout.session.completed",
-): Promise<Response> => {
-  const { stubWebhookVerify } = await import("#test-utils/settings.ts");
-  const verify = await stubWebhookVerify(checkoutEvent(eventId, eventType));
-  try {
-    return await sendWebhook();
-  } finally {
-    restoreAll(verify, resolve);
-  }
-};
-
-/** Stub resolveWebhookSession to return a signed paid session for a listing.
- * Many webhook resolution tests need the same signed metadata + session shape,
- * so currying it here keeps the (structurally identical) block defined once. */
-export const stubPaidSession = (opts: {
-  id: string;
-  listing: { id: number };
-  paymentIntent: string;
-  paymentStatus?: string;
-  unitPrice?: number;
-}): Spy => {
-  const amount = opts.unitPrice ?? 1000;
-  return stub(stripePaymentProvider, "resolveWebhookSession", () =>
-    Promise.resolve({
-      amountTotal: amount,
-      id: opts.id,
-      metadata: signedMeta(
-        {
-          email: "john@example.com",
-          items: singleItem(opts.listing.id, 1, amount),
-          name: "John",
-        },
-        amount,
-      ),
-      paymentReference: opts.paymentIntent,
-      paymentStatus: (opts.paymentStatus ??
-        "paid") as ValidatedPaymentSession["paymentStatus"],
-    } as ValidatedPaymentSession),
-  );
-};
-
-/** Make both provider refund checks report that no refund completed. */
-export const stubFailedRefund = (): Spy[] => [
-  stub(stripePaymentProvider, "refundPayment", () => Promise.resolve(false)),
-  stub(stripePaymentProvider, "isPaymentRefunded", () =>
-    Promise.resolve(false),
-  ),
-];

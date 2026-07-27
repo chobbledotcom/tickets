@@ -382,6 +382,28 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-22_maintenance_completion",
     () => import("./2026-07-22_maintenance_completion.ts"),
   ),
+  // Create the durable payment aggregate and retain ambiguous legacy facts for repair.
+  entry(
+    "2026-07-26_payment_aggregate",
+    () => import("./2026-07-26_payment_aggregate.ts"),
+  ),
+  entry(
+    "2026-07-26_payment_operator_decisions",
+    () => import("./2026-07-26_payment_operator_decisions.ts"),
+  ),
+  entry(
+    "2026-07-26_payment_completion",
+    () => import("./2026-07-26_payment_completion.ts"),
+  ),
+  entry(
+    "2026-07-26_payment_history_redaction",
+    () => import("./2026-07-26_payment_history_redaction.ts"),
+  ),
+  // Remove the write-blocked staging tables after their verified aggregate copy.
+  entry(
+    "2026-07-26_retire_legacy_payment_tables",
+    () => import("./2026-07-26_retire_legacy_payment_tables.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

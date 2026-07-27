@@ -38,6 +38,7 @@ import {
   MigrationInProgressError,
   MissingSettingsTableError,
 } from "./migrations/errors.ts";
+import { LEGACY_PAYMENT_TABLE_NAMES } from "./migrations/legacy-payment-schema.ts";
 import { MIGRATION_IDS, MIGRATION_REGISTRY } from "./migrations/registry.ts";
 import { EVENT_TO_LISTING_RENAME_PLAN } from "./migrations/rename-plan.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
@@ -819,7 +820,10 @@ export const clearAllCaches = (): void => {
 export const resetDatabase = async (): Promise<void> => {
   try {
     await executeBatch(
-      [...SCHEMA].reverse().map(([name]) => ({
+      [
+        ...LEGACY_PAYMENT_TABLE_NAMES,
+        ...[...SCHEMA].reverse().map(([name]) => name),
+      ].map((name) => ({
         args: [],
         sql: `DROP TABLE IF EXISTS ${name}`,
       })),

@@ -6,6 +6,13 @@ import { SITE_ADMIN_LEVELS, STAFF_ADMIN_LEVELS } from "#shared/types.ts";
 
 export const ADMIN_WRITE_ROUTES_N_Z = [
   writeForm(
+    "paymentCase",
+    "payments",
+    "/admin/payments/:caseId",
+    OWNER_AUDIENCE,
+    "payments",
+  ),
+  writeForm(
     "questionDelete",
     "questions",
     "/admin/questions/:id/delete",

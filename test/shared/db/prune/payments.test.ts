@@ -1,89 +1,209 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { getDb, queryOne } from "#shared/db/client.ts";
+import {
+  getPaymentCharges,
+  requestChargeRefund,
+} from "#shared/db/payments/charges.ts";
+import { paymentStoredJson } from "#shared/db/payments/codecs.ts";
+import { getPaymentSessions } from "#shared/db/payments/sessions.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
-import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
+import { reconcilePayment } from "#shared/payment-runtime/process.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  insertFailedPayment,
-  insertFinalizedPayment,
-  insertOrphanAttendee,
-  insertUnfinalizedPayment,
-  paymentExists,
-  postRefundCash,
-} from "./helpers.ts";
+  redactedAt,
+  seedTerminalPayment,
+} from "./payment-redaction-helpers.ts";
 
-const oldEnoughToPrune = () =>
-  new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString();
+interface StoredPayloads {
+  booking_intent: EnvKeyEncrypted;
+  checkout_create: EnvKeyEncrypted | null;
+  completion: EnvKeyEncrypted;
+  legacy_runtime: EnvKeyEncrypted | null;
+  result: EnvKeyEncrypted;
+  session_reference_index: string;
+  session_resource: EnvKeyEncrypted;
+}
 
-const insertOldReferencedPayment = async (sessionId: string) => {
-  const attendeeId = await insertOrphanAttendee(
-    new Date(nowMs()).toISOString(),
+const storedPayloads = (id: string): Promise<StoredPayloads | null> =>
+  queryOne<StoredPayloads>(
+    `SELECT booking_intent, checkout_create, completion, legacy_runtime,
+            result, session_reference_index, session_resource
+       FROM payment_sessions WHERE id = ?`,
+    [id],
   );
-  await insertFinalizedPayment(sessionId, oldEnoughToPrune(), {
-    attendeeId,
-    paymentReference: "encrypted-reference",
-  });
-  return attendeeId;
-};
 
-describeWithEnv("db > prunePayments", { db: true }, () => {
-  test("deletes old finalized payments with no useful refund reference", async () => {
-    await insertFinalizedPayment("sess_old", oldEnoughToPrune());
+describeWithEnv("db > payment history redaction", { db: true }, () => {
+  test("redacts old terminal PII while preserving replay resources", async () => {
+    const seeded = await seedTerminalPayment("eligible-private");
+    const before = await storedPayloads(seeded.id);
+    if (before === null) throw new Error("Expected stored payment payloads");
 
     await runDatabasePruning();
 
-    expect(await paymentExists("sess_old")).toBe(false);
+    const after = await storedPayloads(seeded.id);
+    if (after === null) throw new Error("Expected redacted payment payloads");
+    expect(await redactedAt(seeded.id)).not.toBeNull();
+    expect(after.checkout_create).toBeNull();
+    expect(after.legacy_runtime).toBeNull();
+    expect(after.session_resource).toBe(before.session_resource);
+    expect(after.session_reference_index).toBe(before.session_reference_index);
+    expect(after.booking_intent).not.toBe(before.booking_intent);
+    expect(after.completion).not.toBe(before.completion);
+    expect(after.result).not.toBe(before.result);
+
+    const [intent, completion, result, session] = await Promise.all([
+      paymentStoredJson.bookingIntent.open(
+        after.booking_intent,
+        "redacted intent",
+      ),
+      paymentStoredJson.completion.open(
+        after.completion,
+        "redacted completion",
+      ),
+      paymentStoredJson.result.open(after.result, "redacted result"),
+      paymentStoredJson.sessionResource.open(
+        after.session_resource,
+        "preserved session",
+      ),
+    ]);
+    const decrypted = JSON.stringify({ completion, intent, result });
+    expect(decrypted).not.toContain(seeded.intent.name);
+    expect(decrypted).not.toContain(seeded.intent.email);
+    expect(decrypted).not.toContain(seeded.intent.address);
+    expect(decrypted).not.toContain(seeded.intent.special_instructions);
+    expect(intent).toEqual({
+      address: "",
+      date: null,
+      email: "",
+      items: seeded.intent.items,
+      modifiers: [],
+      name: "",
+      phone: "",
+      special_instructions: "",
+    });
+    expect(completion.input).toEqual(intent);
+    if (!("observation" in result) || result.observation === undefined) {
+      throw new Error("Expected stored terminal observation");
+    }
+    expect(result.observation.bookingIntent).toEqual(intent);
+    expect(session).toEqual(seeded.session);
   });
 
-  test("keeps old finalized payments while their refund reference is useful", async () => {
-    await insertOldReferencedPayment("sess_refund_useful");
+  test("replays a completed callback after redaction", async () => {
+    const seeded = await seedTerminalPayment("replay-after-redaction");
+    await runDatabasePruning();
+
+    const outcome = await reconcilePayment(
+      "stripe",
+      { id: seeded.id, kind: "local" },
+      () => Promise.reject(new Error("Terminal replay must not fulfil again")),
+    );
+
+    expect(outcome).toMatchObject({ replayed: true, status: "completed" });
+    expect(outcome.payment?.id).toBe(seeded.id);
+  });
+
+  test("redacts a terminal session without a stored result", async () => {
+    const seeded = await seedTerminalPayment("redaction-without-result", {
+      storeResult: false,
+    });
 
     await runDatabasePruning();
 
-    expect(await paymentExists("sess_refund_useful")).toBe(true);
+    const [payment] = await getPaymentSessions([seeded.id]);
+    expect(payment).toMatchObject({
+      id: seeded.id,
+      result: null,
+      resultState: "none",
+    });
+    expect(await redactedAt(seeded.id)).not.toBeNull();
   });
 
-  test("deletes old finalized payments once the attendee is refunded", async () => {
-    const attendeeId = await insertOldReferencedPayment("sess_refund_done");
-    await postRefundCash(attendeeId);
-
+  test("keeps exact charge money and permits a later refund request", async () => {
+    const seeded = await seedTerminalPayment("refund-after-redaction");
     await runDatabasePruning();
 
-    expect(await paymentExists("sess_refund_done")).toBe(false);
+    const [charge] = await getPaymentCharges(seeded.id);
+    if (charge === undefined || !("captured" in charge)) {
+      throw new Error("Expected current payment charge");
+    }
+    expect(charge).toMatchObject({
+      captured: { amount: 1_000, currency: "GBP" },
+      providerReference: seeded.charge,
+      refunded: { amount: 0, currency: "GBP" },
+      refundState: "none",
+    });
+
+    const request = await requestChargeRefund(
+      charge.id,
+      "refund-after-redaction-key",
+    );
+
+    expect(request).toEqual({
+      chargeId: charge.id,
+      idempotencyKey: "refund-after-redaction-key",
+    });
   });
 
-  test("keeps finalized payments within retention window", async () => {
-    const recent = new Date(nowMs() - 1000).toISOString();
-    await insertFinalizedPayment("sess_recent", recent);
+  test("fails loudly instead of redacting malformed encrypted state", async () => {
+    const seeded = await seedTerminalPayment("malformed-redaction");
+    const malformed = await paymentStoredJson.decisionError.seal(
+      "not a booking intent",
+      "malformed payment test",
+    );
+    await queryOne(
+      "UPDATE payment_sessions SET booking_intent = ? WHERE id = ? RETURNING id",
+      [malformed, seeded.id],
+    );
 
-    await runDatabasePruning();
+    await expect(runDatabasePruning()).rejects.toThrow();
 
-    expect(await paymentExists("sess_recent")).toBe(true);
+    expect(await redactedAt(seeded.id)).toBeNull();
   });
 
-  test("leaves unfinalized reservations alone regardless of age", async () => {
-    await insertUnfinalizedPayment("sess_unfinalized", oldEnoughToPrune());
+  test("fails if stored payment changes while redaction is being written", async () => {
+    const seeded = await seedTerminalPayment("redaction-write-race");
+    const changedIntent = await paymentStoredJson.bookingIntent.seal(
+      { ...seeded.intent, name: "Changed during redaction" },
+      "payment redaction race test",
+    );
+    const client = getDb();
+    const batch = client.batch.bind(client);
+    let changed = false;
+    using _batch = stub(client, "batch", async (...args) => {
+      if (!changed) {
+        changed = true;
+        await client.execute({
+          args: [changedIntent, seeded.id],
+          sql: "UPDATE payment_sessions SET booking_intent = ? WHERE id = ?",
+        });
+      }
+      return await batch(...args);
+    });
 
-    await runDatabasePruning();
+    await expect(runDatabasePruning()).rejects.toThrow(
+      "Payment history changed while it was being redacted",
+    );
 
-    expect(await paymentExists("sess_unfinalized")).toBe(true);
+    expect(await redactedAt(seeded.id)).toBeNull();
   });
 
-  test("deletes recorded terminal failures older than retention window", async () => {
-    await insertFailedPayment("sess_failed_old", oldEnoughToPrune());
-
+  test("loads the redacted session through the normal stored schema", async () => {
+    const seeded = await seedTerminalPayment("schema-valid-redaction");
     await runDatabasePruning();
 
-    expect(await paymentExists("sess_failed_old")).toBe(false);
-  });
+    const [payment] = await getPaymentSessions([seeded.id]);
 
-  test("keeps recorded terminal failures within retention window", async () => {
-    const recent = new Date(nowMs() - 1000).toISOString();
-    await insertFailedPayment("sess_failed_recent", recent);
-
-    await runDatabasePruning();
-
-    expect(await paymentExists("sess_failed_recent")).toBe(true);
+    expect(payment).toMatchObject({
+      attendeeId: 42,
+      bookingIntent: { email: "", name: "" },
+      completionState: "completed",
+      id: seeded.id,
+      state: "completed",
+      ticketState: "consumed",
+    });
   });
 });

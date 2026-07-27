@@ -9,19 +9,14 @@ import {
 } from "#shared/db/listings/records.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
-import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { insertModifierUsage } from "#test-utils/modifiers.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
@@ -43,49 +38,37 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     expect(fetched).toBeNull();
   });
 
-  test("removes processed payment records", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Jane Doe",
-      "jane@example.com",
-    );
-
-    await reserveSession("sess_attendee_delete");
-    await finalizeReservedPayment(
-      "sess_attendee_delete",
-      attendee.id,
-      "tok-test",
-      "pi_attendee_delete",
-    );
-
-    await deleteAttendee(attendee.id);
-
-    const processed = await isSessionProcessed("sess_attendee_delete");
-    expect(processed).toBeNull();
-  });
-
-  test("removes the attendee's checkout stage", async () => {
+  test("refuses to delete an attendee while paid completion is unfinished", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const attendee = await createTestAttendee(
       listing.id,
       listing.slug,
-      "Open Checkout",
-      "open@example.com",
+      "Pending completion",
+      "pending-completion@example.com",
     );
-    await insertCheckoutStage(attendee.id, "stage-attendee-delete");
+    await createAggregatePayment({
+      attendeeId: attendee.id,
+      bookingIntent: {
+        address: "",
+        date: null,
+        email: "pending-completion@example.com",
+        items: [{ e: listing.id, p: 100, q: 1 }],
+        modifiers: [],
+        name: "Pending completion",
+        phone: "",
+        special_instructions: "",
+      },
+      paymentId: "pending-attendee-delete",
+      state: "completion_pending",
+    });
 
-    await deleteAttendee(attendee.id);
-
-    const stage = await queryOne<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM checkout_stages WHERE attendee_id = ?",
-      [attendee.id],
+    await expect(deleteAttendee(attendee.id)).rejects.toThrow(
+      "Cannot delete data used by pending payment completion",
     );
-    expect(stage?.count).toBe(0);
+
+    expect(
+      await getAttendeeOrNull(attendee.id, await getTestPrivateKey()),
+    ).not.toBeNull();
   });
 
   test("releases listing aggregate totals by default", async () => {

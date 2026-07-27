@@ -83,7 +83,7 @@ describeWithEnv(
           date,
         });
         expect(res.status).toBe(200);
-        expect(getCaptured()?.dayCount).toBe(3);
+        expect(getCaptured()?.bookingIntent.dayCount).toBe(3);
         expectCapturedItemPriced(getCaptured(), child, 3000);
       } finally {
         checkout.restore();

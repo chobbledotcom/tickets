@@ -1,39 +1,16 @@
-import {
-  type CreatedEntry,
-  logPromoCodeModifiers,
-  saveSessionAnswers,
-  sessionSuccess,
-} from "#routes/api/payment-processing/create.ts";
-import type {
-  BookingIntent,
-  PaymentResult,
-} from "#routes/api/webhook-types.ts";
-import type { ModifierApplication } from "#shared/checkout-pricing.ts";
-import type { ModifierSpec } from "#shared/payments.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
+import { completePaidBooking } from "#routes/api/payment-processing/completion-booking.ts";
+import { completePlaceholderRefund } from "#routes/api/payment-processing/completion-refund.ts";
+import type { PaymentResult, PaymentWork } from "#routes/api/webhook-types.ts";
 
-/** Finish every effect after a paid booking has definitely committed. */
-export const completePaidBooking = async (
-  createdEntries: CreatedEntry[],
-  intent: BookingIntent,
-  codeSpecs: ModifierSpec[],
-  modifierApplications: ModifierApplication[],
-  ticketTokens: string[],
+/** Resume whichever encrypted completion plan the atomic payment fence stored. */
+export const completeStoredPayment = (
+  work: PaymentWork,
 ): Promise<PaymentResult> => {
-  await saveSessionAnswers(createdEntries, intent);
-  const firstEntry = createdEntries[0]!;
-  if (codeSpecs.length > 0) {
-    await logPromoCodeModifiers(
-      codeSpecs,
-      modifierApplications,
-      firstEntry.listing,
-      firstEntry.attendee.id,
-    );
+  const completion = work.payment.completion;
+  if (completion === null) {
+    throw new Error(`Payment ${work.payment.id} has no completion plan`);
   }
-  await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
-  return sessionSuccess(
-    firstEntry.attendee.id,
-    firstEntry.listing.id,
-    ticketTokens,
-  );
+  return completion.kind === "booking"
+    ? completePaidBooking(work)
+    : completePlaceholderRefund(work);
 };

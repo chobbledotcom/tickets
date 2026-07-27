@@ -148,8 +148,9 @@ export const withCheckoutStub = async (
   fn: () => Promise<void>,
 ) => {
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
-    Promise.resolve(stubResult),
+  const { providerCheckoutResult } = await import("#test-utils/checkout.ts");
+  const mockCreate = stub(stripePaymentProvider, "createCheckout", () =>
+    Promise.resolve(providerCheckoutResult(stubResult)),
   );
   try {
     await fn();

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import {
   checkAvailability,
@@ -7,6 +7,7 @@ import {
 } from "#routes/public/ticket-payment.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { settings } from "#shared/db/settings.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   type CheckoutIntent,
@@ -14,6 +15,8 @@ import {
   paymentsApi,
 } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { providerCheckoutResult } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const intent: CheckoutIntent = {
@@ -43,26 +46,32 @@ const captureCheckout = async (
   });
   return {
     failure,
-    messages: debug.calls.map((call) => call.args[0]),
+    messages: debug.calls
+      .map((call) => call.args[0])
+      .filter((message) => String(message).startsWith("[Payment]")),
   };
 };
 
 const captureProviderCheckout = async (result: CheckoutSessionResult) => {
+  settings.setForTest({ stripe_secret_key: "sk_test_checkout" });
   using _configured = stub(
     paymentsApi,
     "getConfiguredProvider",
     () => "stripe" as const,
   );
-  using _checkout = stub(stripePaymentProvider, "createCheckoutSession", () =>
-    Promise.resolve(result),
+  using _checkout = stub(stripePaymentProvider, "createCheckout", () =>
+    Promise.resolve(providerCheckoutResult(result)),
   );
   return await captureCheckout((onError) =>
     runCheckoutFlow("test", request, intent, onError),
   );
 };
 
-describe("runCheckoutFlow", () => {
-  afterEach(() => setSuppressDebugLogs(null));
+describeWithEnv("runCheckoutFlow", { db: true }, () => {
+  afterEach(() => {
+    settings.clearTestOverrides();
+    setSuppressDebugLogs(null);
+  });
 
   test("reports the missing-provider status and logs the failed start", async () => {
     using configured = stub(paymentsApi, "getConfiguredProvider", () => null);
@@ -91,9 +100,8 @@ describe("runCheckoutFlow", () => {
     expect(result.failure).toBeUndefined();
     expect(result.messages).toEqual([
       "[Payment] Starting test checkout",
-      "[Payment] Resolving payment provider: stripe",
-      "[Payment] Using provider=stripe for test",
       "[Payment] Creating checkout session baseUrl=https://tickets.example",
+      "[Payment] Resolving payment provider: stripe",
       "[Payment] Checkout result for test: url=https://pay.example/session",
     ]);
   });
@@ -104,9 +112,8 @@ describe("runCheckoutFlow", () => {
     expect(result.failure).toEqual({ message: "Invalid order", status: 400 });
     expect(result.messages).toEqual([
       "[Payment] Starting test checkout",
-      "[Payment] Resolving payment provider: stripe",
-      "[Payment] Using provider=stripe for test",
       "[Payment] Creating checkout session baseUrl=https://tickets.example",
+      "[Payment] Resolving payment provider: stripe",
       "[Payment] Checkout validation error for test: Invalid order",
     ]);
   });
@@ -120,9 +127,8 @@ describe("runCheckoutFlow", () => {
     });
     expect(result.messages).toEqual([
       "[Payment] Starting test checkout",
-      "[Payment] Resolving payment provider: stripe",
-      "[Payment] Using provider=stripe for test",
       "[Payment] Creating checkout session baseUrl=https://tickets.example",
+      "[Payment] Resolving payment provider: stripe",
       "[Payment] Checkout result for test: null",
       "[Payment] Checkout redirect failed for test: no session URL",
     ]);

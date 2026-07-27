@@ -6,7 +6,9 @@
  * quantity-0 placeholder instead of dropping a paid customer.
  */
 
+/* jscpd:ignore-start -- imports */
 import { requiredMapValue } from "#fp";
+import { ticketPaymentFulfilmentStatements } from "#routes/api/payment-processing/fence.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
@@ -16,40 +18,31 @@ import {
 import type {
   BookingIntent,
   PaymentResult,
+  PaymentWork,
 } from "#routes/api/webhook-types.ts";
-/* jscpd:ignore-start */
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
 import {
   bookingsForOrder,
   checkoutBookingLines,
 } from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
-import type {
-  ModifierApplication,
-  PricedOrder,
-} from "#shared/checkout-pricing.ts";
-/* jscpd:ignore-end */
-import { formatCurrency } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import {
-  decryptSessionTokens,
-  type ProcessedPayment,
-} from "#shared/db/processed-payments.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import {
   groupListingAnswerSets,
   saveAttendeeAnswers,
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import type { PaymentCompletion } from "#shared/payment-completion.ts";
 import type {
   BookingItem,
   CheckoutIntent,
-  ModifierSpec,
   TextAnswerRef,
-  ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** The listing id + package path shared by every booking row we build from a
  * signed line — a fresh booking, a quantity-0 placeholder, or a dateless ghost.
@@ -64,35 +57,17 @@ export const bookingSlot = (item: BookingItem) => ({
  *  already-existing attendee (only its id is carried — see PaymentSuccess), the
  *  listing id the redirect resolves lazily, and any ticket tokens (a fresh
  *  booking carries its token; a replay/settle carries none). Centralised so the
- *  resolve paths — fresh booking, balance settle, processed-payments replay, and
- *  ledger replay — can't drift apart. */
+ *  resolve paths for fresh bookings and balance settlements can't drift apart. */
 export const sessionSuccess = (
   attendeeId: number,
   listingId: number,
   ticketTokens: string[] = [],
-): PaymentResult => ({
+): Extract<PaymentResult, { success: true }> => ({
   attendee: { id: attendeeId },
   listingId,
   success: true,
   ticketTokens,
 });
-
-/** Return success result for an already-processed session.
- * Accepts a finalized payment record where attendee_id is guaranteed non-null.
- * Carries the listing id (not the loaded listing): the redirect resolves it
- * lazily only when it needs a thank-you URL, and a since-deleted listing is
- * still a success replay because the attendee already exists. */
-export const alreadyProcessedResult = async (
-  listingId: number,
-  existing: ProcessedPayment & { attendee_id: number },
-): Promise<PaymentResult> => {
-  const decrypted = await decryptSessionTokens(existing.ticket_tokens);
-  return sessionSuccess(
-    existing.attendee_id,
-    listingId,
-    decrypted ? decrypted.split("+") : [],
-  );
-};
 
 /**
  * Pair each created booking row with its listing **by listing id**, not by
@@ -186,6 +161,7 @@ const textRefsWithStringId = (
 export const saveSessionAnswers = async (
   createdEntries: CreatedEntry[],
   intent: BookingIntent,
+  transaction?: TxScope,
 ): Promise<void> => {
   if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
   const grouped = groupListingAnswerSets(
@@ -205,40 +181,18 @@ export const saveSessionAnswers = async (
       ],
     });
   }
-  await saveAttendeeAnswers(grouped);
+  await saveAttendeeAnswers(grouped, transaction);
 };
 
-export const attendeeBaseFields = async (
-  session: ValidatedPaymentSession,
-  intent: BookingIntent,
-) => ({
+export const attendeeBaseFields = async (intent: BookingIntent) => ({
   address: intent.address,
   email: intent.email,
   name: intent.name,
-  paymentId: session.paymentReference,
+  paymentId: "",
   phone: intent.phone,
   special_instructions: intent.special_instructions,
   statusId: await requirePublicStatusId(),
 });
-
-export const logPromoCodeModifiers = async (
-  specs: ModifierSpec[],
-  applications: ModifierApplication[],
-  listing: ListingWithCount,
-  attendeeId: number,
-): Promise<void> => {
-  const byId = new Map(applications.map((a) => [a.modifierId, a]));
-  for (const spec of specs) {
-    const delta = byId.get(spec.id)!.delta;
-    const effect =
-      delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
-    await logActivity(
-      `Promo code '${spec.name}' used: ${effect}`,
-      listing,
-      attendeeId,
-    );
-  }
-};
 
 /**
  * Create the attendee plus per-listing bookings atomically, finalizing the
@@ -250,13 +204,15 @@ export const logPromoCodeModifiers = async (
  * refunds) so the caller can keep the booking as a placeholder instead.
  */
 export const createAttendeeForSession = async (
-  session: ValidatedPaymentSession,
+  work: PaymentWork,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricingIntent: CheckoutIntent,
   pricedOrder: PricedOrder,
   ticketToken: string,
+  completion: PaymentCompletion,
 ): Promise<HonourResult> => {
+  const { session } = work;
   let prepared: {
     attendeeInput: Parameters<typeof attendeesApi.createBookingAtomic>[0];
     plan: Parameters<typeof attendeesApi.createBookingAtomic>[1];
@@ -284,6 +240,12 @@ export const createAttendeeForSession = async (
     // Build every fallible input before starting the atomic write. A failure
     // here is known not to have committed, while a write failure below must be
     // checked against primary state before deciding whether to refund.
+    const finalize = await ticketPaymentFulfilmentStatements(
+      work,
+      ticketToken,
+      [ticketToken],
+      completion,
+    );
     const plan = await bookingBatchPlan(
       pricedOrder.modifierApplications,
       {
@@ -291,11 +253,11 @@ export const createAttendeeForSession = async (
         occurredAt: businessTime(session),
         pricedOrder,
       },
-      { paymentReference: session.paymentReference, sessionId: session.id },
+      finalize,
     );
     prepared = {
       attendeeInput: {
-        ...(await attendeeBaseFields(session, intent)),
+        ...(await attendeeBaseFields(intent)),
         bookings,
         remainingBalance,
         ticketToken,

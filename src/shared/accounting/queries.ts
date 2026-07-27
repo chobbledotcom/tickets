@@ -72,8 +72,7 @@ export const transfersByEventGroup = (
 /**
  * True when the ledger already holds at least one leg for this business event —
  * the cheap existence probe a money move runs as a PREFLIGHT before acting. The
- * transfers ledger is the durable record of what already happened (unlike the
- * prunable processed_payments idempotency row), so booking a paid session,
+ * transfers ledger is the durable record of what already happened, so booking a paid session,
  * settling a balance, or refunding one all consult this first: an event the
  * ledger already records is replayed, never double-posted or refunded again.
  */

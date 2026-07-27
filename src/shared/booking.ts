@@ -15,7 +15,8 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
-import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
+import { createPaymentCheckout } from "#shared/payment-runtime/create.ts";
+import { checkoutItem } from "#shared/payments.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 
@@ -91,10 +92,7 @@ export const processBooking = async (
     const available = await listingHasSpots(listing, quantity, date);
     if (!available) return { type: "sold_out" };
 
-    // Provider is guaranteed to exist when isPaymentsEnabled() is true
-    const provider = (await getActivePaymentProvider())!;
-
-    const result = await provider.createCheckoutSession(
+    const result = await createPaymentCheckout(
       {
         ...contact,
         date,

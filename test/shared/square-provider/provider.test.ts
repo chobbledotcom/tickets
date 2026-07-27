@@ -1,303 +1,351 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
+import type { PaymentCharge } from "#shared/db/payments/types.ts";
+import { settings } from "#shared/db/settings.ts";
+import { resolvePayment } from "#shared/payment-state/resolve.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
+import { constructTestSquareWebhook } from "#shared/square-webhook.ts";
 import {
   configureSquare,
-  linkResult,
   withSquareClient,
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { PAYMENT_TIME } from "#test/shared/db/payments/fixtures.ts";
+import { paymentCharge } from "#test/shared/payment-runtime/fixtures.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import {
+  orderResponse,
+  paymentResponse,
+  session,
+  squarePayment,
+} from "./fixtures.ts";
 
 describeSquare(() => {
-  describe("squarePaymentProvider integration", () => {
-    test("retrieveSession maps COMPLETED order to paid status", async () => {
+  test("returns typed charge facts for a completed payment", async () => {
+    await configureSquare({ locationId: "square-location", sandbox: true });
+    await withSquareClient(
+      {
+        ordersGet: () => Promise.resolve(orderResponse()),
+        paymentsList: () =>
+          Promise.resolve({ payments: [paymentResponse("pay-typed").payment] }),
+      },
+      async () => {
+        const read = await squarePaymentProvider.readPayment(
+          await squarePayment(),
+          session,
+        );
+
+        expect(read).toMatchObject({
+          observation: {
+            charges: [
+              {
+                captured: { amount: 1_000, currency: "GBP" },
+                resource: {
+                  id: "pay-typed",
+                  kind: "square_payment",
+                  parentId: session.id,
+                  provider: "square",
+                },
+              },
+            ],
+            status: "paid",
+          },
+          status: "found",
+        });
+      },
+    );
+  });
+
+  test("returns every completed split tender for shared conflict resolution", async () => {
+    await configureSquare({ locationId: "square-location", sandbox: true });
+    await withSquareClient(
+      {
+        ordersGet: () => Promise.resolve(orderResponse(["pay-one", "pay-two"])),
+        paymentsList: () =>
+          Promise.resolve({
+            payments: ["pay-one", "pay-two"].map((id) => ({
+              ...paymentResponse(id).payment,
+              amountMoney: {
+                amount: BigInt(id === "pay-one" ? 400 : 600),
+                currency: "GBP",
+              },
+            })),
+          }),
+      },
+      async () => {
+        const read = await squarePaymentProvider.readPayment(
+          await squarePayment(),
+          session,
+        );
+        expect(read).toMatchObject({
+          observation: {
+            charges: [
+              { captured: { amount: 600 }, resource: { id: "pay-two" } },
+              { captured: { amount: 400 }, resource: { id: "pay-one" } },
+            ],
+          },
+          status: "found",
+        });
+        expect(resolvePayment(read)).toMatchObject({
+          issue: { kind: "multiple_charges" },
+          status: "conflict",
+        });
+      },
+    );
+  });
+
+  test("validates signed metadata before offering legacy adoption", async () => {
+    await configureSquare({ locationId: "square-location", sandbox: true });
+    await withSquareClient(
+      {
+        ordersGet: () =>
+          Promise.resolve({
+            order: {
+              ...orderResponse().order,
+              metadata: signedMeta(
+                {
+                  email: "legacy-square@example.com",
+                  items: singleItem(7, 1, 1_000),
+                  name: "Legacy Square buyer",
+                },
+                1_000,
+              ),
+            },
+          }),
+        paymentsList: () =>
+          Promise.resolve({ payments: [paymentResponse("pay-typed").payment] }),
+      },
+      async () => {
+        expect(
+          await squarePaymentProvider.readPayment(null, session),
+        ).toMatchObject({
+          observation: {
+            bookingIntent: { email: "legacy-square@example.com" },
+            ownership: { method: "signed" },
+          },
+          status: "found",
+        });
+      },
+    );
+  });
+
+  test("reads the exact webhook payment and every order tender", async () => {
+    await configureSquare({ locationId: "square-location", sandbox: true });
+    const tenderIds = Array.from({ length: 12 }, (_, index) => `old-${index}`);
+    await withSquareClient(
+      {
+        ordersGet: () => Promise.resolve(orderResponse(tenderIds)),
+        paymentsGet: () =>
+          Promise.resolve({
+            payment: {
+              ...paymentResponse("pay-webhook").payment,
+              status: "COMPLETED",
+            },
+          }),
+        paymentsList: () =>
+          Promise.resolve({
+            payments: tenderIds.map((id) => ({
+              ...paymentResponse(id).payment,
+              status: "PENDING",
+            })),
+          }),
+      },
+      async ({ paymentsGet, paymentsList }) => {
+        const requested = {
+          id: "pay-webhook",
+          kind: "square_payment" as const,
+          parentId: session.id,
+          provider: "square" as const,
+        };
+        const read = await squarePaymentProvider.readPayment(
+          await squarePayment(),
+          requested,
+        );
+        expect(read).toMatchObject({
+          observation: { charges: [{ resource: { id: "pay-webhook" } }] },
+          requested,
+          status: "found",
+        });
+        expect(paymentsGet.calls[0]?.args).toEqual([
+          { paymentId: "pay-webhook" },
+        ]);
+        expect(paymentsList.calls).toHaveLength(1);
+      },
+    );
+  });
+
+  for (const status of ["APPROVED", "FAILED"] as const) {
+    test(`returns a typed ${status} fact without reading the order`, async () => {
+      await configureSquare({ locationId: "square-location", sandbox: true });
       await withSquareClient(
         {
-          ordersGet: () =>
-            Promise.resolve({
-              order: {
-                id: "order_paid",
-                metadata: {
-                  email: "john@example.com",
-                  items: '[{"e":1,"q":2,"p":0}]',
-                  name: "John Doe",
-                  phone: "555-1234",
-                },
-                state: "COMPLETED",
-                tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
-                totalMoney: { amount: BigInt(5000), currency: "USD" },
-              },
-            }),
+          ordersGet: () => Promise.reject(new Error("must not read order")),
           paymentsGet: () =>
             Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(5000), currency: "USD" },
-                id: "pay_abc",
-                orderId: "order_paid",
-                status: "COMPLETED",
-              },
+              payment: { ...paymentResponse("pay-exact").payment, status },
             }),
         },
-        async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_paid");
-          expect(result).not.toBeNull();
-          expect(result!.id).toBe("order_paid");
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_abc");
-          expect(result!.metadata.name).toBe("John Doe");
-          expect(result!.metadata.email).toBe("john@example.com");
-          expect(result!.metadata.phone).toBe("555-1234");
-          expect(result!.metadata.items).toBe('[{"e":1,"q":2,"p":0}]');
+        async ({ ordersGet }) => {
+          const read = await squarePaymentProvider.readPayment(
+            await squarePayment(),
+            {
+              id: "pay-exact",
+              kind: "square_payment",
+              parentId: session.id,
+              provider: "square",
+            },
+          );
+          expect(read).toMatchObject({
+            observation: {
+              status: status === "FAILED" ? "failed" : "pending",
+            },
+            status: "found",
+          });
+          expect(read.status === "found" && "charges" in read.observation).toBe(
+            false,
+          );
+          expect(ordersGet.calls).toHaveLength(0);
         },
       );
     });
+  }
 
-    test("retrieveSession maps OPEN order to unpaid status", async () => {
-      await withSquareClient(
-        {
-          ordersGet: () =>
-            Promise.resolve({
-              order: {
-                id: "order_open",
-                metadata: {
-                  email: "john@example.com",
-                  items: '[{"e":1,"q":1,"p":0}]',
-                  name: "John",
-                },
-                state: "OPEN",
-                totalMoney: { amount: BigInt(1000), currency: "USD" },
-              },
-            }),
-        },
-        async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_open");
-          expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("unpaid");
-          expect(result!.paymentReference).toBe("");
-        },
-      );
-    });
-
-    test("retrieveSession returns null for missing metadata", async () => {
-      await withSquareClient(
-        {
-          ordersGet: () =>
-            Promise.resolve({
-              order: {
-                id: "order_no_meta",
-                state: "COMPLETED",
-                totalMoney: { amount: BigInt(1000), currency: "USD" },
-              },
-            }),
-        },
-        async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_no_meta");
-          expect(result).toBeNull();
-        },
-      );
-    });
-
-    test("retrieveSession returns null for incomplete metadata", async () => {
-      await withSquareClient(
-        {
-          ordersGet: () =>
-            Promise.resolve({
-              order: {
-                id: "order_bad_meta",
-                metadata: { email: "john@example.com" },
-                state: "COMPLETED",
-                totalMoney: { amount: BigInt(1000), currency: "USD" },
-              },
-            }),
-        },
-        async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_bad_meta");
-          expect(result).toBeNull();
-        },
-      );
-    });
-
-    test("retrieveSession returns null when order not found", async () => {
-      await withSquareClient(
-        { ordersGet: () => Promise.resolve({ order: null }) },
-        async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_gone");
-          expect(result).toBeNull();
-        },
-      );
-    });
-
-    test("retrieveSession returns amountTotal from order totalMoney", async () => {
-      await withSquareClient(
-        {
-          ordersGet: () =>
-            Promise.resolve({
-              order: {
-                id: "order_with_amount",
-                metadata: {
-                  email: "total@example.com",
-                  items: '[{"e":5,"q":2,"p":0}]',
-                  name: "Total User",
-                },
-                state: "COMPLETED",
-                tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
-                totalMoney: { amount: BigInt(6000), currency: "GBP" },
-              },
-            }),
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(6000), currency: "GBP" },
-                id: "pay_total_123",
-                orderId: "order_with_amount",
-                status: "COMPLETED",
-              },
-            }),
-        },
-        async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_with_amount");
-          expect(result).not.toBeNull();
-          expect(result!.amountTotal).toBe(6000);
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_total_123");
-        },
-      );
-    });
-
-    test("retrieveSession handles multi-ticket order", async () => {
-      const items = JSON.stringify([
-        { e: 1, q: 2 },
-        { e: 2, q: 1 },
-      ]);
-      await withSquareClient(
-        {
-          ordersGet: () =>
-            Promise.resolve({
-              order: {
-                id: "order_multi",
-                metadata: {
-                  email: "john@example.com",
-                  items,
-                  name: "John",
-                },
-                state: "COMPLETED",
-                tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
-                totalMoney: { amount: BigInt(3000), currency: "USD" },
-              },
-            }),
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(3000), currency: "USD" },
-                id: "pay_multi",
-                orderId: "order_multi",
-                status: "COMPLETED",
-              },
-            }),
-        },
-        async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_multi");
-          expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.metadata.items).toBe(items);
-        },
-      );
-    });
-
-    /** The provider result should be a successful checkout with these values. */
-    const expectCheckout = (
-      result: unknown,
-      sessionId: string,
-      checkoutUrl: string,
-    ) => {
-      expect(result).not.toBeNull();
-      expect(result).toHaveProperty("sessionId");
-      const success = result as { sessionId: string; checkoutUrl: string };
-      expect(success.sessionId).toBe(sessionId);
-      expect(success.checkoutUrl).toBe(checkoutUrl);
+  test("returns the exact pending refund resource", async () => {
+    await configureSquare({ locationId: "square-location", sandbox: true });
+    const charge: PaymentCharge = {
+      captured: { amount: 1_000, currency: "GBP" },
+      createdAt: PAYMENT_TIME,
+      id: 1,
+      observedAt: PAYMENT_TIME,
+      paymentId: "square-local",
+      pendingRefund: null,
+      pendingRefundIdempotencyKey: "refund-key",
+      providerReference: {
+        id: "pay-typed",
+        kind: "square_payment",
+        parentId: session.id,
+        provider: "square",
+      },
+      refunded: { amount: 0, currency: "GBP" },
+      refundState: "requested",
+      updatedAt: PAYMENT_TIME,
     };
+    await withSquareClient(
+      {
+        refundsRequestRefund: () =>
+          Promise.resolve({
+            amount: { amount: 1_000, currency: "GBP" },
+            id: "refund-pending",
+            paymentId: "pay-typed",
+            status: "PENDING",
+          }),
+      },
+      async () => {
+        expect(
+          await squarePaymentProvider.refundCharge(charge, "refund-key"),
+        ).toEqual({
+          amount: { amount: 1_000, currency: "GBP" },
+          refund: {
+            id: "refund-pending",
+            kind: "square_refund",
+            parentId: "pay-typed",
+            provider: "square",
+          },
+          status: "pending",
+        });
+      },
+    );
+  });
 
-    test("createCheckoutSession passes through SDK results", async () => {
-      await withSquareClient(
-        linkResult("order_prov", "https://square.link/prov"),
-        async () => {
-          await configureSquare({ locationId: "L_loc_prov" });
-          const result = await squarePaymentProvider.createCheckoutSession(
-            checkoutIntent(),
-            "http://localhost",
-          );
-          expectCheckout(result, "order_prov", "https://square.link/prov");
-        },
-      );
-    });
-
-    test("createCheckoutSession passes through SDK results (variant)", async () => {
-      await withSquareClient(
-        linkResult("order_mprov", "https://square.link/mprov"),
-        async () => {
-          await configureSquare({ locationId: "L_loc_prov" });
-          const result = await squarePaymentProvider.createCheckoutSession(
-            checkoutIntent({
-              items: [checkoutItem({ name: "Listing 1", slug: "listing-1" })],
-            }),
-            "http://localhost",
-          );
-          expectCheckout(result, "order_mprov", "https://square.link/mprov");
-        },
-      );
-    });
-
-    test("refundPayment delegates through SDK", async () => {
-      await withSquareClient(
-        {
-          paymentsGet: () =>
-            Promise.resolve({
-              payment: {
-                amountMoney: { amount: BigInt(2000), currency: "GBP" },
-                id: "pay_prov_ref",
-                orderId: "order_prov_ref",
-                status: "COMPLETED",
+  test("polls a persisted Square refund without sending another request", async () => {
+    await configureSquare({ locationId: "square-location", sandbox: true });
+    const pendingRefund = {
+      id: "refund-existing",
+      kind: "square_refund" as const,
+      parentId: "pay-typed",
+      provider: "square" as const,
+    };
+    await withSquareClient(
+      {
+        refundsGet: () =>
+          Promise.resolve({
+            amount: { amount: 600, currency: "GBP" },
+            id: "refund-existing",
+            paymentId: "pay-typed",
+            status: "COMPLETED",
+          }),
+        refundsRequestRefund: () => Promise.reject(new Error("must not post")),
+      },
+      async ({ refundsGet, refundsRequestRefund }) => {
+        expect(
+          await squarePaymentProvider.refundCharge(
+            paymentCharge({
+              captured: { amount: 1_000, currency: "GBP" },
+              pendingRefund,
+              providerReference: {
+                id: "pay-typed",
+                kind: "square_payment",
+                parentId: session.id,
+                provider: "square",
               },
+              refunded: { amount: 400, currency: "GBP" },
+              refundState: "pending",
             }),
-          refundsRefundPayment: () =>
-            Promise.resolve({
-              refund: {
-                amount_money: { amount: 2000, currency: "GBP" },
-                id: "refund_prov",
-                payment_id: "pay_prov_ref",
-                status: "COMPLETED",
-              },
-            }),
-        },
-        async () => {
-          const result =
-            await squarePaymentProvider.refundPayment("pay_prov_ref");
-          expect(result).toBe(true);
-        },
-      );
-    });
+            "existing-key",
+          ),
+        ).toEqual({
+          amount: { amount: 1_000, currency: "GBP" },
+          refund: pendingRefund,
+          status: "completed",
+        });
+        expect(refundsGet.calls[0]?.args).toEqual([
+          { refundId: "refund-existing" },
+        ]);
+        expect(refundsRequestRefund.calls).toHaveLength(0);
+      },
+    );
+  });
 
-    test("verifyWebhookSignature reports failure when no signature key configured", async () => {
-      // With no webhook signature key stored, verification fails up front.
-      const body = '{"test": true}';
-      const result = await squarePaymentProvider.verifyWebhookSignature(
-        body,
-        "fakesig",
-        "https://example.com/payment/webhook",
-        new TextEncoder().encode(body),
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Webhook signature key not configured");
-      }
+  test("parses a signed Square notice into its exact payment resource", async () => {
+    const secret = "square-provider-notice";
+    const webhookUrl = "https://example.com/payment/webhook";
+    await settings.update.square.webhookSignatureKey(secret);
+    const event = {
+      data: {
+        object: {
+          id: "pay-notice",
+          order_id: session.id,
+          status: "COMPLETED",
+        },
+      },
+      event_id: "evt-square-provider",
+      type: "payment.updated",
+    };
+    const { payload, signature } = await constructTestSquareWebhook(
+      event,
+      secret,
+      webhookUrl,
+    );
+
+    expect(
+      await squarePaymentProvider.verifyWebhookSignature(
+        payload,
+        signature,
+        webhookUrl,
+        new TextEncoder().encode(payload),
+      ),
+    ).toEqual({
+      notice: {
+        eventId: "evt-square-provider",
+        resource: {
+          id: "pay-notice",
+          kind: "square_payment",
+          parentId: session.id,
+          provider: "square",
+        },
+        type: "payment.updated",
+      },
+      valid: true,
     });
   });
 });

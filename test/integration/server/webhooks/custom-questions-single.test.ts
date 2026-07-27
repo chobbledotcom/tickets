@@ -124,7 +124,8 @@ describeWithEnv(
 
       // The resolved ref must carry a real numeric string id, never the
       // undefined that JSON.stringify would silently drop from signed metadata.
-      const refs = getCaptured()!.listingTextAnswerIds![String(listing.id)]!;
+      const refs =
+        getCaptured()!.bookingIntent.listingTextAnswerIds![String(listing.id)]!;
       expect(refs.length).toBe(1);
       expect(refs[0]!.q).toBe(question.id);
       expect(Number.isInteger(refs[0]!.s)).toBe(true);
@@ -141,7 +142,7 @@ describeWithEnv(
               items: singleItem(listing.id, 1, 1000),
               name: "Round Tripper",
               text_answer_ids: JSON.stringify(
-                getCaptured()!.listingTextAnswerIds,
+                getCaptured()!.bookingIntent.listingTextAnswerIds,
               ),
             },
             1000,

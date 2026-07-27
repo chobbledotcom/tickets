@@ -1,5 +1,6 @@
 /** Assembles the ordered schema and computes its identity hash. */
 
+import { paymentTables } from "./payments/index.ts";
 import { attendeeTables } from "./tables-attendees.ts";
 import { catalogTables } from "./tables-catalog.ts";
 import { contentTables } from "./tables-content.ts";
@@ -15,6 +16,7 @@ import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 export const SCHEMA: [name: string, table: Table][] = [
   ...coreTables,
   ...attendeeTables,
+  ...paymentTables,
   ...catalogTables,
   ...questionTables,
   ...contentTables,

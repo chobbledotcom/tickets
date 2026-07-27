@@ -221,7 +221,7 @@ Prices are in the smallest currency unit (e.g. pence, cents). For multi-listing 
 ### Concurrency
 
 - Capacity check + insert in a single SQL statement to reduce the window for overbooking
-- Payment webhook idempotency via two-phase locking on `processed_payments` table
+- Payment callbacks use leased aggregate records, revision fences, and permanent replay identities
 - Stale reservation auto-cleanup after 5 minutes
 
 ### Security

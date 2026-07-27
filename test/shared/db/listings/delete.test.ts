@@ -19,10 +19,6 @@ import {
   listingsTable,
 } from "#shared/db/listings/records.ts";
 import { LISTING_COUNT_SELECT } from "#shared/db/listings/sql.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
@@ -38,7 +34,10 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  createAggregatePayment,
+  getPaymentAggregateOrNull,
+} from "#test-utils/payment-aggregate.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
@@ -53,6 +52,37 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       const fetched = await getListingWithCount(listing.id);
       expect(fetched).toBeNull();
+    });
+
+    test("refuses to delete a listing while paid completion is unfinished", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Pending listing",
+        "pending-listing@example.com",
+      );
+      await createAggregatePayment({
+        attendeeId: attendee.id,
+        bookingIntent: {
+          address: "",
+          date: null,
+          email: "pending-listing@example.com",
+          items: [{ e: listing.id, p: 100, q: 1 }],
+          modifiers: [],
+          name: "Pending listing",
+          phone: "",
+          special_instructions: "",
+        },
+        paymentId: "pending-listing-delete",
+        state: "completion_pending",
+      });
+
+      await expect(deleteListing(listing.id)).rejects.toThrow(
+        "Cannot delete data used by pending payment completion",
+      );
+
+      expect(await getListingWithCount(listing.id)).not.toBeNull();
     });
 
     test("removes all attendees for the listing", async () => {
@@ -78,7 +108,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       await expectNoDecryptedAttendees(listing.id);
     });
 
-    test("keeps the processed payment of an orphaned attendee", async () => {
+    test("keeps the payment aggregate of an orphaned attendee", async () => {
       const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
@@ -90,19 +120,18 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         "john@example.com",
       );
 
-      await reserveSession("sess_listing_delete");
-      await finalizeReservedPayment(
-        "sess_listing_delete",
-        attendee.id,
-        "tok-test",
-        "pi_listing_delete",
-      );
+      await createAggregatePayment({
+        attendeeId: attendee.id,
+        charges: [{ amount: 100, reference: "pi_listing_delete" }],
+        paymentId: "sess_listing_delete",
+        ticketTokens: ["tok-test"],
+      });
 
       await deleteListing(listing.id);
 
       // The attendee is orphaned, not purged, so its payment record survives.
-      const processed = await isSessionProcessed("sess_listing_delete");
-      expect(processed?.attendee_id).toBe(attendee.id);
+      const payment = await getPaymentAggregateOrNull("sess_listing_delete");
+      expect(payment?.attendeeId).toBe(attendee.id);
     });
 
     test("removes activity log entries for the listing", async () => {
@@ -221,20 +250,19 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(rows.map((r) => r.listing_id)).toEqual([listing2.id]);
     });
 
-    test("keeps the shared attendee's processed payment when one listing is deleted", async () => {
+    test("keeps the shared attendee's payment when one listing is deleted", async () => {
       const { attendeeId, listing1 } = await bookAttendeeOnTwoListings();
-      await reserveSession("sess_multi_listing");
-      await finalizeReservedPayment(
-        "sess_multi_listing",
+      await createAggregatePayment({
         attendeeId,
-        "tok-test",
-        "pi_multi_listing",
-      );
+        charges: [{ amount: 100, reference: "pi_multi_listing" }],
+        paymentId: "sess_multi_listing",
+        ticketTokens: ["tok-test"],
+      });
 
       await deleteListing(listing1.id);
 
-      const processed = await isSessionProcessed("sess_multi_listing");
-      expect(processed?.attendee_id).toBe(attendeeId);
+      const payment = await getPaymentAggregateOrNull("sess_multi_listing");
+      expect(payment?.attendeeId).toBe(attendeeId);
     });
 
     test("leaves an attendee orphaned rather than deleting it", async () => {

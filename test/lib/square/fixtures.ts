@@ -4,6 +4,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square.ts";
 import type { SquareOrder } from "#shared/square-payments.ts";
+import { preparedCheckout } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { createMockClient } from "./harness.ts";
 
@@ -46,7 +47,9 @@ export const expectNoLink = async (
   intent: CheckoutIntent,
   redirectUrl = "http://localhost",
 ): Promise<void> => {
-  const result = await squareApi.createPaymentLink(intent, redirectUrl);
+  const result = await squareApi.createCheckout(
+    await preparedCheckout(intent, "square", "square-test", redirectUrl),
+  );
   expect(result).toBeNull();
 };
 

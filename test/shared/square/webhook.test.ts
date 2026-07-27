@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import type { WebhookEvent } from "#shared/payments.ts";
 import {
-  constructTestWebhookEvent,
-  verifyWebhookSignature,
-} from "#shared/square.ts";
+  constructTestSquareWebhook,
+  verifySquareWebhookSignature,
+} from "#shared/square-webhook.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -20,7 +19,7 @@ describeSquare(() => {
 
     /** Verify a payload against a signature using the shared notification URL. */
     const verify = (payload: string, signature: string) =>
-      verifyWebhookSignature(
+      verifySquareWebhookSignature(
         payload,
         signature,
         TEST_NOTIFICATION_URL,
@@ -56,13 +55,13 @@ describeSquare(() => {
     });
 
     test("returns error for invalid signature", async () => {
-      const listing: WebhookEvent = {
+      const listing = {
         data: { object: {} },
         id: "evt_invalid_signature",
         type: "payment.updated",
       };
       const { payload, signature: expectedSignature } =
-        await constructTestWebhookEvent(
+        await constructTestSquareWebhook(
           listing,
           TEST_SECRET,
           TEST_NOTIFICATION_URL,
@@ -80,19 +79,19 @@ describeSquare(() => {
     });
 
     test("does not log an error for a valid signature", async () => {
-      const listing: WebhookEvent = {
+      const listing = {
         data: { object: {} },
         id: "evt_valid_signature",
         type: "payment.updated",
       };
-      const { payload, signature } = await constructTestWebhookEvent(
+      const { payload, signature } = await constructTestSquareWebhook(
         listing,
         TEST_SECRET,
         TEST_NOTIFICATION_URL,
       );
       expect(await verify(payload, signature)).toEqual({
-        listing,
         valid: true,
+        value: listing,
       });
       expect(errors.calls).toHaveLength(0);
     });
@@ -117,11 +116,15 @@ describeSquare(() => {
       const sig = await crypto.subtle.sign("HMAC", key, combined);
       const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
 
-      await expectInvalid(payload, sigBase64, "Invalid JSON payload");
+      await expectInvalid(
+        payload,
+        sigBase64,
+        "Invalid webhook JSON (E_SQUARE_SIGNATURE)",
+      );
     });
 
     test("verifies valid signature successfully", async () => {
-      const listing: WebhookEvent = {
+      const listing = {
         data: {
           object: {
             id: "pay_123",
@@ -133,18 +136,14 @@ describeSquare(() => {
         type: "payment.updated",
       };
 
-      const { payload, signature } = await constructTestWebhookEvent(
+      const { payload, signature } = await constructTestSquareWebhook(
         listing,
         TEST_SECRET,
         TEST_NOTIFICATION_URL,
       );
 
       const result = await verify(payload, signature);
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.listing.id).toBe("evt_square_123");
-        expect(result.listing.type).toBe("payment.updated");
-      }
+      expect(result).toEqual({ valid: true, value: listing });
     });
   });
 
@@ -152,7 +151,7 @@ describeSquare(() => {
     test("creates valid payload and signature pair", async () => {
       const secret = "square_test_construction";
       const notificationUrl = "https://example.com/payment/webhook";
-      const listing: WebhookEvent = {
+      const listing = {
         data: {
           object: {
             id: "pay_123",
@@ -163,7 +162,7 @@ describeSquare(() => {
         type: "payment.updated",
       };
 
-      const { payload, signature } = await constructTestWebhookEvent(
+      const { payload, signature } = await constructTestSquareWebhook(
         listing,
         secret,
         notificationUrl,
@@ -176,7 +175,7 @@ describeSquare(() => {
 
       // Signature should be verifiable with the same secret (stored in DB)
       await settings.update.square.webhookSignatureKey(secret);
-      const result = await verifyWebhookSignature(
+      const result = await verifySquareWebhookSignature(
         payload,
         signature,
         notificationUrl,

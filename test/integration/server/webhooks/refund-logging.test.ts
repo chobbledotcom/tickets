@@ -13,6 +13,7 @@ import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
+  expectRefundPaymentCall,
   stubRefundPayment,
 } from "#test-utils/webhooks.ts";
 
@@ -73,7 +74,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
         mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
       );
       expect(response.status).toBe(200);
-      expect(mockRefund.calls[0]!.args).toEqual(["pi_refund_log"]);
+      expectRefundPaymentCall(mockRefund, "pi_refund_log");
 
       // Verify refund success was logged to console
       const refundLog = debugLogs.find((log) => log.includes("Refund issued"));

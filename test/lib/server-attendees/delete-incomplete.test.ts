@@ -2,7 +2,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
 import {
   expectFlashRedirect,
   testRequiresAuth,
@@ -13,7 +12,7 @@ import {
   createTestAttendee,
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -129,12 +128,17 @@ describeWithEnv(
       });
 
       test("refuses to delete complete attendee via delete-incomplete", async () => {
-        const { listing, deleteIncomplete } = await setupPaidAttendee(
+        const { listing, attendee, deleteIncomplete } = await setupPaidAttendee(
           "John Paid",
           "john@example.com",
           "pi_test_123",
           1000,
         );
+        await createAggregatePayment({
+          attendeeId: attendee.id,
+          charges: [{ amount: 1_000, reference: "pi_test_123" }],
+          paymentId: "complete-delete-guard",
+        });
 
         await expectDeleteRefused(await deleteIncomplete(), listing.id);
       });
@@ -146,13 +150,11 @@ describeWithEnv(
           "",
           1000,
         );
-        await reserveSession("balance_paid_delete_guard");
-        await finalizeReservedPayment(
-          "balance_paid_delete_guard",
-          attendee.id,
-          "",
-          "pi_balance_paid",
-        );
+        await createAggregatePayment({
+          attendeeId: attendee.id,
+          charges: [{ amount: 1_000, reference: "pi_balance_paid" }],
+          paymentId: "balance_paid_delete_guard",
+        });
 
         await expectDeleteRefused(await deleteIncomplete(), listing.id);
       });

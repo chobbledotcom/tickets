@@ -17,15 +17,12 @@ import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
-import {
-  getRefundPaymentReferences,
-  hasRefundPaymentReference,
-} from "#shared/db/payment-references.ts";
+import { queueBulkRefundPayments } from "#shared/db/payments/bulk-refunds.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { getAttendeePaymentRefundOrNull } from "#shared/payment-runtime/refund-targets.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
-import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
+import { BULK_REFUND_FOREGROUND_REFERENCE_LIMIT } from "#shared/subrequest-budget.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   adminRefundAllAttendeesPage,
@@ -35,16 +32,18 @@ import {
   attendeeActionPage,
   attendeeActionUrlWithReturn,
   type ListingRouteParams,
-  NO_PROVIDER_ERROR,
   verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
-import { getRefundCandidates } from "./refunds/candidates.ts";
+import {
+  getRefundCandidates,
+  refundCandidatePayments,
+} from "./refunds/candidates.ts";
 import {
   processRefundBatch,
   type RefundCounts,
   refundCandidateAtProvider,
 } from "./refunds/provider.ts";
-import { requirePaymentProvider } from "./require-provider.ts";
+import { takeRefundWave } from "./refunds/waves.ts";
 
 /* jscpd:ignore-end */
 
@@ -76,12 +75,8 @@ const handleAdminAttendeeRefundGet = attendeeActionPage(
     if (data.attendee.refunded) {
       return t("error.already_refunded");
     }
-    if (
-      !(await hasRefundPaymentReference(
-        data.attendee,
-        await requireRequestPrivateKey(),
-      ))
-    ) {
+    const refund = await getAttendeePaymentRefundOrNull(data.attendee.id);
+    if (refund === null) {
       return t("error.no_payment_to_refund");
     }
     return null;
@@ -109,28 +104,18 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     if (data.attendee.refunded) {
       return refundError(attendeeId, t("error.already_refunded"), returnUrl);
     }
-    const references = (
-      await getRefundPaymentReferences(
-        [data.attendee],
-        await requireRequestPrivateKey(),
-      )
-    ).get(attendeeId)!;
-    if (references.length === 0) {
+    const refund = await getAttendeePaymentRefundOrNull(attendeeId);
+    if (refund === null) {
       return refundError(
         attendeeId,
         t("error.no_payment_to_refund"),
         returnUrl,
       );
     }
-
-    const provider = await requirePaymentProvider(() =>
-      refundError(attendeeId, NO_PROVIDER_ERROR, returnUrl),
-    );
-    if (provider instanceof Response) return provider;
+    const { references, targets } = refund;
 
     const refunded = await refundCandidateAtProvider(
-      provider,
-      { attendee: data.attendee, references },
+      { attendee: data.attendee, references, targets },
       listingId,
     );
     if (refunded.outcome !== "refunded") {
@@ -167,9 +152,7 @@ const handleAdminRefundAllGet = (
 ): Promise<Response> =>
   withListingAttendeesAuth(request, id, async (listing, attendees, session) => {
     const flash = applyFlash(request);
-    const count = (
-      await getRefundCandidates(attendees, await requireRequestPrivateKey())
-    ).length;
+    const count = (await getRefundCandidates(attendees)).length;
     return count === 0
       ? htmlResponse(
           adminRefundAllAttendeesPage(
@@ -273,10 +256,7 @@ const processRefundAll = async (
   form: FormParams,
 ): Promise<Response> => {
   const refundAllUrl = `/admin/listing/${listing.id}/refund-all`;
-  const refundable = await getRefundCandidates(
-    attendees,
-    await requireRequestPrivateKey(),
-  );
+  const refundable = await getRefundCandidates(attendees);
   const error = verifyOrRedirect(
     form,
     listing.name,
@@ -289,14 +269,12 @@ const processRefundAll = async (
     return fail(refundAllUrl, t("error.no_attendees_to_refund"));
   }
 
-  const provider = await requirePaymentProvider(() =>
-    fail(refundAllUrl, NO_PROVIDER_ERROR),
+  await queueBulkRefundPayments(refundCandidatePayments(refundable));
+  const batch = takeRefundWave(BULK_REFUND_FOREGROUND_REFERENCE_LIMIT)(
+    refundable,
   );
-  if (provider instanceof Response) return provider;
-
-  const batch = refundable.slice(0, BULK_REFUND_LIMIT);
   const remaining = refundable.length - batch.length;
-  const counts = await processRefundBatch(provider, batch, listing.id);
+  const counts = await processRefundBatch(batch, listing.id);
   return buildRefundAllResponse({
     counts,
     listing,

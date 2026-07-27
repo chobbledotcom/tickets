@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
@@ -14,19 +12,10 @@ import {
   getVisits,
   hashEmail,
 } from "#shared/db/contact-preferences.ts";
-import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
-import {
-  decryptSessionTokens,
-  isSessionProcessed,
-  markSessionFailed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { expectProcessedPaymentReference } from "#test-utils/processed-payments.ts";
 
 const OCCURRED_AT = "2026-07-15T00:00:00.000Z";
 
@@ -67,7 +56,6 @@ const paidPlan = async (
       occurredAt: OCCURRED_AT,
       pricedOrder: pricedOrder(listingId, ticketTotal, modifierApplications),
     },
-    { paymentReference: `pi_${sessionId}`, sessionId },
   );
 
 const input = (
@@ -140,73 +128,6 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     await expectNoContactActivity();
   });
 
-  test("rolls back modifier, ledger, contact, and attendee when finalize is missing", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 5,
-      unitPrice: 500,
-    });
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 100,
-      direction: "charge",
-      name: "Atomic add-on",
-      stock: 2,
-    });
-    const application = {
-      amountApplied: 100,
-      delta: 100,
-      modifierId: modifier.id,
-      name: "Atomic add-on",
-      quantity: 1,
-      scopedSubtotal: 500,
-    };
-
-    const countBefore = await attendeeCount();
-    const ticketToken = "stable-missing-finalize";
-    await expect(
-      attendeesApi.createBookingAtomic(
-        input(
-          [{ listingId: listing.id, pricePaid: 600, quantity: 1 }],
-          ticketToken,
-        ),
-        await paidPlan(listing.id, "missing-finalize", 600, [application]),
-      ),
-    ).rejects.toThrow("processed_payments.processed_at");
-
-    expect(await getAttendeesRaw(listing.id)).toEqual([]);
-    expect(await modifierUsedQuantities([modifier.id])).toEqual(new Map());
-    expect(await allTransfers()).toEqual([]);
-    expect(await accountBalance(revenueAccount(listing.id))).toBe(0);
-    await expectParentRolledBack(ticketToken, countBefore);
-    await expectNoContactActivity();
-  });
-
-  test("rolls back when finalize finds an already-resolved session", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 5,
-      unitPrice: 500,
-    });
-    await reserveSession("resolved-finalize");
-    await markSessionFailed("resolved-finalize", { error: "Already failed." });
-
-    const countBefore = await attendeeCount();
-    const ticketToken = "stable-resolved-finalize";
-    await expect(
-      attendeesApi.createBookingAtomic(
-        input(
-          [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
-          ticketToken,
-        ),
-        await paidPlan(listing.id, "resolved-finalize"),
-      ),
-    ).rejects.toThrow("processed_payments.processed_at");
-
-    expect(await getAttendeesRaw(listing.id)).toEqual([]);
-    expect(await allTransfers()).toEqual([]);
-    await expectParentRolledBack(ticketToken, countBefore);
-    await expectNoContactActivity();
-  });
-
   test("propagates an unrelated unique-token database error", async () => {
     const first = await createTestListing({ maxAttendees: 5 });
     const second = await createTestListing({ maxAttendees: 5 });
@@ -230,15 +151,13 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     expect(await getVisits(await hashEmail("atomic@example.com"))).toBe(1);
   });
 
-  test("stores the stable token during finalize and replays contact activity once", async () => {
+  test("stores the stable token and replays contact activity once", async () => {
     const listing = await createTestListing({
       maxAttendees: 5,
       unitPrice: 500,
     });
     const sessionId = "stable-token-finalize";
     const ticketToken = "stable-contact-token";
-    await reserveSession(sessionId);
-
     const result = await attendeesApi.createBookingAtomic(
       input(
         [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
@@ -254,18 +173,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     expect(created.ticket_token).toBe(ticketToken);
     expect(created.payment_id).toBe("pi_atomic");
 
-    const session = await isSessionProcessed(sessionId);
-    expect(session!.attendee_id).toBe(created.id);
-    expect(await decryptSessionTokens(session!.ticket_tokens)).toBe(
-      ticketToken,
-    );
     const privateKey = await getTestPrivateKey();
-    await expectProcessedPaymentReference(
-      created.id,
-      sessionId,
-      `pi_${sessionId}`,
-      privateKey,
-    );
     const rawBeforeReplay = await getAttendeesRaw(listing.id);
     const [decrypted] = await decryptAttendees(rawBeforeReplay, privateKey);
     expect({

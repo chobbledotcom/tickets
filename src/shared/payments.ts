@@ -1,18 +1,25 @@
-/**
- * Payment provider abstraction layer
- *
- * Defines a provider-agnostic interface for payment operations.
- * Admins choose a provider (e.g. Stripe) in settings; routes use
- * this interface so they never depend on a specific provider.
- */
-
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
+import type {
+  PaymentCharge,
+  PaymentSession,
+} from "#shared/db/payments/types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
+import type {
+  ProviderNotice,
+  ProviderRead,
+} from "#shared/payment-state/observation.ts";
+import type {
+  ProviderResource,
+  ProviderSessionResource,
+  RefundResolution,
+} from "#shared/payment-state/resources.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
 /* jscpd:ignore-end */
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
@@ -100,7 +107,7 @@ export type ModifierSpec = {
  * parses the array form (a single line is an array of one), so only
  * {@link BookingItemsSchema} and the {@link BookingItem} type are exported. */
 /** A positive integer (≥ 1): a listing id or a group id. */
-const positiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
+const positiveInt = integerAtLeast(1);
 
 const BookingItemSchema = v.pipe(
   v.object({
@@ -127,9 +134,11 @@ export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
  * the quantity taken. The webhook re-fetches the modifier by id and re-derives
  * its amount from the current database — provider metadata amounts are never
  * trusted. */
-export type ModifierRef = { i: number; q: number };
+const ModifierRefSchema = v.object({ i: positiveInt, q: positiveInt });
+export type ModifierRef = v.InferOutput<typeof ModifierRefSchema>;
 
-export type TextAnswerRef = { q: number; s: number };
+const TextAnswerRefSchema = v.object({ q: positiveInt, s: positiveInt });
+export type TextAnswerRef = v.InferOutput<typeof TextAnswerRefSchema>;
 
 /** Per-listing answer references carried through a checkout, shared by the
  * booking and checkout intents. */
@@ -170,16 +179,38 @@ type CheckoutIntentBase = ContactInfo &
     dayCount?: number | undefined;
   };
 
-/** Processed booking intent extracted from payment session metadata */
-export type BookingIntent = CheckoutIntentBase & {
-  items: BookingItem[];
-  /** Modifier references applied to this checkout, re-derived in the webhook.
-   * Always present (an empty array when none applied), parsed from metadata. */
-  modifiers: ModifierRef[];
-  /** HMAC index of the site renewal token. The plain token never reaches the
-   * payment provider, so a compromised provider cannot use it at /renew. */
-  siteTokenIndex?: string | undefined;
-};
+/** Canonical booking facts persisted for a payment and sent through metadata. */
+export const BookingIntentSchema = v.strictObject({
+  address: v.string(),
+  allocations: v.optional(
+    v.array(
+      v.object({
+        childId: positiveInt,
+        parentId: positiveInt,
+        qty: positiveInt,
+      }),
+    ),
+  ),
+  balanceAttendeeId: v.optional(positiveInt),
+  date: v.nullable(v.string()),
+  dayCount: v.optional(positiveInt),
+  email: v.string(),
+  items: BookingItemsSchema,
+  listingAnswerIds: v.optional(v.record(v.string(), v.array(positiveInt))),
+  listingTextAnswerIds: v.optional(
+    v.record(v.string(), v.array(TextAnswerRefSchema)),
+  ),
+  modifiers: v.array(ModifierRefSchema),
+  name: v.string(),
+  phone: v.string(),
+  reservationAmount: v.optional(v.string()),
+  siteTokenIndex: v.optional(v.string()),
+  special_instructions: v.string(),
+  thankYouUrl: v.optional(v.string()),
+});
+
+/** Processed booking intent extracted from payment session metadata. */
+export type BookingIntent = v.InferOutput<typeof BookingIntentSchema>;
 
 /** Registration intent for checkout (one or more listings) */
 export type CheckoutIntent = CheckoutIntentBase & {
@@ -196,10 +227,7 @@ export type CheckoutIntent = CheckoutIntentBase & {
   feeSubtotal?: number;
 };
 
-/** Result of creating a checkout session.
- * - Success: { sessionId, checkoutUrl }
- * - User-facing error (e.g. invalid phone): { error }
- * - Internal/unknown failure: null */
+/** Result of creating a checkout session. */
 export type CheckoutSessionResult =
   | {
       sessionId: string;
@@ -210,22 +238,18 @@ export type CheckoutSessionResult =
     }
   | null;
 
-/**
- * Metadata attached to a validated payment session.
- *
- * All fields are guaranteed to be strings after extraction.
- * Empty string ("") is the canonical representation for "not provided" —
- * payment providers store metadata as string key-value pairs, so null/undefined
- * are normalized to "" by extractSessionMetadata. Domain types (e.g.
- * RegistrationIntent.date) may use null for "not provided"; conversion
- * between "" and null happens at the extraction boundary.
- *
- * This is the *logical* shape. On the Square wire, several small fields are
- * collapsed into a single packed entry to fit its 10-entry metadata cap (see
- * packMetadata); Stripe/SumUp store the fields top-level. extractSessionMetadata
- * unpacks the Square form back to this shape, so no consumer beyond that boundary
- * needs to know which form was used.
- */
+/** A provider checkout plus both identities needed after creation. The redirect
+ * id may differ from the provider resource id (SumUp uses the local payment id). */
+export type ProviderCheckoutResult =
+  | {
+      checkoutUrl: string;
+      session: ProviderSessionResource;
+      sessionId: string;
+    }
+  | { error: string }
+  | null;
+
+/** Logical provider metadata after provider-specific packing is removed. */
 export type SessionMetadata = ContactInfo & {
   _origin: string;
   items: string;
@@ -254,61 +278,10 @@ export type SessionMetadata = ContactInfo & {
   price_proof: string;
 };
 
-/** Schema for valid payment status values. "failed" is a terminal non-payment
- * (declined or expired checkout) — distinct from "unpaid", which may still
- * complete. */
-export const PaymentStatusSchema = v.picklist([
-  "paid",
-  "unpaid",
-  "no_payment_required",
-  "failed",
-]);
-
-/** Valid payment status value */
-export type PaymentStatus = v.InferOutput<typeof PaymentStatusSchema>;
-
-/** A validated payment session returned after checkout completion */
-export type ValidatedPaymentSession = {
-  id: string;
-  paymentStatus: PaymentStatus;
-  paymentReference: string;
-  /** Total amount charged in smallest currency unit (cents), from the payment provider */
-  amountTotal: number;
-  metadata: SessionMetadata;
-  /**
-   * When the provider created this checkout, in the ledger's canonical ISO 8601
-   * form (`YYYY-MM-DDTHH:mm:ss.sssZ`), or undefined if the provider didn't supply
-   * a usable timestamp. Each provider normalises its own format (see
-   * toCanonicalIso) so this is safe to use directly as a ledger occurredAt. It is
-   * the customer's business time, so a payment processed late — a delayed
-   * webhook, an old redirect, a stale retry — is still recognised on the day it
-   * was paid, not the day we happened to process it.
-   */
-  createdAt?: string | undefined;
-};
-
 /** Result of webhook signature verification */
 export type WebhookVerifyResult =
-  | { valid: true; listing: WebhookEvent }
+  | { valid: true; notice: ProviderNotice | null }
   | { valid: false; error: string };
-
-/** Provider-agnostic webhook event */
-export type WebhookEvent = {
-  id: string;
-  type: string;
-  data: {
-    object: Record<string, unknown>;
-  };
-};
-
-/** A provider's decision for an authenticated payment webhook. "retry" means
- * provider state is temporarily incomplete, so the HTTP boundary must return a
- * failure and let the provider deliver the event again. */
-export type WebhookSessionResolution =
-  | ValidatedPaymentSession
-  | "retry"
-  | "skip"
-  | null;
 
 /** Result of webhook endpoint setup */
 export type WebhookSetupResult =
@@ -328,61 +301,34 @@ export type SetupWebhookEndpoint = (
 /**
  * Payment provider interface.
  *
- * Each provider (Stripe, Square, etc.) implements this interface.
- * Routes call these methods without knowing which provider is active.
+ * Each provider (Stripe, Square, etc.) implements this interface. The payment
+ * runtime is the only checkout creator; later resolution remains provider-wide.
  */
 export interface PaymentProvider {
-  /** The webhook event type name that indicates a completed checkout */
-  readonly checkoutCompletedEventType: string;
+  /** Submit one already-priced and persisted checkout to this provider. */
+  createCheckout(
+    checkout: PaymentCheckoutCreateSnapshot,
+  ): Promise<ProviderCheckoutResult>;
 
-  /**
-   * Create a checkout session for one or more listings.
-   * Returns a session ID and hosted checkout URL, or null on failure.
-   */
-  createCheckoutSession(
-    intent: CheckoutIntent,
-    baseUrl: string,
-  ): Promise<CheckoutSessionResult>;
+  /** Read provider facts for a persisted payment, or for one signed legacy
+   * checkout that has not yet been adopted into the aggregate. */
+  readPayment(
+    payment: PaymentSession | null,
+    requested: ProviderResource,
+  ): Promise<ProviderRead>;
 
-  /**
-   * Check if a payment has been refunded via the provider API.
-   * Used to refresh refund status from the edit attendee page.
-   * @param paymentReference - provider-specific payment reference
-   * @returns true if the payment has been refunded
-   */
-  isPaymentRefunded(paymentReference: string): Promise<boolean>;
-
-  /**
-   * Refund a completed payment.
-   * @param paymentReference - provider-specific payment reference (e.g. Stripe payment_intent ID)
-   * @returns true if refund succeeded, false otherwise
-   */
-  refundPayment(paymentReference: string): Promise<boolean>;
+  /** Request or re-check one persisted charge refund. A pending charge carries
+   * its exact provider refund resource, so this method checks rather than posts. */
+  refundCharge(
+    charge: PaymentCharge,
+    idempotencyKey: string,
+  ): Promise<RefundResolution>;
 
   /** Whether incoming webhooks carry a verifiable signature. Providers that
    * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
    * unsigned requests. Providers whose webhooks are unsigned (SumUp) set this
    * false and instead establish authenticity by re-fetching from the API. */
   readonly requiresWebhookSignature: boolean;
-
-  /**
-   * Resolve a validated session from a webhook event.
-   * Each provider knows how to extract/fetch session data from its own
-   * event structure, so the webhook handler stays provider-agnostic.
-   *
-   * @returns the session, "retry" for temporary provider inconsistency,
-   *          "skip" if the event should be acknowledged without processing
-   *          (e.g. pending payment), or null for an unrelated session.
-   */
-  resolveWebhookSession(
-    listing: WebhookEvent,
-  ): Promise<WebhookSessionResolution>;
-
-  /**
-   * Retrieve and validate a completed checkout session by ID.
-   * Returns the validated session or null if not found / invalid.
-   */
-  retrieveSession(sessionId: string): Promise<ValidatedPaymentSession | null>;
 
   /**
    * Set up a webhook endpoint for this provider.
@@ -423,6 +369,10 @@ const providerLoaders: Record<
     (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
 };
 
+export const getPaymentProvider = (
+  provider: PaymentProviderType,
+): Promise<PaymentProvider> => providerLoaders[provider]();
+
 export const getActivePaymentProvider =
   async (): Promise<PaymentProvider | null> => {
     const providerType = paymentsApi.getConfiguredProvider();
@@ -432,5 +382,5 @@ export const getActivePaymentProvider =
     }
 
     logDebug("Payment", `Resolving payment provider: ${providerType}`);
-    return await providerLoaders[providerType]();
+    return await getPaymentProvider(providerType);
   };

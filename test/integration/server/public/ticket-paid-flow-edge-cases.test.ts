@@ -64,14 +64,12 @@ describeWithEnv(
           unitPrice: 500,
         });
 
-        // Mock createCheckoutSession to return no URL
+        // Mock provider creation to return no URL
         const { stripePaymentProvider } = await import(
           "#shared/stripe-provider.ts"
         );
-        const mockCreate = stub(
-          stripePaymentProvider,
-          "createCheckoutSession",
-          () => Promise.resolve(null),
+        const mockCreate = stub(stripePaymentProvider, "createCheckout", () =>
+          Promise.resolve(null),
         );
 
         try {
@@ -103,10 +101,8 @@ describeWithEnv(
         const { stripePaymentProvider } = await import(
           "#shared/stripe-provider.ts"
         );
-        const mockCreate = stub(
-          stripePaymentProvider,
-          "createCheckoutSession",
-          () => Promise.resolve({ error: "Invalid phone number format" }),
+        const mockCreate = stub(stripePaymentProvider, "createCheckout", () =>
+          Promise.resolve({ error: "Invalid phone number format" }),
         );
 
         try {

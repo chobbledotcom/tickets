@@ -6,6 +6,7 @@ import {
   MANUAL_ATTENDEE_CHARGE,
   postManualLedgerEntry,
 } from "#shared/accounting/manual-entries.ts";
+import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import {
   attendeeStatuses,
@@ -17,18 +18,14 @@ import {
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
-import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { paymentFulfilmentStatements } from "#shared/db/payments/claims.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { bookingCompletion } from "#shared/payment-completion.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
-import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
   createNonReservationAttendee,
   createReservedAttendee,
@@ -37,10 +34,62 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-import { expectRefundReferences } from "#test-utils/payment-references.ts";
+import {
+  createAggregatePayment,
+  expectRefundReferences,
+  getPaymentAggregateOrNull,
+} from "#test-utils/payment-aggregate.ts";
+
+const balanceFinalize = async (
+  paymentId: string,
+  attendeeId: number,
+  listingId: number,
+  amount: number,
+  paymentReference: string,
+) => {
+  const intent = {
+    address: "",
+    balanceAttendeeId: attendeeId,
+    date: null,
+    email: "balance@example.com",
+    items: [{ e: listingId, p: amount, q: 1 }],
+    modifiers: [],
+    name: "Balance payment",
+    phone: "",
+    special_instructions: "",
+  };
+  const fixture = await createAggregatePayment({
+    bookingIntent: intent,
+    charges: [{ amount, reference: paymentReference }],
+    paymentId,
+    state: "processing",
+  });
+  if (fixture.claim === null) throw new Error("Expected a payment claim");
+  return paymentFulfilmentStatements(
+    fixture.claim,
+    fixture.payment,
+    "?",
+    [attendeeId],
+    [],
+    bookingCompletion(
+      intent,
+      {
+        flow: "balance",
+        listingId,
+        occurredAt: "2026-07-26T12:00:00.000Z",
+        promos: [],
+      },
+      [],
+    ),
+    {
+      args: [amount],
+      sql: `${attendeeOwedSubquery(String(attendeeId))} = ?`,
+    },
+  );
+};
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
-  test("clears the balance, moves to the paid status and logs it", async () => {
+  test("clears the balance and moves to the paid status", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const paid = await requirePaidDefaultStatus();
     const settlement = settle();
@@ -51,10 +100,6 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const state = await getAttendeeBalanceState(attendeeId);
     expect(state?.remainingBalance).toBe(0);
     expect(state?.statusId).toBe(paid.id);
-
-    const log = await getAttendeeActivityLog(attendeeId);
-    expect(log).toHaveLength(1);
-    expect(log[0]!.message).toContain("Reservation balance paid");
 
     const { rows } = await getDb().execute({
       args: [KIND.payment, String(attendeeId), 1500],
@@ -82,47 +127,47 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
   });
 
   test("finalizes a balance session with its provider reference only when the amount still matches", async () => {
-    const { attendeeId } = await createReservedAttendee(1500);
-    await reserveSession("balance-ref-ok");
+    const { attendeeId, listingId } = await createReservedAttendee(1500);
 
     await settleAttendeeBalance(
       attendeeId,
       1500,
       settle("balance-ref-ok"),
-      await balanceFinalizeStatements(
+      await balanceFinalize(
         "balance-ref-ok",
         attendeeId,
+        listingId,
         1500,
         "pi_balance_ok",
       ),
     );
 
-    const row = await isSessionProcessed("balance-ref-ok");
-    expect(row?.attendee_id).toBe(attendeeId);
-    expect(row?.payment_reference).not.toContain("pi_balance_ok");
+    const payment = await getPaymentAggregateOrNull("balance-ref-ok");
+    expect(payment?.attendeeId).toBe(attendeeId);
+    expect(payment?.completionState).toBe("pending");
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
   });
 
   test("does not finalize a balance session reference on amount mismatch", async () => {
-    const { attendeeId } = await createReservedAttendee(1500);
-    await reserveSession("balance-ref-mismatch");
+    const { attendeeId, listingId } = await createReservedAttendee(1500);
 
     const result = await settleAttendeeBalance(
       attendeeId,
       1000,
       settle("balance-ref-mismatch"),
-      await balanceFinalizeStatements(
+      await balanceFinalize(
         "balance-ref-mismatch",
         attendeeId,
+        listingId,
         1000,
         "pi_balance_mismatch",
       ),
     );
 
     expect(result).toEqual({ reason: "amount_mismatch", settled: false });
-    const row = await isSessionProcessed("balance-ref-mismatch");
-    expect(row?.attendee_id).toBe(null);
-    expect(row?.payment_reference).toBe("");
+    const payment = await getPaymentAggregateOrNull("balance-ref-mismatch");
+    expect(payment?.attendeeId).toBeNull();
+    expect(payment?.completion).toBeNull();
   });
 
   test("is idempotent once the balance is cleared", async () => {

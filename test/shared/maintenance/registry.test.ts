@@ -49,7 +49,7 @@ const runTask = (
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {
-  test("declares only bounded local pruning and activity backfill", () => {
+  test("declares bounded tasks with scheduled payment work", () => {
     expect(
       MAINTENANCE_TASKS.map(({ check, run: _run, ...task }) => ({
         ...task,
@@ -66,7 +66,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         deadlineMs: 15_000,
         failureRetryIntervalMs: 300_000,
         intervalMs: 86_400_000,
-        maxDatabaseCalls: 2,
+        maxDatabaseCalls: 5,
         maxExternalCalls: 0,
         name: "database_pruning",
         wakePolicy: "organic_safe",
@@ -85,6 +85,36 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         maxExternalCalls: 0,
         name: "activity_log_backfill",
         wakePolicy: "organic_safe",
+      },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: [],
+        },
+        deadlineMs: 20_000,
+        failureRetryIntervalMs: 60_000,
+        intervalMs: 60_000,
+        maxDatabaseCalls: 23,
+        maxExternalCalls: 11,
+        name: "payment_reconciliation",
+        wakePolicy: "scheduled_only",
+      },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: [],
+        },
+        deadlineMs: 10_000,
+        failureRetryIntervalMs: 60_000,
+        intervalMs: 60_000,
+        maxDatabaseCalls: 8,
+        maxExternalCalls: 4,
+        name: "payment_case_alerts",
+        wakePolicy: "scheduled_only",
       },
     ]);
   });
@@ -128,6 +158,13 @@ describeWithEnv("maintenance registry", { db: true }, () => {
 
   test("the activity task stays available to preserve its checkpoint", async () => {
     expect(await taskNamed("activity_log_backfill").check.enabled()).toBe(true);
+  });
+
+  test("keeps reconciliation scheduled and alerts gated by ntfy", async () => {
+    expect(await taskNamed("payment_reconciliation").check.enabled()).toBe(
+      true,
+    );
+    expect(await taskNamed("payment_case_alerts").check.enabled()).toBe(false);
   });
 
   test("a completed activity checkpoint completes without scanning", async () => {

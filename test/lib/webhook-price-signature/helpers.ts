@@ -3,14 +3,14 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { getNoteRows } from "#shared/db/system-notes.ts";
-import { stripeApi } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 /**
  * The three-verdict trust model. A paid session's price proof is the ONLY signal
@@ -54,27 +54,16 @@ export const stubCompletedSession = async (object: {
   amount_total: number;
   id: string;
   metadata: Record<string, string>;
-}) => {
-  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
-    Promise.resolve({
-      listing: {
-        data: {
-          object: {
-            ...object,
-            created: 1_700_000_000,
-            payment_intent: `pi_${object.id}`,
-            payment_status: "paid",
-            url: null,
-          },
-        },
-        id: `evt_${object.id}`,
-        type: "checkout.session.completed",
-      },
-      valid: true as const,
+}) =>
+  stubWebhookVerify(
+    checkoutSessionEvent({
+      amountTotal: object.amount_total,
+      eventId: `evt_${object.id}`,
+      metadata: object.metadata,
+      paymentIntent: `pi_${object.id}`,
+      sessionId: object.id,
     }),
   );
-};
 
 export const webhookRequest = () =>
   handleRequest(mockWebhookRequest({}, { "stripe-signature": "sig_valid" }));
@@ -84,10 +73,8 @@ export const redirectRequest = (id: string) =>
 
 /** Stub the provider refund to succeed (deterministic — no network). */
 export const stubRefundOk = () =>
-  stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: "re_ok", status: "succeeded" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
+  stub(stripePaymentProvider, "refundCharge", (charge) =>
+    Promise.resolve({ amount: charge.captured, status: "completed" as const }),
   );
 
 /** setupStripe + a 50-seat listing priced at 1000. */
@@ -128,42 +115,42 @@ export const runFailedRefund = async (
   listingId: number,
   body: (refund: ReturnType<typeof stubRefundOk>) => Promise<void>,
 ): Promise<void> => {
-  const refund = stub(stripeApi, "refundPayment", () => Promise.resolve(null));
-  const intent = stub(stripeApi, "retrievePaymentIntent", () =>
-    Promise.resolve({
-      latest_charge: { refunded: intentRefunded },
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrievePaymentIntent>
-    >),
+  const refund = stub(stripePaymentProvider, "refundCharge", (charge) =>
+    Promise.resolve(
+      intentRefunded
+        ? { amount: charge.captured, status: "completed" as const }
+        : {
+            amount: charge.refunded,
+            reason: "provider_failed" as const,
+            status: "failed" as const,
+          },
+    ),
   );
   const mockVerify = await stubCompletedSession({
-    amount_total: 1200,
+    amount_total: 999,
     id,
-    metadata: signedMeta(1000, { items: singleItem(listingId, 1, 1000) }),
+    metadata: signedMeta(999, { items: singleItem(listingId, 1, 999) }),
   });
   try {
     await body(refund);
   } finally {
     mockVerify.restore();
-    intent.restore();
     refund.restore();
   }
 };
 
-/** Assert the webhook kept the booking as a quantity-0 placeholder (with a system
- *  note) and refused with the generic "saved your details" message. */
+/** Assert the webhook kept the booking as a quantity-0 placeholder. */
 export const expectStoredRefundRecord = async (
   listingId: number,
 ): Promise<void> => {
   const [attendee] = await getAttendeesRaw(listingId);
   expect(attendee?.quantity).toBe(0);
-  expect(await getNoteRows([attendee!.id])).toHaveLength(1);
 };
 
 export const expectStoredRefund = async (listingId: number): Promise<void> => {
   await assertJson(webhookRequest(), 200, (json) => {
     expect(json.processed).toBe(false);
-    expect(json.error).toContain("saved your details");
+    expect(json.status).toBe("fully_refunded");
   });
   await expectStoredRefundRecord(listingId);
 };

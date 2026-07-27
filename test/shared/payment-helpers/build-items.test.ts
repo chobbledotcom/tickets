@@ -7,6 +7,7 @@ import {
   buildItemsMetadata,
   extractSessionMetadata,
   packMetadata,
+  toBookingIntent,
 } from "#shared/payment-helpers.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
@@ -47,7 +48,7 @@ describeWithEnv(
 
     test("emits site_token_index as the HMAC of the plain token", async () => {
       const metadata = await buildItemsMetadata(
-        baseIntent("plain-token-xyz"),
+        await toBookingIntent(baseIntent("plain-token-xyz")),
         0,
         STRIPE_CAPS.maxValueLength,
       );
@@ -62,7 +63,7 @@ describeWithEnv(
 
     test("plain token never appears in metadata", async () => {
       const metadata = await buildItemsMetadata(
-        baseIntent("plain-token-xyz"),
+        await toBookingIntent(baseIntent("plain-token-xyz")),
         0,
         STRIPE_CAPS.maxValueLength,
       );
@@ -73,7 +74,7 @@ describeWithEnv(
 
     test("omits site_token_index when siteToken is absent", async () => {
       const metadata = await buildItemsMetadata(
-        baseIntent(),
+        await toBookingIntent(baseIntent()),
         0,
         STRIPE_CAPS.maxValueLength,
       );
@@ -105,7 +106,11 @@ describeWithEnv(
       const total = priceCheckout(intent).total;
       // Apply the Square packing step over the signed metadata.
       const wire = packMetadata(
-        await buildItemsMetadata(intent, total, SQUARE_CAPS.maxValueLength),
+        await buildItemsMetadata(
+          await toBookingIntent(intent),
+          total,
+          SQUARE_CAPS.maxValueLength,
+        ),
       );
       // Small fields (phone, date, …) are packed on the wire.
       expect("phone" in wire).toBe(false);
@@ -133,9 +138,8 @@ describeWithEnv(
     test("assembles Square metadata with small fields packed", async () => {
       const wire = await assembleCheckoutMetadata(
         "square",
-        intent,
         priceCheckout(intent).total,
-      );
+      )(await toBookingIntent(intent));
 
       expect("phone" in wire).toBe(false);
       expect(JSON.parse(wire.b!)).toMatchObject({ phone: "07700900000" });
@@ -180,7 +184,7 @@ describeWithEnv(
       const intent = intentWithUrl(longUrl);
       const total = priceCheckout(intent).total;
       const metadata = await buildItemsMetadata(
-        intent,
+        await toBookingIntent(intent),
         total,
         SQUARE_CAPS.maxValueLength,
       );
@@ -236,7 +240,7 @@ describeWithEnv(
       };
       const total = priceCheckout(intent).total;
       const metadata = await buildItemsMetadata(
-        intent,
+        await toBookingIntent(intent),
         total,
         SQUARE_CAPS.maxValueLength,
         SQUARE_CAPS.maxEntries,
@@ -265,7 +269,7 @@ describeWithEnv(
       const intent = intentWithUrl("https://example.com/thanks");
       const total = priceCheckout(intent).total;
       const metadata = await buildItemsMetadata(
-        intent,
+        await toBookingIntent(intent),
         total,
         SQUARE_CAPS.maxValueLength,
         SQUARE_CAPS.maxEntries,
@@ -278,7 +282,7 @@ describeWithEnv(
       const intent = intentWithUrl(url);
       const total = priceCheckout(intent).total;
       const metadata = await buildItemsMetadata(
-        intent,
+        await toBookingIntent(intent),
         total,
         SQUARE_CAPS.maxValueLength,
       );
@@ -291,8 +295,13 @@ describeWithEnv(
       expect(await verifyPrice(extracted, signedTotal, sig)).toBe(true);
       // Stripe's larger cap also retains it.
       expect(
-        (await buildItemsMetadata(intent, total, STRIPE_CAPS.maxValueLength))
-          .thank_you_url,
+        (
+          await buildItemsMetadata(
+            await toBookingIntent(intent),
+            total,
+            STRIPE_CAPS.maxValueLength,
+          )
+        ).thank_you_url,
       ).toBe(url);
     });
   },
@@ -326,7 +335,7 @@ describe("signed metadata budget", () => {
       special_instructions: "Leave at the front desk",
     };
     const metadata = await buildItemsMetadata(
-      intent,
+      await toBookingIntent(intent),
       priceCheckout(intent).total,
       SQUARE_CAPS.maxValueLength,
       SQUARE_CAPS.maxEntries,

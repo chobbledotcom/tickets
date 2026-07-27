@@ -15,7 +15,11 @@ import {
   stripeClient,
 } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import {
+  checkoutIntent,
+  checkoutItem,
+  preparedCheckout,
+} from "#test-utils/checkout.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -132,13 +136,14 @@ describeStripe("stripe", () => {
 
       // First create a session using intent-based flow
       const listing = testListing({ unit_price: 1000 });
-      const createdSession = await stripeApi.createCheckoutSession(
-        checkoutIntent({
-          email: "john@example.com",
-          items: [lineFor(listing)],
-          name: "John Doe",
-        }),
-        "http://localhost:3000",
+      const createdSession = await stripeApi.createCheckout(
+        await preparedCheckout(
+          checkoutIntent({
+            email: "john@example.com",
+            items: [lineFor(listing)],
+            name: "John Doe",
+          }),
+        ),
       );
       expect(createdSession).not.toBeNull();
 
@@ -154,13 +159,14 @@ describeStripe("stripe", () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       const listing = testListing({ max_quantity: 5, unit_price: 1000 });
-      const session = await stripeApi.createCheckoutSession(
-        checkoutIntent({
-          email: "john@example.com",
-          items: [lineFor(listing, 2)],
-          name: "John Doe",
-        }),
-        "http://localhost:3000",
+      const session = await stripeApi.createCheckout(
+        await preparedCheckout(
+          checkoutIntent({
+            email: "john@example.com",
+            items: [lineFor(listing, 2)],
+            name: "John Doe",
+          }),
+        ),
       );
 
       expect(session?.id).toMatch(/^cs_test_/u);
@@ -171,20 +177,21 @@ describeStripe("stripe", () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       // stripe-mock accepts any payment_intent ID
-      const refund = await stripeApi.refundPayment("pi_test_123");
+      const refund = await stripeApi.refundPayment("pi_test_123", "refund-key");
 
       expect(refund?.id).toMatch(/^re_/u);
       expect(refund?.status).toBe("succeeded");
     });
   });
 
-  describe("createCheckoutSession", () => {
+  describe("createCheckout", () => {
     /** Stub `sessions.create` to resolve `session`, handing the spy to `run`. */
     const withCreateSpy = (
       client: Awaited<ReturnType<typeof stripeClient>>,
       session: ReturnType<typeof stripeCheckoutSession>,
       run: (
         getParams: () => StripeCheckoutSessionCreateParams,
+        getIdempotencyKey: () => string | undefined,
       ) => Promise<void>,
     ): Promise<void> =>
       withMocks(
@@ -193,22 +200,26 @@ describeStripe("stripe", () => {
             Promise.resolve(session),
           ),
         async (createSpy) => {
-          await run(() => {
-            const params = createSpy.calls[0]?.args[0];
-            if (!params) throw new Error("Stripe checkout was not created");
-            return params;
-          });
+          await run(
+            () => {
+              const params = createSpy.calls[0]?.args[0];
+              if (!params) throw new Error("Stripe checkout was not created");
+              return params;
+            },
+            () => createSpy.calls[0]?.args[1],
+          );
         },
       );
 
     test("returns null when stripe key not set", async () => {
-      const result = await stripeApi.createCheckoutSession(
-        checkoutIntent({
-          email: "john@example.com",
-          items: [checkoutItem({ name: "Test", slug: "test-listing" })],
-          name: "John",
-        }),
-        "http://localhost",
+      const result = await stripeApi.createCheckout(
+        await preparedCheckout(
+          checkoutIntent({
+            email: "john@example.com",
+            items: [checkoutItem({ name: "Test", slug: "test-listing" })],
+            name: "John",
+          }),
+        ),
       );
       expect(result).toBeNull();
     });
@@ -224,18 +235,20 @@ describeStripe("stripe", () => {
           id: "cs_fee",
           url: "https://checkout.stripe.com/fee",
         }),
-        async (getParams) => {
+        async (getParams, getIdempotencyKey) => {
           const listing = testListing({ unit_price: 1000 });
-          await stripeApi.createCheckoutSession(
-            checkoutIntent({
-              email: "jane@example.com",
-              items: [lineFor(listing)],
-              name: "Jane",
-            }),
-            "http://localhost:3000",
+          await stripeApi.createCheckout(
+            await preparedCheckout(
+              checkoutIntent({
+                email: "jane@example.com",
+                items: [lineFor(listing)],
+                name: "Jane",
+              }),
+            ),
           );
 
           const params = getParams();
+          expect(getIdempotencyKey()).toBe("local-payment-test");
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",
           );
@@ -267,15 +280,16 @@ describeStripe("stripe", () => {
         }),
         async (getParams) => {
           const listing = testListing({ unit_price: 1000 });
-          await stripeApi.createCheckoutSession(
-            checkoutIntent({
-              email: "jane@example.com",
-              items: [lineFor(listing, 2)],
-              name: "Jane",
-              // Public-default reservation charges a 10% deposit up front.
-              reservationAmount: "10%",
-            }),
-            "http://localhost:3000",
+          await stripeApi.createCheckout(
+            await preparedCheckout(
+              checkoutIntent({
+                email: "jane@example.com",
+                items: [lineFor(listing, 2)],
+                name: "Jane",
+                // Public-default reservation charges a 10% deposit up front.
+                reservationAmount: "10%",
+              }),
+            ),
           );
 
           const params = getParams();
@@ -322,13 +336,14 @@ describeStripe("stripe", () => {
           url: "https://checkout.stripe.com/no-email",
         }),
         async (getParams) => {
-          await stripeApi.createCheckoutSession(
-            checkoutIntent({
-              email: "",
-              items: [checkoutItem({ name: "No email", slug: "no-email" })],
-              name: "No Email User",
-            }),
-            "http://localhost:3000",
+          await stripeApi.createCheckout(
+            await preparedCheckout(
+              checkoutIntent({
+                email: "",
+                items: [checkoutItem({ name: "No email", slug: "no-email" })],
+                name: "No Email User",
+              }),
+            ),
           );
 
           const params = getParams();
@@ -340,7 +355,7 @@ describeStripe("stripe", () => {
 
   describe("refundPayment", () => {
     test("returns null when stripe key not set", async () => {
-      const result = await stripeApi.refundPayment("pi_test_123");
+      const result = await stripeApi.refundPayment("pi_test_123", "refund-key");
       expect(result).toBeNull();
     });
 
@@ -352,7 +367,10 @@ describeStripe("stripe", () => {
             Promise.reject(new Error("Network error")),
           ),
         async (refundSpy) => {
-          const result = await stripeApi.refundPayment("pi_test_123");
+          const result = await stripeApi.refundPayment(
+            "pi_test_123",
+            "refund-key",
+          );
           expect(result).toBeNull();
           expect(refundSpy.calls.length).toBeGreaterThan(0);
         },

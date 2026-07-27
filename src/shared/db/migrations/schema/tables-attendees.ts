@@ -161,61 +161,6 @@ export const attendeeTables: [name: string, table: Table][] = [
   ],
 
   [
-    "checkout_stages",
-    {
-      columns: [
-        ["payment_session_id", "TEXT PRIMARY KEY NOT NULL"],
-        ["attendee_id", "INTEGER NOT NULL"],
-        ["provider", "TEXT NOT NULL"],
-        ["ticket_tokens", "TEXT NOT NULL"],
-        ["state", "TEXT NOT NULL"],
-        ["created_at", "TEXT NOT NULL"],
-      ],
-      indexes: [
-        {
-          columns: ["attendee_id"],
-          name: "idx_checkout_stages_attendee_id",
-          unique: true,
-        },
-        {
-          columns: ["state", "created_at"],
-          name: "idx_checkout_stages_state_created_at",
-        },
-      ],
-    },
-  ],
-
-  [
-    "processed_payments",
-    {
-      columns: [
-        ["payment_session_id", "TEXT PRIMARY KEY"],
-        ["attendee_id", "INTEGER"],
-        ["processed_at", "TEXT NOT NULL"],
-        ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
-        ["failure_data", "TEXT NOT NULL DEFAULT ''"],
-        ["payment_reference", "TEXT NOT NULL DEFAULT ''"],
-        ["provider_refunded_at", "TEXT NOT NULL DEFAULT ''"],
-      ],
-      // Admin rosters, exports, and refund-all candidate loading look up the
-      // retained charge references for a listing's attendees
-      // (attendee_id IN (...) AND payment_reference != ''). Leading with
-      // attendee_id and covering payment_reference turns that into an index
-      // range scan instead of a full scan of every retained payment row.
-      indexes: [
-        {
-          columns: ["attendee_id", "payment_reference"],
-          name: "idx_processed_payments_attendee_id",
-        },
-      ],
-      // FK declarations removed — libsql's FK enforcement breaks table
-      // recreation migrations (PRAGMA foreign_keys is connection-scoped and
-      // doesn't persist into batch operations on remote databases).
-      // Referential integrity is enforced by application logic.
-    },
-  ],
-
-  [
     "activity_log",
     {
       columns: [
@@ -238,36 +183,6 @@ export const attendeeTables: [name: string, table: Table][] = [
         {
           columns: ["listing_id"],
           name: "idx_activity_log_listing_id",
-        },
-      ],
-    },
-  ],
-
-  [
-    // SumUp checkouts can't carry arbitrary metadata through the provider
-    // (unlike Stripe sessions / Square orders), so booking metadata is staged
-    // here between checkout creation and payment completion, then read back on
-    // webhook/redirect. The blob contains PII, so it is encrypted with a
-    // per-row data key wrapped by the checkout reference — the plaintext
-    // reference never rests in this DB (it arrives at runtime from the
-    // redirect URL or SumUp's API), so a DB dump alone cannot decrypt these
-    // rows. Lookup is by HMAC of the reference, like ticket_token_index.
-    // Rows are short-lived: pruned after PRUNE_SUMUP_RETENTION_HOURS.
-    // wrapped_key has a DEFAULT so ADD COLUMN self-heals pre-release dev DBs
-    // that created the earlier plaintext shape of this table.
-    "sumup_checkouts",
-    {
-      columns: [
-        ["reference_index", "TEXT PRIMARY KEY"],
-        ["wrapped_key", "TEXT NOT NULL DEFAULT ''"],
-        ["metadata", "TEXT NOT NULL"],
-        ["sumup_id", "TEXT NOT NULL DEFAULT ''"],
-        ["created_at", "TEXT NOT NULL"],
-      ],
-      indexes: [
-        {
-          columns: ["sumup_id"],
-          name: "idx_sumup_checkouts_sumup_id",
         },
       ],
     },

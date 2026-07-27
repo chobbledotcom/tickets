@@ -25,10 +25,6 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne, withTransaction } from "#shared/db/client.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -95,9 +91,7 @@ const buildPlan = async (opts: {
   fullSubtotal?: number;
   total?: number;
   usages?: ModifierApplication[];
-  sessionId?: string;
 }): Promise<{ pricedOrder: PricedOrder; plan: BookingBatchPlan }> => {
-  if (opts.sessionId) await reserveSession(opts.sessionId);
   const usages = opts.usages ?? [];
   const pricedOrder = order({
     fullSubtotal: opts.fullSubtotal ?? 0,
@@ -105,15 +99,26 @@ const buildPlan = async (opts: {
     modifierApplications: usages,
     total: opts.total ?? 0,
   });
-  const plan = await bookingBatchPlan(
-    usages,
-    { eventId: opts.eventId, occurredAt: OCCURRED_AT, pricedOrder },
-    opts.sessionId
-      ? { paymentReference: `pi_${opts.sessionId}`, sessionId: opts.sessionId }
-      : undefined,
-  );
+  const plan = await bookingBatchPlan(usages, {
+    eventId: opts.eventId,
+    occurredAt: OCCURRED_AT,
+    pricedOrder,
+  });
   return { plan, pricedOrder };
 };
+
+const buildSurchargePlan = (
+  eventId: string,
+  listingId: number,
+  modifierId: number,
+): ReturnType<typeof buildPlan> =>
+  buildPlan({
+    eventId,
+    fullSubtotal: 600,
+    lines: [line(listingId, 500, 1)],
+    total: 600,
+    usages: [surcharge(modifierId, 100)],
+  });
 
 const expectNothingWritten = async (
   listingId: number,
@@ -147,7 +152,7 @@ const storedEventGroup = async (attendeeId: number): Promise<string> => {
 };
 
 describeWithEnv("db > createBookingAtomic", { db: true }, () => {
-  test("posts legs, consumes modifier stock, and finalizes the session in one batch", async () => {
+  test("posts legs and consumes modifier stock in one batch", async () => {
     const listing = await createTestListing({
       maxAttendees: 5,
       unitPrice: 500,
@@ -159,14 +164,11 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       name: "Add-on",
       stock: 5,
     });
-    const { plan } = await buildPlan({
-      eventId: "sess_batch_ok",
-      fullSubtotal: 600,
-      lines: [line(listing.id, 500, 1)],
-      sessionId: "sess_batch_ok",
-      total: 600,
-      usages: [surcharge(m.id, 100)],
-    });
+    const { plan } = await buildSurchargePlan(
+      "sess_batch_ok",
+      listing.id,
+      m.id,
+    );
 
     const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
 
@@ -179,9 +181,6 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
     // Modifier stock consumed exactly once.
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map([[m.id, 1]]));
-    // Session finalized atomically: attendee_id set in the same batch.
-    const session = await isSessionProcessed("sess_batch_ok");
-    expect(session!.attendee_id).toBe(attendeeId);
     // The booking row is stamped with the legs' event group, so the per-row
     // amount-paid projection resolves exactly this booking's legs.
     expect(plan.legs.length).toBeGreaterThan(0);
@@ -200,14 +199,11 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       name: "Sold out add-on",
       stock: 0,
     });
-    const { plan } = await buildPlan({
-      eventId: "sess_batch_soldout",
-      fullSubtotal: 600,
-      lines: [line(listing.id, 500, 1)],
-      sessionId: "sess_batch_soldout",
-      total: 600,
-      usages: [surcharge(m.id, 100)],
-    });
+    const { plan } = await buildSurchargePlan(
+      "sess_batch_soldout",
+      listing.id,
+      m.id,
+    );
 
     const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
 
@@ -215,9 +211,6 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     // Nothing landed: no attendee, no legs, no stock, session left unresolved.
     await expectNothingWritten(listing.id, 0);
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map());
-    expect((await isSessionProcessed("sess_batch_soldout"))!.attendee_id).toBe(
-      null,
-    );
   });
 
   test("returns capacity_exceeded (not sold-out) when the listing is full", async () => {
@@ -365,14 +358,10 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       eventId: "sess_batch_existing_ledger",
       fullSubtotal: 500,
       lines: [line(listing.id, 500, 1)],
-      sessionId: "sess_batch_existing_ledger",
       total: 500,
     });
     await postTransfers(plan.legs);
 
     await expectCapacityExceeded(plan, listing.id, 500, plan.legs.length);
-    expect(
-      (await isSessionProcessed("sess_batch_existing_ledger"))!.attendee_id,
-    ).toBe(null);
   });
 });

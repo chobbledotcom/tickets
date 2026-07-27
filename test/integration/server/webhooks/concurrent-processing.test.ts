@@ -5,7 +5,6 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,6 +17,10 @@ import {
   webhookMeta,
 } from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
+import {
+  createAggregatePayment,
+  requirePaymentAggregateByProviderSession,
+} from "#test-utils/payment-aggregate.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -25,13 +28,6 @@ import {
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
-
-const withCheckoutUrl = (
-  event: ReturnType<typeof checkoutSessionEvent>,
-): ReturnType<typeof checkoutSessionEvent> => ({
-  ...event,
-  data: { object: { ...event.data.object, url: null } },
-});
 
 describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
   test("concurrent webhooks create one attendee and finalize one session", async () => {
@@ -43,8 +39,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     });
 
     const mockVerify = await stubWebhookVerify(
-      withCheckoutUrl(
-        checkoutSessionEvent({
+      checkoutSessionEvent({
           amountTotal: 1000,
           created: 1_700_000_000,
           eventId: "evt_concurrent",
@@ -59,7 +54,6 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
           paymentIntent: "pi_webhook_concurrent",
           sessionId: "cs_webhook_concurrent",
         }),
-      ),
     );
     const createBooking = attendeesApi.createBookingAtomic;
     const bookingStarted = Promise.withResolvers<void>();
@@ -102,9 +96,11 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
 
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees).toHaveLength(1);
-      const processed = await isSessionProcessed("cs_webhook_concurrent");
-      expect(processed?.attendee_id).toBe(attendees[0]!.id);
-      expect(processed?.failure_data).toBe("");
+      const payment = await requirePaymentAggregateByProviderSession(
+        "cs_webhook_concurrent",
+      );
+      expect(payment.attendeeId).toBe(attendees[0]!.id);
+      expect(payment.state).toBe("completed");
     } finally {
       releaseBooking.resolve();
       pauseWinner.restore();
@@ -121,11 +117,13 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       unitPrice: 500,
     });
 
-    // Pre-reserve the session to simulate concurrent processing
-    const { reserveSession: reserveSessionFn } = await import(
-      "#shared/db/processed-payments.ts"
-    );
-    await reserveSessionFn("cs_multi_concurrent");
+    await createAggregatePayment({
+      charges: [{ amount: 500, reference: "pi_multi_concurrent" }],
+      configuredAccount: true,
+      paymentId: "payment_multi_concurrent",
+      providerSessionId: "cs_multi_concurrent",
+      state: "processing",
+    });
 
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
@@ -164,11 +162,13 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    // Pre-reserve the session to simulate concurrent processing
-    const { reserveSession: reserveSessionFn } = await import(
-      "#shared/db/processed-payments.ts"
-    );
-    await reserveSessionFn("cs_single_concurrent");
+    await createAggregatePayment({
+      charges: [{ amount: 1_000, reference: "pi_single_concurrent" }],
+      configuredAccount: true,
+      paymentId: "payment_single_concurrent",
+      providerSessionId: "cs_single_concurrent",
+      state: "processing",
+    });
 
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
@@ -217,19 +217,27 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     if (!result.success) throw new Error("Failed to create test attendee");
     const attendee = result.attendees[0]!;
 
-    const { finalizeProcessedPayment } = await import(
-      "#test-utils/processed-payments.ts"
-    );
-    await finalizeProcessedPayment(
-      "cs_multi_already_done",
-      attendee.id,
-      attendee.ticket_token,
-      "pi_multi_already_done",
-    );
+    await createAggregatePayment({
+      attendeeId: attendee.id,
+      bookingIntent: {
+        address: "",
+        date: null,
+        email: "already@example.com",
+        items: [{ e: listing.id, p: 500, q: 1 }],
+        modifiers: [],
+        name: "Already Done",
+        phone: "",
+        special_instructions: "",
+      },
+      charges: [{ amount: 500, reference: "pi_already_done" }],
+      configuredAccount: true,
+      paymentId: "payment_multi_already_done",
+      providerSessionId: "cs_multi_already_done",
+      ticketTokens: [attendee.ticket_token],
+    });
 
     await expectWebhookProcessed(
-      withCheckoutUrl(
-        checkoutSessionEvent({
+      checkoutSessionEvent({
           amountTotal: 500,
           created: 1_700_000_000,
           eventId: "evt_already_done",
@@ -244,7 +252,6 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
           paymentIntent: "pi_already_done",
           sessionId: "cs_multi_already_done",
         }),
-      ),
     );
   });
 });

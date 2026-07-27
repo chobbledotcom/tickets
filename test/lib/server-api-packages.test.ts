@@ -601,15 +601,24 @@ describeWithEnv("public API packages", { db: true }, () => {
     const { groups } = await import("#shared/db/groups.ts");
     await groups.table.update(hidden.group.id, { hidePackageListings: true });
 
-    const intents: import("#shared/payments.ts").CheckoutIntent[] = [];
+    const checkouts: import("#shared/payment-checkout.ts").PaymentCheckoutCreateSnapshot[] =
+      [];
     const mockCreate = stub(
       stripePaymentProvider,
-      "createCheckoutSession",
-      (intent: import("#shared/payments.ts").CheckoutIntent) => {
-        intents.push(intent);
+      "createCheckout",
+      (
+        checkout: import("#shared/payment-checkout.ts").PaymentCheckoutCreateSnapshot,
+      ) => {
+        checkouts.push(checkout);
+        const sessionId = `cs_pkg_${checkouts.length}`;
         return Promise.resolve({
           checkoutUrl: "https://stripe.test/checkout",
-          sessionId: `cs_pkg_${intents.length}`,
+          session: {
+            id: sessionId,
+            kind: "stripe_checkout_session" as const,
+            provider: "stripe" as const,
+          },
+          sessionId,
         });
       },
     );
@@ -619,11 +628,11 @@ describeWithEnv("public API packages", { db: true }, () => {
       expect(visible.response.status).toBe(200);
       expect(visible.body.booking!.checkoutUrl).toContain("stripe.test");
       // The package id rides per line now: every member item carries it.
-      expect(intents[0]!.items.map((i) => i.packageGroupId)).toEqual([
+      expect(checkouts[0]!.bookingIntent.items.map((item) => item.r)).toEqual([
         group.id,
         group.id,
       ]);
-      expect(intents[0]!.items.map((i) => i.name)).toEqual([
+      expect(checkouts[0]!.order.lines.map((line) => line.name)).toEqual([
         "Paid Kit A",
         "Paid Kit B",
       ]);
@@ -631,7 +640,7 @@ describeWithEnv("public API packages", { db: true }, () => {
       const concealed = await apiBookPackage(hidden.group.slug);
       expect(concealed.response.status).toBe(200);
       // A hidden package's hosted checkout must never name its members.
-      expect(intents[1]!.items.map((i) => i.name)).toEqual([
+      expect(checkouts[1]!.order.lines.map((line) => line.name)).toEqual([
         "Secret Kit",
         "Secret Kit",
       ]);

@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { getSquareClient, resetSquareClient } from "#shared/square.ts";
+import { squareApi } from "#shared/square.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import {
   type FetchCall,
@@ -30,12 +30,19 @@ describeSquare(() => {
     test("sends correct snake_case body to /v2/refunds", async () => {
       mockFetch = installMockFetch(() =>
         Promise.resolve(
-          jsonResponse({ refund: { id: "ref_1", status: "COMPLETED" } }),
+          jsonResponse({
+            refund: {
+              amount_money: { amount: 3000, currency: "GBP" },
+              id: "ref_1",
+              payment_id: "pay_1",
+              status: "COMPLETED",
+            },
+          }),
         ),
       );
 
-      const client = await getSquareClient();
-      await client!.refunds.refundPayment({
+      const client = await squareApi.getSquareClient();
+      await client!.refunds.requestRefund({
         amountMoney: { amount: BigInt(3000), currency: "GBP" },
         idempotencyKey: "idem-ref",
         paymentId: "pay_1",
@@ -56,51 +63,116 @@ describeSquare(() => {
       mockFetch = installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
-            refund: { id: "ref_done", status: "COMPLETED" },
+            refund: {
+              amount_money: { amount: 4250, currency: "USD" },
+              id: "ref_done",
+              payment_id: "pay_status",
+              status: "COMPLETED",
+            },
           }),
         ),
       );
 
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       // The client returns raw JSON — squareApi.refundPayment validates it
       // with a Valibot schema at the boundary.
-      const result = (await client!.refunds.refundPayment({
+      const result = await client!.refunds.requestRefund({
         amountMoney: { amount: BigInt(4250), currency: "USD" },
         idempotencyKey: "idem-status",
         paymentId: "pay_status",
-      })) as { refund: { id: string; status: string } };
+      });
 
-      expect(result.refund.id).toBe("ref_done");
-      expect(result.refund.status).toBe("COMPLETED");
+      expect(result.id).toBe("ref_done");
+      expect(result.status).toBe("COMPLETED");
     });
 
-    test("returns the raw response even when no refund is present", async () => {
+    test("retrieves one exact refund by id", async () => {
+      mockFetch = installMockFetch(() =>
+        Promise.resolve(
+          jsonResponse({
+            refund: {
+              amount_money: { amount: 600, currency: "GBP" },
+              id: "ref_exact",
+              payment_id: "pay_exact",
+              status: "PENDING",
+            },
+          }),
+        ),
+      );
+      const client = await squareApi.getSquareClient();
+      expect(await client!.refunds.get({ refundId: "ref_exact" })).toEqual({
+        amount: { amount: 600, currency: "GBP" },
+        id: "ref_exact",
+        paymentId: "pay_exact",
+        status: "PENDING",
+      });
+      expect(mockFetch.calls[0]?.args[0]).toBe(
+        "https://connect.squareupsandbox.com/v2/refunds/ref_exact",
+      );
+    });
+
+    test("rejects a successful response with no refund", async () => {
       mockFetch = installMockFetch(() => Promise.resolve(jsonResponse({})));
 
-      const client = await getSquareClient();
-      // The client returns the raw response — it does NOT normalize it.
-      // The squareApi layer's Valibot parse would throw on this (refund is
-      // required), but the transport client itself just passes it through.
-      const result = (await client!.refunds.refundPayment({
-        amountMoney: { amount: BigInt(1500), currency: "EUR" },
-        idempotencyKey: "idem-empty",
-        paymentId: "pay_empty",
-      })) as Record<string, never>;
-
-      expect(result.refund).toBeUndefined();
+      const client = await squareApi.getSquareClient();
+      await expect(
+        client!.refunds.requestRefund({
+          amountMoney: { amount: BigInt(1500), currency: "EUR" },
+          idempotencyKey: "idem-empty",
+          paymentId: "pay_empty",
+        }),
+      ).rejects.toThrow();
     });
 
+    for (const [name, change] of [
+      ["resource id", { id: undefined }],
+      ["documented status", { status: "APPROVED" }],
+    ] as const) {
+      test(`rejects a refund without a valid ${name}`, async () => {
+        mockFetch = installMockFetch(() =>
+          Promise.resolve(
+            jsonResponse({
+              refund: Object.assign(
+                {
+                  amount_money: { amount: 1500, currency: "EUR" },
+                  id: "ref_boundary" as string | undefined,
+                  payment_id: "pay_boundary",
+                  status: "PENDING",
+                },
+                change,
+              ),
+            }),
+          ),
+        );
+        const client = await squareApi.getSquareClient();
+        await expect(
+          client!.refunds.requestRefund({
+            amountMoney: { amount: 1500n, currency: "EUR" },
+            idempotencyKey: "idem-boundary",
+            paymentId: "pay_boundary",
+          }),
+        ).rejects.toThrow();
+      });
+    }
+
     test("uses production URL when sandbox is disabled", async () => {
-      resetSquareClient();
+      squareApi.resetSquareClient();
       await settings.update.square.sandbox(false);
       mockFetch = installMockFetch(() =>
         Promise.resolve(
-          jsonResponse({ refund: { id: "ref_prod", status: "COMPLETED" } }),
+          jsonResponse({
+            refund: {
+              amount_money: { amount: 500, currency: "USD" },
+              id: "ref_prod",
+              payment_id: "pay_prod",
+              status: "COMPLETED",
+            },
+          }),
         ),
       );
 
-      const client = await getSquareClient();
-      await client!.refunds.refundPayment({
+      const client = await squareApi.getSquareClient();
+      await client!.refunds.requestRefund({
         amountMoney: { amount: BigInt(500), currency: "USD" },
         idempotencyKey: "idem-prod",
         paymentId: "pay_prod",

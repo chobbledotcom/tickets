@@ -1,5 +1,4 @@
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
@@ -18,6 +17,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
+  expectRefundPaymentCall,
   expectWebhookKeptAndRefunded,
   expectWebhookRejected,
   stubRefundPayment,
@@ -66,7 +66,7 @@ describeWithEnv(
       );
 
       // Verify refund was attempted exactly once
-      expect(mockRefund.calls[0]!.args).toEqual(["pi_mismatch"]);
+      expectRefundPaymentCall(mockRefund, "pi_mismatch");
     });
 
     test("single-ticket redirect keeps the booking and shows the refund message when price changed", async () => {
@@ -123,7 +123,7 @@ describeWithEnv(
         );
 
         // Verify refund was attempted exactly once
-        expect(mockRefund.calls[0]!.args).toEqual(["pi_redirect_mismatch"]);
+        expectRefundPaymentCall(mockRefund, "pi_redirect_mismatch");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

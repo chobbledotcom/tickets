@@ -11,17 +11,19 @@ import { ErrorCode, logErrorLocal } from "#shared/logger.ts";
 
 /**
  * Send an error notification to the configured ntfy URL
- * Returns a promise so callers can await delivery if needed.
+ * Returns a delivery result so durable callers can leave failed work pending.
  * Delivery failures are logged locally (via logErrorLocal) but never throw.
  */
-export const sendNtfyError = async (code: string): Promise<void> => {
+export const sendNtfyError = async (
+  code: string,
+): Promise<"disabled" | "failed" | "sent"> => {
   const ntfyUrl = getEnv("NTFY_URL");
-  if (!ntfyUrl) return;
+  if (!ntfyUrl) return "disabled";
 
   const domain = getEffectiveDomain();
 
   try {
-    await fetchText(ntfyUrl, {
+    const response = await fetchText(ntfyUrl, {
       body: code,
       headers: {
         Tags: "warning",
@@ -29,7 +31,16 @@ export const sendNtfyError = async (code: string): Promise<void> => {
       },
       method: "POST",
     });
+    if (!response.ok) {
+      logErrorLocal({
+        code: ErrorCode.CDN_REQUEST,
+        detail: "ntfy send failed",
+      });
+      return "failed";
+    }
+    return "sent";
   } catch {
     logErrorLocal({ code: ErrorCode.CDN_REQUEST, detail: "ntfy send failed" });
+    return "failed";
   }
 };

@@ -95,6 +95,8 @@ src/shared/db/admin-features.ts:51:10  __required_setting_condition__ → ""   #
 src/shared/db/admin-features.ts:51:10  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts:77:49  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
 src/shared/db/migrations/schema/admin-feature-triggers.ts:160:35  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
+src/shared/payment-runtime/current.ts:63:21  ?? → ||   # getPaymentSessions returns a PaymentSession object or null for each requested id; every PaymentSession object is truthy
+src/shared/payment-runtime/process.ts:181:33  ?? → ||   # a validated createdAt is undefined or a non-empty timestamp, so only undefined reaches the fallback
 
 # Collection cache generation values are only compared for equality. Their
 # absolute value and direction do not matter: every invalidation changes the
@@ -127,17 +129,17 @@ src/shared/update.ts:186:11  ?? → ||   # the primary row value is a string or 
 
 # ticket-payment values whose present form is always truthy, whose falsy value
 # equals the fallback, or whose mutated constant is normalized before use.
-src/features/public/ticket-payment.ts:193:11  ?? → ||   # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
-src/features/public/ticket-payment.ts:221:42  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, and every present array is truthy
-src/features/public/ticket-payment.ts:188:14  1 → 0   # bookingDateFields clamps either default day count to one, so the produced availability rows are identical
-src/features/public/ticket-payment.ts:265:30  ?? → ||   # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
-src/features/public/ticket-payment.ts:337:28  ?? → ||   # prebuiltTree is a BookingTree object when present, and objects are always truthy
-src/features/public/ticket-payment.ts:346:43  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
-src/features/public/ticket-payment.ts:391:17  0 → 1   # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
-src/features/public/ticket-payment.ts:402:14  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
-src/features/public/ticket-payment.ts:439:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
-src/features/public/ticket-payment.ts:593:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
-src/features/public/ticket-payment.ts:791:17  ?? → ||   # pagePackages is an array when present, and arrays are always truthy
+src/features/public/ticket-payment.ts:173:11  ?? → ||   # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
+src/features/public/ticket-payment.ts:201:42  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, and every present array is truthy
+src/features/public/ticket-payment.ts:168:14  1 → 0   # bookingDateFields clamps either default day count to one, so the produced availability rows are identical
+src/features/public/ticket-payment.ts:245:30  ?? → ||   # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
+src/features/public/ticket-payment.ts:317:28  ?? → ||   # prebuiltTree is a BookingTree object when present, and objects are always truthy
+src/features/public/ticket-payment.ts:326:43  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
+src/features/public/ticket-payment.ts:371:17  0 → 1   # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
+src/features/public/ticket-payment.ts:382:14  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
+src/features/public/ticket-payment.ts:419:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
+src/features/public/ticket-payment.ts:573:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
+src/features/public/ticket-payment.ts:771:17  ?? → ||   # pagePackages is an array when present, and arrays are always truthy
 
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/layout.tsx:48:30  ?? → ||   # Theme is "light"|"dark" or undefined, so every present value is truthy
@@ -269,10 +271,10 @@ src/shared/db/attendees/capacity/groups.ts:134:50  ?? → ||   # rowsByGroup.get
 src/shared/db/attendees/capacity/groups.ts:145:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:116:26  true → false   # safeAsync's getValue is () => true only to pass the value === null guard; the fn callback ignores the value so false is equivalent
-src/shared/payment-helpers.ts:202:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts:573:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts:632:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts:115:26  true → false   # safeAsync's getValue is () => true only to pass the value === null guard; the fn callback ignores the value so false is equivalent
+src/shared/payment-helpers.ts:204:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:584:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:643:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # Admin listing API fallbacks receive only objects, arrays, positive ids, or
 # nullish values, so no valid request can distinguish these operators.
@@ -884,7 +886,7 @@ src/ui/client/dom.ts:13:19  = → +=   # createElement returns a new button with
 # Paid-payment processing: private defaults are always supplied by their only
 # callers; optional collections are arrays (always truthy); parsed day counts and
 # stored package quantities are positive; equal zero fallbacks stay equal.
-src/features/api/payment-processing/index.ts:101:22   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
+src/features/api/payment-processing/index.ts:107:22   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
 src/features/api/payment-processing/items.ts:53:24  false → true   # validateListingForPayment is private and validateAllItems always passes includeListingName explicitly, so the default is never evaluated
 src/features/api/payment-processing/items.ts:87:41  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts:169:24  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
@@ -909,11 +911,11 @@ src/features/api/payment-processing/package-pricing.ts:296:51  ?? → ||   # the
 src/shared/db/processed-payments.ts:287:7  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
 
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
-src/features/api/folded-booking.ts:87:42  ?? → ||   # childrenByParentId is Map<number, TicketListing[]>; get returns an array (always truthy, even []) or undefined, so ?? and || agree
-src/features/api/folded-booking.ts:118:31  ?? → ||   # qtyByChild accumulates ApiQuantitySchema values (positive integers >= 1) or is unset; it is never 0 or NaN for validated inputs, so ?? 0 and || 0 agree
-src/features/api/folded-booking.ts:176:53  1 → 0   # the thankYouUrl guard checks fold.listings.length > 1 only when parentThankYouUrl is truthy (parent flow), which always folds parent + >= 1 child (length >= 2); package callers pass no parentThankYouUrl, so the && short-circuits and the check never runs
-src/features/api/folded-booking.ts:301:70  0 → 1   # feeSubtotal flows into priceCheckout → owedOrderForLedger, which drops all extras and sets total to 0; bookingFactsFromOrder reads extras (empty) → bookingFee: 0 regardless. The feeSubtotal value never reaches any observable output.
-src/features/api/folded-booking.ts:381:17  1 → 0   # base.dayCount is read only by parentResolvedDuration → childDaysFromParent(parent, dayCount, 1), which uses its first argument (dayCount) only in the parent.customisable_days branch; processParentApiBooking rejects customisable parents at line 335 before reaching the fold, so that branch is unreachable. For daily parents the function returns clampDurationDays(parent.duration_days), and for standard parents it returns 1 (the standardValue) — neither reads dayCount, so 1 and 0 produce the same duration and thus the same fold output for every reachable input.
+src/features/api/folded-booking.ts:84:42  ?? → ||   # childrenByParentId is Map<number, TicketListing[]>; get returns an array (always truthy, even []) or undefined, so ?? and || agree
+src/features/api/folded-booking.ts:115:31  ?? → ||   # qtyByChild accumulates ApiQuantitySchema values (positive integers >= 1) or is unset; it is never 0 or NaN for validated inputs, so ?? 0 and || 0 agree
+src/features/api/folded-booking.ts:173:53  1 → 0   # the thankYouUrl guard checks fold.listings.length > 1 only when parentThankYouUrl is truthy (parent flow), which always folds parent + >= 1 child (length >= 2); package callers pass no parentThankYouUrl, so the && short-circuits and the check never runs
+src/features/api/folded-booking.ts:297:70  0 → 1   # feeSubtotal flows into priceCheckout → owedOrderForLedger, which drops all extras and sets total to 0; bookingFactsFromOrder reads extras (empty) → bookingFee: 0 regardless. The feeSubtotal value never reaches any observable output.
+src/features/api/folded-booking.ts:377:17  1 → 0   # base.dayCount is read only by parentResolvedDuration → childDaysFromParent(parent, dayCount, 1), which uses its first argument (dayCount) only in the parent.customisable_days branch; processParentApiBooking rejects customisable parents at line 335 before reaching the fold, so that branch is unreachable. For daily parents the function returns clampDurationDays(parent.duration_days), and for standard parents it returns 1 (the standardValue) — neither reads dayCount, so 1 and 0 produce the same duration and thus the same fold output for every reachable input.
 
 # Webhook handler: ?? and || agree where the left operand's only falsy value
 # equals the fallback, or the left operand is always truthy when present.

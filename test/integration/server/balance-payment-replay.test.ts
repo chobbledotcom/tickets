@@ -3,14 +3,16 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { execute } from "#shared/db/client.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  refundReferencesForAttendee,
+  requirePaymentAggregateByProviderSession,
+} from "#test-utils/payment-aggregate.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 const balanceSession = (
@@ -39,7 +41,7 @@ const balanceSession = (
 });
 
 describeWithEnv("server (balance payment replay)", { db: true }, () => {
-  test("replays a ledgered balance payment when the idempotency row is gone", async () => {
+  test("replays a completed balance payment from its aggregate", async () => {
     await setupStripe();
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const sessionId = "cs_balance_replay_lost_row";
@@ -62,32 +64,20 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
       0,
     );
 
-    await execute(
-      "DELETE FROM processed_payments WHERE payment_session_id = ?",
-      [sessionId],
-    );
-    expect(await isSessionProcessed(sessionId)).toBe(null);
+    const completed = await requirePaymentAggregateByProviderSession(sessionId);
+    expect(completed.attendeeId).toBe(attendeeId);
+    expect(completed.state).toBe("completed");
 
     const replay = await handleRequest(
       mockRequest(`/payment/success?session_id=${sessionId}`),
     );
     await expectHtmlResponse(replay, 200, 'data-payment-result="success"');
-    expect((await isSessionProcessed(sessionId))?.attendee_id).toBe(attendeeId);
+    expect(
+      (await requirePaymentAggregateByProviderSession(sessionId)).attendeeId,
+    ).toBe(attendeeId);
     expect(mockRefund.calls.length).toBe(0);
 
-    // The replay recreated the pruned idempotency row, but it must restore the
-    // provider charge reference too — otherwise a provider-less attendee whose
-    // only refundable id is this balance charge could no longer be refunded.
-    const { getRefundPaymentReferences } = await import(
-      "#shared/db/payment-references.ts"
-    );
-    const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
-    const references = (
-      await getRefundPaymentReferences(
-        [{ id: attendeeId, payment_id: "" }],
-        await getTestPrivateKey(),
-      )
-    ).get(attendeeId)!;
+    const references = await refundReferencesForAttendee(attendeeId);
     expect(references.map((reference) => reference.reference)).toContain(
       `pi_${sessionId}`,
     );

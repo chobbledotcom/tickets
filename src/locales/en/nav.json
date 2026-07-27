@@ -8,6 +8,7 @@
   "nav.settings": "Settings",
   "nav.log": "Log",
   "nav.ledger": "Money",
+  "nav.payments": "Payment cases",
   "nav.servicing": "Servicing",
   "nav.servicing_add": "New Service Event",
   "nav.built_sites": "Builds",

@@ -47,7 +47,8 @@ const REGISTRY: LimitEntry[] = [];
 
 /** Register a computed limit whose value is derived from another limit (e.g.
  * `SCANNER_CSRF_MAX_AGE_S` defaults to `SESSION_MAX_AGE_S`, or
- * `PRUNE_PAYMENTS_RETENTION_DAYS` goes through `assertPaymentsRetentionSafe`).
+ * `PAYMENT_HISTORY_REDACTION_DAYS` goes through
+ * `assertPaymentHistoryRedactionSafe`).
  * Records its metadata for the debug table and returns the value. */
 const computedLimit = (
   current: number,
@@ -307,7 +308,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * while a retry can still arrive could re-process the paid session and re-issue
  * a refund. Database pruning keeps rows that are still needed for admin refunds.
  */
-export const WEBHOOK_RETRY_WINDOW_DAYS = 3;
+export const PAYMENT_PROVIDER_RETRY_WINDOW_DAYS = 3;
 
 /**
  * Validate the payments-retention config: reject a value that would let the
@@ -316,27 +317,27 @@ export const WEBHOOK_RETRY_WINDOW_DAYS = 3;
  * Extracted from the constant below so the invariant is unit-testable without
  * having to construct a broken live environment.
  */
-export const assertPaymentsRetentionSafe = (days: number): number => {
-  if (days < WEBHOOK_RETRY_WINDOW_DAYS) {
+export const assertPaymentHistoryRedactionSafe = (days: number): number => {
+  if (days < PAYMENT_PROVIDER_RETRY_WINDOW_DAYS) {
     throw new Error(
-      `PRUNE_PAYMENTS_RETENTION_DAYS=${days} is below the ${WEBHOOK_RETRY_WINDOW_DAYS}-day ` +
-        "provider webhook-retry window. A shorter retention can prune a payment's " +
-        "idempotency row while the provider is still retrying its webhook, which would " +
-        "re-process the session and risk a duplicate refund. Set it to at least " +
-        `${WEBHOOK_RETRY_WINDOW_DAYS} (the default is 90).`,
+      `PAYMENT_HISTORY_REDACTION_DAYS=${days} is below the ${PAYMENT_PROVIDER_RETRY_WINDOW_DAYS}-day ` +
+        "provider retry window. Redacting payment evidence sooner could remove facts " +
+        "while the provider is still retrying a payment or refund. Set it to at least " +
+        `${PAYMENT_PROVIDER_RETRY_WINDOW_DAYS} (the default is 90).`,
     );
   }
   return days;
 };
 
-/** Retention (days) for resolved processed_payments rows (default: 90). Floored
- * at WEBHOOK_RETRY_WINDOW_DAYS so payment replay rows always outlive the provider
- * webhook-retry window (a too-short value throws at startup). */
-export const PRUNE_PAYMENTS_RETENTION_DAYS = computedLimit(
-  assertPaymentsRetentionSafe(readLimit("PRUNE_PAYMENTS_RETENTION_DAYS", 90)),
+/** Retention for PII-heavy terminal payment evidence. Replay identities, exact
+ * money, provider resources, attendee links, and audit decisions are retained. */
+export const PAYMENT_HISTORY_REDACTION_DAYS = computedLimit(
+  assertPaymentHistoryRedactionSafe(
+    readLimit("PAYMENT_HISTORY_REDACTION_DAYS", 90),
+  ),
   90,
-  "PRUNE_PAYMENTS_RETENTION_DAYS",
-  "Prune: payments retention",
+  "PAYMENT_HISTORY_REDACTION_DAYS",
+  "Payment history redaction retention",
   "days",
 );
 
@@ -367,20 +368,6 @@ export const PRUNE_TOKENS_RETENTION_DAYS = limit(
   7,
   "Prune: token-attempts retention",
   "days",
-);
-
-/**
- * Retention (hours) for sumup_checkouts staging rows (default: 24).
- * Kept very short because the row only exists to carry booking metadata from
- * checkout creation to payment completion: SumUp hosted checkouts expire after
- * 30 minutes and webhook retries stop after 2 hours, so nothing legitimate
- * reads the row after that.
- */
-export const PRUNE_SUMUP_RETENTION_HOURS = limit(
-  "PRUNE_SUMUP_RETENTION_HOURS",
-  24,
-  "Prune: SumUp checkout staging retention",
-  "hours",
 );
 
 /**
@@ -488,14 +475,12 @@ export const SUPPORT_FORM_NAG_DAYS = limit(
 export const PRUNE_INTERVAL_MS = PRUNE_INTERVAL_HOURS * 60 * 60 * 1000;
 
 /** Computed: retention windows in ms. */
-export const PRUNE_PAYMENTS_RETENTION_MS =
-  PRUNE_PAYMENTS_RETENTION_DAYS * DAY_MS;
+export const PAYMENT_HISTORY_REDACTION_MS =
+  PAYMENT_HISTORY_REDACTION_DAYS * DAY_MS;
 export const PRUNE_SESSIONS_RETENTION_MS =
   PRUNE_SESSIONS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
-export const PRUNE_SUMUP_RETENTION_MS =
-  PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
 export const PRUNE_UNUSED_STRINGS_RETENTION_MS =
   PRUNE_UNUSED_STRINGS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_CONTACTS_RETENTION_MS =

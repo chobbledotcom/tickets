@@ -1,140 +1,327 @@
-/**
- * SumUp implementation of the PaymentProvider interface.
- *
- * Wraps sumup.ts to conform to the provider-agnostic PaymentProvider contract.
- *
- * Key differences from Stripe/Square:
- * - Hosted Checkout; our checkout_reference is the session id throughout
- * - Booking metadata is staged locally, encrypted (db/sumup-checkouts.ts)
- * - Webhooks are unsigned (requiresWebhookSignature = false): listings are
- *   pre-filtered against our staging rows, then the checkout is re-fetched
- *   from SumUp to establish authenticity and payment status
- * - No webhook endpoint to set up (return_url is set per checkout)
- */
-
+/* jscpd:ignore-start -- imports */
+import * as v from "valibot";
+import { getPaymentSessions } from "#shared/db/payments/sessions.ts";
+import type {
+  PaymentCharge,
+  PaymentSession,
+} from "#shared/db/payments/types.ts";
+import { settings } from "#shared/db/settings.ts";
+import { makeProviderCheckout } from "#shared/payment-helpers.ts";
+import { resolvePaymentAccount } from "#shared/payment-runtime/account.ts";
+import { PAYMENT_PROVIDER_RESOURCES } from "#shared/payment-runtime/current.ts";
 import {
-  getSumupCheckout,
-  hasSumupCheckoutId,
-} from "#shared/db/sumup-checkouts.ts";
+  invalidProviderNotice,
+  providerNotice,
+} from "#shared/payment-runtime/provider-notice.ts";
 import {
-  hasPaymentReference,
-  makeCreateCheckoutSession,
-  toCanonicalIso,
-  validatedPaymentSession,
-} from "#shared/payment-helpers.ts";
+  foundProviderPayment,
+  invalidProviderRead,
+  missingProviderRead,
+  providerCharge,
+  providerFactDetails,
+} from "#shared/payment-runtime/provider-read.ts";
+import {
+  completedProviderRefund,
+  failedProviderRefund,
+  partialProviderRefund,
+  pendingProviderRefund,
+} from "#shared/payment-runtime/provider-refund.ts";
+import type { ProviderRead } from "#shared/payment-state/observation.ts";
+import {
+  type ChargeLeg,
+  type ProviderResource,
+  type RefundObservation,
+  type RefundResolution,
+  ResourceIdSchema,
+} from "#shared/payment-state/resources.ts";
 import type {
   PaymentProvider,
-  PaymentStatus,
-  SessionMetadata,
-  ValidatedPaymentSession,
-  WebhookEvent,
-  WebhookSessionResolution,
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
+import { sameMoney } from "#shared/provider-boundary.ts";
 import {
-  createCheckout,
-  getTransactionStatus,
-  refundTransaction,
-  retrieveCheckoutById,
+  invalidProviderReadResult,
+  providerReadForTransportIssue,
+  providerReadValidator,
+} from "#shared/provider-transport.ts";
+import {
   type SumupCheckout,
+  type SumupReadResult,
+  type SumupTransaction,
+  sumupApi,
 } from "#shared/sumup.ts";
 
-/** Map SumUp's checkout lifecycle to the provider-agnostic payment status.
- * FAILED (declined) and EXPIRED are terminal — the redirect handler shows the
- * cancel page for those instead of a "contact support" error. */
-const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
-  status === "PAID" ? "paid" : status === "PENDING" ? "unpaid" : "failed";
+/* jscpd:ignore-end */
 
-/** Build a validated session from a fetched checkout and its staged metadata.
- * The metadata was written by our own buildItemsMetadata, so it always carries
- * the required fields. */
-const buildValidatedSession = (
-  checkout: SumupCheckout,
-  metadata: Record<string, string>,
-): ValidatedPaymentSession => {
-  const paymentStatus = toPaymentStatus(checkout.status);
-  if (
-    !hasPaymentReference(
-      "SumUp",
-      checkout.reference,
-      "transaction id",
-      paymentStatus,
-      checkout.transactionId,
-    )
-  ) {
-    throw new Error(
-      `SumUp checkout ${checkout.reference} is paid but has no transaction id`,
-    );
-  }
-  return validatedPaymentSession({
-    amountTotal: checkout.amountMinor,
-    createdAt: toCanonicalIso(checkout.createdAt),
-    id: checkout.reference,
-    metadata: metadata as SessionMetadata,
-    paymentReference: checkout.transactionId,
-    paymentStatus,
-  });
-};
+const SumupWebhookSchema = v.object({
+  event_type: ResourceIdSchema,
+  id: ResourceIdSchema,
+});
 
-/** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
-const createSumupCheckoutSession = makeCreateCheckoutSession(
+const sumupResources = PAYMENT_PROVIDER_RESOURCES.sumup;
+
+const createSumupCheckout = makeProviderCheckout(
   "SumUp",
-  createCheckout,
-  (result) => ({ id: result?.reference, url: result?.url }),
+  (checkout) => sumupApi.createCheckout(checkout),
+  (result, checkout) => ({
+    session: result === null ? undefined : sumupResources.session(result.id),
+    sessionId: checkout.localPaymentId,
+    url: result?.url,
+  }),
 );
 
-/** SumUp payment provider implementation. */
+const checkoutStatus = (
+  status: SumupCheckout["status"],
+): "failed" | "paid" | "pending" => {
+  if (status === "PAID") return "paid";
+  return status === "PENDING" ? "pending" : "failed";
+};
+
+const transactionStatus = (
+  status: SumupTransaction["status"],
+): "failed" | "paid" | "pending" => {
+  if (status === "SUCCESSFUL" || status === "REFUNDED") return "paid";
+  return status === "PENDING" ? "pending" : "failed";
+};
+
+const paymentForCheckout = async (
+  payment: PaymentSession | null,
+  checkout: SumupCheckout,
+): Promise<PaymentSession | null> => {
+  if (payment !== null) return payment;
+  const [stored] = await getPaymentSessions([checkout.reference]);
+  return stored ?? null;
+};
+
+type StoredCheckoutIssue =
+  | "malformed_response"
+  | "mismatched_account"
+  | "mismatched_id"
+  | "mismatched_parent";
+
+const storedCheckoutIssue = async (
+  checkout: SumupCheckout,
+  stored: PaymentSession,
+): Promise<StoredCheckoutIssue | null> => {
+  if (checkout.reference !== stored.id) return "mismatched_id";
+  if (
+    stored.session !== null &&
+    (stored.session.provider !== "sumup" || stored.session.id !== checkout.id)
+  ) {
+    return "mismatched_parent";
+  }
+  const account = await resolvePaymentAccount("sumup");
+  if (
+    checkout.merchantCode !== settings.sumup.merchantCode ||
+    stored.accountId !== account.accountId ||
+    stored.mode !== account.mode
+  ) {
+    return "mismatched_account";
+  }
+  return sameMoney(stored.expected, {
+    amount: checkout.amountMinor,
+    currency: checkout.currency,
+  })
+    ? null
+    : "malformed_response";
+};
+
+const refundObservation = (
+  refund: SumupTransaction["refunds"][number],
+): RefundObservation | null => {
+  if (refund.status === "completed") return null;
+  return refund.status === "pending"
+    ? { amount: refund.amount, status: "pending" }
+    : {
+        amount: refund.amount,
+        reason: "provider_failed",
+        status: "failed",
+      };
+};
+
+const chargeFromTransaction = (
+  transaction: SumupTransaction,
+  checkoutId: string,
+): ChargeLeg => ({
+  ...providerCharge(
+    transaction.amount,
+    transaction.refunded,
+    sumupResources.charge(transaction.id, checkoutId),
+  ),
+  refunds: transaction.refunds.flatMap((refund) => {
+    const observation = refundObservation(refund);
+    return observation === null ? [] : [observation];
+  }),
+});
+
+type SumupTransactionRead =
+  | { charges: ChargeLeg[]; status: "failed" | "paid" | "pending" }
+  | { read: ProviderRead };
+
+const readSumupTransaction = async (
+  checkout: SumupCheckout,
+  payment: PaymentSession,
+  requested: ProviderResource,
+): Promise<SumupTransactionRead> => {
+  const transactionId = checkout.transactionId;
+  if (transactionId === undefined) {
+    return { charges: [], status: checkoutStatus(checkout.status) };
+  }
+  if (
+    requested.kind === "sumup_transaction" &&
+    requested.id !== transactionId
+  ) {
+    return invalidProviderReadResult(requested, payment, "mismatched_id");
+  }
+  const result = await sumupApi.getTransactionStatus(transactionId);
+  if (result.status !== "found") {
+    return {
+      read: providerReadForTransportIssue(result, payment, requested),
+    };
+  }
+  const transaction = result.value;
+  const malformed = providerReadValidator(requested, payment)(
+    sameMoney(transaction.amount, {
+      amount: checkout.amountMinor,
+      currency: checkout.currency,
+    }) &&
+      transaction.merchantCode === checkout.merchantCode &&
+      Date.parse(transaction.timestamp) >= Date.parse(checkout.createdAt),
+    "malformed_response",
+  );
+  if (malformed !== null) return malformed;
+  const status = transactionStatus(transaction.status);
+  return {
+    charges:
+      status === "paid"
+        ? [chargeFromTransaction(transaction, checkout.id)]
+        : [],
+    status,
+  };
+};
+
+const readSumupPayment: PaymentProvider["readPayment"] = async (
+  payment,
+  requested,
+) => {
+  if (
+    requested.kind !== "sumup_checkout" &&
+    requested.kind !== "sumup_transaction"
+  ) {
+    return invalidProviderRead(requested, payment, "mismatched_parent");
+  }
+  const checkoutId =
+    requested.kind === "sumup_checkout" ? requested.id : requested.parentId;
+  const result = await sumupApi.retrieveCheckoutById(checkoutId);
+  if (result.status !== "found") {
+    return providerReadForTransportIssue(result, payment, requested);
+  }
+  const checkout = result.value;
+  const stored = await paymentForCheckout(payment, checkout);
+  if (stored === null) return missingProviderRead(null, requested);
+  const issue = await storedCheckoutIssue(checkout, stored);
+  if (issue !== null) return invalidProviderRead(requested, stored, issue);
+  const transaction = await readSumupTransaction(checkout, stored, requested);
+  if ("read" in transaction) return transaction.read;
+  if (
+    requested.kind === "sumup_transaction" &&
+    transaction.charges.length === 0
+  ) {
+    return invalidProviderRead(requested, stored, "unsupported_status");
+  }
+  return foundProviderPayment(
+    stored,
+    requested,
+    sumupResources.session(checkout.id),
+    { amount: checkout.amountMinor, currency: checkout.currency },
+    transaction.status,
+    providerFactDetails(transaction.charges, checkout.createdAt),
+  );
+};
+
+const sumupRefundFromTransaction = (
+  charge: PaymentCharge,
+  result: SumupReadResult<SumupTransaction>,
+): RefundResolution => {
+  if (result.status === "unavailable") {
+    return pendingProviderRefund(charge, null);
+  }
+  if (result.status === "missing") return failedProviderRefund(charge);
+  const transaction = result.value;
+  if (
+    !sameMoney(transaction.amount, charge.captured) ||
+    transaction.merchantCode !== settings.sumup.merchantCode ||
+    (transaction.status !== "SUCCESSFUL" && transaction.status !== "REFUNDED")
+  ) {
+    return failedProviderRefund(charge);
+  }
+  if (transaction.refunded.amount >= charge.captured.amount) {
+    return completedProviderRefund(charge, null);
+  }
+  if (transaction.refunded.amount > charge.refunded.amount) {
+    return partialProviderRefund(transaction.refunded, null);
+  }
+  if (transaction.refunds.some((refund) => refund.status === "failed")) {
+    return failedProviderRefund(charge);
+  }
+  return pendingProviderRefund(charge, null);
+};
+
+const requestNewSumupRefund: PaymentProvider["refundCharge"] = async (
+  charge,
+  _idempotencyKey,
+) => {
+  const request = await sumupApi.refundTransaction(charge.providerReference.id);
+  if (request.status === "missing" || request.status === "rejected") {
+    return failedProviderRefund(charge);
+  }
+  return sumupRefundFromTransaction(
+    charge,
+    await sumupApi.getTransactionStatus(charge.providerReference.id),
+  );
+};
+
+const observePendingSumupRefund = async (
+  charge: PaymentCharge,
+): Promise<RefundResolution> =>
+  sumupRefundFromTransaction(
+    charge,
+    await sumupApi.getTransactionStatus(charge.providerReference.id),
+  );
+
+const refundSumupCharge: PaymentProvider["refundCharge"] = (
+  charge,
+  idempotencyKey,
+) =>
+  charge.refundState === "pending" ||
+  charge.pendingRefundIdempotencyKey !== null
+    ? observePendingSumupRefund(charge)
+    : requestNewSumupRefund(charge, idempotencyKey);
+
+const verifySumupNotice = (payload: string): Promise<WebhookVerifyResult> => {
+  try {
+    const parsed = v.safeParse(SumupWebhookSchema, JSON.parse(payload));
+    if (!parsed.success) {
+      return Promise.resolve(invalidProviderNotice("Invalid webhook payload"));
+    }
+    return Promise.resolve(
+      providerNotice(
+        parsed.output.id,
+        sumupResources.session(parsed.output.id),
+        parsed.output.event_type,
+      ),
+    );
+  } catch {
+    return Promise.resolve(invalidProviderNotice("Invalid JSON payload"));
+  }
+};
+
 export const sumupPaymentProvider: PaymentProvider = {
-  checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
-  createCheckoutSession: createSumupCheckoutSession,
-
-  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    return (await getTransactionStatus(paymentReference)) === "REFUNDED";
-  },
-
-  refundPayment(paymentReference: string): Promise<boolean> {
-    return refundTransaction(paymentReference);
-  },
+  createCheckout: createSumupCheckout,
+  readPayment: readSumupPayment,
+  refundCharge: refundSumupCharge,
   requiresWebhookSignature: false,
-
-  async resolveWebhookSession(
-    webhookEvent: WebhookEvent,
-  ): Promise<WebhookSessionResolution> {
-    if (!webhookEvent.id) return null;
-    // Unsigned webhooks: only fetch checkouts we created. Spam or another
-    // integration's listings are acknowledged without an API call.
-    if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
-    const checkout = await retrieveCheckoutById(webhookEvent.id);
-    // We confirmed this is our checkout via hasSumupCheckoutId, so a null
-    // fetch is likely a transient SumUp API failure — retry rather than
-    // silently dropping it.
-    if (!checkout) return "retry";
-    // Non-null: the pre-filter just matched this id to a staging row
-    const stored = (await getSumupCheckout(checkout.reference))!;
-    const session = buildValidatedSession(checkout, stored.metadata);
-    // Not yet (or never) paid: acknowledge without processing.
-    return session.paymentStatus === "paid" ? session : "skip";
-  },
-
-  /* jscpd:ignore-start -- PaymentProvider interface conformance, not
-     duplication: every provider must write this exact member signature, but
-     the bodies share no logic (SumUp reads its locally staged checkout;
-     Square fetches the order and its payment from the API). */
-  async retrieveSession(
-    sessionId: string,
-  ): Promise<ValidatedPaymentSession | null> {
-    /* jscpd:ignore-end */
-    // sessionId is our checkout_reference (set on the redirect URL); the
-    // staged row carries the SumUp id for a direct fetch. An empty sumupId
-    // means checkout creation failed after staging — nothing to retrieve.
-    const stored = await getSumupCheckout(sessionId);
-    if (!stored?.sumupId) return null;
-    const checkout = await retrieveCheckoutById(stored.sumupId);
-    return checkout ? buildValidatedSession(checkout, stored.metadata) : null;
-  },
-
-  // SumUp sets return_url per checkout — there is no global endpoint to register.
   setupWebhookEndpoint: (): Promise<WebhookSetupResult> =>
     Promise.resolve({
       error:
@@ -142,27 +329,5 @@ export const sumupPaymentProvider: PaymentProvider = {
       success: false,
     }),
   type: "sumup",
-
-  verifyWebhookSignature(payload: string): Promise<WebhookVerifyResult> {
-    // SumUp does not sign webhooks; authenticity is established in
-    // resolveWebhookSession. We only parse the tiny payload
-    // ({ event_type, id }) into the provider-agnostic event shape here.
-    try {
-      const parsed = JSON.parse(payload) as {
-        event_type?: string;
-        id?: string;
-      };
-      const id = parsed.id === undefined ? "" : parsed.id;
-      return Promise.resolve({
-        listing: {
-          data: { object: { id } },
-          id,
-          type: parsed.event_type === undefined ? "" : parsed.event_type,
-        },
-        valid: true,
-      });
-    } catch {
-      return Promise.resolve({ error: "Invalid JSON payload", valid: false });
-    }
-  },
+  verifyWebhookSignature: verifySumupNotice,
 };

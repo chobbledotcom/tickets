@@ -11,6 +11,5 @@ describe("Stripe payment operations", () => {
 
   test("converts Unix seconds to an ISO timestamp", () => {
     expect(isoFromUnixSeconds(1)).toBe("1970-01-01T00:00:01.000Z");
-    expect(isoFromUnixSeconds("1")).toBe(undefined);
   });
 });

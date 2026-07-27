@@ -9,7 +9,7 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import type { RefundPaymentReference } from "#shared/payment-refund-reference.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 

@@ -1,31 +1,36 @@
+import { unique } from "#fp";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import type { Money } from "#shared/payment-state/resources.ts";
 
-export type SquareOrder = {
+interface SquareResourceFields {
+  createdAt?: string | undefined;
   id?: string | undefined;
+  locationId?: string | undefined;
+}
+
+export interface SquareOrder extends SquareResourceFields {
   metadata?: Record<string, string> | undefined;
+  state?: string | undefined;
   tenders?:
     | Array<{
         id?: string | undefined;
         paymentId?: string | undefined;
       }>
     | undefined;
-  state?: string | undefined;
   totalMoney: { amount: bigint; currency: string };
-  createdAt?: string | undefined;
-};
+}
 
 type SquareMoney = {
   amount?: bigint | undefined;
   currency?: string | undefined;
 };
 
-export type SquarePayment = {
-  id?: string | undefined;
-  status?: string | undefined;
-  orderId?: string | undefined;
+export interface SquarePayment extends SquareResourceFields {
   amountMoney?: SquareMoney | undefined;
+  orderId?: string | undefined;
   refundedMoney?: SquareMoney | undefined;
-};
+  status?: string | undefined;
+}
 
 export type CompletedSquarePayment = {
   amountTotal: number;
@@ -33,37 +38,52 @@ export type CompletedSquarePayment = {
   refundedAmount: number;
 };
 
-const MAX_TENDERS_TO_CHECK = 10;
+export type SquarePaymentMoney = { captured: Money; refunded: Money };
+
+export const squarePaymentMoneyOrNull = (
+  payment: SquarePayment,
+): SquarePaymentMoney | null => {
+  const amount = payment.amountMoney?.amount;
+  const currency = payment.amountMoney?.currency;
+  const refunded = payment.refundedMoney;
+  const refundedAmount = refunded === undefined ? BigInt(0) : refunded.amount;
+  if (
+    typeof amount !== "bigint" ||
+    amount <= BigInt(0) ||
+    amount > BigInt(Number.MAX_SAFE_INTEGER) ||
+    typeof currency !== "string" ||
+    currency === "" ||
+    typeof refundedAmount !== "bigint" ||
+    refundedAmount < BigInt(0) ||
+    refundedAmount > amount ||
+    (refunded !== undefined && refunded.currency !== currency)
+  ) {
+    return null;
+  }
+  return {
+    captured: { amount: Number(amount), currency },
+    refunded: { amount: Number(refundedAmount), currency },
+  };
+};
 
 export const squareTenderPaymentIds = (order: SquareOrder): string[] =>
-  (order.tenders === undefined ? [] : order.tenders)
-    .slice(-MAX_TENDERS_TO_CHECK)
-    .reverse()
-    .flatMap((tender) => (tender.paymentId ? [tender.paymentId] : []));
+  unique(
+    (order.tenders === undefined ? [] : order.tenders)
+      .toReversed()
+      .flatMap((tender) => (tender.paymentId ? [tender.paymentId] : [])),
+  );
 
 const completedPaymentForOrder = (
   payment: SquarePayment,
   paymentId: string,
   order: SquareOrder,
 ): CompletedSquarePayment | null => {
-  const amount = payment.amountMoney?.amount;
-  const currency = payment.amountMoney?.currency;
-  const refunded = payment.refundedMoney;
-  const refundedAmount = refunded?.amount;
+  const money = squarePaymentMoneyOrNull(payment);
   if (
     payment.id !== paymentId ||
     payment.orderId !== order.id ||
-    typeof amount !== "bigint" ||
-    !currency ||
-    currency !== order.totalMoney.currency ||
-    amount !== order.totalMoney.amount ||
-    amount < BigInt(0) ||
-    amount > BigInt(Number.MAX_SAFE_INTEGER) ||
-    (refunded !== undefined &&
-      (typeof refundedAmount !== "bigint" ||
-        refundedAmount < BigInt(0) ||
-        refundedAmount > amount ||
-        refunded.currency !== currency))
+    money === null ||
+    money.captured.currency !== order.totalMoney.currency
   ) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
@@ -72,31 +92,66 @@ const completedPaymentForOrder = (
     return null;
   }
   return {
-    amountTotal: Number(amount),
+    amountTotal: money.captured.amount,
     paymentReference: paymentId,
-    refundedAmount: refunded === undefined ? 0 : Number(refunded.amount),
+    refundedAmount: money.refunded.amount,
   };
 };
 
-export type FindCompletedPaymentResult =
-  | { status: "found"; payment: CompletedSquarePayment }
+export type CompletedPaymentSearch =
+  | { status: "found"; payments: CompletedSquarePayment[] }
   | { status: "no_completed_payment" }
   | { status: "invalid_payment" };
 
-export const findCompletedSquarePayment =
+type CheckedCompletedPayment =
+  | { status: "not_completed" }
+  | { status: "invalid" }
+  | { status: "valid"; payment: CompletedSquarePayment };
+
+type SquarePaymentResult = readonly [string, SquarePayment | null];
+
+export const resolveCompletedSquarePayments = (
+  order: SquareOrder,
+  results: readonly SquarePaymentResult[],
+): CompletedPaymentSearch => {
+  const checked = results.map(
+    ([paymentId, payment]): CheckedCompletedPayment => {
+      if (payment?.status !== "COMPLETED") {
+        return { status: "not_completed" };
+      }
+      const completed = completedPaymentForOrder(payment, paymentId, order);
+      return completed === null
+        ? { status: "invalid" }
+        : { payment: completed, status: "valid" };
+    },
+  );
+  if (checked.some((payment) => payment.status === "invalid")) {
+    return { status: "invalid_payment" };
+  }
+  const payments = checked.flatMap((payment) =>
+    payment.status === "valid" ? [payment.payment] : [],
+  );
+  return payments.length === 0
+    ? { status: "no_completed_payment" }
+    : { payments, status: "found" };
+};
+
+export const findCompletedSquarePayments =
   (
     retrievePayment: (paymentId: string) => Promise<SquarePayment | null>,
-  ): ((order: SquareOrder) => Promise<FindCompletedPaymentResult>) =>
-  async (order: SquareOrder): Promise<FindCompletedPaymentResult> => {
-    let foundInvalid = false;
-    for (const paymentId of squareTenderPaymentIds(order)) {
-      const payment = await retrievePayment(paymentId);
-      if (payment?.status !== "COMPLETED") continue;
-      const completed = completedPaymentForOrder(payment, paymentId, order);
-      if (completed) return { payment: completed, status: "found" };
-      foundInvalid = true;
-    }
-    return foundInvalid
-      ? { status: "invalid_payment" }
-      : { status: "no_completed_payment" };
+  ): ((
+    order: SquareOrder,
+    paymentIds?: string[],
+  ) => Promise<CompletedPaymentSearch>) =>
+  async (
+    order: SquareOrder,
+    paymentIds = squareTenderPaymentIds(order),
+  ): Promise<CompletedPaymentSearch> => {
+    const results = await Promise.all(
+      paymentIds.map(
+        async (paymentId) =>
+          [paymentId, await retrievePayment(paymentId)] as const,
+      ),
+    );
+    return resolveCompletedSquarePayments(order, results);
   };

@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows } from "#shared/db/system-notes.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -13,6 +12,10 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
+import {
+  getPaymentAggregateByProviderSessionOrNull,
+  requirePaymentAggregateByProviderSession,
+} from "#test-utils/payment-aggregate.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   stubRefundPayment,
@@ -149,10 +152,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
           expect(mockRefund.calls.length).toBe(1);
 
-          // The session is recorded as a terminal failure.
-          const record = await isSessionProcessed("cs_replay_price");
-          expect(record?.attendee_id).toBeNull();
-          expect(record?.failure_data).not.toBe("");
+          const payment = await requirePaymentAggregateByProviderSession(
+            "cs_replay_price",
+          );
+          expect(payment.attendeeId).toBe(attendees[0]!.id);
+          expect(payment.state).toBe("fully_refunded");
 
           // Retry replays the same terminal outcome: same message, no second
           // placeholder, no second refund, never the transient lock message.
@@ -203,11 +207,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(mockRefund.calls.length).toBe(1);
           expect(await response.text()).toContain("contact support");
-          // The failure is NOT frozen as terminal AND the reservation is not
-          // left held: the row is released (deleted) so the next delivery
-          // re-claims and re-attempts the refund immediately, rather than
-          // colliding with the lock until the row goes stale.
-          expect(await isSessionProcessed("cs_refund_failed")).toBeNull();
+          const pending = await getPaymentAggregateByProviderSessionOrNull(
+            "cs_refund_failed",
+          );
+          expect(pending?.state).toBe("refunding");
+          expect(pending?.leaseExpiresAt).toBeNull();
 
           // The next retry re-attempts the refund (proof the lock was released).
           await handleRequest(

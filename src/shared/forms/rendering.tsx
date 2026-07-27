@@ -98,7 +98,7 @@ const renderChoiceFieldInput = (
       )}"${field.required ? " required" : ""}>${renderSelectOptions(
         field.options.map((option) => ({
           ...option,
-          selected: option.value === value,
+          selected: value !== "" && option.value === value,
         })),
       )}</select>`,
     );
@@ -206,23 +206,25 @@ const publicLinkHint = (field: Field, value: string): JSX.Element | null => {
 };
 
 export const renderField = (field: Field, value: string = ""): string =>
-  (field.beforeHtml ?? "") +
-  String(
-    <>
-      <label>
-        {field.label}
-        {renderFieldInput(field, value)}
-        {field.hint && <small>{field.hint}</small>}
-        {field.hintHtml && (
-          <small>
-            <Raw html={field.hintHtml} />
-          </small>
-        )}
-        {publicLinkHint(field, value)}
-      </label>
-      {selectOptionHints(field)}
-    </>,
-  );
+  field.type === "hidden"
+    ? String(renderFieldInput(field, value))
+    : (field.beforeHtml ?? "") +
+      String(
+        <>
+          <label>
+            {field.label}
+            {renderFieldInput(field, value)}
+            {field.hint && <small>{field.hint}</small>}
+            {field.hintHtml && (
+              <small>
+                <Raw html={field.hintHtml} />
+              </small>
+            )}
+            {publicLinkHint(field, value)}
+          </label>
+          {selectOptionHints(field)}
+        </>,
+      );
 
 const resolveFieldValue = (
   field: Field,

@@ -27,6 +27,7 @@ import {
   inPlaceholders,
   insert,
   queryAll,
+  type TxScope,
 } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
@@ -59,14 +60,18 @@ const insertNote = async (
   attendeeId: number,
   type: SystemNoteType,
   encryptedNote: OwnerKeyEncrypted | EnvKeyEncrypted,
-): Promise<void> => {
+  transaction?: TxScope,
+): Promise<number> => {
   const { sql, args } = insert("system_notes", {
     attendee_id: attendeeId,
     created: nowIso(),
     note: encryptedNote,
     type,
   });
-  await execute(sql, args);
+  const result = transaction
+    ? await transaction.execute({ args, sql })
+    : await execute(sql, args);
+  return Number(result.lastInsertRowid);
 };
 
 /** Build a "record a note" function: it seals the text its own way, then stores
@@ -77,8 +82,12 @@ const noteCreatorVia =
     type: SystemNoteType,
     seal: (note: string) => Promise<OwnerKeyEncrypted | EnvKeyEncrypted>,
   ) =>
-  async (attendeeId: number, note: string): Promise<void> =>
-    insertNote(attendeeId, type, await seal(note));
+  async (
+    attendeeId: number,
+    note: string,
+    transaction?: TxScope,
+  ): Promise<number> =>
+    insertNote(attendeeId, type, await seal(note), transaction);
 
 /**
  * Record an auto-generated system note. The text MUST be PII-free: it is
@@ -93,6 +102,26 @@ export const createSystemNote = noteCreatorVia("system", (note) =>
 export const createOwnerNote = noteCreatorVia("owner", (note) =>
   encryptWithOwnerKey(note, settings.publicKey),
 );
+
+/** Replace one system-generated note as part of a durable payment effect. */
+export const updateSystemNote = async (
+  attendeeId: number,
+  noteId: number,
+  note: string,
+  transaction: TxScope,
+): Promise<void> => {
+  const result = await transaction.execute({
+    args: [await encrypt(note), attendeeId, noteId],
+    sql: `UPDATE system_notes
+             SET note = ?
+           WHERE attendee_id = ? AND id = ? AND type = 'system'`,
+  });
+  if (result.rowsAffected !== 1) {
+    throw new Error(
+      `System note ${noteId} was not found for attendee ${attendeeId}`,
+    );
+  }
+};
 
 /** Decrypt one note by its type. We do not guard this: a failure here can only
  *  mean the data key itself is broken — in which case the attendee's own PII

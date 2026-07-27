@@ -763,7 +763,7 @@ describe("webhook", () => {
 
   describeWithEnv("applyRenewalsForEntries", { db: true }, () => {
     test("skips entries with months_per_unit = 0", async () => {
-      const { applyRenewalsForEntries } = await import("#shared/webhook.ts");
+      const { applyRenewalsForEntries } = await import("#shared/renewal.ts");
       const { bunnyCdnApi } = await import("#shared/bunny-cdn.ts");
       const { hmacHash } = await import("#shared/crypto/hashing.ts");
       const { insertBuiltSite, updateBuiltSiteRenewalState } = await import(

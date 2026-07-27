@@ -386,8 +386,6 @@ const dropDeprecatedAttendeeColumns = fromAttendeeColumns(async (cols) => {
   // them first replaces the FK-bearing originals with clean versions.
   logDebug("Migration", "Recreating listing_attendees (removing FKs)...");
   await recreateTable("listing_attendees");
-  logDebug("Migration", "Recreating processed_payments (removing FKs)...");
-  await recreateTable("processed_payments");
   logDebug("Migration", "Recreating attendee_answers (removing FKs)...");
   await recreateTable("attendee_answers");
   // Now safe to recreate attendees — no other table references it via FK

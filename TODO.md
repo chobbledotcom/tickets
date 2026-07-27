@@ -998,6 +998,9 @@ machinery to resolve this. Starting point: the preflight in
 the pruner in `src/shared/db/prune.ts` (`prunePayments`), and the
 classification in `src/shared/session-ledger.ts`.
 
+Build this through the unified payment aggregate described below, not through
+another replay marker beside `processed_payments` and the ledger.
+
 ## Localise the confirmation-email template-variable reference table
 
 *Origin: CodeRabbit review on PR #1800.*
@@ -1153,6 +1156,10 @@ Starting points: `src/features/api/payment-processing/completion.ts`,
 both webhook and redirect paths, and prove answers, activity, messages, site
 assignments, and renewal time are neither lost nor duplicated.
 
+Store this completion progress on the unified payment aggregate described
+below. Do not add a second completion queue with a different lease or replay
+rule.
+
 ---
 
 ## Consistent database backup snapshots
@@ -1211,6 +1218,11 @@ to an attendee that no longer exists. Start with
 removes a stage and merging repoints it without losing the unique attendee
 invariant. If both attendees have stages, require an explicit conflict decision
 instead of silently choosing or deleting one.
+
+The payment-schema review below found that `checkout_stages` should not become a
+second payment runtime. Prefer replacing it with the unified payment aggregate
+and dropping it in a new migration. Keep this cleanup requirement only while
+the table exists.
 
 ---
 
@@ -1352,6 +1364,10 @@ budget and request a follow-up run when a full page remains. Add a regression
 test that runs webhook, redirect, and maintenance attempts concurrently and
 proves they create the attendee and ledger rows exactly once.
 
+Build this as one reconciler over the unified payment lifecycle described
+below. The webhook, redirect, and maintenance task must feed the same normalized
+provider observation into the same state transition.
+
 ---
 
 ## Stale equivalent-mutant line numbers across recent refactors
@@ -1391,47 +1407,101 @@ own output lists every stale `file:line:col`.
 
 ---
 
-## Square PENDING refunds — propagate a pending result, not a plain false
+## Replace the lossy payment-session shape with one payment aggregate
 
-*Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread
-on `squareApi.refundPayment` (`src/shared/square.ts`). This PR deliberately
-does NOT address it; recorded so the follow-on work can pick it up.*
+*Origin: Codex review of PR #1911 plus the final standards review and payment
+schema investigation for PR #1905.*
 
-`squareApi.refundPayment` returns `false` for a Square refund that is still
-`PENDING` (an accepted-but-unsettled refund). That is the honest current-main
-boolean contract this PR ships, but it has a real downstream cost the reviewer
-flagged: the webhook/admin refund flow reads `refunded === false` as a failed
-refund, so a pending Square refund releases the reservation, returns 503, and
-— because each call mints a fresh `crypto.randomUUID()` idempotency key — a
-redelivery posts another full-refund attempt instead of waiting on the
-existing refund id. A PENDING Square refund is documented as a normal accepted
-`RefundPayment` response, so collapsing it into `false` loses the "accepted,
-not yet settled" signal.
+`ValidatedPaymentSession` in `src/shared/payments.ts` compresses a provider
+checkout, all money collected for it, and all refund activity into one session
+id, one amount, one `paymentReference`, and one payment status. The provider
+interface then reduces refunds to booleans and callback decisions to a session,
+`"retry"`, `"skip"`, or `null`. That shape cannot say which resource failed,
+represent more than one charge, retain a pending refund id, distinguish a
+partial refund from a full one, or carry a permanent conflict to the HTTP and
+persistence layers. Provider adapters consequently make business decisions
+that should be shared, and malformed or ambiguous states get defaulted, logged,
+retried, or acknowledged in different ways.
 
-Update: PR #1912 (stable Stripe and Square refund idempotency keys) has since
-landed on `main`; the Square refund idempotency key is now the stable
-`refundIdempotencyKey("square", paymentId)` rather than a fresh
-`crypto.randomUUID()`, so a redelivery re-posts with the SAME key and Square
-dedupes it — the double-pay half of the risk above is now mitigated. The
-PENDING-still-returns-false behaviour itself (a retryable re-attempt that waits
-on `isPaymentRefunded` rather than holding the refund id) remains, so the
-pending-result union below is still the real fix; the stale-key concern is
-resolved.
+Define the payment domain from Valibot schemas before changing more provider
+branches:
 
-The fix is the staged-checkout pending-result union / callback resolution this
-PR was explicitly told not to introduce: surface a pending outcome (carrying
-the refund id) separately from a plain false, and have the webhook/admin refund
-paths hold/redeliver against that id instead of re-posting. That is the same
-machinery planned for #1853 (`split/staged-checkout-runtime` — "Finish and
-recover paid checkouts safely") and overlaps #1905
-(`split/authoritative-payment-callbacks` — provider-neutral webhook retry
-resolution), so it must be designed with those branches, not duplicated here.
-Starting points: `squareApi.refundPayment` in `src/shared/square.ts` (where the
-boolean contract lives), the idempotency key in its `withClient` callback, and
-the downstream `tryRefund` in `src/features/api/payment-processing/refunds.ts`
-plus `refundReferenceAtProvider` in
-`src/features/admin/refunds/provider.ts` (both treat `false` as failed and fall
-back to `isPaymentRefunded`, which a still-pending refund also fails).
+- `Money`: a safe non-negative integer in minor units plus an uppercase currency.
+- Provider session, charge, and refund resources: discriminated by provider and
+  resource kind, with a required non-empty id. A Stripe checkout session,
+  Square order/payment, and SumUp checkout/transaction must not be
+  interchangeable strings.
+- `ChargeLeg`: one independently refundable provider charge with captured money,
+  confirmed refunded money, and its provider refund observations. A payment has
+  an array of charge legs; one charge is an array of one.
+- `PaymentObservation`: the provider session identity, account/mode, expected
+  money, signed/staged ownership proof, parsed booking intent, creation time,
+  and all charge legs.
+- `ProviderRead`: `found`, `missing`, `unavailable`, or `invalid`, carrying the
+  exact provider resource and a typed reason.
+- `PaymentResolution`: `ready`, `pending`, `fully_refunded`, `retry`, `conflict`,
+  or `ignore`. Remove the string sentinels and nullable fall-throughs.
+- `RefundResolution`: `completed`, `pending`, `partial`, or `failed`, carrying
+  validated money and the provider refund id when one exists. Remove
+  `refundPayment` / `isPaymentRefunded` booleans and route automatic, single,
+  bulk, and refresh refunds through this one result.
+
+Provider adapters should validate and report facts only. One pure resolver
+should enforce the shared rules and choose `PaymentResolution`; an exhaustive
+record should map each resolution to persistence and HTTP behavior. Require:
+
+- Every returned resource id and parent id matches the resource requested.
+- Every session, charge, and refund uses the same currency.
+- Captured and refunded amounts are safe, and every supported paid charge is
+  positive. A generic provider `Money` may be zero, but a paid booking charge
+  may not.
+- The sum of captured charge legs equals both the provider order total and the
+  signed checkout total. Preserve every leg even when current hosted checkout
+  flows normally create one; more than one completed leg is a typed conflict
+  until an operator decides how to handle it.
+- Confirmed refunds never exceed their charge. A status string alone is not
+  proof of a full refund, and a pending refund keeps its id for later polling.
+- A successful HTTP response missing its documented resource, or carrying a
+  mismatched id, is invalid provider data. Only transport/provider availability
+  failures are retryable.
+- An absent Square metadata object may identify a foreign order, but every value
+  in a present metadata object must be text. Do not silently drop null values.
+- SumUp webhooks require non-empty text `event_type` and `id`; checkout and
+  transaction responses require runtime schemas instead of SDK assertions.
+
+Provider-specific reads must still collect the facts each shared schema needs.
+Square must keep a `PENDING` refund id and retrieve that refund until it is
+`COMPLETED`, `REJECTED`, or `FAILED`; `refunded_money` alone is not a terminal
+status. SumUp must fetch and validate the original and total refunded amounts;
+its `REFUNDED` status means full or partial. Stripe must retain refund amount,
+currency, parent charge/payment intent, and status instead of reducing the
+response to an id and boolean. During the migration, make the existing Square
+resolver return before `hasTerminalPaymentOutcome` when the observed refunded
+amount is zero, so ordinary paid callbacks do not spend an unnecessary primary
+database round trip.
+
+This directly fixes the malformed SumUp webhook, SumUp partial-refund claim,
+Square missing/mismatched resource responses, nullable metadata values,
+zero-value payment contradiction, first-completed-tender fallback, pending
+refund loss, and empty payment reference. It also makes provider identity part
+of every stored charge, so old references are never sent to whichever provider
+happens to be active now.
+
+Split the code along the schema while doing this. Put payment schemas, pure
+classification, and persistence in focused `payment-state/` and `db/payments/`
+modules. Split `src/shared/square.ts` (959 lines) into transport, schemas,
+checkout, refunds, connection, and webhook modules. Move metadata codecs and
+session validation out of `src/shared/payment-helpers.ts` (778 lines). Derive
+Square and SumUp domain types from their schemas, remove the unused export on
+`FindCompletedPaymentResult`, and delete replaced aliases and compatibility
+surfaces. Keep providers lazy-loaded and preserve the cold-start budget.
+
+Tests need table-driven examples for every provider state and pure cross-field
+invariant, including mismatched ids/currencies, unsafe and zero paid amounts,
+two completed Square payments, valid-plus-invalid tenders, partial/full/pending
+refunds, and a paid session with no refundable charge. Mutation-test the schema
+checks and exhaustive resolver. This is a technical contract refactor; the
+operator conflict flow below needs the acceptance stories.
 
 ---
 
@@ -1511,58 +1581,82 @@ Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
 
 ---
 
-## Verify the full refunded amount for SumUp payments
+## Make the payment aggregate the durable payment runtime
 
-*Origin: branch review of `split/authoritative-payment-callbacks`.*
+*Origin: CodeRabbit and the final standards review/payment-schema investigation
+for PR #1905. This combines the old SumUp refund, Square conflict, and callback
+retry entries instead of adding three parallel state systems.*
 
-`src/shared/sumup-provider.ts` treats the transaction status `REFUNDED` as a
-full refund. SumUp defines that status as a full or partial refund. Callers in
-`src/features/admin/attendees-edit.ts`,
-`src/features/admin/refunds/provider.ts`, and
-`src/features/api/payment-processing/refunds.ts` then mark the whole payment
-reference refunded and can post a full ledger reversal while the customer is
-still partly charged. `src/shared/square-provider.ts` also incorrectly says its
-full-refund rule matches SumUp. Starting point: replace
-`getTransactionStatus` in `src/shared/sumup.ts` with a narrow, validated
-transaction refund result that includes the original and total refunded
-amounts. Make `isPaymentRefunded` return true only when those amounts prove a
-full refund, then add partial/full refund regressions to
-`test/shared/sumup-provider.test.ts` and the admin refresh/refund tests.
+Persist the schema-first aggregate above as one authoritative payment lifecycle:
 
-## Store Square payment conflicts for an operator decision
+- `payment_sessions`: one local payment id created before provider IO, provider
+  and account/mode, provider session resource, expected money, encrypted
+  canonical booking intent, fulfilment state, attendee/result, lease, and
+  completion progress.
+- `payment_charges`: one row per refundable charge leg, with its provider,
+  encrypted reference, blind index, captured money, confirmed refunded money,
+  refund state, pending refund id/idempotency key, and last observation time.
+- `payment_cases`: retrying, needs-action, and resolved issues keyed by the
+  payment/resource/reason, with first/last attempt, consecutive count,
+  `alerted_at`, encrypted evidence, required operator decision, actor, revision,
+  and resolution time.
 
-*Origin: branch review of `split/authoritative-payment-callbacks`.*
+These tables are parts of one aggregate, not independent workflows. Do not put
+callback retries into `processed_payments`: its null/empty state encoding,
+five-minute stale cleanup, pruning, and one-row-per-session key conflict with
+pre-session provider reads and long-lived operator work. Migrate its reservation,
+terminal result, payment reference, refund marker, ticket handoff, and resumable
+completion responsibilities into the aggregate, then remove the old runtime
+surface. Do not activate `checkout_stages` as another queue. Keep the ledger as
+the accounting source, but stop using it as a parallel payment-replay machine
+for new sessions.
 
-`src/shared/square-provider.ts` returns `"skip"` for an invalid completed
-payment or a partial refund with no local outcome. The webhook handler turns
-that into HTTP 200, so Square stops delivery. `logError` leaves an activity
-trace, but there is no payment state or required operator action. A customer
-can remain partly charged without a booking. Starting point: model unresolved
-authenticated payment conflicts as durable records keyed by provider and
-session/payment reference. Add an admin action with a required choice for each
-real conflict, such as completing the booking or confirming/refunding the
-remaining money. Acknowledge the webhook only after that durable state exists.
-Cover the stored conflict, repeated delivery, and both operator choices in
-direct tests and an acceptance story.
+Before returning 503, persist a retry with its exact resource and reason. After
+three consecutive observations of the same reason and at least 15 minutes,
+atomically move it to `needs_action` and set `alerted_at`; a bounded scheduled
+reconciler must do this even if the provider never delivers again. A changed
+reason resets the consecutive count. A later successful provider observation
+uses the same resolver and clears the issue without creating another booking,
+charge, refund, or ledger leg.
 
-## Persist webhook retries before provider delivery expires
+Persist permanent conflicts before acknowledging them. This includes invalid
+provider data for a proven local payment, partial refunds before fulfilment,
+more than one completed charge, amount/currency disagreement, and a paid session
+without a refundable charge. Add an owner-only Payments page. Its schema-driven
+form must require a reason-specific choice with no default, reject a stale case
+revision, and run the same reconciler rather than a second booking/refund path.
+Choices may include completing a proven booking or refunding the remaining
+money; never offer a generic dismiss action while the customer may be charged.
 
-*Origin: CodeRabbit and branch review on PR #1905 (authoritative payment
-callback resolution).*
+Persist a refund request and stable idempotency key before provider IO. A
+pending response keeps the provider refund id and is polled; it is not posted as
+a new request. Only authoritative cumulative refunded money equal to every
+charge may mark the payment fully refunded and post the full ledger reversal.
+For SumUp, fetch and validate original and total refunded amounts because
+`REFUNDED` means full or partial. If the provider cannot prove the amount, open
+a case instead of guessing. No provider network call may run inside a database
+transaction.
 
-When `resolveWebhookSession` returns `"retry"`, the webhook handler responds
-with HTTP 503 so the provider redelivers. If Stripe never attaches its payment
-intent, or a provider read keeps failing, Stripe, Square, or SumUp eventually
-stops delivery. Error reporting leaves a trace, but there is no replayable
-payment state, so a charged customer can stay unbooked. Persist each
-authenticated unresolved callback before returning 503, including provider,
-session/resource id, reason, first/last attempt, attempt count, and `alerted_at`.
-Move a callback to the same operator conflict flow as permanent Square
-conflicts after both three identical failures and 15 minutes from its first
-attempt. Set `alerted_at` in the same write that moves it, so later deliveries
-cannot emit another alert for the same provider/resource/reason. Cover every
-`"retry"` return site, replay after a later successful fetch, retry exhaustion,
-and repeated delivery without duplicate records or alerts.
+Use token-fenced leases for webhook, redirect, and maintenance races. The same
+reconciler must also recover paid SumUp checkouts with no callback, resume the
+post-booking effects already listed under "Resumable paid-booking completion",
+and close the placeholder-refund replay gap. Never prune pending, refunding,
+needs-action, or unfinished-completion rows. Prune/redact only bounded terminal
+history after retaining the indexes needed for replay and refund safety.
+
+Legacy rows do not always say which provider/account owns a reference. Do not
+assign the currently active provider by default. Preserve ambiguous references
+in an operator repair queue and require an explicit assignment before provider
+IO. Migration and restore tests must cover databases from before every affected
+payment migration.
+
+Direct tests must cover atomic upsert/claim, expired leases, concurrent webhook,
+redirect, and maintenance attempts, reason changes, threshold timing, one alert,
+pending-to-completed refunds, failed provider call followed by local recovery,
+terminal replay with zero provider calls, encryption/index separation, pruning,
+and every allowed/forbidden state transition. Add acceptance stories for retry
+recovery and each required operator conflict choice through the real rendered
+form.
 
 ## Give provider webhook tests one owner
 
@@ -1573,13 +1667,17 @@ Stripe webhook refresh cases are duplicated between
 `test/shared/stripe-provider/operations.test.ts`, leaving both files above 500
 lines. Square webhook resolution remains in the 600-line
 `test/shared/square-provider.test.ts` as well as the new
-`test/shared/square-provider/webhook.test.ts`. Starting point: move every
-provider webhook-resolution case into each provider's dedicated webhook test
-file, delete parallel cases from the older suites, and split the remaining
-provider tests by operation until each file is near or below 400 lines. Keep
-one shared fixture/helper rather than adapting duplicate test paths.
+`test/shared/square-provider/webhook.test.ts`.
+`test/features/api/webhooks/resolution.test.ts` is 426 lines and also owns five
+success-redirect cases that belong in a focused redirect suite. Starting point:
+move every provider webhook-resolution case into one dedicated webhook suite per
+provider, move redirect behavior out of the generic webhook response suite,
+delete parallel cases from the older suites, and split the remaining provider
+tests by operation until each file is near or below 400 lines. Add a focused
+SumUp webhook suite with its payload schema. Keep one shared fixture/helper
+rather than adapting duplicate test paths.
 
-## Prove an empty payment reference never reaches a provider
+## Strengthen payment provider call and error assertions
 
 *Origin: branch review of `split/authoritative-payment-callbacks`.*
 
@@ -1590,3 +1688,11 @@ would pass. Starting point: configure a provider with spies for both
 `refundPayment` and `isPaymentRefunded`, call `tryRefund("")`, and assert the
 exact false result plus zero calls to both methods. Remove or rename the older
 integration case that fails before `tryRefund` is reached.
+
+Apply the same rule to the other provider short circuits touched by this branch:
+an unknown staged SumUp checkout must make zero SumUp API calls, a non-completed
+Square webhook must make zero order/payment reads, and a Stripe live-session
+refresh must make exactly one fetch. Where a money-path test inspects
+`calls[0]`, assert the exact call count first so an accidental duplicate refund
+or provider request cannot pass. Schema-failure tests should assert `ValiError`
+and the relevant field/path instead of accepting any thrown exception.

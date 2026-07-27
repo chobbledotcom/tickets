@@ -360,11 +360,8 @@ export const hasPaidLine = rowExistsForIdList(
  * when none does. The single-batch booking write stamps every one of an
  * attendee's `listing_attendees` rows with the booking's `ledger_event_group`
  * (in the same batch that posts the legs), so a paid session's event group
- * resolves back to exactly the attendee it created. This lets an idempotent
- * replay recover the existing booking from the durable ledger after the
- * (prunable) processed_payments idempotency row has gone — without it, a replay
- * whose legs already exist would be mistaken for a capacity failure and refund a
- * live ticket.
+ * resolves back to exactly the attendee it created. This lets accounting
+ * recovery find the existing booking from the durable ledger.
  */
 export const attendeeIdByLedgerEventGroup = async (
   eventGroup: string,

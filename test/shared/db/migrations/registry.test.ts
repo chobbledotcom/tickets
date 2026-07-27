@@ -30,13 +30,18 @@ describe("db > migration registry", () => {
     expect(MIGRATION_IDS).toEqual(MIGRATION_REGISTRY.map((entry) => entry.id));
   });
 
-  test("orders every scheduled-maintenance schema change", () => {
-    expect(MIGRATION_IDS.slice(-5)).toEqual([
+  test("orders every recent durable-work schema change", () => {
+    expect(MIGRATION_IDS.slice(-10)).toEqual([
       "2026-07-18_maintenance_tasks",
       "2026-07-18_drop_built_sites_last_pruned",
       "2026-07-19_maintenance_checkpoint",
       "2026-07-21_activity_backfill_complete",
       "2026-07-22_maintenance_completion",
+      "2026-07-26_payment_aggregate",
+      "2026-07-26_payment_operator_decisions",
+      "2026-07-26_payment_completion",
+      "2026-07-26_payment_history_redaction",
+      "2026-07-26_retire_legacy_payment_tables",
     ]);
   });
 });

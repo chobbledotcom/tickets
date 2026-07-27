@@ -28,6 +28,7 @@ export interface BuiltSiteRow {
   assignable: number;
   assigned_attendee_id: number | null;
   assigned_listing_id: number | null;
+  assignment_effect: string | null;
   created: string;
   id: number;
   read_only_from: string;
@@ -39,6 +40,7 @@ export interface BuiltSiteRow {
 
 export type BuiltSitePlainInput = {
   assignable?: number;
+  assignmentEffect?: string | null;
   assignedAttendeeId?: number | null;
   assignedListingId?: number | null;
   readOnlyFrom?: string;
@@ -52,6 +54,7 @@ export interface BuiltSite {
   assignable: boolean;
   assignedAttendeeId: number | null;
   assignedListingId: number | null;
+  assignmentEffect: string | null;
   created: string;
   dbProvider: DbProvider;
   dbToken: string;
@@ -81,6 +84,7 @@ export type BuiltSiteFormInput = Pick<
 export type BuiltSitePlainFields = Pick<
   BuiltSite,
   | "assignable"
+  | "assignmentEffect"
   | "assignedAttendeeId"
   | "assignedListingId"
   | "readOnlyFrom"

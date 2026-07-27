@@ -21,6 +21,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
     maxNetworkRetries: 0,
   });
 
+  await client.accounts.retrieve();
   await client.balance.retrieve();
   await client.checkout.sessions.create({
     cancel_url: "https://example.com/cancel",
@@ -33,6 +34,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
   await client.checkout.sessions.retrieve("cs/1");
   await client.paymentIntents.retrieveWithLatestCharge("pi/1");
   await client.refunds.create({ payment_intent: "pi_1" });
+  await client.refunds.retrieve("re/1");
   await client.webhookEndpoints.list();
   await client.webhookEndpoints.create({
     api_version: "2026-04-22.dahlia",
@@ -42,6 +44,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
   await client.webhookEndpoints.del("we/1");
 
   expect(requests).toEqual([
+    { body: "", method: "GET", path: "/v1/account" },
     { body: "", method: "GET", path: "/v1/balance" },
     {
       body: "cancel_url=https%3A%2F%2Fexample.com%2Fcancel&mode=payment&payment_method_types[0]=card&success_url=https%3A%2F%2Fexample.com%2Fsuccess",
@@ -59,6 +62,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
       method: "POST",
       path: "/v1/refunds",
     },
+    { body: "", method: "GET", path: "/v1/refunds/re%2F1" },
     { body: "", method: "GET", path: "/v1/webhook_endpoints?limit=100" },
     {
       body: "api_version=2026-04-22.dahlia&enabled_events[0]=checkout.session.completed&url=https%3A%2F%2Fexample.com%2Fpayment%2Fwebhook",
@@ -77,4 +81,18 @@ test("sends the supplied idempotency key as the Idempotency-Key header on a refu
   await client.refunds.create({ payment_intent: "pi_1" }, "stable-refund-key");
 
   expect(capturedKey()).toBe("stable-refund-key");
+});
+
+test("rejects a malformed successful refund payload", async () => {
+  const client = createStripeClient("sk_test_client", {
+    fetch: () =>
+      Promise.resolve(
+        Response.json({ id: "re_incomplete", status: "succeeded" }),
+      ),
+    maxNetworkRetries: 0,
+  });
+
+  await expect(
+    client.refunds.create({ payment_intent: "pi_1" }),
+  ).rejects.toThrow("Invalid response received from the Stripe API");
 });
