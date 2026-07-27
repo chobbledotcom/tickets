@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
@@ -21,8 +21,10 @@ import {
   sendPreparedSiteAssignmentEmail,
 } from "#shared/site-assignment-paid.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { runSiteAssignment } from "#test-utils/db-helpers/built-sites.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  runSiteAssignment,
+  useRenewalTier,
+} from "#test-utils/db-helpers/built-sites.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -76,14 +78,7 @@ describeWithEnv(
   "paid site assignment",
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
-    // Handing out a site is only offered when a renewal tier exists to sell.
-    beforeEach(async () => {
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 2,
-        purchaseOnly: true,
-      });
-    });
+    useRenewalTier();
 
     test("an order with no site listing asks for nothing", async () => {
       expect(

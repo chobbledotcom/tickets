@@ -1,3 +1,4 @@
+import { beforeEach } from "@std/testing/bdd";
 import type {
   BuiltSite,
   BuiltSiteFormInput,
@@ -137,4 +138,19 @@ export const runSiteAssignment = async (
     return Promise.resolve();
   });
   return stored;
+};
+
+/** Handing out a site is only offered when there is a renewal tier to sell,
+ *  so register one for each test in the suite that calls this. */
+export const useRenewalTier = (): void => {
+  beforeEach(async () => {
+    const { createTestListing } = await import(
+      "#test-utils/db-helpers/listings.ts"
+    );
+    await createTestListing({
+      hidden: true,
+      monthsPerUnit: 2,
+      purchaseOnly: true,
+    });
+  });
 };

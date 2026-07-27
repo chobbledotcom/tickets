@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { deliverNextPaidCompletion } from "#routes/api/payment-processing/completion-deliveries.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
@@ -27,7 +27,7 @@ import { prepareRegistrationWebhookDeliveries } from "#shared/webhook-paid.ts";
 import { PAYMENT_ID } from "#test/shared/db/payments/fixtures.ts";
 import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { useRenewalTier } from "#test-utils/db-helpers/built-sites.ts";
 import { saveTestEmailConfig, validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -244,14 +244,7 @@ describeWithEnv(
   "paid completion delivery outbox with sites",
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
-    // Handing out a site is only offered when a renewal tier exists to sell.
-    beforeEach(async () => {
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 2,
-        purchaseOnly: true,
-      });
-    });
+    useRenewalTier();
 
     test("reserves a site through the outbox and writes down what it took", async () => {
       const current = await completionCurrent();
