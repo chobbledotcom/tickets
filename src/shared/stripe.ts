@@ -25,6 +25,7 @@ import {
 import type {
   StripeAccount,
   StripeCheckoutSession,
+  StripeCreatedCheckoutSession,
   StripeExpandedPaymentIntent,
   StripeRefund,
 } from "#shared/stripe/schemas.ts";
@@ -44,7 +45,7 @@ export const detectStripeKeyMode = (key: string): StripeKeyMode | null => {
 
 const createCheckout = async (
   checkout: PaymentCheckoutCreateSnapshot,
-): Promise<StripeCheckoutSession | null> => {
+): Promise<StripeCreatedCheckoutSession | null> => {
   const lineItems = buildProviderLineItems<StripeCheckoutLineItemParams>(
     checkout,
     {

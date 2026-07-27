@@ -74,6 +74,17 @@ export const StripeCheckoutSessionSchema: v.GenericSchema<
 
 export type StripeCheckoutSession = StripeCheckoutSessionFields;
 
+/** A checkout session as it comes back from creating one. Only the id and the
+ *  link to send the buyer to are settled at this point — the money fields fill
+ *  in once the buyer pays — so creation checks just those. */
+export const StripeCreatedCheckoutSessionSchema = v.object({
+  id: CheckoutSessionIdSchema,
+  url: NonEmptyNullableStringSchema,
+});
+export type StripeCreatedCheckoutSession = v.InferOutput<
+  typeof StripeCreatedCheckoutSessionSchema
+>;
+
 export type StripeCharge = Pick<
   Stripe.Charge,
   | "amount"

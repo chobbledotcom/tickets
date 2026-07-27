@@ -8,6 +8,8 @@ import {
   StripeBalanceSchema,
   type StripeCheckoutSession,
   StripeCheckoutSessionSchema,
+  type StripeCreatedCheckoutSession,
+  StripeCreatedCheckoutSessionSchema,
   type StripeCreatedWebhookEndpoint,
   StripeCreatedWebhookEndpointSchema,
   type StripeDeletedWebhookEndpoint,
@@ -78,7 +80,7 @@ export interface StripeClient {
       create: (
         params: StripeCheckoutSessionCreateParams,
         idempotencyKey?: string,
-      ) => Promise<StripeCheckoutSession>;
+      ) => Promise<StripeCreatedCheckoutSession>;
       retrieve: (
         id: Stripe.Checkout.Session["id"],
       ) => Promise<StripeCheckoutSession>;
@@ -130,7 +132,7 @@ export const createStripeClient = (
             "POST",
             "/v1/checkout/sessions",
             { ...params },
-            StripeCheckoutSessionSchema,
+            StripeCreatedCheckoutSessionSchema,
             { idempotencyKey },
           ),
         retrieve: (id) =>
