@@ -19,9 +19,6 @@ const INSTALL_LOCK_GUARD_SUFFIX = ".guard";
 const BIN_DIR = join(projectRoot, ".bin");
 const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 
-const platformMap: Record<string, string> = { darwin: "darwin" };
-const archMap: Record<string, string> = { aarch64: "arm64" };
-
 export type StripeMockPaths = {
   binDir: string;
   binaryPath: string;
@@ -79,9 +76,16 @@ const defaultCommands: StripeMockCommands = {
 
 const textDecoder = new TextDecoder();
 
-const getPlatform = (): string => platformMap[Deno.build.os] ?? "linux";
+/**
+ * What stripe-mock calls this machine in its release names, which is not always
+ * what Deno calls it. Everything that is not a Mac is named as Linux, and every
+ * processor that is not 64-bit ARM is named as amd64.
+ */
+const getPlatform = (): string =>
+  Deno.build.os === "darwin" ? "darwin" : "linux";
 
-const getArch = (): string => archMap[Deno.build.arch] ?? "amd64";
+const getArch = (): string =>
+  Deno.build.arch === "aarch64" ? "arm64" : "amd64";
 
 const stripeMockDownloadUrl = (): string =>
   `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${getPlatform()}_${getArch()}.tar.gz`;
@@ -91,12 +95,7 @@ const runCommand = async (
   message: string,
 ): Promise<Deno.CommandOutput> => {
   const output = await command.output();
-  let stderr = "";
-  try {
-    stderr = textDecoder.decode(output.stderr).trim();
-  } catch {
-    stderr = "";
-  }
+  const stderr = textDecoder.decode(output.stderr).trim();
   if (!output.success)
     throw new Error(stderr ? `${message}: ${stderr}` : message);
   return output;
@@ -119,20 +118,26 @@ export const installLockPath = (paths: StripeMockPaths): string =>
 const installLockGuardPath = (lockPath: string): string =>
   `${lockPath}${INSTALL_LOCK_GUARD_SUFFIX}`;
 
-const installLockSettings = (
-  options: StripeMockInstallOptions,
-): InstallLockSettings => ({
-  retryMs: options.installLockRetryMs ?? INSTALL_LOCK_RETRY_MS,
-  staleMs: options.installLockStaleMs ?? INSTALL_LOCK_STALE_MS,
-  timeoutMs: options.installLockTimeoutMs ?? INSTALL_LOCK_TIMEOUT_MS,
-  touchMs: options.installLockTouchMs ?? INSTALL_LOCK_TOUCH_MS,
+const installLockSettings = ({
+  // Only a missing setting takes the standard value, so an explicit one —
+  // including a deliberate zero — is always kept.
+  installLockRetryMs: retryMs = INSTALL_LOCK_RETRY_MS,
+  installLockStaleMs: staleMs = INSTALL_LOCK_STALE_MS,
+  installLockTimeoutMs: timeoutMs = INSTALL_LOCK_TIMEOUT_MS,
+  installLockTouchMs: touchMs = INSTALL_LOCK_TOUCH_MS,
+}: StripeMockInstallOptions): InstallLockSettings => ({
+  retryMs,
+  staleMs,
+  timeoutMs,
+  touchMs,
 });
 
 const formatInstallLockRecord = (owner: string): string =>
   `${owner}\n${Date.now()}`;
 
 const parseInstallLockRecord = (text: string): InstallLockRecord => {
-  const [first = "", second] = text.split("\n");
+  // Splitting always yields at least one part, so first is always a string.
+  const [first, second] = text.split("\n") as [string, string?];
   const writtenAt = Number(second ?? first);
   return second === undefined ? { writtenAt } : { owner: first, writtenAt };
 };
@@ -174,8 +179,9 @@ const startInstallLockRefresh = (
   return async (): Promise<void> => {
     stopped = true;
     clearTimeout(timeout);
+    // A refresh already under way finishes without booking another, because
+    // scheduling checks the flag above.
     await latestRefresh;
-    clearTimeout(timeout);
   };
 };
 
@@ -321,7 +327,7 @@ const installStripeMock = async (
     await runCommand(
       new Deno.Command(commands.tar, {
         args: ["-xzf", tarPath, "-C", tempDir],
-        stderr: "null",
+        stderr: "piped",
         stdout: "null",
       }),
       "Failed to extract stripe-mock",
@@ -330,7 +336,7 @@ const installStripeMock = async (
     await runCommand(
       new Deno.Command(commands.chmod, {
         args: ["+x", tempBinaryPath],
-        stderr: "null",
+        stderr: "piped",
         stdout: "null",
       }),
       "Failed to make stripe-mock executable",
@@ -349,7 +355,7 @@ const installStripeMock = async (
 export const downloadStripeMock = async (
   options: StripeMockInstallOptions,
 ): Promise<void> => {
-  const paths = options.paths ?? defaultStripeMockPaths;
+  const { paths = defaultStripeMockPaths } = options;
   if (await stripeMockBinaryExists(paths)) return;
 
   await withInstallLock(paths, options, async () => {

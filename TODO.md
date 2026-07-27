@@ -1716,5 +1716,5 @@ Starting point: `tryAcquireInstallLock`/`removeStaleInstallLock` in
 `scripts/stripe-mock/install.ts`; `acquireMigrationLock` in
 `src/shared/db/migrations/lock.ts` is the best-worked-out version of the pattern
 and the one to copy; `activeByRecord` in `scripts/mutation/isolation-cleanup.ts`
-is the third; and `test/scripts/stripe-mock/install.test.ts` says what the
-timing tests expect.
+is the third; and `test/scripts/stripe-mock/install/stale-locks.test.ts` and
+`waiting.test.ts` say what the timing tests expect.
