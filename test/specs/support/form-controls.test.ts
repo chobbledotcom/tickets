@@ -9,6 +9,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   optionsOffered,
+  tickedCheckboxes,
   whyValueCannotBeSent,
 } from "#test/specs/support/form-controls.ts";
 
@@ -131,5 +132,80 @@ describe("what a visitor can send", () => {
         "The page offers no date to choose",
       );
     });
+  });
+});
+describe("a box that cannot be changed or cannot hold the number", () => {
+  const lengthBox = (attributes: string) =>
+    `<input type="number" name="duration_days" ${attributes}>`;
+
+  test("refuses a box the page shows but will not let anyone edit", () => {
+    expect(
+      whyValueCannotBeSent(
+        lengthBox('value="1" readonly'),
+        "duration_days",
+        "5",
+      ),
+    ).toBe("the duration_days box cannot be changed");
+  });
+
+  test("refuses a number above what the box takes", () => {
+    expect(
+      whyValueCannotBeSent(lengthBox('min="1" max="3"'), "duration_days", "5"),
+    ).toBe("the duration_days box takes nothing above 3");
+  });
+
+  test("refuses a number below what the box takes", () => {
+    expect(
+      whyValueCannotBeSent(lengthBox('min="2" max="9"'), "duration_days", "1"),
+    ).toBe("the duration_days box takes nothing below 2");
+  });
+
+  test("allows a number inside what the box takes", () => {
+    expect(
+      whyValueCannotBeSent(lengthBox('min="1" max="9"'), "duration_days", "5"),
+    ).toBeNull();
+  });
+
+  test("leaves a box with no limits alone", () => {
+    expect(
+      whyValueCannotBeSent(lengthBox('value="1"'), "duration_days", "5"),
+    ).toBeNull();
+  });
+
+  test("has no range to break for a word or an empty box", () => {
+    const box = '<input type="text" name="name" min="2" max="3">';
+    expect(whyValueCannotBeSent(box, "name", "Ada")).toBeNull();
+    expect(whyValueCannotBeSent(box, "name", "")).toBeNull();
+  });
+});
+
+describe("the days a page has ticked", () => {
+  const day = (value: string, attributes = "checked") =>
+    `<input type="checkbox" name="bookable_days" value="${value}" ${attributes}>`;
+
+  test("lists only the ticked ones", () => {
+    expect(
+      tickedCheckboxes(
+        `${day("Monday")}${day("Tuesday", "")}`,
+        "bookable_days",
+      ),
+    ).toEqual(["Monday"]);
+  });
+
+  test("leaves out a day nobody could untick", () => {
+    // A hidden box carries the value but offers no way to clear it, and a
+    // switched-off checkbox cannot be clicked either.
+    const fixed = '<input type="hidden" name="bookable_days" value="Sunday">';
+    const off = day("Friday", "checked disabled");
+    expect(
+      tickedCheckboxes(`${day("Monday")}${fixed}${off}`, "bookable_days"),
+    ).toEqual(["Monday"]);
+  });
+
+  test("leaves out another field's ticked boxes", () => {
+    const other = '<input type="checkbox" name="fields" value="email" checked>';
+    expect(
+      tickedCheckboxes(`${day("Monday")}${other}`, "bookable_days"),
+    ).toEqual(["Monday"]);
   });
 });
