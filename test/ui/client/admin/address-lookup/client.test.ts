@@ -9,7 +9,9 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initAddressLookup } from "#src/ui/client/admin/address-lookup.ts";
 import {
+  addressFormSpec,
   flushLookup as flush,
+  oneIn,
   panelSpec,
 } from "#test-utils/address-lookup-dom.ts";
 import {
@@ -19,11 +21,6 @@ import {
   restoreDocument,
 } from "#test-utils/fake-dom.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-
-const formSpec = (): ElementSpec => ({
-  children: [panelSpec(), { name: "address", tag: "textarea" }],
-  tag: "form",
-});
 
 type Parts = {
   form: FakeElement;
@@ -38,9 +35,9 @@ type Parts = {
 
 /** Install the DOM, run the enhancement, and hand back the pieces. */
 const setup = (): Parts => {
-  const [form] = installFakeDom([formSpec()]);
+  const [form] = installFakeDom([addressFormSpec()]);
   initAddressLookup();
-  const one = (selector: string) => form!.querySelector(selector)!;
+  const one = oneIn(form!);
   return {
     findButton: one("[data-address-find]"),
     form: form!,

@@ -8,9 +8,10 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initAddressLookup } from "#src/ui/client/admin/address-lookup.ts";
 import {
+  addressFormSpec,
   diffSpec,
   flushLookup as flush,
-  panelSpec,
+  oneIn,
 } from "#test-utils/address-lookup-dom.ts";
 import {
   type ElementSpec,
@@ -34,16 +35,12 @@ describe("address lookup fills the pin inputs", () => {
 
   /** A logistics-tab-shaped form: the panel, the textarea, the pin inputs
    * (optionally pre-filled with a saved pin), and the differences notice. */
-  const formSpec = (pin: [string, string] = ["", ""]): ElementSpec => ({
-    children: [
-      panelSpec(),
-      { name: "address", tag: "textarea" },
+  const formSpec = (pin: [string, string] = ["", ""]): ElementSpec =>
+    addressFormSpec([
       diffSpec(),
       { name: "lat", tag: "input", type: "text", value: pin[0] },
       { name: "lng", tag: "input", type: "text", value: pin[1] },
-    ],
-    tag: "form",
-  });
+    ]);
 
   /** Install the page, run a search, and choose the first result. `typed`
    * pre-fills the address textarea before searching. */
@@ -55,7 +52,7 @@ describe("address lookup fills the pin inputs", () => {
     using _fetch = stubFetch(new Response(JSON.stringify(body)));
     const [form] = installFakeDom([page]);
     initAddressLookup();
-    const one = (selector: string) => form!.querySelector(selector)!;
+    const one = oneIn(form!);
     one("textarea").value = typed;
     one("[data-address-search]").value = "SW1A 2AA";
     one("[data-address-find]").dispatch("click");
@@ -63,10 +60,16 @@ describe("address lookup fills the pin inputs", () => {
     const select = one("[data-address-results]");
     select.value = "10 Downing Street, LONDON";
     select.dispatch("change");
+    // The pin inputs are read lazily: a page without them is a real case, and
+    // only the tests that assert on the pin should insist it exists.
     return {
       form: form!,
-      lat: one('[name="lat"]'),
-      lng: one('[name="lng"]'),
+      get lat() {
+        return one('[name="lat"]');
+      },
+      get lng() {
+        return one('[name="lng"]');
+      },
     };
   };
 
@@ -113,10 +116,7 @@ describe("address lookup fills the pin inputs", () => {
   });
 
   test("a page without pin inputs still fills the textarea", async () => {
-    const { form } = await searchAndChoose(LOCATED, {
-      children: [panelSpec(), { name: "address", tag: "textarea" }],
-      tag: "form",
-    });
+    const { form } = await searchAndChoose(LOCATED, addressFormSpec());
     expect(form.querySelector("textarea")!.value).toBe(
       "10 Downing Street, LONDON",
     );
