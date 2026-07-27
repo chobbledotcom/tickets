@@ -15,6 +15,7 @@ import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { submitTicketForm } from "./csrf.ts";
+import { signedMeta } from "./factories.ts";
 import { stubRetrieveCheckoutSession } from "./webhooks.ts";
 
 /** A checkout line item with sensible defaults; override any field. */
@@ -209,11 +210,12 @@ export const johnCheckoutSession = (
   opts.paid === false
     ? stubRetrieveCheckoutSession({
         amountTotal: 0,
-        metadata: {
-          email: "john@example.com",
-          items: opts.items,
-          name: "John",
-        },
+        // Signed, so a cancelled checkout is still recognisably ours and the
+        // page can offer the way back to the listing.
+        metadata: signedMeta(
+          { email: "john@example.com", items: opts.items, name: "John" },
+          0,
+        ),
         paymentIntent: null,
         paymentStatus: "unpaid",
         sessionId,

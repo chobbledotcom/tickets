@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { getDb } from "#shared/db/client.ts";
 import {
@@ -29,7 +30,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/cancel", () => {
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/cancel"));
-      await expectHtmlResponse(response, 400, "Invalid payment callback");
+      await expectHtmlResponse(
+        response,
+        400,
+        t("payment.error.invalid_callback"),
+      );
     });
 
     test("returns error when session not found", async () => {
@@ -46,7 +51,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_invalid"),
           );
-          await expectHtmlResponse(response, 400, "Payment session not found");
+          await expectHtmlResponse(
+            response,
+            400,
+            t("payment.error.session_not_recognized"),
+          );
         },
       );
     });
@@ -68,7 +77,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             mockRequest("/payment/cancel?session_id=cs_test_cancel"),
           );
           // Provider returns null for invalid metadata, so routes report "not found"
-          await expectHtmlResponse(response, 400, "Payment session not found");
+          await expectHtmlResponse(
+            response,
+            400,
+            t("payment.error.session_not_recognized"),
+          );
         },
       );
     });
@@ -277,7 +290,13 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel_bad_multi"),
           );
-          await expectHtmlResponse(response, 404, "Listing not found");
+          // Without readable items there is nothing tying the checkout to a
+          // listing, so it cannot be shown to be ours.
+          await expectHtmlResponse(
+            response,
+            400,
+            t("payment.error.session_not_recognized"),
+          );
         },
       );
     });
@@ -294,7 +313,13 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
               "/payment/cancel?session_id=cs_test_cancel_unparseable",
             ),
           );
-          await expectHtmlResponse(response, 404, "Listing not found");
+          // Without readable items there is nothing tying the checkout to a
+          // listing, so it cannot be shown to be ours.
+          await expectHtmlResponse(
+            response,
+            400,
+            t("payment.error.session_not_recognized"),
+          );
         },
       );
     });

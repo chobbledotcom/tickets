@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
@@ -17,9 +18,9 @@ import {
 describeWithEnv("payment callback params", { db: true }, () => {
   const errors = setupErrorSpy();
 
-  /** Assert a callback response is a 400 with the "Invalid payment callback" body. */
+  /** Assert a callback response is a 400 with the t("payment.error.invalid_callback") body. */
   const expectInvalidCallback = (response: Response): Promise<void> =>
-    expectResponseWithText(response, 400, "Invalid payment callback");
+    expectResponseWithText(response, 400, t("payment.error.invalid_callback"));
 
   test("returns error for missing session_id on cancel and logs error", async () => {
     await expectInvalidCallback(
@@ -70,7 +71,7 @@ describeWithEnv("payment callback params", { db: true }, () => {
         mockRequest("/payment/cancel?session_id=cs_noprovider"),
       ),
       400,
-      "Payment provider not configured",
+      t("payment.error.provider_not_configured"),
       "[cancel] No provider configured",
       (message) => errors.contains(message),
     );
@@ -88,7 +89,7 @@ describeWithEnv("payment callback params", { db: true }, () => {
           mockRequest("/payment/cancel?session_id=cs_missing"),
         ),
         400,
-        "Payment session not found",
+        t("payment.error.session_not_recognized"),
         "[cancel] Session not found",
         (message) => errors.contains(message),
       );
