@@ -728,6 +728,47 @@ errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
 until a real collect-all site (e.g. the multi-item-checkout "no shared date"
 diagnostic above) makes it pay for itself.
 
+## `snapshotMatches` in `decision-attempts.ts` is still uncovered — and may be unreachable
+
+`src/shared/db/payments/decision-attempts.ts` re-derives, in TypeScript, the
+same "does the payment still look the way the owner saw it" check that
+`decision-claim.ts` already expresses as one SQL condition. The TS copy only
+runs when the SQL claim fails, to explain *why* it failed.
+
+Tests added in this branch cover the outcome of that path (a decision is sent
+back for review, or closed when the case was already resolved), but the
+comparison bodies themselves — `currentSnapshotMatches` (lines ~124-155) and
+`legacySnapshotMatches` (~185-230) — are still reported uncovered.
+
+What was established while chasing it:
+
+- The payment row and the saved snapshot agree exactly (origin `current`,
+  matching provider/mode/account, two charges), so the comparison should run
+  and short-circuit at whichever term was changed.
+- The case is still `needs_action` at the claim's revision after the change,
+  so the guard before `snapshotMatches` does not short-circuit.
+- The stored decision reloads with `reviewed.kind === "charges"`, so it is the
+  current-payment branch that should be entered, not the legacy one.
+
+Despite all three, coverage reports the comparison bodies as unrun. Either the
+measurement is being read wrongly, or the path is genuinely unreachable because
+the SQL claim and the TS check are equivalent — in which case the TS copy can
+only ever return `false`, and the "the world is unchanged, run it anyway"
+outcome cannot happen.
+
+Fix direction: settle which it is first (instrument the function, or step
+through one failing claim), because the answer decides the work. If the check
+really can only return `false`, the two implementations should collapse into
+one — when the fast claim fails and the case is unchanged, the reason *is* that
+the payment moved, so `closeStaleDecision` can be called without re-deriving
+anything. That is a behaviour change on a money path, so it wants its own
+change with its own tests rather than being folded into a coverage pass.
+
+Start points: `claimPaymentDecisionAttempt` in
+`src/shared/db/payments/decision-claim.ts` (the SQL), `snapshotMatches` in
+`decision-attempts.ts` (the TS copy), and
+`test/shared/db/payments/decision-attempts.test.ts` (the outcome tests).
+
 ## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
 
 _Origin: CodeRabbit review of PR #1772, which only `git mv`s the servicing
