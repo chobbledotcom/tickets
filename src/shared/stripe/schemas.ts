@@ -5,7 +5,6 @@ import { integerAtLeast } from "#shared/validation/number.ts";
 import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 const NonEmptyNullableStringSchema = v.nullable(NonEmptyTextSchema);
-const MetadataSchema = StringMapSchema;
 const stripeId = (prefix: string) =>
   v.pipe(NonEmptyTextSchema, v.startsWith(`${prefix}_`));
 const CheckoutSessionIdSchema = stripeId("cs");
@@ -65,7 +64,7 @@ export const StripeCheckoutSessionSchema: v.GenericSchema<
   currency: StripeCurrencySchema,
   id: CheckoutSessionIdSchema,
   livemode: v.boolean(),
-  metadata: MetadataSchema,
+  metadata: StringMapSchema,
   payment_intent: v.nullable(PaymentIntentIdSchema),
   payment_status: StripePaymentStatusSchema,
   status: StripeCheckoutStatusSchema,

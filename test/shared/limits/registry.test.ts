@@ -31,7 +31,6 @@ describe("limit registry contract", () => {
       ["ATTACHMENT_URL_MAX_AGE_S", 3600, "Attachment URL max age", "seconds"],
       ["SESSION_MAX_AGE_S", 86_400, "Session max age", "seconds"],
       ["SCANNER_CSRF_MAX_AGE_S", 86_400, "Scanner CSRF max age", "seconds"],
-      ["STALE_RESERVATION_MS", 300_000, "Stale reservation threshold", "ms"],
       ["MAX_LOGIN_ATTEMPTS", 5, "Max login attempts", "attempts"],
       ["LOGIN_LOCKOUT_MS", 900_000, "Login lockout duration", "ms"],
       ["MAX_TOKEN_404S", 5, "Max token 404s before lockout", "attempts"],

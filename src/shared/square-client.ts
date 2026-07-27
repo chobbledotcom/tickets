@@ -76,7 +76,6 @@ const SquareMoneySchema = v.object({
   amount: SquareMinorUnitsSchema,
   currency: CurrencySchema,
 });
-const SquareMetadataSchema = StringMapSchema;
 const SquareRawTenderSchema = v.object({
   id: v.optional(ResourceIdSchema),
   payment_id: v.optional(v.nullable(ResourceIdSchema)),
@@ -92,7 +91,7 @@ const SquareOrderSchema = v.object({
   created_at: TimestampSchema,
   id: ResourceIdSchema,
   location_id: ResourceIdSchema,
-  metadata: v.optional(v.nullable(SquareMetadataSchema)),
+  metadata: v.optional(v.nullable(StringMapSchema)),
   state: SquareOrderStatusSchema,
   tenders: v.optional(v.array(SquareRawTenderSchema)),
   total_money: SquareMoneySchema,
@@ -180,7 +179,8 @@ export type SquarePaymentListInput = {
   locationId: string;
 };
 
-type SquareLocation = { id?: string; name?: string; status?: string };
+/** A Square place of business, as its API reports it. */
+export type SquareLocation = { id?: string; name?: string; status?: string };
 type SquareLocationsResponse = { locations?: SquareLocation[] };
 
 export interface SquareClient {

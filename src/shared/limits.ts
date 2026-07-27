@@ -179,14 +179,6 @@ export const SCANNER_CSRF_MAX_AGE_S = computedLimit(
   "seconds",
 );
 
-/** Threshold for abandoned payment reservations in ms (default: 300000 = 5 min) */
-export const STALE_RESERVATION_MS = limit(
-  "STALE_RESERVATION_MS",
-  5 * 60 * 1000,
-  "Stale reservation threshold",
-  "ms",
-);
-
 // ---------------------------------------------------------------------------
 // Login rate limiting
 // ---------------------------------------------------------------------------

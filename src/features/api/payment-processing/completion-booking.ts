@@ -108,19 +108,21 @@ export type BookingCompletionActions = Record<
 
 type BookingSuccess = Extract<PaymentResult, { success: true }>;
 
-const runBookingDbEffect = (
+const runBookingDbEffect = async (
   context: BookingCompletionContext,
   effect: BookingCompletionEffect,
   work: (transaction: TxScope) => Promise<void>,
-): Promise<boolean> =>
-  runPaymentCompletionDbEffect(
+): Promise<boolean> => {
+  await runPaymentCompletionDbEffect(
     context.current.claim,
     effect,
     async (transaction) => {
       await work(transaction);
       return null;
     },
-  ).then(() => true);
+  );
+  return true;
+};
 
 const runRegistrationDbEffect = async (
   context: BookingCompletionContext,

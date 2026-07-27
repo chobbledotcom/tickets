@@ -10,13 +10,13 @@ import { runDatabasePruning } from "#shared/db/prune.ts";
 import { PRUNE_UNUSED_STRINGS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { legacyPaymentResult } from "#shared/payment-runtime/legacy-replay.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import {
   context,
   restoreLegacyPaymentSources,
   runMigration,
   seedLegacyPaidAttendee,
-} from "../migrations/payment-aggregate-test-utils.ts";
+} from "#test/shared/db/migrations/payment-aggregate-test-utils.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { insertString, stringExists } from "./helpers.ts";
 import { oldPaymentTime, redactedAt } from "./payment-redaction-helpers.ts";
 

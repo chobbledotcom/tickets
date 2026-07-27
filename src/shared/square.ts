@@ -30,6 +30,7 @@ import {
   createSquareClient,
   type SquareClient,
   SquareHttpError,
+  type SquareLocation,
   type SquarePaymentListInput,
   type SquarePaymentPage,
   type SquareRefund,
@@ -37,12 +38,6 @@ import {
 import type { SquareOrder, SquarePayment } from "#shared/square-payments.ts";
 
 /* jscpd:ignore-end */
-
-type SquareLocation = {
-  id?: string;
-  name?: string;
-  status?: string;
-};
 
 type SquareClientConfig = { accessToken: string; sandbox: boolean };
 

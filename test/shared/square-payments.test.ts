@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  findCompletedSquarePayments,
+  resolveCompletedSquarePayments,
   type SquareOrder,
   type SquarePayment,
   squareTenderPaymentIds,
@@ -22,8 +22,13 @@ const payment = (overrides: Partial<SquarePayment> = {}): SquarePayment => ({
   ...overrides,
 });
 
+/** Answer the same question production asks: given an order and what the
+ *  provider said about each of its tenders, which payments completed? */
 const completed = (value: SquarePayment | null, input = order()) =>
-  findCompletedSquarePayments(() => Promise.resolve(value))(input);
+  resolveCompletedSquarePayments(
+    input,
+    squareTenderPaymentIds(input).map((id) => [id, value] as const),
+  );
 
 describe("Square completed payments", () => {
   test("keeps every tender payment id in newest-first order", () => {
@@ -72,16 +77,16 @@ describe("Square completed payments", () => {
   });
 
   test("rejects a zero-value completed payment", async () => {
-    await expect(
+    expect(
       completed(
         payment({ amountMoney: { amount: BigInt(0), currency: "USD" } }),
         order({ totalMoney: { amount: BigInt(0), currency: "USD" } }),
       ),
-    ).resolves.toEqual({ status: "invalid_payment" });
+    ).toEqual({ status: "invalid_payment" });
   });
 
   test("accepts the largest safe payment amount", async () => {
-    await expect(
+    expect(
       completed(
         payment({
           amountMoney: {
@@ -96,7 +101,7 @@ describe("Square completed payments", () => {
           },
         }),
       ),
-    ).resolves.toEqual({
+    ).toEqual({
       payments: [
         {
           amountTotal: Number.MAX_SAFE_INTEGER,
@@ -109,12 +114,12 @@ describe("Square completed payments", () => {
   });
 
   test("accepts a one-cent completed payment", async () => {
-    await expect(
+    expect(
       completed(
         payment({ amountMoney: { amount: BigInt(1), currency: "USD" } }),
         order({ totalMoney: { amount: BigInt(1), currency: "USD" } }),
       ),
-    ).resolves.toEqual({
+    ).toEqual({
       payments: [
         {
           amountTotal: 1,
@@ -131,27 +136,27 @@ describe("Square completed payments", () => {
     ["unsafe", BigInt(Number.MAX_SAFE_INTEGER) + BigInt(1)],
   ] as const) {
     test(`rejects matching ${name} order and payment amounts`, async () => {
-      await expect(
+      expect(
         completed(
           payment({ amountMoney: { amount, currency: "USD" } }),
           order({ totalMoney: { amount, currency: "USD" } }),
         ),
-      ).resolves.toEqual({ status: "invalid_payment" });
+      ).toEqual({ status: "invalid_payment" });
     });
   }
 
   test("rejects matching empty order and payment currencies", async () => {
-    await expect(
+    expect(
       completed(
         payment({ amountMoney: { amount: BigInt(100), currency: "" } }),
         order({ totalMoney: { amount: BigInt(100), currency: "" } }),
       ),
-    ).resolves.toEqual({ status: "invalid_payment" });
+    ).toEqual({ status: "invalid_payment" });
   });
 
   for (const refundedAmount of [1, 100]) {
     test(`reports a completed payment refunded by ${refundedAmount}`, async () => {
-      await expect(
+      expect(
         completed(
           payment({
             refundedMoney: {
@@ -160,7 +165,7 @@ describe("Square completed payments", () => {
             },
           }),
         ),
-      ).resolves.toEqual({
+      ).toEqual({
         payments: [
           {
             amountTotal: 100,
@@ -174,13 +179,13 @@ describe("Square completed payments", () => {
   }
 
   test("accepts a completed payment with a zero refund", async () => {
-    await expect(
+    expect(
       completed(
         payment({
           refundedMoney: { amount: BigInt(0), currency: "USD" },
         }),
       ),
-    ).resolves.toEqual({
+    ).toEqual({
       payments: [
         {
           amountTotal: 100,
@@ -232,58 +237,50 @@ describe("Square completed payments", () => {
     ],
   ] as const) {
     test(`rejects a completed payment with ${name}`, async () => {
-      await expect(completed(invalid)).resolves.toEqual({
+      expect(completed(invalid)).toEqual({
         status: "invalid_payment",
       });
     });
   }
 
   test("reports no completed payment when the tender cannot be retrieved", async () => {
-    await expect(
+    expect(
       completed(null, order({ tenders: [{ paymentId: "payment_1" }] })),
-    ).resolves.toEqual({ status: "no_completed_payment" });
+    ).toEqual({ status: "no_completed_payment" });
   });
 
   test("reports no completed payment when no tenders exist", async () => {
-    await expect(completed(null, order({ tenders: [] }))).resolves.toEqual({
+    expect(completed(null, order({ tenders: [] }))).toEqual({
       status: "no_completed_payment",
     });
   });
 
   test("reports no completed payment when the only tender is pending", async () => {
-    await expect(completed(payment({ status: "PENDING" }))).resolves.toEqual({
+    expect(completed(payment({ status: "PENDING" }))).toEqual({
       status: "no_completed_payment",
     });
   });
 
-  test("rejects a set containing an invalid completed payment", async () => {
+  test("rejects a set containing an invalid completed payment", () => {
     const orderWithTwo = order({
       tenders: [{ paymentId: "payment_a" }, { paymentId: "payment_b" }],
     });
-    const retrieved: string[] = [];
-    const retrievePayment = (id: string): Promise<SquarePayment> => {
-      retrieved.push(id);
-      return Promise.resolve(
-        id === "payment_b"
-          ? payment({
-              id,
-              orderId: "order_other",
-            })
-          : payment({ id }),
-      );
-    };
-    await expect(
-      findCompletedSquarePayments(retrievePayment)(orderWithTwo),
-    ).resolves.toEqual({ status: "invalid_payment" });
-    expect(retrieved).toEqual(["payment_b", "payment_a"]);
+    // payment_b belongs to a different order, so the whole set is refused
+    // rather than the good half being kept.
+    expect(
+      resolveCompletedSquarePayments(orderWithTwo, [
+        ["payment_b", payment({ id: "payment_b", orderId: "order_other" })],
+        ["payment_a", payment({ id: "payment_a" })],
+      ]),
+    ).toEqual({ status: "invalid_payment" });
   });
 
   test("returns a completed payment whose amount differs from the order total", async () => {
-    await expect(
+    expect(
       completed(
         payment({ amountMoney: { amount: BigInt(99), currency: "USD" } }),
       ),
-    ).resolves.toEqual({
+    ).toEqual({
       payments: [
         {
           amountTotal: 99,
@@ -295,27 +292,23 @@ describe("Square completed payments", () => {
     });
   });
 
-  test("returns every valid completed split tender", async () => {
-    const retrieved: string[] = [];
-    const retrievePayment = (id: string): Promise<SquarePayment> => {
-      retrieved.push(id);
-      return Promise.resolve(
+  test("returns every valid completed split tender", () => {
+    const split = (id: string, amount: number) =>
+      [
+        id,
         payment({
-          amountMoney: {
-            amount: BigInt(id === "payment_a" ? 40 : 60),
-            currency: "USD",
-          },
+          amountMoney: { amount: BigInt(amount), currency: "USD" },
           id,
         }),
-      );
-    };
-    await expect(
-      findCompletedSquarePayments(retrievePayment)(
+      ] as const;
+    expect(
+      resolveCompletedSquarePayments(
         order({
           tenders: [{ paymentId: "payment_a" }, { paymentId: "payment_b" }],
         }),
+        [split("payment_b", 60), split("payment_a", 40)],
       ),
-    ).resolves.toEqual({
+    ).toEqual({
       payments: [
         {
           amountTotal: 60,
@@ -330,34 +323,31 @@ describe("Square completed payments", () => {
       ],
       status: "found",
     });
-    expect(retrieved).toEqual(["payment_b", "payment_a"]);
   });
 
-  test("retrieves more than ten completed tenders without truncation", async () => {
+  test("keeps more than ten completed tenders without truncation", () => {
     const paymentIds = Array.from(
       { length: 12 },
       (_, index) => `payment_${index}`,
     );
-    const retrieved: string[] = [];
-    const retrievePayment = (id: string): Promise<SquarePayment> => {
-      retrieved.push(id);
-      return Promise.resolve(
-        payment({
-          amountMoney: { amount: BigInt(10), currency: "USD" },
-          id,
-        }),
-      );
-    };
-
-    const result = await findCompletedSquarePayments(retrievePayment)(
+    const result = resolveCompletedSquarePayments(
       order({
         tenders: paymentIds.map((paymentId) => ({ paymentId })),
         totalMoney: { amount: BigInt(120), currency: "USD" },
       }),
+      paymentIds.map(
+        (id) =>
+          [
+            id,
+            payment({
+              amountMoney: { amount: BigInt(10), currency: "USD" },
+              id,
+            }),
+          ] as const,
+      ),
     );
 
     expect(result.status).toBe("found");
     expect(result.status === "found" ? result.payments.length : 0).toBe(12);
-    expect(retrieved).toEqual(paymentIds.toReversed());
   });
 });

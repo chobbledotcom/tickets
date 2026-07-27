@@ -1,3 +1,4 @@
+import { lazyRef } from "#fp";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -14,7 +15,10 @@ export interface PaymentAccount {
 type AccountContext = { mode: PaymentMode | null; parts: string[] };
 type StripeAccountCache = { accountId: string; secretKey: string };
 
-let stripeAccountCache: StripeAccountCache | null = null;
+/** Remembers the account the current Stripe key belongs to, so resolving an
+ *  account again on this isolate costs no extra call to Stripe. */
+const [stripeAccount, rememberStripeAccount] =
+  lazyRef<StripeAccountCache | null>(() => null);
 
 export class PaymentAccountConfigurationError extends namedError(
   "PaymentAccountConfigurationError",
@@ -52,15 +56,16 @@ const accountContexts: Record<
     );
     const mode = settings.stripe.keyMode;
     if (mode === null) return { mode, parts: [] };
-    if (stripeAccountCache?.secretKey === secretKey) {
-      return { mode, parts: [stripeAccountCache.accountId] };
+    const remembered = stripeAccount();
+    if (remembered?.secretKey === secretKey) {
+      return { mode, parts: [remembered.accountId] };
     }
     const account = await (
       await import("#shared/stripe.ts")
     ).stripeApi.retrieveAccount();
     if (account === null)
       throw new Error("Stripe payment account is unavailable");
-    stripeAccountCache = { accountId: account.id, secretKey };
+    rememberStripeAccount({ accountId: account.id, secretKey });
     return { mode, parts: [account.id] };
   },
   sumup: () => {

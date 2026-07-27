@@ -98,26 +98,27 @@ export const getPaymentCompletionDeliveriesByKeys = (
   });
 };
 
-export const savePaymentCompletionDeliveryData = (
+export const savePaymentCompletionDeliveryData = async (
   claim: PaymentSessionClaim,
   deliveryId: number,
   data: PaymentCompletionDeliveryData,
-): Promise<void> =>
-  paymentStoredJson.completionDelivery
-    .seal(data, "payment_completion_deliveries.data")
-    .then((stored) =>
-      changePaymentCompletionDelivery(
-        claim,
-        deliveryId,
-      )({
-        statement: {
-          args: [stored, deliveryId, claim.paymentId],
-          sql: `UPDATE payment_completion_deliveries
+): Promise<void> => {
+  const stored = await paymentStoredJson.completionDelivery.seal(
+    data,
+    "payment_completion_deliveries.data",
+  );
+  await changePaymentCompletionDelivery(
+    claim,
+    deliveryId,
+  )({
+    statement: {
+      args: [stored, deliveryId, claim.paymentId],
+      sql: `UPDATE payment_completion_deliveries
                SET data = ?
              WHERE id = ? AND payment_id = ? AND completed_at IS NULL`,
-        },
-      }),
-    );
+    },
+  });
+};
 
 const requireDeliveryChanged = (
   rowsAffected: number,

@@ -135,23 +135,3 @@ export const resolveCompletedSquarePayments = (
     ? { status: "no_completed_payment" }
     : { payments, status: "found" };
 };
-
-export const findCompletedSquarePayments =
-  (
-    retrievePayment: (paymentId: string) => Promise<SquarePayment | null>,
-  ): ((
-    order: SquareOrder,
-    paymentIds?: string[],
-  ) => Promise<CompletedPaymentSearch>) =>
-  async (
-    order: SquareOrder,
-    paymentIds = squareTenderPaymentIds(order),
-  ): Promise<CompletedPaymentSearch> => {
-    const results = await Promise.all(
-      paymentIds.map(
-        async (paymentId) =>
-          [paymentId, await retrievePayment(paymentId)] as const,
-      ),
-    );
-    return resolveCompletedSquarePayments(order, results);
-  };

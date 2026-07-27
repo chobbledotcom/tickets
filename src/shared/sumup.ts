@@ -118,14 +118,16 @@ const readSumupResource = async <Value>(
   errorCode: ErrorCodeType,
 ): Promise<SumupReadResult<Value>> => readSumupTransport(load, errorCode);
 
-const rejectedRefundStatuses = new Set([400, 403, 409, 422]);
+/** Replies that mean SumUp refused the refund outright, rather than failing. */
+const REJECTED_REFUND_STATUSES = [400, 403, 409, 422];
 
 const sumupRefundError = (
   error: unknown,
 ): Exclude<SumupRefundRequestResult, { status: "accepted" }> => {
   if (error instanceof APIError) {
     if (error.status === 404) return { status: "missing" };
-    if (rejectedRefundStatuses.has(error.status)) return { status: "rejected" };
+    if (REJECTED_REFUND_STATUSES.includes(error.status))
+      return { status: "rejected" };
   }
   throw error;
 };

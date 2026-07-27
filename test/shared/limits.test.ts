@@ -35,7 +35,6 @@ import {
   readLimit,
   SCANNER_CSRF_MAX_AGE_S,
   SESSION_MAX_AGE_S,
-  STALE_RESERVATION_MS,
 } from "#shared/limits.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -169,7 +168,6 @@ describe("limits", () => {
         "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
         "SCANNER_CSRF_MAX_AGE_S",
         "SESSION_MAX_AGE_S",
-        "STALE_RESERVATION_MS",
         "SUPPORT_FORM_NAG_DAYS",
         "TOKEN_LOCKOUT_MS",
         "TOKEN_WINDOW_MS",
@@ -192,9 +190,6 @@ describe("limits", () => {
       expect(currentByKey.get("SESSION_MAX_AGE_S")).toBe(SESSION_MAX_AGE_S);
       expect(currentByKey.get("SCANNER_CSRF_MAX_AGE_S")).toBe(
         SCANNER_CSRF_MAX_AGE_S,
-      );
-      expect(currentByKey.get("STALE_RESERVATION_MS")).toBe(
-        STALE_RESERVATION_MS,
       );
       expect(currentByKey.get("MAX_LOGIN_ATTEMPTS")).toBe(MAX_LOGIN_ATTEMPTS);
       expect(currentByKey.get("LOGIN_LOCKOUT_MS")).toBe(LOGIN_LOCKOUT_MS);

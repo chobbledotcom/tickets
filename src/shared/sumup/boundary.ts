@@ -134,11 +134,13 @@ const refundEventsHaveAmounts = (transaction: SumupWireTransaction): boolean =>
     (event) => event.eventType !== "REFUND" || event.amount !== undefined,
   );
 
-const completedRefundStatuses = new Set(["REFUNDED", "SUCCESSFUL"]);
+/** The statuses SumUp uses for a refund that has actually gone through. */
+const COMPLETED_REFUND_STATUSES = ["REFUNDED", "SUCCESSFUL"];
 const hasCompletedRefund = (transaction: SumupWireTransaction): boolean =>
   transactionEvents(transaction).some(
     (event) =>
-      event.eventType === "REFUND" && completedRefundStatuses.has(event.status),
+      event.eventType === "REFUND" &&
+      COMPLETED_REFUND_STATUSES.includes(event.status),
   );
 
 const SumupTransactionResponseSchema = v.pipe(
