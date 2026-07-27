@@ -244,10 +244,12 @@ export const createAggregatePayment = async (
   return finishAggregatePayment(input, intent, createdAt, session, processing);
 };
 
-export const getPaymentAggregateOrNull = async (
+/** The stored payment with this id. Every caller is checking a payment it has
+ *  just made, so a missing one is a broken test rather than an outcome. */
+export const getPaymentAggregate = async (
   paymentId: string,
-): Promise<PaymentSession | null> =>
-  (await getPaymentSessions([paymentId]))[0] ?? null;
+): Promise<PaymentSession> =>
+  required((await getPaymentSessions([paymentId]))[0], `payment ${paymentId}`);
 
 export const getPaymentAggregateByProviderSessionOrNull = (
   sessionId: string,

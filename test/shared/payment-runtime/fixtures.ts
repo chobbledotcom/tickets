@@ -229,12 +229,7 @@ export const createRetryingPaymentDecision = async (
     selection,
     exact,
   );
-  const attempt = await beginPaymentDecisionAttempt(
-    accepted.id,
-    PAYMENT_TIME + 1,
-  );
-  if (attempt.status !== "running")
-    throw new Error("Expected a running decision");
+  await beginPaymentDecisionAttempt(accepted.id, PAYMENT_TIME + 1);
   await retryPaymentDecision(
     accepted.id,
     "Waiting to resume",

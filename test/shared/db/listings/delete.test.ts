@@ -36,7 +36,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
   createAggregatePayment,
-  getPaymentAggregateOrNull,
+  getPaymentAggregate,
 } from "#test-utils/payment-aggregate.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
@@ -130,8 +130,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       await deleteListing(listing.id);
 
       // The attendee is orphaned, not purged, so its payment record survives.
-      const payment = await getPaymentAggregateOrNull("sess_listing_delete");
-      expect(payment?.attendeeId).toBe(attendee.id);
+      const payment = await getPaymentAggregate("sess_listing_delete");
+      expect(payment.attendeeId).toBe(attendee.id);
     });
 
     test("removes activity log entries for the listing", async () => {
@@ -261,8 +261,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       await deleteListing(listing1.id);
 
-      const payment = await getPaymentAggregateOrNull("sess_multi_listing");
-      expect(payment?.attendeeId).toBe(attendeeId);
+      const payment = await getPaymentAggregate("sess_multi_listing");
+      expect(payment.attendeeId).toBe(attendeeId);
     });
 
     test("leaves an attendee orphaned rather than deleting it", async () => {

@@ -37,7 +37,7 @@ import { postListingSale } from "#test-utils/ledger.ts";
 import {
   createAggregatePayment,
   expectRefundReferences,
-  getPaymentAggregateOrNull,
+  getPaymentAggregate,
 } from "#test-utils/payment-aggregate.ts";
 
 const balanceFinalize = async (
@@ -142,10 +142,16 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       ),
     );
 
-    const payment = await getPaymentAggregateOrNull("balance-ref-ok");
-    expect(payment?.attendeeId).toBe(attendeeId);
-    expect(payment?.completionState).toBe("pending");
+    const payment = await getPaymentAggregate("balance-ref-ok");
+    expect(payment.attendeeId).toBe(attendeeId);
+    expect(payment.completionState).toBe("pending");
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
+  });
+
+  test("a person who has not paid has nothing to refund", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+
+    await expectRefundReferences(attendeeId, []);
   });
 
   test("does not finalize a balance session reference on amount mismatch", async () => {
@@ -165,9 +171,9 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     );
 
     expect(result).toEqual({ reason: "amount_mismatch", settled: false });
-    const payment = await getPaymentAggregateOrNull("balance-ref-mismatch");
-    expect(payment?.attendeeId).toBeNull();
-    expect(payment?.completion).toBeNull();
+    const payment = await getPaymentAggregate("balance-ref-mismatch");
+    expect(payment.attendeeId).toBeNull();
+    expect(payment.completion).toBeNull();
   });
 
   test("is idempotent once the balance is cleared", async () => {

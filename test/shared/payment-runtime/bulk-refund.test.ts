@@ -14,9 +14,8 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import {
   createAggregatePayment,
-  getPaymentAggregateOrNull,
+  getPaymentAggregate,
 } from "#test-utils/payment-aggregate.ts";
-import { required } from "#test-utils/required.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 const PRICE = 1_000;
@@ -111,10 +110,7 @@ describeWithEnv("finishing a queued bulk refund", { db: true }, () => {
     const attendee = await bookedAndPaid("deleted@example.com", true);
     await paymentFor(attendee.id, "bulk-orphan", true);
     await deleteAttendee(attendee.id);
-    const detached = required(
-      await getPaymentAggregateOrNull("bulk-orphan"),
-      "the payment left behind",
-    );
+    const detached = await getPaymentAggregate("bulk-orphan");
 
     expect(detached.attendeeId).toBeNull();
     await expect(finishQueuedBulkRefund(detached)).rejects.toThrow(
