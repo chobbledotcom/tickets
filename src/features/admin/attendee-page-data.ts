@@ -57,7 +57,7 @@ import { getPaymentRefundTargets } from "#shared/payment-runtime/refund-targets.
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
-import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form.tsx";
+import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/types.ts";
 import type {
   ContactChannelData,
   ContactRecordsByChannel,

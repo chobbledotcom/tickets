@@ -9,11 +9,11 @@ import {
   testStripeConnection,
 } from "#shared/stripe/endpoints.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import { describeStripe } from "#test/lib/stripe/harness.ts";
+import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import {
   cleanupWithWebhookApi,
   newWebhookApiCalls,
-} from "#test/lib/stripe/webhook-mocks.ts";
+} from "#test/test-utils/stripe/webhook-mocks.ts";
 import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
 
 describeStripe("Stripe webhook cleanup", () => {

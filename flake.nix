@@ -57,9 +57,12 @@
               echo "  pc                   - run precommit"
               echo "  nix run .#docker     - build container image"
               echo "  nix run .#docker-start - build and run container"
-              export DB_ENCRYPTION_KEY="$(openssl rand -base64 32)"
-              export DB_URL=":memory:"
-              export PORT=8080
+              # Throwaway defaults for a fresh checkout. ''${VAR-...} fills in
+              # only an unset variable, so the caller's own value wins — even a
+              # deliberately empty one, which must fail startup validation.
+              export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(openssl rand -base64 32)}"
+              export DB_URL="''${DB_URL-:memory:}"
+              export PORT="''${PORT-8080}"
               ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
                 export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
                 export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}:''${LD_LIBRARY_PATH:-}"

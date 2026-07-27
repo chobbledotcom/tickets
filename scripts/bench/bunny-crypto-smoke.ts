@@ -9,12 +9,25 @@
 
 import * as BunnySDK from "@bunny.net/edgescript-sdk";
 
-const KEY = crypto.getRandomValues(new Uint8Array(32));
+type Bytes = Uint8Array<ArrayBuffer>;
+
+// This file is uploaded directly, so its byte join must stay local.
+const concatBytes = (...parts: Uint8Array[]): Bytes => {
+  const size = parts.reduce((total, part) => total + part.byteLength, 0);
+  const bytes = new Uint8Array(size);
+  parts.reduce((offset, part) => {
+    bytes.set(part, offset);
+    return offset + part.byteLength;
+  }, 0);
+  return bytes;
+};
+
+const KEY: Bytes = crypto.getRandomValues(new Uint8Array(32));
 const SAMPLE = "attendee-pii-value-12345@example.com";
 const ITERS = 2000;
 
 /** A fresh random 12-byte AES-GCM nonce. */
-const randomIv = (): Uint8Array => crypto.getRandomValues(new Uint8Array(12));
+const randomIv = (): Bytes => crypto.getRandomValues(new Uint8Array(12));
 
 /** Run `body` ITERS times and return the elapsed milliseconds. */
 const timeLoop = async (body: () => Promise<void> | void): Promise<number> => {
@@ -31,14 +44,14 @@ const subtleKey = await crypto.subtle.importKey(
   false,
   ["encrypt", "decrypt"],
 );
-const subtleEnc = async (pt: Uint8Array) => {
+const subtleEnc = async (pt: Bytes) => {
   const iv = randomIv();
   const ct = new Uint8Array(
     await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, subtleKey, pt),
   );
   return { ct, iv }; // ct has the 16-byte GCM tag appended (WebCrypto layout)
 };
-const subtleDec = async (iv: Uint8Array, ct: Uint8Array) =>
+const subtleDec = async (iv: Bytes, ct: Bytes) =>
   new Uint8Array(
     await crypto.subtle.decrypt({ iv, name: "AES-GCM" }, subtleKey, ct),
   );
@@ -64,19 +77,18 @@ const run = async (): Promise<Result> => {
   }
 
   // node:crypto helpers — match WebCrypto layout (tag appended to ciphertext)
-  const nodeEnc = (pt: Uint8Array) => {
+  const nodeEnc = (pt: Bytes) => {
     const iv = randomIv();
     const c = nc.createCipheriv("aes-256-gcm", KEY, iv);
-    const body = Buffer.concat([c.update(pt), c.final()]);
-    const ct = new Uint8Array(Buffer.concat([body, c.getAuthTag()]));
+    const ct = concatBytes(c.update(pt), c.final(), c.getAuthTag());
     return { ct, iv };
   };
-  const nodeDec = (iv: Uint8Array, ct: Uint8Array) => {
+  const nodeDec = (iv: Bytes, ct: Bytes) => {
     const tag = ct.subarray(ct.length - 16);
     const body = ct.subarray(0, ct.length - 16);
     const d = nc.createDecipheriv("aes-256-gcm", KEY, iv);
     d.setAuthTag(tag);
-    return new Uint8Array(Buffer.concat([d.update(body), d.final()]));
+    return concatBytes(d.update(body), d.final());
   };
 
   const enc = new TextEncoder();

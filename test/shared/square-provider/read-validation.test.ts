@@ -7,11 +7,6 @@ import { squareApi } from "#shared/square.ts";
 import type { SquareOrder, SquarePayment } from "#shared/square-payments.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import {
-  configureSquare,
-  withSquareClient,
-} from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
-import {
   exactPayment,
   orderResponse,
   paymentResponse,
@@ -20,6 +15,11 @@ import {
   squarePayment,
   unresolvedSquareReads,
 } from "#test/shared/square-provider/fixtures.ts";
+import {
+  configureSquare,
+  withSquareClient,
+} from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 /* jscpd:ignore-end */

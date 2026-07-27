@@ -7,12 +7,12 @@ import {
   type SquareRefund,
 } from "#shared/square-client.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
+import { paymentCharge } from "#test/shared/payment-runtime/fixtures.ts";
 import {
   configureSquare,
   withSquareClient,
-} from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
-import { paymentCharge } from "#test/shared/payment-runtime/fixtures.ts";
+} from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 
 const chargeResource = {
   id: "square-payment",

@@ -5,7 +5,7 @@ import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { createHiddenPackageGroup } from "#test/lib/payment-success-helpers.ts";
+import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {

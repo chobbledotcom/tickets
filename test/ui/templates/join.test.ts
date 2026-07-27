@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
-import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
+import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 describe("join templates", () => {

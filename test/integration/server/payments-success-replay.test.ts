@@ -5,7 +5,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { renderPaymentSuccess } from "#test/lib/payment-success-helpers.ts";
+import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse, followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

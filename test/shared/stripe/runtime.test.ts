@@ -17,8 +17,8 @@ import {
   stripeClient,
   stripePaymentIntent,
   stripeRefund,
-} from "#test/lib/stripe/fixtures.ts";
-import { describeStripe } from "#test/lib/stripe/harness.ts";
+} from "#test/test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withFetchMock, withMocks } from "#test-utils/mocks.ts";

@@ -12,7 +12,6 @@ import { settings } from "#shared/db/settings.ts";
 import { squareApi } from "#shared/square.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { sumupApi } from "#shared/sumup.ts";
-import { stripePaymentIntent } from "#test/lib/stripe/fixtures.ts";
 import {
   account,
   legacyAttendeeBlobPayment,
@@ -20,6 +19,7 @@ import {
   read,
   sumupTransaction,
 } from "#test/shared/payment-runtime/operator-legacy-read-fixtures.ts";
+import { stripePaymentIntent } from "#test/test-utils/stripe/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 // jscpd:ignore-end

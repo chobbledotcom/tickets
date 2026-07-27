@@ -15,9 +15,7 @@ import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -25,11 +23,13 @@ import {
 } from "#shared/demo/overrides.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { ok } from "#shared/response.ts";
 import {
   SETTINGS_FORMS,
   type SettingsFormDefinition,
 } from "#shared/settings/forms.ts";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import {
   isPaymentProvider,
   type PaymentProviderType,
@@ -63,10 +63,12 @@ export const handlePaymentProviderPost = settingsHandler({
     v === "none"
       ? settings.update.setPaymentProviderNone()
       : settings.update.paymentProvider(v as PaymentProviderType),
-  validate: (v) =>
-    v !== "none" && !isPaymentProvider(v)
-      ? t("error.invalid_payment_provider")
-      : null,
+  validate: (v) => {
+    if (v === "none") return null;
+    if (!isPaymentProvider(v)) return t("error.invalid_payment_provider");
+    // The page switches this off already; refuse it here too.
+    return providerCurrencyBlock(v, settings.currency);
+  },
 });
 
 /**
@@ -79,12 +81,9 @@ export const handleEmbedHostsPost = settingsHandler({
     v === ""
       ? t("success.embed_hosts_removed")
       : t("success.embed_hosts_updated"),
-  save: (v) =>
-    settings.update.embedHosts(v === "" ? "" : parseEmbedHosts(v).join(", ")),
-  validate: (v) => {
-    if (v === "") return null;
-    return validateEmbedHosts(v);
-  },
+  // An empty list parses to "" and validates fine, so clearing needs no case.
+  save: (v) => settings.update.embedHosts(parseEmbedHosts(v).join(", ")),
+  validate: validateEmbedHosts,
 });
 
 /**
@@ -194,11 +193,11 @@ export const handleBookingFeePost = settingsHandler({
  */
 const COLUMN_ORDER_SETTINGS = {
   attendee: {
-    label: "Attendee column order",
+    message: () => t("settings.column_order.attendee_updated"),
     update: settings.update.attendeeColumnOrder,
   },
   listing: {
-    label: "Listing column order",
+    message: () => t("settings.column_order.listing_updated"),
     update: settings.update.listingColumnOrder,
   },
 };
@@ -207,13 +206,19 @@ type ConfigurableColumnLayoutKind = keyof typeof COLUMN_ORDER_SETTINGS;
 
 const columnOrderHandler = (kind: ConfigurableColumnLayoutKind) => {
   const config = COLUMN_ORDER_SETTINGS[kind];
+  const layout = configurableTableLayouts[kind];
   return settingsHandler({
     advanced: true,
     extract: (form) => form.getString("column_order").trim(),
     formId: `settings-${kind}-column-order`,
-    label: config.label,
+    log: config.message,
     save: config.update,
-    validate: COLUMN_LAYOUTS[kind].validate,
+    validate: (value) =>
+      layout.validate(value) === null
+        ? null
+        : t("settings.column_order.invalid", {
+            columns: layout.keys.join(", "),
+          }),
   });
 };
 
@@ -230,7 +235,7 @@ export const handleResetDatabasePost = advancedSettingsRoute(
       return errorPage(phraseResult.error, "settings-reset-database");
     }
 
-    await logActivity("Database reset initiated");
+    // No activity-log line: the reset drops the table it would be written to.
     await deleteStorageAndResetDatabase();
 
     // Redirect to setup page since the database is now empty

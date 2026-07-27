@@ -45,7 +45,7 @@ mise exec -- deno task cli:api create holidays '{"name":"Christmas","start_date"
 
 The resource names — `listings`, `groups`, and `holidays` — mirror the admin
 JSON API exactly. `cli/resources.ts` is the single source of truth: both the
-TUI and the agent script read from it, and `test/lib/cli.test.ts` derives the
-expected set from the server's `adminApiRoutes` and fails if the two ever
-diverge. Exposing a new `/api/admin/:resource` family is therefore a one-line
+TUI and the agent script read from it, and
+`test/integration/tooling/cli.test.ts` derives the expected set from the
+server's `adminApiRoutes` and fails if the two ever diverge. Exposing a new `/api/admin/:resource` family is therefore a one-line
 addition here.

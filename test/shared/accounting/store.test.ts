@@ -93,7 +93,12 @@ describe("db > accounting > store", () => {
           }),
         ]),
       );
-      expect(error.message).toContain("duplicate reference");
+      // The exact message matters: this guard runs before any database work,
+      // so the batch never opens a transaction. The batch-level guard reports
+      // a different message, which would not satisfy this.
+      expect(error.message).toBe(
+        "postTransfers: duplicate reference within one event",
+      );
       expect((await allTransfers()).length).toBe(0);
     });
 
@@ -131,7 +136,16 @@ describe("db > accounting > store", () => {
           tx({ eventGroup: "evt-b", reference: "b" }),
         ]),
       );
-      expect(error.message).toContain("one eventGroup");
+      expect(error.message).toBe(
+        "postTransfers: every leg must share one eventGroup (got evt-a, evt-b)",
+      );
+    });
+
+    test("replaying a single-leg event skips it rather than posting again", async () => {
+      const lone = [tx({ eventGroup: "lone", reference: "lone-sale" })];
+      expect(await postTransfers(lone)).toEqual({ inserted: 1, skipped: 0 });
+      expect(await postTransfers(lone)).toEqual({ inserted: 0, skipped: 1 });
+      expect((await transfersByEventGroup("lone")).length).toBe(1);
     });
 
     test("treats an empty post as a no-op", async () => {

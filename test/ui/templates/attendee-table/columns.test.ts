@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { testAttendee } from "#test-utils/factories.ts";
 import {
   ALLOWED_DOMAIN,
@@ -8,24 +7,25 @@ import {
   makeOpts,
   makeRow,
   namedListingRow,
+  render,
 } from "./shared.ts";
 
 attendeeTableSuite(() => {
   describe("always-visible columns", () => {
     test("renders check-in button column", () => {
-      const html = AttendeeTable(makeOpts());
+      const html = render(makeOpts());
       expect(html).toContain("Check in");
       expect(html).toContain("/checkin");
     });
 
     test("renders Name column", () => {
-      const html = AttendeeTable(makeOpts());
+      const html = render(makeOpts());
       expect(html).toContain("<th>Name</th>");
       expect(html).toContain("John Doe");
     });
 
     test("links Name to the edit attendee page", () => {
-      const html = AttendeeTable(
+      const html = render(
         makeOpts({
           rows: [makeRow({ attendee: testAttendee({ id: 7, name: "Jane" }) })],
         }),
@@ -34,13 +34,11 @@ attendeeTableSuite(() => {
     });
 
     test("renders Qty column", () => {
-      expect(AttendeeTable(makeOpts())).toContain(
-        '<th class="col-quantity">Qty</th>',
-      );
+      expect(render(makeOpts())).toContain('<th class="col-quantity">Qty</th>');
     });
 
     test("renders Ticket column with link", () => {
-      const html = AttendeeTable(makeOpts());
+      const html = render(makeOpts());
       expect(html).toContain("<th>Ticket</th>");
       expect(html).toContain(
         `<a href="https://${ALLOWED_DOMAIN}/t/test-token-1">test-token-1</a>`,
@@ -48,11 +46,11 @@ attendeeTableSuite(() => {
     });
 
     test("renders Registered column", () => {
-      expect(AttendeeTable(makeOpts())).toContain("<th>Registered</th>");
+      expect(render(makeOpts())).toContain("<th>Registered</th>");
     });
 
     test("does not render the moved Actions column", () => {
-      const html = AttendeeTable(makeOpts());
+      const html = render(makeOpts());
       expect(html).not.toContain("<th>Actions</th>");
       expect(html).not.toContain(">Edit<");
       expect(html).not.toContain(">Delete<");
@@ -73,9 +71,7 @@ attendeeTableSuite(() => {
         }),
       ),
     ];
-    const html = AttendeeTable(
-      makeOpts({ rows, showDate: true, showListing: true }),
-    );
+    const html = render(makeOpts({ rows, showDate: true, showListing: true }));
     const headers = [...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)<\/th>/g)].map(
       (match) => match[1],
     );
@@ -87,7 +83,7 @@ attendeeTableSuite(() => {
       "Email",
       "Phone",
       "Address",
-      "Special Instructions",
+      "Special instructions",
       "Qty",
       "Ticket",
       "Registered",
@@ -96,13 +92,13 @@ attendeeTableSuite(() => {
 
   describe("Listings column", () => {
     test("is hidden when showListing is false", () => {
-      const html = AttendeeTable(makeOpts({ showListing: false }));
+      const html = render(makeOpts({ showListing: false }));
       expect(html).not.toContain("<th>Listings</th>");
       expect(html).not.toContain("listings-cell");
     });
 
     test("links the listing when showListing is true", () => {
-      const html = AttendeeTable(
+      const html = render(
         makeOpts({
           rows: [makeRow({ listings: [{ id: 42, name: "Test Gala" }] })],
           showListing: true,
@@ -113,7 +109,7 @@ attendeeTableSuite(() => {
     });
 
     const groupedRowHtml = (): string =>
-      AttendeeTable(
+      render(
         makeOpts({
           rows: [
             makeRow({
@@ -141,7 +137,7 @@ attendeeTableSuite(() => {
     });
 
     test("escapes listing names in links and titles", () => {
-      const html = AttendeeTable(
+      const html = render(
         makeOpts({
           rows: [
             makeRow({
@@ -163,40 +159,38 @@ attendeeTableSuite(() => {
       ["Email", "email", "test@example.com"],
       ["Phone", "phone", "555-1234"],
       ["Address", "address", "123 Main St"],
-      ["Special Instructions", "special_instructions", "Vegetarian"],
+      ["Special instructions", "special_instructions", "Vegetarian"],
     ] as const;
 
     for (const [heading, field, value] of fieldCases) {
       test(`hides ${heading} when every value is blank`, () => {
         const attendee = testAttendee({ [field]: "" });
         expect(
-          AttendeeTable(makeOpts({ rows: [makeRow({ attendee })] })),
+          render(makeOpts({ rows: [makeRow({ attendee })] })),
         ).not.toContain(`<th>${heading}</th>`);
       });
 
       test(`shows ${heading} when a value is present`, () => {
         const attendee = testAttendee({ [field]: value });
-        const html = AttendeeTable(makeOpts({ rows: [makeRow({ attendee })] }));
+        const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
         expect(html).toContain(`<th>${heading}</th>`);
         expect(html).toContain(value);
       });
     }
 
     test("hides Date when showDate is false", () => {
-      expect(AttendeeTable(makeOpts({ showDate: false }))).not.toContain(
+      expect(render(makeOpts({ showDate: false }))).not.toContain(
         "<th>Date</th>",
       );
     });
 
     test("shows Date when showDate is true", () => {
-      expect(AttendeeTable(makeOpts({ showDate: true }))).toContain(
-        "<th>Date</th>",
-      );
+      expect(render(makeOpts({ showDate: true }))).toContain("<th>Date</th>");
     });
 
     test("renders phone as a normalized tel link", () => {
       const attendee = testAttendee({ phone: "07700 900000" });
-      const html = AttendeeTable(
+      const html = render(
         makeOpts({ phonePrefix: "44", rows: [makeRow({ attendee })] }),
       );
       expect(html).toContain('href="tel:+447700900000"');
@@ -205,7 +199,7 @@ attendeeTableSuite(() => {
 
     test("uses the supplied phone prefix", () => {
       const attendee = testAttendee({ phone: "0234 567 8900" });
-      const html = AttendeeTable(
+      const html = render(
         makeOpts({ phonePrefix: "1", rows: [makeRow({ attendee })] }),
       );
       expect(html).toContain('href="tel:+12345678900"');
@@ -213,16 +207,35 @@ attendeeTableSuite(() => {
 
     test("defaults the phone prefix to 44", () => {
       const attendee = testAttendee({ phone: "07700 900000" });
-      expect(
-        AttendeeTable(makeOpts({ rows: [makeRow({ attendee })] })),
-      ).toContain('href="tel:+447700900000"');
+      expect(render(makeOpts({ rows: [makeRow({ attendee })] }))).toContain(
+        'href="tel:+447700900000"',
+      );
     });
+
+    // A roster where one person filled the field in and another did not: the
+    // column shows for everyone, so the blank row must render an empty cell.
+    const mixedRows = (field: "address" | "special_instructions") => [
+      makeRow({ attendee: testAttendee({ id: 1, [field]: "Filled in" }) }),
+      makeRow({ attendee: testAttendee({ id: 2, [field]: "" }) }),
+    ];
+
+    for (const [heading, field] of [
+      ["Address", "address"],
+      ["Special instructions", "special_instructions"],
+    ] as const) {
+      test(`renders a blank ${heading} cell beside a filled one`, () => {
+        const html = render(makeOpts({ rows: mixedRows(field) }));
+        expect(html).toContain(`<th>${heading}</th>`);
+        expect(html).toContain("Filled in");
+        expect(html).toContain("<td></td>");
+      });
+    }
 
     test("renders special instructions on one line", () => {
       const attendee = testAttendee({
         special_instructions: "Line 1\nLine 2",
       });
-      const html = AttendeeTable(makeOpts({ rows: [makeRow({ attendee })] }));
+      const html = render(makeOpts({ rows: [makeRow({ attendee })] }));
       expect(html).toContain("Line 1 Line 2");
       expect(html).not.toContain("Line 1, Line 2");
     });

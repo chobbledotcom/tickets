@@ -5,7 +5,7 @@ import {
   constructTestSquareWebhook,
   verifySquareWebhookSignature,
 } from "#shared/square-webhook.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 

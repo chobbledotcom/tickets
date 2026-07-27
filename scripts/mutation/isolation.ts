@@ -13,12 +13,12 @@ import {
   stopProcessNow,
 } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-import { errorMessage } from "#shared/error-message.ts";
 import {
-  envWith,
   offTerminationSignals,
   onTerminationSignals,
-} from "./child-process.ts";
+} from "#scripts/termination-signals.ts";
+import { errorMessage } from "#shared/error-message.ts";
+import { envWith } from "./child-process.ts";
 import {
   copyMutationSnapshot,
   createRunId,

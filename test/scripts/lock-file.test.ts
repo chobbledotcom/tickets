@@ -16,7 +16,7 @@ const file = await Deno.open(Deno.args[0], {
   read: true,
   write: true,
 });
-await file.lock();
+await file.lock(true);
 await Deno.stdout.write(new TextEncoder().encode("locked\\n"));
 await Deno.stdin.read(new Uint8Array(1));
 file.close();
@@ -28,7 +28,7 @@ const file = await Deno.open(Deno.args[0], {
   read: true,
   write: true,
 });
-await file.lock();
+await file.lock(true);
 await Deno.stdout.write(new TextEncoder().encode("locked\\n"));
 Deno.exit(0);
 `;
@@ -80,6 +80,63 @@ const stubOpenedFile = (change: (file: Deno.FsFile) => void) => {
 describe("withFileLock", () => {
   beforeEach(() => removeIfPresent(LOCK_PATH));
   afterEach(() => removeIfPresent(LOCK_PATH));
+
+  test("creates the lock file when it is not there yet", async () => {
+    await withFileLock(LOCK_PATH, () => Promise.resolve());
+
+    expect((await Deno.stat(LOCK_PATH)).isFile).toBe(true);
+  });
+
+  test("keeps two holders in this process from overlapping", async () => {
+    const order: string[] = [];
+    const firstInside = Promise.withResolvers<void>();
+    const releaseFirst = Promise.withResolvers<void>();
+    const secondAsked = Promise.withResolvers<void>();
+
+    let opened = 0;
+    const openStub = stubOpenedFile((file) => {
+      opened++;
+      if (opened < 2) return;
+      const lock = file.lock.bind(file);
+      file.lock = (exclusive?: boolean): Promise<void> => {
+        const held = lock(exclusive);
+        secondAsked.resolve();
+        return held;
+      };
+    });
+
+    try {
+      const first = withFileLock(LOCK_PATH, async () => {
+        order.push("first in");
+        firstInside.resolve();
+        await releaseFirst.promise;
+        order.push("first out");
+      });
+      await firstInside.promise;
+
+      const second = withFileLock(LOCK_PATH, () => {
+        order.push("second in");
+        return Promise.resolve();
+      });
+
+      // Wait for the second holder to actually ask for the lock, then give the
+      // operating system time to hand it over. Both halves are needed: without
+      // the signal the check could run before the request was even made, and
+      // without the pause a shared lock would not yet have been granted, so a
+      // lock that excludes nobody would still look like it was working.
+      await secondAsked.promise;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(order).toEqual(["first in"]);
+
+      releaseFirst.resolve();
+      await Promise.all([first, second]);
+    } finally {
+      openStub.restore();
+      releaseFirst.resolve();
+    }
+
+    expect(order).toEqual(["first in", "first out", "second in"]);
+  });
 
   test("runs the task and returns its value", async () => {
     await expect(

@@ -1,12 +1,43 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import type { Group } from "#shared/types.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
+import type { AdminSession, Group } from "#shared/types.ts";
 import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import {
-  CollectionTable,
-  namedColumns,
-} from "#templates/components/data-table.tsx";
+import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+
+/* jscpd:ignore-end */
+
+const groupLink = (
+  group: Group,
+  adminLevel: AdminSession["adminLevel"],
+): JSX.Element => (
+  // Staff open the detail page; editors can't (it decrypts attendee PII), so
+  // they link straight to the edit form.
+  <a href={entityReturnPath("/admin/groups", adminLevel, group.id)}>
+    {group.name}
+  </a>
+);
+
+const groupColumns: readonly TableColumn<Group, AdminSession["adminLevel"]>[] =
+  [
+    {
+      cell: groupLink,
+      header: translatedTableHeader("common.name"),
+      key: "name",
+    },
+    {
+      cell: (group) => group.slug,
+      header: translatedTableHeader("common.slug"),
+      key: "slug",
+    },
+  ];
+
+const groupsTable = defineTable(groupColumns);
 
 /** Admin groups list page. */
 export const adminGroupsPage = successListPage<Group[]>(
@@ -14,25 +45,9 @@ export const adminGroupsPage = successListPage<Group[]>(
   "/admin/groups",
   (groups, session) => (
     <>
-      <CollectionTable
-        columns={namedColumns("common.slug")}
-        emptyKey="groups.no_groups"
-        items={groups}
-        rows={groups.map((group) => [
-          // Staff open the detail page; editors can't (it decrypts attendee
-          // PII), so they link straight to the edit form.
-          <a
-            href={entityReturnPath(
-              "/admin/groups",
-              session.adminLevel,
-              group.id,
-            )}
-          >
-            {group.name}
-          </a>,
-          group.slug,
-        ])}
-      />
+      {itemsOrEmptyNote(groups, t("groups.no_groups"), (rows) =>
+        renderTable(groupsTable, rows, { context: session.adminLevel }),
+      )}
 
       <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#packages">
         {t("groups.guide_link")}

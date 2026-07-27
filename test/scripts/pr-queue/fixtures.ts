@@ -1,3 +1,4 @@
+import type { GhRunner } from "#scripts/pr-queue/gh.ts";
 import type { GraphQlPr, MergeQueueEntry } from "#scripts/pr-queue/types.ts";
 
 /**
@@ -103,6 +104,41 @@ const buildChecks = (
     contexts: { nodes, pageInfo: { hasNextPage: checksTruncated } },
     state: hasFailures ? "FAILURE" : hasPending ? "PENDING" : "SUCCESS",
   };
+};
+
+/** A GraphQL reply carrying a page of open pull requests. */
+export const queueReply = (nodes: GraphQlPr[], hasNextPage = false): string =>
+  JSON.stringify({
+    data: {
+      repository: { pullRequests: { nodes, pageInfo: { hasNextPage } } },
+    },
+  });
+
+/**
+ * A stand-in `gh` that answers each call in turn and records what it was asked.
+ * Once the answers run out it keeps repeating the last one.
+ */
+export const ghSaying = (
+  firstReply: Partial<Awaited<ReturnType<GhRunner>>> = {},
+  ...laterReplies: Partial<Awaited<ReturnType<GhRunner>>>[]
+): { calls: string[][]; run: GhRunner } => {
+  const calls: string[][] = [];
+  const remaining = [...laterReplies];
+  let reply = firstReply;
+  const run: GhRunner = (args) => {
+    calls.push(args);
+    const answering = reply;
+    const next = remaining.shift();
+    if (next) reply = next;
+    return Promise.resolve({
+      code: 0,
+      stderr: "",
+      stdout: "",
+      timedOut: false,
+      ...answering,
+    });
+  };
+  return { calls, run };
 };
 
 export const makePr = (opts: PrFixture = {}): GraphQlPr => ({

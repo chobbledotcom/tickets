@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { defineTable } from "#shared/tables/definition.ts";
 import type {
   AdminLevel,
   AdminSession,
@@ -16,9 +17,9 @@ import {
   CheckboxFieldset,
   CheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
-import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 import { getInviteUserForm } from "#templates/fields/admin.ts";
 /* jscpd:ignore-end */
 
@@ -77,6 +78,34 @@ export const userStatus = (user: DisplayUser): string => {
   return t("users.status.invited");
 };
 
+const usersTable = defineTable<DisplayUser>([
+  {
+    cell: (user) => <a href={`/admin/users/${user.id}`}>{user.username}</a>,
+    header: () => t("common.username"),
+    key: "username",
+  },
+  {
+    cell: (user) => (
+      <>
+        {user.adminLevel}
+        {user.adminLevel === "agent" && (
+          <>
+            <br />
+            <small>{agentNamesDisplay(user)}</small>
+          </>
+        )}
+      </>
+    ),
+    header: () => t("users.col.role"),
+    key: "role",
+  },
+  {
+    cell: userStatus,
+    header: () => t("common.status"),
+    key: "status",
+  },
+]);
+
 /**
  * Admin user management page
  */
@@ -104,26 +133,7 @@ export const adminUsersPage = (
         </div>
       )}
 
-      <DataTable
-        columns={[
-          textCol("common.username"),
-          textCol("users.col.role"),
-          textCol("common.status"),
-        ]}
-        rows={users.map((user) => [
-          <a href={`/admin/users/${user.id}`}>{user.username}</a>,
-          <>
-            {user.adminLevel}
-            {user.adminLevel === "agent" && (
-              <>
-                <br />
-                <small>{agentNamesDisplay(user)}</small>
-              </>
-            )}
-          </>,
-          userStatus(user),
-        ])}
-      />
+      {renderTable(usersTable, users)}
 
       <GuideFooter href="/admin/guide#user-classes">
         {t("users.roles_link")}

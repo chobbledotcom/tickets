@@ -10,7 +10,7 @@ import { FormParams } from "#shared/form-data.ts";
 import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import { checkoutItem } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import type { BookResponseBody } from "#test/routes/api/helpers.ts";
+import type { BookResponseBody } from "#test/test-utils/api/helpers.ts";
 import {
   expectCapturedItemPriced,
   STUB_CHECKOUT_URL,

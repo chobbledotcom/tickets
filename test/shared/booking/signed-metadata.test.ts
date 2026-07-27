@@ -12,7 +12,7 @@ import {
 import type { BookingTree } from "#shared/booking/tree.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import type { BookingItem } from "#shared/payments.ts";
-import { treePackage } from "#test/lib/package-cap-fixtures.ts";
+import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const resolved = (id: number) =>

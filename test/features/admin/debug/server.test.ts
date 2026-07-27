@@ -185,6 +185,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         debugRow("CDN hostname", "—"),
         debugRow("Custom domain", "—"),
         debugStatusRow("DB_URL", false),
+        debugRow("Database host", "—"),
         debugRow("Read-only from", "—"),
         debugStatusRow("Renewal URL", false),
       );
@@ -600,9 +601,32 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       );
     });
 
+    test("names the company running the database", () => {
+      const hosts = {
+        bunny: "Bunny",
+        local: "Local file",
+        other: "Other",
+        turso: "Turso",
+      } as const;
+      for (const [host, label] of Object.entries(hosts)) {
+        const state = makeDebugState({
+          database: {
+            host: host as keyof typeof hosts,
+            hostConfigured: true,
+            schemaHash: "deadbeef",
+            schemaInSync: true,
+          },
+        });
+        const html = adminDebugPage(debugOwnerSession, state);
+        expect(html).toContain("Database host");
+        expect(html).toContain(`<td>${label}</td>`);
+      }
+    });
+
     test("shows Out of sync and the hash when markers do not match", () => {
       const state = makeDebugState({
         database: {
+          host: "bunny",
           hostConfigured: true,
           schemaHash: "deadbeef",
           schemaInSync: false,

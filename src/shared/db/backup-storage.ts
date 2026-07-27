@@ -1,14 +1,13 @@
 import { compact } from "#fp";
 import { parseDateMs } from "#shared/dates.ts";
+import { databaseHostFor } from "#shared/db/host.ts";
 import { requireEnv } from "#shared/env.ts";
 import { MAX_BACKUPS } from "#shared/limits.ts";
 import { deleteFile, getBasename, listFiles } from "#shared/storage.ts";
 
 /** Check if DB_URL points to a remote database */
-export const isRemoteDatabase = (): boolean => {
-  const url = requireEnv("DB_URL");
-  return url.startsWith("libsql://") || url.startsWith("https://");
-};
+export const isRemoteDatabase = (): boolean =>
+  databaseHostFor(requireEnv("DB_URL")) !== "local";
 
 /**
  * Extract a short database name from DB_URL for use in backup filenames.

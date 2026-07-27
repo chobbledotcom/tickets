@@ -64,6 +64,7 @@ describe("admin debug template rendering", () => {
       "debug.field.custom_domain",
       "debug.field.subdomain_suffix",
       "debug.field.registered_subdomain",
+      "debug.field.database_host",
     ] as const;
 
     for (const label of missingValueLabels) {
@@ -120,6 +121,7 @@ describe("admin debug template rendering", () => {
           subdomainSuffix: "subdomain-suffix-marker",
         },
         database: {
+          host: "turso" as const,
           hostConfigured: true,
           schemaHash: "schema-hash-marker",
           schemaInSync: true,

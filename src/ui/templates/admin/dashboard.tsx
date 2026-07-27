@@ -5,15 +5,6 @@
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
-import {
-  COLUMN_LAYOUTS,
-  type ListingColumnLayout,
-} from "#shared/column-layout.ts";
-import {
-  EDITOR_LISTING_LAYOUT,
-  EDITOR_LISTING_TABLE_COLUMNS,
-  LISTING_TABLE_COLUMNS,
-} from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ActiveListingStats } from "#shared/db/attendee-types.ts";
@@ -27,6 +18,8 @@ import {
   listingCategory,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
+import type { ListingColumnKey } from "#shared/tables/configurable.ts";
+import type { TableLayout } from "#shared/tables/layout.ts";
 import type {
   AdminSession,
   DisplayAttendee,
@@ -46,6 +39,7 @@ import {
 } from "#templates/admin/listing-attribute-filters.ts";
 import {
   ListingsTableBlock,
+  listingTable,
   renderListingsTableSection,
 } from "#templates/admin/listing-table.tsx";
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
@@ -225,7 +219,7 @@ export const adminDashboardPage = (
   newestAttendees: DisplayAttendee[] = [],
   successMessage?: string,
   stats?: ActiveListingStats | null,
-  listingColumnLayout?: ListingColumnLayout,
+  listingColumnLayout?: TableLayout<ListingColumnKey>,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
   unbookableIds: ReadonlySet<number> = new Set(),
@@ -233,7 +227,7 @@ export const adminDashboardPage = (
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   const { columnKeys, filters } =
-    listingColumnLayout ?? COLUMN_LAYOUTS.listing.defaultLayout;
+    listingColumnLayout ?? listingTable.layout.defaultLayout;
 
   // Type filter narrows the listing table only; the stats, multi-booking, and
   // newest-attendee sections below stay based on the full set. Offer the bar
@@ -311,19 +305,21 @@ export const adminDashboardPage = (
 export const adminListingsPage = (
   listings: ListingWithCount[],
   session: AdminSession,
-  listingColumnLayout?: ListingColumnLayout,
+  listingColumnLayout?: TableLayout<ListingColumnKey>,
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   // Editors see a money-free, edit-linked table on a fixed order (their saved
   // column template is irrelevant and never references the omitted columns), and
   // no CSV export (that route stays staff-only and exports ledger revenue).
   const isEditor = session.adminLevel === "editor";
-  const columns = isEditor
-    ? EDITOR_LISTING_TABLE_COLUMNS
-    : LISTING_TABLE_COLUMNS;
-  const { columnKeys, filters } = isEditor
-    ? EDITOR_LISTING_LAYOUT
-    : (listingColumnLayout ?? COLUMN_LAYOUTS.listing.defaultLayout);
+  const layout = listingColumnLayout ?? listingTable.layout.defaultLayout;
+  const tableOptions = isEditor
+    ? ({ table: "editor" } as const)
+    : {
+        columnKeys: layout.columnKeys,
+        filters: layout.filters,
+        table: "staff" as const,
+      };
   const activeListings = activeOnly(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
@@ -347,11 +343,9 @@ export const adminListingsPage = (
       title={t("terms.listings")}
     >
       <ListingsTableBlock
-        columnKeys={columnKeys}
-        columns={columns}
+        {...tableOptions}
         csvExport={!isEditor}
         csvHref={csvExportHref("all", activeAttributeFilters)}
-        filters={filters}
         headerHtml={attributeFilterHtml}
         listings={filterByAttribute(activeListings)}
       />
@@ -359,14 +353,11 @@ export const adminListingsPage = (
       {deactivatedListings.length > 0 && (
         <>
           <h2>{t("admin.dashboard.deactivated")}</h2>
-          <Raw
-            html={renderListingsTableSection(
-              filterByAttribute(deactivatedListings),
-              columnKeys,
-              filters,
-              columns,
-            )}
-          />
+          {renderListingsTableSection({
+            ...tableOptions,
+            emptyText: t("admin.dashboard.no_listings"),
+            listings: filterByAttribute(deactivatedListings),
+          })}
         </>
       )}
 

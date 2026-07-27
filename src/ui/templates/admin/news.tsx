@@ -15,6 +15,7 @@ import {
 } from "#routes/admin/news-form.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, NewsPost, NewsPostSummary } from "#shared/types.ts";
 import { adminFormPage } from "#templates/admin/admin-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
@@ -25,7 +26,7 @@ import {
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { renderTable } from "#templates/components/table.tsx";
 
 /* jscpd:ignore-end */
 
@@ -33,6 +34,26 @@ const LIST = "/admin/site/news";
 const ACTIVE = LIST;
 
 const DeleteLink = rowDeleteLink(LIST);
+
+const newsTable = defineTable<NewsPostSummary>([
+  {
+    cell: (post) => (
+      <WritableLink href={`${LIST}/${post.id}/edit`}>{post.name}</WritableLink>
+    ),
+    header: () => t("news.name_column"),
+    key: "name",
+  },
+  {
+    cell: (post) => formatDatetimeShort(post.created),
+    header: () => t("news.created_column"),
+    key: "created",
+  },
+  {
+    cell: (post) => <DeleteLink id={post.id} />,
+    header: "",
+    key: "delete",
+  },
+]);
 
 export const adminNewsListPage = (
   posts: NewsPostSummary[],
@@ -47,20 +68,7 @@ export const adminNewsListPage = (
         <em>{t("news.none")}</em>
       </p>
     ) : (
-      <DataTable
-        columns={[
-          { header: t("news.name_column") },
-          { header: t("news.created_column") },
-          { header: "" },
-        ]}
-        rows={posts.map((post) => [
-          <WritableLink href={`${LIST}/${post.id}/edit`}>
-            {post.name}
-          </WritableLink>,
-          formatDatetimeShort(post.created),
-          <DeleteLink id={post.id} />,
-        ])}
-      />
+      renderTable(newsTable, posts)
     ),
   );
 

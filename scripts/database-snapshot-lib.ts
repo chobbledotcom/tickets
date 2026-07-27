@@ -4,6 +4,7 @@ import { load } from "@std/dotenv";
 import { basename, dirname, join, resolve, toFileUrl } from "@std/path";
 import * as v from "valibot";
 import { withCleanup } from "#scripts/cleanup.ts";
+import { secureUrlCheck } from "#scripts/secure-url.ts";
 import { getEnv } from "#shared/env.ts";
 import { recoverError } from "#shared/error-recovery.ts";
 
@@ -20,6 +21,11 @@ export interface SnapshotRequest extends SnapshotOptions {
 
 export interface SnapshotQueryResult {
   rows: readonly Readonly<Record<string, unknown>>[];
+}
+
+export interface SnapshotQueryCheck {
+  sql: string;
+  verify: (result: SnapshotQueryResult) => void;
 }
 
 export interface SnapshotClient {
@@ -90,7 +96,6 @@ const IntegrityRowsSchema = v.pipe(
 );
 
 const SECURE_DATABASE_PROTOCOLS = new Set(["https:", "libsql:"]);
-const HTTP_LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 const invalidUsage = (): never => {
   throw new Error(SNAPSHOT_USAGE);
@@ -120,29 +125,8 @@ const requiredEnv = (key: string, readEnv: SnapshotEnvReader): string => {
   return value;
 };
 
-const requireRemoteDatabaseUrl = (value: string): string => {
-  try {
-    const url = new URL(value);
-    const secure = SECURE_DATABASE_PROTOCOLS.has(url.protocol);
-    const loopback = HTTP_LOOPBACK_HOSTNAMES.has(url.hostname);
-    const plaintext =
-      url.protocol === "http:" ||
-      (url.protocol === "libsql:" &&
-        url.searchParams.getAll("tls").at(-1) === "0");
-    if (
-      url.hostname &&
-      (secure || url.protocol === "http:") &&
-      (!plaintext || loopback)
-    ) {
-      return value;
-    }
-  } catch {
-    // Invalid URLs share the same clear configuration error as local URLs.
-  }
-  throw new Error(
-    "DB_URL must use TLS. Plain connections are allowed only for loopback.",
-  );
-};
+const requireRemoteDatabaseUrl = (value: string): string =>
+  secureUrlCheck(SECURE_DATABASE_PROTOCOLS)(value, "DB_URL");
 
 export const readSnapshotRequest = (
   options: SnapshotOptions,
@@ -219,10 +203,42 @@ const withSnapshotClient = <Result>(
   return withCleanup(() => run(client), [() => client.close()]);
 };
 
+const waitForOrAbort = async <Result>(
+  operation: () => Promise<Result>,
+  signal?: AbortSignal,
+): Promise<Result> => {
+  if (signal === undefined) return await operation();
+  signal.throwIfAborted();
+  const interrupted = Promise.withResolvers<never>();
+  const stop = (): void => interrupted.reject(signal.reason);
+  signal.addEventListener("abort", stop, { once: true });
+  try {
+    return await Promise.race([operation(), interrupted.promise]);
+  } finally {
+    signal.removeEventListener("abort", stop);
+  }
+};
+
+export const checkLocalSnapshot = (
+  path: string,
+  factory: SnapshotClientFactory,
+  checks: SnapshotQueryCheck[],
+  signal?: AbortSignal,
+): Promise<void> =>
+  withSnapshotClient(factory, { url: toFileUrl(path).href }, async (client) => {
+    for (const check of checks) {
+      signal?.throwIfAborted();
+      check.verify(
+        await waitForOrAbort(() => client.execute(check.sql), signal),
+      );
+    }
+  });
+
 const syncReplica = (
   path: string,
   request: SnapshotRequest,
   factory: SnapshotClientFactory,
+  signal?: AbortSignal,
 ): Promise<unknown> =>
   withSnapshotClient(
     factory,
@@ -231,7 +247,7 @@ const syncReplica = (
       syncUrl: request.dbUrl,
       url: toFileUrl(path).href,
     },
-    (client) => client.sync(),
+    (client) => waitForOrAbort(() => client.sync(), signal),
   );
 
 const verifyRows = (
@@ -242,22 +258,27 @@ const verifyRows = (
   if (!v.safeParse(schema, result.rows).success) throw new Error(message);
 };
 
-const checkpointAndVerify = (
-  path: string,
-  factory: SnapshotClientFactory,
-): Promise<void> =>
-  withSnapshotClient(factory, { url: toFileUrl(path).href }, async (client) => {
-    verifyRows(
-      CheckpointRowsSchema,
-      await client.execute("PRAGMA wal_checkpoint(TRUNCATE)"),
-      "Database snapshot checkpoint did not empty the WAL",
-    );
-    verifyRows(
-      IntegrityRowsSchema,
-      await client.execute("PRAGMA integrity_check"),
-      "Database snapshot integrity check failed",
-    );
-  });
+const snapshotQueryCheck = (
+  schema: v.GenericSchema,
+  sql: string,
+  message: string,
+): SnapshotQueryCheck => ({
+  sql,
+  verify: (result) => verifyRows(schema, result, message),
+});
+
+const SNAPSHOT_QUERY_CHECKS = [
+  snapshotQueryCheck(
+    CheckpointRowsSchema,
+    "PRAGMA wal_checkpoint(TRUNCATE)",
+    "Database snapshot checkpoint did not empty the WAL",
+  ),
+  snapshotQueryCheck(
+    IntegrityRowsSchema,
+    "PRAGMA integrity_check",
+    "Database snapshot integrity check failed",
+  ),
+];
 
 const fileSizeOrNull = async (path: string): Promise<number | null> => {
   const info = await statOrNull(path);
@@ -292,6 +313,7 @@ export const createDatabaseSnapshot = async (
   request: SnapshotRequest,
   factory: SnapshotClientFactory,
   writeProgress: SnapshotProgressWriter = ignoreSnapshotProgress,
+  signal?: AbortSignal,
 ): Promise<string> => {
   const outputPath = resolve(request.outputPath);
   const outputDirectory = dirname(outputPath);
@@ -306,9 +328,14 @@ export const createDatabaseSnapshot = async (
   return await withCleanup(async () => {
     const temporaryPath = join(temporaryDirectory, "snapshot.sqlite");
     writeProgress(SNAPSHOT_PROGRESS.syncing);
-    await syncReplica(temporaryPath, request, factory);
+    await syncReplica(temporaryPath, request, factory, signal);
     writeProgress(SNAPSHOT_PROGRESS.verifying);
-    await checkpointAndVerify(temporaryPath, factory);
+    await checkLocalSnapshot(
+      temporaryPath,
+      factory,
+      SNAPSHOT_QUERY_CHECKS,
+      signal,
+    );
     await requireEmptyWal(temporaryPath);
     writeProgress(SNAPSHOT_PROGRESS.publishing);
     await publishSnapshot(temporaryPath, outputPath);

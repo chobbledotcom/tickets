@@ -5,8 +5,8 @@ import { squareApi } from "#shared/square.ts";
 import {
   configureSquare,
   withSquareClient,
-} from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
+} from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 describeSquare(() => {

@@ -8,8 +8,8 @@ import { renderChildBlock } from "#templates/public/reservations/child-block.ts"
 import {
   selectOptionsFromHtml,
   selectOptionsHtml,
-} from "#test/lib/server-parents-gate/helpers.ts";
-import { ticketListing } from "#test/templates/public/helpers.ts";
+} from "#test/test-utils/parents-gate/helpers.ts";
+import { ticketListing } from "#test/ui/templates/helpers.ts";
 import { followRedirectWithFlash } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

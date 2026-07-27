@@ -2,10 +2,10 @@
  * Unit-test coverage report — import-based attribution.
  *
  * The path-mirror rule in `unit-tests-report-lib.ts` only sees a test as
- * covering a source when it *sits* at the mirror location. But this repo grew a
- * large legacy `test/lib/` tree whose files test `src/shared` and `src/features`
- * code from a path that mirrors nothing, so the path rule reports them as
- * orphans and their sources as untested. Reading what each test actually
+ * covering a source when it *sits* at the mirror location. A test can sit away
+ * from the code it covers — an old flat name, or a suite that grew where it was
+ * first written — so the path rule calls it an orphan and its source untested.
+ * Reading what each test actually
  * `import`s recovers the real source→test link the paths have lost, and turns it
  * into an actionable list: a test that imports exactly one source but doesn't
  * live at that source's mirror is a file to *move* so the tree lines up.
@@ -28,7 +28,7 @@ import {
 /** A test file paired with the `src/` paths it imports, resolved from aliases. */
 export type TestImports = {
   path: string;
-  imports: string[];
+  imports: readonly string[];
 };
 
 /** The `deno.json` import map: each `#`-alias to the path it maps to. */

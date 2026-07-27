@@ -5,6 +5,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { ModifierRow } from "#shared/db/modifiers.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Modifier } from "#shared/types.ts";
 import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
@@ -15,11 +16,13 @@ import {
 import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { CollectionTable } from "#templates/components/data-table.tsx";
+import { itemsOrEmptyNote } from "#templates/components/reorder-list.tsx";
 import {
   SaveForm,
   saveFormComponent,
 } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { getModifierForm } from "#templates/fields/modifier.ts";
 import {
   ModifierRunningTotalsSection,
@@ -103,6 +106,45 @@ const ModifierFieldsForm = saveFormComponent<
   submitLabel: t("common.save_changes"),
 }));
 
+const modifiersTable = defineTable<Modifier, AdminSession>([
+  translatedTableColumn("name", "common.name", (modifier, session) =>
+    adminDestinationAllowed(
+      "modifierEdit",
+      session.adminLevel,
+      isReadOnly(),
+    ) ? (
+      <a href={adminPath("modifierEdit", { id: modifier.id })}>
+        {modifier.name}
+      </a>
+    ) : (
+      modifier.name
+    ),
+  ),
+  {
+    cell: ruleSummary,
+    header: () => t("modifiers.rule_column"),
+    key: "rule",
+  },
+  {
+    cell: (modifier) => modifier.total_uses,
+    class: "quantity",
+    header: () => t("modifiers.uses_column"),
+    key: "uses",
+  },
+  {
+    cell: (modifier) => modifier.usage_count,
+    class: "quantity",
+    header: () => t("modifiers.orders_column"),
+    key: "orders",
+  },
+  {
+    cell: (modifier) => formatCurrency(modifier.total_revenue),
+    class: "amount",
+    header: () => t("modifiers.revenue_column"),
+    key: "revenue",
+  },
+]);
+
 export const adminModifiersPage = (
   modifiers: Modifier[],
   session: AdminSession,
@@ -112,32 +154,9 @@ export const adminModifiersPage = (
     active: "/admin/modifiers",
     children: (
       <>
-        <CollectionTable
-          columns={[
-            { header: t("common.name") },
-            { header: t("modifiers.rule_column") },
-            { class: "quantity", header: t("modifiers.uses_column") },
-            { class: "quantity", header: t("modifiers.orders_column") },
-            { class: "amount", header: t("modifiers.revenue_column") },
-          ]}
-          emptyKey="modifiers.no_modifiers"
-          items={modifiers}
-          rows={modifiers.map((m) => [
-            adminDestinationAllowed(
-              "modifierEdit",
-              session.adminLevel,
-              isReadOnly(),
-            ) ? (
-              <a href={adminPath("modifierEdit", { id: m.id })}>{m.name}</a>
-            ) : (
-              m.name
-            ),
-            ruleSummary(m),
-            m.total_uses,
-            m.usage_count,
-            formatCurrency(m.total_revenue),
-          ])}
-        />
+        {itemsOrEmptyNote(modifiers, t("modifiers.no_modifiers"), (rows) =>
+          renderTable(modifiersTable, rows, { context: session }),
+        )}
         <ModifiersGuideFooter />
       </>
     ),

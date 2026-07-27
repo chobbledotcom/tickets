@@ -3,9 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { ProviderRead } from "#shared/payment-state/observation.ts";
 import type { ProviderResource } from "#shared/payment-state/resources.ts";
 import type { stripeApi } from "#shared/stripe.ts";
-import { stripeRefund } from "#test/lib/stripe/fixtures.ts";
-import { readStripeProvider } from "#test/lib/stripe/provider-fixtures.ts";
 import { REFUND_RESOURCE } from "#test/shared/db/payments/fixtures.ts";
+import { stripeRefund } from "#test/test-utils/stripe/fixtures.ts";
+import { readStripeProvider } from "#test/test-utils/stripe/provider-fixtures.ts";
 
 const readRefund = (
   lookup: Awaited<ReturnType<typeof stripeApi.retrieveRefund>>,

@@ -4,9 +4,9 @@ import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { signedWebhook } from "#test/lib/stripe/fixtures.ts";
-import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { SESSION_RESOURCE } from "#test/shared/db/payments/fixtures.ts";
+import { signedWebhook } from "#test/test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 
 describeStripe("Stripe provider webhook", () => {
   const verify = async (event: unknown) => {

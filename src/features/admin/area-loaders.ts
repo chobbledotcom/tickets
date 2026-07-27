@@ -39,7 +39,7 @@ const area = <M extends { adminHandlers: HandlerMap }>(
 
 const guideMessageGroups = messageGroupsBySegment({
   formatting: ["guide-formatting"],
-  guide: ["builder", ...GUIDE_MESSAGE_GROUPS],
+  guide: ["attendees", "builder", "listings-table", ...GUIDE_MESSAGE_GROUPS],
 });
 
 // Import specifiers stay literal so esbuild can bundle every target.

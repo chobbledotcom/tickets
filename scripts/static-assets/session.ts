@@ -1,4 +1,5 @@
 import type { BuildOptions } from "esbuild";
+import { once } from "#fp";
 import { runCleanups } from "#scripts/cleanup.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 
@@ -8,7 +9,7 @@ export interface StaticBundle {
 }
 
 export interface StaticAssetBuild {
-  affected(file: string): StaticBundle[];
+  affected(file: string): Promise<StaticBundle[]>;
   dispose(): Promise<void>;
   rebuild(bundles: StaticBundle[]): Promise<boolean>;
   restore(bundles: StaticBundle[]): Promise<void>;
@@ -32,6 +33,46 @@ export interface StaticAssetFiles {
   stop(): void;
   write(file: string, contents: Uint8Array): Promise<void>;
 }
+
+/**
+ * A build that has not happened yet. Every method that genuinely needs the
+ * bundler runs `build` first (once), so callers cannot tell the difference —
+ * they only pay for it if they use it. Disposing a build nobody asked for does
+ * nothing.
+ */
+export const deferStaticAssetBuild = (
+  build: () => Promise<StaticAssetBuild>,
+): StaticAssetBuild => {
+  const asked = { value: false };
+  const started = once(async (): Promise<StaticAssetBuild> => {
+    asked.value = true;
+    return await build();
+  });
+  return {
+    affected: async (file) => (await started()).affected(file),
+    dispose: async () => {
+      if (asked.value) await (await started()).dispose();
+    },
+    rebuild: async (bundles) => (await started()).rebuild(bundles),
+    restore: async (bundles) => (await started()).restore(bundles),
+  };
+};
+
+/**
+ * The build a run should work with: when the assets on disk are already
+ * current, one that waits until something actually asks; otherwise the real
+ * build, run now, because the assets have to exist before any test starts.
+ *
+ * `buildLater` covers the case where a build put off until something asks for
+ * it needs to be started differently from one run right now — the caller may be
+ * holding a lock now that it will not hold then. It defaults to `build`.
+ */
+export const buildOrReuseStaticAssets = async (
+  upToDate: boolean,
+  build: () => Promise<StaticAssetBuild>,
+  buildLater: () => Promise<StaticAssetBuild> = build,
+): Promise<StaticAssetBuild> =>
+  upToDate ? deferStaticAssetBuild(buildLater) : await build();
 
 export const fileExists = async (file: string): Promise<boolean> => {
   try {
@@ -105,7 +146,7 @@ export const createStaticAssetBuild = (
   const graph = buildGraph(bundles, files.resolve);
   const byBundle = new Map(bundles.map((built) => [built.bundle, built]));
   return {
-    affected: (file) => graph.get(files.resolve(file)) ?? [],
+    affected: (file) => Promise.resolve(graph.get(files.resolve(file)) ?? []),
     dispose: () =>
       runCleanups([
         () => disposeStaticBundleContexts(bundles),

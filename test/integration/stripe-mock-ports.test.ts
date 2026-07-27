@@ -19,7 +19,7 @@ import {
   writeFailingMock,
   writePortThief,
   writeTermIgnoringMock,
-} from "#test/lib/stripe-mock/helpers.ts";
+} from "#test/test-utils/stripe-mock/helpers.ts";
 
 describe("stripe-mock ports and environment", () => {
   test("uses the default port when the env var is absent", () => {

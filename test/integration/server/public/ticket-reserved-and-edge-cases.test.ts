@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { expectBothReservedAtTwoAndOne } from "#test/lib/server-public/_shared-multi.ts";
+import { expectBothReservedAtTwoAndOne } from "#test/integration/server/public/_shared-multi.ts";
 import {
   assertPublicHtml,
   expectCheckoutRedirect,

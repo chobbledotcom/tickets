@@ -7,7 +7,8 @@
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
-import { isSumupCurrency, sumupApi } from "#shared/sumup.ts";
+import { providerCurrencyBlock } from "#shared/payment-providers.ts";
+import { sumupApi } from "#shared/sumup.ts";
 
 /* jscpd:ignore-end */
 
@@ -32,9 +33,8 @@ export const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
   testFn: () => sumupApi.testSumupConnection(),
   validate: ({ merchantCode }) => {
     if (isDemoMode()) return "Cannot configure SumUp in demo mode";
-    if (!isSumupCurrency(settings.currency)) {
-      return `SumUp does not support your site currency (${settings.currency}). Choose a different payment provider.`;
-    }
+    const currencyBlock = providerCurrencyBlock("sumup", settings.currency);
+    if (currencyBlock) return currencyBlock;
     if (!merchantCode) return "Merchant code is required";
     return null;
   },

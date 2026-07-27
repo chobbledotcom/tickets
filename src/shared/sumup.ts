@@ -15,6 +15,10 @@ import {
   type CredentialCheck,
   createWithClient,
 } from "#shared/payment-helpers.ts";
+import {
+  providerCurrencyBlock,
+  SUMUP_CURRENCIES,
+} from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   makeProviderTransportReader,
@@ -33,27 +37,7 @@ import {
 
 /* jscpd:ignore-end */
 
-const SumupCurrencySchema = v.picklist([
-  "BGN",
-  "BRL",
-  "CHF",
-  "CLP",
-  "COP",
-  "CZK",
-  "DKK",
-  "EUR",
-  "GBP",
-  "HRK",
-  "HUF",
-  "NOK",
-  "PLN",
-  "RON",
-  "SEK",
-  "USD",
-]);
-
-export const isSumupCurrency = (code: string): boolean =>
-  v.is(SumupCurrencySchema, code.toUpperCase());
+const SumupCurrencySchema = v.picklist(SUMUP_CURRENCIES);
 
 export type {
   SumupCheckout,
@@ -235,7 +219,7 @@ export const sumupApi: {
       apiKey: { valid: false },
       currency: {
         code: currencyCode,
-        supported: isSumupCurrency(currencyCode),
+        supported: providerCurrencyBlock("sumup", currencyCode) === null,
       },
       merchant: { configured: false },
       ok: false,

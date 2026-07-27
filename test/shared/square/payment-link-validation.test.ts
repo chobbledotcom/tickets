@@ -11,8 +11,8 @@ import {
   configureSquare,
   expectNoLink,
   withSquareClient,
-} from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
+} from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import {
   checkoutIntent,
   checkoutItem,

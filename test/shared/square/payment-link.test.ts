@@ -9,20 +9,18 @@ import {
   expectNoLink,
   linkResult,
   withSquareClient,
-} from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
+} from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import {
   checkoutIntent,
   checkoutItem,
   preparedCheckout,
 } from "#test-utils/checkout.ts";
-import { useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 
 describeSquare(() => {
   const debug = useDebugLogSpy();
-  const debugMessages = (): string[] =>
-    debug().calls.map((call) => String(call.args[0]));
 
   describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
@@ -38,7 +36,9 @@ describeSquare(() => {
       await configureSquare();
       // No location ID set
       await expectNoLink(checkoutIntent());
-      expect(debugMessages()).toContain("[Square] No location ID configured");
+      expect(debugMessages(debug())).toContain(
+        "[Square] No location ID configured",
+      );
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -106,10 +106,10 @@ describeSquare(() => {
           expect(args.prePopulatedData.buyerPhoneNumber).toBe("+5559876");
 
           expect(args.idempotencyKey).toBe("square-single");
-          expect(debugMessages()).toContain(
+          expect(debugMessages(debug())).toContain(
             "[Square] Creating payment link for 1 listing(s)",
           );
-          expect(debugMessages()).toContain(
+          expect(debugMessages(debug())).toContain(
             "[Square] Payment link created orderId=order_abc",
           );
         },

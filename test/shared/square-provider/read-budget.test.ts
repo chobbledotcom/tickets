@@ -10,15 +10,15 @@ import {
   runWithSubrequestBudget,
 } from "#shared/subrequest-budget.ts";
 import {
-  configureSquare,
-  withSquareClient,
-} from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
-import {
   orderResponse,
   paymentResponse,
   squarePayment,
 } from "#test/shared/square-provider/fixtures.ts";
+import {
+  configureSquare,
+  withSquareClient,
+} from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 
 describeSquare(() => {
   test("persists all forty tender facts as one conflict under budget", async () => {

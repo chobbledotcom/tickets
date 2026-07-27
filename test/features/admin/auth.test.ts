@@ -556,7 +556,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       // Verify key content elements that should never be blank
       expect(html).toContain("Listings"); // Page title
       expect(html).toContain("<table"); // Table structure
-      expect(html).toContain("Listing Name"); // Table header
+      expect(html).toContain("Listing name"); // Table header
       expect(html.length).toBeGreaterThan(500); // Substantial content
     });
 
@@ -645,7 +645,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       expect(getResponse.status).toBe(200);
       expect(html).toContain("Login");
       expect(html).toContain("Username or password was wrong");
-      expect(html).not.toContain("Listing Name");
+      expect(html).not.toContain("Listing name");
     });
   });
 });

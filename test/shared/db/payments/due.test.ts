@@ -37,6 +37,7 @@ describeWithEnv("db > payments > due reconciliation", { db: true }, () => {
     expect(PAYMENT_RECONCILIATION_PAGE_SIZE).toBe(1);
     expect(await getDuePaymentSessionsPrimary()).toEqual([
       {
+        bulkRefund: false,
         id: "payment-a",
         nextReconcileAt: 0,
         provider: "stripe",

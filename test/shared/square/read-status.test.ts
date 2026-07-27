@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { squareApi } from "#shared/square.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
-import { installMockFetch } from "#test/lib/square/mock-fetch.ts";
+import { installMockFetch } from "#test/shared/square/mock-fetch.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 
 describeSquare(() => {
   let originalFetch: typeof globalThis.fetch;

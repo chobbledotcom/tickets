@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createStripeClient } from "#shared/stripe/client.ts";
-import { refundHeaderProbe } from "#test/lib/stripe/refund-header-probe.ts";
-import { stripeResponseFor } from "#test/lib/stripe/responses.ts";
+import { refundHeaderProbe } from "#test/shared/stripe/refund-header-probe.ts";
+import { stripeResponseFor } from "#test/test-utils/stripe/responses.ts";
 
 test("maps every used Stripe operation to its endpoint", async () => {
   const requests: { body: string; method: string; path: string }[] = [];

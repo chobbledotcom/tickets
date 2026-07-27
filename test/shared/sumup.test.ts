@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { isSumupCurrency, sumupApi } from "#shared/sumup.ts";
+import { sumupApi } from "#shared/sumup.ts";
 import {
   describeSumup,
   SUMUP_MERCHANT_CODE,
@@ -16,13 +16,6 @@ describeSumup("SumUp configuration", () => {
 
   test("creates a client when the API key is configured", () => {
     expect(sumupApi.getSumupClient()).not.toBeNull();
-  });
-
-  test("recognizes supported currencies without case sensitivity", () => {
-    expect(isSumupCurrency("gbp")).toBe(true);
-    expect(isSumupCurrency("EUR")).toBe(true);
-    expect(isSumupCurrency("AUD")).toBe(false);
-    expect(isSumupCurrency("JPY")).toBe(false);
   });
 
   test("reports a missing API key", async () => {

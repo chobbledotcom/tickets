@@ -10,13 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: "Source glob to mutate (quote globs, e.g. 'src/lib/forms/*.ts')"
+        description: "Source glob to mutate (quote globs, e.g. 'src/shared/forms/*.ts')"
         required: true
         default: "src/shared/dates.ts"
       test:
         description: "Test glob run against each mutant"
         required: true
-        default: "test/lib/dates.test.ts"
+        default: "test/shared/dates.test.ts"
       exhaustive:
         description: "Try every operator replacement, not just one per operator"
         type: boolean

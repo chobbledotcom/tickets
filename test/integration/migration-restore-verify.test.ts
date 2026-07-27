@@ -20,11 +20,11 @@ import {
   migrationById,
   seedSentinelListing,
   triggerExists,
-} from "#test/lib/db/migration-restore/helpers.ts";
+} from "#test/integration/db/migration-restore/helpers.ts";
 import {
   downgradeListingDomainToLegacyNames,
   tableRowCount,
-} from "#test/lib/db/migration-test-helpers.ts";
+} from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 

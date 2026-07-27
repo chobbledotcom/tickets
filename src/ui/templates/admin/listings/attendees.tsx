@@ -9,6 +9,7 @@ import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type Attendee,
+  type AttendeeTableRow,
   availableDayCounts,
   hasTicketQuantity,
   isPaidListing,
@@ -19,10 +20,7 @@ import {
   attendeeTableOptions,
 } from "#templates/admin/attendee-table-block.tsx";
 import { sumQuantity } from "#templates/admin/detail-rows.tsx";
-import type {
-  AttendeeTableRow,
-  TableQuestionData,
-} from "#templates/attendee-table.tsx";
+import type { TableQuestionData } from "#templates/attendee-table/types.ts";
 import { quantityHeader } from "#templates/components/header-row.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";

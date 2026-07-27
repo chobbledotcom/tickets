@@ -317,6 +317,25 @@ deno task screenshot all --social facebook,instagram-portrait
 deno task screenshot dashboard --social all
 ```
 
+### Specification evidence
+
+`deno task specs:evidence` runs only Cucumber cases that declare evidence. It
+runs them one at a time and captures each declared final page before that
+scenario's test database is removed. Normal `specs` and `test` runs do not start
+Chromium. Commit local changes before running it: the task refuses a dirty Git
+worktree so the manifest cannot name a commit that differs from the captured
+code.
+
+The task writes a versioned `reports/evidence/manifest.json` and PNG files under
+`reports/evidence/assets/`. The manifest uses the authored story, rule, case,
+and capture IDs. It includes the app commit, image hash and dimensions, browser
+profile, viewport, and presentation type. Raw Cucumber messages and reports are
+not part of this evidence folder. The app workflow verifies the capture on pull
+requests. Main pushes and a monthly refresh upload this folder as the stable
+`tickets-evidence` artifact with GitHub's 90-day retention. The Tickets website
+imports that artifact into a reviewed pull request
+and keeps its ordinary site build offline.
+
 
 ```bash
 # Install Deno, cache dependencies, run all checks
@@ -346,6 +365,7 @@ deno task deploy:edge <script-id> # Build, upload, and publish to Bunny Edge usi
 deno task backup         # Dump the database out-of-band (uploads to storage; --out <path> for a local .zip)
 deno task restore <backup.zip> # Restore the database at DB_URL from a local backup using DB_TOKEN from .env
 deno task snapshot --out <path.sqlite> # Copy the complete remote database to a local SQLite file
+deno task migrate:turso   # Copy a remote database into a new Turso database
 deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)
 ```
 
@@ -370,6 +390,9 @@ Optional:
 | `UPTIME_KUMA_USERNAME` | Uptime Kuma username. Requires `UPTIME_KUMA_URL` and `UPTIME_KUMA_PASSWORD`. |
 | `UPTIME_KUMA_PASSWORD` | Uptime Kuma password. Requires `UPTIME_KUMA_URL` and `UPTIME_KUMA_USERNAME`. |
 | `UPTIME_KUMA_INTERVAL_MINUTES` | How often built-site monitors run. Any positive whole-minute interval is allowed. Defaults to `15`. |
+| `TURSO_API_TOKEN` | Turso platform API key used to create databases. `deno task migrate:turso` asks for it when it is not set. |
+| `TURSO_ORGANIZATION` | Turso organization used for new databases. The migration task discovers or asks for it when it is not set. |
+| `TURSO_GROUP` | Turso group used for new databases. The migration task discovers or asks for it when it is not set. |
 
 Optional:
 
@@ -397,6 +420,10 @@ deno task snapshot --out .local-data/site.sqlite
 ```
 
 The task reads `DB_URL` and `DB_TOKEN` from `.env`. Values in that file take priority over existing shell variables. It then uses libSQL page-level sync, moves all WAL data into the main file, and checks the finished database before publishing it. It refuses to replace an existing file. The temporary replica is created beside the output and removed on success or failure. Local `.sqlite` files and `.local-data/` are ignored by Git. Run this only on a development machine; it needs a local filesystem and the native libSQL client. The file contains the database exactly as stored, including encrypted personal data, but it does not include environment secrets or files held in Bunny Storage.
+
+**Migrate to Turso:** run `deno task migrate:turso` to copy a remote libSQL database into a new Turso database. The task asks for the source database URL, its password or token, and the new database name. It uses `TURSO_API_TOKEN` from `.env` or the shell when available. Otherwise, it asks for the API key without showing it. It uses `TURSO_ORGANIZATION` and `TURSO_GROUP` when set. Otherwise, it discovers the available choices and asks only when there is more than one.
+
+The task checks that the destination name is free before downloading the source. It creates a verified standalone SQLite snapshot, then streams that file through Turso's native database upload API. It does not rebuild the database one SQL statement at a time. If token creation or upload fails, it deletes the incomplete Turso database. On success it prints the new `DB_URL` and `DB_TOKEN`. Keep using the source `DB_ENCRYPTION_KEY`; that key is not stored in the database file.
 
 The deploy workflows back a site up (via `POST /instance/site-credentials`) before deploying to it (the staging push-to-`main` trigger is the one exception — see below):
 

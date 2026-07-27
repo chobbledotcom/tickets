@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  type CommandResult,
-  runCommand,
-  runInteractiveCommand,
-} from "#scripts/precommit/git.ts";
+import { runCommand, runInteractiveCommand } from "#scripts/precommit/git.ts";
 import {
   getMergeConflictWarning,
   parseMergeTreeConflictedPaths,
@@ -20,31 +16,22 @@ import {
   canShowProgress,
   currentTerminalState,
 } from "#scripts/precommit/terminal.ts";
+import type { CapturedOutput } from "#scripts/process.ts";
+import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 
-const ok = (stdout = ""): CommandResult => ({
-  code: 0,
-  stderr: "",
-  stdout,
-  success: true,
-});
-
-const fail = (code: number, stdout = "", stderr = ""): CommandResult => ({
-  code,
-  stderr,
-  stdout,
-  success: false,
-});
+const fail = (code: number, stdout = "", stderr = ""): CapturedOutput =>
+  capturedFail(code, stderr, stdout);
 
 /** A 40-char SHA stdout line built from a single repeated character. */
-const sha = (c: string): CommandResult => ok(`${c.repeat(40)}\n`);
+const sha = (c: string): CapturedOutput => capturedOk(`${c.repeat(40)}\n`);
 
 /** The six git-metadata responses getMergeConflictWarning reads before
  *  merge-tree: inside-work-tree, the remote URL, then four resolved SHAs. */
 const gitMeta = (
   remote = "git@github.com:chobbledotcom/tickets.git",
-): CommandResult[] => [
-  ok("true\n"),
-  ok(`${remote}\n`),
+): CapturedOutput[] => [
+  capturedOk("true\n"),
+  capturedOk(`${remote}\n`),
   sha("a"),
   sha("b"),
   sha("c"),
@@ -53,12 +40,12 @@ const gitMeta = (
 
 /** A `run` that returns each queued response in turn, then fail(128). */
 const runFrom =
-  (responses: CommandResult[]) =>
-  (_cmd: string[]): Promise<CommandResult> =>
+  (responses: CapturedOutput[]) =>
+  (_cmd: string[]): Promise<CapturedOutput> =>
     Promise.resolve(responses.shift() ?? fail(128));
 
 /** A merge-tree (--name-only) failure listing the given conflicted paths. */
-const mergeTreeConflict = (...paths: string[]): CommandResult =>
+const mergeTreeConflict = (...paths: string[]): CapturedOutput =>
   fail(
     1,
     [
@@ -72,8 +59,8 @@ const mergeTreeConflict = (...paths: string[]): CommandResult =>
 
 /** Like runFrom, but records every command for later assertion. */
 const runRecording = (
-  responses: CommandResult[],
-): { calls: string[][]; run: (cmd: string[]) => Promise<CommandResult> } => {
+  responses: CapturedOutput[],
+): { calls: string[][]; run: (cmd: string[]) => Promise<CapturedOutput> } => {
   const calls: string[][] = [];
   return {
     calls,
@@ -85,27 +72,27 @@ const runRecording = (
 };
 
 /** Push context responses for a clean branch with one unpushed commit. */
-const pushReady = (): CommandResult[] => [
-  ok("true\n"),
-  ok(""),
-  ok("Ready\n"),
-  ok("origin/feature\n"),
-  ok("1\n"),
-  ok("git@github.com:chobbledotcom/tickets.git\n"),
-  ok("feature\n"),
+const pushReady = (): CapturedOutput[] => [
+  capturedOk("true\n"),
+  capturedOk(""),
+  capturedOk("Ready\n"),
+  capturedOk("origin/feature\n"),
+  capturedOk("1\n"),
+  capturedOk("git@github.com:chobbledotcom/tickets.git\n"),
+  capturedOk("feature\n"),
 ];
 
 /** A `push` that records its invocations (so a test can assert it ran or not). */
 const trackPush = (): {
   calls: string[][];
-  push: (cmd: string[]) => Promise<CommandResult>;
+  push: (cmd: string[]) => Promise<CapturedOutput>;
 } => {
   const calls: string[][] = [];
   return {
     calls,
     push: (cmd: string[]) => {
       calls.push(cmd);
-      return Promise.resolve(ok());
+      return Promise.resolve(capturedOk());
     },
   };
 };
@@ -117,7 +104,7 @@ const runPushPrompt = (
   promptToPushCheckedInChanges({
     confirm: () => Promise.resolve(true),
     isInteractive: () => true,
-    push: () => Promise.resolve(ok()),
+    push: () => Promise.resolve(capturedOk()),
     run: runFrom([]),
     ...overrides,
   });
@@ -179,7 +166,7 @@ describe("precommit merge conflict warning", () => {
 
   test("does not warn when required git metadata commands fail", async () => {
     const run = runFrom([
-      ok("true\n"),
+      capturedOk("true\n"),
       fail(128, "", "fatal: no such remote 'origin'\n"),
     ]);
     await expect(getMergeConflictWarning(run)).resolves.toBeUndefined();
@@ -187,8 +174,8 @@ describe("precommit merge conflict warning", () => {
 
   test("does not warn when required git metadata is blank", async () => {
     const run = runFrom([
-      ok("true\n"),
-      ok("\n"),
+      capturedOk("true\n"),
+      capturedOk("\n"),
       sha("a"),
       sha("b"),
       sha("c"),
@@ -275,13 +262,13 @@ describe("precommit terminal behavior", () => {
 describe("precommit push prompt", () => {
   test("builds prompt context for a clean branch with unpushed commits", async () => {
     const { calls, run } = runRecording([
-      ok("true\n"),
-      ok(""),
-      ok("Ship the hook\n\nBody\n"),
-      ok("origin/feature\n"),
-      ok("2\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("feature\n"),
+      capturedOk("true\n"),
+      capturedOk(""),
+      capturedOk("Ship the hook\n\nBody\n"),
+      capturedOk("origin/feature\n"),
+      capturedOk("2\n"),
+      capturedOk("git@github.com:chobbledotcom/tickets.git\n"),
+      capturedOk("feature\n"),
     ]);
 
     await expect(getPushPromptContext(run)).resolves.toEqual({
@@ -309,14 +296,14 @@ describe("precommit push prompt", () => {
 
   test("uses origin main as a fallback when no upstream exists", async () => {
     const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Ship local branch\n"),
+      capturedOk("true\n"),
+      capturedOk(""),
+      capturedOk("Ship local branch\n"),
       fail(128),
-      ok("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
-      ok("1\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("feature\n"),
+      capturedOk("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
+      capturedOk("1\n"),
+      capturedOk("git@github.com:chobbledotcom/tickets.git\n"),
+      capturedOk("feature\n"),
     ];
     const run = runFrom(responses);
 
@@ -330,13 +317,13 @@ describe("precommit push prompt", () => {
 
   test("assumes one unpushed commit when no comparison ref exists", async () => {
     const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Initial branch commit\n"),
+      capturedOk("true\n"),
+      capturedOk(""),
+      capturedOk("Initial branch commit\n"),
       fail(128),
       fail(128),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("feature\n"),
+      capturedOk("git@github.com:chobbledotcom/tickets.git\n"),
+      capturedOk("feature\n"),
     ];
     const run = runFrom(responses);
 
@@ -349,21 +336,24 @@ describe("precommit push prompt", () => {
   });
 
   test("does not build context outside a git work tree", async () => {
-    const run = (_cmd: string[]): Promise<CommandResult> =>
+    const run = (_cmd: string[]): Promise<CapturedOutput> =>
       Promise.resolve(fail(128));
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
 
   test("does not build context when the worktree is dirty", async () => {
-    const responses = [ok("true\n"), ok(" M scripts/precommit.ts\n")];
+    const responses = [
+      capturedOk("true\n"),
+      capturedOk(" M scripts/precommit.ts\n"),
+    ];
     const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
 
   test("does not build context when there is no commit message", async () => {
-    const responses = [ok("true\n"), ok(""), ok("\n")];
+    const responses = [capturedOk("true\n"), capturedOk(""), capturedOk("\n")];
     const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
@@ -371,11 +361,11 @@ describe("precommit push prompt", () => {
 
   test("does not build context when there are no unpushed commits", async () => {
     const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Already pushed\n"),
-      ok("origin/feature\n"),
-      ok("0\n"),
+      capturedOk("true\n"),
+      capturedOk(""),
+      capturedOk("Already pushed\n"),
+      capturedOk("origin/feature\n"),
+      capturedOk("0\n"),
     ];
     const run = runFrom(responses);
 
@@ -384,11 +374,11 @@ describe("precommit push prompt", () => {
 
   test("does not build context when unpushed count is blank", async () => {
     const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Blank count\n"),
-      ok("origin/feature\n"),
-      ok("\n"),
+      capturedOk("true\n"),
+      capturedOk(""),
+      capturedOk("Blank count\n"),
+      capturedOk("origin/feature\n"),
+      capturedOk("\n"),
     ];
     const run = runFrom(responses);
 
@@ -397,11 +387,11 @@ describe("precommit push prompt", () => {
 
   test("does not build context when unpushed count is invalid", async () => {
     const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Bad count\n"),
-      ok("origin/feature\n"),
-      ok("many\n"),
+      capturedOk("true\n"),
+      capturedOk(""),
+      capturedOk("Bad count\n"),
+      capturedOk("origin/feature\n"),
+      capturedOk("many\n"),
     ];
     const run = runFrom(responses);
 
@@ -410,13 +400,13 @@ describe("precommit push prompt", () => {
 
   test("does not build context without an origin remote", async () => {
     const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("No origin\n"),
-      ok("origin/feature\n"),
-      ok("1\n"),
+      capturedOk("true\n"),
+      capturedOk(""),
+      capturedOk("No origin\n"),
+      capturedOk("origin/feature\n"),
+      capturedOk("1\n"),
       fail(128),
-      ok("feature\n"),
+      capturedOk("feature\n"),
     ];
     const run = runFrom(responses);
 
@@ -425,13 +415,13 @@ describe("precommit push prompt", () => {
 
   test("does not build context for a detached head", async () => {
     const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Detached\n"),
-      ok("origin/feature\n"),
-      ok("1\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("HEAD\n"),
+      capturedOk("true\n"),
+      capturedOk(""),
+      capturedOk("Detached\n"),
+      capturedOk("origin/feature\n"),
+      capturedOk("1\n"),
+      capturedOk("git@github.com:chobbledotcom/tickets.git\n"),
+      capturedOk("HEAD\n"),
     ];
     const run = runFrom(responses);
 

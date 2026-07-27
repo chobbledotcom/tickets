@@ -17,7 +17,11 @@ import {
   clearTestEncryptionKey,
   setupTestEncryptionKey,
 } from "#test-utils/env.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+import {
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
+} from "#test-utils/internal.ts";
+import { extractFormEntries, TestBrowser } from "#test-utils/test-browser.ts";
 
 /** Invalidate every in-process cache after a fresh-install / destructive DB write. */
 export const invalidateAllCaches = (): void => {
@@ -52,6 +56,22 @@ export const setupAndLogin = async (browser: TestBrowser): Promise<void> => {
   if (browser.containsText("Migration complete")) {
     await browser.clickLink("Back to dashboard");
   }
+};
+
+/** Fill in the login form the browser is looking at as the seeded admin. */
+export const logInAsTestAdmin = (browser: TestBrowser): Promise<void> =>
+  browser.submitForm(
+    { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
+    "Login",
+  );
+
+/** A fresh browser logged in as the seeded admin through the real login form.
+ * Use this on a database that already went through the setup ceremony. */
+export const loggedInAdminBrowser = async (): Promise<TestBrowser> => {
+  const browser = new TestBrowser();
+  await browser.visit("/admin/");
+  await logInAsTestAdmin(browser);
+  return browser;
 };
 
 /** Register the standard e2e browser lifecycle (fresh encryption key + DB +
@@ -152,3 +172,24 @@ export const lineIndexOnPage = (
   }
   return index;
 };
+
+/** One field's value as the CURRENT page would submit it, or throw when the
+ * page has no such control. */
+export const fieldValueOnPage = (
+  browser: TestBrowser,
+  field: string,
+): string => {
+  const entry = extractFormEntries(browser.currentHtml).find(
+    ([name]) => name === field,
+  );
+  if (!entry) throw new Error(`no ${field} control on this page`);
+  return entry[1];
+};
+
+/** The places the attendee editor holds for one listing's line. Read from that
+ * line's own box, so a place dropped or moved to another line is caught. */
+export const linePlacesOnPage = (
+  browser: TestBrowser,
+  listingId: string | number,
+): string =>
+  fieldValueOnPage(browser, `qty_${lineIndexOnPage(browser, listingId)}`);

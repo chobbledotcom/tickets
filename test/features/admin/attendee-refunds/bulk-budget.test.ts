@@ -11,7 +11,7 @@ import {
 import {
   createPaidListing,
   seedBatchAttendees,
-} from "#test/lib/server-refunds-helpers.ts";
+} from "#test/features/admin/refunds-helpers.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";

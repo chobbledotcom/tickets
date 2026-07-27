@@ -69,6 +69,7 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
 - **Plain language for functional code**: Keep the functional style, but name helpers and write comments in simple domain words. Avoid CS jargon in code (`predicate`, `cohort`, `projection`, `fold`, `atom`, etc.) when a plain phrase works. A helper should explain itself like "Keeps only children that can still be booked for this ticket." Write for someone without a CS degree; a ten-year-old should understand the comment and the method name, even if the implementation uses `map`, `filter`, or `reduce`.
 - **Comments describe current code**: Do not leave comments that compare current code with an old implementation or explain what the code replaced. They do not help someone understand the code as it works now. Git history preserves the old code if anyone needs it. Delete stale historical comments when you find them.
+- **Comments are short, because the code says the rest**: Well-named methods and values already say *what* the code does, so a comment only needs to add what the reader cannot see — a *why*, a constraint, a surprise. One or two lines is the norm; a paragraph above a few lines of code is a smell, and usually a sign the code should be clearer instead. Never re-narrate the lines below in prose, never restate a name (`/** Save the listing. */` above `saveListing`), and never explain a language feature. If a comment is growing to explain a tangle, fix the tangle: rename the thing, or pull the confusing part into a named helper whose name carries the explanation. The bar to clear is "would a competent reader be surprised or misled without this?" — if not, delete it. This applies to prose in commit messages and PR descriptions too: say what changed and why, then stop.
 - **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix duplication with a helper or currying — see [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import blocks, essentially nothing else. The warning is a *positive signal* pointing at a real merge to make — never work around it by changing a structure so the matcher stops matching (config objects, namespace imports, reordering, lifting to a named const, all to dodge the token match) while leaving two parallel implementations standing. Every merge is warranted; the merges are the whole goal. After each dedup, zoom out and fold the new helper into other call sites and older siblings it now subsumes.
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches. Coverage must also be *deterministic*: a line or branch reached only through a spawned subprocess or e2e test (e.g. the `cli/` scripts, exercised by `test/e2e/cli-api.test.ts` via `deno run`) is covered non-deterministically — the child process's coverage is collected through `DENO_COVERAGE_DIR` and is environment-sensitive, so it can pass CI on one run and fail on the next. Give any branch that must stay covered a direct in-process unit test, not just incidental subprocess coverage.
 - **Hardest first, no need to ask**: When the only open question is *what order to build several things in*, the answer is always "do the more difficult one first" — just proceed, don't ask.
@@ -185,7 +186,7 @@ pad a message with general knowledge the reader already has.
 All user-facing text is in the message catalog at `src/locales/en/*.json`,
 reached through `t("key")` (see `src/shared/i18n.ts`). Changing what a user
 reads is a **catalog edit, not a template edit** — the `i18n-coverage` test
-(`test/lib/i18n-coverage.test.ts`) fails the build when a new hard-coded string
+(`test/scripts/i18n-coverage.test.ts`) fails the build when a new hard-coded string
 appears in a template. Write copy once, in the catalog, and every surface that
 shows it stays worded the same.
 
@@ -695,8 +696,10 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task start` - Run the server
 - `deno task test` - Run the full suite
 - `deno task test:coverage` - Run the full suite with coverage
-- `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
+- `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (makes sure the static assets are current, starts stripe-mock, cleans up after)
+- `deno task test:screenshot-contract` - Run the real-browser screenshot timing and responsive-layout contracts (requires Chromium)
 - `deno task specs` - Run every Cucumber Feature through the shared test harness and write ignored Messages, HTML, and JUnit reports under `reports/`
+- `deno task specs:evidence` - Run only cases with declared screenshot captures, one at a time, and write the versioned manifest plus PNG assets under `reports/evidence/`; the task requires a clean Git worktree so the manifest commit matches the captured code
 - `deno task specs:check` - Parse every Feature and validate the strict authored profile and stable catalog
 - `deno task specs:files <feature>... [--tags <expression>]` - Run selected Features through the shared harness
 - `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
@@ -705,6 +708,8 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
 - `deno task restore <backup.zip>` - Restore the database named by `DB_URL` / `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Shows the backup details, asks for typed confirmation, and reports each restore step in the console.
 - `deno task snapshot --out <path.sqlite>` - Sync the complete remote database to a standalone local SQLite file. The task prefers `DB_URL` and `DB_TOKEN` from `.env` over shell values. This developer-only task checkpoints and verifies the file, refuses to overwrite an existing path, and removes its temporary replica on success or failure.
+- `deno task migrate:turso` - Interactively copy a remote libSQL database into a new Turso database through Turso's native SQLite file upload. The task asks for source credentials and the destination name, uses `TURSO_API_TOKEN`, `TURSO_ORGANIZATION`, and `TURSO_GROUP` from `.env` when available, checks that the destination is free before downloading, and removes an incomplete destination after a failed upload.
+- `deno task migrate:sites` - Interactive menu for moving built sites off Bunny databases. Reads the live master site's `POST /instance/site-credentials` endpoint to list every built site and which company runs its database, migrates the chosen site to a new Turso database through a temporary SQLite file, then sets that site's `DB_URL` and `DB_TOKEN` secrets through the Bunny API so it uses the new database. Reads `MAIN_INSTANCE_URL`, `MAIN_INSTANCE_KEY`, `BUNNY_API_KEY`, `TURSO_API_TOKEN`, `TURSO_ORGANIZATION`, and `TURSO_GROUP` from `.env` when set, and asks for anything missing. It confirms by typed site name before changing anything, and prints the new `DB_URL`/`DB_TOKEN` so they can be set by hand if the secret update fails. The site keeps its existing `DB_ENCRYPTION_KEY`.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 - `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. All of a source's mirror-located direct tests run first, whether or not those tests changed; changed tests under `test/integration/`, `test/e2e/`, or `specs/` run only for direct-test survivors. A changed Cucumber step or support file selects every Feature. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files. If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
 - `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand in an isolated `.mutation-runs/<id>/work` copy: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
@@ -713,17 +718,19 @@ logging and table-scoped cache invalidation stay automatic.
 
 **Do NOT use `deno task test -- --filter`** to debug a specific test — it still loads the entire test suite and is very slow.
 
-Instead, use `deno task test:files`, which runs only the files you pass but reuses the full runner's setup — it builds the static client assets the app reads at import time, starts stripe-mock with `STRIPE_MOCK_HOST/PORT` exported, and removes any assets it generated afterwards. This means a fresh checkout can run a subset of the suite without manual preparation or leftover build artifacts:
+Instead, use `deno task test:files`, which runs only the files you pass but reuses the full runner's setup — it makes sure the static client assets the app reads at import time are current, and starts stripe-mock with `STRIPE_MOCK_HOST/PORT` exported. This means a fresh checkout can run a subset of the suite without manual preparation.
+
+Both runners *skip* the asset build when nothing it depends on has changed. After a build they record every file it read and wrote in `.static-assets-cache.json`, each one as a hash of its contents, and the next run hashes them again: if every file is byte-for-byte what it was, the assets on disk are already correct and esbuild and sass are never even loaded. That is about 0.8s off every run, so the built assets are now left in the tree afterwards (they are gitignored build output, and keeping them is what makes the next run fast). *Change* any client source, stylesheet, `deno.json`, or `deno.lock` — or delete one of the built files — and the next run rebuilds. Re-saving a file without changing its contents does not: the bytes decide, not the timestamp.
 
 ```bash
-deno task test:files test/lib/dates.test.ts
+deno task test:files test/shared/dates.test.ts
 ```
 
 Arguments are forwarded verbatim to `deno test`, so multiple files, directories, and flags such as `--filter` all work:
 
 ```bash
-deno task test:files test/lib/dates.test.ts --filter "formats date"
-deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks/*.test.ts
+deno task test:files test/shared/dates.test.ts --filter "formats date"
+deno task test:files test/integration/server-balance-webhook.test.ts test/integration/server/webhooks/*.test.ts
 deno task test:files specs/payments/capacity-after-payment.feature
 deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-payment.feature
 ```
@@ -733,13 +740,13 @@ deno task test:files test/shared/payments.test.ts specs/payments/capacity-after-
 For a pure unit test that imports neither the app nor Stripe, you can skip the harness and run `deno test` directly on the file (fastest, but it fails on a missing `src/ui/static/*.js` asset or an unstarted stripe-mock if the test does import them):
 
 ```bash
-deno test --no-check --allow-all test/lib/dates.test.ts
+deno test --no-check --allow-all test/shared/dates.test.ts
 ```
 
 To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars to the port you chose:
 
 ```bash
-STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/lib/stripe-mock.test.ts
+STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/integration/stripe-mock-ports.test.ts
 ```
 
 ## Environment Variables
@@ -832,118 +839,14 @@ Tests use Deno standard library packages directly:
 
 ### Cucumber Acceptance Specifications
 
-Cucumber owns user journeys and observable business rules. Direct Deno tests
-still own pure logic, properties, schemas, SQL and transaction contracts,
-migrations, protocol details, query budgets, concurrency, and test
-infrastructure. Never translate a direct technical test into Gherkin when the
-TypeScript test is smaller or more exact.
+Cucumber owns user journeys and observable business rules; direct Deno tests own
+pure logic, technical contracts, and everything a story cannot prove. A Cucumber
+journey never supplies the only coverage of a production line or branch.
 
-#### Test architecture — three categories, no generic e2e bucket
-
-Every test falls into exactly one of three categories. A generic `test/e2e`
-bucket is not one of them — each existing e2e test should eventually become
-either a Cucumber story or a narrowly scoped direct technical contract test.
-
-1. **Pure unit/property tests** — data in, data out. No database, network,
-   filesystem, DOM, subprocess, or real clock. Mirror the source file.
-2. **Direct technical contract tests** — exercise the smallest real boundary
-   necessary: SQLite, Request/Response, provider transport, DOM, WebCrypto,
-   build artifact, module graph, filesystem, subprocess, or concurrency. These
-   own SQL constraints, migrations, triggers, transactions, wire protocols,
-   HTTP security, cryptographic interoperability, query/resource budgets, and
-   tooling contracts. They cannot be replaced by Cucumber or pure tests.
-3. **Cucumber acceptance specifications** — one user story or observable
-   business rule per Feature, in domain language only. No SQL, route names,
-   field names, selectors, mocks, or provider payloads.
-
-**Migrate e2e tests toward Cucumber or direct contracts.** When touching an
-e2e test, ask: can the claim be stated as an actor-facing rule without
-technical nouns? If yes, move the narrative to Cucumber and delete the old
-test. Is the production behavior fully determined by explicit values? If yes,
-keep or extract a pure function and test it directly. Would replacing the real
-boundary make the assertion stop proving its subject? If yes, keep a direct
-technical contract test. Split tests that mix all three concerns by claim
-rather than duplicating.
-
-**New features need Cucumber coverage when applicable.** A new feature that
-introduces an observable user journey or business rule ships with a Cucumber
-Feature alongside its direct tests. A feature that is purely technical (a
-migration, a protocol change, a performance fix, a refactor) does not need
-one. The Cucumber Feature must not be the only coverage of a production line
-or branch — keep 100% direct Deno coverage.
-
-The authored hierarchy is strict:
-
-- A `Feature` is one user story or capability and has exactly one globally
-  unique `@story:<id>` tag.
-- A `Rule` is one canonical observable product rule and has exactly one
-  globally unique `@rule:<id>` tag. Every Scenario belongs to a Rule.
-- A plain `Scenario` is one concrete example and has exactly one globally
-  unique `@case:<id>` tag.
-- A `Scenario Outline` is one coherent family of examples. Its Examples table
-  has a unique `case_id` column because individual rows cannot carry tags.
-- Every Feature has one known `@owner:`, `@risk:`, at least one `@actor:`, and
-  at least one `@edition:` tag. Other tag kinds come from the checked registry;
-  ad-hoc metadata tags are forbidden.
-- Feature and Rule descriptions explain their purpose in plain language. Do
-  not hide JSON, YAML, evidence paths, or another schema in comments.
-
-Write the smallest scenario that proves the rule:
-
-- Use 3-5 Given/When/Then steps and one action per Scenario where possible.
-- Describe the domain and observable result, not routes, SQL, selectors, form
-  field names, provider payloads, mocks, or implementation details.
-- Keep exact mutation-resistant assertions in the TypeScript step definition.
-  A plain-language `Then the payment is refunded once` may assert the exact
-  provider call count, stored note, terminal result, and lack of a duplicate.
-- Use `Scenario Outline` only for the same rule over a real input family, never
-  to combine unrelated facts or reduce line count.
-- Validate DataTable rows, DocStrings, custom parameters, and Examples cells at
-  the boundary with a typed schema. All table cells begin as strings; never
-  cast and hope.
-- Business setup belongs in Given steps. Hooks contain only technical fixture
-  setup and cleanup that a reader does not need to understand the rule.
-- Every step must match exactly one definition. Undefined, ambiguous, pending,
-  skipped, and retried steps fail. The full suite also fails on unused step
-  definitions; focused runs may leave unrelated shared definitions unused.
-- **Drive through the real rendered form.** A Cucumber `When`/`Then` that
-  submits an admin edit must read the production HTML form, parse its fields
-  and CSRF token, and POST exactly what a browser would. Do not reconstruct
-  the form state from database rows — that bypasses the rendering layer the
-  scenario exists to prove and would silently keep passing if the editor
-  stopped rendering a field or emitted one the POST parser cannot consume.
-  Exception: pure data-in/data-out rules with no user-facing form action may
-  read state directly. When a form is involved, use
-  `extractFormEntries`/`extractCsrfToken` against the real served page.
-
-Execution is equally strict:
-
-- Run the pinned official Cucumber API under the repository's pinned Deno, in
-  the existing test harness. Do not add Node, run Cucumber through Bun, or make
-  another Gherkin runner.
-- Use a fresh typed World for every Scenario. Never keep scenario entities in
-  module globals or hide the global database client in World.
-- Run Scenarios through the bounded Cucumber worker pool. Each worker has its
-  own isolate, and every Scenario gets a fresh database and World. Test
-  environment changes must use `withEnv` so `Deno.env` and the worker's
-  `process.env` stay aligned. Do not add retries; a pass after retry is still a
-  flaky failure.
-- Reuse the existing golden database, stripe-mock, static assets, encryption,
-  browser, cache reset, and cleanup mechanisms. Extract one hook-free fixture
-  when Cucumber and Deno hooks need the same lifecycle; never maintain two.
-- Cucumber Messages NDJSON is the generated machine result. HTML and JUnit are
-  reports. Generated AST, Pickle, Messages, and report files are never sources
-  of truth and are not committed.
-- Stable repository IDs come only from authored tags. Cucumber AST/Pickle IDs,
-  names, paths, and line numbers are not durable IDs.
-- A Cucumber journey never supplies the only coverage of a production line or
-  branch. Keep 100% direct Deno coverage, and run direct tests before Cucumber
-  integration tests in mutation runs.
-- A migration is a replacement: delete the old narrative test in the same
-  change. Temporary old/new comparison is allowed while developing, but no PR
-  merges with two paths for one behavior.
-- New shared steps must be reused by the current story or an immediately
-  included second story. Do not create a speculative vocabulary.
+**See [E2E_TESTS.md](E2E_TESTS.md)** for the full rules: the three test
+categories, the authored Feature hierarchy and tags, how specs are run, the
+checklist for migrating an existing test into a story, and the pitfalls that
+have caught people out before.
 
 ## Test Quality Standards
 
@@ -1003,10 +906,10 @@ a code change nothing would have caught.
 
 ```bash
 # Mutate a module's operators and run its mapped tests
-deno task mutation src/shared/dates.ts test/lib/dates.test.ts
+deno task mutation src/shared/dates.ts test/shared/dates.test.ts
 
 # Globs and exhaustive mode (every operator replacement, not just one each)
-deno task mutation 'src/lib/forms/*.ts' 'test/lib/forms/*.test.ts' --exhaustive
+deno task mutation 'src/shared/forms/definition.ts' 'test/shared/forms/definition/*.test.ts' --exhaustive
 ```
 
 It reports a mutation score and lists each survivor as
@@ -1177,17 +1080,17 @@ shows up in the report:
 - **Render once, assert many.** A suite making many assertions about ONE page
   in its default fixture state uses `cachedAdminPage(path)` — the page
   renders a single time and every test asserts against the cached HTML
-  (`test/lib/server-guide.test.ts` is the reference). Tests that alter
+  (`test/integration/server/guide.test.ts` is the reference). Tests that alter
   config, env, or fixture data still fetch their own copy.
 - **Seed volume with a batch, not a loop.** When a test needs many rows (e.g.
   filling a pagination page), create ONE record through the production path
   and clone its rows in a single batch — see `seedFillerAttendees` in
-  `test/lib/server-attendees-list.test.ts` — instead of running the full
+  `test/integration/server/attendees-list.test.ts` — instead of running the full
   production write path N times.
 - **Shard inherently heavy suites.** A suite that is minutes of sequential
   work by nature (the migration restore/chain suites) is split into shard
   files driven by one factory so `deno test --parallel` spreads it across
-  workers — see `test/lib/db/migration-restore/` (shard by
+  workers — see `test/integration/db/migration-restore/` (shard by
   `index % shardCount`, which stays balanced as the list grows).
 - **Keep heavy SDKs out of module load.** Every test isolate — a group of
   files under the full runner, each named file under `test:files` — evaluates

@@ -22,10 +22,18 @@ const isSharedSpecCode = inProjectFolders([
   "test/specs/support",
 ]);
 
-const testPrefix = (sourceFile: string): string =>
-  relativeToProject(sourceFile)
-    .replace(/^src\//, "test/")
-    .replace(/\.(?:js|ts|tsx)$/, "");
+/** Where a source's tests live: `src/a/b.ts` mirrors to `test/a/b`, and a file
+ *  in any other top-level folder (`scripts/`, `cli/`) mirrors to the same path
+ *  under `test/`, so the repo's own tooling can be mutation-tested too. */
+const testPrefix = (sourceFile: string): string => {
+  const withoutExtension = relativeToProject(sourceFile).replace(
+    /\.(?:js|ts|tsx)$/,
+    "",
+  );
+  return withoutExtension.startsWith("src/")
+    ? withoutExtension.replace(/^src\//, "test/")
+    : `test/${withoutExtension}`;
+};
 
 const ownsTest = (prefix: string, testFile: string): boolean => {
   const base = relativeToProject(testFile).replace(/\.test\.(?:ts|tsx)$/, "");
@@ -34,7 +42,12 @@ const ownsTest = (prefix: string, testFile: string): boolean => {
 
 /** Select every direct test for the changed sources, plus broad integration
  * tests changed on this branch. Changed shared Cucumber code selects every
- * Feature because any story may use it. */
+ * Feature because any story may use it.
+ *
+ * Selection is by the mirror path alone: a source whose test sits elsewhere is
+ * reported as missing its direct suite (see `requireDirectMutationTests`) so
+ * the test gets moved, rather than quietly running whatever reaches the source
+ * through a shared helper. */
 export const selectMutationTests = (
   sourceFiles: string[],
   allTestFiles: string[],
@@ -63,14 +76,22 @@ const chooseTestFiles =
   (tests: OwnedTest[]): string[] =>
     map(({ testFile }: OwnedTest) => testFile)(filter(keep)(tests));
 
+/** The mirror prefix that owns `testFile`, or null when no prefix does. The
+ *  longest (most specific) match wins. */
+const mirrorOwnerOrNull = (
+  prefixes: string[],
+  testFile: string,
+): string | null =>
+  sort((a: string, b: string) => b.length - a.length)(
+    filter((prefix: string) => ownsTest(prefix, testFile))(prefixes),
+  )[0] ?? null;
+
 const ownedTest =
   (prefixes: string[]) =>
   (testFile: string): OwnedTest => ({
     owner: isIntegrationTest(testFile)
       ? null
-      : (sort((a: string, b: string) => b.length - a.length)(
-          filter((prefix: string) => ownsTest(prefix, testFile))(prefixes),
-        )[0] ?? null),
+      : mirrorOwnerOrNull(prefixes, testFile),
     testFile,
   });
 

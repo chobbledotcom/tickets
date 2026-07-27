@@ -12,7 +12,7 @@ import {
   signedMeta,
   stubCompletedSession,
   stubRefundOk,
-} from "#test/lib/webhook-price-signature/helpers.ts";
+} from "#test/integration/webhook-price-signature/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";

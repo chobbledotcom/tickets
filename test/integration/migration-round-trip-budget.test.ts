@@ -15,7 +15,7 @@ import {
   type Migration,
 } from "#shared/db/migrations.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
-import { restoreSchemaBeforeMigrations } from "#test/lib/db/migration-restore/helpers.ts";
+import { restoreSchemaBeforeMigrations } from "#test/integration/db/migration-restore/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const LISTINGS_TAG_MIGRATION_ID = "2026-07-03_attendee_listings_tag";

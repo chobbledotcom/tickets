@@ -425,13 +425,26 @@ export const defineTable = <Row, Input = Row>(
     return value;
   };
 
+  // The columns whose stored value has to be turned back into its real value
+  // (decrypted, parsed, looked up). Every other column is copied straight
+  // across, so a wide table does not pay for an await per column.
+  const readTransformColumns = allColumns.filter(
+    (col) => schema[col].read !== undefined,
+  );
+
   // Transform a row from DB (apply read transforms)
   const fromDb = async (row: Row): Promise<Row> => {
-    const entries = await mapParallel(
-      async (col: keyof Row & string) =>
-        [col, await readColumn(col, row[col], row[primaryKey])] as const,
-    )(allColumns);
-    return Object.fromEntries(entries) as Row;
+    const mapped: Record<string, unknown> = {};
+    for (const col of allColumns) mapped[col] = row[col];
+    if (readTransformColumns.length > 0) {
+      const rowId = row[primaryKey];
+      await Promise.all(
+        readTransformColumns.map(async (col) => {
+          mapped[col] = await readColumn(col, row[col], rowId);
+        }),
+      );
+    }
+    return mapped as Row;
   };
 
   // Process a single column for toDbValues

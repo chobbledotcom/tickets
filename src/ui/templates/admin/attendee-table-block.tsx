@@ -1,8 +1,6 @@
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
-import {
-  AttendeeTable,
-  type AttendeeTableOptions,
-} from "#templates/attendee-table.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import { AttendeeTable } from "#templates/attendee-table/component.tsx";
+import type { AttendeeTableOptions } from "#templates/attendee-table/types.ts";
 
 type SharedAttendeeTableOptions = Pick<
   AttendeeTableOptions,
@@ -27,9 +25,7 @@ export const AttendeeTableBlock = ({
   options: AttendeeTableOptions;
 }): JSX.Element => (
   <>
-    <div class="table-scroll">
-      <Raw html={AttendeeTable(options)} />
-    </div>
+    {AttendeeTable(options)}
     {actions && <div class="table-actions">{actions}</div>}
   </>
 );

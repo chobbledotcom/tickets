@@ -60,7 +60,7 @@ describe("adminQuestionsPage", () => {
 
   test("renders empty state when no questions", () => {
     const html = adminQuestionsPage([], OWNER_SESSION);
-    expect(html).toContain("No custom questions yet");
+    expect(html).toContain("<p><em>No custom questions yet.</em></p>");
   });
 
   test("removes the Custom Questions heading", () => {

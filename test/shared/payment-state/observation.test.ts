@@ -130,6 +130,7 @@ describe("payment observations", () => {
     expect(ObservedPaymentStatusSchema.options).toEqual([
       "pending",
       "paid",
+      "no_payment_required",
       "failed",
     ]);
     expect(ProviderUnavailableReasonSchema.options).toEqual([

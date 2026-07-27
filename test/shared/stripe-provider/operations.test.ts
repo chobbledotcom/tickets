@@ -5,17 +5,17 @@ import { settings } from "#shared/db/settings.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
-  stripeCheckoutSession,
-  stripeClient,
-  stripeRefund,
-} from "#test/lib/stripe/fixtures.ts";
-import { describeStripe } from "#test/lib/stripe/harness.ts";
-import { stubPersistedStripeRefund } from "#test/lib/stripe/provider-fixtures.ts";
-import {
   CHARGE_RESOURCE,
   REFUND_RESOURCE,
 } from "#test/shared/db/payments/fixtures.ts";
 import { paymentCharge } from "#test/shared/payment-runtime/fixtures.ts";
+import {
+  stripeCheckoutSession,
+  stripeClient,
+  stripeRefund,
+} from "#test/test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test/test-utils/stripe/harness.ts";
+import { stubPersistedStripeRefund } from "#test/test-utils/stripe/provider-fixtures.ts";
 import {
   checkoutIntent,
   checkoutItem,

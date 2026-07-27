@@ -5,6 +5,7 @@ import {
   entityToFieldValues,
 } from "#shared/forms/values.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import {
   availableDayCounts,
   dayPriceFor,
@@ -12,9 +13,10 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
-import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
 import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
 
 const groupToFieldValues = (
@@ -86,6 +88,49 @@ type PackageMembersProps = {
   members: PackageMemberValues;
 };
 
+const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
+  translatedTableColumn("name", "common.name", (listing) => listing.name),
+  {
+    cell: (listing, members) => {
+      const member = members.get(listing.id);
+      // null/absent means no override; 0 means free.
+      const override = member?.price ?? null;
+      return (
+        <>
+          <input
+            inputmode="decimal"
+            name={`package_price_${listing.id}`}
+            placeholder={toMajorUnits(listing.unit_price)}
+            type="text"
+            value={override === null ? "" : toMajorUnits(override)}
+          />
+          {listing.customisable_days && (
+            <MemberDayPriceInputs
+              dayPrices={member?.dayPrices}
+              listing={listing}
+            />
+          )}
+        </>
+      );
+    },
+    header: () => t("fields.group.package_price"),
+    key: "price",
+  },
+  {
+    cell: (listing, members) => (
+      <input
+        inputmode="numeric"
+        min="1"
+        name={`package_qty_${listing.id}`}
+        type="number"
+        value={String(members.get(listing.id)?.quantity ?? 1)}
+      />
+    ),
+    header: () => t("fields.group.package_quantity"),
+    key: "quantity",
+  },
+]);
+
 const PackageMembersTable = ({
   listings,
   members,
@@ -96,42 +141,7 @@ const PackageMembersTable = ({
     {listings.length === 0 ? (
       <p>{t("groups.package_prices.no_listings")}</p>
     ) : (
-      <DataTable
-        columns={namedColumns(
-          "fields.group.package_price",
-          "fields.group.package_quantity",
-        )}
-        rows={listings.map((listing) => {
-          const member = members.get(listing.id);
-          // null/absent means no override; 0 means free.
-          const override = member?.price ?? null;
-          return [
-            listing.name,
-            <>
-              <input
-                inputmode="decimal"
-                name={`package_price_${listing.id}`}
-                placeholder={toMajorUnits(listing.unit_price)}
-                type="text"
-                value={override === null ? "" : toMajorUnits(override)}
-              />
-              {listing.customisable_days && (
-                <MemberDayPriceInputs
-                  dayPrices={member?.dayPrices}
-                  listing={listing}
-                />
-              )}
-            </>,
-            <input
-              inputmode="numeric"
-              min="1"
-              name={`package_qty_${listing.id}`}
-              type="number"
-              value={String(member?.quantity ?? 1)}
-            />,
-          ];
-        })}
-      />
+      renderTable(packageMembersTable, listings, { context: members })
     )}
   </div>
 );

@@ -14,7 +14,7 @@ import {
 import {
   oneChildSupportingDayTwo,
   resolved,
-} from "#test/lib/booking-model-fixtures.ts";
+} from "#test/test-utils/booking-model-fixtures.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
 describe("booking model — day-count support", () => {

@@ -17,7 +17,7 @@ import {
   setupPackage,
   setupWithListing,
   webhookRequest,
-} from "#test/lib/webhook-price-signature/helpers.ts";
+} from "#test/integration/webhook-price-signature/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";

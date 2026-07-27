@@ -10,7 +10,7 @@ import {
   createReserved,
   insertBareAttendee,
   postPay,
-} from "#test/lib/server-balance-helpers.ts";
+} from "#test/integration/balance-helpers.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";

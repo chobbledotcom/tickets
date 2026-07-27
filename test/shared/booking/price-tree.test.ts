@@ -12,7 +12,7 @@ import {
 } from "#shared/booking/price-tree.ts";
 import type { PriceRule } from "#shared/booking/tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { treePackage } from "#test/lib/package-cap-fixtures.ts";
+import { treePackage } from "#test/test-utils/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A raw listing (id 7 by default) for direct effectivePrice calls. */

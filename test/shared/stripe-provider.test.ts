@@ -6,18 +6,18 @@ import type { ProviderRead } from "#shared/payment-state/observation.ts";
 import type { ProviderResource } from "#shared/payment-state/resources.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { stripeCharge } from "#test/lib/stripe/fixtures.ts";
-import {
-  storedStripePayment as payment,
-  stripeProviderIntent as providerIntent,
-  stripeProviderSession as providerSession,
-  readStripeProvider,
-} from "#test/lib/stripe/provider-fixtures.ts";
 import {
   CHARGE_RESOURCE,
   REFUND_RESOURCE,
   SESSION_RESOURCE,
 } from "#test/shared/db/payments/fixtures.ts";
+import { stripeCharge } from "#test/test-utils/stripe/fixtures.ts";
+import {
+  storedStripePayment as payment,
+  stripeProviderIntent as providerIntent,
+  stripeProviderSession as providerSession,
+  readStripeProvider,
+} from "#test/test-utils/stripe/provider-fixtures.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 const readPayment = (

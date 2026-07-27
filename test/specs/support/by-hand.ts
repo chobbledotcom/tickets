@@ -1,0 +1,67 @@
+/**
+ * Bookings the organiser makes themselves, and the attendee list they download.
+ * Both are driven through the listing's own roster page, so a page that stops
+ * offering the form or the download fails the story.
+ */
+
+import { expect } from "@std/expect";
+import { adminBrowser } from "#test/specs/support/browser.ts";
+import { stayListing } from "#test/specs/support/stays.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
+
+/** What the organiser types into the add-booking form. */
+export interface ByHandBooking {
+  day?: string;
+  dayCount?: number;
+  email: string;
+  places?: number;
+  who: string;
+}
+
+/** The listing's roster — where the add form and the download both live. */
+const rosterPath = (world: TicketsWorld, name: string): string =>
+  `/admin/listing/${stayListing(world, name).id}/attendees`;
+
+/** The organiser adds a booking through the form on the listing's roster. Keeps
+ * the page they land on, so a story can read what they were told. */
+export const organiserAddsBooking = async (
+  world: TicketsWorld,
+  name: string,
+  booking: ByHandBooking,
+): Promise<void> => {
+  const browser = await adminBrowser(world);
+  await browser.visit(rosterPath(world, name));
+  // The form must offer a day, or the organiser could not say when the stay
+  // starts and the booking would silently land on the wrong days.
+  if (booking.day !== undefined) {
+    expect(browser.currentHtml).toContain('name="date"');
+  }
+  await browser.submitForm(
+    {
+      email: booking.email,
+      name: booking.who,
+      quantity: String(booking.places ?? 1),
+      ...(booking.day === undefined ? {} : { date: booking.day }),
+      ...(booking.dayCount === undefined
+        ? {}
+        : { day_count: String(booking.dayCount) }),
+    },
+    "Add Attendee",
+  );
+};
+
+/** The attendee list the organiser downloads from the listing's roster, as the
+ * text of the file itself. Followed from the link on the page, so a story can
+ * never read a file the organiser has no way to reach. */
+export const downloadAttendeeList = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<string> => {
+  const browser = await adminBrowser(world);
+  await browser.visit(rosterPath(world, name));
+  const download = browser.links.find(({ href }) => href.includes("/export"));
+  if (!download) {
+    throw new Error(`The ${name} roster offers no attendee list to download`);
+  }
+  return new TextDecoder().decode(await browser.downloadBytes(download.href));
+};

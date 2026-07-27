@@ -11,10 +11,12 @@ import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   lineFor,
+  stripeCharge,
   stripeCheckoutSession,
   stripeClient,
-} from "#test/lib/stripe/fixtures.ts";
-import { describeStripe } from "#test/lib/stripe/harness.ts";
+  stripePaymentIntent,
+} from "#test/test-utils/stripe/fixtures.ts";
+import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import {
   checkoutIntent,
   checkoutItem,
@@ -86,20 +88,21 @@ describeStripe("stripe", () => {
   describe("retrievePaymentIntent", () => {
     test("expands and narrows the latest charge", async () => {
       const client = await stripeClient();
+      const intent = stripePaymentIntent({
+        id: "pi_refunded",
+        latest_charge: stripeCharge({
+          payment_intent: "pi_refunded",
+          refunded: true,
+        }),
+      });
       await withMocks(
         () =>
           stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
-            Promise.resolve({
-              id: "pi_refunded",
-              latest_charge: { refunded: true },
-            }),
+            Promise.resolve(intent),
           ),
         async (retrieveSpy) => {
           const result = await stripeApi.retrievePaymentIntent("pi_refunded");
-          expect(result).toEqual({
-            id: "pi_refunded",
-            latest_charge: { refunded: true },
-          });
+          expect(result).toEqual(intent);
           expect(retrieveSpy.calls[0]?.args).toEqual(["pi_refunded"]);
         },
       );
@@ -177,7 +180,7 @@ describeStripe("stripe", () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       // stripe-mock accepts any payment_intent ID
-      const refund = await stripeApi.refundPayment("pi_test_123", "refund-key");
+      const refund = await stripeApi.requestRefund("pi_test_123", "refund-key");
 
       expect(refund?.id).toMatch(/^re_/u);
       expect(refund?.status).toBe("succeeded");
@@ -353,9 +356,9 @@ describeStripe("stripe", () => {
     });
   });
 
-  describe("refundPayment", () => {
+  describe("requestRefund", () => {
     test("returns null when stripe key not set", async () => {
-      const result = await stripeApi.refundPayment("pi_test_123", "refund-key");
+      const result = await stripeApi.requestRefund("pi_test_123", "refund-key");
       expect(result).toBeNull();
     });
 
@@ -367,7 +370,7 @@ describeStripe("stripe", () => {
             Promise.reject(new Error("Network error")),
           ),
         async (refundSpy) => {
-          const result = await stripeApi.refundPayment(
+          const result = await stripeApi.requestRefund(
             "pi_test_123",
             "refund-key",
           );

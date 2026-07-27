@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-all
+
 /**
  * Full test runner: builds static assets and starts stripe-mock (via the
  * shared test harness), runs the whole suite, and—with --coverage—enforces
@@ -6,6 +7,7 @@
  * harness once the run completes.
  */
 
+import { requireValue } from "#shared/required-value.ts";
 import { COVERAGE_OUTPUT_DIR } from "./coverage-output.ts";
 import { denoCommand } from "./process.ts";
 import { projectRoot } from "./project-root.ts";
@@ -34,7 +36,10 @@ const MAX_GITHUB_ANNOTATIONS = 100;
  * one. */
 const capturedLineNumbers = (record: string, pattern: RegExp): number[] =>
   Array.from(record.matchAll(pattern), (match) =>
-    Number.parseInt(match[1], 10),
+    Number.parseInt(
+      requireValue(match[1], "Coverage pattern did not capture a line number"),
+      10,
+    ),
   );
 
 /** Extract uncovered line numbers from DA: entries in an lcov record */
@@ -99,8 +104,17 @@ const COVERAGE_EXCLUSIONS = [
   // Harness infrastructure: inside a harness run every isolate takes the
   // prebuilt-snapshot arm, and outside one only the build-it-here arm runs,
   // so no single coverage run can reach both. The round-trip behaviour is
-  // unit-tested in test/lib/test-utils/test-state.test.ts.
+  // unit-tested in test/test-utils/test-state.test.ts.
   "test/test-utils/test-state.ts",
+  // Harness infrastructure, same shape as the line above: the harness has
+  // already made the assets current before any test isolate starts, so inside
+  // a coverage run only the "already up to date" arm can ever be taken —
+  // rebuilding the shared assets mid-run to reach the other one would race
+  // every isolate still loading them. What is left in the file is wiring: the
+  // choice itself is buildOrReuseStaticAssets, and it and
+  // staticAssetsAreUpToDate are both unit-tested, each arm, in
+  // test/scripts/static-asset-cache.test.ts.
+  "scripts/static-assets/prepare.ts",
 ];
 
 /** Extract source path info from an lcov record, or null if excluded. */

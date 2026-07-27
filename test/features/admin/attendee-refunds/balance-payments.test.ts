@@ -4,7 +4,7 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
-import type { RefundCtx } from "#test/lib/server-refunds-helpers.ts";
+import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,

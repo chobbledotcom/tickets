@@ -16,7 +16,7 @@ import {
   stripeCheckoutSession,
   stripePaymentIntent,
   stripeRefund,
-} from "#test/lib/stripe/fixtures.ts";
+} from "#test/test-utils/stripe/fixtures.ts";
 
 const requiredFields = (value: Record<string, unknown>) =>
   Object.keys(value).map((field) => [field, value] as const);

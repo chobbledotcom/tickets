@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { preparedCheckout } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 

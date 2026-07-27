@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import type { DatabaseHost } from "#shared/db/host.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
@@ -75,6 +76,7 @@ export type DebugPageState = {
     registeredSubdomain: string;
   };
   database: {
+    host: DatabaseHost | null;
     hostConfigured: boolean;
     schemaInSync: boolean;
     schemaHash: string;
@@ -437,6 +439,10 @@ const DEBUG_SECTIONS: readonly DebugSectionSpec[] = [
   {
     rows: ({ database, domain }) => [
       statusRow("DB_URL", database.hostConfigured),
+      {
+        label: t("debug.field.database_host"),
+        value: database.host === null ? "—" : t(`debug.host.${database.host}`),
+      },
       { label: t("debug.field.effective_domain"), value: domain },
       {
         label: t("debug.field.schema_status"),

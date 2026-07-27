@@ -7,8 +7,8 @@
  * checkout run a subset of the suite without manual preparation or leftover
  * build artifacts.
  *
- *   deno task test:files test/lib/server-balance.test.ts
- *   deno task test:files test/lib/dates.test.ts --filter "formats date"
+ *   deno task test:files test/integration/server-balance-webhook.test.ts
+ *   deno task test:files test/shared/dates.test.ts --filter "formats date"
  *
  * Arguments are forwarded verbatim to `deno test`, so paths, directories, and
  * flags such as `--filter` all work. At least one argument is required.

@@ -12,7 +12,7 @@ import { stripeApi } from "#shared/stripe.ts";
 import {
   bookFreeOrder,
   bookPaidReservation,
-} from "#test/lib/server-reservation/_shared-setup.ts";
+} from "#test/integration/server/_shared-setup.ts";
 import {
   createProgrammeCharge,
   createSave10Promo,
@@ -22,7 +22,7 @@ import {
   setPublicReservation,
   setupReservationListing,
   stubPaidSession,
-} from "#test/lib/server-reservation/helpers.ts";
+} from "#test/test-utils/reservation/helpers.ts";
 import { captureCheckoutSnapshot } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -89,7 +89,7 @@ describeWithEnv(
         reservationAmount: "10%",
       });
       const addOn = await createProgrammeCharge({ stock: 0 });
-      const refund = stub(stripeApi, "refundPayment", () =>
+      const refund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({ id: "re_addon", status: "succeeded" } as never),
       );
       const session = stubPaidSession(

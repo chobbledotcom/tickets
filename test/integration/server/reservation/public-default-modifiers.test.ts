@@ -9,7 +9,7 @@ import {
   setupSoldOutModifierRace,
   submitBuyerOrder,
   totalContactActivity,
-} from "#test/lib/server-reservation/helpers.ts";
+} from "#test/test-utils/reservation/helpers.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { captureCheckoutSnapshot } from "#test-utils/checkout.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";

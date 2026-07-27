@@ -4,8 +4,8 @@ import { settings } from "#shared/db/settings.ts";
 import type { WebhookVerifyResult } from "#shared/payments.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { constructTestSquareWebhook } from "#shared/square-webhook.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
 import { session } from "#test/shared/square-provider/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 
 const SECRET = "square-provider-notice-branches";
 const WEBHOOK_URL = "https://example.com/payment/webhook";

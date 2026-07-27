@@ -3,12 +3,12 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import { squareApi } from "#shared/square.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
 import {
   type FetchCall,
   installMockFetch,
   jsonResponse,
-} from "#test/lib/square/mock-fetch.ts";
+} from "#test/shared/square/mock-fetch.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 
 /* jscpd:ignore-end */
 
@@ -59,7 +59,7 @@ describeSquare(() => {
       expect(body.amount_money.currency).toBe("GBP");
     });
 
-    test("returns the raw refund response for the boundary validator", async () => {
+    test("returns a validated refund response", async () => {
       mockFetch = installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
@@ -74,8 +74,6 @@ describeSquare(() => {
       );
 
       const client = await squareApi.getSquareClient();
-      // The client returns raw JSON — squareApi.refundPayment validates it
-      // with a Valibot schema at the boundary.
       const result = await client!.refunds.requestRefund({
         amountMoney: { amount: BigInt(4250), currency: "USD" },
         idempotencyKey: "idem-status",

@@ -6,7 +6,7 @@ import {
   type RefundCtx,
   setBookingLineQuantity,
   setupRefundTest,
-} from "#test/lib/server-refunds-helpers.ts";
+} from "#test/features/admin/refunds-helpers.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertAdminHtml,

@@ -1,9 +1,43 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { TableColumn } from "#shared/tables/column.ts";
+import { defineTable } from "#shared/tables/definition.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
+import { renderTable } from "#templates/components/table.tsx";
+import { translatedTableHeader } from "#templates/components/translated-table-column.ts";
+
+/* jscpd:ignore-end */
+
+const renewalTierColumns: readonly TableColumn<ListingWithCount>[] = [
+  {
+    cell: (tier) => <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>,
+    header: translatedTableHeader("built_sites.tier_table_tier"),
+    key: "tier",
+  },
+  {
+    cell: (tier) => tier.months_per_unit,
+    class: "quantity",
+    header: translatedTableHeader("built_sites.tier_table_months"),
+    key: "months",
+  },
+  {
+    cell: (tier) => formatCurrency(tier.unit_price),
+    class: "amount",
+    header: translatedTableHeader("built_sites.tier_table_price"),
+    key: "price",
+  },
+  {
+    cell: (tier) => tier.attendee_count,
+    class: "quantity",
+    header: translatedTableHeader("built_sites.tier_table_units"),
+    key: "units",
+  },
+];
+
+const renewalTierTable = defineTable(renewalTierColumns);
 
 export const RenewalTierSummary = ({
   tiers,
@@ -17,20 +51,7 @@ export const RenewalTierSummary = ({
         <Raw html={t("built_sites.no_renewal_tier")} />
       </ErrorNote>
     ) : (
-      <DataTable
-        columns={[
-          { header: t("built_sites.tier_table_tier") },
-          { class: "quantity", header: t("built_sites.tier_table_months") },
-          { class: "amount", header: t("built_sites.tier_table_price") },
-          { class: "quantity", header: t("built_sites.tier_table_units") },
-        ]}
-        rows={tiers.map((tier) => [
-          <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>,
-          tier.months_per_unit,
-          formatCurrency(tier.unit_price),
-          tier.attendee_count,
-        ])}
-      />
+      renderTable(renewalTierTable, tiers)
     )}
   </section>
 );

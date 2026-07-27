@@ -5,13 +5,13 @@ import { settings } from "#shared/db/settings.ts";
 import { resolvePayment } from "#shared/payment-state/resolve.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { constructTestSquareWebhook } from "#shared/square-webhook.ts";
+import { PAYMENT_TIME } from "#test/shared/db/payments/fixtures.ts";
+import { paymentCharge } from "#test/shared/payment-runtime/fixtures.ts";
 import {
   configureSquare,
   withSquareClient,
-} from "#test/lib/square/fixtures.ts";
-import { describeSquare } from "#test/lib/square/harness.ts";
-import { PAYMENT_TIME } from "#test/shared/db/payments/fixtures.ts";
-import { paymentCharge } from "#test/shared/payment-runtime/fixtures.ts";
+} from "#test/test-utils/square/fixtures.ts";
+import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import {
   orderResponse,

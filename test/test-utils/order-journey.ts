@@ -28,21 +28,14 @@ import {
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
 import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { Group, Listing } from "#shared/types.ts";
-import {
-  stripeCharge,
-  stripeCheckoutSession,
-  stripePaymentIntent,
-} from "#test/lib/stripe/fixtures.ts";
-import { loginTestAdminBrowser } from "#test-utils/admin-browser.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { openAttendeeEditor } from "#test-utils/e2e.ts";
+import { loggedInAdminBrowser, openAttendeeEditor } from "#test-utils/e2e.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
   enablePublicSite,
@@ -50,6 +43,7 @@ import {
   stubWebhookVerify,
 } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 /** One package in a journey's catalog: its members sell inside the bundle at
  * the given price (each `quantity` per package unit, default 1). */
@@ -238,49 +232,15 @@ const completePaidCheckout = async (
   checkout: PaymentCheckoutCreateSnapshot,
   sessionId: string,
 ): Promise<void> => {
-  const amount = checkout.expected.amount;
-  const currency = checkout.expected.currency.toLowerCase();
-  const intentId = `pi_${sessionId}`;
-  using _session = stub(stripeApi, "lookupCheckoutSession", () =>
-    Promise.resolve({
-      status: "found" as const,
-      value: stripeCheckoutSession({
-        amount_total: amount,
-        currency,
-        id: sessionId,
-        metadata: checkout.metadata,
-        payment_intent: intentId,
-      }),
+  const verifyStub = await stubWebhookVerify(
+    checkoutSessionEvent({
+      amountTotal: checkout.expected.amount,
+      eventId: `evt_${sessionId}`,
+      metadata: checkout.metadata,
+      paymentIntent: `pi_${sessionId}`,
+      sessionId,
     }),
   );
-  using _intent = stub(stripeApi, "lookupPaymentIntent", () =>
-    Promise.resolve({
-      status: "found" as const,
-      value: stripePaymentIntent({
-        amount,
-        amount_received: amount,
-        currency,
-        id: intentId,
-        latest_charge: stripeCharge({
-          amount,
-          amount_captured: amount,
-          amount_refunded: 0,
-          currency,
-          id: `ch_${sessionId}`,
-          payment_intent: intentId,
-        }),
-      }),
-    }),
-  );
-  const verifyStub = await stubWebhookVerify({
-    eventId: `evt_${sessionId}`,
-    resource: {
-      id: sessionId,
-      kind: "stripe_checkout_session",
-      provider: "stripe",
-    },
-    type: "checkout.session.completed",
-  });
   try {
     const response = await handleRequest(
       mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
@@ -309,7 +269,7 @@ export const runOrderJourney = async (spec: {
   await enablePublicSite();
   await settings.update.orderEnabled(true);
   if (spec.paid) await setupStripe();
-  const browser = await loginTestAdminBrowser();
+  const browser = await loggedInAdminBrowser();
   const catalog = await mintCatalog(spec.catalog);
 
   // The gallery offers every picked card, and the selection redirects to the

@@ -7,7 +7,7 @@ import {
 } from "#shared/booking.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import type { Attendee, ContactInfo } from "#shared/types.ts";
-import { withCheckoutStub } from "#test/routes/api/helpers.ts";
+import { withCheckoutStub } from "#test/test-utils/api/helpers.ts";
 import { STUB_CHECKOUT_URL, stubCheckout } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

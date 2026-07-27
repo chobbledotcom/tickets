@@ -52,21 +52,29 @@ const listingActivityLogHasMessage = async (
   return entries.some((entry) => entry.message.includes(substring));
 };
 
-/** Assert the listing's activity log has an entry whose message includes `substring`. */
-export const expectListingActivityLogContains = async (
+type ListingActivityLogCheck = (
   listingId: number,
   substring: string,
-): Promise<void> => {
-  expect(await listingActivityLogHasMessage(listingId, substring)).toBe(true);
-};
+) => Promise<void>;
+
+/** Assert whether the listing's activity log holds an entry whose message
+ * includes `substring` — one check, specialised below into the "has it" and
+ * "has not" forms the tests read with. */
+const expectListingActivityLog =
+  (present: boolean) =>
+  async (listingId: number, substring: string): Promise<void> => {
+    expect(await listingActivityLogHasMessage(listingId, substring)).toBe(
+      present,
+    );
+  };
+
+/** Assert the listing's activity log has an entry whose message includes `substring`. */
+export const expectListingActivityLogContains: ListingActivityLogCheck =
+  expectListingActivityLog(true);
 
 /** Assert the listing's activity log has no entry whose message includes `substring`. */
-export const expectListingActivityLogLacks = async (
-  listingId: number,
-  substring: string,
-): Promise<void> => {
-  expect(await listingActivityLogHasMessage(listingId, substring)).toBe(false);
-};
+export const expectListingActivityLogLacks: ListingActivityLogCheck =
+  expectListingActivityLog(false);
 
 export const expectTestAttendeeCsvColumns = (
   row: string | undefined,
@@ -245,6 +253,21 @@ export const expectHtmlResponse = async (
   status: number,
   ...substrings: string[]
 ): Promise<string> => expectHtml(response, { contains: substrings, status });
+
+/** Return the complete table row containing the given text. */
+export const tableRowContaining = (html: string, text: string): string => {
+  for (
+    let start = html.indexOf("<tr");
+    start >= 0;
+    start = html.indexOf("<tr", start + 1)
+  ) {
+    const end = html.indexOf("</tr>", start);
+    if (end === -1) break;
+    const row = html.slice(start, end + 5);
+    if (row.includes(text)) return row;
+  }
+  throw new Error(`No table row containing "${text}" found`);
+};
 
 /** Assert an HTTP response's body HTML. Works with any request method —
  *  `adminGet`, `handleRequest(mockRequest(...))`, direct handler calls —
