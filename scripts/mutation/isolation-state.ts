@@ -21,6 +21,7 @@ import { denoExitCode } from "./child-process.ts";
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
 export const MUTATION_RECORD_FILE = "run.json";
+export const MUTATION_RUN_ID_PREFIX = "mutation-";
 export const MUTATION_RECORD_PENDING_SUFFIX = ".writing";
 export const MUTATION_RUN_LOCK_FILE = "run.lock";
 export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
@@ -177,7 +178,8 @@ const compactIso = (iso: string): string =>
 export const createRunId = (
   date = new Date(),
   suffix = crypto.randomUUID().slice(0, 8),
-): string => `mutation-${compactIso(date.toISOString())}-${suffix}`;
+): string =>
+  `${MUTATION_RUN_ID_PREFIX}${compactIso(date.toISOString())}-${suffix}`;
 
 export const runsRoot = (root = projectRoot): string =>
   join(root, MUTATION_RUNS_DIR);

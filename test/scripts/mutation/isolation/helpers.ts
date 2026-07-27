@@ -69,7 +69,7 @@ export const failRunningStatusWrite = (): Disposable =>
     (_writes, data) => typeof data === "string" && data.includes('"running"'),
   );
 
-/** Refuse to delete a run's snapshot, as a busy or read-only folder would. */
+/** Refuse every removal, standing in for a busy or read-only run folder. */
 export const failWorkRemoval = (): Disposable =>
   stub(Deno, "remove", (() => {
     throw new Error("work is busy");

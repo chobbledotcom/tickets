@@ -33,7 +33,6 @@ import {
   createRunId,
   formatRunList,
   ISOLATION_USAGE,
-  isTerminalRunStatus,
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
@@ -159,7 +158,9 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
     if (child !== null) {
       const status = await child.status;
       record = settleRecord(record, interrupted, status.code);
-      await writeRunRecord(record);
+      // Under the lock, so a clear-up elsewhere cannot take the folder while
+      // this last write lands in it.
+      await withMutationRunLock(record.root, () => writeRunRecord(record));
       exitCode = interrupted ? 130 : status.code;
     }
   } catch (error) {
@@ -174,7 +175,7 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
     console.error(errorMessage(error));
   }
   offTerminationSignals(stopChild);
-  if (isTerminalRunStatus(record.status)) await removeWorkSnapshot(record);
+  await removeWorkSnapshot(record);
   return exitCode;
 };
 

@@ -13,6 +13,7 @@ import {
 } from "#scripts/mutation/isolation-state.ts";
 import {
   captureMutationCommand,
+  LONG_AGO,
   runQuietMutationCommand,
   withTempDir,
   writeMovedRunRecord,
@@ -78,7 +79,7 @@ describe("mutation isolation commands", () => {
         "mutation-stale-copying",
         [],
         root,
-        "2026-01-01T00:00:00.000Z",
+        LONG_AGO.toISOString(),
       );
       const running = markRunning(
         newRunRecord("mutation-running", [], root),
@@ -139,14 +140,9 @@ describe("mutation isolation commands", () => {
   test("cleans stale running records whose pid was reused after the grace period", async () => {
     await withTempDir(async (root) => {
       const staleReused = markRunning(
-        newRunRecord(
-          "mutation-stale-reused",
-          [],
-          root,
-          "2026-01-01T00:00:00.000Z",
-        ),
+        newRunRecord("mutation-stale-reused", [], root, LONG_AGO.toISOString()),
         Deno.pid,
-        "2026-01-01T00:00:00.000Z",
+        LONG_AGO.toISOString(),
       );
       await writeRunRecord(staleReused);
 

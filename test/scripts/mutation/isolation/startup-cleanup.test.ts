@@ -11,16 +11,12 @@ import {
   writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import {
+  LONG_AGO,
   withTempDir,
   writeFakeMutationScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
-import {
-  pathExists,
-  withTempDir as withSharedTempDir,
-} from "#test-utils/files.ts";
+import { pathExists } from "#test-utils/files.ts";
 import { captureSimpleSnapshotMutation } from "./helpers.ts";
-
-const LONG_AGO = new Date("2026-01-01T00:00:00.000Z");
 
 /** A run folder holding a snapshot and a record too broken to read. */
 const writeUnreadableRun = async (
@@ -34,7 +30,7 @@ const writeUnreadableRun = async (
   return folder;
 };
 
-/** Answer every stat about the runs folder with `info`, and pass the rest on. */
+/** Answer stats about the broken run folder with `info`, and pass the rest on. */
 const stubRunsFolderStat = (
   info: Partial<Deno.FileInfo> | Error,
 ): Disposable => {
@@ -64,7 +60,7 @@ const runAfterUnreadableRun = async (
 const runWithStatAnswer = (
   info: Partial<Deno.FileInfo> | Error,
 ): Promise<boolean> =>
-  withSharedTempDir(async (root) => {
+  withTempDir(async (root) => {
     await writeFakeMutationScript(root, "Deno.exit(0);\n");
     const folder = await writeUnreadableRun(root, new Date());
 
@@ -112,6 +108,20 @@ describe("clearing up before a mutation run", () => {
     await expect(
       runWithStatAnswer(new Deno.errors.PermissionDenied("no access")),
     ).rejects.toThrow("no access");
+  });
+
+  test("leaves alone a folder this runner did not name", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+      const theirs = join(runsRoot(root), "someone-elses-work");
+      await Deno.mkdir(theirs, { recursive: true });
+      await Deno.writeTextFile(join(theirs, "notes.txt"), "keep me");
+      await Deno.utime(theirs, LONG_AGO, LONG_AGO);
+
+      await captureSimpleSnapshotMutation(root);
+
+      expect(await pathExists(join(theirs, "notes.txt"))).toBe(true);
+    });
   });
 
   test("reports an earlier run it cannot clear out", async () => {

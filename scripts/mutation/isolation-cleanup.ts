@@ -9,6 +9,7 @@ import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { processExists, removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import {
+  MUTATION_RUN_ID_PREFIX,
   type MutationRunRecord,
   newRunRecord,
   readRunRecords,
@@ -19,41 +20,40 @@ import {
   withinStartupGrace,
 } from "./isolation-state.ts";
 
-export const processBelongsToRun = async (
-  record: MutationRunRecord,
-): Promise<boolean> => {
-  if (record.status !== "running" || record.pid === undefined) return false;
-  if (!processExists(record.pid)) return false;
-  return await runLockIsHeld(record);
-};
-
-/**
- * A run that is still copying counts as active while it is young, even before
- * its lock shows: a run writes its record moments before it takes the lock, and
- * deleting its folder in that gap would pull the snapshot out from under it.
- */
-const copyingRunStillActive = async (
-  record: MutationRunRecord,
-): Promise<boolean> =>
-  record.status === "copying" &&
-  (runStartedRecently(record) || (await runLockIsHeld(record)));
-
-const runningProcessStillExists = async (
-  record: MutationRunRecord,
-): Promise<boolean> =>
+/** Is this record's run started, and its process still alive? */
+const runProcessIsUp = (record: MutationRunRecord): boolean =>
   record.status === "running" &&
   record.pid !== undefined &&
-  processExists(record.pid) &&
-  (runStartedRecently(record) || (await runLockIsHeld(record)));
+  processExists(record.pid);
+
+export const processBelongsToRun = async (
+  record: MutationRunRecord,
+): Promise<boolean> => runProcessIsUp(record) && (await runLockIsHeld(record));
+
+/**
+ * A run that looks alive still counts as active while it is young, before its
+ * lock shows: a run writes its record moments before it takes the lock, and
+ * deleting its folder in that gap would pull the work out from under it.
+ */
+const stillActive =
+  (looksAlive: (record: MutationRunRecord) => boolean) =>
+  async (record: MutationRunRecord): Promise<boolean> =>
+    looksAlive(record) &&
+    (runStartedRecently(record) || (await runLockIsHeld(record)));
+
+const copyingRunStillActive = stillActive(
+  (record) => record.status === "copying",
+);
+
+const runningProcessStillExists = stillActive(runProcessIsUp);
 
 export const liveRunIdSet = async (
   records: MutationRunRecord[],
 ): Promise<Set<string>> => {
   const live = await Promise.all(
-    records.map(async (record) => {
-      if (record.pid === undefined) return null;
-      return (await processBelongsToRun(record)) ? record.id : null;
-    }),
+    records.map(async (record) =>
+      (await processBelongsToRun(record)) ? record.id : null,
+    ),
   );
   return new Set(live.filter((id): id is string => id !== null));
 };
@@ -110,7 +110,8 @@ export const reportRemoveFailure = (
   what: string,
   { error, record }: Extract<RemoveRunResult, { removed: false }>,
 ): void => {
-  console.error(`Failed to remove ${what}${record.id}: ${errorMessage(error)}`);
+  const subject = [what, record.id].filter(Boolean).join(" ");
+  console.error(`Failed to remove ${subject}: ${errorMessage(error)}`);
 };
 
 /** Drops the snapshot of a run that has ended: it is a whole checkout copy. */
@@ -118,7 +119,7 @@ export const removeWorkSnapshot = async (
   record: MutationRunRecord,
 ): Promise<void> => {
   const result = await removeRunPath(record, record.workRoot);
-  if (!result.removed) reportRemoveFailure("the snapshot of ", result);
+  if (!result.removed) reportRemoveFailure("the snapshot of", result);
 };
 
 /** When a folder last changed, or 0 when that cannot be told. */
@@ -152,8 +153,10 @@ const recordForUnreadableRun = async (
 const runsToSweep = async (root: string): Promise<MutationRunRecord[]> => {
   const records = await readRunRecords(root);
   const known = new Set(records.map((record) => record.id));
+  // Only folders this runner named: anything else under .mutation-runs was
+  // put there by someone else and is not ours to delete.
   const unreadable = (await runDirectoryNames(root)).filter(
-    (name) => !known.has(name),
+    (name) => !known.has(name) && name.startsWith(MUTATION_RUN_ID_PREFIX),
   );
   return [
     ...records,
@@ -168,6 +171,6 @@ export const removeInactiveRuns = async (root: string): Promise<void> => {
   const { removable } = await cleanableRuns(await runsToSweep(root));
   const results = await Promise.all(removable.map(removeRun));
   for (const result of results) {
-    if (!result.removed) reportRemoveFailure("the earlier run ", result);
+    if (!result.removed) reportRemoveFailure("the earlier run", result);
   }
 };
