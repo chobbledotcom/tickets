@@ -186,6 +186,28 @@ export const expectReplayOutcome = async (
     expect(refund.calls.length).toBe(refundCalls);
   });
 };
+
+/**
+ * Assert the webhook put the payment in front of the owner instead of acting
+ * on it. The site cannot tell which figure is right when the charge and the
+ * signed total disagree, so it refuses to move money by guesswork.
+ */
+export const expectOwnerAction = async (
+  session: Parameters<typeof runWebhook>[0],
+  listingId: number,
+): Promise<void> => {
+  await runWebhook(session, async (refund) => {
+    await assertJson(webhookRequest(), 200, (json) => {
+      expect(json.status).toBe("needs_action");
+    });
+    // No money moved on its own.
+    expect(refund.calls.length).toBe(0);
+  });
+  // Nothing is booked while the owner decides, and the case is waiting.
+  await expectNoAttendees(listingId);
+  const { getOpenPaymentCases } = await import("#shared/db/payments/cases.ts");
+  expect(await getOpenPaymentCases()).toHaveLength(1);
+};
 /** A package group whose single member has a base price of 5000 but a package
  * override of 1500. Returns the group and member. */
 export const setupPackage = async () => {

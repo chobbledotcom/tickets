@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
+  expectOwnerAction,
   expectProcessed,
   expectReplayOutcome,
   expectStoredRefund,
@@ -48,11 +49,12 @@ describeWithEnv(
 
     // ---- mismatch / divergence: store a quantity-0 placeholder, refund, flag ---
 
-    test("a charge that differs from the signed total is stored and refunded", async () => {
+    test("a charge that differs from the signed total is put to the owner", async () => {
       const listing = await setupWithListing();
-      // Signed at 1000 but the provider reports a 1200 charge — a mismatch. The
-      // payment is ours (signed), so the booking is kept (not dropped into limbo).
-      await expectReplayOutcome(
+      // Signed at 1000 but the provider reports a 1200 charge. The payment is
+      // ours (signed), so the booking is kept, and the owner decides what to
+      // do about the money.
+      await expectOwnerAction(
         {
           amount_total: 1200,
           id: "cs_signed_mismatch",
@@ -60,15 +62,15 @@ describeWithEnv(
             items: singleItem(listing.id, 1, 1000),
           }),
         },
-        { processed: false, refundCalls: 1 },
+        listing.id,
       );
-      await expectStoredRefundRecord(listing.id);
     });
 
     test("a re-derivation that diverges from the signed total is stored and refunded", async () => {
       const listing = await setupWithListing();
-      // Signed and charged at 999, but the item re-prices to 1000 — a price edit
-      // between checkout and webhook. The booking is kept, refunded, and flagged.
+      // Signed and charged at 999, but the item re-prices to 1000 — a price
+      // edit between checkout and webhook. What the buyer paid matches what
+      // they were asked for, so the money simply goes back.
       await expectReplayOutcome(
         {
           amount_total: 999,
