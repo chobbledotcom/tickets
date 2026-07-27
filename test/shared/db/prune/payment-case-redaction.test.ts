@@ -10,7 +10,6 @@ import {
   getPaymentCaseDecisions,
 } from "#shared/db/payments/decisions.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
-import { reviewedPaymentSnapshot } from "#test/shared/db/payments/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   oldPaymentTime,
@@ -31,7 +30,21 @@ describeWithEnv("db > resolved payment case redaction", { db: true }, () => {
         caseRevision: paymentCase.revision,
         claimedAt: observedAt,
         reason: "Keep this audit reason",
-        reviewed: reviewedPaymentSnapshot("acct-redaction"),
+        reviewed: {
+          accountId: "acct-redaction",
+          charges: [
+            {
+              captured: { amount: 1_000, currency: "GBP" },
+              chargeId: 1,
+              providerReference: payment.charge,
+              refunded: { amount: 0, currency: "GBP" },
+            },
+          ],
+          kind: "charges",
+          mode: "test",
+          paymentId: payment.id,
+          provider: "stripe",
+        },
         selection: { kind: "refund_remaining" },
       },
       {
@@ -44,12 +57,14 @@ describeWithEnv("db > resolved payment case redaction", { db: true }, () => {
     );
     const attempt = await beginPaymentDecisionAttempt(decision.id, observedAt);
     if (attempt.status !== "running")
-      throw new Error("Expected decision claim");
-    await completePaymentDecisionAndResolveCase(attempt.decision);
+      throw new Error(`Expected decision claim, got ${attempt.status}`);
+    // Resolve it back when the payment happened, so the case is past the
+    // keep-for-a-while window that redaction waits out.
+    await completePaymentDecisionAndResolveCase(attempt.decision, observedAt);
 
     const first = await runDatabasePruning();
-
     expect(first.fullBatch).toBe(true);
+
     expect(await redactedAt(payment.id)).toBeNull();
     const stored = await queryOne<{
       evidence: EnvKeyEncrypted;

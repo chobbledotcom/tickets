@@ -29,7 +29,9 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import { adminGet, withTestSession } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("server (admin refund UI)", { db: true }, () => {
   describe("listing page UI", () => {
@@ -114,6 +116,13 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
         "paid@example.com",
         "pi_edit_1",
       );
+      await setupStripe();
+      await createAggregatePayment({
+        attendeeId: attendee.id,
+        charges: [{ amount: 500, reference: "pi_edit_1" }],
+        configuredAccount: true,
+        paymentId: "cs_edit_1",
+      });
       const response = await adminGet(
         `/admin/attendees/${attendee.id}/actions`,
       );
