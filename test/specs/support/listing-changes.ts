@@ -6,9 +6,9 @@
 import { expect } from "@std/expect";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
+import { tickedCheckboxes } from "#test/specs/support/form-controls.ts";
 import { stayListing } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { extractFormEntries } from "#test-utils/test-browser.ts";
 
 /** The name of the weekday a date falls on, in the words the site uses. */
 export const weekdayOf = (day: string): string => {
@@ -28,9 +28,10 @@ export const stopOpeningOn = async (
 ): Promise<void> => {
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
-  const ticked = extractFormEntries(browser.currentHtml)
-    .filter(([field]) => field === "bookable_days")
-    .map(([, day]) => day);
+  // Only days carried by a real, usable checkbox count: a day rendered as a
+  // fixed hidden box is one nobody could untick, so the story must fail rather
+  // than post an edit no organiser could make.
+  const ticked = tickedCheckboxes(browser.currentHtml, "bookable_days");
   expect(ticked).toContain(weekday);
   await browser.submitForm(
     { bookable_days: ticked.filter((day) => day !== weekday) },

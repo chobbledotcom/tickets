@@ -212,14 +212,9 @@ When(
   },
 );
 
-/** How long the stay runs, checked two ways that cannot both drift together.
- *
- * The days the site stored are compared against the day the story started on
- * plus its own number of days — arithmetic the site's own wording plays no part
- * in. Then the booking's page is read, so the organiser is shown a label naming
- * exactly those days. Checking only the label would let a change to how ranges
- * are worded pass unnoticed, because the expected label is built by the same
- * helper the page uses. */
+/** How long the stay runs, checked against the story's own days as well as the
+ * page. The label alone would not do: it is built by the same helper the page
+ * renders with, so a miscalculated range would match itself. */
 export const expectStayRunsFor = async (
   world: TicketsWorld,
   days: number,
