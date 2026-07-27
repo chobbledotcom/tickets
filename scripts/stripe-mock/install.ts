@@ -179,8 +179,9 @@ const startInstallLockRefresh = (
   return async (): Promise<void> => {
     stopped = true;
     clearTimeout(timeout);
+    // A refresh already under way finishes without booking another, because
+    // scheduling checks the flag above.
     await latestRefresh;
-    clearTimeout(timeout);
   };
 };
 
