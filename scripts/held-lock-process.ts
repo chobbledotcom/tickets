@@ -17,10 +17,21 @@ import { statOrNull } from "#scripts/not-found.ts";
  * closes — when we let go, or if we die first. It gives itself the same time
  * we would, counted from when it starts waiting, and ends if that runs out.
  */
+/** The child says the folder went with this, rather than dying of it. */
+const LOCK_FOLDER_GONE_EXIT_CODE = 3;
+
 const HOLD_LOCK_SCRIPT = `
 const [path, timeoutText] = Deno.args;
 const say = (line) => Deno.stdout.write(new TextEncoder().encode(line + "\\n"));
-const file = await Deno.open(path, { create: true, read: true, write: true });
+const opened = await Deno.open(path, { create: true, read: true, write: true })
+  .catch((why) => why);
+// Its folder can go while it is starting. That is nobody's lock, not a failure
+// to take one, and only the child can tell the two apart for certain.
+if (opened instanceof Deno.errors.NotFound) {
+  Deno.exit(${LOCK_FOLDER_GONE_EXIT_CODE});
+}
+if (!(opened instanceof Deno.FsFile)) throw opened;
+const file = opened;
 const gaveUp = setTimeout(() => Deno.exit(0), Number(timeoutText));
 await file.lock(true);
 clearTimeout(gaveUp);
@@ -87,14 +98,14 @@ export const holdLockOrNull = async (
   await child.stdout.cancel();
 
   if (line === null) {
-    // It ends quietly when its own time runs out. Ending any other way means
-    // the lock could not be taken at all, which is not the same as busy.
+    // It ends quietly when its own time runs out, and says so when its folder
+    // went. Ending any other way means the lock could not be taken at all,
+    // which is not the same as busy.
     const why = await new Response(child.stderr).text();
     const stopped = await closeDown(child);
-    // Its folder can go while it is starting, which is nobody's lock rather
-    // than a failure to take one.
-    const folderWent = (await statOrNull(dirname(path))) === null;
-    if (!(stopped.success || folderWent)) {
+    const expected =
+      stopped.success || stopped.code === LOCK_FOLDER_GONE_EXIT_CODE;
+    if (!expected) {
       throw new Error(`Could not take the lock at ${path}: ${why.trim()}`);
     }
     return null;
