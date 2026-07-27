@@ -5,12 +5,18 @@
  * and to serve the explicit list/kill/clean commands.
  */
 
+import { join } from "@std/path";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { processExists, removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { runLockIsHeld } from "./isolation-lock.ts";
-import { readRunRecords, runDirectoryNames } from "./isolation-records.ts";
 import {
+  readRunRecord,
+  readRunRecords,
+  runDirectoryNames,
+} from "./isolation-records.ts";
+import {
+  MUTATION_RECORD_FILE,
   MUTATION_RUN_ID_PREFIX,
   type MutationRunRecord,
   newRunRecord,
@@ -45,6 +51,24 @@ const copyingRunStillActive = stillActive(
 );
 
 const runningProcessStillExists = stillActive(runProcessIsUp);
+
+const looksActive = async (record: MutationRunRecord): Promise<boolean> =>
+  (await copyingRunStillActive(record)) ||
+  (await runningProcessStillExists(record));
+
+/**
+ * A run counts as active if either the record we started from, or the one on
+ * disk now, says so. Waiting on the lock takes time, and the run can move from
+ * copying to running while we wait — the record we read first is by then out of
+ * date, and acting on it would delete a run that had just come to life.
+ */
+const runIsActive = async (record: MutationRunRecord): Promise<boolean> => {
+  if (await looksActive(record)) return true;
+  const latest = await readRunRecord(join(record.root, MUTATION_RECORD_FILE));
+  return (
+    latest !== null && (await looksActive({ ...latest, root: record.root }))
+  );
+};
 
 export const liveRunIdSet = async (
   records: MutationRunRecord[],
@@ -89,9 +113,7 @@ export const cleanableRuns = async (
 }> => {
   const statuses = await Promise.all(
     records.map(async (record) => ({
-      isActive:
-        (await copyingRunStillActive(record)) ||
-        (await runningProcessStillExists(record)),
+      isActive: await runIsActive(record),
       record,
     })),
   );

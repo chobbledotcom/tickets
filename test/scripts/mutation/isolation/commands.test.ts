@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { cleanableRuns } from "#scripts/mutation/isolation-cleanup.ts";
 import { withMutationRunLock } from "#scripts/mutation/isolation-lock.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
@@ -134,6 +135,22 @@ describe("mutation isolation commands", () => {
       expect(await pathExists(stale.root)).toBe(false);
       expect(await pathExists(noPid.root)).toBe(false);
       expect(await pathExists(passed.root)).toBe(false);
+    });
+  });
+
+  test("keeps a run that came to life while the lock was probed", async () => {
+    await withTempDir(async (root) => {
+      // What a sweep read before waiting on the lock: an old copying run.
+      const asRead = newRunRecord(
+        "mutation-woke-up",
+        [],
+        root,
+        LONG_AGO.toISOString(),
+      );
+      // What is on disk now: the same run, started moments ago.
+      await writeRunRecord(markRunning(asRead, Deno.pid));
+
+      expect((await cleanableRuns([asRead])).removable).toEqual([]);
     });
   });
 
