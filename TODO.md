@@ -1717,10 +1717,13 @@ hand-rolled protocol underneath (`createNew` to claim the lock, a timestamp
 written inside it, and `removeStaleInstallLock` to break a lock whose owner
 died), guarded by a `withFileLock` on a separate guard file.
 
-It answers a question the shared lock cannot: "the process that claimed this
-walked away, so take it from them". The mutation runner answers the same
-question a different way — a record with a status, a pid, and a startup grace,
-plus `processExists`. Two mechanisms for one job.
+It answers a question the shared lock cannot: "whoever claimed this walked away,
+so take it from them". Two other places answer that same question their own way:
+the mutation runner uses a record with a status, a pid, and a startup grace plus
+`processExists`, and the database migration lock
+(`src/shared/db/migrations/lock.ts`) writes an owner into a settings row and
+lets anyone break a claim older than `MIGRATION_LOCK_TTL_MS`. Three mechanisms
+for one job.
 
 Worth folding into one: either teach `lock-file.ts` about an owner that can go
 away, or let the install reuse the run-record shape. It stayed out of PR #1957
@@ -1728,6 +1731,8 @@ because it is a whole protocol, not a shared helper, and the install path has
 its own timing tests.
 
 Starting point: `tryAcquireInstallLock`/`removeStaleInstallLock` in
-`scripts/stripe-mock/install.ts`, `activeByRecord` in
-`scripts/mutation/isolation-cleanup.ts` for the other approach, and
-`test/scripts/stripe-mock/install.test.ts` for what the timing tests expect.
+`scripts/stripe-mock/install.ts`; `acquireMigrationLock` in
+`src/shared/db/migrations/lock.ts` is the best-worked-out version of the pattern
+and the one to copy; `activeByRecord` in `scripts/mutation/isolation-cleanup.ts`
+is the third; and `test/scripts/stripe-mock/install.test.ts` says what the
+timing tests expect.
