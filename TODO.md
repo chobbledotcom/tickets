@@ -1455,20 +1455,6 @@ re-conflict with the import-only changes that are the actual subject of the
 PR. The ~400-line target is guidance, and the cold-start PR's brief was
 explicitly about import-graph narrowing, not test reorganisation.
 
-## Export REFRESH_DELAY_MS for test reuse
-
-*Origin: CodeRabbit review on PR #1909 (independent test hardening).*
-
-`src/ui/client/admin/order-gallery.ts` declares `const REFRESH_DELAY_MS = 200`
-privately. The debounce-timing test in `test/ui/client/admin/order-gallery.test.ts`
-hard-codes `199` and `1` to assert the exact 200 ms boundary. Importing the
-production constant (`REFRESH_DELAY_MS - 1` then `1`) would keep the test aligned
-if the delay changes. This requires exporting `REFRESH_DELAY_MS` from the
-production module — a small production change that was out of scope for the
-test-only PR. Starting point: add `export` to the `const REFRESH_DELAY_MS`
-declaration, then replace the hard-coded `199` in the "waits for the debounce
-delay" test with `REFRESH_DELAY_MS - 1`.
-
 ## Split the sms-webhook test suite
 
 *Origin: Codex review on PR #1909 (independent test hardening).*

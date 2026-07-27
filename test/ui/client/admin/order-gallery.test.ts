@@ -9,7 +9,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { initOrderGallery } from "#src/ui/client/admin/order-gallery.ts";
+import {
+  initOrderGallery,
+  REFRESH_DELAY_MS,
+} from "#src/ui/client/admin/order-gallery.ts";
 import {
   createDomInstaller,
   createGlobalStash,
@@ -211,7 +214,7 @@ describe("initOrderGallery", () => {
   test("waits for the debounce delay before checking availability", async () => {
     const page = harness();
     page.tick("select_package_7", true);
-    await clock.time!.tickAsync(199);
+    await clock.time!.tickAsync(REFRESH_DELAY_MS - 1);
     expect(page.requests).toHaveLength(0);
 
     await clock.time!.tickAsync(1);
