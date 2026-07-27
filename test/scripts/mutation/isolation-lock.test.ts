@@ -21,6 +21,25 @@ const LONG_ENOUGH_TO_BE_LET_IN_MS = 30;
 const pause = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+/**
+ * Answer some stats differently, and pass the rest to the real one. `null` from
+ * `answer` means "not this path, look at it properly".
+ */
+const statSaying = (
+  answer: (
+    path: string,
+    real: typeof Deno.stat,
+  ) => Promise<Deno.FileInfo> | null,
+): Disposable => {
+  const real = Deno.stat;
+  return stub(
+    Deno,
+    "stat",
+    ((path: string | URL) =>
+      answer(`${path}`, real) ?? real(path)) as typeof Deno.stat,
+  );
+};
+
 describe("the lock that keeps two runs out of one folder", () => {
   test("puts a run's lock inside the folder it was given", async () => {
     await withTempDir(async (root) => {
@@ -147,13 +166,11 @@ describe("the lock that keeps two runs out of one folder", () => {
     await withTempDir(async (root) => {
       const record = { root: join(root, ".mutation-runs", "mutation-swept") };
       await Deno.mkdir(record.root, { recursive: true });
-      const stat = Deno.stat;
       // Says the lock file is there, but it is not — which is what a clear-up
       // taking the folder away mid-question looks like.
-      using _stat = stub(Deno, "stat", ((path: string | URL) =>
-        `${path}`.endsWith(MUTATION_RUN_LOCK_FILE)
-          ? stat(record.root)
-          : stat(path)) as typeof Deno.stat);
+      using _stat = statSaying((path, real) =>
+        path.endsWith(MUTATION_RUN_LOCK_FILE) ? real(record.root) : null,
+      );
 
       expect(await runLockIsHeld(record)).toBe(false);
     });
@@ -163,11 +180,11 @@ describe("the lock that keeps two runs out of one folder", () => {
     await withTempDir(async (root) => {
       const record = { root: join(root, "unreadable") };
       await Deno.mkdir(record.root, { recursive: true });
-      const stat = Deno.stat;
-      using _stat = stub(Deno, "stat", ((path: string | URL) =>
-        `${path}`.includes("unreadable")
+      using _stat = statSaying((path) =>
+        path.includes("unreadable")
           ? Promise.reject(new Deno.errors.PermissionDenied("no entry"))
-          : stat(path)) as typeof Deno.stat);
+          : null,
+      );
 
       // Calling this "nobody is holding it" would let a clear-up delete a run
       // that is very much still going.
