@@ -141,7 +141,11 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     }
   });
 
-  test("acknowledges an unavailable unknown SumUp checkout", async () => {
+  // "Unavailable" means SumUp could not be read at all, so whether the
+  // checkout is ours is unknown. Asking for redelivery is safer than dropping
+  // a real payment during an outage; a checkout SumUp reports as missing is
+  // acknowledged instead.
+  test("asks for redelivery when SumUp cannot be read", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     await stageSumupCheckout(listing);
     const fetchStub = stub(sumupApi, "retrieveCheckoutById", () =>
@@ -154,8 +158,8 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
           id: "co_spam",
         }),
       );
-      expect(response.status).toBe(200);
-      expect((await response.json()).received).toBe(true);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ status: "retry" });
       expect(fetchStub.calls.length).toBe(1);
     } finally {
       fetchStub.restore();

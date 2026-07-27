@@ -16,6 +16,7 @@ import {
   singleItem,
   webhookMeta,
 } from "#test-utils/factories.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import {
   createAggregatePayment,
@@ -96,6 +97,8 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
 
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees).toHaveLength(1);
+      // The winner's booking is finished off by maintenance.
+      await settleDeferredPaymentWork();
       const payment = await requirePaymentAggregateByProviderSession(
         "cs_webhook_concurrent",
       );
