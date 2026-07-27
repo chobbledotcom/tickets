@@ -23,13 +23,10 @@ import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
 import { recordScriptVersion } from "#shared/update.ts";
-
-export * from "./migrations/errors.ts";
-
-import { nowIso } from "#shared/now.ts";
 import {
   ensureDefaultAttendeeStatus,
   loadMigrations,

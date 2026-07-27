@@ -65,7 +65,7 @@ const buildMigrationMarkerStatements =
     return migrations.map((migration) => build(migration, appliedAt));
   };
 
-export const migrationMarkerStatements = buildMigrationMarkerStatements(
+const migrationMarkerStatements = buildMigrationMarkerStatements(
   migrationMarkerStatement,
 );
 

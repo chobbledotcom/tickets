@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import {
-  acquireMigrationLock,
-  releaseMigrationLock,
-} from "#shared/db/migrations/lock.ts";
+import { releaseMigrationLock } from "#shared/db/migrations/lock.ts";
 import {
   applyMigrationWithRetry,
   baselineCurrentSchemaIfNeeded,
@@ -23,7 +20,10 @@ import { syncIndexes } from "#shared/db/migrations/schema-sync.ts";
 import type { Migration } from "#shared/db/migrations/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
-import { settingsValue } from "#test-utils/migrations.ts";
+import {
+  settingsValueOrNull,
+  takeMigrationLock,
+} from "#test-utils/migrations.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 describe("db > migrations > runner", () => {
@@ -273,7 +273,7 @@ describeWithEnv(
     });
 
     test("running a migration says which one is running", async () => {
-      const lockToken = await acquireMigrationLock(false);
+      const lockToken = await takeMigrationLock();
       try {
         await runPendingMigrations(
           [
@@ -284,14 +284,14 @@ describeWithEnv(
               verify: () => Promise.resolve(),
             },
           ],
-          lockToken!,
+          lockToken,
         );
 
         expect(debugLines()).toContain(
           "[Migration] Running runner-test-migration: runner test migration",
         );
       } finally {
-        await releaseMigrationLock(lockToken!);
+        await releaseMigrationLock(lockToken);
       }
     });
 
@@ -326,7 +326,7 @@ describeWithEnv(
 
       await restoreStaleSchemaMarkers();
 
-      expect(await settingsValue(DB_SCHEMA_HASH_KEY)).toBe(SCHEMA_HASH);
+      expect(await settingsValueOrNull(DB_SCHEMA_HASH_KEY)).toBe(SCHEMA_HASH);
       expect(debugLines()).toContain(
         "[Migration] Schema verified; restoring stale schema markers",
       );
@@ -339,7 +339,7 @@ describeWithEnv(
         await expect(restoreStaleSchemaMarkers()).rejects.toThrow(
           /Database schema markers are stale, no named migrations are pending.*must ship with a new entry in MIGRATIONS/s,
         );
-        expect(await settingsValue(DB_SCHEMA_HASH_KEY)).toBe("stale");
+        expect(await settingsValueOrNull(DB_SCHEMA_HASH_KEY)).toBe("stale");
       } finally {
         await syncIndexes();
         await restoreStaleSchemaMarkers();

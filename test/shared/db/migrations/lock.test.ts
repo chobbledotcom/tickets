@@ -14,6 +14,7 @@ import {
 } from "#shared/db/migrations/lock.ts";
 import { MIGRATION_LOCK_KEY } from "#shared/db/migrations/schema/version.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { takeMigrationLock } from "#test-utils/migrations.ts";
 
 describeWithEnv("db > migrations > lock", { db: true }, () => {
   const heldLock = async (): Promise<string | null> => {
@@ -88,9 +89,9 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
   });
 
   test("releasing removes this request's own lease", async () => {
-    const lockToken = await acquireMigrationLock(false);
+    const lockToken = await takeMigrationLock();
 
-    await releaseMigrationLock(lockToken!);
+    await releaseMigrationLock(lockToken);
 
     expect(await heldLock()).toBeNull();
   });
@@ -110,17 +111,17 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
   });
 
   test("owned statements are written while the lease is held", async () => {
-    const lockToken = await acquireMigrationLock(false);
+    const lockToken = await takeMigrationLock();
     try {
       await executeWhileMigrationLockOwned(
         [
           whileMigrationLockOwned(
             "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
             ["lock_test_marker", "written"],
-            lockToken!,
+            lockToken,
           ),
         ],
-        lockToken!,
+        lockToken,
       );
 
       const result = await getDb().execute(
@@ -131,12 +132,12 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
       await getDb().execute(
         "DELETE FROM settings WHERE key = 'lock_test_marker'",
       );
-      await releaseMigrationLock(lockToken!);
+      await releaseMigrationLock(lockToken);
     }
   });
 
   test("owned statements are refused once the lease is lost", async () => {
-    const lockToken = await acquireMigrationLock(false);
+    const lockToken = await takeMigrationLock();
     await clearLock();
 
     await expect(
@@ -145,10 +146,10 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
           whileMigrationLockOwned(
             "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
             ["lock_test_marker", "written"],
-            lockToken!,
+            lockToken,
           ),
         ],
-        lockToken!,
+        lockToken,
       ),
     ).rejects.toThrow(MigrationInProgressError);
 
@@ -159,11 +160,11 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
   });
 
   test("a failed migration gives the lock back and re-raises", async () => {
-    const lockToken = await acquireMigrationLock(false);
+    const lockToken = await takeMigrationLock();
     const failure = new Error("migration work failed");
 
     await expect(
-      releaseAfterMigrationFailure(lockToken!, failure),
+      releaseAfterMigrationFailure(lockToken, failure),
     ).rejects.toThrow(failure);
     expect(await heldLock()).toBeNull();
   });

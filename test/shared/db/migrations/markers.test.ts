@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import { acquireMigrationLock } from "#shared/db/migrations/lock.ts";
+import { releaseMigrationLock } from "#shared/db/migrations/lock.ts";
 import {
   getAppliedMigrationIds,
   migrationMarkerStatement,
@@ -19,7 +19,10 @@ import {
 } from "#shared/db/migrations/schema/version.ts";
 import type { Migration } from "#shared/db/migrations/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { settingsValue } from "#test-utils/migrations.ts";
+import {
+  settingsValueOrNull,
+  takeMigrationLock,
+} from "#test-utils/migrations.ts";
 
 describeWithEnv("db > migrations > markers", { db: true }, () => {
   const testMigration: Migration = {
@@ -57,8 +60,8 @@ describeWithEnv("db > migrations > markers", { db: true }, () => {
 
     await writeSchemaMarkers();
 
-    expect(await settingsValue(LATEST_DB_UPDATE_KEY)).toBe(LATEST_UPDATE);
-    expect(await settingsValue(DB_SCHEMA_HASH_KEY)).toBe(SCHEMA_HASH);
+    expect(await settingsValueOrNull(LATEST_DB_UPDATE_KEY)).toBe(LATEST_UPDATE);
+    expect(await settingsValueOrNull(DB_SCHEMA_HASH_KEY)).toBe(SCHEMA_HASH);
   });
 
   test("the applied ids are every migration a fully-migrated database ran", async () => {
@@ -68,32 +71,34 @@ describeWithEnv("db > migrations > markers", { db: true }, () => {
   });
 
   test("recording a finished batch stamps the schema and frees the lock", async () => {
-    const lockToken = await acquireMigrationLock(false);
+    const lockToken = await takeMigrationLock();
     try {
       await staleSchemaMarkers();
 
-      await recordMigrationBatch([testMigration], true, lockToken!);
+      await recordMigrationBatch([testMigration], true, lockToken);
 
       expect((await getAppliedMigrationIds()).has(testMigration.id)).toBe(true);
-      expect(await settingsValue(DB_SCHEMA_HASH_KEY)).toBe(SCHEMA_HASH);
-      expect(await settingsValue(MIGRATION_LOCK_KEY)).toBeNull();
+      expect(await settingsValueOrNull(DB_SCHEMA_HASH_KEY)).toBe(SCHEMA_HASH);
+      expect(await settingsValueOrNull(MIGRATION_LOCK_KEY)).toBeNull();
     } finally {
+      await releaseMigrationLock(lockToken);
       await forgetTestMigration();
     }
   });
 
   test("recording an unfinished batch leaves the schema markers alone", async () => {
-    const lockToken = await acquireMigrationLock(false);
+    const lockToken = await takeMigrationLock();
     try {
       await staleSchemaMarkers();
 
-      await recordMigrationBatch([testMigration], false, lockToken!);
+      await recordMigrationBatch([testMigration], false, lockToken);
 
       expect((await getAppliedMigrationIds()).has(testMigration.id)).toBe(true);
       // More migrations are still to come, so this build's schema is not
       // claimed yet.
-      expect(await settingsValue(DB_SCHEMA_HASH_KEY)).toBe("stale");
+      expect(await settingsValueOrNull(DB_SCHEMA_HASH_KEY)).toBe("stale");
     } finally {
+      await releaseMigrationLock(lockToken);
       await forgetTestMigration();
       await writeSchemaMarkers();
     }
