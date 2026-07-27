@@ -100,11 +100,8 @@ describe("cleaning up after an install", () => {
   });
 
   test("stops the lock refresh without scheduling another write when the install fails mid-refresh", async () => {
-    // Regression: scheduleNextRefresh (line 157) checks `if (stopped) return;`
-    // — the branch where a lock refresh write is still in-flight when the
-    // install fails and stopRefreshingLock is called. Without coverage, a
-    // mutation to that guard (e.g. `if (!stopped) return;`) would silently
-    // schedule an extra refresh write after the lock is released.
+    // A refresh still being written when the install fails must not book
+    // another one, or the lock keeps being touched after it is released.
     await withTempStripeMockPaths(async (paths) => {
       const proceedPath = join(paths.binDir, "proceed");
       await withSecondLockRefreshHeld(

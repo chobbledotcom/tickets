@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -12,8 +13,8 @@ import {
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
 
-/** How long the install is made to take, so the lock is held for a while. */
-const INSTALL_TAKES_MS = 120;
+/** How many times the lock must be re-written before the install may finish. */
+const REFRESHES_WANTED = 3;
 const TOUCH_EVERY_MS = 20;
 
 type Touches = { afterFinishing: number; whileInstalling: number };
@@ -29,6 +30,7 @@ const touchesAround = async (touchMs: number): Promise<Touches> => {
   try {
     await withTempStripeMockPaths(async (paths) => {
       const lockPath = installLockPath(paths);
+      const proceedPath = join(paths.binDir, "proceed");
       const writeTextFile = Deno.writeTextFile;
       using _write = stub(Deno, "writeTextFile", ((
         path: string | URL,
@@ -38,12 +40,20 @@ const touchesAround = async (touchMs: number): Promise<Touches> => {
         if (String(path) === lockPath) {
           if (finished) counts.afterFinishing += 1;
           else counts.whileInstalling += 1;
+          // The download is held until the lock has been kept alive often
+          // enough, so the install can never finish first.
+          if (counts.whileInstalling > REFRESHES_WANTED) {
+            void writeTextFile(proceedPath, "");
+          }
         }
         return writeTextFile(path, data, options);
       }) as typeof Deno.writeTextFile);
 
       await withFakeCurl(
-        `sleep ${INSTALL_TAKES_MS / 1000}; cat ${JSON.stringify(fakeArchive.archivePath)}`,
+        [
+          `while [ ! -f ${JSON.stringify(proceedPath)} ]; do sleep 0.01; done`,
+          `cat ${JSON.stringify(fakeArchive.archivePath)}`,
+        ].join("\n"),
         async (curl) => {
           await downloadStripeMock({
             commands: { curl },
@@ -55,7 +65,7 @@ const touchesAround = async (touchMs: number): Promise<Touches> => {
       finished = true;
 
       // Long enough for several more refreshes, if any were still coming.
-      await wait(INSTALL_TAKES_MS);
+      await wait(TOUCH_EVERY_MS * 4);
     });
   } finally {
     await fakeArchive.cleanup();
@@ -69,7 +79,7 @@ describe("keeping hold of the install lock", () => {
 
     // Written once to claim it, then again every so often. Without the
     // repeats, another install would think this one had died.
-    expect(touches.whileInstalling).toBeGreaterThan(2);
+    expect(touches.whileInstalling).toBeGreaterThan(REFRESHES_WANTED);
   });
 
   test("stops saying so once the install is done", async () => {

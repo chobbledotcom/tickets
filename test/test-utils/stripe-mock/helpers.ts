@@ -390,13 +390,16 @@ export const writeTermIgnoringMock = async (
   await makeExecutable(paths.binaryPath);
 };
 
+/** Runs a body with a stand-in command of the given name in place. */
+export type WithFakeCommand = (
+  script: string,
+  body: (path: string) => Promise<void>,
+) => Promise<void>;
+
 /** Stand in for a command the installer runs, with a script of our own. */
 export const fakeCommand =
-  (name: string) =>
-  async (
-    script: string,
-    body: (path: string) => Promise<void>,
-  ): Promise<void> =>
+  (name: string): WithFakeCommand =>
+  async (script, body) =>
     await withTempDir(async (dir) => {
       const fake = `${dir}/${name}`;
       await Deno.writeTextFile(fake, `#!/bin/sh\n${script}\n`);
@@ -404,4 +407,4 @@ export const fakeCommand =
       await body(fake);
     });
 
-export const withFakeCurl = fakeCommand("curl");
+export const withFakeCurl: WithFakeCommand = fakeCommand("curl");

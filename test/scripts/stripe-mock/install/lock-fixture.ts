@@ -15,9 +15,9 @@ import {
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
 
-export const oldDate = (): Date => new Date(Date.now() - 1_000);
+const oldDate = (): Date => new Date(Date.now() - 1_000);
 
-export const makeLockFileOld = async (lockPath: string): Promise<void> => {
+const makeLockFileOld = async (lockPath: string): Promise<void> => {
   const date = oldDate();
   await Deno.utime(lockPath, date, date);
 };
@@ -54,7 +54,7 @@ export const expectStaleLockRemoved = async (
   }
 };
 
-export const releaseLockAfterWritingBinary = async (
+const releaseLockAfterWritingBinary = async (
   paths: TestStripeMockPaths,
   releaseLock: () => Promise<void>,
 ): Promise<void> => {
