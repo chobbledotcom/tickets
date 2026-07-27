@@ -61,10 +61,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     const intent = bookingIntent([{ e: listing.id, p: 400, q: 1 }]);
 
     const items = validatedItems(
-      await validateAllItems(
-        paymentSession("cs_items_days", 400),
-        intent,
-      ),
+      await validateAllItems(paymentSession("cs_items_days", 400), intent),
     );
     expect(items).toHaveLength(1);
     expect(items[0]?.expectedPrice).toBe(400);
@@ -76,10 +73,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
 
     expect(
       failureResult(
-        await validateAllItems(
-          paymentSession("cs_items_missing", 500),
-          intent,
-        ),
+        await validateAllItems(paymentSession("cs_items_missing", 500), intent),
       ),
     ).toEqual({
       detail: "Post-payment listing not found (session=cs_items_missing)",
@@ -134,10 +128,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
 
     expect(
       failureResult(
-        await validateAllItems(
-          paymentSession("cs_items_closed", 700),
-          intent,
-        ),
+        await validateAllItems(paymentSession("cs_items_closed", 700), intent),
       ).error,
     ).toBe(
       "Sorry, registration for Evening class closed while you were completing payment.",
@@ -170,10 +161,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
 
     expect(
       failureResult(
-        await validateAllItems(
-          paymentSession("cs_items_hidden", 700),
-          intent,
-        ),
+        await validateAllItems(paymentSession("cs_items_hidden", 700), intent),
       ).error,
     ).toBe("This listing is no longer accepting registrations.");
     expect(refund.calls).toHaveLength(1);
@@ -224,10 +212,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
 
     expect(
       validatedItems(
-        await validateAllItems(
-          paymentSession("cs_items_folded", 800),
-          intent,
-        ),
+        await validateAllItems(paymentSession("cs_items_folded", 800), intent),
       ).map((item) => item.expectedPrice),
     ).toEqual([600, 200]);
   });

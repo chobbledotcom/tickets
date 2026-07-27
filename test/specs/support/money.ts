@@ -14,7 +14,6 @@ import {
   completePaidOrder,
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
-import { withRefundMock } from "#test-utils/refund-routes.ts";
 import { attendeeLegsOfKind } from "#test/specs/support/money-reads.ts";
 import { visitorBooks } from "#test/specs/support/public-booking.ts";
 import {
@@ -22,6 +21,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withRefundMock } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** The id of a listing the story put on sale, by the name it used. */

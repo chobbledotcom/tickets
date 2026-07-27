@@ -22,10 +22,7 @@ const pricesFor = async (
   amount: number,
   intent: BookingIntent,
 ): Promise<Array<number | null>> => {
-  const result = await validateAllItems(
-    paymentSession(id, amount),
-    intent,
-  );
+  const result = await validateAllItems(paymentSession(id, amount), intent);
   if (!("ok" in result) || !result.ok) {
     throw new Error(`Expected validated items, got ${JSON.stringify(result)}`);
   }

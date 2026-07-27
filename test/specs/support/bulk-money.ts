@@ -10,7 +10,6 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { runStripeSuccess } from "#test/specs/support/money-drivers.ts";
-import { withRefundMock } from "#test-utils/refund-routes.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -18,6 +17,7 @@ import {
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { withRefundMock } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** The payment the provider will turn down — the middle one, so the story
