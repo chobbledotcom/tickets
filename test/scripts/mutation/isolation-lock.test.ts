@@ -106,6 +106,17 @@ describe("the lock that keeps two runs out of one folder", () => {
     });
   });
 
+  test("reports a run that has let its lock go as not held", async () => {
+    await withTempDir(async (root) => {
+      const record = { root: join(root, ".mutation-runs", "mutation-done") };
+      // The lock file outlives the run that made it, so a file on its own is
+      // not somebody holding it.
+      await withMutationRunLock(record.root, () => Promise.resolve());
+
+      expect(await runLockIsHeld(record)).toBe(false);
+    });
+  });
+
   test("reports a run somebody is holding as held", async () => {
     await withTempDir(async (root) => {
       const record = { root: join(root, ".mutation-runs", "mutation-busy") };
