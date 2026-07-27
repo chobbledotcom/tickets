@@ -59,15 +59,36 @@ export const expectPortAvailable = (port: number): void => {
   listener.close();
 };
 
+/** How many times a taken port is forgiven before the test is failed. */
+const PORT_STEAL_TRIES = 5;
+
+/**
+ * A free port is picked and let go of before it is used, so another test
+ * starting at that moment can take it. Starting then finds something already
+ * listening and says it worked, which is not what this test asked about — so
+ * try again on a fresh port rather than reading it as a pass.
+ */
 export const expectStartFails = async (
   options: StartOptions,
   message?: string,
-): Promise<void> =>
-  withUnusedPort(async (port) => {
-    const started = startStripeMock({ ...options, port });
-    if (message) await expect(started).rejects.toThrow(message);
-    else await expect(started).rejects.toThrow();
-  });
+): Promise<void> => {
+  for (let attempt = 1; attempt <= PORT_STEAL_TRIES; attempt++) {
+    let portWasTaken = false;
+    await withUnusedPort(async (port) => {
+      try {
+        const mock = await startStripeMock({ ...options, port });
+        await mock.stop();
+        portWasTaken = true;
+      } catch (error) {
+        if (message) expect(String(error)).toContain(message);
+      }
+    });
+    if (!portWasTaken) return;
+  }
+  throw new Error(
+    `Starting stripe-mock kept succeeding: the port was taken by something else ${PORT_STEAL_TRIES} times running.`,
+  );
+};
 
 export const expectStripeMockFails = (
   options: StartOptions,

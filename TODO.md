@@ -1695,39 +1695,26 @@ handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
 for how a client script is driven without a real browser.
 
 
-## The stripe-mock install tests fail about one run in three
+## Watch for ports being taken between tests
 
 *Origin: the chunk that took `scripts/stripe-mock/install.ts` to a full
-mutation score (#1966).*
+mutation score (#1966), and the flaky runs it uncovered.*
 
-The tests under `test/scripts/stripe-mock/install/` are unreliable. Of about
-fifteen runs of the folder, five failed — roughly one run in three. Every
-failing run failed a single test, and five different tests were involved, never
-the same one twice. Each one passes when it is run on its own. A full
-`deno task precommit` failed once because of it, so it will show up in CI on
-unrelated work.
+The tests under `test/scripts/stripe-mock/install/` failed about one run in
+three: five failed runs out of roughly fifteen, a different test each time, and
+each one passing when run on its own.
 
-Nearly every failure has the same shape: a test that expects starting
-stripe-mock to fail sees it succeed instead. One failure was different — the
-count of lock writes after an install finished was not zero, in
-`refreshing.test.ts`.
+The cause was a port being taken between choosing it and using it.
+`withUnusedPort` opens a port to find a free one, closes it, and hands the
+number over. Another test starting at that moment can take the same number. The
+starter then sees something already listening and reports success, so a test
+that asked for a failure was handed somebody else's mock instead.
 
-Three explanations have been tried and ruled out:
+`expectStartFails` now treats that as "ask again on a fresh port" rather than a
+pass, and gives up loudly if it keeps happening.
 
-- **The path was being changed for the whole process.** Test workers share one
-  environment, so a stand-in `curl` was visible to other tests. That was a real
-  fault and it is fixed — the check now runs in a process of its own — but the
-  failures carried on.
-- **Test files sharing one workspace.** Running with `TICKETS_TEST_UNGROUPED=1`,
-  which gives every file its own, still fails.
-- **The lock file being left behind after release.** Forty installs in a row,
-  with the lock refreshed every millisecond, never once left a lock file behind
-  after release. That rules out this one fault under these conditions. It does
-  not show the installer is correct in general, and it does not prove the
-  remaining failures are only in the tests.
-
-Starting point: the failing checks all sit either side of the question "did the
-download run, or was it skipped?" — `startStripeMock` skips the download when a
-port is named, and `expectStartFails` always names one. Print what the install
-actually did and which stand-in was in place at the moment of the failure,
-rather than guessing from the assertion message.
+What is left is a wider version of the same problem: any test that picks a port
+and then lets go of it before use can be gazumped. The install tests are the
+ones that noticed, because they are the ones that assert a failure. Worth
+looking at whether ports should be handed out so that no two tests in a run can
+ever receive the same one.
