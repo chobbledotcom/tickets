@@ -128,6 +128,47 @@ describeWithEnv("payment reconciliation maintenance", { db: true }, () => {
     expect(followUps).toBe(1);
   });
 
+  test("stops before a decision it has no room for, and asks to come back", async () => {
+    await createAcceptedRefundDecision();
+    const calls: number[] = [];
+    let followUps = 0;
+
+    await runPaymentDecisionMaintenance(
+      maintenanceContext(
+        { database: 0, external: 0, total: 0 },
+        { requestFollowUp: () => followUps++ },
+      ),
+      recordingDecisionActions(calls),
+    );
+
+    expect(calls).toEqual([]);
+    expect(followUps).toBe(1);
+  });
+
+  test("finds the real work to run when nothing was handed to it", async () => {
+    // Nothing passes the actions in production — maintenance fetches them
+    // itself on the first decision it has to run, so that is what runs here.
+    const target = await createAcceptedRefundDecision();
+    using provider = stub(stripePaymentProvider, "refundCharge", (charge) =>
+      Promise.resolve({
+        amount: charge.captured,
+        refund: {
+          ...REFUND_RESOURCE,
+          id: `loaded-refund-${charge.id}`,
+          parentId: charge.providerReference.id,
+        },
+        status: "completed" as const,
+      }),
+    );
+
+    await runPaymentDecisionMaintenance(context());
+
+    expect(provider.calls).toHaveLength(2);
+    expect(await getPaymentCaseDecisions(target.paymentCase.id)).toMatchObject([
+      { id: target.decision.id, state: "completed" },
+    ]);
+  });
+
   test("maintenance completes a due accepted refund decision", async () => {
     const target = await createAcceptedRefundDecision();
     const { decision } = target;
