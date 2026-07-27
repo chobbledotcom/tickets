@@ -50,11 +50,59 @@ export const optionsOffered = (html: string, field: string): string[] => {
   );
 };
 
+/** One attribute's value on a control, or null when it does not carry it. */
+const attribute = (tag: string, named: string): string | null =>
+  tag.match(new RegExp(`${named}="([^"]*)"`))?.[1] ?? null;
+
+/** Why a number box will not take this number, or null when it will. A box that
+ * only accepts 1 to 3 cannot send 5, however happily a post carrying 5 is
+ * accepted. */
+const whyNumberIsOutOfRange = (
+  box: string,
+  field: string,
+  chosen: string,
+): string | null => {
+  const number = Number(chosen);
+  // An empty box, or anything that is not a number, has no range to break.
+  if (chosen === "" || !Number.isFinite(number)) return null;
+  const least = attribute(box, "min");
+  if (least !== null && number < Number(least)) {
+    return `the ${field} box takes nothing below ${least}`;
+  }
+  const most = attribute(box, "max");
+  if (most !== null && number > Number(most)) {
+    return `the ${field} box takes nothing above ${most}`;
+  }
+  return null;
+};
+
+/** The values a page has already ticked for one field, counting only real
+ * checkboxes a person could untick. A day carried by a hidden box instead is
+ * left out, because nobody can untick that. */
+export const tickedCheckboxes = (html: string, field: string): string[] => {
+  const ticked: string[] = [];
+  for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
+    const tag = box[1]!;
+    const value = attribute(tag, "value");
+    if (
+      tag.includes('type="checkbox"') &&
+      tag.includes(`name="${field}"`) &&
+      tag.includes("checked") &&
+      !tag.includes("disabled") &&
+      value !== null
+    ) {
+      ticked.push(value);
+    }
+  }
+  return ticked;
+};
+
 /**
  * Why a visitor could not send this value through the page's own control, or
- * null when they could. A control must be rendered, not switched off, and able
- * to carry the value: a dropdown has to offer it as a usable option, and a
- * hidden box has to already hold it, because the visitor cannot type over one.
+ * null when they could. A control must be rendered, not switched off or
+ * read-only, and able to carry the value: a dropdown has to offer it as a
+ * usable option, a hidden box has to already hold it because the visitor cannot
+ * type over one, and a number box has to accept it within its own limits.
  */
 export const whyValueCannotBeSent = (
   html: string,
@@ -78,8 +126,9 @@ export const whyValueCannotBeSent = (
   const box = boxFor(html, field);
   if (!box) return `the page has no ${field} to fill in`;
   if (box.includes("disabled")) return `the ${field} box is switched off`;
+  if (box.includes("readonly")) return `the ${field} box cannot be changed`;
   if (box.includes('type="hidden"') && !box.includes(`value="${chosen}"`)) {
     return `the ${field} box is fixed at something other than "${chosen}"`;
   }
-  return null;
+  return whyNumberIsOutOfRange(box, field, chosen);
 };

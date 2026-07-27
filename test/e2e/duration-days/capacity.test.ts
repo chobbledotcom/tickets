@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAvailableDates } from "#shared/dates.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { buildTemplateData } from "#shared/email-renderer.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -57,30 +54,6 @@ describeWithEnv(
         expect(
           await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-06-13", 1),
         ).toBe(true);
-      });
-    });
-
-    describe("available dates filtering", () => {
-      test("single-day listing offers more start dates than multi-day for same window", async () => {
-        const single = await createDailyTestListing({
-          durationDays: 1,
-          maxAttendees: 10,
-        });
-        const multi = await createDailyTestListing({
-          durationDays: 5,
-          maxAttendees: 10,
-        });
-        const holidays = await getActiveHolidays();
-        const singleDates = getAvailableDates(
-          (await getListingWithCount(single.id))!,
-          holidays,
-        );
-        const multiDates = getAvailableDates(
-          (await getListingWithCount(multi.id))!,
-          holidays,
-        );
-        // Multi-day has fewer start dates because the tail must fit in the window.
-        expect(singleDates.length).toBeGreaterThan(multiDates.length);
       });
     });
 

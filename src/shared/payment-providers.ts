@@ -73,7 +73,7 @@ export const PAYMENT_PROVIDERS = {
     webhookSignatureHeader: "stripe-signature",
   },
   sumup: {
-    currencies: new Set(SUMUP_CURRENCIES),
+    currencies: new Set<string>(SUMUP_CURRENCIES),
     label: "SumUp",
     // SumUp carries no provider metadata: the booking fields are stored
     // locally (db/sumup-checkouts.ts), so nothing is capped or packed.

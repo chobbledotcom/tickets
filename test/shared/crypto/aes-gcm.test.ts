@@ -8,6 +8,10 @@ import {
   aesGcmEncryptRaw,
 } from "#shared/crypto/aes-gcm.ts";
 import { getRandomBytes } from "#shared/crypto/utils.ts";
+// The standard runners preload this, but the payloads below are large enough
+// that a direct `deno test` on this file alone would spend ten seconds
+// comparing them a number at a time without it.
+import "#test-utils/fast-expect.ts";
 
 /**
  * How many bytes the authentication tag takes, read from the module's own
@@ -27,18 +31,6 @@ const BIG_PAYLOAD_BYTES = 256 * 1024;
  * prime step keeps the pattern from lining up with the 16-byte block size. */
 const payload = (length: number): Uint8Array =>
   new Uint8Array(length).map((_, index) => index % 251);
-
-/**
- * Assert two byte arrays hold the same bytes, comparing their base64 form.
- *
- * `expect(...).toEqual(...)` walks a typed array one element at a time, which
- * costs roughly 8.6us per byte — half a second for the 64KB payloads these
- * tests need. Base64 is a lossless view of the same bytes, so this is exactly
- * as strict and is not measurable at any of these sizes.
- */
-const expectSameBytes = (actual: Uint8Array, expected: Uint8Array): void => {
-  expect(actual.toBase64()).toBe(expected.toBase64());
-};
 
 /** Stands in where the size threshold means no Web Crypto key may be asked for. */
 const refuseWebKey = (): Promise<CryptoKey> => {
@@ -75,7 +67,7 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
       const { iv, ciphertext } = await aesGcmEncryptBytes(data, keyBytes);
       const decrypted = await aesGcmDecryptBytes(iv, ciphertext, keyBytes);
 
-      expectSameBytes(decrypted, data);
+      expect(decrypted).toEqual(data);
     });
 
     // The size threshold is a speed choice, so whichever implementation runs
@@ -92,7 +84,7 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
         await asWebKey(keyBytes, "decrypt"),
       );
 
-      expectSameBytes(new Uint8Array(decrypted), data);
+      expect(new Uint8Array(decrypted)).toEqual(data);
     });
 
     it(`reads Web Crypto written output ${label}`, async () => {
@@ -105,7 +97,7 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
       );
       const decrypted = await aesGcmDecryptBytes(iv, ciphertext, keyBytes);
 
-      expectSameBytes(decrypted, data);
+      expect(decrypted).toEqual(data);
     });
   }
 
@@ -116,8 +108,8 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
     const first = await aesGcmEncryptBytes(data, keyBytes);
     const second = await aesGcmEncryptBytes(data, keyBytes);
 
-    expect(first.iv.toBase64()).not.toBe(second.iv.toBase64());
-    expect(first.ciphertext.toBase64()).not.toBe(second.ciphertext.toBase64());
+    expect(first.iv).not.toEqual(second.iv);
+    expect(first.ciphertext).not.toEqual(second.ciphertext);
   });
 
   it("appends the authentication tag to the ciphertext", async () => {
@@ -174,7 +166,7 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
       webKey("decrypt"),
     );
 
-    expectSameBytes(decrypted, data);
+    expect(decrypted).toEqual(data);
     expect(imports).toBe(2);
   });
 
@@ -188,10 +180,9 @@ describe("aesGcmEncryptBytes / aesGcmDecryptBytes", () => {
       refuseWebKey,
     );
 
-    expectSameBytes(
+    expect(
       await aesGcmDecryptBytes(iv, ciphertext, keyBytes, refuseWebKey),
-      data,
-    );
+    ).toEqual(data);
   });
 
   // Anything shorter than the tag never came from this format. Reading a tag out
