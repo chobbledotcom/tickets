@@ -1725,6 +1725,8 @@ times ours tries to take it. That counting approach is the one to copy for the
 refresh timer: put a counted stand-in in front of the thing being waited on and
 assert how many times it happened, rather than how long it took.
 
-Starting point: `scripts/stripe-mock/install.ts` lines 90-210, and
+Starting point: the lock functions in `scripts/stripe-mock/install.ts` —
+`startInstallLockRefresh`, `acquireInstallLock`, `readInstallLockRecord` and
+`removeStaleInstallLock` — and
 `deno task mutation scripts/stripe-mock/install.ts
 'test/scripts/stripe-mock/install/*.test.ts' --harness`.
