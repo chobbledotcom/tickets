@@ -138,12 +138,14 @@ export const stubBalanceSession = (
 ) => {
   const session = balanceSession(...args) as unknown as {
     amount_total: number;
+    created?: number;
     id: string;
     metadata: Record<string, unknown>;
     payment_intent: string;
   };
   return stubRetrieveCheckoutSession({
     amountTotal: session.amount_total,
+    ...(session.created === undefined ? {} : { created: session.created }),
     metadata: session.metadata,
     paymentIntent: session.payment_intent,
     sessionId: session.id,

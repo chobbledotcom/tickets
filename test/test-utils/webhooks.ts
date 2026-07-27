@@ -419,6 +419,8 @@ export const stubRetrieveCheckoutSession = (
   session: {
     sessionId: string;
     amountTotal: number;
+    /** When the checkout was made, in Unix seconds. */
+    created?: number;
     paymentIntent: string | null;
     paymentStatus?: string;
   } & (
@@ -454,7 +456,7 @@ const stubSessionLookup = (
       status: "found" as const,
       value: {
         amount_total: session.amountTotal,
-        created: 1_700_000_000,
+        created: session.created ?? 1_700_000_000,
         currency: "gbp",
         id: session.sessionId,
         livemode: false,
