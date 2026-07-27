@@ -52,14 +52,17 @@ const heldLine = async (
 };
 
 /** Wait for the child to stop, leaving none of its pipes open behind us. */
-const closeDown = async (child: Deno.ChildProcess): Promise<void> => {
+const closeDown = async (
+  child: Deno.ChildProcess,
+): Promise<Deno.CommandStatus> => {
   await child.stdin.close();
-  await child.status;
+  return await child.status;
 };
 
 /**
  * Hold the lock at `path` through a child process. `null` means the lock did
- * not come free within `timeoutMs`, or its folder is not there to lock in.
+ * not come free within `timeoutMs`, or its folder is not there to lock in. A
+ * lock that could not be taken at all throws instead: that is not "busy".
  */
 export const holdLockOrNull = async (
   path: string,
@@ -69,7 +72,7 @@ export const holdLockOrNull = async (
   if ((await statOrNull(dirname(path))) === null) return null;
   const child = new Deno.Command(Deno.execPath(), {
     args: ["eval", HOLD_LOCK_SCRIPT, "--", path, String(timeoutMs)],
-    stderr: "null",
+    stderr: "piped",
     stdin: "piped",
     stdout: "piped",
   }).spawn();
@@ -80,11 +83,23 @@ export const holdLockOrNull = async (
   await child.stdout.cancel();
 
   if (line === null) {
-    await closeDown(child);
+    // It ends quietly when its own time runs out. Ending any other way means
+    // the lock could not be taken at all, which is not the same as busy.
+    const why = await new Response(child.stderr).text();
+    const stopped = await closeDown(child);
+    // Its folder can go while it is starting, which is nobody's lock rather
+    // than a failure to take one.
+    const folderWent = (await statOrNull(dirname(path))) === null;
+    if (!(stopped.success || folderWent)) {
+      throw new Error(`Could not take the lock at ${path}: ${why.trim()}`);
+    }
     return null;
   }
+  await child.stderr.cancel();
   return {
     fileNumber: Number(line.split(" ")[1]),
-    letGo: () => closeDown(child),
+    letGo: async () => {
+      await closeDown(child);
+    },
   };
 };

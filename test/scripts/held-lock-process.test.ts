@@ -55,6 +55,19 @@ describe("a lock held for us by another process", () => {
     });
   });
 
+  test("says so loudly when the lock cannot be taken at all", async () => {
+    await withTempDir(async (root) => {
+      const path = join(root, "one.lock");
+      // A folder where the lock file should be: the lock can never be taken,
+      // which is not the same as somebody else holding it.
+      await Deno.mkdir(path);
+
+      await expect(
+        holdLockOrNull(path, LONG_ENOUGH_TO_BE_LET_IN_MS),
+      ).rejects.toThrow("Could not take the lock");
+    });
+  });
+
   test("gives up when there is no folder to make the lock in", async () => {
     await withTempDir(async (root) => {
       const answer = await holdLockOrNull(
