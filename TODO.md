@@ -2021,3 +2021,30 @@ blank transaction id even though the payment aggregate has the reference
 `src/features/admin/attendee-page-data.ts` and
 `src/features/admin/listings-export.ts` read it).
 
+
+**An upgraded site cannot copy a payment whose listing was deleted.** The
+schema for an old payment insists a completed row has both an attendee and a
+live booking (`LegacyProcessedPaymentSchema` in
+`src/shared/db/payments/legacy.ts`). But the reader hands back a null listing
+whenever the booking's listing is gone, which is a normal thing to find on a
+site that has been running for years. The copy then rejects the row and the
+upgrade stops, every time it is retried. It needs to accept a finished payment
+whose booking no longer points anywhere, and record it as such.
+
+**Two renewals paid at the same time can undo each other.** A paid renewal
+checks that the site's current read-only date still matches the one taken when
+the payment started, and pushes the new date if so
+(`src/shared/renewal.ts`, around line 151). Two payments taken close together
+both remember the same starting date, so whichever lands second either walks
+past the first one's extension or is mistaken for a repeat of it. The renewal
+needs to claim the site before it moves the date, so the second one extends
+from the first one's result instead of from a stale reading.
+
+**A stuck refund leaves a quantity-0 booking with no payment record and no
+note.** For a kept-but-refunded placeholder the refund is the one step that
+must finish before the rest run (`src/shared/payment-completion.ts`). When the
+provider's refund is still pending, or fails, everything behind it waits —
+including the payment leg in the ledger and the note that tells the operator
+what happened. So the booking sits there with no money recorded against it and
+nothing on screen explaining why. Recording the money taken and the note does
+not depend on the refund coming back, so they should not be queued behind it.
