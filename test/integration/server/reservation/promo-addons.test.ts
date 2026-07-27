@@ -1,9 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
 import { bookPaidReservation } from "#test/integration/server/_shared-setup.ts";
 import {
   createOptionalAddOn,
@@ -21,6 +19,7 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+import { stubRefundPayment } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -111,9 +110,7 @@ describeWithEnv(
         unitPrice: 0,
       });
       const addOn = await createProgrammeCharge();
-      const refund = stub(stripeApi, "requestRefund", () =>
-        Promise.resolve({ id: "re_free_addon", status: "succeeded" } as never),
-      );
+      const refund = stubRefundPayment("re_free_addon", 40);
       const session = stubPaidSession(
         "cs_free_addon_bad",
         {

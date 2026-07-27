@@ -234,6 +234,11 @@ export const expectRefundedPlaceholder = async (
   responseText: string,
 ): Promise<Array<{ id: number }>> => {
   expect(responseText).toContain("saved your details");
+  // The note is written a moment later by scheduled work, as on the site.
+  const { settleDeferredPaymentWork } = await import(
+    "#test-utils/maintenance.ts"
+  );
+  await settleDeferredPaymentWork();
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listing.id);
   expect(attendees.length).toBe(1);
