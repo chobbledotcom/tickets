@@ -2192,3 +2192,57 @@ scanning the location's payment list oldest-first, and stops after eight pages.
 At a location with more than eight hundred payments, a new one is never found,
 so the buyer's paid booking never completes. Square can be asked for a payment
 by its id, which the order already names.
+
+## Six more payment findings from the review
+
+*Origin: Codex review on PR #1962, commit c2f3b889.*
+
+**One stuck owner decision stops every other payment moving.** The scheduled
+worker runs the owner's due decisions and the ordinary payment catch-up
+together. If a decision throws — say the provider cannot be reached while
+giving an old payment an account — the whole run stops there
+(`src/shared/payment-runtime/maintenance.ts`, around line 201), so nothing
+behind it happens: no checkouts finish, no bookings complete, no refunds go
+out. Both the run and the decision come back a minute later and do it again.
+The decision has already been written down as needing a retry by that point,
+so its failure should not take the rest of the work with it.
+
+**Tickets still work after the buyer's details are cleared.** When old payment
+records are cleared, the copy kept for the books still carries the ticket
+codes inside the finished result
+(`src/shared/db/payments/redaction-values.ts`, around line 58). The codes are
+what a ticket page is opened with, so they keep working long after everything
+else about the buyer is gone. They should be emptied along with the rest.
+
+**Editing a booking before it finishes changes what was bought.** The work
+that finishes a paid booking builds its emails, announcements, and sites from
+the listing and booking as they are *now*, not as they were when the money was
+taken (`src/features/api/payment-processing/completion-booking.ts`, around
+line 76). An owner who changes the quantity in that window can hand out two
+sites for one paid place; one who turns site-giving off can leave a buyer
+without the site they paid for. The facts should be written down when the
+payment commits.
+
+**Refunding everyone can leave someone never refunded.** A refund-all past the
+first three people queues the rest by setting the payment to refunding
+(`src/shared/db/payments/bulk-refunds.ts`, around line 57). If that payment
+had not finished its booking yet, the catch-up does the booking first, which
+is then not allowed to complete from refunding — so it goes round forever and
+the refund never happens, while the page says it is continuing in the
+background.
+
+**One provider being down hides every old payment needing a decision.** The
+page of payments waiting on the owner asks every configured provider for its
+account at once, and one that cannot answer fails the whole page
+(`src/shared/payment-runtime/account.ts`, around line 96). That hides
+decisions which never needed that provider — keeping an old payment as it is,
+or giving it a working account with another provider. Each should be asked
+separately, and the one that is down shown as such.
+
+**A listing that could not be deleted loses its attachment anyway.** Deleting
+a listing removes its attached file first, then removes the listing inside a
+guard that refuses if a payment landed in the meantime
+(`src/shared/db/listings/delete.ts`, around line 11). When that guard does
+refuse, the listing stays but its file is already gone, so the link on it
+leads nowhere. The record should be claimed before anything outside the
+database is removed.
