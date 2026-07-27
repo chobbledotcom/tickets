@@ -1,23 +1,33 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { beforeEach, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { deliverNextPaidCompletion } from "#routes/api/payment-processing/completion-deliveries.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
   applyPaymentSessionClaimKeepingLease,
   requirePaymentSessionClaim,
 } from "#shared/db/payments/claims.ts";
 import {
+  getPaymentCompletionDeliveriesByKeys,
   getPendingPaymentCompletionDeliveries,
   storePaymentCompletionDeliveries,
 } from "#shared/db/payments/completion-deliveries.ts";
 import { runPaymentCompletionDbEffect } from "#shared/db/payments/completion-effects.ts";
 import { settings } from "#shared/db/settings.ts";
-import { prepareRegistrationEmailDeliveries } from "#shared/email.ts";
+import {
+  prepareRegistrationEmailDeliveries,
+  resetHostEmailConfig,
+  setHostEmailConfigForTest,
+} from "#shared/email.ts";
 import type { PreparedPaymentCompletionDelivery } from "#shared/payment-completion-delivery.ts";
 import { paymentProgress } from "#shared/payment-runtime/progress.ts";
+import { preparePaidSiteAssignmentDeliveries } from "#shared/site-assignment-paid.ts";
 import { prepareRegistrationWebhookDeliveries } from "#shared/webhook-paid.ts";
 import { PAYMENT_ID } from "#test/shared/db/payments/fixtures.ts";
 import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { saveTestEmailConfig, validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -229,3 +239,58 @@ describeWithEnv("paid completion delivery outbox", { db: true }, () => {
     }
   });
 });
+
+describeWithEnv(
+  "paid completion delivery outbox with sites",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    // Handing out a site is only offered when a renewal tier exists to sell.
+    beforeEach(async () => {
+      await createTestListing({
+        hidden: true,
+        monthsPerUnit: 2,
+        purchaseOnly: true,
+      });
+    });
+
+    test("reserves a site through the outbox and writes down what it took", async () => {
+      const current = await completionCurrent();
+      setHostEmailConfigForTest(null);
+      await insertBuiltSite("Ready", "outbox.example.com", "", "", true, "91");
+      using _secrets = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      try {
+        await storeRows(
+          current,
+          await preparePaidSiteAssignmentDeliveries(current.payment.id, [
+            {
+              attendee: { email: "buyer@example.com", id: 41, quantity: 1 },
+              listing: {
+                assign_built_site: true,
+                id: 7,
+                initial_site_months: 3,
+                name: "Hosted ticket",
+              },
+            },
+          ]),
+        );
+
+        expect(await deliverNextPaidCompletion(current)).toBe(true);
+
+        const [stored] = await getPaymentCompletionDeliveriesByKeys(
+          current.payment.id,
+          ["site-assignment:41:7:0"],
+        );
+        expect(stored?.data).toMatchObject({
+          attendeeId: 41,
+          kind: "site_assignment",
+          listingId: 7,
+          site: { hostingId: "91" },
+        });
+      } finally {
+        resetHostEmailConfig();
+      }
+    });
+  },
+);
