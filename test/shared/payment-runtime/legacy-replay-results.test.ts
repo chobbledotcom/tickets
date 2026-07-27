@@ -25,11 +25,14 @@ describeWithEnv("what an old payment says it already did", { db: true }, () => {
 
   // Any one of these three on its own settles the payment.
   for (const [what, build] of [
-    ["a booking was made", () => ({ attendeeId: 42 })],
+    ["a booking was made", () => ({ attendeeId: 42, listingId: 7 })],
     ["it failed", async () => ({ failureData: await encrypt("failed") })],
     [
       "it was refunded",
-      () => ({ providerRefundedAt: "2026-07-25T10:02:00.000Z" }),
+      () => ({
+        paymentReference: "hyb:1:legacy-reference",
+        providerRefundedAt: "2026-07-25T10:02:00.000Z",
+      }),
     ],
   ] as const) {
     test(`says it was dealt with when ${what}`, async () => {
@@ -123,7 +126,10 @@ describeWithEnv("replaying what an old payment ended as", { db: true }, () => {
   test("says a refunded payment was refunded", async () => {
     expect(
       await legacyPaymentResult(
-        dealtWith({ providerRefundedAt: "2026-07-25T10:02:00.000Z" }),
+        dealtWith({
+          paymentReference: "hyb:1:legacy-reference",
+          providerRefundedAt: "2026-07-25T10:02:00.000Z",
+        }),
       ),
     ).toEqual({
       error: "This payment has been refunded.",

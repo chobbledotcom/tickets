@@ -8,10 +8,13 @@ import {
   hasProvenBooking,
   type PaymentOperatorCase,
   paymentDecisionSelections,
+  requireLegacyOperatorPayment,
 } from "#shared/payment-runtime/operator-context.ts";
 import type { ProviderRead } from "#shared/payment-state/observation.ts";
 import {
+  legacyPaymentDecision,
   legacyPaymentOperatorCase,
+  legacyProcessedPayment,
   provenPaymentOperatorCase,
 } from "#test/shared/payment-runtime/fixtures.ts";
 import { currentCharges } from "#test-utils/current-charge.ts";
@@ -290,6 +293,70 @@ describe("payment operator case rules", () => {
         },
       ]),
     ).toEqual([]);
+  });
+
+  test("refuses to read an up-to-date payment as an old one", () => {
+    // Everything about an old payment is read from the copied-across record,
+    // so asking for one when the payment is current would read the wrong shape.
+    expect(() =>
+      requireLegacyOperatorPayment(provenPaymentOperatorCase()),
+    ).toThrow("is not legacy");
+  });
+
+  test("takes the reference from the finished record when there is one", () => {
+    // The old payment has no attendee row, so the only reference to the money
+    // is the one written when it was finished. That still counts.
+    const context = legacyPaymentOperatorCase();
+    if (context.payment.origin !== "legacy") throw new Error("Expected legacy");
+    context.payment.value.runtime.attendeePayment = null;
+    context.payment.value.runtime.processedPayment = legacyProcessedPayment({
+      paymentReference: "hyb:1:legacy-reference",
+    });
+
+    expect(
+      paymentDecisionSelections(context, [
+        { accountId: "square-account", mode: "test", provider: "square" },
+      ]),
+    ).toEqual([
+      {
+        accountId: "square-account",
+        kind: "assign_provider",
+        mode: "test",
+        provider: "square",
+      },
+    ]);
+  });
+
+  test("does not offer a provider the owner already tried", () => {
+    // The owner looked at Square and it was not the one, so offering Square
+    // again would send them round the same loop.
+    const context = legacyPaymentOperatorCase();
+    context.decisions = [
+      // A decision about something other than a provider rules nothing out.
+      legacyPaymentDecision(),
+      legacyPaymentDecision({
+        selection: {
+          accountId: "square-account",
+          kind: "assign_provider",
+          mode: "test",
+          provider: "square",
+        },
+      }),
+    ];
+
+    expect(
+      paymentDecisionSelections(context, [
+        { accountId: "square-account", mode: "test", provider: "square" },
+        { accountId: "stripe-account", mode: "live", provider: "stripe" },
+      ]),
+    ).toEqual([
+      {
+        accountId: "stripe-account",
+        kind: "assign_provider",
+        mode: "live",
+        provider: "stripe",
+      },
+    ]);
   });
 
   test("does not offer the provider already assigned to an older payment", () => {

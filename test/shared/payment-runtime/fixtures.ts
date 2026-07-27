@@ -29,6 +29,7 @@ import type {
 import {
   type LegacyPaymentGroup,
   LegacyPaymentRuntimeSchema,
+  LegacyProcessedPaymentSchema,
 } from "#shared/db/payments/legacy.ts";
 import {
   legacyTargetStatements,
@@ -518,17 +519,57 @@ export const legacyReplay = (
   ...values,
 });
 
-/** One "we already dealt with this" row from before the upgrade. */
+/** One "we already dealt with this" row from before the upgrade. Values go
+ *  through the same checks the stored row does, so plain text is fine here. */
 export const legacyProcessedPayment = (
-  values: Partial<LegacyProcessedPayment> = {},
-): LegacyProcessedPayment => ({
-  attendeeId: null,
-  failureData: "",
-  listingId: null,
-  paymentReference: "",
-  paymentSessionId: "legacy-session",
-  processedAt: "2026-07-25T10:01:00.000Z",
-  providerRefundedAt: "",
-  ticketTokens: "",
-  ...values,
+  values: Partial<
+    Omit<
+      LegacyProcessedPayment,
+      "failureData" | "paymentReference" | "ticketTokens"
+    > &
+      Record<"failureData" | "paymentReference" | "ticketTokens", string>
+  > = {},
+): LegacyProcessedPayment =>
+  v.parse(LegacyProcessedPaymentSchema, {
+    attendeeId: null,
+    failureData: "",
+    listingId: null,
+    paymentReference: "",
+    paymentSessionId: "legacy-session",
+    processedAt: "2026-07-25T10:01:00.000Z",
+    providerRefundedAt: "",
+    ticketTokens: "",
+    ...values,
+  });
+
+/** One decision the owner already made about an old payment. Left as a claim
+ *  with nothing decided unless the test says what they settled on. */
+export const legacyPaymentDecision = ({
+  decision = null,
+  paymentCaseId = 1,
+  selection = { kind: "keep_legacy_payment" },
+}: {
+  decision?: PaymentOperatorDecision | null;
+  paymentCaseId?: number;
+  selection?: PaymentOperatorSelection;
+} = {}): PaymentCaseDecision => ({
+  attemptCount: 1,
+  claim: {
+    actorId: 1,
+    caseRevision: 1,
+    claimedAt: PAYMENT_TIME,
+    reason: "Looked it up at the provider",
+    reviewed: {
+      charges: [{ chargeId: 1, providerReference: "hyb:1:legacy-reference" }],
+      kind: "legacy_assignment",
+      paymentId: PAYMENT_ID,
+    },
+    selection,
+  },
+  decision,
+  id: 9,
+  lastAttemptAt: PAYMENT_TIME,
+  nextRetryAt: null,
+  paymentCaseId,
+  state: "completed",
 });
