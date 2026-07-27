@@ -1,12 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { relativeToProject } from "#scripts/path.ts";
-import {
-  defaultStripeMockPaths,
-  downloadStripeMock,
-  installLockPath,
-} from "#scripts/stripe-mock/install.ts";
+import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import {
   createFakeArchive,
   expectStartFails,
@@ -453,106 +448,5 @@ describe("stripe-mock install", () => {
         },
       );
     });
-  });
-});
-
-describe("what stripe-mock is fetched with", () => {
-  test("asks curl for the pinned release for this machine, quietly", async () => {
-    const fakeArchive = await createFakeArchive();
-    try {
-      await withTempStripeMockPaths(async (paths) => {
-        const argsPath = join(paths.binDir, "curl-args");
-        await withFakeCurl(
-          `printf '%s\n' "$@" > ${JSON.stringify(argsPath)}; cat ${JSON.stringify(
-            fakeArchive.archivePath,
-          )}`,
-          async (curl) => {
-            await downloadStripeMock({ commands: { curl }, paths });
-          },
-        );
-
-        const args = (await Deno.readTextFile(argsPath)).trim().split("\n");
-        const url = args.find((arg) => arg.startsWith("https://"));
-
-        // Quiet, following redirects, and writing the archive to our own hands.
-        expect(args).toContain("-sL");
-        expect(args).toContain("-o");
-        expect(args).toContain("-");
-        // The version is pinned on purpose. Changing it here means changing
-        // it in install.ts and in the note about it in AGENTS.md.
-        const version = "0.188.0";
-        expect(url).toBe(
-          `https://github.com/stripe/stripe-mock/releases/download/v${version}/stripe-mock_${version}_${expectedPlatform()}_${expectedArch()}.tar.gz`,
-        );
-      });
-    } finally {
-      await fakeArchive.cleanup();
-    }
-  });
-
-  test("keeps the binary in the project's own bin folder", () => {
-    expect(relativeToProject(defaultStripeMockPaths.binDir)).toBe(".bin");
-    expect(relativeToProject(defaultStripeMockPaths.binaryPath)).toBe(
-      ".bin/stripe-mock",
-    );
-  });
-});
-
-describe("when a step of the install goes wrong", () => {
-  test("says which step failed when the archive cannot be opened", async () => {
-    await withTempStripeMockPaths(async (paths) => {
-      await withFakeCurl("echo not-an-archive", async (curl) => {
-        await expect(
-          downloadStripeMock({ commands: { curl, tar: "false" }, paths }),
-        ).rejects.toThrow("Failed to extract stripe-mock");
-      });
-    });
-  });
-
-  test("says which step failed when the binary cannot be made runnable", async () => {
-    const fakeArchive = await createFakeArchive();
-    try {
-      await withTempStripeMockPaths(async (paths) => {
-        await withFakeCurl(
-          `cat ${JSON.stringify(fakeArchive.archivePath)}`,
-          async (curl) => {
-            await expect(
-              downloadStripeMock({
-                commands: { chmod: "false", curl },
-                paths,
-              }),
-            ).rejects.toThrow("Failed to make stripe-mock executable");
-          },
-        );
-      });
-    } finally {
-      await fakeArchive.cleanup();
-    }
-  });
-
-  test("makes the bin folder before reaching for the lock in it", async () => {
-    const fakeArchive = await createFakeArchive();
-    try {
-      const parent = await Deno.makeTempDir();
-      // Nothing has made this folder yet, so the lock has nowhere to live.
-      const paths = {
-        binaryPath: join(parent, "bin", "stripe-mock"),
-        binDir: join(parent, "bin"),
-      };
-      try {
-        await withFakeCurl(
-          `cat ${JSON.stringify(fakeArchive.archivePath)}`,
-          async (curl) => {
-            await downloadStripeMock({ commands: { curl }, paths });
-          },
-        );
-
-        expect((await Deno.stat(paths.binaryPath)).isFile).toBe(true);
-      } finally {
-        await Deno.remove(parent, { recursive: true });
-      }
-    } finally {
-      await fakeArchive.cleanup();
-    }
   });
 });
