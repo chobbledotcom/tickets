@@ -1700,10 +1700,12 @@ for how a client script is driven without a real browser.
 *Origin: the chunk that took `scripts/stripe-mock/install.ts` to a full
 mutation score (#1966).*
 
-The tests under `test/scripts/stripe-mock/install/` are unreliable. Across
-eight measured runs, six different tests failed, never the same one twice, and
-each one passes when it is run on its own. A full `deno task precommit` failed
-once because of it, so it will show up in CI on unrelated work.
+The tests under `test/scripts/stripe-mock/install/` are unreliable. Of about
+fifteen runs of the folder, five failed — roughly one run in three. Every
+failing run failed a single test, and five different tests were involved, never
+the same one twice. Each one passes when it is run on its own. A full
+`deno task precommit` failed once because of it, so it will show up in CI on
+unrelated work.
 
 Nearly every failure has the same shape: a test that expects starting
 stripe-mock to fail sees it succeed instead. One failure was different — the
@@ -1718,10 +1720,11 @@ Three explanations have been tried and ruled out:
   failures carried on.
 - **Test files sharing one workspace.** Running with `TICKETS_TEST_UNGROUPED=1`,
   which gives every file its own, still fails.
-- **A fault in the code that keeps the lock alive.** Forty installs in a row
-  with the lock refreshed every millisecond never once left a lock file behind
-  after it was released. The installer itself is sound; this is a problem with
-  the tests.
+- **The lock file being left behind after release.** Forty installs in a row,
+  with the lock refreshed every millisecond, never once left a lock file behind
+  after release. That rules out this one fault under these conditions. It does
+  not show the installer is correct in general, and it does not prove the
+  remaining failures are only in the tests.
 
 Starting point: the failing checks all sit either side of the question "did the
 download run, or was it skipped?" — `startStripeMock` skips the download when a
