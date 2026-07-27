@@ -47,6 +47,8 @@ export const personWithTicket = async (
     options.places ?? 1,
   );
   rememberStayListing(world, listing, created);
+  // The door this person belongs to, so a screenshot capture can open it.
+  world.evidenceValues.set("doorListingId", String(created.id));
   world.doorTickets ??= new Map();
   world.doorTickets.set(who, token);
 };
