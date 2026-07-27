@@ -381,7 +381,7 @@ deliberately left for later:*
   import-time work moved behind `once()`/dynamic import pays for itself ~250×
   per run — profile with a `performance.now()` probe around `import("#test-utils")`
   under `deno test` before and after.
-- **`test/integration/stripe-mock-ports.test.ts` (~4s)** spawns real child processes
+- **`test/scripts/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
   to test the harness's port handling; each spawn is inherently slow. If it
   grows, the port-conflict cases could stub the child-process layer the same
   way the supervisor tests do.
