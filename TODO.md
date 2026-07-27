@@ -2048,3 +2048,32 @@ including the payment leg in the ledger and the note that tells the operator
 what happened. So the booking sits there with no money recorded against it and
 nothing on screen explaining why. Recording the money taken and the note does
 not depend on the refund coming back, so they should not be queued behind it.
+
+**An unsigned SumUp notice can make the site call SumUp.** SumUp's webhooks
+carry no signature, so a notice with no recognised header is treated as
+SumUp's (`webhookProviderType`). With a checkout id the site has never seen,
+`src/shared/sumup-provider.ts` (around line 216) still asks SumUp about it
+before anything has established the payment is ours. Anyone can therefore
+make the site call SumUp over and over and use up its rate limit, which stops
+real payment callbacks getting through. The check that answered an unknown id
+from what the site already had, without calling out, needs to come back.
+
+**A bulk refund that pays out but cannot be recorded has no way back.** When
+the provider returns every refund but the ledger write fails for one person,
+`src/features/admin/refunds/provider.ts` (around line 81) counts an error and
+moves on. By then the payment is already marked fully refunded with nothing
+scheduled, so the background finisher will never pick it up, and a later
+refund-everyone run skips it because the provider has already refunded it.
+The money is out but the books never say so, and no screen offers a repair.
+It should be put in front of the owner as a case, the way the queued path
+already does.
+
+**Upgrading a busy site can split one SumUp payment in two.** The copy works
+in pages of 25 old payment ids. A SumUp payment is known by two ids — the
+site's own reference in one old table and SumUp's checkout id in the other —
+and they can land on different pages (`2026-07-26_payment_aggregate.ts`,
+around line 55). The first page uses the row that links them and then clears
+it, so the second page no longer knows the two belong together and makes a
+second payment record for the same money. Its outcome, ticket, and refund
+facts are then split across the two. Pages need to keep a payment's ids
+together rather than cutting the list wherever 25 falls.
