@@ -185,6 +185,15 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
     });
 
+    test("the email variable table describes every variable", async () => {
+      const html = await (await adminGet("/admin/settings-advanced")).text();
+
+      // A missing message key would render the key itself, not this wording.
+      expect(html).toContain("Link to view the tickets");
+      expect(html).toContain("Picks the singular or plural word for a number");
+      expect(html).not.toContain("settings.advanced.email_variables.");
+    });
+
     test("shows exact empty host settings and scheduled-key state", async () => {
       using _env = withEnv({
         APPLE_WALLET_PASS_TYPE_ID: undefined,
