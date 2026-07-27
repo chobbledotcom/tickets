@@ -37,6 +37,25 @@ describeSumup("what SumUp's transaction events say about refunds", () => {
     });
   });
 
+  test("keeps the time SumUp gives a refund", async () => {
+    const read = await readWithEvents([
+      {
+        amount: 4,
+        event_type: "REFUND",
+        id: 3,
+        status: "REFUNDED",
+        timestamp: "2026-07-26T12:02:00.000Z",
+      },
+    ]);
+
+    expect(read).toMatchObject({
+      status: "found",
+      value: {
+        refunds: [{ id: 3, timestamp: "2026-07-26T12:02:00.000Z" }],
+      },
+    });
+  });
+
   test("records a refund that has no id or time of its own", async () => {
     const read = await readWithEvents([
       { amount: 4, event_type: "REFUND", status: "REFUNDED" },
