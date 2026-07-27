@@ -798,6 +798,20 @@ Ruled out along the way, and still ruled out:
 - A test written specifically to make every term of the `&&` chain evaluate
   still leaves the lines reported uncovered.
 
+**Checked since, and this is now the leading explanation.** The fast claim in
+`decision-claim.ts` is one statement testing three things: the decision is due,
+the case still needs action at the saved revision, and the snapshot still
+matches. The slow path re-derives all three in TypeScript only to say which one
+failed — and it reaches the snapshot check only after the first two have
+already passed. At that point the claim's failure can only have been the
+snapshot, so `snapshotMatches` can only answer "no". Its "yes" is unreachable,
+which is exactly the shape found in `square-provider-read.ts`.
+
+The one thing that could make it reachable is a change landing between the two
+statements, since they are not one transaction. Whether that window is worth a
+check is the design question below, so this is deliberately left alone rather
+than deleted to satisfy the coverage gate.
+
 Separately, and regardless of the above: the TS check here duplicates the
 SQL condition in `decision-claim.ts`, and only ever runs to explain why that
 SQL claim failed. If the two can never disagree, the honest fix is to collapse
