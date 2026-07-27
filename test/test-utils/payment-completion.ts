@@ -5,6 +5,7 @@ import {
 } from "#shared/db/payments/claims.ts";
 import { getPaymentSessions } from "#shared/db/payments/sessions.ts";
 import type { PaymentResolution } from "#shared/payment-state/lifecycle.ts";
+import { required } from "#test-utils/required.ts";
 
 type ReadyResolution = Extract<PaymentResolution, { status: "ready" }>;
 
@@ -12,8 +13,10 @@ export const paymentWorkForCompletion = (
   current: RetainedPaymentSessionClaim,
   resolution: ReadyResolution,
 ): PaymentWork => {
-  const charge = resolution.observation.charges?.[0];
-  if (charge === undefined) throw new Error("Ready test payment has no charge");
+  const charge = required(
+    resolution.observation.charges?.[0],
+    "a charge on the ready test payment",
+  );
   return {
     claim: current.claim,
     intent: current.payment.bookingIntent,
@@ -32,11 +35,9 @@ export const reclaimPaymentWork = async (
   work: PaymentWork,
 ): Promise<PaymentWork> => {
   const [payment] = await getPaymentSessions([work.payment.id]);
-  if (payment === null || payment === undefined)
-    throw new Error("Expected payment");
   return {
     ...work,
     claim: await requirePaymentSessionClaim(work.payment.id, 60_000),
-    payment,
+    payment: required(payment, "the payment being reclaimed"),
   };
 };

@@ -25,6 +25,7 @@ import {
   rawActivityMessage,
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { maintenanceContext } from "#test-utils/maintenance.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
   const task = MAINTENANCE_TASKS.find((candidate) => candidate.name === name);
@@ -36,17 +37,9 @@ const runTask = (
   task: MaintenanceTaskDeclaration,
   overrides: Partial<MaintenanceTaskContext> = {},
 ): void | Promise<void> =>
-  task.run({
-    budget: {
-      remaining: () => ({ database: 2, external: 0, total: 2 }),
-    },
-    checkpoint: null,
-    completeTask: () => {},
-    deadline: Date.now() + 10_000,
-    requestFollowUp: () => {},
-    setCheckpoint: () => {},
-    ...overrides,
-  });
+  task.run(
+    maintenanceContext({ database: 2, external: 0, total: 2 }, overrides),
+  );
 
 describeWithEnv("maintenance registry", { db: true }, () => {
   test("declares bounded tasks with scheduled payment work", () => {

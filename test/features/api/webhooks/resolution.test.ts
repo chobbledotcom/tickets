@@ -5,6 +5,10 @@ import { stub } from "@std/testing/mock";
 import { routePayment } from "#routes/api/webhooks.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  applyPaymentSessionClaim,
+  requirePaymentSessionClaim,
+} from "#shared/db/payments/claims.ts";
+import {
   createPaymentSession,
   getPaymentSessions,
 } from "#shared/db/payments/sessions.ts";
@@ -13,18 +17,33 @@ import { resolvePaymentAccount } from "#shared/payment-runtime/account.ts";
 import type { ProviderRead } from "#shared/payment-state/observation.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
+  CHARGE_RESOURCE,
   PAYMENT_ID,
   PAYMENT_TIME,
   paymentSessionInput,
   SESSION_RESOURCE,
+  sessionProgress,
 } from "#test/shared/db/payments/fixtures.ts";
 import { paymentProviderRead } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { required } from "#test-utils/required.ts";
 
 const notice = {
   eventId: "evt-runtime",
   resource: SESSION_RESOURCE,
   type: "checkout.session.completed",
+};
+
+/** What the provider answers when it cannot tell us about this payment. */
+const PROVIDER_UNAVAILABLE_READ: ProviderRead = {
+  ownership: {
+    localPaymentId: PAYMENT_ID,
+    method: "staged",
+    stageId: SESSION_RESOURCE.id,
+  },
+  reason: "provider_unavailable",
+  requested: SESSION_RESOURCE,
+  status: "unavailable",
 };
 
 const sendWebhook = async (): Promise<Response> => {
@@ -38,12 +57,18 @@ const sendWebhook = async (): Promise<Response> => {
   return response;
 };
 
+const sendRedirect = async (): Promise<Response> => {
+  const request = new Request(
+    `https://example.com/payment/success?session_id=${SESSION_RESOURCE.id}`,
+  );
+  const response = await routePayment(request, "/payment/success", "GET");
+  assert(response !== null);
+  return response;
+};
+
 const storedPayment = async () => {
   const [payment] = await getPaymentSessions([PAYMENT_ID]);
-  if (payment === null || payment === undefined) {
-    throw new Error("Expected payment");
-  }
-  return payment;
+  return required(payment, "the stored payment");
 };
 
 describeWithEnv("payment webhook reconciliation", { db: true }, () => {
@@ -61,16 +86,25 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
     );
   };
 
-  const runWebhook = async (read: ProviderRead): Promise<Response> => {
-    await setUpPayment();
-    using _verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
-      Promise.resolve({ notice, valid: true }),
-    );
-    using _read = stub(stripePaymentProvider, "readPayment", () =>
-      Promise.resolve(read),
-    );
-    return await sendWebhook();
-  };
+  /** Set the payment up, make the provider answer with this read, and ask the
+   *  given route what it made of it. */
+  const runWithProviderRead =
+    (send: () => Promise<Response>) =>
+    async (read: ProviderRead): Promise<Response> => {
+      await setUpPayment();
+      using _verify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () => Promise.resolve({ notice, valid: true }),
+      );
+      using _read = stub(stripePaymentProvider, "readPayment", () =>
+        Promise.resolve(read),
+      );
+      return await send();
+    };
+
+  const runWebhook = runWithProviderRead(sendWebhook);
+  const runRedirect = runWithProviderRead(sendRedirect);
 
   test("persists pending before acknowledging it", async () => {
     const response = await runWebhook(
@@ -83,16 +117,7 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
   });
 
   test("persists retry evidence before returning 503", async () => {
-    const response = await runWebhook({
-      ownership: {
-        localPaymentId: PAYMENT_ID,
-        method: "staged",
-        stageId: SESSION_RESOURCE.id,
-      },
-      reason: "provider_unavailable",
-      requested: SESSION_RESOURCE,
-      status: "unavailable",
-    });
+    const response = await runWebhook(PROVIDER_UNAVAILABLE_READ);
 
     expect(response.status).toBe(503);
     const cases = await getDb().execute(
@@ -176,5 +201,63 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
     expect(read.calls).toHaveLength(1);
     releaseRead();
     expect((await webhook).status).toBe(200);
+  });
+
+  test("a redirect on a payment the provider is still holding says to wait", async () => {
+    const response = await runRedirect(
+      paymentProviderRead({ charges: undefined, status: "pending" }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toContain(
+      "Your payment is still being processed.",
+    );
+  });
+
+  test("a redirect the provider cannot answer asks the buyer to try again", async () => {
+    const response = await runRedirect(PROVIDER_UNAVAILABLE_READ);
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toContain(
+      "We cannot check this payment right now.",
+    );
+  });
+
+  test("a redirect on a refunded payment says so instead of a ticket", async () => {
+    await setUpPayment();
+    await applyPaymentSessionClaim(
+      await requirePaymentSessionClaim(PAYMENT_ID, 60_000),
+      sessionProgress({ state: "processing" }),
+    );
+    using _read = stub(stripePaymentProvider, "readPayment", () =>
+      Promise.resolve(
+        paymentProviderRead({
+          charges: [
+            {
+              captured: { amount: 1_000, currency: "GBP" },
+              confirmedRefunded: { amount: 1_000, currency: "GBP" },
+              refunds: [],
+              resource: CHARGE_RESOURCE,
+            },
+          ],
+        }),
+      ),
+    );
+
+    const response = await sendRedirect();
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("This payment has been refunded.");
+  });
+
+  test("a redirect on a payment the provider disagrees about needs review", async () => {
+    const response = await runRedirect(
+      paymentProviderRead({
+        providerTotal: { amount: 900, currency: "GBP" },
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toContain("Your payment needs review.");
   });
 });

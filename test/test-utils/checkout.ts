@@ -14,6 +14,7 @@ import type {
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
+import { required } from "#test-utils/required.ts";
 import { submitTicketForm } from "./csrf.ts";
 import { signedMeta } from "./factories.ts";
 import { stubRetrieveCheckoutSession } from "./webhooks.ts";
@@ -98,12 +99,7 @@ export const stubProviderCheckout = (
     calls: () => checkout.calls.length,
     checkout,
     getCaptured: () => captured,
-    requireCaptured: () => {
-      if (captured === undefined) {
-        throw new Error("Provider checkout was not called");
-      }
-      return captured;
-    },
+    requireCaptured: () => required(captured, "a provider checkout call"),
   };
 };
 

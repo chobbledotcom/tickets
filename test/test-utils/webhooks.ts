@@ -6,6 +6,7 @@ import { foundProviderPayment } from "#shared/payment-runtime/provider-read.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { Attendee } from "#shared/types.ts";
+import { required } from "#test-utils/required.ts";
 import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
@@ -316,11 +317,8 @@ export const expectRefundNote = async (
   const { settleDeferredPaymentWork } = await import("./maintenance.ts");
   await settleDeferredPaymentWork();
   const [attendee] = await getAttendeesRaw(listingId);
-  if (attendee === undefined) throw new Error("Expected a kept booking");
-  const notes = await getNotesForAttendee(
-    attendee.id,
-    await getTestPrivateKey(),
-  );
+  const kept = required(attendee, "a kept booking");
+  const notes = await getNotesForAttendee(kept.id, await getTestPrivateKey());
   const text = notes.map((note) => note.note).join("\n");
   for (const substring of Array.isArray(contains) ? contains : [contains]) {
     expect(text).toContain(substring);

@@ -3,19 +3,12 @@ import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square.ts";
-import type { SquareOrder } from "#shared/square-payments.ts";
 import { createMockClient } from "#test/test-utils/square/harness.ts";
 import { preparedCheckout } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 type MockImpls = Parameters<typeof createMockClient>[0];
 type SquareMock = ReturnType<typeof createMockClient>;
-
-/** A Square Money value in the given minor units (defaults to USD). */
-export const squareMoney = (
-  amount: number,
-  currency = "USD",
-): SquareOrder["totalMoney"] => ({ amount: BigInt(amount), currency });
 
 /** Canonical metadata for a single-ticket Square checkout. */
 export const SQUARE_ORDER_META = {
