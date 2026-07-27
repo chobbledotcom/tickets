@@ -8,9 +8,13 @@ import {
 } from "#scripts/stripe-mock/install.ts";
 import {
   createFakeArchive,
+  fakeCommand,
   withFakeCurl,
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
+
+const withFakeTar = fakeCommand("tar");
+const withFakeChmod = fakeCommand("chmod");
 
 /** Make the code believe it is running on a different machine. */
 const pretendMachineIs = ({
@@ -150,9 +154,18 @@ describe("when a step of the install goes wrong", () => {
   test("says which step failed when the archive cannot be opened", async () => {
     await withTempStripeMockPaths(async (paths) => {
       await withFakeCurl("echo not-an-archive", async (curl) => {
-        await expect(
-          downloadStripeMock({ commands: { curl, tar: "false" }, paths }),
-        ).rejects.toThrow("Failed to extract stripe-mock");
+        await withFakeTar(
+          'echo "not in gzip format" >&2; exit 1',
+          async (tar) => {
+            // The reason comes from tar itself, so it only reaches the reader if
+            // what tar said was kept rather than thrown away.
+            await expect(
+              downloadStripeMock({ commands: { curl, tar }, paths }),
+            ).rejects.toThrow(
+              "Failed to extract stripe-mock: not in gzip format",
+            );
+          },
+        );
       });
     });
   });
@@ -164,12 +177,16 @@ describe("when a step of the install goes wrong", () => {
         await withFakeCurl(
           `cat ${JSON.stringify(fakeArchive.archivePath)}`,
           async (curl) => {
-            await expect(
-              downloadStripeMock({
-                commands: { chmod: "false", curl },
-                paths,
-              }),
-            ).rejects.toThrow("Failed to make stripe-mock executable");
+            await withFakeChmod(
+              'echo "operation not permitted" >&2; exit 1',
+              async (chmod) => {
+                await expect(
+                  downloadStripeMock({ commands: { chmod, curl }, paths }),
+                ).rejects.toThrow(
+                  "Failed to make stripe-mock executable: operation not permitted",
+                );
+              },
+            );
           },
         );
       });

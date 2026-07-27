@@ -42,8 +42,17 @@ const installsPast = async (
               paths,
             });
             installed = true;
-          } catch {
-            // Gave up waiting: the lock was treated as still in use.
+          } catch (error) {
+            // Only giving up on the wait means the lock was left alone.
+            // Anything else is a fault, and must not read as one.
+            if (
+              !(error instanceof Error) ||
+              !error.message.includes(
+                "Timed out waiting for stripe-mock install lock",
+              )
+            ) {
+              throw error;
+            }
             installed = false;
           }
         },

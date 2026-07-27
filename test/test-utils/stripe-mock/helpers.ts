@@ -390,13 +390,18 @@ export const writeTermIgnoringMock = async (
   await makeExecutable(paths.binaryPath);
 };
 
-export const withFakeCurl = async (
-  script: string,
-  body: (curlPath: string) => Promise<void>,
-): Promise<void> =>
-  await withTempDir(async (dir) => {
-    const fakeCurl = `${dir}/curl`;
-    await Deno.writeTextFile(fakeCurl, `#!/bin/sh\n${script}\n`);
-    await makeExecutable(fakeCurl);
-    await body(fakeCurl);
-  });
+/** Stand in for a command the installer runs, with a script of our own. */
+export const fakeCommand =
+  (name: string) =>
+  async (
+    script: string,
+    body: (path: string) => Promise<void>,
+  ): Promise<void> =>
+    await withTempDir(async (dir) => {
+      const fake = `${dir}/${name}`;
+      await Deno.writeTextFile(fake, `#!/bin/sh\n${script}\n`);
+      await makeExecutable(fake);
+      await body(fake);
+    });
+
+export const withFakeCurl = fakeCommand("curl");
