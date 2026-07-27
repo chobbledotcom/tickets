@@ -4,11 +4,13 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
 import {
+  readRunRecords,
+  writeRunRecord,
+} from "#scripts/mutation/isolation-records.ts";
+import {
   MUTATION_RECORD_FILE,
   MUTATION_RUNS_DIR,
   type MutationRunRecord,
-  readRunRecords,
-  writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import { captureConsole } from "#test/scripts/mutation/isolation-helpers.ts";
 

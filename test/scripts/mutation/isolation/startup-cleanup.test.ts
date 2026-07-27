@@ -2,13 +2,13 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   MUTATION_RECORD_FILE,
   markFinished,
   newRunRecord,
   runRoot,
   runsRoot,
-  writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import {
   LONG_AGO,

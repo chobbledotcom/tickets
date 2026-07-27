@@ -28,6 +28,8 @@ import {
   removeWorkSnapshot,
   reportRemoveFailure,
 } from "./isolation-cleanup.ts";
+import { withMutationRunLock } from "./isolation-lock.ts";
+import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
 import {
   copyMutationSnapshot,
   createRunId,
@@ -43,12 +45,9 @@ import {
   markRunning,
   newRunRecord,
   parseIsolationCommand,
-  readRunRecords,
   rewriteMutationArgs,
   type SnapshotArgsFn,
   selectedRuns,
-  withMutationRunLock,
-  writeRunRecord,
 } from "./isolation-state.ts";
 
 /** Runs a mutation command from its argv and returns a process exit code. */

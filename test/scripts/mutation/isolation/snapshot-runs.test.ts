@@ -3,12 +3,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
+import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   MUTATION_RECORD_FILE,
   MUTATION_SNAPSHOT_CHILD_ENV,
   markFinished,
   newRunRecord,
-  writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import {
   captureConsole,

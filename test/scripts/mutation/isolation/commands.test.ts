@@ -2,14 +2,14 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { withMutationRunLock } from "#scripts/mutation/isolation-lock.ts";
+import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   markFinished,
   markRunning,
   newRunRecord,
   runRoot,
   runStartedRecently,
-  withMutationRunLock,
-  writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import {
   captureMutationCommand,

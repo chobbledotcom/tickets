@@ -2,10 +2,10 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  MUTATION_RUN_LOCK_FILE,
   runLockIsHeld,
   withMutationRunLock,
-} from "#scripts/mutation/isolation-state.ts";
+} from "#scripts/mutation/isolation-lock.ts";
+import { MUTATION_RUN_LOCK_FILE } from "#scripts/mutation/isolation-state.ts";
 import { withTempDir } from "#test/scripts/mutation/isolation-helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
 

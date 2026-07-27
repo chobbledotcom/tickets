@@ -3,21 +3,25 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
+  runLockIsHeld,
+  withMutationRunLock,
+} from "#scripts/mutation/isolation-lock.ts";
+import {
+  readRunRecord,
+  readRunRecords,
+  writeRunRecord,
+} from "#scripts/mutation/isolation-records.ts";
+import {
   createRunId,
   markFinished,
   markInterrupted,
   markRunning,
   newRunRecord,
-  readRunRecord,
-  readRunRecords,
   recordPath,
-  runLockIsHeld,
   runRoot,
   runStartedRecently,
   statusForExitCode,
-  withMutationRunLock,
   workRoot,
-  writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import {
   withTempDir,

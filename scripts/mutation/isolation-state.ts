@@ -5,24 +5,13 @@
  * rules that are cheap to unit-test directly.
  */
 
-import {
-  dirname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-  SEPARATOR,
-} from "@std/path";
-import { openLockFile, withFileLock } from "#scripts/lock-file.ts";
-import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { isAbsolute, join, relative, resolve, SEPARATOR } from "@std/path";
 import { projectRoot } from "#scripts/project-root.ts";
-import { denoExitCode } from "./child-process.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
 export const MUTATION_RECORD_FILE = "run.json";
 export const MUTATION_RUN_ID_PREFIX = "mutation-";
-export const MUTATION_RECORD_PENDING_SUFFIX = ".writing";
 export const MUTATION_RUN_LOCK_FILE = "run.lock";
 export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
 export const MUTATION_RUN_ID_ENV = "TICKETS_MUTATION_RUN_ID";
@@ -275,70 +264,6 @@ export const runStartedRecently = (
   graceMs?: number,
 ): boolean => withinStartupGrace(Date.parse(record.updatedAt), now, graceMs);
 
-/**
- * Write the record in one step: the new text goes to a spare file that is then
- * swapped into place, so another run reading at that moment sees either the
- * old record or the new one — never half of one.
- */
-export const writeRunRecord = async (
-  record: MutationRunRecord,
-): Promise<void> => {
-  const path = join(record.root, MUTATION_RECORD_FILE);
-  await Deno.mkdir(dirname(path), { recursive: true });
-  const pending = `${path}${MUTATION_RECORD_PENDING_SUFFIX}`;
-  await Deno.writeTextFile(pending, `${JSON.stringify(record, null, 2)}\n`);
-  await Deno.rename(pending, path);
-};
-
-export const readRunRecord = async (
-  path: string,
-): Promise<MutationRunRecord | null> => {
-  try {
-    return JSON.parse(await Deno.readTextFile(path)) as MutationRunRecord;
-  } catch {
-    return null;
-  }
-};
-
-const recordInCurrentRunDirectory = (
-  record: MutationRunRecord,
-  id: string,
-  root = projectRoot,
-): MutationRunRecord => ({
-  ...record,
-  id,
-  root: runRoot(id, root),
-  workRoot: workRoot(id, root),
-});
-
-/** Every run folder, whether or not it still holds a readable record. */
-export const runDirectoryNames = async (
-  root = projectRoot,
-): Promise<string[]> => {
-  const names: string[] = [];
-  try {
-    for await (const entry of Deno.readDir(runsRoot(root))) {
-      if (entry.isDirectory) names.push(entry.name);
-    }
-  } catch (error) {
-    rethrowUnlessNotFound(error);
-  }
-  return names;
-};
-
-export const readRunRecords = async (
-  root = projectRoot,
-): Promise<MutationRunRecord[]> => {
-  const records: MutationRunRecord[] = [];
-  for (const name of await runDirectoryNames(root)) {
-    const record = await readRunRecord(recordPath(name, root));
-    if (record) records.push(recordInCurrentRunDirectory(record, name, root));
-  }
-  return records.sort((left, right) =>
-    right.createdAt.localeCompare(left.createdAt),
-  );
-};
-
 const withTrailingSeparator = (path: string): string =>
   path.endsWith(SEPARATOR) ? path : `${path}${SEPARATOR}`;
 
@@ -423,58 +348,6 @@ export const formatRunList = (
     : records.map((record) =>
         formatRunLine(record, liveRunIds.has(record.id), root),
       );
-
-const LOCK_HELD_EXIT_CODE = 124;
-
-const LOCK_PROBE_SCRIPT = `
-const [path, timeoutText] = Deno.args;
-const timeout = setTimeout(
-  () => Deno.exit(${LOCK_HELD_EXIT_CODE}),
-  Number(timeoutText),
-);
-const file = await Deno.open(path, { read: true, write: true }).catch(() => null);
-if (file === null) {
-  clearTimeout(timeout);
-  Deno.exit(2);
-}
-try {
-  await file.lock(true);
-  await file.unlock();
-  clearTimeout(timeout);
-  file.close();
-  Deno.exit(0);
-} catch {
-  clearTimeout(timeout);
-  file.close();
-  Deno.exit(2);
-}
-`;
-
-const lockProbeExitCode = (path: string, timeoutMs: number): Promise<number> =>
-  denoExitCode(["eval", LOCK_PROBE_SCRIPT, "--", path, String(timeoutMs)], {
-    stderr: "null",
-    stdout: "null",
-  });
-
-export const runLockIsHeld = async (
-  record: Pick<MutationRunRecord, "root">,
-  timeoutMs = 50,
-): Promise<boolean> => {
-  const path = runLockPath(record);
-  const file = await openLockFile(path).catch(() => null);
-  if (file === null) return false;
-  file.close();
-  return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
-};
-
-/** Hold a run's own lock, making its folder first so there is one to lock. */
-export const withMutationRunLock = async <Result>(
-  runRootPath: string,
-  run: () => Promise<Result>,
-): Promise<Result> => {
-  await Deno.mkdir(runRootPath, { recursive: true });
-  return await withFileLock(join(runRootPath, MUTATION_RUN_LOCK_FILE), run);
-};
 
 export const selectedRuns = (
   records: MutationRunRecord[],
