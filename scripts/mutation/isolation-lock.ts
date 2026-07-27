@@ -64,8 +64,9 @@ export const withRunLockIfFree = async <Result>(
   run: () => Promise<Result>,
   timeoutMs = 250,
 ): Promise<Result | null> => {
-  const file = await openLockFile(runLockPath(record)).catch(() => null);
-  if (file === null) return null;
+  // A lock file that cannot even be opened means the disk is in a state we
+  // must not guess about: better to stop than to delete or to skip in silence.
+  const file = await openLockFile(runLockPath(record));
   const locked = file.lock(true).then(() => true);
   let waited = 0;
   const gaveUp = new Promise<false>((resolve) => {

@@ -130,14 +130,15 @@ describe("the lock that keeps two runs out of one folder", () => {
     });
   });
 
-  test("answers nothing when the folder cannot hold a lock", async () => {
+  test("gives up loudly when the folder cannot hold a lock", async () => {
     await withTempDir(async (root) => {
       const asFile = join(root, "not-a-folder");
       await Deno.writeTextFile(asFile, "");
 
-      expect(
-        await withRunLockIfFree({ root: asFile }, () => Promise.resolve("no")),
-      ).toBeNull();
+      // Skipping in silence here would leave a copy behind with no word of it.
+      await expect(
+        withRunLockIfFree({ root: asFile }, () => Promise.resolve("no")),
+      ).rejects.toThrow();
     });
   });
 

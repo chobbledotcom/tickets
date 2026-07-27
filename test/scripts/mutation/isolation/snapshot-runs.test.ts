@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
+  createRunId,
   MUTATION_RECORD_FILE,
   MUTATION_SNAPSHOT_CHILD_ENV,
   markFinished,
@@ -112,7 +113,7 @@ describe("running mutation inside a snapshot", () => {
   test("clears out runs that ended earlier before starting a new one", async () => {
     await withTempDir(async (root) => {
       await writeFakeMutationScript(root, "Deno.exit(0);\n");
-      const old = markFinished(newRunRecord("mutation-old", [], root), 0);
+      const old = markFinished(newRunRecord(createRunId(), [], root), 0);
       await writeRunRecord(old);
       await Deno.mkdir(old.workRoot, { recursive: true });
 

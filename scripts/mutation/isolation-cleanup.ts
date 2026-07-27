@@ -6,7 +6,7 @@
  */
 
 import { join } from "@std/path";
-import { nullIfNotFound } from "#scripts/not-found.ts";
+import { statNumberOrNull } from "#scripts/not-found.ts";
 import { processExists, removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { runLockIsHeld, withRunLockIfFree } from "./isolation-lock.ts";
@@ -145,11 +145,8 @@ export const removeWorkSnapshot = async (
   if (!result.removed) reportRemoveFailure("the snapshot of", result);
 };
 
-/** When a folder last changed, or 0 when that cannot be told. */
-const folderChangedAt = async (path: string): Promise<number> => {
-  const info = await nullIfNotFound(Deno.stat(path));
-  return info?.mtime?.getTime() ?? 0;
-};
+/** When a folder last changed, or `null` when that cannot be told. */
+const folderChangedAt = statNumberOrNull((info) => info.mtime?.getTime());
 
 /**
  * A folder whose record cannot be read belongs to a run that was killed while
@@ -161,20 +158,24 @@ const recordForUnreadableRun = async (
   root: string,
 ): Promise<MutationRunRecord> => {
   const changedAt = await folderChangedAt(runRoot(id, root));
+  // Young folders are left alone, in case a run is writing its record now —
+  // and so are folders whose age cannot be told at all.
+  const leaveAlone = changedAt === null || withinStartupGrace(changedAt);
   return {
     ...newRunRecord(id, [], root),
-    // Young folders are left alone, in case a run is writing its record now.
-    updatedAt: withinStartupGrace(changedAt)
+    updatedAt: leaveAlone
       ? new Date().toISOString()
       : new Date(0).toISOString(),
   };
 };
 
 const runsToSweep = async (root: string): Promise<MutationRunRecord[]> => {
-  const records = await readRunRecords(root);
-  const known = new Set(records.map((record) => record.id));
   // Only folders this runner named: anything else under .mutation-runs was
-  // put there by someone else and is not ours to delete.
+  // put there by someone else and is not ours to delete, record or no record.
+  const records = (await readRunRecords(root)).filter((record) =>
+    isRunId(record.id),
+  );
+  const known = new Set(records.map((record) => record.id));
   const unreadable = (await runDirectoryNames(root)).filter(
     (name) => !known.has(name) && isRunId(name),
   );

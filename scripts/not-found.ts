@@ -18,3 +18,25 @@ export const nullIfNotFound = <Found>(
     rethrowUnlessNotFound(error);
     return null;
   });
+
+/** What one of Deno's look-at-a-path calls says, or `null` when nothing is there. */
+const infoOrNull =
+  (look: "lstat" | "stat") =>
+  (path: string): Promise<Deno.FileInfo | null> =>
+    nullIfNotFound(Deno[look](path));
+
+export const statOrNull = infoOrNull("stat");
+
+/** As `statOrNull`, but tells you about a link rather than what it points at. */
+export const lstatOrNull = infoOrNull("lstat");
+
+/**
+ * A number from a path's details — its size, when it changed — or `null` when
+ * there is nothing there, or the filesystem does not keep that number.
+ */
+export const statNumberOrNull =
+  (pick: (info: Deno.FileInfo) => number | null | undefined) =>
+  async (path: string): Promise<number | null> => {
+    const info = await statOrNull(path);
+    return info === null ? null : (pick(info) ?? null);
+  };

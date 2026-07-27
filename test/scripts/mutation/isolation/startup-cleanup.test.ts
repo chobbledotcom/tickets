@@ -25,6 +25,11 @@ const BROKEN_RUN_ID = createRunId(
   "0badc0de",
 );
 
+const OLD_RUN_ID = createRunId(
+  new Date("2026-01-02T00:00:00.000Z"),
+  "0dd0c0de",
+);
+
 /** A run folder holding a snapshot and a record too broken to read. */
 const writeUnreadableRun = async (
   root: string,
@@ -97,15 +102,13 @@ describe("clearing up before a mutation run", () => {
     });
   });
 
-  test("clears out a run folder it cannot ask about", async () => {
-    expect(await runWithStatAnswer(new Deno.errors.NotFound("gone"))).toBe(
-      false,
-    );
-  });
-
-  test("clears out a run folder with no change time", async () => {
+  test("leaves alone a run folder whose age cannot be told", async () => {
+    // No way to know it is over, so it stays put rather than being deleted.
     expect(await runWithStatAnswer({ isDirectory: true, mtime: null })).toBe(
-      false,
+      true,
+    );
+    expect(await runWithStatAnswer(new Deno.errors.NotFound("gone"))).toBe(
+      true,
     );
   });
 
@@ -135,7 +138,7 @@ describe("clearing up before a mutation run", () => {
     await withTempDir(async (root) => {
       await writeFakeMutationScript(root, "Deno.exit(0);\n");
       const old = markFinished(
-        newRunRecord("mutation-old", [], root, LONG_AGO.toISOString()),
+        newRunRecord(OLD_RUN_ID, [], root, LONG_AGO.toISOString()),
         0,
       );
       await writeRunRecord(old);
@@ -155,9 +158,9 @@ describe("clearing up before a mutation run", () => {
       })();
 
       expect(run.errors).toEqual([
-        "Failed to remove the earlier run mutation-old: permission denied",
+        `Failed to remove the earlier run ${OLD_RUN_ID}: permission denied`,
       ]);
-      expect(await pathExists(join(runsRoot(root), "mutation-old"))).toBe(true);
+      expect(await pathExists(join(runsRoot(root), OLD_RUN_ID))).toBe(true);
     });
   });
 });
