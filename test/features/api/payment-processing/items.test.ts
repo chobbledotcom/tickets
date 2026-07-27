@@ -15,10 +15,7 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import {
-  expectRefundPaymentCall,
-  stubRefundPayment,
-} from "#test-utils/webhooks.ts";
+import {} from "#test-utils/webhooks.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
   listingPair,
@@ -76,14 +73,15 @@ describeWithEnv("paid item validation", { db: true }, () => {
         await validateAllItems(paymentSession("cs_items_missing", 500), intent),
       ),
     ).toEqual({
-      detail: "Post-payment listing not found (session=cs_items_missing)",
+      detail:
+        "Post-payment listing validation failed (session=cs_items_missing)",
       error: "Listing not found",
       status: 404,
       success: false,
     });
   });
 
-  test("refunds an inactive single listing without exposing its name", async () => {
+  test("reports an inactive single listing without exposing its name", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 5,
@@ -92,7 +90,6 @@ describeWithEnv("paid item validation", { db: true }, () => {
     });
     await deactivateTestListing(listing.id);
     const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
-    using refund = stubRefundPayment("re_items_inactive");
 
     expect(
       failureResult(
@@ -102,13 +99,12 @@ describeWithEnv("paid item validation", { db: true }, () => {
         ),
       ),
     ).toEqual({
-      detail: undefined,
+      detail:
+        "Post-payment listing validation failed (session=cs_items_inactive)",
       error: "This listing is no longer accepting registrations.",
-      refunded: true,
       status: 410,
       success: false,
     });
-    expectRefundPaymentCall(refund, "pi_cs_items_inactive");
   });
 
   test("names the listing that closed in a visible multi-listing order", async () => {
@@ -124,7 +120,6 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { e: open.id, p: 300, q: 1 },
       { e: closed.id, p: 400, q: 1 },
     ]);
-    using refund = stubRefundPayment("re_items_closed");
 
     expect(
       failureResult(
@@ -133,7 +128,6 @@ describeWithEnv("paid item validation", { db: true }, () => {
     ).toBe(
       "Sorry, registration for Evening class closed while you were completing payment.",
     );
-    expect(refund.calls).toHaveLength(1);
   });
 
   test("conceals an inactive member name in a hidden package", async () => {
@@ -157,14 +151,12 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { e: first.id, k: "p", p: 300, q: 1, r: group.id },
       { e: second.id, k: "p", p: 400, q: 1, r: group.id },
     ]);
-    using refund = stubRefundPayment("re_hidden_package");
 
     expect(
       failureResult(
         await validateAllItems(paymentSession("cs_items_hidden", 700), intent),
       ).error,
     ).toBe("This listing is no longer accepting registrations.");
-    expect(refund.calls).toHaveLength(1);
   });
 
   test("conceals a stale standalone member and fails the order closed", async () => {
@@ -195,7 +187,6 @@ describeWithEnv("paid item validation", { db: true }, () => {
     ).toEqual([null, null]);
 
     await deactivateTestListing(member.id);
-    using refund = stubRefundPayment("re_stale_hidden");
     expect(
       failureResult(
         await validateAllItems(
@@ -204,7 +195,6 @@ describeWithEnv("paid item validation", { db: true }, () => {
         ),
       ).error,
     ).toBe("This listing is no longer accepting registrations.");
-    expect(refund.calls).toHaveLength(1);
   });
 
   test("accepts a fully folded child whose standalone flag was cleared", async () => {
