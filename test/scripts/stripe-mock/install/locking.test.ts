@@ -150,7 +150,9 @@ describe("stripe-mock install", () => {
         await expectStartFails(
           {
             installLockRetryMs: 1,
-            installLockTimeoutMs: 1,
+            // Long enough that giving up means the time waited was really
+            // measured, rather than any reading of the clock being past it.
+            installLockTimeoutMs: 100,
             paths,
           },
           "Timed out waiting for stripe-mock install lock",

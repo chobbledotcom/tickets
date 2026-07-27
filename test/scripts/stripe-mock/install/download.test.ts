@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { relativeToProject } from "#scripts/path.ts";
@@ -120,6 +120,29 @@ describe("what stripe-mock is fetched with", () => {
     expect(relativeToProject(defaultStripeMockPaths.binaryPath)).toBe(
       ".bin/stripe-mock",
     );
+  });
+
+  test("fetches with curl when no other command is named", async () => {
+    const fakeArchive = await createFakeArchive();
+    const realPath = Deno.env.get("PATH") ?? "";
+    try {
+      await withFakeCurl(
+        `cat ${JSON.stringify(fakeArchive.archivePath)}`,
+        async (curl) => {
+          // The stand-in is called curl, so it is only found if the installer
+          // asks for curl by that name.
+          Deno.env.set("PATH", `${dirname(curl)}:${realPath}`);
+          await withTempStripeMockPaths(async (paths) => {
+            await downloadStripeMock({ paths });
+
+            expect((await Deno.stat(paths.binaryPath)).isFile).toBe(true);
+          });
+        },
+      );
+    } finally {
+      Deno.env.set("PATH", realPath);
+      await fakeArchive.cleanup();
+    }
   });
 });
 
