@@ -16,6 +16,7 @@ import type {
   PaymentSessionProgress,
 } from "#shared/db/payments/types.ts";
 import { settings } from "#shared/db/settings.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   checkoutDisplayOrder,
   type PaymentCheckoutCreateSnapshot,
@@ -168,6 +169,19 @@ export const resumePaymentCheckout = async (
   return submitPaymentCheckout(provider, claim, payment.checkoutCreate);
 };
 
+/** The account a checkout would be taken through, or `null` when the provider
+ *  cannot tell us — logged so an operator can see the key needs attention. */
+const paymentAccountOrNull = async (
+  provider: PaymentProviderType,
+): Promise<Awaited<ReturnType<typeof resolvePaymentAccount>> | null> => {
+  try {
+    return await resolvePaymentAccount(provider);
+  } catch (error) {
+    logError({ code: ErrorCode.PAYMENT_CHECKOUT, error });
+    return null;
+  }
+};
+
 /** Persist and submit one checkout while retaining the existing HTTP result. */
 export const createPaymentCheckout = async (
   intent: CheckoutIntent,
@@ -175,7 +189,12 @@ export const createPaymentCheckout = async (
 ): Promise<CheckoutSessionResult> => {
   const provider = await getActivePaymentProvider();
   if (provider === null) return null;
-  const account = await resolvePaymentAccount(provider.type);
+  // A key that no longer names an account — rotated, revoked, or the provider
+  // being unreachable — is an ordinary setup problem, so the buyer gets the
+  // same "we could not start your payment" answer as when nothing is set up,
+  // rather than a crash.
+  const account = await paymentAccountOrNull(provider.type);
+  if (account === null) return null;
 
   const localPaymentId = crypto.randomUUID();
   const checkout = await preparePaymentCheckout(
