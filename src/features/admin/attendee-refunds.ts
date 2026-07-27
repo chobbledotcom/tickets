@@ -11,6 +11,7 @@ import {
   withListingAttendeesAuth,
 } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { paymentProviderIsConfigured } from "#routes/admin/require-provider.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
@@ -114,10 +115,7 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     }
     const { references, targets } = refund;
 
-    // Say plainly that payments are not set up, rather than letting the
-    // provider call fail and blaming the payment for maybe being refunded.
-    const { paymentsApi } = await import("#shared/payments.ts");
-    if (paymentsApi.getConfiguredProvider() === null) {
+    if (!(await paymentProviderIsConfigured())) {
       return refundError(
         attendeeId,
         t("payment.error.provider_not_configured"),

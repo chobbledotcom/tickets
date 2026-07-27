@@ -9,6 +9,7 @@
  */
 
 import { t } from "#i18n";
+import { paymentProviderIsConfigured } from "#routes/admin/require-provider.ts";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
@@ -158,14 +159,24 @@ const loadRefreshState = async (
   const { attendee, listingId } = ctx;
   const privateKey = await requireRequestPrivateKey();
   const refund = await getAttendeePaymentRefundOrNull(attendeeId);
-  return refund === null
-    ? redirect(
-        `/admin/attendees/${attendeeId}`,
-        t("error.no_payment_to_refresh"),
-        false,
-        { form },
-      )
-    : { attendee, listingId, privateKey, ...refund };
+  if (refund === null) {
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      t("error.no_payment_to_refresh"),
+      false,
+      { form },
+    );
+  }
+  // There is a payment to chase, so the site needs a provider to ask.
+  if (!(await paymentProviderIsConfigured())) {
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      t("payment.error.provider_not_configured"),
+      false,
+      { form },
+    );
+  }
+  return { attendee, listingId, privateKey, ...refund };
 };
 
 type LoadedRefreshState = Exclude<
@@ -179,8 +190,14 @@ const refreshLoadedPayment = async (
   state: LoadedRefreshState,
 ): Promise<Response> => {
   const { attendee, listingId, privateKey, references, targets } = state;
+  // Refreshing only finishes a refund the site already asked for. A charge
+  // that came back part-refunded, or whose refund failed, needs the operator
+  // to decide — refreshing must never move more money on its own.
   const incomplete = targets.filter((target) =>
-    target.charges.some((charge) => charge.refundState !== "none"),
+    target.charges.some(
+      (charge) =>
+        charge.refundState === "requested" || charge.refundState === "pending",
+    ),
   );
   const outcomes = await refundPaymentTargets(incomplete);
   const allRefunded =

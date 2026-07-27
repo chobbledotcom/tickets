@@ -13,6 +13,7 @@ import type {
 } from "#shared/db/question-types.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { paymentDashboardUrl } from "#shared/payment-dashboard.ts";
 import type {
   AdminSession,
   Attendee,
@@ -256,6 +257,7 @@ export const PaymentDetails = ({
 }): JSX.Element | null => {
   if (!attendee.payment_id) return null;
   const isRefunded = attendee.refunded;
+  const dashboardUrl = paymentDashboardUrl(attendee.payment_id);
 
   return (
     <PageBlock>
@@ -263,7 +265,13 @@ export const PaymentDetails = ({
         <h3>{t("admin.attendees.payment_details")}</h3>
         <p>
           <strong>{t("admin.attendees.payment_id")}</strong>{" "}
-          {attendee.payment_id}
+          {dashboardUrl ? (
+            <a href={dashboardUrl} rel="noopener" target="_blank">
+              {attendee.payment_id}
+            </a>
+          ) : (
+            attendee.payment_id
+          )}
         </p>
         {amountPaidPara(attendee)}
         <p>

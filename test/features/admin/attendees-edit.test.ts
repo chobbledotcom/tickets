@@ -11,9 +11,9 @@ import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   confirmChargesFullyRefunded,
   getPaymentCharges,
-  requestChargeRefund,
 } from "#shared/db/payments/charges.ts";
 import type { Attendee } from "#shared/types.ts";
+import { attachRefundablePayment } from "#test/test-utils/attendees/helpers.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,30 +21,11 @@ import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
-import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
-import { setupStripe } from "#test-utils/settings.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
-
-const attachRefundablePayment = async (
-  attendeeId: number,
-  paymentId: string,
-  reference: string,
-  amount: number,
-): Promise<void> => {
-  await setupStripe();
-  const payment = await createAggregatePayment({
-    attendeeId,
-    charges: [{ amount, reference }],
-    configuredAccount: true,
-    paymentId,
-  });
-  await Promise.all(
-    payment.charges.map((charge) => requestChargeRefund(charge.id)),
-  );
-};
 
 const setupBalanceRefresh = async (
   balanceSessionId: string,
@@ -236,6 +217,64 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         Promise.resolve(reference === "pi_refresh_deposit"),
       );
 
+      expect(queried).toEqual(["pi_refresh_deposit"]);
+    });
+
+    test("leaves a part-refunded charge alone instead of returning more money", async () => {
+      const attendee = await setupBalanceRefresh(
+        "refresh-balance-part-refunded",
+        "pi_refresh_balance_part",
+      );
+      const [charge] = await getPaymentCharges("refresh-balance-part-refunded");
+      if (charge === undefined || !("captured" in charge)) {
+        throw new Error("Expected a current payment charge");
+      }
+      // Half of this charge already came back, so it sits at "partial".
+      // Giving back the rest is the operator's call, not a refresh's.
+      await savePaymentCharges(
+        "refresh-balance-part-refunded",
+        {
+          id: "refresh-balance-part-refunded",
+          kind: "stripe_checkout_session",
+          provider: "stripe",
+        },
+        [
+          {
+            captured: charge.captured,
+            confirmedRefunded: {
+              amount: charge.captured.amount / 2,
+              currency: charge.captured.currency,
+            },
+            refunds: [
+              {
+                amount: {
+                  amount: charge.captured.amount / 2,
+                  currency: charge.captured.currency,
+                },
+                refund: {
+                  id: "re_refresh_part",
+                  kind: "stripe_refund",
+                  parentId: "pi_refresh_balance_part",
+                  provider: "stripe",
+                },
+                status: "completed",
+              },
+            ],
+            resource: charge.providerReference,
+          },
+        ],
+        charge.createdAt + 1,
+      );
+      expect(
+        (await getPaymentCharges("refresh-balance-part-refunded"))[0]
+          ?.refundState,
+      ).toBe("partial");
+
+      const queried = await submitRefreshPayment(attendee, (reference) =>
+        Promise.resolve(reference === "pi_refresh_deposit"),
+      );
+
+      // Only the deposit, still merely requested, is chased.
       expect(queried).toEqual(["pi_refresh_deposit"]);
     });
 
