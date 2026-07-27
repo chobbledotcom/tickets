@@ -746,7 +746,7 @@ deno test --no-check --allow-all test/shared/dates.test.ts
 To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars to the port you chose:
 
 ```bash
-STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/integration/stripe-mock-ports.test.ts
+STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/scripts/stripe-mock/ports.test.ts
 ```
 
 ## Environment Variables

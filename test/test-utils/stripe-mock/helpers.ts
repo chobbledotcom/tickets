@@ -328,7 +328,7 @@ export const createFakeArchive = async (): Promise<{
   };
 };
 
-const shellQuote = (value: string): string =>
+export const shellQuote = (value: string): string =>
   `'${value.replaceAll("'", "'\\''")}'`;
 
 export const writePortThief = async (

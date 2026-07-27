@@ -42,11 +42,11 @@ const expectStaleLockRemoved = async (lockText: string): Promise<void> => {
         `cat ${JSON.stringify(fakeArchive.archivePath)}`,
         async (curl) => {
           await expectStripeMockFails({
+            budgetMs: 30,
             commands: { curl },
             delayMs: 10,
             installLockRetryMs: 1,
             installLockStaleMs: 1,
-            maxAttempts: 3,
             paths,
           });
         },
@@ -91,9 +91,9 @@ const expectDownloadWithLockCleanup = async (
   curl: string,
 ): Promise<void> => {
   await expectStripeMockFails({
+    budgetMs: 30,
     commands: { curl },
     delayMs: 10,
-    maxAttempts: 3,
     paths,
   });
 };
@@ -127,10 +127,10 @@ describe("stripe-mock install", () => {
               ].join("\n"),
               async (curl) => {
                 const started = expectStripeMockFails({
+                  budgetMs: 30,
                   commands: { curl },
                   delayMs: 10,
                   installLockTouchMs: 1,
-                  maxAttempts: 3,
                   paths,
                 });
                 // Hold the lock-refresh write, then wait for curl to be running
@@ -207,10 +207,10 @@ describe("stripe-mock install", () => {
       await withInstallLockHeld(paths, async (releaseLock) => {
         await withBinaryReleasedAfterDelay(paths, releaseLock, async () => {
           await expectStripeMockFails({
+            budgetMs: 30,
             delayMs: 10,
             installLockRetryMs: 5,
             installLockTimeoutMs: 5_000,
-            maxAttempts: 3,
             paths,
           });
         });
@@ -241,12 +241,12 @@ describe("stripe-mock install", () => {
           await withBinaryReleasedAfterDelay(paths, releaseLock, async () => {
             await withFakeCurl("exit 7", async (curl) => {
               await expectStripeMockFails({
+                budgetMs: 30,
                 commands: { curl },
                 delayMs: 10,
                 installLockRetryMs: 5,
                 installLockStaleMs: 500,
                 installLockTimeoutMs: 5_000,
-                maxAttempts: 3,
                 paths,
               });
             });
@@ -304,10 +304,10 @@ describe("stripe-mock install", () => {
             `cat ${JSON.stringify(fakeArchive.archivePath)}`,
             async (curl) => {
               await expectStripeMockFails({
+                budgetMs: 30,
                 commands: { curl },
                 delayMs: 10,
                 installLockRetryMs: 1,
-                maxAttempts: 3,
                 paths,
               });
             },
