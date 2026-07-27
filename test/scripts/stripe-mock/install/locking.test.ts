@@ -98,13 +98,6 @@ const expectDownloadWithLockCleanup = async (
   });
 };
 
-/** What stripe-mock calls the machine this test is running on. */
-const expectedPlatform = (): string =>
-  Deno.build.os === "darwin" ? "darwin" : "linux";
-
-const expectedArch = (): string =>
-  Deno.build.arch === "aarch64" ? "arm64" : "amd64";
-
 describe("stripe-mock install", () => {
   test("downloads a missing binary before trying to start it", async () => {
     using gate = tempDir();
