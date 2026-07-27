@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -9,6 +10,7 @@ import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
@@ -71,6 +73,8 @@ describeWithEnv(
           mockRequest("/payment/success?session_id=cs_qty_zero"),
         );
         expect(redirectResponse.status).toBe(302);
+        // The renewal push is sent by maintenance after the redirect returns.
+        await settleDeferredPaymentWork();
         // The booking is created from metadata without coercing 0→1, but the
         // success page treats a token resolving only to quantity-0 lines as an
         // invalid callback (a quantity-0 line has no live ticket).
@@ -143,6 +147,8 @@ describeWithEnv(
           mockRequest("/payment/success?session_id=cs_site_token"),
         );
         expect(redirectResponse.status).toBe(302);
+        // The renewal push is sent by maintenance after the redirect returns.
+        await settleDeferredPaymentWork();
         // Threading proof: a READ_ONLY_FROM push lands on the right edge script,
         // proving the site_token_index was extracted, matched, and bumped.
         const readOnlyCall = secretStub.calls.find(
@@ -190,7 +196,7 @@ describeWithEnv(
         );
         expect(response.status).toBe(400);
         expect(await response.text()).toContain(
-          "Payment session not recognized",
+          t("payment.error.session_not_recognized"),
         );
       } finally {
         mockRetrieve.restore();
@@ -276,6 +282,8 @@ describeWithEnv(
           mockRequest("/payment/success?session_id=cs_multi_tier_renewal"),
         );
         expect(redirectResponse.status).toBe(302);
+        // The renewal push is sent by maintenance after the redirect returns.
+        await settleDeferredPaymentWork();
 
         const updated = (await builtSites.getAll()).find(
           (s) => s.id === seedSite.id,
@@ -316,6 +324,8 @@ describeWithEnv(
           mockRequest("/payment/success?orderId=cs_square_order"),
         );
         expect(redirectResponse.status).toBe(302);
+        // The renewal push is sent by maintenance after the redirect returns.
+        await settleDeferredPaymentWork();
         const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
       } finally {

@@ -29,7 +29,9 @@ export const checkoutSessionEvent = (opts: {
   sessionId: string;
   amountTotal: number;
   metadata: SessionMetadata | Record<string, string>;
-  paymentIntent?: string;
+  /** `null` means the provider says it is paid but has not attached the
+   *  payment yet, so the notice carries no charge. */
+  paymentIntent?: string | null;
   paymentStatus?: string;
   /** Stripe's `created` (Unix seconds) — the checkout's actual creation time,
    *  for tests asserting a webhook processed late still books against it. */
@@ -42,7 +44,7 @@ export const checkoutSessionEvent = (opts: {
   };
   const paymentReference = opts.paymentIntent ?? `pi_${opts.sessionId}`;
   const charges =
-    opts.amountTotal === 0
+    opts.amountTotal === 0 || opts.paymentIntent === null
       ? undefined
       : [
           {
