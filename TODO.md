@@ -1693,3 +1693,4 @@ scaffolding to add inside a test migration.
 Starting point: `src/ui/client/scanner.js`, the confirmation branches around its
 handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
 for how a client script is driven without a real browser.
+
