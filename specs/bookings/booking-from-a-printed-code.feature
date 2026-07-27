@@ -54,7 +54,7 @@ Feature: A customer books from a code the organiser printed
       Given a Workshop is on sale at 5.00, and asks the customer for an email
       When the organiser makes a code for the Workshop for "Ada Lovelace" at 12.00
       And a customer reads that code
-      Then the customer is not sent off to pay
+      Then the booking form opens for them instead
       And the form is already filled in with the name "Ada Lovelace"
 
   @rule:bookings.a-code-that-cannot-be-trusted-books-nothing

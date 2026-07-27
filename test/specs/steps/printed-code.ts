@@ -125,9 +125,11 @@ Then(
 );
 
 Then(
-  "the customer is not sent off to pay",
+  "the booking form opens for them instead",
   function (this: TicketsWorld): void {
-    expect(whereItLed(this).paying).toBeNull();
+    const led = whereItLed(this);
+    expect(led.paying).toBeNull();
+    expect(led.status).toBe(200);
   },
 );
 

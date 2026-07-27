@@ -162,6 +162,13 @@ export const customerFollows = (link: string): Promise<WhereTheCodeLed> =>
       response.status === 302 &&
       response.headers.get("location") === STUB_CHECKOUT_URL;
     if (sentToPay) response.body?.cancel();
+    // A page that quietly set up a payment and then showed a form or an error
+    // is not "not sent to pay" — the customer has an order they never made.
+    if (!sentToPay && timesReached() !== 0) {
+      throw new Error(
+        "Paying was set up for a customer who was not sent there",
+      );
+    }
     return {
       page: sentToPay ? "" : await response.text(),
       paying: sentToPay
