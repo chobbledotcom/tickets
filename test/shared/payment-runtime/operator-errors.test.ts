@@ -3,6 +3,7 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { recordPaymentCase } from "#shared/db/payments/cases.ts";
+import { beginPaymentDecisionAttempt } from "#shared/db/payments/decision-attempts.ts";
 import { getPaymentCaseDecisions } from "#shared/db/payments/decisions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -133,5 +134,19 @@ describeWithEnv("payment operator stale decisions", { db: true }, () => {
         Date.now(),
       );
     });
+  });
+
+  test("a decision another worker just picked up is left to them", async () => {
+    // The lease is fresh, so this run must not touch the provider - it says
+    // the decision is still going and lets the holder finish.
+    const { decision } = await createAcceptedRefundDecision();
+    const held = await beginPaymentDecisionAttempt(decision.id, Date.now());
+    if (held.status !== "running") throw new Error("Expected a held decision");
+    using provider = noRefundCalls();
+
+    expect(
+      await resumePaymentDecision(decision.id, unusedFulfil),
+    ).toMatchObject({ status: "retrying" });
+    expect(provider.calls).toHaveLength(0);
   });
 });
