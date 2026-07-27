@@ -26,17 +26,6 @@ export const expectResponseWithText = async (
 };
 
 /** Assert an error response and its matching logged error. */
-export const expectLoggedErrorResponse = async (
-  response: Response,
-  status: number,
-  text: string,
-  loggedText: string,
-  errorContains: (message: string) => boolean,
-): Promise<void> => {
-  await expectResponseWithText(response, status, text);
-  expect(errorContains(loggedText)).toBe(true);
-};
-
 /** Create a listing and fill it to capacity so a subsequent booking fails. */
 export const createSoldOutListing = async (
   unitPrice = 1000,

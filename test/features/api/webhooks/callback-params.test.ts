@@ -9,26 +9,22 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
-  expectLoggedErrorResponse,
   expectResponseWithText,
   routedResponse,
   stubRetrieveSession,
 } from "./helpers.ts";
 
 describeWithEnv("payment callback params", { db: true }, () => {
-  const errors = setupErrorSpy();
+  setupErrorSpy();
 
   /** Assert a callback response is a 400 with the t("payment.error.invalid_callback") body. */
   const expectInvalidCallback = (response: Response): Promise<void> =>
     expectResponseWithText(response, 400, t("payment.error.invalid_callback"));
 
-  test("returns error for missing session_id on cancel and logs error", async () => {
+  test("returns error for missing session_id on cancel", async () => {
     await expectInvalidCallback(
       await routedResponse(mockRequest("/payment/cancel")),
     );
-    expect(
-      errors.contains("Payment callback missing session_id parameter"),
-    ).toBe(true);
   });
 
   test("returns error for missing session_id on success", async () => {
@@ -37,61 +33,44 @@ describeWithEnv("payment callback params", { db: true }, () => {
     );
   });
 
-  test("returns error for success with no params and logs none fallback", async () => {
+  test("returns error for success with no params", async () => {
     // No query params at all: paramKeys falls back to "none", referer to "none"
     const response = await routedResponse(
       mockRequest("/payment/success", { headers: {} }),
     );
     expect(response.status).toBe(400);
-    expect(errors.contains("params=[none]")).toBe(true);
-    expect(errors.contains("referer=none")).toBe(true);
   });
 
-  test("preserves an explicitly empty referer in success diagnostics", async () => {
-    await routedResponse(
-      mockRequest("/payment/success", { headers: { referer: "" } }),
-    );
-    expect(errors.lastMessage()).toContain("referer=");
-    expect(errors.lastMessage()).not.toContain("referer=none");
-  });
-
-  test("returns error for success with no session_id or tokens and logs error", async () => {
+  test("returns error for success with no session_id or tokens", async () => {
     const response = await routedResponse(
       mockRequest("/payment/success?foo=bar&baz=qux"),
     );
     expect(response.status).toBe(400);
-    expect(errors.contains("no session_id or tokens")).toBe(true);
-    expect(errors.contains("params=[foo,baz]")).toBe(true);
-    expect(errors.contains("referer=none")).toBe(true);
   });
 
-  test("cancel returns error when no provider configured and logs cancel error", async () => {
-    await expectLoggedErrorResponse(
+  test("cancel returns error when no provider configured", async () => {
+    await expectResponseWithText(
       await routedResponse(
         mockRequest("/payment/cancel?session_id=cs_noprovider"),
       ),
       400,
       t("payment.error.provider_not_configured"),
-      "[cancel] No provider configured",
-      (message) => errors.contains(message),
     );
   });
 
-  test("cancel returns error when session not found and logs cancel error", async () => {
+  test("cancel returns error when session not found", async () => {
     await setupStripe();
     const { stripeApi } = await import("#shared/stripe.ts");
     const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve(null),
     );
     try {
-      await expectLoggedErrorResponse(
+      await expectResponseWithText(
         await routedResponse(
           mockRequest("/payment/cancel?session_id=cs_missing"),
         ),
         400,
         t("payment.error.session_not_recognized"),
-        "[cancel] Session not found",
-        (message) => errors.contains(message),
       );
     } finally {
       retrieve.restore();

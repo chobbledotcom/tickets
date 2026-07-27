@@ -1896,3 +1896,24 @@ Starting point: `resolvePayment` in `src/shared/payment-state/resolve.ts` (the
 `invalid` and `unavailable` arms), `storedObservationFacts` in
 `src/shared/payment-runtime/provider-read.ts`, and the `ignore` arm of
 `webhookResponse` in `src/features/api/webhooks.ts`.
+
+## A broken payment link no longer says anything in the log
+
+A visitor landing on the payment success or cancel page without a usable link —
+no session in the address, an address with the wrong parameters, or a provider
+that is not set up — is shown a plain error and nothing is written to the error
+log. The old callback wrote a line naming which parameters arrived and where
+the visitor came from, which is what an operator needs to tell a broken redirect
+from a stray visit.
+
+Nothing writes that line now. Worth deciding whether to bring it back, since a
+misconfigured return address is invisible until somebody complains. It must stay
+free of anything personal: the old line carried parameter names and the
+referring page only.
+
+Found while repairing the payment tests: the cases that checked those lines now
+only check the page the visitor sees, and the helper that paired a response with
+its log line was removed with them.
+
+Starting point: the callback entry points in `src/features/api/webhooks.ts`
+(`processSessionAndRedirect` and the cancel route beside it).
