@@ -1,0 +1,28 @@
+{
+  "scriptId": "614",
+  "url": "file:///home/user/tickets/src/shared/same-json.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 167,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "sameJson",
+      "ranges": [
+        {
+          "startOffset": 104,
+          "endOffset": 165,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

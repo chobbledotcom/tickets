@@ -1,0 +1,17 @@
+{
+  "scriptId": "629",
+  "url": "file:///home/user/tickets/src/shared/payment-state/operator.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 740,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

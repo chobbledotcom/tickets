@@ -1,0 +1,39 @@
+{
+  "scriptId": "773",
+  "url": "file:///home/user/tickets/src/shared/ledger/legs.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1599,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "legMatches",
+      "ranges": [
+        {
+          "startOffset": 1061,
+          "endOffset": 1262,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sumLegs",
+      "ranges": [
+        {
+          "startOffset": 1529,
+          "endOffset": 1597,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

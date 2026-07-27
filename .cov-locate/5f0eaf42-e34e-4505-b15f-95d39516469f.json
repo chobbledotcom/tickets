@@ -1,0 +1,17 @@
+{
+  "scriptId": "549",
+  "url": "file:///home/user/tickets/src/shared/timezone-default.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 98,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

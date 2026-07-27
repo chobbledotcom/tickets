@@ -1,0 +1,182 @@
+{
+  "scriptId": "536",
+  "url": "file:///home/user/tickets/test/test-utils/payment-aggregate.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 8112,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "defaultIntent",
+      "ranges": [
+        {
+          "startOffset": 956,
+          "endOffset": 1232,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fixtureBookingCompletion",
+      "ranges": [
+        {
+          "startOffset": 1267,
+          "endOffset": 1527,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "completedBooking",
+      "ranges": [
+        {
+          "startOffset": 1554,
+          "endOffset": 1953,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "chargeLegs",
+      "ranges": [
+        {
+          "startOffset": 1974,
+          "endOffset": 2380,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "aggregateFixture",
+      "ranges": [
+        {
+          "startOffset": 2407,
+          "endOffset": 2549,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "finishAggregatePayment",
+      "ranges": [
+        {
+          "startOffset": 2582,
+          "endOffset": 3887,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createAggregatePayment",
+      "ranges": [
+        {
+          "startOffset": 3997,
+          "endOffset": 5669,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPaymentAggregateOrNull",
+      "ranges": [
+        {
+          "startOffset": 5712,
+          "endOffset": 5789,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPaymentAggregateByProviderSessionOrNull",
+      "ranges": [
+        {
+          "startOffset": 5849,
+          "endOffset": 5981,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requirePaymentAggregateByProviderSession",
+      "ranges": [
+        {
+          "startOffset": 6039,
+          "endOffset": 6238,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "refundReferencesForAttendee",
+      "ranges": [
+        {
+          "startOffset": 6283,
+          "endOffset": 6435,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "expectRefundReferences",
+      "ranges": [
+        {
+          "startOffset": 6475,
+          "endOffset": 6643,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createPausedAttendeePayment",
+      "ranges": [
+        {
+          "startOffset": 6688,
+          "endOffset": 6959,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "expectAttendeePaymentFence",
+      "ranges": [
+        {
+          "startOffset": 7003,
+          "endOffset": 7692,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "savePaymentCharges",
+      "ranges": [
+        {
+          "startOffset": 7904,
+          "endOffset": 8110,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

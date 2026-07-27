@@ -1,0 +1,39 @@
+{
+  "scriptId": "796",
+  "url": "file:///home/user/tickets/src/shared/payment-webhook-url.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 994,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "paymentWebhookUrl",
+      "ranges": [
+        {
+          "startOffset": 787,
+          "endOffset": 839,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPaymentWebhookUrl",
+      "ranges": [
+        {
+          "startOffset": 949,
+          "endOffset": 992,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

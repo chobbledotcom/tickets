@@ -1,0 +1,324 @@
+{
+  "scriptId": "797",
+  "url": "file:///home/user/tickets/src/shared/stripe/request.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 7396,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 624,
+          "endOffset": 663,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "StripeApiError",
+      "ranges": [
+        {
+          "startOffset": 667,
+          "endOffset": 892,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 1101,
+          "endOffset": 1107,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "StripeBodyReadError",
+      "ranges": [
+        {
+          "startOffset": 1111,
+          "endOffset": 1174,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "retryDelay",
+      "ranges": [
+        {
+          "startOffset": 1196,
+          "endOffset": 1616,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "shouldRetry",
+      "ranges": [
+        {
+          "startOffset": 1638,
+          "endOffset": 1862,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isLockTimeoutResponse",
+      "ranges": [
+        {
+          "startOffset": 2625,
+          "endOffset": 2871,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "connectionError",
+      "ranges": [
+        {
+          "startOffset": 2897,
+          "endOffset": 3164,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "retriesRemain",
+      "ranges": [
+        {
+          "startOffset": 3188,
+          "endOffset": 3221,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "headerOrUndefined",
+      "ranges": [
+        {
+          "startOffset": 3249,
+          "endOffset": 3349,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "responseError",
+      "ranges": [
+        {
+          "startOffset": 3373,
+          "endOffset": 3558,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "responseText",
+      "ranges": [
+        {
+          "startOffset": 3581,
+          "endOffset": 3710,
+          "count": 1
+        },
+        {
+          "startOffset": 3647,
+          "endOffset": 3708,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "stripeError",
+      "ranges": [
+        {
+          "startOffset": 3732,
+          "endOffset": 4140,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "cancelResponseBody",
+      "ranges": [
+        {
+          "startOffset": 4169,
+          "endOffset": 4327,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parseResponse",
+      "ranges": [
+        {
+          "startOffset": 4351,
+          "endOffset": 4769,
+          "count": 1
+        },
+        {
+          "startOffset": 4399,
+          "endOffset": 4433,
+          "count": 0
+        },
+        {
+          "startOffset": 4532,
+          "endOffset": 4624,
+          "count": 0
+        },
+        {
+          "startOffset": 4671,
+          "endOffset": 4767,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fullConfig",
+      "ranges": [
+        {
+          "startOffset": 4790,
+          "endOffset": 5138,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fetchImpl",
+      "ranges": [
+        {
+          "startOffset": 4849,
+          "endOffset": 4882,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createStripeRequest",
+      "ranges": [
+        {
+          "startOffset": 5249,
+          "endOffset": 7394,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5346,
+          "endOffset": 7391,
+          "count": 1
+        },
+        {
+          "startOffset": 5517,
+          "endOffset": 5532,
+          "count": 0
+        },
+        {
+          "startOffset": 5613,
+          "endOffset": 5644,
+          "count": 0
+        },
+        {
+          "startOffset": 5645,
+          "endOffset": 5692,
+          "count": 0
+        },
+        {
+          "startOffset": 5960,
+          "endOffset": 6007,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "retryConnection",
+      "ranges": [
+        {
+          "startOffset": 6012,
+          "endOffset": 6293,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "finish",
+      "ranges": [
+        {
+          "startOffset": 6298,
+          "endOffset": 6580,
+          "count": 1
+        },
+        {
+          "startOffset": 6413,
+          "endOffset": 6574,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "attempt",
+      "ranges": [
+        {
+          "startOffset": 6585,
+          "endOffset": 7364,
+          "count": 1
+        },
+        {
+          "startOffset": 6778,
+          "endOffset": 6819,
+          "count": 0
+        },
+        {
+          "startOffset": 6937,
+          "endOffset": 7006,
+          "count": 0
+        },
+        {
+          "startOffset": 7064,
+          "endOffset": 7131,
+          "count": 0
+        },
+        {
+          "startOffset": 7133,
+          "endOffset": 7320,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

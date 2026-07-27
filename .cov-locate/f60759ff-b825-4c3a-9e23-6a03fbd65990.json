@@ -1,0 +1,28 @@
+{
+  "scriptId": "722",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/libsql_url.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3020,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parseLibsqlUrl",
+      "ranges": [
+        {
+          "startOffset": 210,
+          "endOffset": 3019,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "scriptId": "743",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/util.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 130,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "impossible",
+      "ranges": [
+        {
+          "startOffset": 52,
+          "endOffset": 129,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "scriptId": "532",
+  "url": "file:///home/user/tickets/src/shared/payment-runtime/operator-context.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 5874,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "requireLegacyOperatorPayment",
+      "ranges": [
+        {
+          "startOffset": 568,
+          "endOffset": 735,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPaymentOperatorCase",
+      "ranges": [
+        {
+          "startOffset": 775,
+          "endOffset": 1454,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requireLegacyPayment",
+      "ranges": [
+        {
+          "startOffset": 1485,
+          "endOffset": 1667,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isRefundCase",
+      "ranges": [
+        {
+          "startOffset": 1690,
+          "endOffset": 1802,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentProof",
+      "ranges": [
+        {
+          "startOffset": 1825,
+          "endOffset": 1905,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasCurrentCharges",
+      "ranges": [
+        {
+          "startOffset": 1933,
+          "endOffset": 1982,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasUsableLegacyReference",
+      "ranges": [
+        {
+          "startOffset": 2017,
+          "endOffset": 2272,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasActivePaymentDecision",
+      "ranges": [
+        {
+          "startOffset": 2314,
+          "endOffset": 2391,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "triedLegacyProviders",
+      "ranges": [
+        {
+          "startOffset": 2422,
+          "endOffset": 2587,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasReviewedLegacyFacts",
+      "ranges": [
+        {
+          "startOffset": 2620,
+          "endOffset": 2761,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "currentPaymentSelections",
+      "ranges": [
+        {
+          "startOffset": 2796,
+          "endOffset": 3196,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legacyAssignmentSelections",
+      "ranges": [
+        {
+          "startOffset": 3233,
+          "endOffset": 3646,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legacyPaymentSelections",
+      "ranges": [
+        {
+          "startOffset": 3680,
+          "endOffset": 3891,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasProvenBooking",
+      "ranges": [
+        {
+          "startOffset": 4016,
+          "endOffset": 5480,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentDecisionSelections",
+      "ranges": [
+        {
+          "startOffset": 5523,
+          "endOffset": 5872,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

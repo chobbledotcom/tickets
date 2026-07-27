@@ -1,0 +1,149 @@
+{
+  "scriptId": "522",
+  "url": "file:///home/user/tickets/src/shared/db/payments/cases.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 11104,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "readPaymentCaseRow",
+      "ranges": [
+        {
+          "startOffset": 1860,
+          "endOffset": 2531,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2844,
+          "endOffset": 2934,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentCaseStatement",
+      "ranges": [
+        {
+          "startOffset": 3032,
+          "endOffset": 8977,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "recordPaymentCase",
+      "ranges": [
+        {
+          "startOffset": 9012,
+          "endOffset": 9312,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentCaseResourceIndex",
+      "ranges": [
+        {
+          "startOffset": 9529,
+          "endOffset": 9635,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "caseResolutionStatement",
+      "ranges": [
+        {
+          "startOffset": 9669,
+          "endOffset": 9896,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "forPaymentCaseResource",
+      "ranges": [
+        {
+          "startOffset": 9929,
+          "endOffset": 10150,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 9939,
+          "endOffset": 10150,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resolutionSucceeded",
+      "ranges": [
+        {
+          "startOffset": 10180,
+          "endOffset": 10264,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 10335,
+          "endOffset": 10374,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPaymentCaseByIdOrNull",
+      "ranges": [
+        {
+          "startOffset": 10507,
+          "endOffset": 10714,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getOpenPaymentCases",
+      "ranges": [
+        {
+          "startOffset": 10832,
+          "endOffset": 11102,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

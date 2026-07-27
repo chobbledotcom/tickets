@@ -1,0 +1,317 @@
+{
+  "scriptId": "528",
+  "url": "file:///home/user/tickets/src/shared/db/payments/legacy-copy.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 9279,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "sourceAction",
+      "ranges": [
+        {
+          "startOffset": 502,
+          "endOffset": 878,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "actionsFor",
+      "ranges": [
+        {
+          "startOffset": 899,
+          "endOffset": 1839,
+          "count": 2
+        },
+        {
+          "startOffset": 1062,
+          "endOffset": 1230,
+          "count": 0
+        },
+        {
+          "startOffset": 1258,
+          "endOffset": 1514,
+          "count": 1
+        },
+        {
+          "startOffset": 1514,
+          "endOffset": 1545,
+          "count": 0
+        },
+        {
+          "startOffset": 1546,
+          "endOffset": 1606,
+          "count": 0
+        },
+        {
+          "startOffset": 1607,
+          "endOffset": 1611,
+          "count": 1
+        },
+        {
+          "startOffset": 1654,
+          "endOffset": 1658,
+          "count": 1
+        },
+        {
+          "startOffset": 1659,
+          "endOffset": 1718,
+          "count": 0
+        },
+        {
+          "startOffset": 1763,
+          "endOffset": 1767,
+          "count": 1
+        },
+        {
+          "startOffset": 1768,
+          "endOffset": 1832,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "providerSessionFor",
+      "ranges": [
+        {
+          "startOffset": 1868,
+          "endOffset": 2348,
+          "count": 2
+        },
+        {
+          "startOffset": 2100,
+          "endOffset": 2196,
+          "count": 0
+        },
+        {
+          "startOffset": 2198,
+          "endOffset": 2347,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "aliasFor",
+      "ranges": [
+        {
+          "startOffset": 2367,
+          "endOffset": 2757,
+          "count": 2
+        },
+        {
+          "startOffset": 2458,
+          "endOffset": 2468,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "prepareAction",
+      "ranges": [
+        {
+          "startOffset": 2781,
+          "endOffset": 2919,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "prepareLegacyPayment",
+      "ranges": [
+        {
+          "startOffset": 2957,
+          "endOffset": 3420,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "legacyPaymentId",
+      "ranges": [
+        {
+          "startOffset": 3453,
+          "endOffset": 3758,
+          "count": 2
+        },
+        {
+          "startOffset": 3545,
+          "endOffset": 3593,
+          "count": 0
+        },
+        {
+          "startOffset": 3700,
+          "endOffset": 3757,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "prepareLegacyAttendeePaymentReference",
+      "ranges": [
+        {
+          "startOffset": 3813,
+          "endOffset": 4269,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sessionInsert",
+      "ranges": [
+        {
+          "startOffset": 4293,
+          "endOffset": 5251,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "chargeInsert",
+      "ranges": [
+        {
+          "startOffset": 5274,
+          "endOffset": 6583,
+          "count": 2
+        },
+        {
+          "startOffset": 5419,
+          "endOffset": 5455,
+          "count": 1
+        },
+        {
+          "startOffset": 5501,
+          "endOffset": 5557,
+          "count": 0
+        },
+        {
+          "startOffset": 5558,
+          "endOffset": 5587,
+          "count": 0
+        },
+        {
+          "startOffset": 5628,
+          "endOffset": 5764,
+          "count": 0
+        },
+        {
+          "startOffset": 5765,
+          "endOffset": 5787,
+          "count": 0
+        },
+        {
+          "startOffset": 5830,
+          "endOffset": 5843,
+          "count": 0
+        },
+        {
+          "startOffset": 5844,
+          "endOffset": 5865,
+          "count": 0
+        },
+        {
+          "startOffset": 5949,
+          "endOffset": 5969,
+          "count": 0
+        },
+        {
+          "startOffset": 5970,
+          "endOffset": 5977,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "caseInsert",
+      "ranges": [
+        {
+          "startOffset": 6604,
+          "endOffset": 7415,
+          "count": 2
+        },
+        {
+          "startOffset": 6864,
+          "endOffset": 6890,
+          "count": 0
+        },
+        {
+          "startOffset": 7002,
+          "endOffset": 7008,
+          "count": 0
+        },
+        {
+          "startOffset": 7384,
+          "endOffset": 7389,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "legacyTargetStatements",
+      "ranges": [
+        {
+          "startOffset": 7455,
+          "endOffset": 7681,
+          "count": 2
+        },
+        {
+          "startOffset": 7575,
+          "endOffset": 7597,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7626,
+          "endOffset": 7673,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "deleteStatement",
+      "ranges": [
+        {
+          "startOffset": 7707,
+          "endOffset": 7745,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legacySourceStatements",
+      "ranges": [
+        {
+          "startOffset": 7785,
+          "endOffset": 9277,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

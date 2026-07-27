@@ -1,0 +1,512 @@
+{
+  "scriptId": "510",
+  "url": "file:///home/user/tickets/src/shared/email.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 20394,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getEmailConfig",
+      "ranges": [
+        {
+          "startOffset": 1149,
+          "endOffset": 1459,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getHostEmailConfigFromEnv",
+      "ranges": [
+        {
+          "startOffset": 1657,
+          "endOffset": 2124,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2187,
+          "endOffset": 2200,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getHostEmailConfig",
+      "ranges": [
+        {
+          "startOffset": 2326,
+          "endOffset": 2450,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setHostEmailConfigForTest",
+      "ranges": [
+        {
+          "startOffset": 2579,
+          "endOffset": 2617,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "resetHostEmailConfig",
+      "ranges": [
+        {
+          "startOffset": 2722,
+          "endOffset": 2757,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getActiveEmailConfig",
+      "ranges": [
+        {
+          "startOffset": 2989,
+          "endOffset": 3101,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "provider",
+      "ranges": [
+        {
+          "startOffset": 3120,
+          "endOffset": 3269,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3142,
+          "endOffset": 3269,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bearerAuth",
+      "ranges": [
+        {
+          "startOffset": 3290,
+          "endOffset": 3345,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bearerProvider",
+      "ranges": [
+        {
+          "startOffset": 3435,
+          "endOffset": 3479,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "mapAttachments",
+      "ranges": [
+        {
+          "startOffset": 3586,
+          "endOffset": 3621,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resendAttachment",
+      "ranges": [
+        {
+          "startOffset": 3648,
+          "endOffset": 3709,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendgridAttachment",
+      "ranges": [
+        {
+          "startOffset": 3738,
+          "endOffset": 3855,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mailgunForm",
+      "ranges": [
+        {
+          "startOffset": 3942,
+          "endOffset": 4044,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mailgunBody",
+      "ranges": [
+        {
+          "startOffset": 4066,
+          "endOffset": 4535,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mailgun",
+      "ranges": [
+        {
+          "startOffset": 4553,
+          "endOffset": 4731,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4570,
+          "endOffset": 4642,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4644,
+          "endOffset": 4717,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "PROVIDERS.postmark.provider.Attachments.msg.attachments.map.Content",
+      "ranges": [
+        {
+          "startOffset": 4902,
+          "endOffset": 4995,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4997,
+          "endOffset": 5334,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5395,
+          "endOffset": 5645,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5716,
+          "endOffset": 6281,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "postBody",
+      "ranges": [
+        {
+          "startOffset": 7382,
+          "endOffset": 7661,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendRequest",
+      "ranges": [
+        {
+          "startOffset": 7772,
+          "endOffset": 7803,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendEmailResult",
+      "ranges": [
+        {
+          "startOffset": 7965,
+          "endOffset": 8177,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendEmail",
+      "ranges": [
+        {
+          "startOffset": 8204,
+          "endOffset": 8577,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendEmailStrict",
+      "ranges": [
+        {
+          "startOffset": 8767,
+          "endOffset": 8943,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "buildSvgTicketData",
+      "ranges": [
+        {
+          "startOffset": 9043,
+          "endOffset": 9430,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "collapsedSvgTicketData",
+      "ranges": [
+        {
+          "startOffset": 9732,
+          "endOffset": 10340,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "buildTicketAttachments",
+      "ranges": [
+        {
+          "startOffset": 10749,
+          "endOffset": 11289,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "registrationEmailMessages",
+      "ranges": [
+        {
+          "startOffset": 11583,
+          "endOffset": 13111,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withRegistrationEmailMessages",
+      "ranges": [
+        {
+          "startOffset": 13151,
+          "endOffset": 13330,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "prepareRegistrationEmailDeliveries",
+      "ranges": [
+        {
+          "startOffset": 13382,
+          "endOffset": 13808,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requireMatchingEmailConfig",
+      "ranges": [
+        {
+          "startOffset": 13852,
+          "endOffset": 14122,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendPreparedRegistrationEmail",
+      "ranges": [
+        {
+          "startOffset": 14169,
+          "endOffset": 14259,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendRegistrationEmails",
+      "ranges": [
+        {
+          "startOffset": 14299,
+          "endOffset": 14502,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fillUnsubscribe",
+      "ranges": [
+        {
+          "startOffset": 15655,
+          "endOffset": 15730,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mailgunBulk",
+      "ranges": [
+        {
+          "startOffset": 15908,
+          "endOffset": 16615,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 15916,
+          "endOffset": 16615,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "build",
+      "ranges": [
+        {
+          "startOffset": 16848,
+          "endOffset": 17339,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "build",
+      "ranges": [
+        {
+          "startOffset": 17391,
+          "endOffset": 17825,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "build",
+      "ranges": [
+        {
+          "startOffset": 18035,
+          "endOffset": 18886,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendBulkEmails",
+      "ranges": [
+        {
+          "startOffset": 19335,
+          "endOffset": 20060,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendTestEmail",
+      "ranges": [
+        {
+          "startOffset": 20200,
+          "endOffset": 20392,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

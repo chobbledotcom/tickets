@@ -1,0 +1,39 @@
+{
+  "scriptId": "613",
+  "url": "file:///home/user/tickets/src/shared/db/lease.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 675,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "newDatabaseLease",
+      "ranges": [
+        {
+          "startOffset": 261,
+          "endOffset": 363,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "claimDatabaseRow",
+      "ranges": [
+        {
+          "startOffset": 478,
+          "endOffset": 673,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

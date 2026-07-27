@@ -1,0 +1,22 @@
+{
+  "scriptId": "684",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/promise-limit/2.7.0/index.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 509,
+          "count": 1
+        },
+        {
+          "startOffset": 189,
+          "endOffset": 308,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

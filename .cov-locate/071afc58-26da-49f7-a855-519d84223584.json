@@ -1,0 +1,39 @@
+{
+  "scriptId": "744",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/ws/json_encode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2365,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "ClientMsg",
+      "ranges": [
+        {
+          "startOffset": 104,
+          "endOffset": 515,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "Request",
+      "ranges": [
+        {
+          "startOffset": 516,
+          "endOffset": 2364,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "scriptId": "334",
+  "url": "file:///home/user/tickets/test/test-utils/preload.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 417,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

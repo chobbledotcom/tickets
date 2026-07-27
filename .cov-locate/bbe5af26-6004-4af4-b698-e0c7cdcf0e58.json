@@ -1,0 +1,17 @@
+{
+  "scriptId": "666",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/schema/tables-questions.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 9635,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

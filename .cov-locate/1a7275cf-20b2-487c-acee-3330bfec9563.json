@@ -1,0 +1,124 @@
+{
+  "scriptId": "517",
+  "url": "file:///home/user/tickets/test/test-utils/temp-db-files.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1264,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 244,
+          "endOffset": 252,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "ignoreCleanupError",
+      "ranges": [
+        {
+          "startOffset": 282,
+          "endOffset": 288,
+          "count": 12
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "removeIfPresent",
+      "ranges": [
+        {
+          "startOffset": 314,
+          "endOffset": 403,
+          "count": 16
+        },
+        {
+          "startOffset": 363,
+          "endOffset": 401,
+          "count": 12
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getTempDir",
+      "ranges": [
+        {
+          "startOffset": 424,
+          "endOffset": 615,
+          "count": 4
+        },
+        {
+          "startOffset": 486,
+          "endOffset": 507,
+          "count": 3
+        },
+        {
+          "startOffset": 507,
+          "endOffset": 614,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createTrackedTestDbFile",
+      "ranges": [
+        {
+          "startOffset": 656,
+          "endOffset": 799,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "cleanupTestDbPath",
+      "ranges": [
+        {
+          "startOffset": 834,
+          "endOffset": 963,
+          "count": 4
+        },
+        {
+          "startOffset": 884,
+          "endOffset": 930,
+          "count": 16
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "cleanupTrackedTestDbFiles",
+      "ranges": [
+        {
+          "startOffset": 1006,
+          "endOffset": 1196,
+          "count": 1
+        },
+        {
+          "startOffset": 1061,
+          "endOffset": 1095,
+          "count": 0
+        },
+        {
+          "startOffset": 1143,
+          "endOffset": 1150,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "scriptId": "660",
+  "url": "file:///home/user/tickets/src/shared/crypto/signed-value.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 924,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "verifySignedValue",
+      "ranges": [
+        {
+          "startOffset": 588,
+          "endOffset": 922,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "scriptId": "520",
+  "url": "file:///home/user/tickets/src/shared/crypto/hashing.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4099,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 674,
+          "endOffset": 682,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setFastPbkdf2ForTest",
+      "ranges": [
+        {
+          "startOffset": 800,
+          "endOffset": 827,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getPbkdf2Iterations",
+      "ranges": [
+        {
+          "startOffset": 864,
+          "endOffset": 936,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "constantTimeEqualBytes",
+      "ranges": [
+        {
+          "startOffset": 1219,
+          "endOffset": 1339,
+          "count": 1
+        },
+        {
+          "startOffset": 1282,
+          "endOffset": 1314,
+          "count": 44
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "derivePbkdf2Hash",
+      "ranges": [
+        {
+          "startOffset": 1419,
+          "endOffset": 1828,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hashPassword",
+      "ranges": [
+        {
+          "startOffset": 1959,
+          "endOffset": 2207,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "verifyPassword",
+      "ranges": [
+        {
+          "startOffset": 2342,
+          "endOffset": 3020,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hashSessionToken",
+      "ranges": [
+        {
+          "startOffset": 3507,
+          "endOffset": 3660,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hmacHashSync",
+      "ranges": [
+        {
+          "startOffset": 3868,
+          "endOffset": 4037,
+          "count": 21
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "hmacHash",
+      "ranges": [
+        {
+          "startOffset": 4063,
+          "endOffset": 4097,
+          "count": 18
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

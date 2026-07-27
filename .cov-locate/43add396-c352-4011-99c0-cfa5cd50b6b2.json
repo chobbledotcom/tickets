@@ -1,0 +1,314 @@
+{
+  "scriptId": "521",
+  "url": "file:///home/user/tickets/src/shared/crypto/keys.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 13917,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "deriveKek",
+      "ranges": [
+        {
+          "startOffset": 1718,
+          "endOffset": 2262,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deriveKEK",
+      "ranges": [
+        {
+          "startOffset": 2564,
+          "endOffset": 2607,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deriveKEKFromPassword",
+      "ranges": [
+        {
+          "startOffset": 3305,
+          "endOffset": 3377,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateDataKey",
+      "ranges": [
+        {
+          "startOffset": 3789,
+          "endOffset": 3904,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "exportAndWrapKey",
+      "ranges": [
+        {
+          "startOffset": 4060,
+          "endOffset": 4296,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "unwrapAndImportKey",
+      "ranges": [
+        {
+          "startOffset": 4407,
+          "endOffset": 4745,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "wrapKey",
+      "ranges": [
+        {
+          "startOffset": 4882,
+          "endOffset": 4948,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "wrapDataKeyForPassword",
+      "ranges": [
+        {
+          "startOffset": 5285,
+          "endOffset": 5395,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "unwrapKey",
+      "ranges": [
+        {
+          "startOffset": 5505,
+          "endOffset": 5573,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deriveTokenKey",
+      "ranges": [
+        {
+          "startOffset": 5826,
+          "endOffset": 6305,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "wrapKeyWithToken",
+      "ranges": [
+        {
+          "startOffset": 6423,
+          "endOffset": 6579,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "unwrapKeyWithToken",
+      "ranges": [
+        {
+          "startOffset": 6661,
+          "endOffset": 6819,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "unwrapSessionDataKey",
+      "ranges": [
+        {
+          "startOffset": 7085,
+          "endOffset": 7242,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7789,
+          "endOffset": 7797,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setRsaKeySizeForTest",
+      "ranges": [
+        {
+          "startOffset": 7905,
+          "endOffset": 7932,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "generateKeyPair",
+      "ranges": [
+        {
+          "startOffset": 8090,
+          "endOffset": 8629,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "importRsaKey",
+      "ranges": [
+        {
+          "startOffset": 8719,
+          "endOffset": 8898,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "importPublicKey",
+      "ranges": [
+        {
+          "startOffset": 8978,
+          "endOffset": 9025,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "importPrivateKey",
+      "ranges": [
+        {
+          "startOffset": 9107,
+          "endOffset": 9154,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hybridEncrypt",
+      "ranges": [
+        {
+          "startOffset": 9674,
+          "endOffset": 10291,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 10648,
+          "endOffset": 10719,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hybridDecrypt",
+      "ranges": [
+        {
+          "startOffset": 10935,
+          "endOffset": 11867,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encryptWithOwnerKey",
+      "ranges": [
+        {
+          "startOffset": 12203,
+          "endOffset": 12342,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 12558,
+          "endOffset": 12630,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPrivateKeyFromSession",
+      "ranges": [
+        {
+          "startOffset": 12834,
+          "endOffset": 13352,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decryptWithOwnerKey",
+      "ranges": [
+        {
+          "startOffset": 13537,
+          "endOffset": 13598,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 13850,
+          "endOffset": 13914,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

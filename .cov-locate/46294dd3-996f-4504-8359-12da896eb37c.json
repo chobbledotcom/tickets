@@ -1,0 +1,213 @@
+{
+  "scriptId": "775",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@neon-rs/load/0.0.4/dist/index.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3802,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1,
+          "endOffset": 3801,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 214,
+          "endOffset": 3795,
+          "count": 1
+        },
+        {
+          "startOffset": 628,
+          "endOffset": 709,
+          "count": 0
+        },
+        {
+          "startOffset": 885,
+          "endOffset": 927,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 309,
+          "endOffset": 626,
+          "count": 134
+        },
+        {
+          "startOffset": 453,
+          "endOffset": 468,
+          "count": 0
+        },
+        {
+          "startOffset": 485,
+          "endOffset": 505,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 548,
+          "endOffset": 575,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 631,
+          "endOffset": 708,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 792,
+          "endOffset": 883,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "__setModuleDefault",
+      "ranges": [
+        {
+          "startOffset": 887,
+          "endOffset": 927,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "__importStar",
+      "ranges": [
+        {
+          "startOffset": 980,
+          "endOffset": 1260,
+          "count": 2
+        },
+        {
+          "startOffset": 1028,
+          "endOffset": 1039,
+          "count": 0
+        },
+        {
+          "startOffset": 1101,
+          "endOffset": 1202,
+          "count": 134
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "currentTarget",
+      "ranges": [
+        {
+          "startOffset": 1456,
+          "endOffset": 3152,
+          "count": 1
+        },
+        {
+          "startOffset": 1542,
+          "endOffset": 1803,
+          "count": 0
+        },
+        {
+          "startOffset": 1812,
+          "endOffset": 2147,
+          "count": 0
+        },
+        {
+          "startOffset": 2156,
+          "endOffset": 2407,
+          "count": 0
+        },
+        {
+          "startOffset": 2639,
+          "endOffset": 2669,
+          "count": 0
+        },
+        {
+          "startOffset": 2687,
+          "endOffset": 2748,
+          "count": 0
+        },
+        {
+          "startOffset": 2762,
+          "endOffset": 2807,
+          "count": 0
+        },
+        {
+          "startOffset": 2816,
+          "endOffset": 2972,
+          "count": 0
+        },
+        {
+          "startOffset": 2978,
+          "endOffset": 3151,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isGlibc",
+      "ranges": [
+        {
+          "startOffset": 3192,
+          "endOffset": 3647,
+          "count": 1
+        },
+        {
+          "startOffset": 3476,
+          "endOffset": 3505,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "load",
+      "ranges": [
+        {
+          "startOffset": 3648,
+          "endOffset": 3771,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

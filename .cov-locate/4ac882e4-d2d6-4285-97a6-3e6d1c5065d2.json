@@ -1,0 +1,28 @@
+{
+  "scriptId": "675",
+  "url": "file:///home/user/tickets/src/shared/db/payments/case-resolution-batch.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 480,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "resolvePaymentCases",
+      "ranges": [
+        {
+          "startOffset": 239,
+          "endOffset": 478,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

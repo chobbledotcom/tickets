@@ -1,0 +1,28 @@
+{
+  "scriptId": "605",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/schema/triggers.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 11683,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "ticketCountTriggerDelta",
+      "ranges": [
+        {
+          "startOffset": 508,
+          "endOffset": 612,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

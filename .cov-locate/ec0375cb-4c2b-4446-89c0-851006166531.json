@@ -1,0 +1,17 @@
+{
+  "scriptId": "608",
+  "url": "file:///home/user/tickets/test/test-utils/test-state-env.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 301,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "scriptId": "793",
+  "url": "file:///home/user/tickets/src/shared/provider-transport.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1675,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "makeProviderTransportReader",
+      "ranges": [
+        {
+          "startOffset": 205,
+          "endOffset": 706,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "read",
+      "ranges": [
+        {
+          "startOffset": 232,
+          "endOffset": 688,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "transportIssueForError",
+      "ranges": [
+        {
+          "startOffset": 746,
+          "endOffset": 853,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "makeProviderResourceTransport",
+      "ranges": [
+        {
+          "startOffset": 900,
+          "endOffset": 1071,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "lookup",
+      "ranges": [
+        {
+          "startOffset": 950,
+          "endOffset": 999,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "retrieve",
+      "ranges": [
+        {
+          "startOffset": 1015,
+          "endOffset": 1066,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "invalidProviderReadResult",
+      "ranges": [
+        {
+          "startOffset": 1114,
+          "endOffset": 1209,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "providerReadValidator",
+      "ranges": [
+        {
+          "startOffset": 1248,
+          "endOffset": 1355,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "providerReadForTransportIssue",
+      "ranges": [
+        {
+          "startOffset": 1402,
+          "endOffset": 1673,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

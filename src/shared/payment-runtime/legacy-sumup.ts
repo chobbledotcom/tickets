@@ -22,13 +22,15 @@ import { resolvePaymentAccount } from "#shared/payment-runtime/account.ts";
 import { PAYMENT_PROVIDER_RESOURCES } from "#shared/payment-runtime/current.ts";
 import { signedBookingIntentFromMetadata } from "#shared/payment-runtime/metadata.ts";
 import { signedPaymentFacts } from "#shared/payment-runtime/provider-read.ts";
+import type { ProviderSessionResource } from "#shared/payment-state/resources.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 const metadataJson = defineStoredJson(v.record(v.string(), v.string()));
 
 export type LegacySumupPromotion =
   | { conflict: true }
-  | { legacy: LegacyPaymentReplay }
+  /** The old record stands, and this is the checkout it was filed under. */
+  | { legacy: LegacyPaymentReplay; resource: ProviderSessionResource }
   | { payment: PaymentSession };
 
 const currentSumupPayment = async (
@@ -44,7 +46,10 @@ const currentSumupPayment = async (
     legacy.runtime.processedPayment !== null ||
     legacy.state === "refunding"
   ) {
-    return { legacy: await bindLegacyPaymentResource(legacy, resource) };
+    return {
+      legacy: await bindLegacyPaymentResource(legacy, resource),
+      resource,
+    };
   }
   const dataKey = await unwrapKeyWithToken(checkout.wrappedKey, reference);
   const metadata = metadataJson.read(

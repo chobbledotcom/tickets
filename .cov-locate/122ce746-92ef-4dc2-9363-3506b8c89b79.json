@@ -1,0 +1,72 @@
+{
+  "scriptId": "515",
+  "url": "file:///home/user/tickets/test/test-utils/internal.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1384,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 730,
+          "endOffset": 738,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resetTestSession",
+      "ranges": [
+        {
+          "startOffset": 773,
+          "endOffset": 797,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "resetTestSlugCounter",
+      "ranges": [
+        {
+          "startOffset": 952,
+          "endOffset": 985,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "generateTestListingName",
+      "ranges": [
+        {
+          "startOffset": 1026,
+          "endOffset": 1104,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1373,
+          "endOffset": 1381,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

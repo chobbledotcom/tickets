@@ -1,0 +1,28 @@
+{
+  "scriptId": "482",
+  "url": "file:///home/user/tickets/src/shared/db/settings/current-task.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1984,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "withCurrentTask",
+      "ranges": [
+        {
+          "startOffset": 1045,
+          "endOffset": 1982,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "scriptId": "560",
+  "url": "file:///home/user/tickets/src/shared/payment-runtime/provider-read.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4242,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "providerPaymentFacts",
+      "ranges": [
+        {
+          "startOffset": 501,
+          "endOffset": 615,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "providerFactDetails",
+      "ranges": [
+        {
+          "startOffset": 652,
+          "endOffset": 891,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "providerCharge",
+      "ranges": [
+        {
+          "startOffset": 923,
+          "endOffset": 1038,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "foundProviderPayment",
+      "ranges": [
+        {
+          "startOffset": 1076,
+          "endOffset": 1177,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "adoptedPaymentId",
+      "ranges": [
+        {
+          "startOffset": 1211,
+          "endOffset": 1265,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "signedPaymentFacts",
+      "ranges": [
+        {
+          "startOffset": 1301,
+          "endOffset": 1494,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "storedObservationFacts",
+      "ranges": [
+        {
+          "startOffset": 1527,
+          "endOffset": 2144,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "invalidProviderRead",
+      "ranges": [
+        {
+          "startOffset": 2181,
+          "endOffset": 2267,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "invalidProviderReadFor",
+      "ranges": [
+        {
+          "startOffset": 2307,
+          "endOffset": 2389,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "providerReadIssue",
+      "ranges": [
+        {
+          "startOffset": 2417,
+          "endOffset": 2651,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentOwnership",
+      "ranges": [
+        {
+          "startOffset": 2678,
+          "endOffset": 2802,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readProviderOrInvalid",
+      "ranges": [
+        {
+          "startOffset": 2841,
+          "endOffset": 3037,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "foundProviderRead",
+      "ranges": [
+        {
+          "startOffset": 3143,
+          "endOffset": 3929,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "unresolvedProviderRead",
+      "ranges": [
+        {
+          "startOffset": 3962,
+          "endOffset": 4055,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3980,
+          "endOffset": 4055,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

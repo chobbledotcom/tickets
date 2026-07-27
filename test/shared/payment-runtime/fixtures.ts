@@ -433,9 +433,15 @@ export const completePayment = async (
 export const createLegacySumupCheckout = async (
   reference: string,
   sumupId: string,
-  /** A checkout the buyer already finished paying for, before the upgrade. */
-  finished = false,
+  options: {
+    /** A checkout the buyer already finished paying for, before the upgrade. */
+    finished?: boolean;
+    /** Which old row this checkout was found in. One reference can be reached
+     *  under two of these, which is how a site ends up with two of them. */
+    filedUnder?: "session" | "sumup";
+  } = {},
 ): Promise<void> => {
+  const { filedUnder = "sumup", finished = false } = options;
   settings.setForTest({
     currency: "GBP",
     payment_provider: "sumup",
@@ -452,7 +458,10 @@ export const createLegacySumupCheckout = async (
     1_000,
   );
   const group: LegacyPaymentGroup = {
-    key: `sumup:${await hmacHash(reference)}`,
+    key:
+      filedUnder === "sumup"
+        ? `sumup:${await hmacHash(reference)}`
+        : `session:${reference}`,
     runtime: {
       attendeePayment: null,
       checkoutStage: null,

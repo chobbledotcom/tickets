@@ -1,0 +1,39 @@
+{
+  "scriptId": "593",
+  "url": "file:///home/user/tickets/src/shared/ticket-url.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 503,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "buildTicketUrl",
+      "ranges": [
+        {
+          "startOffset": 189,
+          "endOffset": 353,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "buildCheckinUrl",
+      "ranges": [
+        {
+          "startOffset": 442,
+          "endOffset": 501,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

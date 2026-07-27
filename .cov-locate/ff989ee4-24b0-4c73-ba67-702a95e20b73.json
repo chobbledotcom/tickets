@@ -1,0 +1,55 @@
+{
+  "scriptId": "604",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/schema/index.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1645,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 975,
+          "endOffset": 989,
+          "count": 52
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "djb2",
+      "ranges": [
+        {
+          "startOffset": 1158,
+          "endOffset": 1321,
+          "count": 1
+        },
+        {
+          "startOffset": 1223,
+          "endOffset": 1283,
+          "count": 62803
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1363,
+          "endOffset": 1405,
+          "count": 52
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "scriptId": "752",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/http/cursor.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 5054,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 685,
+          "endOffset": 756,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "HttpCursor",
+      "ranges": [
+        {
+          "startOffset": 782,
+          "endOffset": 1046,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "open",
+      "ranges": [
+        {
+          "startOffset": 1051,
+          "endOffset": 1735,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "next",
+      "ranges": [
+        {
+          "startOffset": 1789,
+          "endOffset": 1874,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "close",
+      "ranges": [
+        {
+          "startOffset": 1908,
+          "endOffset": 1995,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_setClosed",
+      "ranges": [
+        {
+          "startOffset": 2020,
+          "endOffset": 2276,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get closed",
+      "ranges": [
+        {
+          "startOffset": 2322,
+          "endOffset": 2385,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#nextItem",
+      "ranges": [
+        {
+          "startOffset": 2390,
+          "endOffset": 3966,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#parseItemJson",
+      "ranges": [
+        {
+          "startOffset": 3971,
+          "endOffset": 4312,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#parseItemProtobuf",
+      "ranges": [
+        {
+          "startOffset": 4317,
+          "endOffset": 5051,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

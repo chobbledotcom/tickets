@@ -1,0 +1,94 @@
+{
+  "scriptId": "652",
+  "url": "file:///home/user/tickets/src/shared/currency.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2322,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 337,
+          "endOffset": 345,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "currencyFormat",
+      "ranges": [
+        {
+          "startOffset": 371,
+          "endOffset": 980,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDecimalPlaces",
+      "ranges": [
+        {
+          "startOffset": 1074,
+          "endOffset": 1125,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "formatCurrency",
+      "ranges": [
+        {
+          "startOffset": 1299,
+          "endOffset": 1441,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "formatSignedCurrency",
+      "ranges": [
+        {
+          "startOffset": 1613,
+          "endOffset": 1782,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "toMinorUnits",
+      "ranges": [
+        {
+          "startOffset": 1924,
+          "endOffset": 2041,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "toMajorUnits",
+      "ranges": [
+        {
+          "startOffset": 2189,
+          "endOffset": 2320,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

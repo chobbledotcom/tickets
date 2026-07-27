@@ -1,0 +1,169 @@
+{
+  "scriptId": "559",
+  "url": "file:///home/user/tickets/src/shared/payment-runtime/metadata.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4074,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "metadataForStoredPayment",
+      "ranges": [
+        {
+          "startOffset": 561,
+          "endOffset": 1318,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parseJson",
+      "ranges": [
+        {
+          "startOffset": 1338,
+          "endOffset": 1364,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "optionalJson",
+      "ranges": [
+        {
+          "startOffset": 1387,
+          "endOffset": 1439,
+          "count": 3
+        },
+        {
+          "startOffset": 1421,
+          "endOffset": 1439,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "optionalPositiveInt",
+      "ranges": [
+        {
+          "startOffset": 1469,
+          "endOffset": 1518,
+          "count": 2
+        },
+        {
+          "startOffset": 1503,
+          "endOffset": 1518,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "bookingIntentFromMetadata",
+      "ranges": [
+        {
+          "startOffset": 1642,
+          "endOffset": 2815,
+          "count": 1
+        },
+        {
+          "startOffset": 1971,
+          "endOffset": 1986,
+          "count": 0
+        },
+        {
+          "startOffset": 2289,
+          "endOffset": 2320,
+          "count": 0
+        },
+        {
+          "startOffset": 2450,
+          "endOffset": 2479,
+          "count": 0
+        },
+        {
+          "startOffset": 2548,
+          "endOffset": 2575,
+          "count": 0
+        },
+        {
+          "startOffset": 2697,
+          "endOffset": 2721,
+          "count": 0
+        },
+        {
+          "startOffset": 2772,
+          "endOffset": 2778,
+          "count": 0
+        },
+        {
+          "startOffset": 2784,
+          "endOffset": 2813,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parsePriceProof",
+      "ranges": [
+        {
+          "startOffset": 2841,
+          "endOffset": 3339,
+          "count": 1
+        },
+        {
+          "startOffset": 2934,
+          "endOffset": 3167,
+          "count": 0
+        },
+        {
+          "startOffset": 3241,
+          "endOffset": 3247,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "signedBookingIntentFromMetadata",
+      "ranges": [
+        {
+          "startOffset": 3470,
+          "endOffset": 4072,
+          "count": 1
+        },
+        {
+          "startOffset": 3614,
+          "endOffset": 3626,
+          "count": 0
+        },
+        {
+          "startOffset": 3741,
+          "endOffset": 3802,
+          "count": 0
+        },
+        {
+          "startOffset": 3896,
+          "endOffset": 3918,
+          "count": 0
+        },
+        {
+          "startOffset": 3998,
+          "endOffset": 4004,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

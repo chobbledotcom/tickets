@@ -1,0 +1,61 @@
+{
+  "scriptId": "592",
+  "url": "file:///home/user/tickets/src/shared/svg-ticket.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3219,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "extractSvgContent",
+      "ranges": [
+        {
+          "startOffset": 680,
+          "endOffset": 784,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "extractViewBox",
+      "ranges": [
+        {
+          "startOffset": 895,
+          "endOffset": 1152,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "buildInfoLines",
+      "ranges": [
+        {
+          "startOffset": 1263,
+          "endOffset": 1717,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateSvgTicket",
+      "ranges": [
+        {
+          "startOffset": 1881,
+          "endOffset": 3217,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

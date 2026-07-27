@@ -1,0 +1,1011 @@
+{
+  "scriptId": "503",
+  "url": "file:///home/user/tickets/src/shared/db/client.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 31019,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "extractUpdateColumns",
+      "ranges": [
+        {
+          "startOffset": 2331,
+          "endOffset": 3133,
+          "count": 4
+        },
+        {
+          "startOffset": 2425,
+          "endOffset": 2437,
+          "count": 0
+        },
+        {
+          "startOffset": 2818,
+          "endOffset": 3039,
+          "count": 511
+        },
+        {
+          "startOffset": 2869,
+          "endOffset": 2877,
+          "count": 1
+        },
+        {
+          "startOffset": 2877,
+          "endOffset": 3035,
+          "count": 510
+        },
+        {
+          "startOffset": 2903,
+          "endOffset": 2911,
+          "count": 1
+        },
+        {
+          "startOffset": 2911,
+          "endOffset": 3035,
+          "count": 509
+        },
+        {
+          "startOffset": 2936,
+          "endOffset": 2950,
+          "count": 21
+        },
+        {
+          "startOffset": 2952,
+          "endOffset": 3035,
+          "count": 20
+        },
+        {
+          "startOffset": 3124,
+          "endOffset": 3130,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "addAssignment",
+      "ranges": [
+        {
+          "startOffset": 2531,
+          "endOffset": 2739,
+          "count": 24
+        },
+        {
+          "startOffset": 2597,
+          "endOffset": 2604,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "writeSqlOf",
+      "ranges": [
+        {
+          "startOffset": 3637,
+          "endOffset": 3679,
+          "count": 48
+        },
+        {
+          "startOffset": 3667,
+          "endOffset": 3672,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "sqlOf",
+      "ranges": [
+        {
+          "startOffset": 3918,
+          "endOffset": 3968,
+          "count": 13
+        },
+        {
+          "startOffset": 3951,
+          "endOffset": 3957,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "invalidateForSql",
+      "ranges": [
+        {
+          "startOffset": 4525,
+          "endOffset": 5355,
+          "count": 28
+        },
+        {
+          "startOffset": 4631,
+          "endOffset": 4638,
+          "count": 18
+        },
+        {
+          "startOffset": 4638,
+          "endOffset": 4813,
+          "count": 10
+        },
+        {
+          "startOffset": 4814,
+          "endOffset": 4840,
+          "count": 6
+        },
+        {
+          "startOffset": 4841,
+          "endOffset": 4852,
+          "count": 4
+        },
+        {
+          "startOffset": 4853,
+          "endOffset": 4863,
+          "count": 6
+        },
+        {
+          "startOffset": 4890,
+          "endOffset": 5259,
+          "count": 4
+        },
+        {
+          "startOffset": 4970,
+          "endOffset": 5152,
+          "count": 0
+        },
+        {
+          "startOffset": 5259,
+          "endOffset": 5353,
+          "count": 6
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createDbClient",
+      "ranges": [
+        {
+          "startOffset": 5380,
+          "endOffset": 5854,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "databaseRoundTrip",
+      "ranges": [
+        {
+          "startOffset": 5934,
+          "endOffset": 6008,
+          "count": 28
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "executeWithRoundTrip",
+      "ranges": [
+        {
+          "startOffset": 6039,
+          "endOffset": 6173,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 6049,
+          "endOffset": 6173,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 6090,
+          "endOffset": 6172,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 6130,
+          "endOffset": 6171,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 6230,
+          "endOffset": 6262,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 6484,
+          "endOffset": 6598,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "transactionWithRoundTripGuard",
+      "ranges": [
+        {
+          "startOffset": 6639,
+          "endOffset": 7142,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withRoundTripGuard",
+      "ranges": [
+        {
+          "startOffset": 7209,
+          "endOffset": 8055,
+          "count": 28
+        },
+        {
+          "startOffset": 7273,
+          "endOffset": 7287,
+          "count": 0
+        },
+        {
+          "startOffset": 7351,
+          "endOffset": 7367,
+          "count": 24
+        },
+        {
+          "startOffset": 7367,
+          "endOffset": 8054,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "batch",
+      "ranges": [
+        {
+          "startOffset": 7448,
+          "endOffset": 7530,
+          "count": 15
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7495,
+          "endOffset": 7529,
+          "count": 15
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "executeMultiple",
+      "ranges": [
+        {
+          "startOffset": 7614,
+          "endOffset": 7681,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "migrate",
+      "ranges": [
+        {
+          "startOffset": 7696,
+          "endOffset": 7778,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sync",
+      "ranges": [
+        {
+          "startOffset": 7790,
+          "endOffset": 7846,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "transaction",
+      "ranges": [
+        {
+          "startOffset": 7865,
+          "endOffset": 7990,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDb",
+      "ranges": [
+        {
+          "startOffset": 8173,
+          "endOffset": 8207,
+          "count": 28
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "setDb",
+      "ranges": [
+        {
+          "startOffset": 8275,
+          "endOffset": 8301,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "resultRows",
+      "ranges": [
+        {
+          "startOffset": 8411,
+          "endOffset": 8432,
+          "count": 19
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "DatabaseBusyError",
+      "ranges": [
+        {
+          "startOffset": 8726,
+          "endOffset": 8806,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isDatabaseLocked",
+      "ranges": [
+        {
+          "startOffset": 9514,
+          "endOffset": 9602,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isTransientUpstreamError",
+      "ranges": [
+        {
+          "startOffset": 10066,
+          "endOffset": 10188,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isReadSql",
+      "ranges": [
+        {
+          "startOffset": 10882,
+          "endOffset": 10922,
+          "count": 20
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "retryOnTransientDatabaseError",
+      "ranges": [
+        {
+          "startOffset": 11858,
+          "endOffset": 12128,
+          "count": 24
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 11934,
+          "endOffset": 12127,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "executeTrackedStatement",
+      "ranges": [
+        {
+          "startOffset": 12162,
+          "endOffset": 12270,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 12189,
+          "endOffset": 12269,
+          "count": 13
+        },
+        {
+          "startOffset": 12247,
+          "endOffset": 12269,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "execute",
+      "ranges": [
+        {
+          "startOffset": 12620,
+          "endOffset": 12743,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "executeWithoutCacheInvalidation",
+      "ranges": [
+        {
+          "startOffset": 13079,
+          "endOffset": 13131,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "firstRowOrNull",
+      "ranges": [
+        {
+          "startOffset": 13225,
+          "endOffset": 13318,
+          "count": 1
+        },
+        {
+          "startOffset": 13299,
+          "endOffset": 13305,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "executeRead",
+      "ranges": [
+        {
+          "startOffset": 13422,
+          "endOffset": 13662,
+          "count": 11
+        },
+        {
+          "startOffset": 13477,
+          "endOffset": 13508,
+          "count": 0
+        },
+        {
+          "startOffset": 13546,
+          "endOffset": 13620,
+          "count": 0
+        },
+        {
+          "startOffset": 13643,
+          "endOffset": 13661,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "queryAll",
+      "ranges": [
+        {
+          "startOffset": 13736,
+          "endOffset": 13800,
+          "count": 11
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "queryOne",
+      "ranges": [
+        {
+          "startOffset": 13885,
+          "endOffset": 13947,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requireQueryRow",
+      "ranges": [
+        {
+          "startOffset": 13973,
+          "endOffset": 14126,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requireOne",
+      "ranges": [
+        {
+          "startOffset": 14228,
+          "endOffset": 14299,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "queryOnePrimary",
+      "ranges": [
+        {
+          "startOffset": 14844,
+          "endOffset": 14984,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "requireOnePrimary",
+      "ranges": [
+        {
+          "startOffset": 15067,
+          "endOffset": 15153,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rowExists",
+      "ranges": [
+        {
+          "startOffset": 15469,
+          "endOffset": 15522,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rowExistsForIdList",
+      "ranges": [
+        {
+          "startOffset": 16047,
+          "endOffset": 16156,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "queryIdColumn",
+      "ranges": [
+        {
+          "startOffset": 16271,
+          "endOffset": 16365,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "countRows",
+      "ranges": [
+        {
+          "startOffset": 16473,
+          "endOffset": 16656,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteByFieldStatement",
+      "ranges": [
+        {
+          "startOffset": 16829,
+          "endOffset": 16945,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteByField",
+      "ranges": [
+        {
+          "startOffset": 17018,
+          "endOffset": 17165,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteByFieldBatch",
+      "ranges": [
+        {
+          "startOffset": 17271,
+          "endOffset": 17331,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resetAggregates",
+      "ranges": [
+        {
+          "startOffset": 17505,
+          "endOffset": 17752,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "joinStatements",
+      "ranges": [
+        {
+          "startOffset": 18043,
+          "endOffset": 18196,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "andConditions",
+      "ranges": [
+        {
+          "startOffset": 18302,
+          "endOffset": 18455,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "runBatch",
+      "ranges": [
+        {
+          "startOffset": 18756,
+          "endOffset": 19104,
+          "count": 11
+        },
+        {
+          "startOffset": 19031,
+          "endOffset": 19084,
+          "count": 15
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 18841,
+          "endOffset": 18855,
+          "count": 15
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 18897,
+          "endOffset": 18996,
+          "count": 11
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "retryOnTransientDatabaseError.retryUpstream.retryUpstream",
+      "ranges": [
+        {
+          "startOffset": 18931,
+          "endOffset": 18966,
+          "count": 11
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "executeBatchWithoutCacheInvalidation",
+      "ranges": [
+        {
+          "startOffset": 19416,
+          "endOffset": 19492,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requireReadStatements",
+      "ranges": [
+        {
+          "startOffset": 19757,
+          "endOffset": 19938,
+          "count": 7
+        },
+        {
+          "startOffset": 19835,
+          "endOffset": 19932,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "batchFor",
+      "ranges": [
+        {
+          "startOffset": 20354,
+          "endOffset": 20558,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 20377,
+          "endOffset": 20558,
+          "count": 11
+        },
+        {
+          "startOffset": 20422,
+          "endOffset": 20456,
+          "count": 7
+        },
+        {
+          "startOffset": 20516,
+          "endOffset": 20524,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "primaryReadMode",
+      "ranges": [
+        {
+          "startOffset": 20667,
+          "endOffset": 20782,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 20902,
+          "endOffset": 20956,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "executeBatch",
+      "ranges": [
+        {
+          "startOffset": 21826,
+          "endOffset": 21894,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "runWriteTransactionOnce",
+      "ranges": [
+        {
+          "startOffset": 22451,
+          "endOffset": 23835,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withTransaction",
+      "ranges": [
+        {
+          "startOffset": 25801,
+          "endOffset": 26674,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "useTransaction",
+      "ranges": [
+        {
+          "startOffset": 26924,
+          "endOffset": 27014,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "writeRowInTransaction",
+      "ranges": [
+        {
+          "startOffset": 27437,
+          "endOffset": 27650,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "inPlaceholders",
+      "ranges": [
+        {
+          "startOffset": 27745,
+          "endOffset": 27785,
+          "count": 9
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 27766,
+          "endOffset": 27773,
+          "count": 11
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "rawSql",
+      "ranges": [
+        {
+          "startOffset": 27966,
+          "endOffset": 28001,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "insert",
+      "ranges": [
+        {
+          "startOffset": 28536,
+          "endOffset": 29000,
+          "count": 32
+        },
+        {
+          "startOffset": 28673,
+          "endOffset": 28880,
+          "count": 96
+        },
+        {
+          "startOffset": 28719,
+          "endOffset": 28745,
+          "count": 84
+        },
+        {
+          "startOffset": 28746,
+          "endOffset": 28763,
+          "count": 0
+        },
+        {
+          "startOffset": 28765,
+          "endOffset": 28811,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "equalityClauses",
+      "ranges": [
+        {
+          "startOffset": 29182,
+          "endOffset": 29406,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "update",
+      "ranges": [
+        {
+          "startOffset": 30447,
+          "endOffset": 30710,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "executeUpdate",
+      "ranges": [
+        {
+          "startOffset": 30930,
+          "endOffset": 31017,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

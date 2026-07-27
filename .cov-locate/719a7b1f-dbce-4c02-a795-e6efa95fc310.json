@@ -1,0 +1,17 @@
+{
+  "scriptId": "662",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/schema/tables-attendees.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 9037,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

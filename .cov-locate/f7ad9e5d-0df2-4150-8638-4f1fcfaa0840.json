@@ -1,0 +1,115 @@
+{
+  "scriptId": "598",
+  "url": "file:///home/user/tickets/src/shared/subrequest-budget.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2736,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "freshBudget",
+      "ranges": [
+        {
+          "startOffset": 237,
+          "endOffset": 442,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "usageOf",
+      "ranges": [
+        {
+          "startOffset": 460,
+          "endOffset": 552,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getSubrequestUsage",
+      "ranges": [
+        {
+          "startOffset": 588,
+          "endOffset": 672,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getSubrequestRemaining",
+      "ranges": [
+        {
+          "startOffset": 712,
+          "endOffset": 1160,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "runWithSubrequestBudget",
+      "ranges": [
+        {
+          "startOffset": 1201,
+          "endOffset": 1241,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withSubrequestAllowance",
+      "ranges": [
+        {
+          "startOffset": 1282,
+          "endOffset": 1805,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "countSubrequest",
+      "ranges": [
+        {
+          "startOffset": 1838,
+          "endOffset": 2239,
+          "count": 29
+        },
+        {
+          "startOffset": 1919,
+          "endOffset": 2067,
+          "count": 0
+        },
+        {
+          "startOffset": 2069,
+          "endOffset": 2237,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "countExternalSubrequest",
+      "ranges": [
+        {
+          "startOffset": 2280,
+          "endOffset": 2331,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

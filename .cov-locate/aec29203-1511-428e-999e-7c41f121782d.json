@@ -1,0 +1,83 @@
+{
+  "scriptId": "702",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/schema-assertions.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1354,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "columnList",
+      "ranges": [
+        {
+          "startOffset": 19,
+          "endOffset": 48,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "missingColumns",
+      "ranges": [
+        {
+          "startOffset": 73,
+          "endOffset": 137,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "missingTableMessage",
+      "ranges": [
+        {
+          "startOffset": 167,
+          "endOffset": 462,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "missingColumnsMessage",
+      "ranges": [
+        {
+          "startOffset": 494,
+          "endOffset": 882,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "assertColumnsPresent",
+      "ranges": [
+        {
+          "startOffset": 920,
+          "endOffset": 1110,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "assertLiveTableColumns",
+      "ranges": [
+        {
+          "startOffset": 1150,
+          "endOffset": 1352,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

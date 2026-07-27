@@ -1,0 +1,44 @@
+{
+  "scriptId": "542",
+  "url": "file:///home/user/tickets/src/shared/countries.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3079,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getCountry",
+      "ranges": [
+        {
+          "startOffset": 2905,
+          "endOffset": 2958,
+          "count": 4
+        },
+        {
+          "startOffset": 2929,
+          "endOffset": 2958,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isValidCountry",
+      "ranges": [
+        {
+          "startOffset": 3052,
+          "endOffset": 3077,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

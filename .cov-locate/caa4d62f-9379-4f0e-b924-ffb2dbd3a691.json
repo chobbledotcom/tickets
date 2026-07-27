@@ -1,0 +1,72 @@
+{
+  "scriptId": "594",
+  "url": "file:///home/user/tickets/src/shared/validation/email.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2793,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isValidEmail",
+      "ranges": [
+        {
+          "startOffset": 1417,
+          "endOffset": 1499,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parseEmail",
+      "ranges": [
+        {
+          "startOffset": 1745,
+          "endOffset": 1873,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "emailHost",
+      "ranges": [
+        {
+          "startOffset": 2110,
+          "endOffset": 2189,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "emailLocalPart",
+      "ranges": [
+        {
+          "startOffset": 2272,
+          "endOffset": 2355,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "updateBusinessEmail",
+      "ranges": [
+        {
+          "startOffset": 2499,
+          "endOffset": 2792,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "scriptId": "568",
+  "url": "file:///home/user/tickets/src/shared/db/libsql-call.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 475,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "wrapExecute",
+      "ranges": [
+        {
+          "startOffset": 111,
+          "endOffset": 284,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 129,
+          "endOffset": 284,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 166,
+          "endOffset": 283,
+          "count": 13
+        },
+        {
+          "startOffset": 200,
+          "endOffset": 221,
+          "count": 0
+        },
+        {
+          "startOffset": 222,
+          "endOffset": 255,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "beginTransaction",
+      "ranges": [
+        {
+          "startOffset": 389,
+          "endOffset": 473,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

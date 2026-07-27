@@ -1,0 +1,149 @@
+{
+  "scriptId": "798",
+  "url": "file:///home/user/tickets/src/shared/stripe/client.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2011,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createStripeClient",
+      "ranges": [
+        {
+          "startOffset": 451,
+          "endOffset": 2009,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "idPath",
+      "ranges": [
+        {
+          "startOffset": 551,
+          "endOffset": 610,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "retrieve",
+      "ranges": [
+        {
+          "startOffset": 655,
+          "endOffset": 710,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "retrieve",
+      "ranges": [
+        {
+          "startOffset": 749,
+          "endOffset": 804,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "create",
+      "ranges": [
+        {
+          "startOffset": 862,
+          "endOffset": 1040,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "retrieve",
+      "ranges": [
+        {
+          "startOffset": 1060,
+          "endOffset": 1143,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "retrieveWithLatestCharge",
+      "ranges": [
+        {
+          "startOffset": 1213,
+          "endOffset": 1369,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "create",
+      "ranges": [
+        {
+          "startOffset": 1406,
+          "endOffset": 1525,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "retrieve",
+      "ranges": [
+        {
+          "startOffset": 1543,
+          "endOffset": 1607,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "create",
+      "ranges": [
+        {
+          "startOffset": 1653,
+          "endOffset": 1769,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "del",
+      "ranges": [
+        {
+          "startOffset": 1782,
+          "endOffset": 1875,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "list",
+      "ranges": [
+        {
+          "startOffset": 1889,
+          "endOffset": 1996,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

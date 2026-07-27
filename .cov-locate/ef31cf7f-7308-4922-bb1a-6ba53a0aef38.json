@@ -1,0 +1,490 @@
+{
+  "scriptId": "511",
+  "url": "file:///home/user/tickets/src/shared/storage.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 18860,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1495,
+          "endOffset": 1503,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "runWithStorageConfig",
+      "ranges": [
+        {
+          "startOffset": 1802,
+          "endOffset": 1846,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setStorageConfigForTest",
+      "ranges": [
+        {
+          "startOffset": 2231,
+          "endOffset": 2303,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getStorageConfig",
+      "ranges": [
+        {
+          "startOffset": 2436,
+          "endOffset": 2614,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getLocalStoragePath",
+      "ranges": [
+        {
+          "startOffset": 2768,
+          "endOffset": 2932,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3066,
+          "endOffset": 3123,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getStorageBackend",
+      "ranges": [
+        {
+          "startOffset": 3241,
+          "endOffset": 3404,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isStorageEnabled",
+      "ranges": [
+        {
+          "startOffset": 3516,
+          "endOffset": 3550,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getMimeTypeFromFilename",
+      "ranges": [
+        {
+          "startOffset": 3662,
+          "endOffset": 3815,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "detectImageType",
+      "ranges": [
+        {
+          "startOffset": 3959,
+          "endOffset": 4264,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validateImage",
+      "ranges": [
+        {
+          "startOffset": 4676,
+          "endOffset": 5156,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "tryDeleteFile",
+      "ranges": [
+        {
+          "startOffset": 5549,
+          "endOffset": 5737,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteListingAttachmentFile",
+      "ranges": [
+        {
+          "startOffset": 5837,
+          "endOffset": 5970,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteAllListingAttachmentFiles",
+      "ranges": [
+        {
+          "startOffset": 6077,
+          "endOffset": 6203,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteImageStorageFiles",
+      "ranges": [
+        {
+          "startOffset": 6323,
+          "endOffset": 6469,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isAlreadyDeleted",
+      "ranges": [
+        {
+          "startOffset": 6643,
+          "endOffset": 6744,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteImageStorageFilesStrict",
+      "ranges": [
+        {
+          "startOffset": 7147,
+          "endOffset": 7440,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteAllImageStorageFiles",
+      "ranges": [
+        {
+          "startOffset": 7527,
+          "endOffset": 7641,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateWebpFilename",
+      "ranges": [
+        {
+          "startOffset": 7830,
+          "endOffset": 7863,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "localWrite",
+      "ranges": [
+        {
+          "startOffset": 8231,
+          "endOffset": 8434,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "localRead",
+      "ranges": [
+        {
+          "startOffset": 8541,
+          "endOffset": 8756,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "localRemove",
+      "ranges": [
+        {
+          "startOffset": 8832,
+          "endOffset": 8933,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 9444,
+          "endOffset": 9480,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "connectZone",
+      "ranges": [
+        {
+          "startOffset": 9664,
+          "endOffset": 10101,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "uploadRaw",
+      "ranges": [
+        {
+          "startOffset": 10206,
+          "endOffset": 10680,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encryptAndUpload",
+      "ranges": [
+        {
+          "startOffset": 10739,
+          "endOffset": 10808,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "uploadImageTargets",
+      "ranges": [
+        {
+          "startOffset": 11481,
+          "endOffset": 11745,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "collectStream",
+      "ranges": [
+        {
+          "startOffset": 11831,
+          "endOffset": 12181,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isFileNotFound",
+      "ranges": [
+        {
+          "startOffset": 12271,
+          "endOffset": 12319,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "downloadRaw",
+      "ranges": [
+        {
+          "startOffset": 12429,
+          "endOffset": 12809,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "downloadImage",
+      "ranges": [
+        {
+          "startOffset": 12948,
+          "endOffset": 13091,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteFile",
+      "ranges": [
+        {
+          "startOffset": 13188,
+          "endOffset": 13503,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validateAttachment",
+      "ranges": [
+        {
+          "startOffset": 13937,
+          "endOffset": 14055,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getBasename",
+      "ranges": [
+        {
+          "startOffset": 14364,
+          "endOffset": 14397,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sanitizeBasename",
+      "ranges": [
+        {
+          "startOffset": 14643,
+          "endOffset": 14819,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sanitizeFilename",
+      "ranges": [
+        {
+          "startOffset": 14930,
+          "endOffset": 14999,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateAttachmentFilename",
+      "ranges": [
+        {
+          "startOffset": 15126,
+          "endOffset": 15200,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "uploadAttachment",
+      "ranges": [
+        {
+          "startOffset": 15446,
+          "endOffset": 15496,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readDirSafe",
+      "ranges": [
+        {
+          "startOffset": 15827,
+          "endOffset": 15936,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 16003,
+          "endOffset": 16039,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "splitListingPrefix",
+      "ranges": [
+        {
+          "startOffset": 16549,
+          "endOffset": 16755,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listFilesWithMeta",
+      "ranges": [
+        {
+          "startOffset": 17103,
+          "endOffset": 18688,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listFiles",
+      "ranges": [
+        {
+          "startOffset": 18792,
+          "endOffset": 18858,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

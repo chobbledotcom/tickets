@@ -1,0 +1,105 @@
+{
+  "scriptId": "772",
+  "url": "file:///home/user/tickets/src/shared/ledger/project.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4002,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "allBalances",
+      "ranges": [
+        {
+          "startOffset": 648,
+          "endOffset": 938,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "balanceOf",
+      "ranges": [
+        {
+          "startOffset": 1241,
+          "endOffset": 1311,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "costProjection",
+      "ranges": [
+        {
+          "startOffset": 1424,
+          "endOffset": 1495,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "profitProjection",
+      "ranges": [
+        {
+          "startOffset": 1580,
+          "endOffset": 1692,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sumOfKind",
+      "ranges": [
+        {
+          "startOffset": 1790,
+          "endOffset": 1861,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "inPeriod",
+      "ranges": [
+        {
+          "startOffset": 2458,
+          "endOffset": 2938,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "byOccurredThenId",
+      "ranges": [
+        {
+          "startOffset": 2965,
+          "endOffset": 3051,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "statementFor",
+      "ranges": [
+        {
+          "startOffset": 3541,
+          "endOffset": 4000,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

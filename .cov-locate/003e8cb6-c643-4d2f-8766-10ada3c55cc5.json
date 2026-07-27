@@ -1,0 +1,237 @@
+{
+  "scriptId": "637",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/client/0.17.2/lib-esm/http.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 8659,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createClient",
+      "ranges": [
+        {
+          "startOffset": 492,
+          "endOffset": 579,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_createClient",
+      "ranges": [
+        {
+          "startOffset": 603,
+          "endOffset": 1650,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 1710,
+          "endOffset": 1860,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "HttpClient",
+      "ranges": [
+        {
+          "startOffset": 1886,
+          "endOffset": 2466,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "limit",
+      "ranges": [
+        {
+          "startOffset": 2471,
+          "endOffset": 2541,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "execute",
+      "ranges": [
+        {
+          "startOffset": 2546,
+          "endOffset": 3593,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "batch",
+      "ranges": [
+        {
+          "startOffset": 3598,
+          "endOffset": 5462,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "migrate",
+      "ranges": [
+        {
+          "startOffset": 5467,
+          "endOffset": 6419,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "transaction",
+      "ranges": [
+        {
+          "startOffset": 6424,
+          "endOffset": 6778,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "executeMultiple",
+      "ranges": [
+        {
+          "startOffset": 6783,
+          "endOffset": 7453,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sync",
+      "ranges": [
+        {
+          "startOffset": 7458,
+          "endOffset": 7560,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "close",
+      "ranges": [
+        {
+          "startOffset": 7565,
+          "endOffset": 7610,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "reconnect",
+      "ranges": [
+        {
+          "startOffset": 7615,
+          "endOffset": 8053,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get closed",
+      "ranges": [
+        {
+          "startOffset": 8058,
+          "endOffset": 8114,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 8177,
+          "endOffset": 8199,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "HttpTransaction",
+      "ranges": [
+        {
+          "startOffset": 8225,
+          "endOffset": 8393,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_getStream",
+      "ranges": [
+        {
+          "startOffset": 8418,
+          "endOffset": 8467,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_getSqlCache",
+      "ranges": [
+        {
+          "startOffset": 8492,
+          "endOffset": 8545,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "close",
+      "ranges": [
+        {
+          "startOffset": 8550,
+          "endOffset": 8595,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get closed",
+      "ranges": [
+        {
+          "startOffset": 8600,
+          "endOffset": 8656,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

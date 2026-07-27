@@ -1,0 +1,39 @@
+{
+  "scriptId": "570",
+  "url": "file:///home/user/tickets/src/shared/named-error.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 547,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "namedError",
+      "ranges": [
+        {
+          "startOffset": 434,
+          "endOffset": 545,
+          "count": 7
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 468,
+          "endOffset": 541,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

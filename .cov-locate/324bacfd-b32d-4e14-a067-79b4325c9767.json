@@ -1,0 +1,83 @@
+{
+  "scriptId": "628",
+  "url": "file:///home/user/tickets/src/shared/db/payments/stored-json.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 945,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "seal",
+      "ranges": [
+        {
+          "startOffset": 238,
+          "endOffset": 391,
+          "count": 12
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "defineEncryptedStoredJson",
+      "ranges": [
+        {
+          "startOffset": 434,
+          "endOffset": 943,
+          "count": 15
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "index",
+      "ranges": [
+        {
+          "startOffset": 509,
+          "endOffset": 563,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "open",
+      "ranges": [
+        {
+          "startOffset": 575,
+          "endOffset": 639,
+          "count": 7
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "seal",
+      "ranges": [
+        {
+          "startOffset": 651,
+          "endOffset": 720,
+          "count": 7
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "sealIndexed",
+      "ranges": [
+        {
+          "startOffset": 739,
+          "endOffset": 936,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "scriptId": "795",
+  "url": "file:///home/user/tickets/src/shared/stripe/runtime.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3665,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "formatErrorField",
+      "ranges": [
+        {
+          "startOffset": 590,
+          "endOffset": 672,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 605,
+          "endOffset": 672,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sanitizeStripeError",
+      "ranges": [
+        {
+          "startOffset": 1128,
+          "endOffset": 1355,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mockConfig",
+      "ranges": [
+        {
+          "startOffset": 1485,
+          "endOffset": 1722,
+          "count": 1
+        },
+        {
+          "startOffset": 1547,
+          "endOffset": 1554,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "requestConfig",
+      "ranges": [
+        {
+          "startOffset": 1746,
+          "endOffset": 1930,
+          "count": 1
+        },
+        {
+          "startOffset": 1803,
+          "endOffset": 1823,
+          "count": 0
+        },
+        {
+          "startOffset": 1879,
+          "endOffset": 1927,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "create",
+      "ranges": [
+        {
+          "startOffset": 1947,
+          "endOffset": 2042,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "runtimeConfigOrNull",
+      "ranges": [
+        {
+          "startOffset": 2351,
+          "endOffset": 2501,
+          "count": 1
+        },
+        {
+          "startOffset": 2422,
+          "endOffset": 2434,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "create",
+      "ranges": [
+        {
+          "startOffset": 2549,
+          "endOffset": 2616,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isSameConfig",
+      "ranges": [
+        {
+          "startOffset": 2668,
+          "endOffset": 2882,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 2989,
+          "endOffset": 3010,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "shouldPropagate",
+      "ranges": [
+        {
+          "startOffset": 3103,
+          "endOffset": 3148,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "classifyError",
+      "ranges": [
+        {
+          "startOffset": 3215,
+          "endOffset": 3392,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "reportError",
+      "ranges": [
+        {
+          "startOffset": 3427,
+          "endOffset": 3512,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

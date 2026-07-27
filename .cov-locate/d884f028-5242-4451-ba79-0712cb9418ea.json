@@ -1,0 +1,116 @@
+{
+  "scriptId": "497",
+  "url": "file:///home/user/tickets/src/shared/payment-runtime/current.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1192,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "charge",
+      "ranges": [
+        {
+          "startOffset": 68,
+          "endOffset": 184,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "refund",
+      "ranges": [
+        {
+          "startOffset": 198,
+          "endOffset": 313,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "session",
+      "ranges": [
+        {
+          "startOffset": 328,
+          "endOffset": 414,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "charge",
+      "ranges": [
+        {
+          "startOffset": 444,
+          "endOffset": 567,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "refund",
+      "ranges": [
+        {
+          "startOffset": 581,
+          "endOffset": 696,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "session",
+      "ranges": [
+        {
+          "startOffset": 711,
+          "endOffset": 808,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "charge",
+      "ranges": [
+        {
+          "startOffset": 837,
+          "endOffset": 955,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "refund",
+      "ranges": [
+        {
+          "startOffset": 969,
+          "endOffset": 1082,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "session",
+      "ranges": [
+        {
+          "startOffset": 1097,
+          "endOffset": 1184,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

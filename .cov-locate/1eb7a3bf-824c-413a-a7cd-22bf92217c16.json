@@ -1,0 +1,28 @@
+{
+  "scriptId": "576",
+  "url": "file:///home/user/tickets/src/shared/db/define-id-table.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 222,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "defineIdTable",
+      "ranges": [
+        {
+          "startOffset": 143,
+          "endOffset": 220,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "scriptId": "488",
+  "url": "file:///home/user/tickets/src/shared/listing-defaults.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 6191,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "appliesTo",
+      "ranges": [
+        {
+          "startOffset": 2941,
+          "endOffset": 2983,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "appliesTo",
+      "ranges": [
+        {
+          "startOffset": 3493,
+          "endOffset": 3533,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingDefaultInputName",
+      "ranges": [
+        {
+          "startOffset": 3699,
+          "endOffset": 3732,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingDefaultLabelKey",
+      "ranges": [
+        {
+          "startOffset": 3813,
+          "endOffset": 3867,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingDefaultHintKey",
+      "ranges": [
+        {
+          "startOffset": 3946,
+          "endOffset": 3999,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingDefaultFieldClass",
+      "ranges": [
+        {
+          "startOffset": 4157,
+          "endOffset": 4225,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setListingDefaultFields",
+      "ranges": [
+        {
+          "startOffset": 4337,
+          "endOffset": 4418,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasAnyListingDefault",
+      "ranges": [
+        {
+          "startOffset": 4534,
+          "endOffset": 4590,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingDefaultFormClasses",
+      "ranges": [
+        {
+          "startOffset": 4742,
+          "endOffset": 4847,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resolveListingDefaults",
+      "ranges": [
+        {
+          "startOffset": 5237,
+          "endOffset": 5588,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parseListingDefaults",
+      "ranges": [
+        {
+          "startOffset": 5856,
+          "endOffset": 5932,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "serializeListingDefaults",
+      "ranges": [
+        {
+          "startOffset": 6113,
+          "endOffset": 6189,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

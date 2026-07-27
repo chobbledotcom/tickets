@@ -1,0 +1,28 @@
+{
+  "scriptId": "645",
+  "url": "file:///home/user/tickets/src/shared/db/attendees/kind.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 212,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isServicing",
+      "ranges": [
+        {
+          "startOffset": 179,
+          "endOffset": 210,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

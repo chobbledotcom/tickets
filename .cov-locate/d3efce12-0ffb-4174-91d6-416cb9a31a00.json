@@ -1,0 +1,61 @@
+{
+  "scriptId": "741",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/id_alloc.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1806,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 446,
+          "endOffset": 522,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "IdAlloc",
+      "ranges": [
+        {
+          "startOffset": 528,
+          "endOffset": 619,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "alloc",
+      "ranges": [
+        {
+          "startOffset": 682,
+          "endOffset": 1473,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "free",
+      "ranges": [
+        {
+          "startOffset": 1478,
+          "endOffset": 1803,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "scriptId": "611",
+  "url": "file:///home/user/tickets/src/shared/db/payments/charge-upsert.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 5279,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "stateOf",
+      "ranges": [
+        {
+          "startOffset": 242,
+          "endOffset": 395,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "pendingRefundOf",
+      "ranges": [
+        {
+          "startOffset": 421,
+          "endOffset": 546,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "indexRefund",
+      "ranges": [
+        {
+          "startOffset": 568,
+          "endOffset": 663,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "terminalRefundResources",
+      "ranges": [
+        {
+          "startOffset": 697,
+          "endOffset": 868,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentChargeUpsertStatement",
+      "ranges": [
+        {
+          "startOffset": 914,
+          "endOffset": 5277,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

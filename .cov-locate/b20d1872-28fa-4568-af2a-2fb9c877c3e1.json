@@ -1,0 +1,39 @@
+{
+  "scriptId": "736",
+  "url": "file:///home/user/tickets/src/ui/templates/components/error.tsx",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1612,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "ErrorAlert",
+      "ranges": [
+        {
+          "startOffset": 1246,
+          "endOffset": 1397,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "ErrorNote",
+      "ranges": [
+        {
+          "startOffset": 1519,
+          "endOffset": 1610,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

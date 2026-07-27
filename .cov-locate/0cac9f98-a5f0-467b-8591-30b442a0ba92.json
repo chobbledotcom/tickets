@@ -1,0 +1,17 @@
+{
+  "scriptId": "663",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/schema/tables-catalog.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 8199,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

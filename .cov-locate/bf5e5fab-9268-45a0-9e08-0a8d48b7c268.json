@@ -1,0 +1,105 @@
+{
+  "scriptId": "498",
+  "url": "file:///home/user/tickets/src/shared/payment-runtime/legacy-sumup.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 5105,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "currentSumupPayment",
+      "ranges": [
+        {
+          "startOffset": 1223,
+          "endOffset": 4057,
+          "count": 2
+        },
+        {
+          "startOffset": 1353,
+          "endOffset": 1435,
+          "count": 0
+        },
+        {
+          "startOffset": 1562,
+          "endOffset": 1593,
+          "count": 1
+        },
+        {
+          "startOffset": 1595,
+          "endOffset": 2013,
+          "count": 1
+        },
+        {
+          "startOffset": 2013,
+          "endOffset": 2097,
+          "count": 0
+        },
+        {
+          "startOffset": 2097,
+          "endOffset": 3945,
+          "count": 1
+        },
+        {
+          "startOffset": 3947,
+          "endOffset": 4027,
+          "count": 0
+        },
+        {
+          "startOffset": 4027,
+          "endOffset": 4056,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "promoteLegacySumupPayment",
+      "ranges": [
+        {
+          "startOffset": 4182,
+          "endOffset": 5103,
+          "count": 2
+        },
+        {
+          "startOffset": 4300,
+          "endOffset": 4324,
+          "count": 0
+        },
+        {
+          "startOffset": 4326,
+          "endOffset": 4360,
+          "count": 0
+        },
+        {
+          "startOffset": 4609,
+          "endOffset": 4621,
+          "count": 0
+        },
+        {
+          "startOffset": 4651,
+          "endOffset": 5045,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4500,
+          "endOffset": 4575,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

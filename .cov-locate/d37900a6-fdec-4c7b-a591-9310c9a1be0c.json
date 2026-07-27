@@ -1,0 +1,193 @@
+{
+  "scriptId": "492",
+  "url": "file:///home/user/tickets/src/shared/types.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 14306,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isRecord",
+      "ranges": [
+        {
+          "startOffset": 304,
+          "endOffset": 381,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isPaidListing",
+      "ranges": [
+        {
+          "startOffset": 2939,
+          "endOffset": 3087,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasTicketQuantity",
+      "ranges": [
+        {
+          "startOffset": 3482,
+          "endOffset": 3505,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "clampDurationDays",
+      "ranges": [
+        {
+          "startOffset": 4081,
+          "endOffset": 4260,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4338,
+          "endOffset": 4429,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4678,
+          "endOffset": 4694,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "buildDayPrices",
+      "ranges": [
+        {
+          "startOffset": 5104,
+          "endOffset": 5368,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parseDayPrices",
+      "ranges": [
+        {
+          "startOffset": 5758,
+          "endOffset": 6175,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "ascending",
+      "ranges": [
+        {
+          "startOffset": 6430,
+          "endOffset": 6443,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "availableDayCounts",
+      "ranges": [
+        {
+          "startOffset": 6479,
+          "endOffset": 6696,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "dayPriceFor",
+      "ranges": [
+        {
+          "startOffset": 6936,
+          "endOffset": 7172,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sharedCappedGroupIds",
+      "ranges": [
+        {
+          "startOffset": 7832,
+          "endOffset": 7945,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sharedGroupRemaining",
+      "ranges": [
+        {
+          "startOffset": 8914,
+          "endOffset": 9161,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sharedGroupCapacity",
+      "ranges": [
+        {
+          "startOffset": 9984,
+          "endOffset": 10503,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "roleIn",
+      "ranges": [
+        {
+          "startOffset": 13013,
+          "endOffset": 13054,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 13023,
+          "endOffset": 13054,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

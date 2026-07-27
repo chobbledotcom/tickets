@@ -1,0 +1,50 @@
+{
+  "scriptId": "624",
+  "url": "file:///home/user/tickets/src/shared/payment-runtime/refund-targets.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1546,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getPaymentRefundTargets",
+      "ranges": [
+        {
+          "startOffset": 277,
+          "endOffset": 955,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "refundReferences",
+      "ranges": [
+        {
+          "startOffset": 989,
+          "endOffset": 1253,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getAttendeePaymentRefundOrNull",
+      "ranges": [
+        {
+          "startOffset": 1301,
+          "endOffset": 1544,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "scriptId": "493",
+  "url": "file:///home/user/tickets/src/shared/wallets/apple-wallet-settings.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1096,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "build",
+      "ranges": [
+        {
+          "startOffset": 311,
+          "endOffset": 553,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

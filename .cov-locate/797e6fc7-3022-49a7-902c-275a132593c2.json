@@ -1,0 +1,127 @@
+{
+  "scriptId": "578",
+  "url": "file:///home/user/tickets/src/shared/db/listing-parents.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 7895,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "listingIdsWithLinks",
+      "ranges": [
+        {
+          "startOffset": 2022,
+          "endOffset": 2131,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getNonStandaloneChildIds",
+      "ranges": [
+        {
+          "startOffset": 2764,
+          "endOffset": 3168,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "anyNonStandaloneChild",
+      "ranges": [
+        {
+          "startOffset": 3620,
+          "endOffset": 3679,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingsForLinks",
+      "ranges": [
+        {
+          "startOffset": 3706,
+          "endOffset": 3973,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingsByIdFor",
+      "ranges": [
+        {
+          "startOffset": 4069,
+          "endOffset": 4331,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hydrateListingLinks",
+      "ranges": [
+        {
+          "startOffset": 4609,
+          "endOffset": 4809,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadParentAndChildLinks",
+      "ranges": [
+        {
+          "startOffset": 4979,
+          "endOffset": 5426,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "checkTouchingEdges",
+      "ranges": [
+        {
+          "startOffset": 5455,
+          "endOffset": 5723,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "firstTouchingEdgeError",
+      "ranges": [
+        {
+          "startOffset": 6443,
+          "endOffset": 6663,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "edgeIncompatibilityAfterChange",
+      "ranges": [
+        {
+          "startOffset": 7187,
+          "endOffset": 7893,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

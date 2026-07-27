@@ -1,0 +1,159 @@
+{
+  "scriptId": "540",
+  "url": "file:///home/user/tickets/src/shared/crypto/utils.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3011,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "constantTimeEqual",
+      "ranges": [
+        {
+          "startOffset": 322,
+          "endOffset": 535,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "constantTimeCodesEqual",
+      "ranges": [
+        {
+          "startOffset": 974,
+          "endOffset": 1181,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getRandomBytes",
+      "ranges": [
+        {
+          "startOffset": 1267,
+          "endOffset": 1369,
+          "count": 16
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "concatBytes",
+      "ranges": [
+        {
+          "startOffset": 1445,
+          "endOffset": 1688,
+          "count": 19
+        },
+        {
+          "startOffset": 1503,
+          "endOffset": 1524,
+          "count": 50
+        },
+        {
+          "startOffset": 1609,
+          "endOffset": 1670,
+          "count": 50
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "toBase64",
+      "ranges": [
+        {
+          "startOffset": 1761,
+          "endOffset": 1786,
+          "count": 53
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "base64ToBase64Url",
+      "ranges": [
+        {
+          "startOffset": 1960,
+          "endOffset": 2028,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "toBase64Url",
+      "ranges": [
+        {
+          "startOffset": 2120,
+          "endOffset": 2199,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fromBase64",
+      "ranges": [
+        {
+          "startOffset": 2274,
+          "endOffset": 2313,
+          "count": 28
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fromBase64Url",
+      "ranges": [
+        {
+          "startOffset": 2449,
+          "endOffset": 2511,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateSecureToken",
+      "ranges": [
+        {
+          "startOffset": 2647,
+          "endOffset": 2754,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "toUpperHex",
+      "ranges": [
+        {
+          "startOffset": 2824,
+          "endOffset": 2860,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateTicketToken",
+      "ranges": [
+        {
+          "startOffset": 2976,
+          "endOffset": 3009,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

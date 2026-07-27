@@ -1,0 +1,61 @@
+{
+  "scriptId": "669",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/errors.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1068,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "MissingSettingsTableError",
+      "ranges": [
+        {
+          "startOffset": 201,
+          "endOffset": 289,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "combinedFailures",
+      "ranges": [
+        {
+          "startOffset": 573,
+          "endOffset": 655,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "missingTableError",
+      "ranges": [
+        {
+          "startOffset": 757,
+          "endOffset": 907,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 766,
+          "endOffset": 907,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

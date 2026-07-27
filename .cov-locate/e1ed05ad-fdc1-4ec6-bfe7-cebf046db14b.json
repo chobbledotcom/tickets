@@ -1,0 +1,50 @@
+{
+  "scriptId": "612",
+  "url": "file:///home/user/tickets/src/shared/db/write-helpers.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 844,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "writeRowsAtCurrentTime",
+      "ranges": [
+        {
+          "startOffset": 169,
+          "endOffset": 234,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requireReturnedRows",
+      "ranges": [
+        {
+          "startOffset": 341,
+          "endOffset": 557,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requirePreviousWrite",
+      "ranges": [
+        {
+          "startOffset": 677,
+          "endOffset": 842,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

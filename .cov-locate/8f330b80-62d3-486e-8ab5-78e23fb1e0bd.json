@@ -1,0 +1,50 @@
+{
+  "scriptId": "729",
+  "url": "file:///home/user/tickets/src/shared/accounting/refs.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1910,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "digest",
+      "ranges": [
+        {
+          "startOffset": 857,
+          "endOffset": 1591,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "eventGroup",
+      "ranges": [
+        {
+          "startOffset": 1696,
+          "endOffset": 1724,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legReference",
+      "ranges": [
+        {
+          "startOffset": 1879,
+          "endOffset": 1908,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

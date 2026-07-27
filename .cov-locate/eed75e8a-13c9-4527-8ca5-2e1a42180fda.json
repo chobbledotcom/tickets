@@ -1,0 +1,28 @@
+{
+  "scriptId": "597",
+  "url": "file:///home/user/tickets/src/shared/stream-chunks.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 596,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "streamChunks",
+      "ranges": [
+        {
+          "startOffset": 355,
+          "endOffset": 595,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

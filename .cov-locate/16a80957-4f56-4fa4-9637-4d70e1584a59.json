@@ -1,0 +1,88 @@
+{
+  "scriptId": "679",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/core/0.17.2/lib-esm/util.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1593,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "transactionModeToBegin",
+      "ranges": [
+        {
+          "startOffset": 136,
+          "endOffset": 527,
+          "count": 15
+        },
+        {
+          "startOffset": 243,
+          "endOffset": 525,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 561,
+          "endOffset": 634,
+          "count": 98
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "ResultSetImpl",
+      "ranges": [
+        {
+          "startOffset": 640,
+          "endOffset": 906,
+          "count": 98
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "toJSON",
+      "ranges": [
+        {
+          "startOffset": 911,
+          "endOffset": 1254,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rowToJson",
+      "ranges": [
+        {
+          "startOffset": 1257,
+          "endOffset": 1339,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "valueToJson",
+      "ranges": [
+        {
+          "startOffset": 1340,
+          "endOffset": 1592,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

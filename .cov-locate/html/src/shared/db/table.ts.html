@@ -1,0 +1,3996 @@
+<!doctype html>
+      <html lang='en-US'>
+        
+      <head>
+        <meta charset='utf-8'>
+        <title>Coverage report for src/shared/db/table.ts</title>
+        <style>/* Copyright 2015 the Istanbul contributors. All rights reserved. ISC license. */
+/* Copyright 2018-2023 the Deno authors. All rights reserved. MIT license. */
+
+body,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+body {
+  color-scheme: light dark;
+  font-family:
+    Helvetica Neue,
+    Helvetica,
+    Arial;
+  font-size: 14px;
+  color: light-dark(#333, #ddd);
+  background-color: light-dark(white, #111);
+}
+.small {
+  font-size: 12px;
+}
+*,
+*:after,
+*:before {
+  box-sizing: border-box;
+}
+h1 {
+  font-size: 20px;
+  margin: 0;
+}
+h2 {
+  font-size: 14px;
+}
+pre {
+  font:
+    12px/1.4 Consolas,
+    "Liberation Mono",
+    Menlo,
+    Courier,
+    monospace;
+  margin: 0;
+  padding: 0;
+  tab-size: 2;
+}
+a {
+  color: light-dark(#0074d9, #3ba3ff);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+.strong {
+  font-weight: bold;
+}
+.space-top1 {
+  padding: 10px 0 0 0;
+}
+.pad2y {
+  padding: 20px 0;
+}
+.pad1y {
+  padding: 10px 0;
+}
+.pad2x {
+  padding: 0 20px;
+}
+.pad2 {
+  padding: 20px;
+}
+.pad1 {
+  padding: 10px;
+}
+.space-left2 {
+  padding-left: 55px;
+}
+.space-right2 {
+  padding-right: 20px;
+}
+.center {
+  text-align: center;
+}
+.clearfix {
+  display: block;
+}
+.clearfix:after {
+  content: "";
+  display: block;
+  height: 0;
+  clear: both;
+  visibility: hidden;
+}
+.fl {
+  float: left;
+}
+@media only screen and (max-width: 640px) {
+  .col3 {
+    width: 100%;
+    max-width: 100%;
+  }
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+.quiet {
+  color: light-dark(rgb(0 0 0 / 0.5), rgb(255 255 255 / 0.5));
+}
+.quiet a {
+  opacity: 0.7;
+}
+
+.fraction {
+  font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  font-size: 10px;
+  color: light-dark(#555, #bbb);
+  background: light-dark(#e8e8e8, #171717);
+  padding: 4px 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+div.path a:link,
+div.path a:visited {
+  color: light-dark(#333, #ddd);
+}
+table.coverage {
+  border-collapse: collapse;
+  margin: 10px 0 0 0;
+  padding: 0;
+}
+
+table.coverage td {
+  margin: 0;
+  padding: 0;
+  vertical-align: top;
+}
+table.coverage td.line-count {
+  text-align: right;
+  padding: 0 5px 0 20px;
+}
+table.coverage td.line-coverage {
+  text-align: right;
+  padding-right: 4px;
+  min-width: 20px;
+}
+
+table.coverage td.branch-coverage {
+  text-align: right;
+  padding-right: 3px;
+  min-width: 8px;
+}
+
+table.coverage td span.cline-any {
+  display: inline-block;
+  padding: 0 5px;
+  width: 100%;
+}
+.missing-if-branch {
+  display: inline-block;
+  margin-right: 5px;
+  border-radius: 3px;
+  position: relative;
+  padding: 0 4px;
+  background: light-dark(#333, #ddd);
+  color: light-dark(yellow, #cc0);
+}
+
+.skip-if-branch {
+  display: none;
+  margin-right: 10px;
+  position: relative;
+  padding: 0 4px;
+  background: light-dark(#ccc, #333);
+  color: light-dark(white, black);
+}
+.missing-if-branch .typ,
+.skip-if-branch .typ {
+  color: inherit !important;
+}
+.coverage-summary {
+  border-collapse: collapse;
+  width: 100%;
+}
+.coverage-summary tr {
+  border-bottom: 1px solid light-dark(#bbb, #444);
+}
+.keyline-all {
+  border: 1px solid light-dark(#ddd, #222);
+}
+.coverage-summary td,
+.coverage-summary th {
+  padding: 10px;
+}
+.coverage-summary tbody {
+  border: 1px solid light-dark(#bbb, #444);
+}
+.coverage-summary td {
+  border-right: 1px solid light-dark(#bbb, #444);
+}
+.coverage-summary td:last-child {
+  border-right: none;
+}
+.coverage-summary th {
+  text-align: left;
+  font-weight: normal;
+  white-space: nowrap;
+}
+.coverage-summary th.file {
+  border-right: none !important;
+}
+.coverage-summary th.pic,
+.coverage-summary th.abs,
+.coverage-summary td.pct,
+.coverage-summary td.abs {
+  text-align: right;
+}
+.coverage-summary td.file {
+  white-space: nowrap;
+}
+.coverage-summary td.pic {
+  min-width: 120px !important;
+}
+
+.coverage-summary .sorter {
+  height: 10px;
+  width: 7px;
+  display: inline-block;
+  margin-left: 0.5em;
+  background: url(sort-arrow-sprite.png) no-repeat scroll 0 0 transparent;
+}
+.coverage-summary .sorted .sorter {
+  background-position: 0 -20px;
+}
+.coverage-summary .sorted-desc .sorter {
+  background-position: 0 -10px;
+}
+.status-line {
+  height: 10px;
+}
+/* yellow */
+.cbranch-no {
+  background: light-dark(yellow, #cc0) !important;
+  color: #111;
+}
+/* dark red */
+.red.solid,
+.status-line.low,
+.low .cover-fill {
+  background: light-dark(#c21f39, #a5162e);
+}
+.low .chart {
+  border: 1px solid light-dark(#c21f39, #a5162e);
+}
+.highlighted,
+.highlighted .cstat-no,
+.highlighted .fstat-no,
+.highlighted .cbranch-no {
+  background: light-dark(#c21f39, #a5162e) !important;
+}
+/* medium red */
+.cstat-no,
+.fstat-no,
+.cbranch-no,
+.cbranch-no {
+  background: light-dark(#f6c6ce, #553339);
+}
+/* light red */
+.low,
+.cline-no {
+  background: light-dark(#fce1e5, #2e2023);
+}
+/* light green */
+.high,
+.cline-yes {
+  background: light-dark(#e6f5d0, #25291f);
+}
+/* medium green */
+.cstat-yes {
+  background: light-dark(#a1d76a, #293b18);
+}
+/* dark green */
+.status-line.high,
+.high .cover-fill {
+  background: light-dark(#4d9221, #2a5211);
+}
+.high .chart {
+  border: 1px solid light-dark(#4d9221, #2a5211);
+}
+/* dark yellow (gold) */
+.status-line.medium,
+.medium .cover-fill {
+  background: light-dark(#f9cd0b, #b09107);
+}
+.medium .chart {
+  border: 1px solid light-dark(#f9cd0b, #b09107);
+}
+/* light yellow */
+.medium {
+  background: light-dark(#fff4c2, #4a432a);
+}
+
+.cstat-skip {
+  background: light-dark(#ddd, #222);
+  color: light-dark(#111, #eee);
+}
+.fstat-skip {
+  background: light-dark(#ddd, #222);
+  color: light-dark(#111, #eee) !important;
+}
+.cbranch-skip {
+  background: light-dark(#ddd, #222) !important;
+  color: light-dark(#111, #eee);
+}
+
+span.cline-neutral {
+  background: light-dark(#eaeaea, #141414);
+}
+
+.coverage-summary td.empty {
+  opacity: 0.5;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  line-height: 1;
+  color: light-dark(#888, #999);
+}
+
+.cover-fill,
+.cover-empty {
+  display: inline-block;
+  height: 12px;
+}
+.chart {
+  line-height: 0;
+}
+.cover-empty {
+  background: light-dark(white, black);
+}
+.cover-full {
+  border-right: none !important;
+}
+pre.prettyprint {
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.com {
+  color: light-dark(#999, #666) !important;
+}
+.ignore-none {
+  color: light-dark(#999, #666);
+  font-weight: normal;
+}
+
+.wrapper {
+  min-height: 100%;
+  height: auto !important;
+  height: 100%;
+  margin: 0 auto -48px;
+}
+.footer,
+.push {
+  height: 48px;
+}
+.overflow-auto {
+  overflow: auto;
+}
+</style>
+        <meta name='viewport' content='width=device-width, initial-scale=1'>
+      </head>
+        <body>
+          <div class='wrapper'>
+            
+      <div class='pad1'>
+        <h1><a href='../../../index.html'>All files</a> / <a href='../../../src/index.html'>src</a> / <a href='../../shared/index.html'>shared</a> / <a href='../db/index.html'>db</a> / table.ts</h1>
+        <div class='clearfix'>
+          <div class='fl pad1y space-right2'>
+            <span class='strong'>25.00%</span>
+            <span class='quiet'>Branches</span>
+            <span class='fraction'>1/4</span>
+          </div>
+          <div class='fl pad1y space-right2'>
+            <span class='strong'>33.41%</span>
+            <span class='quiet'>Lines</span>
+            <span class='fraction'>145/434</span>
+          </div>
+        </div>
+      </div>
+      <div class='status-line low'></div>
+            <div class='pad1 overflow-auto'>
+              <table class='coverage'>
+        <tr>
+          <td class='line-count quiet'><pre><a href='#L1' id='L1'>1</a>
+<a href='#L2' id='L2'>2</a>
+<a href='#L3' id='L3'>3</a>
+<a href='#L4' id='L4'>4</a>
+<a href='#L5' id='L5'>5</a>
+<a href='#L6' id='L6'>6</a>
+<a href='#L7' id='L7'>7</a>
+<a href='#L8' id='L8'>8</a>
+<a href='#L9' id='L9'>9</a>
+<a href='#L10' id='L10'>10</a>
+<a href='#L11' id='L11'>11</a>
+<a href='#L12' id='L12'>12</a>
+<a href='#L13' id='L13'>13</a>
+<a href='#L14' id='L14'>14</a>
+<a href='#L15' id='L15'>15</a>
+<a href='#L16' id='L16'>16</a>
+<a href='#L17' id='L17'>17</a>
+<a href='#L18' id='L18'>18</a>
+<a href='#L19' id='L19'>19</a>
+<a href='#L20' id='L20'>20</a>
+<a href='#L21' id='L21'>21</a>
+<a href='#L22' id='L22'>22</a>
+<a href='#L23' id='L23'>23</a>
+<a href='#L24' id='L24'>24</a>
+<a href='#L25' id='L25'>25</a>
+<a href='#L26' id='L26'>26</a>
+<a href='#L27' id='L27'>27</a>
+<a href='#L28' id='L28'>28</a>
+<a href='#L29' id='L29'>29</a>
+<a href='#L30' id='L30'>30</a>
+<a href='#L31' id='L31'>31</a>
+<a href='#L32' id='L32'>32</a>
+<a href='#L33' id='L33'>33</a>
+<a href='#L34' id='L34'>34</a>
+<a href='#L35' id='L35'>35</a>
+<a href='#L36' id='L36'>36</a>
+<a href='#L37' id='L37'>37</a>
+<a href='#L38' id='L38'>38</a>
+<a href='#L39' id='L39'>39</a>
+<a href='#L40' id='L40'>40</a>
+<a href='#L41' id='L41'>41</a>
+<a href='#L42' id='L42'>42</a>
+<a href='#L43' id='L43'>43</a>
+<a href='#L44' id='L44'>44</a>
+<a href='#L45' id='L45'>45</a>
+<a href='#L46' id='L46'>46</a>
+<a href='#L47' id='L47'>47</a>
+<a href='#L48' id='L48'>48</a>
+<a href='#L49' id='L49'>49</a>
+<a href='#L50' id='L50'>50</a>
+<a href='#L51' id='L51'>51</a>
+<a href='#L52' id='L52'>52</a>
+<a href='#L53' id='L53'>53</a>
+<a href='#L54' id='L54'>54</a>
+<a href='#L55' id='L55'>55</a>
+<a href='#L56' id='L56'>56</a>
+<a href='#L57' id='L57'>57</a>
+<a href='#L58' id='L58'>58</a>
+<a href='#L59' id='L59'>59</a>
+<a href='#L60' id='L60'>60</a>
+<a href='#L61' id='L61'>61</a>
+<a href='#L62' id='L62'>62</a>
+<a href='#L63' id='L63'>63</a>
+<a href='#L64' id='L64'>64</a>
+<a href='#L65' id='L65'>65</a>
+<a href='#L66' id='L66'>66</a>
+<a href='#L67' id='L67'>67</a>
+<a href='#L68' id='L68'>68</a>
+<a href='#L69' id='L69'>69</a>
+<a href='#L70' id='L70'>70</a>
+<a href='#L71' id='L71'>71</a>
+<a href='#L72' id='L72'>72</a>
+<a href='#L73' id='L73'>73</a>
+<a href='#L74' id='L74'>74</a>
+<a href='#L75' id='L75'>75</a>
+<a href='#L76' id='L76'>76</a>
+<a href='#L77' id='L77'>77</a>
+<a href='#L78' id='L78'>78</a>
+<a href='#L79' id='L79'>79</a>
+<a href='#L80' id='L80'>80</a>
+<a href='#L81' id='L81'>81</a>
+<a href='#L82' id='L82'>82</a>
+<a href='#L83' id='L83'>83</a>
+<a href='#L84' id='L84'>84</a>
+<a href='#L85' id='L85'>85</a>
+<a href='#L86' id='L86'>86</a>
+<a href='#L87' id='L87'>87</a>
+<a href='#L88' id='L88'>88</a>
+<a href='#L89' id='L89'>89</a>
+<a href='#L90' id='L90'>90</a>
+<a href='#L91' id='L91'>91</a>
+<a href='#L92' id='L92'>92</a>
+<a href='#L93' id='L93'>93</a>
+<a href='#L94' id='L94'>94</a>
+<a href='#L95' id='L95'>95</a>
+<a href='#L96' id='L96'>96</a>
+<a href='#L97' id='L97'>97</a>
+<a href='#L98' id='L98'>98</a>
+<a href='#L99' id='L99'>99</a>
+<a href='#L100' id='L100'>100</a>
+<a href='#L101' id='L101'>101</a>
+<a href='#L102' id='L102'>102</a>
+<a href='#L103' id='L103'>103</a>
+<a href='#L104' id='L104'>104</a>
+<a href='#L105' id='L105'>105</a>
+<a href='#L106' id='L106'>106</a>
+<a href='#L107' id='L107'>107</a>
+<a href='#L108' id='L108'>108</a>
+<a href='#L109' id='L109'>109</a>
+<a href='#L110' id='L110'>110</a>
+<a href='#L111' id='L111'>111</a>
+<a href='#L112' id='L112'>112</a>
+<a href='#L113' id='L113'>113</a>
+<a href='#L114' id='L114'>114</a>
+<a href='#L115' id='L115'>115</a>
+<a href='#L116' id='L116'>116</a>
+<a href='#L117' id='L117'>117</a>
+<a href='#L118' id='L118'>118</a>
+<a href='#L119' id='L119'>119</a>
+<a href='#L120' id='L120'>120</a>
+<a href='#L121' id='L121'>121</a>
+<a href='#L122' id='L122'>122</a>
+<a href='#L123' id='L123'>123</a>
+<a href='#L124' id='L124'>124</a>
+<a href='#L125' id='L125'>125</a>
+<a href='#L126' id='L126'>126</a>
+<a href='#L127' id='L127'>127</a>
+<a href='#L128' id='L128'>128</a>
+<a href='#L129' id='L129'>129</a>
+<a href='#L130' id='L130'>130</a>
+<a href='#L131' id='L131'>131</a>
+<a href='#L132' id='L132'>132</a>
+<a href='#L133' id='L133'>133</a>
+<a href='#L134' id='L134'>134</a>
+<a href='#L135' id='L135'>135</a>
+<a href='#L136' id='L136'>136</a>
+<a href='#L137' id='L137'>137</a>
+<a href='#L138' id='L138'>138</a>
+<a href='#L139' id='L139'>139</a>
+<a href='#L140' id='L140'>140</a>
+<a href='#L141' id='L141'>141</a>
+<a href='#L142' id='L142'>142</a>
+<a href='#L143' id='L143'>143</a>
+<a href='#L144' id='L144'>144</a>
+<a href='#L145' id='L145'>145</a>
+<a href='#L146' id='L146'>146</a>
+<a href='#L147' id='L147'>147</a>
+<a href='#L148' id='L148'>148</a>
+<a href='#L149' id='L149'>149</a>
+<a href='#L150' id='L150'>150</a>
+<a href='#L151' id='L151'>151</a>
+<a href='#L152' id='L152'>152</a>
+<a href='#L153' id='L153'>153</a>
+<a href='#L154' id='L154'>154</a>
+<a href='#L155' id='L155'>155</a>
+<a href='#L156' id='L156'>156</a>
+<a href='#L157' id='L157'>157</a>
+<a href='#L158' id='L158'>158</a>
+<a href='#L159' id='L159'>159</a>
+<a href='#L160' id='L160'>160</a>
+<a href='#L161' id='L161'>161</a>
+<a href='#L162' id='L162'>162</a>
+<a href='#L163' id='L163'>163</a>
+<a href='#L164' id='L164'>164</a>
+<a href='#L165' id='L165'>165</a>
+<a href='#L166' id='L166'>166</a>
+<a href='#L167' id='L167'>167</a>
+<a href='#L168' id='L168'>168</a>
+<a href='#L169' id='L169'>169</a>
+<a href='#L170' id='L170'>170</a>
+<a href='#L171' id='L171'>171</a>
+<a href='#L172' id='L172'>172</a>
+<a href='#L173' id='L173'>173</a>
+<a href='#L174' id='L174'>174</a>
+<a href='#L175' id='L175'>175</a>
+<a href='#L176' id='L176'>176</a>
+<a href='#L177' id='L177'>177</a>
+<a href='#L178' id='L178'>178</a>
+<a href='#L179' id='L179'>179</a>
+<a href='#L180' id='L180'>180</a>
+<a href='#L181' id='L181'>181</a>
+<a href='#L182' id='L182'>182</a>
+<a href='#L183' id='L183'>183</a>
+<a href='#L184' id='L184'>184</a>
+<a href='#L185' id='L185'>185</a>
+<a href='#L186' id='L186'>186</a>
+<a href='#L187' id='L187'>187</a>
+<a href='#L188' id='L188'>188</a>
+<a href='#L189' id='L189'>189</a>
+<a href='#L190' id='L190'>190</a>
+<a href='#L191' id='L191'>191</a>
+<a href='#L192' id='L192'>192</a>
+<a href='#L193' id='L193'>193</a>
+<a href='#L194' id='L194'>194</a>
+<a href='#L195' id='L195'>195</a>
+<a href='#L196' id='L196'>196</a>
+<a href='#L197' id='L197'>197</a>
+<a href='#L198' id='L198'>198</a>
+<a href='#L199' id='L199'>199</a>
+<a href='#L200' id='L200'>200</a>
+<a href='#L201' id='L201'>201</a>
+<a href='#L202' id='L202'>202</a>
+<a href='#L203' id='L203'>203</a>
+<a href='#L204' id='L204'>204</a>
+<a href='#L205' id='L205'>205</a>
+<a href='#L206' id='L206'>206</a>
+<a href='#L207' id='L207'>207</a>
+<a href='#L208' id='L208'>208</a>
+<a href='#L209' id='L209'>209</a>
+<a href='#L210' id='L210'>210</a>
+<a href='#L211' id='L211'>211</a>
+<a href='#L212' id='L212'>212</a>
+<a href='#L213' id='L213'>213</a>
+<a href='#L214' id='L214'>214</a>
+<a href='#L215' id='L215'>215</a>
+<a href='#L216' id='L216'>216</a>
+<a href='#L217' id='L217'>217</a>
+<a href='#L218' id='L218'>218</a>
+<a href='#L219' id='L219'>219</a>
+<a href='#L220' id='L220'>220</a>
+<a href='#L221' id='L221'>221</a>
+<a href='#L222' id='L222'>222</a>
+<a href='#L223' id='L223'>223</a>
+<a href='#L224' id='L224'>224</a>
+<a href='#L225' id='L225'>225</a>
+<a href='#L226' id='L226'>226</a>
+<a href='#L227' id='L227'>227</a>
+<a href='#L228' id='L228'>228</a>
+<a href='#L229' id='L229'>229</a>
+<a href='#L230' id='L230'>230</a>
+<a href='#L231' id='L231'>231</a>
+<a href='#L232' id='L232'>232</a>
+<a href='#L233' id='L233'>233</a>
+<a href='#L234' id='L234'>234</a>
+<a href='#L235' id='L235'>235</a>
+<a href='#L236' id='L236'>236</a>
+<a href='#L237' id='L237'>237</a>
+<a href='#L238' id='L238'>238</a>
+<a href='#L239' id='L239'>239</a>
+<a href='#L240' id='L240'>240</a>
+<a href='#L241' id='L241'>241</a>
+<a href='#L242' id='L242'>242</a>
+<a href='#L243' id='L243'>243</a>
+<a href='#L244' id='L244'>244</a>
+<a href='#L245' id='L245'>245</a>
+<a href='#L246' id='L246'>246</a>
+<a href='#L247' id='L247'>247</a>
+<a href='#L248' id='L248'>248</a>
+<a href='#L249' id='L249'>249</a>
+<a href='#L250' id='L250'>250</a>
+<a href='#L251' id='L251'>251</a>
+<a href='#L252' id='L252'>252</a>
+<a href='#L253' id='L253'>253</a>
+<a href='#L254' id='L254'>254</a>
+<a href='#L255' id='L255'>255</a>
+<a href='#L256' id='L256'>256</a>
+<a href='#L257' id='L257'>257</a>
+<a href='#L258' id='L258'>258</a>
+<a href='#L259' id='L259'>259</a>
+<a href='#L260' id='L260'>260</a>
+<a href='#L261' id='L261'>261</a>
+<a href='#L262' id='L262'>262</a>
+<a href='#L263' id='L263'>263</a>
+<a href='#L264' id='L264'>264</a>
+<a href='#L265' id='L265'>265</a>
+<a href='#L266' id='L266'>266</a>
+<a href='#L267' id='L267'>267</a>
+<a href='#L268' id='L268'>268</a>
+<a href='#L269' id='L269'>269</a>
+<a href='#L270' id='L270'>270</a>
+<a href='#L271' id='L271'>271</a>
+<a href='#L272' id='L272'>272</a>
+<a href='#L273' id='L273'>273</a>
+<a href='#L274' id='L274'>274</a>
+<a href='#L275' id='L275'>275</a>
+<a href='#L276' id='L276'>276</a>
+<a href='#L277' id='L277'>277</a>
+<a href='#L278' id='L278'>278</a>
+<a href='#L279' id='L279'>279</a>
+<a href='#L280' id='L280'>280</a>
+<a href='#L281' id='L281'>281</a>
+<a href='#L282' id='L282'>282</a>
+<a href='#L283' id='L283'>283</a>
+<a href='#L284' id='L284'>284</a>
+<a href='#L285' id='L285'>285</a>
+<a href='#L286' id='L286'>286</a>
+<a href='#L287' id='L287'>287</a>
+<a href='#L288' id='L288'>288</a>
+<a href='#L289' id='L289'>289</a>
+<a href='#L290' id='L290'>290</a>
+<a href='#L291' id='L291'>291</a>
+<a href='#L292' id='L292'>292</a>
+<a href='#L293' id='L293'>293</a>
+<a href='#L294' id='L294'>294</a>
+<a href='#L295' id='L295'>295</a>
+<a href='#L296' id='L296'>296</a>
+<a href='#L297' id='L297'>297</a>
+<a href='#L298' id='L298'>298</a>
+<a href='#L299' id='L299'>299</a>
+<a href='#L300' id='L300'>300</a>
+<a href='#L301' id='L301'>301</a>
+<a href='#L302' id='L302'>302</a>
+<a href='#L303' id='L303'>303</a>
+<a href='#L304' id='L304'>304</a>
+<a href='#L305' id='L305'>305</a>
+<a href='#L306' id='L306'>306</a>
+<a href='#L307' id='L307'>307</a>
+<a href='#L308' id='L308'>308</a>
+<a href='#L309' id='L309'>309</a>
+<a href='#L310' id='L310'>310</a>
+<a href='#L311' id='L311'>311</a>
+<a href='#L312' id='L312'>312</a>
+<a href='#L313' id='L313'>313</a>
+<a href='#L314' id='L314'>314</a>
+<a href='#L315' id='L315'>315</a>
+<a href='#L316' id='L316'>316</a>
+<a href='#L317' id='L317'>317</a>
+<a href='#L318' id='L318'>318</a>
+<a href='#L319' id='L319'>319</a>
+<a href='#L320' id='L320'>320</a>
+<a href='#L321' id='L321'>321</a>
+<a href='#L322' id='L322'>322</a>
+<a href='#L323' id='L323'>323</a>
+<a href='#L324' id='L324'>324</a>
+<a href='#L325' id='L325'>325</a>
+<a href='#L326' id='L326'>326</a>
+<a href='#L327' id='L327'>327</a>
+<a href='#L328' id='L328'>328</a>
+<a href='#L329' id='L329'>329</a>
+<a href='#L330' id='L330'>330</a>
+<a href='#L331' id='L331'>331</a>
+<a href='#L332' id='L332'>332</a>
+<a href='#L333' id='L333'>333</a>
+<a href='#L334' id='L334'>334</a>
+<a href='#L335' id='L335'>335</a>
+<a href='#L336' id='L336'>336</a>
+<a href='#L337' id='L337'>337</a>
+<a href='#L338' id='L338'>338</a>
+<a href='#L339' id='L339'>339</a>
+<a href='#L340' id='L340'>340</a>
+<a href='#L341' id='L341'>341</a>
+<a href='#L342' id='L342'>342</a>
+<a href='#L343' id='L343'>343</a>
+<a href='#L344' id='L344'>344</a>
+<a href='#L345' id='L345'>345</a>
+<a href='#L346' id='L346'>346</a>
+<a href='#L347' id='L347'>347</a>
+<a href='#L348' id='L348'>348</a>
+<a href='#L349' id='L349'>349</a>
+<a href='#L350' id='L350'>350</a>
+<a href='#L351' id='L351'>351</a>
+<a href='#L352' id='L352'>352</a>
+<a href='#L353' id='L353'>353</a>
+<a href='#L354' id='L354'>354</a>
+<a href='#L355' id='L355'>355</a>
+<a href='#L356' id='L356'>356</a>
+<a href='#L357' id='L357'>357</a>
+<a href='#L358' id='L358'>358</a>
+<a href='#L359' id='L359'>359</a>
+<a href='#L360' id='L360'>360</a>
+<a href='#L361' id='L361'>361</a>
+<a href='#L362' id='L362'>362</a>
+<a href='#L363' id='L363'>363</a>
+<a href='#L364' id='L364'>364</a>
+<a href='#L365' id='L365'>365</a>
+<a href='#L366' id='L366'>366</a>
+<a href='#L367' id='L367'>367</a>
+<a href='#L368' id='L368'>368</a>
+<a href='#L369' id='L369'>369</a>
+<a href='#L370' id='L370'>370</a>
+<a href='#L371' id='L371'>371</a>
+<a href='#L372' id='L372'>372</a>
+<a href='#L373' id='L373'>373</a>
+<a href='#L374' id='L374'>374</a>
+<a href='#L375' id='L375'>375</a>
+<a href='#L376' id='L376'>376</a>
+<a href='#L377' id='L377'>377</a>
+<a href='#L378' id='L378'>378</a>
+<a href='#L379' id='L379'>379</a>
+<a href='#L380' id='L380'>380</a>
+<a href='#L381' id='L381'>381</a>
+<a href='#L382' id='L382'>382</a>
+<a href='#L383' id='L383'>383</a>
+<a href='#L384' id='L384'>384</a>
+<a href='#L385' id='L385'>385</a>
+<a href='#L386' id='L386'>386</a>
+<a href='#L387' id='L387'>387</a>
+<a href='#L388' id='L388'>388</a>
+<a href='#L389' id='L389'>389</a>
+<a href='#L390' id='L390'>390</a>
+<a href='#L391' id='L391'>391</a>
+<a href='#L392' id='L392'>392</a>
+<a href='#L393' id='L393'>393</a>
+<a href='#L394' id='L394'>394</a>
+<a href='#L395' id='L395'>395</a>
+<a href='#L396' id='L396'>396</a>
+<a href='#L397' id='L397'>397</a>
+<a href='#L398' id='L398'>398</a>
+<a href='#L399' id='L399'>399</a>
+<a href='#L400' id='L400'>400</a>
+<a href='#L401' id='L401'>401</a>
+<a href='#L402' id='L402'>402</a>
+<a href='#L403' id='L403'>403</a>
+<a href='#L404' id='L404'>404</a>
+<a href='#L405' id='L405'>405</a>
+<a href='#L406' id='L406'>406</a>
+<a href='#L407' id='L407'>407</a>
+<a href='#L408' id='L408'>408</a>
+<a href='#L409' id='L409'>409</a>
+<a href='#L410' id='L410'>410</a>
+<a href='#L411' id='L411'>411</a>
+<a href='#L412' id='L412'>412</a>
+<a href='#L413' id='L413'>413</a>
+<a href='#L414' id='L414'>414</a>
+<a href='#L415' id='L415'>415</a>
+<a href='#L416' id='L416'>416</a>
+<a href='#L417' id='L417'>417</a>
+<a href='#L418' id='L418'>418</a>
+<a href='#L419' id='L419'>419</a>
+<a href='#L420' id='L420'>420</a>
+<a href='#L421' id='L421'>421</a>
+<a href='#L422' id='L422'>422</a>
+<a href='#L423' id='L423'>423</a>
+<a href='#L424' id='L424'>424</a>
+<a href='#L425' id='L425'>425</a>
+<a href='#L426' id='L426'>426</a>
+<a href='#L427' id='L427'>427</a>
+<a href='#L428' id='L428'>428</a>
+<a href='#L429' id='L429'>429</a>
+<a href='#L430' id='L430'>430</a>
+<a href='#L431' id='L431'>431</a>
+<a href='#L432' id='L432'>432</a>
+<a href='#L433' id='L433'>433</a>
+<a href='#L434' id='L434'>434</a>
+<a href='#L435' id='L435'>435</a>
+<a href='#L436' id='L436'>436</a>
+<a href='#L437' id='L437'>437</a>
+<a href='#L438' id='L438'>438</a>
+<a href='#L439' id='L439'>439</a>
+<a href='#L440' id='L440'>440</a>
+<a href='#L441' id='L441'>441</a>
+<a href='#L442' id='L442'>442</a>
+<a href='#L443' id='L443'>443</a>
+<a href='#L444' id='L444'>444</a>
+<a href='#L445' id='L445'>445</a>
+<a href='#L446' id='L446'>446</a>
+<a href='#L447' id='L447'>447</a>
+<a href='#L448' id='L448'>448</a>
+<a href='#L449' id='L449'>449</a>
+<a href='#L450' id='L450'>450</a>
+<a href='#L451' id='L451'>451</a>
+<a href='#L452' id='L452'>452</a>
+<a href='#L453' id='L453'>453</a>
+<a href='#L454' id='L454'>454</a>
+<a href='#L455' id='L455'>455</a>
+<a href='#L456' id='L456'>456</a>
+<a href='#L457' id='L457'>457</a>
+<a href='#L458' id='L458'>458</a>
+<a href='#L459' id='L459'>459</a>
+<a href='#L460' id='L460'>460</a>
+<a href='#L461' id='L461'>461</a>
+<a href='#L462' id='L462'>462</a>
+<a href='#L463' id='L463'>463</a>
+<a href='#L464' id='L464'>464</a>
+<a href='#L465' id='L465'>465</a>
+<a href='#L466' id='L466'>466</a>
+<a href='#L467' id='L467'>467</a>
+<a href='#L468' id='L468'>468</a>
+<a href='#L469' id='L469'>469</a>
+<a href='#L470' id='L470'>470</a>
+<a href='#L471' id='L471'>471</a>
+<a href='#L472' id='L472'>472</a>
+<a href='#L473' id='L473'>473</a>
+<a href='#L474' id='L474'>474</a>
+<a href='#L475' id='L475'>475</a>
+<a href='#L476' id='L476'>476</a>
+<a href='#L477' id='L477'>477</a>
+<a href='#L478' id='L478'>478</a>
+<a href='#L479' id='L479'>479</a>
+<a href='#L480' id='L480'>480</a>
+<a href='#L481' id='L481'>481</a>
+<a href='#L482' id='L482'>482</a>
+<a href='#L483' id='L483'>483</a>
+<a href='#L484' id='L484'>484</a>
+<a href='#L485' id='L485'>485</a>
+<a href='#L486' id='L486'>486</a>
+<a href='#L487' id='L487'>487</a>
+<a href='#L488' id='L488'>488</a>
+<a href='#L489' id='L489'>489</a>
+<a href='#L490' id='L490'>490</a>
+<a href='#L491' id='L491'>491</a>
+<a href='#L492' id='L492'>492</a>
+<a href='#L493' id='L493'>493</a>
+<a href='#L494' id='L494'>494</a>
+<a href='#L495' id='L495'>495</a>
+<a href='#L496' id='L496'>496</a>
+<a href='#L497' id='L497'>497</a>
+<a href='#L498' id='L498'>498</a>
+<a href='#L499' id='L499'>499</a>
+<a href='#L500' id='L500'>500</a>
+<a href='#L501' id='L501'>501</a>
+<a href='#L502' id='L502'>502</a>
+<a href='#L503' id='L503'>503</a>
+<a href='#L504' id='L504'>504</a>
+<a href='#L505' id='L505'>505</a>
+<a href='#L506' id='L506'>506</a>
+<a href='#L507' id='L507'>507</a>
+<a href='#L508' id='L508'>508</a>
+<a href='#L509' id='L509'>509</a>
+<a href='#L510' id='L510'>510</a>
+<a href='#L511' id='L511'>511</a>
+<a href='#L512' id='L512'>512</a>
+<a href='#L513' id='L513'>513</a>
+<a href='#L514' id='L514'>514</a>
+<a href='#L515' id='L515'>515</a>
+<a href='#L516' id='L516'>516</a>
+<a href='#L517' id='L517'>517</a>
+<a href='#L518' id='L518'>518</a>
+<a href='#L519' id='L519'>519</a>
+<a href='#L520' id='L520'>520</a>
+<a href='#L521' id='L521'>521</a>
+<a href='#L522' id='L522'>522</a>
+<a href='#L523' id='L523'>523</a>
+<a href='#L524' id='L524'>524</a>
+<a href='#L525' id='L525'>525</a>
+<a href='#L526' id='L526'>526</a>
+<a href='#L527' id='L527'>527</a>
+<a href='#L528' id='L528'>528</a>
+<a href='#L529' id='L529'>529</a>
+<a href='#L530' id='L530'>530</a>
+<a href='#L531' id='L531'>531</a>
+<a href='#L532' id='L532'>532</a>
+<a href='#L533' id='L533'>533</a>
+<a href='#L534' id='L534'>534</a>
+<a href='#L535' id='L535'>535</a>
+<a href='#L536' id='L536'>536</a>
+<a href='#L537' id='L537'>537</a>
+<a href='#L538' id='L538'>538</a>
+<a href='#L539' id='L539'>539</a>
+<a href='#L540' id='L540'>540</a>
+<a href='#L541' id='L541'>541</a>
+<a href='#L542' id='L542'>542</a>
+<a href='#L543' id='L543'>543</a>
+<a href='#L544' id='L544'>544</a>
+<a href='#L545' id='L545'>545</a>
+<a href='#L546' id='L546'>546</a>
+<a href='#L547' id='L547'>547</a>
+<a href='#L548' id='L548'>548</a>
+<a href='#L549' id='L549'>549</a>
+<a href='#L550' id='L550'>550</a>
+<a href='#L551' id='L551'>551</a>
+<a href='#L552' id='L552'>552</a>
+<a href='#L553' id='L553'>553</a>
+<a href='#L554' id='L554'>554</a>
+<a href='#L555' id='L555'>555</a>
+<a href='#L556' id='L556'>556</a>
+<a href='#L557' id='L557'>557</a>
+<a href='#L558' id='L558'>558</a>
+<a href='#L559' id='L559'>559</a>
+<a href='#L560' id='L560'>560</a>
+<a href='#L561' id='L561'>561</a>
+<a href='#L562' id='L562'>562</a>
+<a href='#L563' id='L563'>563</a>
+<a href='#L564' id='L564'>564</a>
+<a href='#L565' id='L565'>565</a>
+<a href='#L566' id='L566'>566</a>
+<a href='#L567' id='L567'>567</a>
+<a href='#L568' id='L568'>568</a>
+<a href='#L569' id='L569'>569</a>
+<a href='#L570' id='L570'>570</a>
+<a href='#L571' id='L571'>571</a>
+<a href='#L572' id='L572'>572</a>
+<a href='#L573' id='L573'>573</a>
+<a href='#L574' id='L574'>574</a>
+<a href='#L575' id='L575'>575</a>
+<a href='#L576' id='L576'>576</a>
+<a href='#L577' id='L577'>577</a>
+<a href='#L578' id='L578'>578</a>
+<a href='#L579' id='L579'>579</a>
+<a href='#L580' id='L580'>580</a>
+<a href='#L581' id='L581'>581</a>
+<a href='#L582' id='L582'>582</a>
+<a href='#L583' id='L583'>583</a>
+<a href='#L584' id='L584'>584</a>
+<a href='#L585' id='L585'>585</a>
+<a href='#L586' id='L586'>586</a>
+<a href='#L587' id='L587'>587</a>
+<a href='#L588' id='L588'>588</a>
+<a href='#L589' id='L589'>589</a>
+<a href='#L590' id='L590'>590</a>
+<a href='#L591' id='L591'>591</a>
+<a href='#L592' id='L592'>592</a>
+<a href='#L593' id='L593'>593</a>
+<a href='#L594' id='L594'>594</a>
+<a href='#L595' id='L595'>595</a>
+<a href='#L596' id='L596'>596</a>
+<a href='#L597' id='L597'>597</a>
+<a href='#L598' id='L598'>598</a>
+<a href='#L599' id='L599'>599</a>
+<a href='#L600' id='L600'>600</a>
+<a href='#L601' id='L601'>601</a>
+<a href='#L602' id='L602'>602</a>
+<a href='#L603' id='L603'>603</a>
+<a href='#L604' id='L604'>604</a>
+<a href='#L605' id='L605'>605</a>
+<a href='#L606' id='L606'>606</a>
+<a href='#L607' id='L607'>607</a>
+<a href='#L608' id='L608'>608</a>
+<a href='#L609' id='L609'>609</a>
+<a href='#L610' id='L610'>610</a>
+<a href='#L611' id='L611'>611</a>
+<a href='#L612' id='L612'>612</a>
+<a href='#L613' id='L613'>613</a>
+<a href='#L614' id='L614'>614</a>
+<a href='#L615' id='L615'>615</a>
+<a href='#L616' id='L616'>616</a>
+<a href='#L617' id='L617'>617</a>
+<a href='#L618' id='L618'>618</a>
+<a href='#L619' id='L619'>619</a>
+<a href='#L620' id='L620'>620</a>
+<a href='#L621' id='L621'>621</a>
+<a href='#L622' id='L622'>622</a>
+<a href='#L623' id='L623'>623</a>
+<a href='#L624' id='L624'>624</a>
+<a href='#L625' id='L625'>625</a>
+<a href='#L626' id='L626'>626</a>
+<a href='#L627' id='L627'>627</a>
+<a href='#L628' id='L628'>628</a>
+<a href='#L629' id='L629'>629</a>
+<a href='#L630' id='L630'>630</a>
+<a href='#L631' id='L631'>631</a>
+<a href='#L632' id='L632'>632</a>
+<a href='#L633' id='L633'>633</a>
+<a href='#L634' id='L634'>634</a>
+<a href='#L635' id='L635'>635</a>
+<a href='#L636' id='L636'>636</a>
+<a href='#L637' id='L637'>637</a>
+<a href='#L638' id='L638'>638</a>
+<a href='#L639' id='L639'>639</a>
+<a href='#L640' id='L640'>640</a>
+<a href='#L641' id='L641'>641</a>
+<a href='#L642' id='L642'>642</a>
+<a href='#L643' id='L643'>643</a>
+<a href='#L644' id='L644'>644</a>
+<a href='#L645' id='L645'>645</a>
+<a href='#L646' id='L646'>646</a>
+<a href='#L647' id='L647'>647</a>
+<a href='#L648' id='L648'>648</a>
+<a href='#L649' id='L649'>649</a>
+<a href='#L650' id='L650'>650</a>
+<a href='#L651' id='L651'>651</a>
+<a href='#L652' id='L652'>652</a>
+<a href='#L653' id='L653'>653</a>
+<a href='#L654' id='L654'>654</a>
+<a href='#L655' id='L655'>655</a>
+<a href='#L656' id='L656'>656</a>
+<a href='#L657' id='L657'>657</a>
+<a href='#L658' id='L658'>658</a>
+<a href='#L659' id='L659'>659</a>
+<a href='#L660' id='L660'>660</a>
+<a href='#L661' id='L661'>661</a>
+<a href='#L662' id='L662'>662</a>
+<a href='#L663' id='L663'>663</a>
+<a href='#L664' id='L664'>664</a>
+<a href='#L665' id='L665'>665</a>
+<a href='#L666' id='L666'>666</a>
+<a href='#L667' id='L667'>667</a>
+<a href='#L668' id='L668'>668</a>
+<a href='#L669' id='L669'>669</a>
+<a href='#L670' id='L670'>670</a>
+<a href='#L671' id='L671'>671</a>
+<a href='#L672' id='L672'>672</a>
+<a href='#L673' id='L673'>673</a>
+<a href='#L674' id='L674'>674</a>
+<a href='#L675' id='L675'>675</a>
+<a href='#L676' id='L676'>676</a>
+<a href='#L677' id='L677'>677</a>
+<a href='#L678' id='L678'>678</a>
+<a href='#L679' id='L679'>679</a>
+<a href='#L680' id='L680'>680</a>
+<a href='#L681' id='L681'>681</a>
+<a href='#L682' id='L682'>682</a>
+<a href='#L683' id='L683'>683</a>
+<a href='#L684' id='L684'>684</a>
+<a href='#L685' id='L685'>685</a>
+<a href='#L686' id='L686'>686</a>
+<a href='#L687' id='L687'>687</a>
+<a href='#L688' id='L688'>688</a>
+<a href='#L689' id='L689'>689</a>
+<a href='#L690' id='L690'>690</a>
+<a href='#L691' id='L691'>691</a>
+<a href='#L692' id='L692'>692</a>
+<a href='#L693' id='L693'>693</a>
+<a href='#L694' id='L694'>694</a>
+<a href='#L695' id='L695'>695</a>
+<a href='#L696' id='L696'>696</a>
+<a href='#L697' id='L697'>697</a>
+<a href='#L698' id='L698'>698</a>
+<a href='#L699' id='L699'>699</a>
+<a href='#L700' id='L700'>700</a>
+<a href='#L701' id='L701'>701</a>
+<a href='#L702' id='L702'>702</a>
+<a href='#L703' id='L703'>703</a>
+<a href='#L704' id='L704'>704</a>
+<a href='#L705' id='L705'>705</a>
+<a href='#L706' id='L706'>706</a>
+<a href='#L707' id='L707'>707</a>
+<a href='#L708' id='L708'>708</a>
+<a href='#L709' id='L709'>709</a>
+<a href='#L710' id='L710'>710</a>
+<a href='#L711' id='L711'>711</a>
+<a href='#L712' id='L712'>712</a>
+<a href='#L713' id='L713'>713</a>
+<a href='#L714' id='L714'>714</a>
+<a href='#L715' id='L715'>715</a>
+<a href='#L716' id='L716'>716</a>
+<a href='#L717' id='L717'>717</a>
+<a href='#L718' id='L718'>718</a>
+<a href='#L719' id='L719'>719</a>
+<a href='#L720' id='L720'>720</a>
+<a href='#L721' id='L721'>721</a>
+<a href='#L722' id='L722'>722</a>
+<a href='#L723' id='L723'>723</a>
+<a href='#L724' id='L724'>724</a>
+<a href='#L725' id='L725'>725</a>
+<a href='#L726' id='L726'>726</a>
+<a href='#L727' id='L727'>727</a>
+<a href='#L728' id='L728'>728</a>
+<a href='#L729' id='L729'>729</a>
+<a href='#L730' id='L730'>730</a>
+<a href='#L731' id='L731'>731</a>
+<a href='#L732' id='L732'>732</a>
+<a href='#L733' id='L733'>733</a>
+<a href='#L734' id='L734'>734</a>
+<a href='#L735' id='L735'>735</a>
+<a href='#L736' id='L736'>736</a>
+<a href='#L737' id='L737'>737</a>
+<a href='#L738' id='L738'>738</a>
+<a href='#L739' id='L739'>739</a>
+<a href='#L740' id='L740'>740</a>
+<a href='#L741' id='L741'>741</a>
+<a href='#L742' id='L742'>742</a>
+<a href='#L743' id='L743'>743</a>
+<a href='#L744' id='L744'>744</a>
+<a href='#L745' id='L745'>745</a>
+<a href='#L746' id='L746'>746</a>
+<a href='#L747' id='L747'>747</a>
+<a href='#L748' id='L748'>748</a>
+<a href='#L749' id='L749'>749</a>
+<a href='#L750' id='L750'>750</a>
+<a href='#L751' id='L751'>751</a>
+<a href='#L752' id='L752'>752</a>
+<a href='#L753' id='L753'>753</a>
+<a href='#L754' id='L754'>754</a>
+<a href='#L755' id='L755'>755</a>
+<a href='#L756' id='L756'>756</a>
+<a href='#L757' id='L757'>757</a>
+<a href='#L758' id='L758'>758</a>
+<a href='#L759' id='L759'>759</a>
+<a href='#L760' id='L760'>760</a>
+<a href='#L761' id='L761'>761</a>
+<a href='#L762' id='L762'>762</a>
+<a href='#L763' id='L763'>763</a>
+<a href='#L764' id='L764'>764</a>
+<a href='#L765' id='L765'>765</a>
+<a href='#L766' id='L766'>766</a>
+<a href='#L767' id='L767'>767</a>
+<a href='#L768' id='L768'>768</a>
+<a href='#L769' id='L769'>769</a>
+<a href='#L770' id='L770'>770</a>
+<a href='#L771' id='L771'>771</a>
+<a href='#L772' id='L772'>772</a>
+<a href='#L773' id='L773'>773</a>
+<a href='#L774' id='L774'>774</a>
+<a href='#L775' id='L775'>775</a>
+<a href='#L776' id='L776'>776</a>
+<a href='#L777' id='L777'>777</a>
+<a href='#L778' id='L778'>778</a>
+<a href='#L779' id='L779'>779</a>
+<a href='#L780' id='L780'>780</a>
+<a href='#L781' id='L781'>781</a>
+<a href='#L782' id='L782'>782</a>
+<a href='#L783' id='L783'>783</a>
+<a href='#L784' id='L784'>784</a>
+<a href='#L785' id='L785'>785</a>
+<a href='#L786' id='L786'>786</a>
+<a href='#L787' id='L787'>787</a>
+<a href='#L788' id='L788'>788</a>
+<a href='#L789' id='L789'>789</a>
+<a href='#L790' id='L790'>790</a>
+<a href='#L791' id='L791'>791</a>
+<a href='#L792' id='L792'>792</a>
+<a href='#L793' id='L793'>793</a>
+<a href='#L794' id='L794'>794</a>
+<a href='#L795' id='L795'>795</a>
+<a href='#L796' id='L796'>796</a>
+<a href='#L797' id='L797'>797</a>
+<a href='#L798' id='L798'>798</a>
+<a href='#L799' id='L799'>799</a>
+<a href='#L800' id='L800'>800</a>
+<a href='#L801' id='L801'>801</a>
+<a href='#L802' id='L802'>802</a>
+<a href='#L803' id='L803'>803</a>
+<a href='#L804' id='L804'>804</a>
+<a href='#L805' id='L805'>805</a>
+<a href='#L806' id='L806'>806</a>
+<a href='#L807' id='L807'>807</a>
+<a href='#L808' id='L808'>808</a>
+<a href='#L809' id='L809'>809</a>
+<a href='#L810' id='L810'>810</a>
+<a href='#L811' id='L811'>811</a>
+<a href='#L812' id='L812'>812</a>
+<a href='#L813' id='L813'>813</a>
+<a href='#L814' id='L814'>814</a>
+<a href='#L815' id='L815'>815</a>
+<a href='#L816' id='L816'>816</a>
+<a href='#L817' id='L817'>817</a>
+<a href='#L818' id='L818'>818</a>
+<a href='#L819' id='L819'>819</a>
+<a href='#L820' id='L820'>820</a>
+<a href='#L821' id='L821'>821</a>
+<a href='#L822' id='L822'>822</a>
+<a href='#L823' id='L823'>823</a>
+<a href='#L824' id='L824'>824</a>
+<a href='#L825' id='L825'>825</a>
+<a href='#L826' id='L826'>826</a>
+<a href='#L827' id='L827'>827</a>
+<a href='#L828' id='L828'>828</a>
+<a href='#L829' id='L829'>829</a>
+<a href='#L830' id='L830'>830</a>
+<a href='#L831' id='L831'>831</a>
+<a href='#L832' id='L832'>832</a>
+<a href='#L833' id='L833'>833</a>
+<a href='#L834' id='L834'>834</a>
+<a href='#L835' id='L835'>835</a>
+<a href='#L836' id='L836'>836</a>
+<a href='#L837' id='L837'>837</a>
+<a href='#L838' id='L838'>838</a>
+<a href='#L839' id='L839'>839</a>
+<a href='#L840' id='L840'>840</a>
+<a href='#L841' id='L841'>841</a>
+<a href='#L842' id='L842'>842</a>
+<a href='#L843' id='L843'>843</a>
+<a href='#L844' id='L844'>844</a>
+<a href='#L845' id='L845'>845</a>
+<a href='#L846' id='L846'>846</a>
+<a href='#L847' id='L847'>847</a>
+<a href='#L848' id='L848'>848</a>
+<a href='#L849' id='L849'>849</a>
+<a href='#L850' id='L850'>850</a>
+<a href='#L851' id='L851'>851</a>
+<a href='#L852' id='L852'>852</a>
+<a href='#L853' id='L853'>853</a>
+<a href='#L854' id='L854'>854</a>
+<a href='#L855' id='L855'>855</a>
+<a href='#L856' id='L856'>856</a>
+<a href='#L857' id='L857'>857</a>
+<a href='#L858' id='L858'>858</a>
+<a href='#L859' id='L859'>859</a>
+<a href='#L860' id='L860'>860</a>
+<a href='#L861' id='L861'>861</a>
+<a href='#L862' id='L862'>862</a>
+<a href='#L863' id='L863'>863</a>
+<a href='#L864' id='L864'>864</a>
+<a href='#L865' id='L865'>865</a>
+<a href='#L866' id='L866'>866</a>
+<a href='#L867' id='L867'>867</a>
+<a href='#L868' id='L868'>868</a>
+<a href='#L869' id='L869'>869</a>
+<a href='#L870' id='L870'>870</a>
+<a href='#L871' id='L871'>871</a>
+<a href='#L872' id='L872'>872</a>
+<a href='#L873' id='L873'>873</a>
+<a href='#L874' id='L874'>874</a>
+<a href='#L875' id='L875'>875</a>
+<a href='#L876' id='L876'>876</a>
+<a href='#L877' id='L877'>877</a>
+<a href='#L878' id='L878'>878</a>
+<a href='#L879' id='L879'>879</a>
+<a href='#L880' id='L880'>880</a>
+<a href='#L881' id='L881'>881</a>
+<a href='#L882' id='L882'>882</a>
+<a href='#L883' id='L883'>883</a>
+<a href='#L884' id='L884'>884</a>
+<a href='#L885' id='L885'>885</a>
+<a href='#L886' id='L886'>886</a>
+<a href='#L887' id='L887'>887</a>
+<a href='#L888' id='L888'>888</a>
+<a href='#L889' id='L889'>889</a>
+<a href='#L890' id='L890'>890</a>
+<a href='#L891' id='L891'>891</a>
+<a href='#L892' id='L892'>892</a>
+<a href='#L893' id='L893'>893</a>
+<a href='#L894' id='L894'>894</a>
+<a href='#L895' id='L895'>895</a>
+<a href='#L896' id='L896'>896</a></pre></td>
+          <td class='line-coverage quiet'><pre><span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 73 times'>x73</span>
+<span class='cline-any cline-yes' title='This line is covered 73 times'>x73</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 3 times'>x3</span>
+<span class='cline-any cline-yes' title='This line is covered 3 times'>x3</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 3 times'>x3</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 9 times'>x9</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 10 times'>x10</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 10 times'>x10</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 3 times'>x3</span>
+<span class='cline-any cline-yes' title='This line is covered 3 times'>x3</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-no'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 4 times'>x4</span>
+<span class='cline-any cline-yes' title='This line is covered 8 times'>x8</span>
+<span class='cline-any cline-yes' title='This line is covered 3 times'>x3</span>
+<span class='cline-any cline-yes' title='This line is covered 3 times'>x3</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-yes' title='This line is covered 5 times'>x5</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 6 times'>x6</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-neutral'>&nbsp;</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span>
+<span class='cline-any cline-yes' title='This line is covered 7 times'>x7</span>
+<span class='cline-any cline-yes' title='This line is covered 7 times'>x7</span>
+<span class='cline-any cline-yes' title='This line is covered 1 time'>x1</span></pre></td>
+          <td class='branch-coverage quiet'><pre>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<span class='missing-if-branch' title='branch condition is missed in this line'>I</span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<span class='missing-if-branch' title='branch condition is missed in this line'>I</span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<span class='missing-if-branch' title='branch condition is missed in this line'>I</span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre></td>
+          <td class='text'><pre class='prettyprint'>/**
+ * Type-safe table abstraction for database operations
+ *
+ * Provides a declarative way to define tables with:
+ * - Column mappings (camelCase input → snake_case DB)
+ * - Generated columns (id, created)
+ * - Field transformers (encrypt/decrypt)
+ * - Generic CRUD operations
+ */
+
+import type { InValue } from "@libsql/client";
+import * as v from "valibot";
+import { compact, filter, mapParallel, reduce } from "#fp";
+import {
+  type DependsOnEntry,
+  registerCache,
+  registerDependencies,
+} from "#shared/cache-registry.ts";
+import {
+  execute,
+  queryAll,
+  queryOne,
+  queryOnePrimary,
+  resultRows,
+  type SqlStatement,
+  type TxScope,
+} from "#shared/db/client.ts";
+import { queryAndMap } from "#shared/db/query.ts";
+import { requestCache } from "#shared/request-cache.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
+
+/**
+ * Column definition for a table
+ */
+export type ColumnDef&lt;T = unknown&gt; = {
+  /** Whether this column is auto-generated (like id) */
+  generated?: boolean | undefined;
+  /** Whether this value is projected by caller SQL, not stored on the table. */
+  projected?: boolean | undefined;
+  /** Default value generator (for created timestamps etc) */
+  default?: (() =&gt; T) | undefined;
+  /** Transform value before writing to DB (e.g., encrypt) */
+  write?: ((v: T) =&gt; Promise&lt;T&gt; | T) | undefined;
+  /** Transform value after reading from DB (e.g., decrypt). Row reads pass the
+   * row's primary-key value as `rowId` so a read failure can name the record
+   * (single-column reads via `readColumn` may omit it). */
+  read?: ((v: T, rowId?: unknown) =&gt; Promise&lt;T&gt; | T) | undefined;
+};
+
+/**
+ * Table schema definition
+ * Keys are DB column names (snake_case), values are column definitions
+ */
+export type TableSchema&lt;Row&gt; = {
+  [K in keyof Row]: ColumnDef&lt;Row[K]&gt;;
+};
+
+/** Run one column's declared read transform (e.g. decrypt) on a stored value —
+ * identity when the column declares none or the value is null. For reading a
+ * single column back without building a whole row. `rowId` (when known) lets
+ * the transform name the record in error reports. */
+export type ReadColumn&lt;Row&gt; = &lt;K extends keyof Row &amp; string&gt;(
+  col: K,
+  value: Row[K],
+  rowId?: unknown,
+) =&gt; Promise&lt;Row[K]&gt;;
+
+// Case conversion is delegated to valibot's `toCamelCase`/`toSnakeCase` actions
+// rather than bespoke regexes. The schemas are built once at module load and
+// reused on every call. valibot's word-splitting is more robust than a plain
+// regex (it handles digits and acronyms sensibly), and produces byte-identical
+// output to the previous implementation for every column name in the app's
+// table schemas, in both directions. These run only at table-definition time
+// (see `buildInputKeyMap` in `defineTable`), so the parse has no hot-path cost.
+const camelCaseSchema = v.pipe(v.string(), v.toCamelCase());
+const snakeCaseSchema = v.pipe(v.string(), v.toSnakeCase());
+
+/**
+ * Convert snake_case to camelCase (e.g. `max_attendees` → `maxAttendees`).
+ */
+export const toCamelCase = (s: string): string =&gt; v.parse(camelCaseSchema, s);
+
+/**
+ * Convert camelCase to snake_case (the inverse of {@link toCamelCase}).
+ */
+export const toSnakeCase = (s: string): string =&gt; v.parse(snakeCaseSchema, s);
+
+/**
+ * Build input key mapping from DB columns
+ * snake_case DB column → camelCase input key
+ */
+export const buildInputKeyMap = (columns: string[]): Record&lt;string, string&gt; =&gt;
+  reduce((acc: Record&lt;string, string&gt;, col: string) =&gt; {
+    acc[col] = toCamelCase(col);
+    return acc;
+  }, {})(columns);
+
+/**
+ * Table definition with CRUD operations
+ */
+export interface Table&lt;Row, Input&gt; {
+  /** Physical DB columns declared for this table, in schema order. */
+  columns: readonly string[];
+
+  /** Delete a row by primary key */
+  deleteById: (id: InValue) =&gt; Promise&lt;void&gt;;
+
+  /** Find all rows */
+  findAll: () =&gt; Promise&lt;Row[]&gt;;
+
+  /** Find a row by primary key, or null when it does not exist. */
+  findById: (id: InValue) =&gt; Promise&lt;Row | null&gt;;
+
+  /**
+   * Find a row by primary key, pinned to the primary (read-your-writes). Use
+   * when reading a row back immediately after committing its own write: a plain
+   * {@link findById} runs in "read" mode, which Turso may serve from a replica
+   * that lags behind the just-committed write and so miss the row (returning
+   * null). This reads on the primary, which always reflects the write.
+   *
+   * Optional, like {@link insertStatement}/{@link updateStatement}: only the
+   * transactional CRUD-side-effect write path reads a row back this way, so a
+   * façade table that never takes that path may omit it.
+   */
+  findByIdPrimary?: (id: InValue) =&gt; Promise&lt;Row | null&gt;;
+
+  /** Find rows in input order, retaining nulls for missing primary keys. */
+  findByIds: (ids: InValue[]) =&gt; Promise&lt;(Row | null)[]&gt;;
+
+  /** Transform a row from DB (apply read transforms) */
+  fromDb: (row: Row) =&gt; Promise&lt;Row&gt;;
+  inputKeyMap: Record&lt;string, string&gt;;
+
+  /** Insert a new row, returns the created row */
+  insert: (input: Input) =&gt; Promise&lt;Row&gt;;
+  /** Build the INSERT statement without executing it (for transactional callers).
+   * Optional: only resources with a CRUD side effect need it; façade tables omit it. */
+  insertStatement?: (
+    input: Input,
+    condition?: SqlStatement,
+  ) =&gt; Promise&lt;SqlStatement&gt;;
+  name: string;
+  primaryKey: keyof Row &amp; string;
+
+  readColumn: ReadColumn&lt;Row&gt;;
+
+  /**
+   * Build an Input object from an existing Row by copying the input-eligible
+   * columns and translating keys through `inputKeyMap`. Lets callers spread
+   * a row into a new insert without restating every field. Columns named in
+   * `exclude` are skipped — useful for auto-stamped fields like `created`.
+   */
+  rowToInput: (row: Row, exclude?: readonly string[]) =&gt; Partial&lt;Input&gt;;
+  schema: TableSchema&lt;Row&gt;;
+
+  /** Transform input to DB values (apply write transforms and defaults) */
+  toDbValues: (
+    input: Input | Partial&lt;Input&gt;,
+  ) =&gt; Promise&lt;Record&lt;string, InValue&gt;&gt;;
+
+  /** Update a row by primary key, returns updated row or null if not found */
+  update: (id: InValue, input: Partial&lt;Input&gt;) =&gt; Promise&lt;Row | null&gt;;
+  /** Build the UPDATE statement without executing it (input must provide ≥1
+   * column). Optional: see {@link insertStatement}. */
+  updateStatement?: (
+    id: InValue,
+    input: Partial&lt;Input&gt;,
+    condition?: SqlStatement,
+  ) =&gt; Promise&lt;SqlStatement&gt;;
+}
+
+type TableColumn&lt;Row&gt; = keyof Row &amp; string;
+type ProjectionColumns&lt;Row&gt; = readonly [
+  TableColumn&lt;Row&gt;,
+  ...TableColumn&lt;Row&gt;[],
+];
+
+/** A selected row before the table's declared read transforms run. Database
+ * values are unknown here because booleans and encrypted strings have a
+ * different stored representation from the application's Row type. */
+export type StoredTableProjectionRow&lt;
+  Row,
+  Columns extends ProjectionColumns&lt;Row&gt;,
+&gt; = {
+  [Column in Columns[number]]: unknown;
+};
+
+type SelectedTableProjectionRow&lt;
+  Row,
+  Columns extends ProjectionColumns&lt;Row&gt;,
+&gt; = Pick&lt;Row, Columns[number]&gt;;
+
+type TableProjectionQuery&lt;Result&gt; = (
+  sql: string,
+  args?: InValue[],
+) =&gt; Promise&lt;Result&gt;;
+
+export interface TableProjection&lt;Row, Columns extends ProjectionColumns&lt;Row&gt;&gt; {
+  readonly columns: Columns;
+  columnsSql: (alias?: string) =&gt; string;
+  queryAll: TableProjectionQuery&lt;SelectedTableProjectionRow&lt;Row, Columns&gt;[]&gt;;
+  queryOne: TableProjectionQuery&lt;SelectedTableProjectionRow&lt;
+    Row,
+    Columns
+  &gt; | null&gt;;
+  read: (
+    row: StoredTableProjectionRow&lt;Row, Columns&gt;,
+    rowId?: unknown,
+  ) =&gt; Promise&lt;SelectedTableProjectionRow&lt;Row, Columns&gt;&gt;;
+  readAll: (
+    rows: StoredTableProjectionRow&lt;Row, Columns&gt;[],
+  ) =&gt; Promise&lt;SelectedTableProjectionRow&lt;Row, Columns&gt;[]&gt;;
+}
+
+/** Define an explicit physical-column projection and reuse the table's read
+ * transforms without loading or decrypting the rest of the row. */
+export const defineTableProjection = &lt;
+  Row,
+  Input,
+  const Columns extends ProjectionColumns&lt;Row&gt;,
+&gt;(
+  table: Table&lt;Row, Input&gt;,
+  columns: Columns,
+): TableProjection&lt;Row, Columns&gt; =&gt; {
+  const missingColumn = columns.find(
+    (column) =&gt; !table.columns.includes(column),
+  );
+  if (missingColumn) {
+    throw new Error(
+      `Cannot select projected column ${missingColumn} from ${table.name}`,
+    );
+  }
+
+  const read = async (
+    row: StoredTableProjectionRow&lt;Row, Columns&gt;,
+    rowId?: unknown,
+  ): Promise&lt;SelectedTableProjectionRow&lt;Row, Columns&gt;&gt; =&gt; {
+    const stored = row as Record&lt;string, unknown&gt;;
+    const missingValueColumn = columns.find(
+      (column) =&gt; !Object.hasOwn(stored, column),
+    );
+    if (missingValueColumn) {
+      throw new Error(
+        `Projected column ${missingValueColumn} is missing from ${table.name} query result`,
+      );
+    }
+    const readRowId = rowId === undefined ? stored[table.primaryKey] : rowId;
+    const entries = await mapParallel(
+      async (column: Columns[number]) =&gt;
+        [
+          column,
+          await table.readColumn(
+            column,
+            stored[column] as Row[Columns[number]],
+            readRowId,
+          ),
+        ] as const,
+    )([...columns]);
+    return Object.fromEntries(entries) as SelectedTableProjectionRow&lt;
+      Row,
+      Columns
+    &gt;;
+  };
+  const readAll = (
+    rows: StoredTableProjectionRow&lt;Row, Columns&gt;[],
+  ): Promise&lt;SelectedTableProjectionRow&lt;Row, Columns&gt;[]&gt; =&gt;
+    mapParallel((row: StoredTableProjectionRow&lt;Row, Columns&gt;) =&gt; read(row))(
+      rows,
+    );
+
+  return {
+    columns,
+    columnsSql: (alias?: string): string =&gt;
+      columns
+        .map((column) =&gt; (alias ? `${alias}.${column}` : column))
+        .join(", "),
+    queryAll: async (sql, args) =&gt;
+      readAll(
+        await queryAll&lt;StoredTableProjectionRow&lt;Row, Columns&gt;&gt;(sql, args),
+      ),
+    queryOne: async (sql, args) =&gt; {
+      const row = await queryOne&lt;StoredTableProjectionRow&lt;Row, Columns&gt;&gt;(
+        sql,
+        args,
+      );
+      return row === null ? null : read(row);
+    },
+    read,
+    readAll,
+  };
+};
+
+type TableRowInsert&lt;Input, Condition = SqlStatement | undefined&gt; = {
+  condition?: Condition;
+  input: Input;
+  kind: "insert";
+};
+
+type TableRowUpdate&lt;Input&gt; = {
+  condition?: SqlStatement;
+  id: InValue;
+  input: Partial&lt;Input&gt;;
+  kind: "update";
+};
+
+type TableRowWrite&lt;Input&gt; = TableRowInsert&lt;Input&gt; | TableRowUpdate&lt;Input&gt;;
+
+type TableRowWriteArgs&lt;Row, Input, Write = TableRowWrite&lt;Input&gt;&gt; = [
+  transaction: TxScope,
+  table: Table&lt;Row, Input&gt;,
+  write: Write,
+];
+
+/** Execute one table-built INSERT/UPDATE on an open transaction and return the
+ * affected row. A conditional write returns null when its condition is false. */
+export function writeTableRow&lt;Row, Input&gt;(
+  ...args: TableRowWriteArgs&lt;Row, Input, TableRowInsert&lt;Input, undefined&gt;&gt;
+): Promise&lt;Row&gt;;
+export function writeTableRow&lt;Row, Input&gt;(
+  ...args: TableRowWriteArgs&lt;Row, Input&gt;
+): Promise&lt;Row | null&gt;;
+export async function writeTableRow&lt;Row, Input&gt;(
+  ...[transaction, table, write]: TableRowWriteArgs&lt;Row, Input&gt;
+): Promise&lt;Row | null&gt; {
+  const statement =
+    write.kind === "insert"
+      ? await table.insertStatement!(write.input, write.condition)
+      : await table.updateStatement!(write.id, write.input, write.condition);
+  const returning =
+    write.kind === "insert"
+      ? {
+          ...statement,
+          sql: `${statement.sql} RETURNING ${table.columns.join(", ")}`,
+        }
+      : statement;
+  const row = resultRows&lt;Row&gt;(await transaction.execute(returning))[0];
+  return row ? table.fromDb(row) : null;
+}
+
+/** Get value for a column with default applied */
+const getValueWithDefault = &lt;T&gt;(value: unknown, def: ColumnDef&lt;T&gt;): unknown =&gt; {
+  if (value === undefined &amp;&amp; def.default) {
+    return def.default();
+  }
+  return value;
+};
+
+/** Apply write transform to a value */
+const applyWriteTransform = &lt;T&gt;(
+  value: unknown,
+  def: ColumnDef&lt;T&gt;,
+): Promise&lt;unknown&gt; =&gt; {
+  if (def.write &amp;&amp; value !== null &amp;&amp; value !== undefined) {
+    return Promise.resolve(def.write(value as T));
+  }
+  return Promise.resolve(value);
+};
+
+/** Build INSERT SQL */
+const buildInsertSql = (
+  name: string,
+  columns: string[],
+  condition?: string,
+): string =&gt; {
+  const placeholders = columns.map(() =&gt; "?").join(", ");
+  const values = condition
+    ? `SELECT ${placeholders} WHERE ${condition}`
+    : `VALUES (${placeholders})`;
+  return `INSERT INTO ${name} (${columns.join(", ")}) ${values}`;
+};
+
+/** Build UPDATE SQL with RETURNING to get updated row in one round trip */
+const buildUpdateSql = (
+  name: string,
+  columns: string[],
+  primaryKey: string,
+  returningColumns: string,
+  condition?: string,
+): string =&gt; {
+  const setClauses = columns.map((col) =&gt; `${col} = ?`).join(", ");
+  const extraCondition = condition ? ` AND (${condition})` : "";
+  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ?${extraCondition} RETURNING ${returningColumns}`;
+};
+
+/** The shape that defines a table: its name, primary key, and column schema. */
+export type TableDefinition&lt;Row&gt; = {
+  name: string;
+  primaryKey: keyof Row &amp; string;
+  schema: TableSchema&lt;Row&gt;;
+};
+
+/**
+ * Define a table with CRUD operations
+ */
+export const defineTable = &lt;Row, Input = Row&gt;(
+  config: TableDefinition&lt;Row&gt;,
+): Table&lt;Row, Input&gt; =&gt; {
+  const { name, primaryKey, schema } = config;
+
+  // Build column lists
+  const allColumns = Object.keys(schema) as (keyof Row &amp; string)[];
+  const physicalColumns = allColumns.filter((col) =&gt; !schema[col].projected);
+  const physicalColumnsSql = physicalColumns.join(", ");
+  const qualifiedPhysicalColumnsSql = physicalColumns
+    .map((column) =&gt; `record.${column}`)
+    .join(", ");
+  const inputColumns = physicalColumns.filter((col) =&gt; !schema[col].generated);
+  const inputKeyMap = buildInputKeyMap(inputColumns);
+
+  // Get input value for a column (inputKeyMap always has entry for inputColumns)
+  const getInputValue = (
+    input: Input | Partial&lt;Input&gt;,
+    dbCol: string,
+  ): unknown =&gt;
+    (input as Record&lt;string, unknown&gt;)[inputKeyMap[dbCol] as string];
+
+  // Run one column's read transform on a stored value (identity when the
+  // column declares none or the value is null) — the per-column read logic
+  // shared by fromDb and the single-column readColumn.
+  const readColumn: ReadColumn&lt;Row&gt; = async (col, value, rowId) =&gt; {
+    const def = schema[col];
+    if (def.read &amp;&amp; value !== null) {
+      return (await def.read(value as never, rowId)) as typeof value;
+    }
+    return value;
+  };
+
+  // The columns whose stored value has to be turned back into its real value
+  // (decrypted, parsed, looked up). Every other column is copied straight
+  // across, so a wide table does not pay for an await per column.
+  const readTransformColumns = allColumns.filter(
+    (col) =&gt; schema[col].read !== undefined,
+  );
+
+  // Transform a row from DB (apply read transforms)
+  const fromDb = async (row: Row): Promise&lt;Row&gt; =&gt; {
+    const mapped: Record&lt;string, unknown&gt; = {};
+    for (const col of allColumns) mapped[col] = row[col];
+    if (readTransformColumns.length &gt; 0) {
+      const rowId = row[primaryKey];
+      await Promise.all(
+        readTransformColumns.map(async (col) =&gt; {
+          mapped[col] = await readColumn(col, row[col], rowId);
+        }),
+      );
+    }
+    return mapped as Row;
+  };
+
+  // Process a single column for toDbValues
+  const processColumn = async (
+    col: string,
+    input: Input | Partial&lt;Input&gt;,
+  ): Promise&lt;[string, InValue] | null&gt; =&gt; {
+    const def = schema[col as keyof Row];
+    const rawValue = getInputValue(input, col);
+    const value = getValueWithDefault(rawValue, def);
+
+    if (value === undefined) return null;
+
+    const transformedValue = await applyWriteTransform(value, def);
+    return [col, transformedValue as InValue];
+  };
+
+  // Transform input to DB values
+  const toDbValues = async (
+    input: Input | Partial&lt;Input&gt;,
+  ): Promise&lt;Record&lt;string, InValue&gt;&gt; =&gt; {
+    const entries = await mapParallel((col: string) =&gt;
+      processColumn(col, input),
+    )(inputColumns);
+    return Object.fromEntries(compact(entries));
+  };
+
+  // Build return row value for a single column
+  const getReturnValue = (
+    col: string,
+    input: Input,
+    dbValues: Record&lt;string, InValue&gt;,
+  ): unknown =&gt; {
+    const inputValue = (input as Record&lt;string, unknown&gt;)[
+      inputKeyMap[col] as string
+    ];
+    if (inputValue !== undefined) return inputValue;
+    if (col in dbValues) return dbValues[col];
+    return null;
+  };
+
+  // Get columns that were provided in input
+  const getProvidedColumns = (input: Partial&lt;Input&gt;): string[] =&gt;
+    filter((col: string) =&gt; (inputKeyMap[col] as string) in (input as object))(
+      inputColumns,
+    );
+
+  /** Build the INSERT statement plus the resolved db values. Shared by
+   * {@link insert} and {@link insertStatement} so the column/arg derivation
+   * lives in one place. */
+  const buildInsert = async (
+    input: Input,
+  ): Promise&lt;{
+    args: InValue[];
+    columns: string[];
+    dbValues: Record&lt;string, InValue&gt;;
+    sql: string;
+  }&gt; =&gt; {
+    const dbValues = await toDbValues(input);
+    const columns = Object.keys(dbValues);
+    return {
+      args: columns.map((col) =&gt; dbValues[col] as InValue),
+      columns,
+      dbValues,
+      sql: buildInsertSql(name, columns),
+    };
+  };
+
+  // Insert implementation
+  const insert = async (input: Input): Promise&lt;Row&gt; =&gt; {
+    const { args, dbValues, sql } = await buildInsert(input);
+    const result = await execute(sql, args);
+
+    const initialRow = schema[primaryKey].generated
+      ? { [primaryKey]: Number(result.lastInsertRowid) }
+      : {};
+
+    return reduce((row: Record&lt;string, unknown&gt;, col: string) =&gt; {
+      row[col] = getReturnValue(col, input, dbValues);
+      return row;
+    }, initialRow)(inputColumns) as Row;
+  };
+
+  /** Build the INSERT statement without executing it — for callers that run the
+   * write inside their own transaction (e.g. the CRUD side-effect path, which
+   * inserts the row and its relationship edges atomically). */
+  const insertStatement = async (
+    input: Input,
+    condition?: SqlStatement,
+  ): Promise&lt;SqlStatement&gt; =&gt; {
+    const { args, columns, sql } = await buildInsert(input);
+    return condition
+      ? {
+          args: [...args, ...condition.args],
+          sql: buildInsertSql(name, columns, condition.sql),
+        }
+      : { args, sql };
+  };
+
+  /** Build the UPDATE statement for `input` (which must provide ≥1 column — the
+   * CRUD side-effect path passes a fully-merged input). For transactional callers
+   * and reused by {@link update}. */
+  const updateStatement = async (
+    id: InValue,
+    input: Partial&lt;Input&gt;,
+    condition?: SqlStatement,
+  ): Promise&lt;SqlStatement&gt; =&gt; {
+    const dbValues = await toDbValues(input);
+    const providedColumns = getProvidedColumns(input);
+    return {
+      args: [
+        ...providedColumns.map((col) =&gt; dbValues[col] as InValue),
+        id,
+        ...(condition?.args ?? []),
+      ],
+      sql: buildUpdateSql(
+        name,
+        providedColumns,
+        primaryKey,
+        physicalColumnsSql,
+        condition?.sql,
+      ),
+    };
+  };
+
+  // Update implementation - uses RETURNING to avoid a second round trip
+  const update = async (
+    id: InValue,
+    input: Partial&lt;Input&gt;,
+  ): Promise&lt;Row | null&gt; =&gt; {
+    if (getProvidedColumns(input).length === 0) return findById(id);
+    const { args, sql } = await updateStatement(id, input);
+    const row = await queryOne&lt;Row&gt;(sql, args);
+    return row ? fromDb(row) : null;
+  };
+
+  // Find by ID via the given single-row query — a plain "read" (findById) or the
+  // primary read-your-writes read (findByIdPrimary), for reading a row back right
+  // after its own write (see Table.findByIdPrimary).
+  const findByIdVia = async (
+    query: (sql: string, args: InValue[]) =&gt; Promise&lt;Row | null&gt;,
+    id: InValue,
+  ): Promise&lt;Row | null&gt; =&gt; {
+    const row = await query(
+      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} = ?`,
+      [id],
+    );
+    return row ? fromDb(row) : null;
+  };
+
+  const findByIds = async (ids: InValue[]): Promise&lt;(Row | null)[]&gt; =&gt; {
+    if (ids.length === 0) return [];
+    const rows = await queryAll&lt;Row&gt;(
+      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} IN (${ids.map(() =&gt; "?").join(", ")})`,
+      ids,
+    );
+    const readRows = await mapParallel(fromDb)(rows);
+    const rowsById = new Map(
+      readRows.map((row) =&gt; [row[primaryKey], row] as const),
+    );
+    return ids.map((id) =&gt; rowsById.get(id as Row[keyof Row &amp; string]) ?? null);
+  };
+
+  const findById = async (id: InValue): Promise&lt;Row | null&gt; =&gt;
+    (await findByIds([id]))[0] ?? null;
+
+  const findByIdPrimary = (id: InValue): Promise&lt;Row | null&gt; =&gt;
+    findByIdVia(queryOnePrimary, id);
+
+  // Delete by ID implementation
+  const deleteById = async (id: InValue): Promise&lt;void&gt; =&gt; {
+    await execute(`DELETE FROM ${name} WHERE ${primaryKey} = ?`, [id]);
+  };
+
+  // Find all implementation
+  const findAll = async (): Promise&lt;Row[]&gt; =&gt; {
+    const rows = await queryAll&lt;Row&gt;(
+      `SELECT ${physicalColumnsSql} FROM ${name}`,
+    );
+    return mapParallel(fromDb)(rows);
+  };
+
+  // Row → Input: copy input-eligible columns from a row, translating
+  // snake_case DB column names to camelCase input keys via inputKeyMap.
+  // `exclude` lets callers drop columns that shouldn't carry forward
+  // (e.g. auto-stamped `created` timestamps when duplicating a row).
+  const rowToInput = (
+    row: Row,
+    exclude: readonly string[] = [],
+  ): Partial&lt;Input&gt; =&gt; {
+    const skip = new Set(exclude);
+    return reduce((acc: Record&lt;string, unknown&gt;, col: string) =&gt; {
+      if (skip.has(col)) return acc;
+      const value = (row as Record&lt;string, unknown&gt;)[col];
+      if (value !== undefined) {
+        acc[inputKeyMap[col] as string] = value;
+      }
+      return acc;
+    }, {})(inputColumns) as Partial&lt;Input&gt;;
+  };
+
+  return {
+    columns: physicalColumns,
+    deleteById,
+    findAll,
+    findById,
+    findByIdPrimary,
+    findByIds,
+    fromDb,
+    inputKeyMap,
+    insert,
+    insertStatement,
+    name,
+    primaryKey,
+    readColumn,
+    rowToInput,
+    schema,
+    toDbValues,
+    update,
+    updateStatement,
+  };
+};
+
+/**
+ * Bundle a request-scoped cache around a table.
+ *
+ * Wires together the pieces every cached table used to repeat by hand:
+ *  - a {@link requestCache} over `fetchAll` (the decrypted/mapped rows),
+ *  - registration with the cache-stats registry under `name`, and
+ *  - registration with the table→cache invalidation registry, so any write to
+ *    the table (or to a `dependsOn` table whose triggers feed it) clears the
+ *    cache automatically at the db-client layer — no per-write-path call.
+ *
+ * `fetchAll` may resolve a richer row type than the table's own `Row`
+ * (e.g. listings cached with attendee counts), captured by `Cached`.
+ */
+export const cachedTable = &lt;Row, Input, Cached = Row&gt;(config: {
+  fetchAll: () =&gt; Promise&lt;Cached[]&gt;;
+  name: string;
+  table: Table&lt;Row, Input&gt;;
+  /** Extra tables (beyond the table itself) whose writes should clear it.
+   * Entries may carry `whenColumns` to gate on specific UPDATE columns. */
+  dependsOn?: readonly DependsOnEntry[];
+}): {
+  getAll: () =&gt; Promise&lt;Cached[]&gt;;
+  invalidate: () =&gt; void;
+  table: Table&lt;Row, Input&gt;;
+} =&gt; {
+  const cache = requestCache(config.fetchAll);
+  registerCache(() =&gt; ({ entries: cache.size(), name: config.name }));
+  registerDependencies(
+    config.table.name,
+    config.dependsOn ?? [],
+    cache.invalidate,
+  );
+  return {
+    getAll: () =&gt; cache.getAll(),
+    invalidate: () =&gt; cache.invalidate(),
+    table: config.table,
+  };
+};
+
+/**
+ * Define a cached "list" table in one call: build the table with
+ * {@link defineTable}, then wrap it in {@link cachedTable} whose `fetchAll`
+ * selects and decrypts every row in `orderBy` sequence. Returns the cached
+ * table plus its `getAll`/`invalidate`.
+ *
+ * This folds the identical five-part wiring (table → decrypting query → cache →
+ * getAll → invalidate) that every simple owner-maintained list table used to
+ * repeat by hand. Callers export the returned cached object under a clean name
+ * (e.g. `holidays`) and reach its `table` / `getAll()` / `invalidate()` members
+ * directly, rather than re-wrapping each in a domain-named alias.
+ */
+export const defineCachedListTable = &lt;Row, Input&gt;(
+  config: TableDefinition&lt;Row&gt; &amp; {
+    /** ORDER BY clause without the keyword, e.g. `"start_date ASC"`. */
+    orderBy: string;
+    dependsOn?: readonly DependsOnEntry[];
+  },
+) =&gt; {
+  const table = defineTable&lt;Row, Input&gt;(config);
+  const selectAll = queryAndMap&lt;Row, Row&gt;(table.fromDb);
+  const columns = table.columns.join(", ");
+  return cachedTable&lt;Row, Input&gt;({
+    dependsOn: config.dependsOn ?? [],
+    fetchAll: () =&gt;
+      selectAll(
+        `SELECT ${columns} FROM ${config.name} ORDER BY ${config.orderBy}`,
+      ),
+    name: config.name,
+    table,
+  });
+};
+
+/** Transform function type for a column's read/write. `In` is the value handed
+ * in; `Out` defaults to `In` for same-type transforms, but an encrypt/decrypt
+ * pair sets it to the other side (app type in, stored type out, and back). */
+type ColumnTransform&lt;In, Out = In&gt; = (v: In) =&gt; Promise&lt;Out&gt; | Out;
+
+/** Wrap encrypt/decrypt functions to handle null values */
+const wrapNullable =
+  &lt;T extends {}&gt;(
+    fn: ColumnTransform&lt;T&gt;,
+  ): ((v: T | null) =&gt; Promise&lt;T | null&gt;) =&gt;
+  (v) =&gt;
+    v === null ? Promise.resolve(null) : Promise.resolve(fn(v));
+
+const storedJsonTransforms = &lt;TSchema extends v.GenericSchema&gt;(
+  schema: TSchema,
+  context: string,
+): {
+  read: (value: unknown, rowId?: unknown) =&gt; v.InferOutput&lt;TSchema&gt;;
+  write: (value: v.InferOutput&lt;TSchema&gt;) =&gt; string;
+} =&gt; {
+  const json = defineStoredJson(schema);
+  return {
+    read: (value, rowId) =&gt;
+      json.read(
+        value,
+        `${context}${rowId === undefined ? "" : ` row ${String(rowId)}`}`,
+      ),
+    write: (value) =&gt; json.write(value, context),
+  };
+};
+
+interface StoredJsonContext {
+  context: string;
+}
+
+interface StoredJsonColumnConfig&lt;T&gt; extends StoredJsonContext {
+  default?: () =&gt; T;
+}
+
+interface ProjectedJsonColumnConfig&lt;T&gt; extends StoredJsonContext {
+  projected: true;
+  whenMissing: () =&gt; T;
+}
+
+type JsonColumnConfig&lt;T&gt; =
+  | StoredJsonColumnConfig&lt;T&gt;
+  | ProjectedJsonColumnConfig&lt;T&gt;;
+
+/**
+ * Helper to create column definitions
+ */
+export const col = {
+  /** Boolean column stored as INTEGER 0/1 in the database */
+  boolean: (defaultValue: boolean): ColumnDef&lt;boolean&gt; =&gt;
+    col.converted&lt;boolean&gt;({
+      default: () =&gt; defaultValue,
+      read: (raw: InValue) =&gt; Number(raw) === 1,
+      write: (v: boolean) =&gt; (v ? 1 : 0),
+    }),
+
+  /** Column with type conversion between app and DB representations */
+  converted: &lt;App&gt;(config: {
+    default?: () =&gt; App;
+    write: (v: App) =&gt; InValue;
+    read: (raw: InValue, rowId?: unknown) =&gt; App;
+  }): ColumnDef&lt;App&gt; =&gt; ({
+    default: config.default,
+    read: config.read as (v: App) =&gt; App,
+    write: config.write as (v: App) =&gt; App,
+  }),
+
+  /** Column whose stored form is a sealed (encrypted) string: `encrypt` seals
+   * the app value on write, `decrypt` opens the raw stored value on read. The
+   * `as Stored` cast is THE sanctioned read boundary for declaratively
+   * encrypted columns — the raw DB string re-enters the typed world here,
+   * asserted to be the sealed kind the column's declared `encrypt` produces
+   * (see src/shared/crypto/sealed.ts). */
+  encrypted: &lt;T extends string, Stored extends string&gt;(
+    encrypt: ColumnTransform&lt;T, Stored&gt;,
+    decrypt: ColumnTransform&lt;Stored, T&gt;,
+  ): ColumnDef&lt;T&gt; =&gt;
+    ({
+      read: (raw: string) =&gt; decrypt(raw as Stored),
+      write: encrypt,
+    }) as unknown as ColumnDef&lt;T&gt;,
+
+  /** Wrap an existing encrypted column def to pass through null values */
+  encryptedNullable: &lt;T extends {}&gt;(
+    def: ColumnDef&lt;T&gt;,
+  ): ColumnDef&lt;T | null&gt; =&gt; ({
+    read: def.read ? wrapNullable(def.read) : undefined,
+    write: def.write ? wrapNullable(def.write) : undefined,
+  }),
+
+  /** Encrypted text column with empty-string default. Same sanctioned read
+   * boundary as {@link col.encrypted}; "" passes through unsealed. */
+  encryptedText: &lt;Stored extends string&gt;(
+    encrypt: ColumnTransform&lt;string, Stored&gt;,
+    decrypt: ColumnTransform&lt;Stored, string&gt;,
+  ): ColumnDef&lt;string&gt; =&gt; ({
+    default: () =&gt; "",
+    read: (v: string) =&gt; (v === "" ? v : decrypt(v as Stored)),
+    write: (v: string) =&gt; (v === "" ? v : encrypt(v)),
+  }),
+  /** Auto-generated column (like id) */
+  generated: &lt;T&gt;(): ColumnDef&lt;T&gt; =&gt; ({ generated: true }),
+
+  /** JSON column validated against one schema on every read and write. */
+  json: &lt;TSchema extends v.GenericSchema&gt;(
+    schema: TSchema,
+    config: JsonColumnConfig&lt;v.InferOutput&lt;TSchema&gt;&gt;,
+  ): ColumnDef&lt;v.InferOutput&lt;TSchema&gt;&gt; =&gt; {
+    const transforms = storedJsonTransforms(schema, config.context);
+    if ("projected" in config) {
+      return col.projected&lt;v.InferOutput&lt;TSchema&gt;&gt;((value, rowId) =&gt;
+        value === undefined
+          ? config.whenMissing()
+          : transforms.read(value, rowId),
+      );
+    }
+    return col.converted&lt;v.InferOutput&lt;TSchema&gt;&gt;({
+      ...(config.default ? { default: config.default } : {}),
+      ...transforms,
+    });
+  },
+
+  /** A read-only column that is NOT a physical column on the table: it is
+   * projected into the row by the caller's SELECT (a subquery `AS &lt;col&gt;`), read
+   * back through `read`, and never written (`projected` excludes it from INSERT/
+   * UPDATE, `rowToInput`, and the insert/update return row). Use for a value that
+   * lives elsewhere but rides the entity's shape — e.g. `day_prices`, projected
+   * from the `day_count` rows of `listing_prices`. `read` must tolerate a missing
+   * projection (undefined) so a stray un-projected SELECT degrades gracefully. */
+  projected: &lt;App&gt;(
+    read: (raw: InValue | undefined, rowId?: unknown) =&gt; Promise&lt;App&gt; | App,
+  ): ColumnDef&lt;App&gt; =&gt; ({
+    projected: true,
+    read: read as (v: App) =&gt; App,
+  }),
+
+  /** Simple column with no special handling */
+  simple: &lt;T&gt;(): ColumnDef&lt;T&gt; =&gt; ({}),
+
+  /** Column with custom transforms */
+  transform: &lt;T&gt;(
+    write: ColumnTransform&lt;T&gt;,
+    read: ColumnTransform&lt;T&gt;,
+  ): ColumnDef&lt;T&gt; =&gt; ({ read, write }),
+
+  /** Column with default value */
+  withDefault: &lt;T&gt;(defaultFn: () =&gt; T): ColumnDef&lt;T&gt; =&gt; ({
+    default: defaultFn,
+  }),
+};
+</pre></td>
+        </tr>
+      </table>
+            </div>
+            <div class='push'></div>
+          </div>
+          
+      <div class='footer quiet pad2 space-top1 center small'>
+        Code coverage generated by
+        <a href='https://deno.com/' target='_blank'>Deno v2.5.6</a>
+        at Mon, 27 Jul 2026 23:12:20 +0000
+      </div>
+        </body>
+      </html>

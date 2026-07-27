@@ -1,0 +1,44 @@
+{
+  "scriptId": "516",
+  "url": "file:///home/user/tickets/test/test-utils/reclaim-fds.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2593,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "maybeReclaimLeakedFds",
+      "ranges": [
+        {
+          "startOffset": 2089,
+          "endOffset": 2203,
+          "count": 4
+        },
+        {
+          "startOffset": 2185,
+          "endOffset": 2201,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "reclaimLeakedFdsNow",
+      "ranges": [
+        {
+          "startOffset": 2550,
+          "endOffset": 2591,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

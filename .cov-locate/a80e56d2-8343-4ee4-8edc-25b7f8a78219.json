@@ -1,0 +1,168 @@
+{
+  "scriptId": "495",
+  "url": "file:///home/user/tickets/src/shared/db/payments/legacy-sessions.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 6777,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "readLegacySession",
+      "ranges": [
+        {
+          "startOffset": 585,
+          "endOffset": 1062,
+          "count": 3
+        },
+        {
+          "startOffset": 716,
+          "endOffset": 754,
+          "count": 0
+        },
+        {
+          "startOffset": 792,
+          "endOffset": 798,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getLegacyPaymentsByIds",
+      "ranges": [
+        {
+          "startOffset": 1102,
+          "endOffset": 1507,
+          "count": 3
+        },
+        {
+          "startOffset": 1191,
+          "endOffset": 1201,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "legacyIdsForReference",
+      "ranges": [
+        {
+          "startOffset": 1539,
+          "endOffset": 1675,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getLegacyPaymentsByReferences",
+      "ranges": [
+        {
+          "startOffset": 1722,
+          "endOffset": 1881,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getLegacyPaymentsByResource",
+      "ranges": [
+        {
+          "startOffset": 1926,
+          "endOffset": 2497,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legacyCaseStatement",
+      "ranges": [
+        {
+          "startOffset": 2527,
+          "endOffset": 2828,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "bindLegacyPaymentResource",
+      "ranges": [
+        {
+          "startOffset": 2871,
+          "endOffset": 4392,
+          "count": 1
+        },
+        {
+          "startOffset": 3297,
+          "endOffset": 3391,
+          "count": 0
+        },
+        {
+          "startOffset": 3630,
+          "endOffset": 3649,
+          "count": 0
+        },
+        {
+          "startOffset": 4290,
+          "endOffset": 4374,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3657,
+          "endOffset": 4185,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "ambiguousStatement",
+      "ranges": [
+        {
+          "startOffset": 4421,
+          "endOffset": 5634,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "recordLegacyMappingAmbiguity",
+      "ranges": [
+        {
+          "startOffset": 5680,
+          "endOffset": 5956,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "assignLegacyPaymentAccount",
+      "ranges": [
+        {
+          "startOffset": 6083,
+          "endOffset": 6775,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "scriptId": "732",
+  "url": "file:///home/user/tickets/src/shared/ledger/validate.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3730,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isEmptyAccount",
+      "ranges": [
+        {
+          "startOffset": 713,
+          "endOffset": 734,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasReservedChar",
+      "ranges": [
+        {
+          "startOffset": 760,
+          "endOffset": 843,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasInvalidReversesId",
+      "ranges": [
+        {
+          "startOffset": 1140,
+          "endOffset": 1233,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1419,
+          "endOffset": 1488,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1492,
+          "endOffset": 1573,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1577,
+          "endOffset": 1688,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1692,
+          "endOffset": 1771,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1775,
+          "endOffset": 1854,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1858,
+          "endOffset": 1944,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1948,
+          "endOffset": 2055,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "t.reference.code",
+      "ranges": [
+        {
+          "startOffset": 2059,
+          "endOffset": 2179,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "t.eventGroup.code",
+      "ranges": [
+        {
+          "startOffset": 2183,
+          "endOffset": 2246,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "transferChecks",
+      "ranges": [
+        {
+          "startOffset": 2250,
+          "endOffset": 2316,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validateTransfer",
+      "ranges": [
+        {
+          "startOffset": 3131,
+          "endOffset": 3308,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "assertValidTransfer",
+      "ranges": [
+        {
+          "startOffset": 3663,
+          "endOffset": 3728,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

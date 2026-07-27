@@ -1,0 +1,22 @@
+{
+  "scriptId": "715",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/isomorphic-ws/0.1.5/web.mjs",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 355,
+          "count": 1
+        },
+        {
+          "startOffset": 85,
+          "endOffset": 318,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

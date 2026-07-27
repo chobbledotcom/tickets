@@ -1,0 +1,201 @@
+{
+  "scriptId": "529",
+  "url": "file:///home/user/tickets/src/shared/db/payments/types.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 8541,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2159,
+          "endOffset": 2224,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2288,
+          "endOffset": 2360,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2425,
+          "endOffset": 2498,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2570,
+          "endOffset": 2621,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2695,
+          "endOffset": 2807,
+          "count": 5
+        },
+        {
+          "startOffset": 2740,
+          "endOffset": 2773,
+          "count": 0
+        },
+        {
+          "startOffset": 2774,
+          "endOffset": 2807,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2864,
+          "endOffset": 2952,
+          "count": 5
+        },
+        {
+          "startOffset": 2896,
+          "endOffset": 2924,
+          "count": 0
+        },
+        {
+          "startOffset": 2925,
+          "endOffset": 2952,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3411,
+          "endOffset": 3475,
+          "count": 1
+        },
+        {
+          "startOffset": 3450,
+          "endOffset": 3475,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3553,
+          "endOffset": 3821,
+          "count": 1
+        },
+        {
+          "startOffset": 3592,
+          "endOffset": 3821,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "canChangePaymentSessionState",
+      "ranges": [
+        {
+          "startOffset": 4912,
+          "endOffset": 4959,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parsePaymentSessionProgress",
+      "ranges": [
+        {
+          "startOffset": 5004,
+          "endOffset": 5057,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5535,
+          "endOffset": 5571,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5624,
+          "endOffset": 5687,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5743,
+          "endOffset": 5801,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 5866,
+          "endOffset": 6041,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

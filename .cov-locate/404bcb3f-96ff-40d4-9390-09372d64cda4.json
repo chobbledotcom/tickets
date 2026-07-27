@@ -1,0 +1,413 @@
+{
+  "scriptId": "501",
+  "url": "file:///home/user/tickets/src/shared/config.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 9130,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "providerValue",
+      "ranges": [
+        {
+          "startOffset": 624,
+          "endOffset": 766,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isPaymentsEnabled",
+      "ranges": [
+        {
+          "startOffset": 884,
+          "endOffset": 1050,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getBookingFee",
+      "ranges": [
+        {
+          "startOffset": 1159,
+          "endOffset": 1206,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isIpv4Loopback",
+      "ranges": [
+        {
+          "startOffset": 1878,
+          "endOffset": 2100,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isLocalDevelopmentHost",
+      "ranges": [
+        {
+          "startOffset": 2133,
+          "endOffset": 2269,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadEffectiveDomain",
+      "ranges": [
+        {
+          "startOffset": 2390,
+          "endOffset": 2783,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "seedEffectiveDomainHost",
+      "ranges": [
+        {
+          "startOffset": 3360,
+          "endOffset": 3430,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getEffectiveDomain",
+      "ranges": [
+        {
+          "startOffset": 3565,
+          "endOffset": 3596,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isSecureMode",
+      "ranges": [
+        {
+          "startOffset": 3850,
+          "endOffset": 3906,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resetEffectiveDomain",
+      "ranges": [
+        {
+          "startOffset": 4015,
+          "endOffset": 4070,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "setEffectiveDomainForTest",
+      "ranges": [
+        {
+          "startOffset": 4165,
+          "endOffset": 4218,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getEmbedHosts",
+      "ranges": [
+        {
+          "startOffset": 4402,
+          "endOffset": 4574,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isBunnyCdnEnabled",
+      "ranges": [
+        {
+          "startOffset": 4732,
+          "endOffset": 4792,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getBunnyApiKey",
+      "ranges": [
+        {
+          "startOffset": 4878,
+          "endOffset": 4909,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isBunnyDnsEnabled",
+      "ranges": [
+        {
+          "startOffset": 5063,
+          "endOffset": 5125,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isBunnyDbEnabled",
+      "ranges": [
+        {
+          "startOffset": 5247,
+          "endOffset": 5276,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isBuilderEnabled",
+      "ranges": [
+        {
+          "startOffset": 5363,
+          "endOffset": 5403,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getBunnyDnsZoneId",
+      "ranges": [
+        {
+          "startOffset": 5488,
+          "endOffset": 5523,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getBunnyDnsSubdomainSuffix",
+      "ranges": [
+        {
+          "startOffset": 5644,
+          "endOffset": 5690,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getBunnyScriptId",
+      "ranges": [
+        {
+          "startOffset": 5781,
+          "endOffset": 5814,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDebugKey",
+      "ranges": [
+        {
+          "startOffset": 6155,
+          "endOffset": 6184,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getBotpoisonPublicKey",
+      "ranges": [
+        {
+          "startOffset": 6346,
+          "endOffset": 6386,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getBotpoisonSecretKey",
+      "ranges": [
+        {
+          "startOffset": 6551,
+          "endOffset": 6591,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isBotpoisonEnabled",
+      "ranges": [
+        {
+          "startOffset": 6809,
+          "endOffset": 6867,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isInstanceApiEnabled",
+      "ranges": [
+        {
+          "startOffset": 7203,
+          "endOffset": 7236,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getMainInstanceKey",
+      "ranges": [
+        {
+          "startOffset": 7355,
+          "endOffset": 7390,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isDenoDeployEnabled",
+      "ranges": [
+        {
+          "startOffset": 7512,
+          "endOffset": 7615,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDenoDeployToken",
+      "ranges": [
+        {
+          "startOffset": 7706,
+          "endOffset": 7741,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDenoDeployOrgId",
+      "ranges": [
+        {
+          "startOffset": 7838,
+          "endOffset": 7874,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDenoDeployOrgSlug",
+      "ranges": [
+        {
+          "startOffset": 7993,
+          "endOffset": 8031,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDefaultDbProvider",
+      "ranges": [
+        {
+          "startOffset": 8196,
+          "endOffset": 8257,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isTursoEnabled",
+      "ranges": [
+        {
+          "startOffset": 8408,
+          "endOffset": 8500,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getTursoApiToken",
+      "ranges": [
+        {
+          "startOffset": 8583,
+          "endOffset": 8616,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getTursoOrganization",
+      "ranges": [
+        {
+          "startOffset": 8711,
+          "endOffset": 8747,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getTursoGroup",
+      "ranges": [
+        {
+          "startOffset": 8832,
+          "endOffset": 8861,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "slugifyForProvider",
+      "ranges": [
+        {
+          "startOffset": 9057,
+          "endOffset": 9128,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

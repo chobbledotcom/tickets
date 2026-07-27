@@ -1,0 +1,28 @@
+{
+  "scriptId": "647",
+  "url": "file:///home/user/tickets/src/shared/liquid-engine.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 379,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createBaseLiquidEngine",
+      "ranges": [
+        {
+          "startOffset": 196,
+          "endOffset": 377,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

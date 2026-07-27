@@ -1,0 +1,61 @@
+{
+  "scriptId": "778",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/detect-libc/2.0.2/lib/filesystem.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 947,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1,
+          "endOffset": 946,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 214,
+          "endOffset": 940,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "readFileSync",
+      "ranges": [
+        {
+          "startOffset": 546,
+          "endOffset": 586,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "readFile",
+      "ranges": [
+        {
+          "startOffset": 701,
+          "endOffset": 874,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

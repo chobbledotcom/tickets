@@ -1,0 +1,131 @@
+{
+  "scriptId": "539",
+  "url": "file:///home/user/tickets/src/shared/crypto/aes-gcm.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4716,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "nodeAesGcmEncrypt",
+      "ranges": [
+        {
+          "startOffset": 1539,
+          "endOffset": 1792,
+          "count": 12
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "nodeAesGcmDecrypt",
+      "ranges": [
+        {
+          "startOffset": 1892,
+          "endOffset": 2224,
+          "count": 7
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "aesGcmEncryptRaw",
+      "ranges": [
+        {
+          "startOffset": 2340,
+          "endOffset": 2568,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "aesGcmEncryptText",
+      "ranges": [
+        {
+          "startOffset": 2661,
+          "endOffset": 2737,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "aesGcmDecryptRaw",
+      "ranges": [
+        {
+          "startOffset": 2824,
+          "endOffset": 2924,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "importsAesKey",
+      "ranges": [
+        {
+          "startOffset": 3086,
+          "endOffset": 3218,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3095,
+          "endOffset": 3218,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "aesGcmEncryptBytes",
+      "ranges": [
+        {
+          "startOffset": 3688,
+          "endOffset": 3866,
+          "count": 12
+        },
+        {
+          "startOffset": 3820,
+          "endOffset": 3866,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "aesGcmDecryptBytes",
+      "ranges": [
+        {
+          "startOffset": 4287,
+          "endOffset": 4714,
+          "count": 7
+        },
+        {
+          "startOffset": 4402,
+          "endOffset": 4543,
+          "count": 0
+        },
+        {
+          "startOffset": 4639,
+          "endOffset": 4711,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+{
+  "scriptId": "754",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/http/protobuf_encode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2050,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "PipelineReqBody",
+      "ranges": [
+        {
+          "startOffset": 108,
+          "endOffset": 303,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "StreamRequest",
+      "ranges": [
+        {
+          "startOffset": 304,
+          "endOffset": 1152,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "CloseStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1153,
+          "endOffset": 1190,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "ExecuteStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1191,
+          "endOffset": 1262,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "BatchStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1263,
+          "endOffset": 1334,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "SequenceStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1335,
+          "endOffset": 1514,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "DescribeStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1515,
+          "endOffset": 1694,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "StoreSqlStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1695,
+          "endOffset": 1786,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "CloseSqlStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1787,
+          "endOffset": 1852,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "GetAutocommitStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1853,
+          "endOffset": 1898,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "CursorReqBody",
+      "ranges": [
+        {
+          "startOffset": 1906,
+          "endOffset": 2049,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

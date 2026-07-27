@@ -1,0 +1,61 @@
+{
+  "scriptId": "638",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/core/0.17.2/lib-esm/api.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1060,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 120,
+          "endOffset": 289,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "LibsqlError",
+      "ranges": [
+        {
+          "startOffset": 295,
+          "endOffset": 618,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 811,
+          "endOffset": 825,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "LibsqlBatchError",
+      "ranges": [
+        {
+          "startOffset": 831,
+          "endOffset": 1057,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

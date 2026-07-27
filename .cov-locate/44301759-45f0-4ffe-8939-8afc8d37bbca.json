@@ -1,0 +1,121 @@
+{
+  "scriptId": "487",
+  "url": "file:///home/user/tickets/src/shared/db/settings/snapshot.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3686,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1155,
+          "endOffset": 1179,
+          "count": 56
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "setSnapshotField",
+      "ranges": [
+        {
+          "startOffset": 2048,
+          "endOffset": 2086,
+          "count": 816
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2441,
+          "endOffset": 2573,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "clear",
+      "ranges": [
+        {
+          "startOffset": 2484,
+          "endOffset": 2522,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 2528,
+          "endOffset": 2566,
+          "count": 14
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getTestOverrides",
+      "ranges": [
+        {
+          "startOffset": 2610,
+          "endOffset": 2637,
+          "count": 14
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "clearTestOverrides",
+      "ranges": [
+        {
+          "startOffset": 2673,
+          "endOffset": 2709,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "auditKeyFor",
+      "ranges": [
+        {
+          "startOffset": 3249,
+          "endOffset": 3293,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "snap",
+      "ranges": [
+        {
+          "startOffset": 3376,
+          "endOffset": 3684,
+          "count": 7
+        },
+        {
+          "startOffset": 3623,
+          "endOffset": 3683,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

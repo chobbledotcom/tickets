@@ -1,0 +1,33 @@
+{
+  "scriptId": "481",
+  "url": "file:///home/user/tickets/src/shared/db/settings/constants.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 600,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "keyModeOf",
+      "ranges": [
+        {
+          "startOffset": 511,
+          "endOffset": 598,
+          "count": 2
+        },
+        {
+          "startOffset": 554,
+          "endOffset": 598,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,226 @@
+{
+  "scriptId": "668",
+  "url": "file:///home/user/tickets/src/shared/update.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 9572,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parseReleaseTag",
+      "ranges": [
+        {
+          "startOffset": 2207,
+          "endOffset": 2446,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2645,
+          "endOffset": 2653,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setBuildTimestampForTest",
+      "ranges": [
+        {
+          "startOffset": 2767,
+          "endOffset": 2809,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getEffectiveBuildTimestamp",
+      "ranges": [
+        {
+          "startOffset": 2907,
+          "endOffset": 3019,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3175,
+          "endOffset": 3183,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setBuildCommitForTest",
+      "ranges": [
+        {
+          "startOffset": 3291,
+          "endOffset": 3338,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getEffectiveBuildCommit",
+      "ranges": [
+        {
+          "startOffset": 3430,
+          "endOffset": 3536,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isNewerVersion",
+      "ranges": [
+        {
+          "startOffset": 3875,
+          "endOffset": 4106,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readSettingMarkers",
+      "ranges": [
+        {
+          "startOffset": 4212,
+          "endOffset": 4415,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "recordScriptVersion",
+      "ranges": [
+        {
+          "startOffset": 4835,
+          "endOffset": 6115,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readRecordedScriptCommit",
+      "ranges": [
+        {
+          "startOffset": 6391,
+          "endOffset": 6518,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "formatBuildDate",
+      "ranges": [
+        {
+          "startOffset": 6600,
+          "endOffset": 6727,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fetchLatestRelease",
+      "ranges": [
+        {
+          "startOffset": 6850,
+          "endOffset": 7397,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "downloadReleaseAsset",
+      "ranges": [
+        {
+          "startOffset": 7497,
+          "endOffset": 7763,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fetchAndDownloadRelease",
+      "ranges": [
+        {
+          "startOffset": 7878,
+          "endOffset": 8125,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deployRelease",
+      "ranges": [
+        {
+          "startOffset": 8397,
+          "endOffset": 8564,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deployLatest",
+      "ranges": [
+        {
+          "startOffset": 8680,
+          "endOffset": 8841,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deployLatestReleaseToScript",
+      "ranges": [
+        {
+          "startOffset": 9198,
+          "endOffset": 9264,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deployLatestReleaseToDeno",
+      "ranges": [
+        {
+          "startOffset": 9502,
+          "endOffset": 9570,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

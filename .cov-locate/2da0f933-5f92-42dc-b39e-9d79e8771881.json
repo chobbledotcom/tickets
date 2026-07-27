@@ -1,0 +1,127 @@
+{
+  "scriptId": "725",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/stream.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2328,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "Stream",
+      "ranges": [
+        {
+          "startOffset": 406,
+          "endOffset": 466,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "query",
+      "ranges": [
+        {
+          "startOffset": 519,
+          "endOffset": 601,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "queryRow",
+      "ranges": [
+        {
+          "startOffset": 670,
+          "endOffset": 754,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "queryValue",
+      "ranges": [
+        {
+          "startOffset": 825,
+          "endOffset": 913,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "run",
+      "ranges": [
+        {
+          "startOffset": 973,
+          "endOffset": 1054,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#execute",
+      "ranges": [
+        {
+          "startOffset": 1059,
+          "endOffset": 1250,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "batch",
+      "ranges": [
+        {
+          "startOffset": 1568,
+          "endOffset": 1643,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "describe",
+      "ranges": [
+        {
+          "startOffset": 1734,
+          "endOffset": 1890,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sequence",
+      "ranges": [
+        {
+          "startOffset": 2015,
+          "endOffset": 2141,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 2317,
+          "endOffset": 2324,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

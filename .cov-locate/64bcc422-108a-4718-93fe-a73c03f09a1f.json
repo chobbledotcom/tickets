@@ -1,0 +1,121 @@
+{
+  "scriptId": "476",
+  "url": "file:///home/user/tickets/src/shared/admin-features.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3470,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2101,
+          "endOffset": 2123,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2220,
+          "endOffset": 2287,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2251,
+          "endOffset": 2286,
+          "count": 104
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2493,
+          "endOffset": 2524,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parseEnabledFeatures",
+      "ranges": [
+        {
+          "startOffset": 2704,
+          "endOffset": 2815,
+          "count": 13
+        },
+        {
+          "startOffset": 2753,
+          "endOffset": 2815,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "serializeEnabledFeatures",
+      "ranges": [
+        {
+          "startOffset": 2857,
+          "endOffset": 2933,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "setFeatureEnabled",
+      "ranges": [
+        {
+          "startOffset": 2968,
+          "endOffset": 3037,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "enabledFeaturesWithUsage",
+      "ranges": [
+        {
+          "startOffset": 3242,
+          "endOffset": 3368,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "featureBySlug",
+      "ranges": [
+        {
+          "startOffset": 3399,
+          "endOffset": 3468,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

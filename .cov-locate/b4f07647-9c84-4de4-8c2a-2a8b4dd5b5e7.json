@@ -1,0 +1,61 @@
+{
+  "scriptId": "602",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/context.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2622,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "renameEventsToListings",
+      "ranges": [
+        {
+          "startOffset": 1003,
+          "endOffset": 1128,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "syncCurrentSchema",
+      "ranges": [
+        {
+          "startOffset": 1156,
+          "endOffset": 1255,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "ensureDefaultAttendeeStatus",
+      "ranges": [
+        {
+          "startOffset": 1521,
+          "endOffset": 1673,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2448,
+          "endOffset": 2619,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

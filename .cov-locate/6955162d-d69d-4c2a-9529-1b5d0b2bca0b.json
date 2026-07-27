@@ -1,0 +1,116 @@
+{
+  "scriptId": "731",
+  "url": "file:///home/user/tickets/src/shared/accounting/store.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 11689,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "allReferences",
+      "ranges": [
+        {
+          "startOffset": 1557,
+          "endOffset": 1621,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "assertShared",
+      "ranges": [
+        {
+          "startOffset": 1731,
+          "endOffset": 1937,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "assertPostable",
+      "ranges": [
+        {
+          "startOffset": 2301,
+          "endOffset": 2670,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "postTransfersTx",
+      "ranges": [
+        {
+          "startOffset": 3691,
+          "endOffset": 4011,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "postTransfers",
+      "ranges": [
+        {
+          "startOffset": 4603,
+          "endOffset": 4666,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "selectByColumnIn",
+      "ranges": [
+        {
+          "startOffset": 4855,
+          "endOffset": 5016,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadBatchSnapshot",
+      "ranges": [
+        {
+          "startOffset": 5373,
+          "endOffset": 6044,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "planGroup",
+      "ranges": [
+        {
+          "startOffset": 6578,
+          "endOffset": 7887,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "postTransferGroups",
+      "ranges": [
+        {
+          "startOffset": 9349,
+          "endOffset": 11687,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

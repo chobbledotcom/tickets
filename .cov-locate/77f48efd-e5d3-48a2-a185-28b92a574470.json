@@ -1,0 +1,50 @@
+{
+  "scriptId": "610",
+  "url": "file:///home/user/tickets/src/shared/db/payments/charge-record.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3396,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "sharedChargeFields",
+      "ranges": [
+        {
+          "startOffset": 1810,
+          "endOffset": 1965,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readCurrentCharge",
+      "ranges": [
+        {
+          "startOffset": 1993,
+          "endOffset": 2991,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readStoredPaymentCharge",
+      "ranges": [
+        {
+          "startOffset": 3000,
+          "endOffset": 3395,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

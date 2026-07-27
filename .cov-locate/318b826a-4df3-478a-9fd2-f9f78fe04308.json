@@ -1,0 +1,105 @@
+{
+  "scriptId": "764",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/shared/protobuf_encode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2050,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "Stmt",
+      "ranges": [
+        {
+          "startOffset": 48,
+          "endOffset": 399,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "NamedArg",
+      "ranges": [
+        {
+          "startOffset": 400,
+          "endOffset": 492,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "Batch",
+      "ranges": [
+        {
+          "startOffset": 500,
+          "endOffset": 607,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "BatchStep",
+      "ranges": [
+        {
+          "startOffset": 608,
+          "endOffset": 765,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "BatchCond",
+      "ranges": [
+        {
+          "startOffset": 766,
+          "endOffset": 1368,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "BatchCondList",
+      "ranges": [
+        {
+          "startOffset": 1369,
+          "endOffset": 1478,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "Value",
+      "ranges": [
+        {
+          "startOffset": 1479,
+          "endOffset": 2002,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "Empty",
+      "ranges": [
+        {
+          "startOffset": 2003,
+          "endOffset": 2049,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "scriptId": "643",
+  "url": "file:///home/user/tickets/src/shared/bulk-replace.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2400,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "applyNameReplacement",
+      "ranges": [
+        {
+          "startOffset": 622,
+          "endOffset": 689,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "computeDayOffset",
+      "ranges": [
+        {
+          "startOffset": 922,
+          "endOffset": 1053,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "shiftUtcIsoByDays",
+      "ranges": [
+        {
+          "startOffset": 1204,
+          "endOffset": 1328,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "buildDuplicatePreview",
+      "ranges": [
+        {
+          "startOffset": 1451,
+          "endOffset": 1763,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "formatIsoForPreview",
+      "ranges": [
+        {
+          "startOffset": 2086,
+          "endOffset": 2398,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

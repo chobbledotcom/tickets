@@ -1,0 +1,83 @@
+{
+  "scriptId": "600",
+  "url": "file:///home/user/tickets/scripts/environment-values.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 998,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "delete",
+      "ranges": [
+        {
+          "startOffset": 138,
+          "endOffset": 179,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 188,
+          "endOffset": 211,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "set",
+      "ranges": [
+        {
+          "startOffset": 220,
+          "endOffset": 269,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setEnvironmentValue",
+      "ranges": [
+        {
+          "startOffset": 308,
+          "endOffset": 426,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "applyEnvironment",
+      "ranges": [
+        {
+          "startOffset": 460,
+          "endOffset": 594,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "environmentTasks",
+      "ranges": [
+        {
+          "startOffset": 628,
+          "endOffset": 996,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

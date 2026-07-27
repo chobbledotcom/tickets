@@ -1,0 +1,110 @@
+{
+  "scriptId": "514",
+  "url": "file:///home/user/tickets/test/test-utils/files.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1009,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "pathExists",
+      "ranges": [
+        {
+          "startOffset": 26,
+          "endOffset": 197,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "directoryNames",
+      "ranges": [
+        {
+          "startOffset": 229,
+          "endOffset": 318,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "tempPath",
+      "ranges": [
+        {
+          "startOffset": 337,
+          "endOffset": 606,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "dispose",
+      "ranges": [
+        {
+          "startOffset": 416,
+          "endOffset": 534,
+          "count": 1
+        },
+        {
+          "startOffset": 445,
+          "endOffset": 452,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "tempDir",
+      "ranges": [
+        {
+          "startOffset": 631,
+          "endOffset": 687,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "tempFile",
+      "ranges": [
+        {
+          "startOffset": 713,
+          "endOffset": 771,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withTempDir",
+      "ranges": [
+        {
+          "startOffset": 800,
+          "endOffset": 887,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withTempFile",
+      "ranges": [
+        {
+          "startOffset": 917,
+          "endOffset": 1007,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,446 @@
+{
+  "scriptId": "712",
+  "url": "file:///home/user/tickets/src/shared/bunny-cdn.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 16626,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "bunnyGetJson",
+      "ranges": [
+        {
+          "startOffset": 904,
+          "endOffset": 1181,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getEdgeScriptImpl",
+      "ranges": [
+        {
+          "startOffset": 1344,
+          "endOffset": 1440,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withEdgeScript",
+      "ranges": [
+        {
+          "startOffset": 1536,
+          "endOffset": 1662,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "findPullZoneIdImpl",
+      "ranges": [
+        {
+          "startOffset": 1765,
+          "endOffset": 2036,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "toCnameTarget",
+      "ranges": [
+        {
+          "startOffset": 2210,
+          "endOffset": 2297,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getCdnHostnameImpl",
+      "ranges": [
+        {
+          "startOffset": 2326,
+          "endOffset": 2431,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "okOrError",
+      "ranges": [
+        {
+          "startOffset": 2513,
+          "endOffset": 2599,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "extractBunnyErrorKey",
+      "ranges": [
+        {
+          "startOffset": 2711,
+          "endOffset": 2820,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parseBunnyError",
+      "ranges": [
+        {
+          "startOffset": 2916,
+          "endOffset": 3056,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "pullZonePost",
+      "ranges": [
+        {
+          "startOffset": 3141,
+          "endOffset": 3412,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bunnyKeyRequest",
+      "ranges": [
+        {
+          "startOffset": 3570,
+          "endOffset": 3673,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bunnyJsonRequest",
+      "ranges": [
+        {
+          "startOffset": 3859,
+          "endOffset": 4020,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadFreeCertificate",
+      "ranges": [
+        {
+          "startOffset": 4129,
+          "endOffset": 4364,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validateCustomDomainImpl",
+      "ranges": [
+        {
+          "startOffset": 4539,
+          "endOffset": 5620,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDnsZoneImpl",
+      "ranges": [
+        {
+          "startOffset": 5837,
+          "endOffset": 6011,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "buildSubdomainRecordName",
+      "ranges": [
+        {
+          "startOffset": 6180,
+          "endOffset": 6238,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "checkSubdomainAvailableImpl",
+      "ranges": [
+        {
+          "startOffset": 6396,
+          "endOffset": 6776,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "certRetryDelay",
+      "ranges": [
+        {
+          "startOffset": 6989,
+          "endOffset": 7020,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "registerBunnySubdomainImpl",
+      "ranges": [
+        {
+          "startOffset": 7298,
+          "endOffset": 9569,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteDnsRecordImpl",
+      "ranges": [
+        {
+          "startOffset": 9734,
+          "endOffset": 9944,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "computeScriptRequest",
+      "ranges": [
+        {
+          "startOffset": 10273,
+          "endOffset": 10353,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "scriptAction",
+      "ranges": [
+        {
+          "startOffset": 10425,
+          "endOffset": 10554,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "publishScript",
+      "ranges": [
+        {
+          "startOffset": 10620,
+          "endOffset": 10716,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createEdgeScriptImpl",
+      "ranges": [
+        {
+          "startOffset": 10953,
+          "endOffset": 11428,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setEdgeScriptSecretImpl",
+      "ranges": [
+        {
+          "startOffset": 11510,
+          "endOffset": 11677,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listEdgeScriptSecretsImpl",
+      "ranges": [
+        {
+          "startOffset": 11863,
+          "endOffset": 12098,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "publishEdgeScriptImpl",
+      "ranges": [
+        {
+          "startOffset": 12170,
+          "endOffset": 12228,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "updatePullZoneImpl",
+      "ranges": [
+        {
+          "startOffset": 12365,
+          "endOffset": 12454,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deployScriptCodeImpl",
+      "ranges": [
+        {
+          "startOffset": 12903,
+          "endOffset": 13180,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bunnyVoidResult",
+      "ranges": [
+        {
+          "startOffset": 13443,
+          "endOffset": 13512,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getSecretNames",
+      "ranges": [
+        {
+          "startOffset": 13587,
+          "endOffset": 13779,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "prepareSite",
+      "ranges": [
+        {
+          "startOffset": 13783,
+          "endOffset": 14622,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "publishSite",
+      "ranges": [
+        {
+          "startOffset": 14626,
+          "endOffset": 14745,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setSecrets",
+      "ranges": [
+        {
+          "startOffset": 14749,
+          "endOffset": 15085,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validateCustomDomain",
+      "ranges": [
+        {
+          "startOffset": 15882,
+          "endOffset": 15936,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "checkSubdomainAvailable",
+      "ranges": [
+        {
+          "startOffset": 16030,
+          "endOffset": 16089,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "registerBunnySubdomain",
+      "ranges": [
+        {
+          "startOffset": 16176,
+          "endOffset": 16234,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getCdnHostname",
+      "ranges": [
+        {
+          "startOffset": 16334,
+          "endOffset": 16366,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deployScriptCode",
+      "ranges": [
+        {
+          "startOffset": 16533,
+          "endOffset": 16624,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

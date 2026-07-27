@@ -1,0 +1,28 @@
+{
+  "scriptId": "555",
+  "url": "file:///home/user/tickets/src/shared/payment-state/lifecycle.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 5606,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "kindObject",
+      "ranges": [
+        {
+          "startOffset": 625,
+          "endOffset": 680,
+          "count": 18
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

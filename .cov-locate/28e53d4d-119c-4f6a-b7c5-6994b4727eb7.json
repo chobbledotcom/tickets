@@ -1,0 +1,22 @@
+{
+  "scriptId": "689",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/liquidjs/10.25.7/dist/liquid.node.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3199,
+          "count": 1
+        },
+        {
+          "startOffset": 189,
+          "endOffset": 316,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

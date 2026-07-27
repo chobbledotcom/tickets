@@ -1,0 +1,203 @@
+{
+  "scriptId": "553",
+  "url": "file:///home/user/tickets/src/shared/wallets/wallet-settings-types.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3091,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createHostConfigOverride",
+      "ranges": [
+        {
+          "startOffset": 302,
+          "endOffset": 592,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 363,
+          "endOffset": 376,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getHostConfig",
+      "ranges": [
+        {
+          "startOffset": 409,
+          "endOffset": 500,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resetOverride",
+      "ranges": [
+        {
+          "startOffset": 521,
+          "endOffset": 547,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "setOverride",
+      "ranges": [
+        {
+          "startOffset": 566,
+          "endOffset": 585,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "mixinWalletConfigResolution",
+      "ranges": [
+        {
+          "startOffset": 934,
+          "endOffset": 1535,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 1040,
+          "endOffset": 1105,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 1160,
+          "endOffset": 1213,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 1269,
+          "endOffset": 1330,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createWalletSettingsKit",
+      "ranges": [
+        {
+          "startOffset": 1931,
+          "endOffset": 3089,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2030,
+          "endOffset": 2155,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createReadSettings",
+      "ranges": [
+        {
+          "startOffset": 2187,
+          "endOffset": 2808,
+          "count": 2
+        },
+        {
+          "startOffset": 2242,
+          "endOffset": 2367,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 2321,
+          "endOffset": 2351,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 2455,
+          "endOffset": 2585,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        {
+          "startOffset": 2650,
+          "endOffset": 2720,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createUpdateSettings",
+      "ranges": [
+        {
+          "startOffset": 2841,
+          "endOffset": 2974,
+          "count": 2
+        },
+        {
+          "startOffset": 2907,
+          "endOffset": 2954,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

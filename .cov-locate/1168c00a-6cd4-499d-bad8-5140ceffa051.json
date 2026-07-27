@@ -1,0 +1,28 @@
+{
+  "scriptId": "494",
+  "url": "file:///home/user/tickets/src/shared/wallets/google-wallet-settings.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 910,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "build",
+      "ranges": [
+        {
+          "startOffset": 313,
+          "endOffset": 516,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

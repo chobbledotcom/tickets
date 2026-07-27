@@ -1,0 +1,292 @@
+{
+  "scriptId": "535",
+  "url": "file:///home/user/tickets/test/test-utils/factories.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 12626,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "testListing",
+      "ranges": [
+        {
+          "startOffset": 152,
+          "endOffset": 1348,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testListingWithCount",
+      "ranges": [
+        {
+          "startOffset": 1386,
+          "endOffset": 1547,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testAttendee",
+      "ranges": [
+        {
+          "startOffset": 1577,
+          "endOffset": 2298,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testModifier",
+      "ranges": [
+        {
+          "startOffset": 2479,
+          "endOffset": 2845,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testRadioQuestion",
+      "ranges": [
+        {
+          "startOffset": 3032,
+          "endOffset": 3295,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testGroup",
+      "ranges": [
+        {
+          "startOffset": 3322,
+          "endOffset": 3685,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testHoliday",
+      "ranges": [
+        {
+          "startOffset": 3714,
+          "endOffset": 3851,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testAnswer",
+      "ranges": [
+        {
+          "startOffset": 4162,
+          "endOffset": 4288,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "testQuestion",
+      "ranges": [
+        {
+          "startOffset": 4720,
+          "endOffset": 4840,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testBuiltSite",
+      "ranges": [
+        {
+          "startOffset": 4871,
+          "endOffset": 5391,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resolveTestGroupIds",
+      "ranges": [
+        {
+          "startOffset": 5646,
+          "endOffset": 5774,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testListingInput",
+      "ranges": [
+        {
+          "startOffset": 5808,
+          "endOffset": 6058,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "webhookMeta",
+      "ranges": [
+        {
+          "startOffset": 6229,
+          "endOffset": 6627,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "signMeta",
+      "ranges": [
+        {
+          "startOffset": 6996,
+          "endOffset": 7115,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "signedMeta",
+      "ranges": [
+        {
+          "startOffset": 7533,
+          "endOffset": 7602,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "singleItem",
+      "ranges": [
+        {
+          "startOffset": 7630,
+          "endOffset": 7747,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "singleModifierMeta",
+      "ranges": [
+        {
+          "startOffset": 8219,
+          "endOffset": 8521,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "makeTestListing",
+      "ranges": [
+        {
+          "startOffset": 8726,
+          "endOffset": 9223,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "makeTestAttendee",
+      "ranges": [
+        {
+          "startOffset": 9257,
+          "endOffset": 9611,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "makeTestEntry",
+      "ranges": [
+        {
+          "startOffset": 9642,
+          "endOffset": 9786,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "pricedLine",
+      "ranges": [
+        {
+          "startOffset": 9970,
+          "endOffset": 10204,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "pricedOrder",
+      "ranges": [
+        {
+          "startOffset": 10379,
+          "endOffset": 10517,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sizeQuestionAnswerData",
+      "ranges": [
+        {
+          "startOffset": 11330,
+          "endOffset": 11690,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "singleAnswerSizeQuestionData",
+      "ranges": [
+        {
+          "startOffset": 12095,
+          "endOffset": 12338,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "unselectedAnswerQuestionData",
+      "ranges": [
+        {
+          "startOffset": 12384,
+          "endOffset": 12624,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

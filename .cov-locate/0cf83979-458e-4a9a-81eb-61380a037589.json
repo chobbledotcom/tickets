@@ -1,0 +1,50 @@
+{
+  "scriptId": "620",
+  "url": "file:///home/user/tickets/src/shared/payment-providers.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2700,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "providerCurrencyBlock",
+      "ranges": [
+        {
+          "startOffset": 2211,
+          "endOffset": 2469,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2613,
+          "endOffset": 2663,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2672,
+          "endOffset": 2697,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

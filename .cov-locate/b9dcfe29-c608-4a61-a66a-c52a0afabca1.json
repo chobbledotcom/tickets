@@ -1,0 +1,61 @@
+{
+  "scriptId": "462",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@formatjs/icu-messageformat-parser/2.11.4/date-time-pattern-generator.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3383,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1,
+          "endOffset": 3382,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 214,
+          "endOffset": 3376,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getBestPattern",
+      "ranges": [
+        {
+          "startOffset": 756,
+          "endOffset": 1953,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDefaultHourSymbolFromLocale",
+      "ranges": [
+        {
+          "startOffset": 2173,
+          "endOffset": 3373,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

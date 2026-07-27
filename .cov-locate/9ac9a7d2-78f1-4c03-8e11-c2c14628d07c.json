@@ -1,0 +1,28 @@
+{
+  "scriptId": "698",
+  "url": "file:///home/user/tickets/src/shared/image-proxy-url.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 145,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getImageProxyUrl",
+      "ranges": [
+        {
+          "startOffset": 111,
+          "endOffset": 143,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

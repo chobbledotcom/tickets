@@ -1,0 +1,28 @@
+{
+  "scriptId": "505",
+  "url": "file:///home/user/tickets/src/shared/db/holidays.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1041,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getActiveHolidays",
+      "ranges": [
+        {
+          "startOffset": 893,
+          "endOffset": 1039,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

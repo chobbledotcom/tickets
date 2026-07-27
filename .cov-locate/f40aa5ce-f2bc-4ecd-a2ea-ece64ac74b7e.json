@@ -1,0 +1,211 @@
+{
+  "scriptId": "573",
+  "url": "file:///home/user/tickets/src/shared/catalog-fields/definition.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2572,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "matchesTransfer",
+      "ranges": [
+        {
+          "startOffset": 409,
+          "endOffset": 667,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isValidCatalogApiValue",
+      "ranges": [
+        {
+          "startOffset": 782,
+          "endOffset": 910,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "schemaValue",
+      "ranges": [
+        {
+          "startOffset": 932,
+          "endOffset": 1098,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fromStoredValue",
+      "ranges": [
+        {
+          "startOffset": 1124,
+          "endOffset": 1184,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1135,
+          "endOffset": 1184,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1237,
+          "endOffset": 1311,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "columns",
+      "ranges": [
+        {
+          "startOffset": 1325,
+          "endOffset": 1342,
+          "count": 35
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1368,
+          "endOffset": 1442,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1497,
+          "endOffset": 1525,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1556,
+          "endOffset": 1651,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fieldSupportsProjection",
+      "ranges": [
+        {
+          "startOffset": 1795,
+          "endOffset": 1997,
+          "count": 39
+        },
+        {
+          "startOffset": 1882,
+          "endOffset": 1928,
+          "count": 0
+        },
+        {
+          "startOffset": 1969,
+          "endOffset": 1979,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "projectCatalogField",
+      "ranges": [
+        {
+          "startOffset": 2027,
+          "endOffset": 2318,
+          "count": 39
+        },
+        {
+          "startOffset": 2113,
+          "endOffset": 2138,
+          "count": 35
+        },
+        {
+          "startOffset": 2140,
+          "endOffset": 2150,
+          "count": 4
+        },
+        {
+          "startOffset": 2150,
+          "endOffset": 2236,
+          "count": 35
+        },
+        {
+          "startOffset": 2236,
+          "endOffset": 2240,
+          "count": 0
+        },
+        {
+          "startOffset": 2241,
+          "endOffset": 2315,
+          "count": 35
+        },
+        {
+          "startOffset": 2287,
+          "endOffset": 2292,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "projectCatalogFields",
+      "ranges": [
+        {
+          "startOffset": 2356,
+          "endOffset": 2570,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "project",
+      "ranges": [
+        {
+          "startOffset": 2415,
+          "endOffset": 2474,
+          "count": 39
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

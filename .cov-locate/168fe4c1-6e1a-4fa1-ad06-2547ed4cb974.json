@@ -1,0 +1,149 @@
+{
+  "scriptId": "760",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/encoding/json/encode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1761,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 32,
+          "endOffset": 53,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "ObjectWriter",
+      "ranges": [
+        {
+          "startOffset": 59,
+          "endOffset": 148,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "begin",
+      "ranges": [
+        {
+          "startOffset": 153,
+          "endOffset": 230,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "end",
+      "ranges": [
+        {
+          "startOffset": 235,
+          "endOffset": 311,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#key",
+      "ranges": [
+        {
+          "startOffset": 316,
+          "endOffset": 572,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "string",
+      "ranges": [
+        {
+          "startOffset": 577,
+          "endOffset": 679,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "stringRaw",
+      "ranges": [
+        {
+          "startOffset": 684,
+          "endOffset": 837,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "number",
+      "ranges": [
+        {
+          "startOffset": 842,
+          "endOffset": 933,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "boolean",
+      "ranges": [
+        {
+          "startOffset": 938,
+          "endOffset": 1044,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "object",
+      "ranges": [
+        {
+          "startOffset": 1049,
+          "endOffset": 1184,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "arrayObjects",
+      "ranges": [
+        {
+          "startOffset": 1189,
+          "endOffset": 1552,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "writeJsonObject",
+      "ranges": [
+        {
+          "startOffset": 1562,
+          "endOffset": 1760,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

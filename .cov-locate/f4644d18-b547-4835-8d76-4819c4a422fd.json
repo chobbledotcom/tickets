@@ -1,0 +1,158 @@
+{
+  "scriptId": "490",
+  "url": "file:///home/user/tickets/src/shared/settings/registry.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 7843,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "setting",
+      "ranges": [
+        {
+          "startOffset": 96,
+          "endOffset": 120,
+          "count": 56
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "emailBodySetting",
+      "ranges": [
+        {
+          "startOffset": 341,
+          "endOffset": 433,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "hasAccessor",
+      "ranges": [
+        {
+          "startOffset": 6900,
+          "endOffset": 6938,
+          "count": 56
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "accessorSpec",
+      "ranges": [
+        {
+          "startOffset": 6961,
+          "endOffset": 7165,
+          "count": 26
+        },
+        {
+          "startOffset": 7017,
+          "endOffset": 7048,
+          "count": 4
+        },
+        {
+          "startOffset": 7050,
+          "endOffset": 7123,
+          "count": 4
+        },
+        {
+          "startOffset": 7123,
+          "endOffset": 7164,
+          "count": 22
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7269,
+          "endOffset": 7347,
+          "count": 26
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "keysWithStorage",
+      "ranges": [
+        {
+          "startOffset": 7375,
+          "endOffset": 7499,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7420,
+          "endOffset": 7464,
+          "count": 112
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7470,
+          "endOffset": 7498,
+          "count": 56
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "keysWithTag",
+      "ranges": [
+        {
+          "startOffset": 7521,
+          "endOffset": 7664,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7562,
+          "endOffset": 7629,
+          "count": 56
+        },
+        {
+          "startOffset": 7597,
+          "endOffset": 7629,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7635,
+          "endOffset": 7663,
+          "count": 8
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

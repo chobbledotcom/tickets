@@ -1,0 +1,149 @@
+{
+  "scriptId": "682",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/client/0.17.2/lib-esm/hrana.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 13629,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 224,
+          "endOffset": 395,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "HranaTransaction",
+      "ranges": [
+        {
+          "startOffset": 421,
+          "endOffset": 550,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "execute",
+      "ranges": [
+        {
+          "startOffset": 555,
+          "endOffset": 641,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "batch",
+      "ranges": [
+        {
+          "startOffset": 646,
+          "endOffset": 5941,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "executeMultiple",
+      "ranges": [
+        {
+          "startOffset": 5946,
+          "endOffset": 6905,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rollback",
+      "ranges": [
+        {
+          "startOffset": 6910,
+          "endOffset": 8211,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "commit",
+      "ranges": [
+        {
+          "startOffset": 8216,
+          "endOffset": 9077,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "executeHranaBatch",
+      "ranges": [
+        {
+          "startOffset": 9087,
+          "endOffset": 11442,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "stmtToHrana",
+      "ranges": [
+        {
+          "startOffset": 11450,
+          "endOffset": 12029,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resultSetFromHrana",
+      "ranges": [
+        {
+          "startOffset": 12037,
+          "endOffset": 12513,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mapHranaError",
+      "ranges": [
+        {
+          "startOffset": 12521,
+          "endOffset": 12809,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mapHranaErrorCode",
+      "ranges": [
+        {
+          "startOffset": 12810,
+          "endOffset": 13628,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

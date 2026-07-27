@@ -1,0 +1,33 @@
+{
+  "scriptId": "751",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/queue_microtask.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 364,
+          "count": 1
+        },
+        {
+          "startOffset": 190,
+          "endOffset": 317,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "_queueMicrotask",
+      "ranges": [
+        {
+          "startOffset": 260,
+          "endOffset": 314,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

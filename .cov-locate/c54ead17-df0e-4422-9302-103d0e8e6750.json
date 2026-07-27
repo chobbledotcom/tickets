@@ -1,0 +1,55 @@
+{
+  "scriptId": "616",
+  "url": "file:///home/user/tickets/src/shared/validation/timestamp.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2134,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isInstant",
+      "ranges": [
+        {
+          "startOffset": 1611,
+          "endOffset": 1744,
+          "count": 10
+        },
+        {
+          "startOffset": 1712,
+          "endOffset": 1742,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "instantToEpochMs",
+      "ranges": [
+        {
+          "startOffset": 1948,
+          "endOffset": 2003,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "epochMsToIso",
+      "ranges": [
+        {
+          "startOffset": 2100,
+          "endOffset": 2132,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

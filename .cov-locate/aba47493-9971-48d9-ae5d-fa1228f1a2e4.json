@@ -1,0 +1,50 @@
+{
+  "scriptId": "802",
+  "url": "file:///home/user/tickets/src/shared/provider-boundary.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 480,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "unchanged",
+      "ranges": [
+        {
+          "startOffset": 174,
+          "endOffset": 188,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "providerInstantSchema",
+      "ranges": [
+        {
+          "startOffset": 227,
+          "endOffset": 372,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sameMoney",
+      "ranges": [
+        {
+          "startOffset": 399,
+          "endOffset": 478,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

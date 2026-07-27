@@ -1,0 +1,182 @@
+{
+  "scriptId": "513",
+  "url": "file:///home/user/tickets/test/test-utils/env.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3435,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "setupTestEncryptionKey",
+      "ranges": [
+        {
+          "startOffset": 718,
+          "endOffset": 1060,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "clearTestEncryptionKey",
+      "ranges": [
+        {
+          "startOffset": 1100,
+          "endOffset": 1347,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1684,
+          "endOffset": 1692,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "Deno.env.get",
+      "ranges": [
+        {
+          "startOffset": 1710,
+          "endOffset": 1819,
+          "count": 9
+        },
+        {
+          "startOffset": 1768,
+          "endOffset": 1785,
+          "count": 4
+        },
+        {
+          "startOffset": 1786,
+          "endOffset": 1800,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "Deno.env.set",
+      "ranges": [
+        {
+          "startOffset": 1836,
+          "endOffset": 1969,
+          "count": 8
+        },
+        {
+          "startOffset": 1938,
+          "endOffset": 1967,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "Deno.env.delete",
+      "ranges": [
+        {
+          "startOffset": 1989,
+          "endOffset": 2115,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getRealEnv",
+      "ranges": [
+        {
+          "startOffset": 2451,
+          "endOffset": 2471,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withEnv",
+      "ranges": [
+        {
+          "startOffset": 2496,
+          "endOffset": 3433,
+          "count": 4
+        },
+        {
+          "startOffset": 2593,
+          "endOffset": 2686,
+          "count": 0
+        },
+        {
+          "startOffset": 2716,
+          "endOffset": 2735,
+          "count": 0
+        },
+        {
+          "startOffset": 2797,
+          "endOffset": 2855,
+          "count": 8
+        },
+        {
+          "startOffset": 2915,
+          "endOffset": 3128,
+          "count": 8
+        },
+        {
+          "startOffset": 3000,
+          "endOffset": 3031,
+          "count": 0
+        },
+        {
+          "startOffset": 3058,
+          "endOffset": 3124,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2636,
+          "endOffset": 2684,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "dispose",
+      "ranges": [
+        {
+          "startOffset": 3187,
+          "endOffset": 3371,
+          "count": 4
+        },
+        {
+          "startOffset": 3216,
+          "endOffset": 3223,
+          "count": 0
+        },
+        {
+          "startOffset": 3276,
+          "endOffset": 3345,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "scriptId": "546",
+  "url": "file:///home/user/tickets/src/shared/pending-work.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1812,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "runWithPendingWork",
+      "ranges": [
+        {
+          "startOffset": 909,
+          "endOffset": 1039,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasPendingWorkScope",
+      "ranges": [
+        {
+          "startOffset": 1155,
+          "endOffset": 1194,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "addPendingWork",
+      "ranges": [
+        {
+          "startOffset": 1296,
+          "endOffset": 1338,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "flushPendingWork",
+      "ranges": [
+        {
+          "startOffset": 1650,
+          "endOffset": 1810,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

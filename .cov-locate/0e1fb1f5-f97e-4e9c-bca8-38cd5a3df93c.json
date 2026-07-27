@@ -1,0 +1,116 @@
+{
+  "scriptId": "765",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/shared/json_decode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3716,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "Error",
+      "ranges": [
+        {
+          "startOffset": 135,
+          "endOffset": 277,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "StmtResult",
+      "ranges": [
+        {
+          "startOffset": 285,
+          "endOffset": 765,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "Col",
+      "ranges": [
+        {
+          "startOffset": 766,
+          "endOffset": 912,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "BatchResult",
+      "ranges": [
+        {
+          "startOffset": 920,
+          "endOffset": 1383,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "CursorEntry",
+      "ranges": [
+        {
+          "startOffset": 1391,
+          "endOffset": 2568,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "DescribeResult",
+      "ranges": [
+        {
+          "startOffset": 2576,
+          "endOffset": 2896,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "DescribeParam",
+      "ranges": [
+        {
+          "startOffset": 2897,
+          "endOffset": 2992,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "DescribeCol",
+      "ranges": [
+        {
+          "startOffset": 2993,
+          "endOffset": 3144,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "Value",
+      "ranges": [
+        {
+          "startOffset": 3152,
+          "endOffset": 3715,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

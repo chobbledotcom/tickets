@@ -1,0 +1,44 @@
+{
+  "scriptId": "572",
+  "url": "file:///home/user/tickets/src/shared/retry.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1243,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "retryWithBackoff",
+      "ranges": [
+        {
+          "startOffset": 845,
+          "endOffset": 1241,
+          "count": 24
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "attemptFrom",
+      "ranges": [
+        {
+          "startOffset": 895,
+          "endOffset": 1213,
+          "count": 24
+        },
+        {
+          "startOffset": 955,
+          "endOffset": 1209,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

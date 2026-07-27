@@ -1,0 +1,50 @@
+{
+  "scriptId": "583",
+  "url": "file:///home/user/tickets/src/shared/package-membership.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2185,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "packageMemberBlock",
+      "ranges": [
+        {
+          "startOffset": 1307,
+          "endOffset": 1631,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageMemberBlockError",
+      "ranges": [
+        {
+          "startOffset": 1977,
+          "endOffset": 2042,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageChildEdgeError",
+      "ranges": [
+        {
+          "startOffset": 2147,
+          "endOffset": 2183,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

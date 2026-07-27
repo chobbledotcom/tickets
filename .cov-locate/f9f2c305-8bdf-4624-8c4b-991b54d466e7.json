@@ -1,0 +1,50 @@
+{
+  "scriptId": "728",
+  "url": "file:///home/user/tickets/src/shared/ledger/account.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 774,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "accountKey",
+      "ranges": [
+        {
+          "startOffset": 461,
+          "endOffset": 508,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sameAccount",
+      "ranges": [
+        {
+          "startOffset": 591,
+          "endOffset": 633,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "account",
+      "ranges": [
+        {
+          "startOffset": 724,
+          "endOffset": 772,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

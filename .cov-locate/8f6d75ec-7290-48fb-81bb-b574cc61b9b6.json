@@ -1,0 +1,17 @@
+{
+  "scriptId": "690",
+  "url": "file:///home/user/tickets/src/shared/build-info.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 292,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

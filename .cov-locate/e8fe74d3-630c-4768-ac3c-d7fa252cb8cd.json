@@ -1,0 +1,660 @@
+{
+  "scriptId": "469",
+  "url": "file:///home/user/tickets/src/shared/db/settings.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 14639,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "withProperties",
+      "ranges": [
+        {
+          "startOffset": 3314,
+          "endOffset": 3427,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "providerKeyStatus",
+      "ranges": [
+        {
+          "startOffset": 3659,
+          "endOffset": 3805,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get hasKey",
+      "ranges": [
+        {
+          "startOffset": 3677,
+          "endOffset": 3733,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get keyMode",
+      "ranges": [
+        {
+          "startOffset": 3739,
+          "endOffset": 3800,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get apiKey",
+      "ranges": [
+        {
+          "startOffset": 3881,
+          "endOffset": 3947,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get hasKey",
+      "ranges": [
+        {
+          "startOffset": 3953,
+          "endOffset": 4026,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get provider",
+      "ranges": [
+        {
+          "startOffset": 4032,
+          "endOffset": 4169,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get attendeeColumnLayout",
+      "ranges": [
+        {
+          "startOffset": 4256,
+          "endOffset": 4372,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get autoPurgeOrphans",
+      "ranges": [
+        {
+          "startOffset": 4376,
+          "endOffset": 4444,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get bookingFee",
+      "ranges": [
+        {
+          "startOffset": 4448,
+          "endOffset": 4503,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get calendarFeedsEnabled",
+      "ranges": [
+        {
+          "startOffset": 4707,
+          "endOffset": 4783,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get calendarFeedsGroupBy",
+      "ranges": [
+        {
+          "startOffset": 4787,
+          "endOffset": 4931,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "clearTestOverride",
+      "ranges": [
+        {
+          "startOffset": 4999,
+          "endOffset": 5134,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get contactFormEnabled",
+      "ranges": [
+        {
+          "startOffset": 5193,
+          "endOffset": 5265,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get country",
+      "ranges": [
+        {
+          "startOffset": 5269,
+          "endOffset": 5317,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get currency",
+      "ranges": [
+        {
+          "startOffset": 5347,
+          "endOffset": 5397,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get apiKey",
+      "ranges": [
+        {
+          "startOffset": 5433,
+          "endOffset": 5490,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get fromAddress",
+      "ranges": [
+        {
+          "startOffset": 5496,
+          "endOffset": 5563,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get hasApiKey",
+      "ranges": [
+        {
+          "startOffset": 5569,
+          "endOffset": 5636,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get provider",
+      "ranges": [
+        {
+          "startOffset": 5642,
+          "endOffset": 5702,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "template",
+      "ranges": [
+        {
+          "startOffset": 5708,
+          "endOffset": 5794,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "templateSet",
+      "ranges": [
+        {
+          "startOffset": 5800,
+          "endOffset": 5984,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get externalOrderEnabled",
+      "ranges": [
+        {
+          "startOffset": 5992,
+          "endOffset": 6068,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get features",
+      "ranges": [
+        {
+          "startOffset": 6072,
+          "endOffset": 6162,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get listingColumnLayout",
+      "ranges": [
+        {
+          "startOffset": 6358,
+          "endOffset": 6471,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get listingDefaults",
+      "ranges": [
+        {
+          "startOffset": 6475,
+          "endOffset": 6572,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get orderEnabled",
+      "ranges": [
+        {
+          "startOffset": 6606,
+          "endOffset": 6665,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get orphanPurgeRetention",
+      "ranges": [
+        {
+          "startOffset": 6669,
+          "endOffset": 6745,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get paymentProvider",
+      "ranges": [
+        {
+          "startOffset": 6749,
+          "endOffset": 6814,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get paymentProviderSetting",
+      "ranges": [
+        {
+          "startOffset": 6818,
+          "endOffset": 6898,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get phonePrefix",
+      "ranges": [
+        {
+          "startOffset": 6902,
+          "endOffset": 6959,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setForTest",
+      "ranges": [
+        {
+          "startOffset": 7140,
+          "endOffset": 7289,
+          "count": 7
+        },
+        {
+          "startOffset": 7256,
+          "endOffset": 7285,
+          "count": 14
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get showPublicApi",
+      "ranges": [
+        {
+          "startOffset": 7522,
+          "endOffset": 7584,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get hasPassphrase",
+      "ranges": [
+        {
+          "startOffset": 7631,
+          "endOffset": 7711,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get hasPassword",
+      "ranges": [
+        {
+          "startOffset": 7717,
+          "endOffset": 7793,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get hasWebhookSecret",
+      "ranges": [
+        {
+          "startOffset": 7799,
+          "endOffset": 7886,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get accessToken",
+      "ranges": [
+        {
+          "startOffset": 7928,
+          "endOffset": 7996,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get hasToken",
+      "ranges": [
+        {
+          "startOffset": 8002,
+          "endOffset": 8074,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get locationId",
+      "ranges": [
+        {
+          "startOffset": 8080,
+          "endOffset": 8146,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get sandbox",
+      "ranges": [
+        {
+          "startOffset": 8152,
+          "endOffset": 8211,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get webhookSignatureKey",
+      "ranges": [
+        {
+          "startOffset": 8217,
+          "endOffset": 8302,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get secretKey",
+      "ranges": [
+        {
+          "startOffset": 8359,
+          "endOffset": 8423,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get webhookEndpointId",
+      "ranges": [
+        {
+          "startOffset": 8429,
+          "endOffset": 8510,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get webhookSecret",
+      "ranges": [
+        {
+          "startOffset": 8516,
+          "endOffset": 8588,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get apiKey",
+      "ranges": [
+        {
+          "startOffset": 8684,
+          "endOffset": 8741,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get merchantCode",
+      "ranges": [
+        {
+          "startOffset": 8747,
+          "endOffset": 8816,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get superuserChoice",
+      "ranges": [
+        {
+          "startOffset": 8884,
+          "endOffset": 9009,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get theme",
+      "ranges": [
+        {
+          "startOffset": 9013,
+          "endOffset": 9057,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get timezone",
+      "ranges": [
+        {
+          "startOffset": 9061,
+          "endOffset": 9111,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get underlineLinks",
+      "ranges": [
+        {
+          "startOffset": 9115,
+          "endOffset": 9178,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bookingFee",
+      "ranges": [
+        {
+          "startOffset": 9825,
+          "endOffset": 9933,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "clearPaymentProvider",
+      "ranges": [
+        {
+          "startOffset": 10162,
+          "endOffset": 10312,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "template",
+      "ranges": [
+        {
+          "startOffset": 10774,
+          "endOffset": 10954,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingDefaults",
+      "ranges": [
+        {
+          "startOffset": 11189,
+          "endOffset": 11379,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentProvider",
+      "ranges": [
+        {
+          "startOffset": 11575,
+          "endOffset": 11722,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setPaymentProviderNone",
+      "ranges": [
+        {
+          "startOffset": 11752,
+          "endOffset": 11911,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "activate",
+      "ranges": [
+        {
+          "startOffset": 12411,
+          "endOffset": 13413,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get version",
+      "ranges": [
+        {
+          "startOffset": 14481,
+          "endOffset": 14537,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

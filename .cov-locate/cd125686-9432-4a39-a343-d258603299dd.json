@@ -1,0 +1,61 @@
+{
+  "scriptId": "700",
+  "url": "file:///home/user/tickets/src/ui/templates/components/page-structure.tsx",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 860,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "groupClass",
+      "ranges": [
+        {
+          "startOffset": 82,
+          "endOffset": 142,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "definePageGroup",
+      "ranges": [
+        {
+          "startOffset": 168,
+          "endOffset": 337,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 176,
+          "endOffset": 337,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "TitledArticle",
+      "ranges": [
+        {
+          "startOffset": 678,
+          "endOffset": 858,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

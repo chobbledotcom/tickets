@@ -1,0 +1,17 @@
+{
+  "scriptId": "491",
+  "url": "file:///home/user/tickets/src/shared/tables/configurable.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 913,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

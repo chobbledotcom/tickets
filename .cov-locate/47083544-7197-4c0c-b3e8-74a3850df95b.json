@@ -1,0 +1,94 @@
+{
+  "scriptId": "541",
+  "url": "file:///home/user/tickets/src/shared/now.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1208,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "now",
+      "ranges": [
+        {
+          "startOffset": 322,
+          "endOffset": 336,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nowIso",
+      "ranges": [
+        {
+          "startOffset": 420,
+          "endOffset": 448,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nowMs",
+      "ranges": [
+        {
+          "startOffset": 521,
+          "endOffset": 535,
+          "count": 20
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isoBefore",
+      "ranges": [
+        {
+          "startOffset": 625,
+          "endOffset": 683,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nowSeconds",
+      "ranges": [
+        {
+          "startOffset": 791,
+          "endOffset": 821,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "expiresIn",
+      "ranges": [
+        {
+          "startOffset": 1007,
+          "endOffset": 1052,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "delay",
+      "ranges": [
+        {
+          "startOffset": 1153,
+          "endOffset": 1206,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

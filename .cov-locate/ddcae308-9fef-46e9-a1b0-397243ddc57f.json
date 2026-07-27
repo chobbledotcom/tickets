@@ -1,0 +1,105 @@
+{
+  "scriptId": "696",
+  "url": "file:///home/user/tickets/src/shared/flash-context.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1976,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "runWithFlashContext",
+      "ranges": [
+        {
+          "startOffset": 389,
+          "endOffset": 417,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setFlashFormId",
+      "ranges": [
+        {
+          "startOffset": 609,
+          "endOffset": 706,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getFlashFormId",
+      "ranges": [
+        {
+          "startOffset": 822,
+          "endOffset": 854,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "consumeFlash",
+      "ranges": [
+        {
+          "startOffset": 965,
+          "endOffset": 1046,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "flashConsumed",
+      "ranges": [
+        {
+          "startOffset": 1142,
+          "endOffset": 1185,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setFlashContext",
+      "ranges": [
+        {
+          "startOffset": 1294,
+          "endOffset": 1491,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getFlash",
+      "ranges": [
+        {
+          "startOffset": 1586,
+          "endOffset": 1750,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasFlash",
+      "ranges": [
+        {
+          "startOffset": 1831,
+          "endOffset": 1974,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

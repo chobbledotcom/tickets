@@ -1,0 +1,33 @@
+{
+  "scriptId": "472",
+  "url": "file:///home/user/tickets/test/test-utils/required.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 502,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "required",
+      "ranges": [
+        {
+          "startOffset": 385,
+          "endOffset": 500,
+          "count": 1
+        },
+        {
+          "startOffset": 447,
+          "endOffset": 482,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

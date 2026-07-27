@@ -1,0 +1,28 @@
+{
+  "scriptId": "534",
+  "url": "file:///home/user/tickets/test/test-utils/current-charge.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 486,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "currentCharges",
+      "ranges": [
+        {
+          "startOffset": 320,
+          "endOffset": 484,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

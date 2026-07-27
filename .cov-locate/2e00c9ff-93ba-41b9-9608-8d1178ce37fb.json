@@ -1,0 +1,94 @@
+{
+  "scriptId": "651",
+  "url": "file:///home/user/tickets/src/shared/sentry.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4629,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1291,
+          "endOffset": 1299,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "releaseFromCommit",
+      "ranges": [
+        {
+          "startOffset": 1651,
+          "endOffset": 1709,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadSentry",
+      "ranges": [
+        {
+          "startOffset": 1812,
+          "endOffset": 2196,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "initSentry",
+      "ranges": [
+        {
+          "startOffset": 2432,
+          "endOffset": 2469,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sendSentryTest",
+      "ranges": [
+        {
+          "startOffset": 2576,
+          "endOffset": 3386,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "eventTags",
+      "ranges": [
+        {
+          "startOffset": 3481,
+          "endOffset": 3744,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "captureServerError",
+      "ranges": [
+        {
+          "startOffset": 4101,
+          "endOffset": 4627,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

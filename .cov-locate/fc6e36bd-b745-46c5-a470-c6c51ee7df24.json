@@ -1,0 +1,72 @@
+{
+  "scriptId": "800",
+  "url": "file:///home/user/tickets/src/shared/stripe/form.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 925,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "encodePart",
+      "ranges": [
+        {
+          "startOffset": 19,
+          "endOffset": 214,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "formEntries",
+      "ranges": [
+        {
+          "startOffset": 236,
+          "endOffset": 669,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encodeStripeForm",
+      "ranges": [
+        {
+          "startOffset": 773,
+          "endOffset": 923,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 810,
+          "endOffset": 849,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 855,
+          "endOffset": 912,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

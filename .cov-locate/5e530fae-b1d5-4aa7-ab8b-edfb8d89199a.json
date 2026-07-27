@@ -1,0 +1,204 @@
+{
+  "scriptId": "607",
+  "url": "file:///home/user/tickets/src/shared/db/migrations.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 13074,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "rowsToMap",
+      "ranges": [
+        {
+          "startOffset": 2836,
+          "endOffset": 2908,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "markerState",
+      "ranges": [
+        {
+          "startOffset": 2998,
+          "endOffset": 3276,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "runProbeQuery",
+      "ranges": [
+        {
+          "startOffset": 3468,
+          "endOffset": 3865,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "probeWithoutHistory",
+      "ranges": [
+        {
+          "startOffset": 4034,
+          "endOffset": 4160,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "probeDbState",
+      "ranges": [
+        {
+          "startOffset": 4322,
+          "endOffset": 4695,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sealFreshSchema",
+      "ranges": [
+        {
+          "startOffset": 5054,
+          "endOffset": 5326,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "initializeFreshSchema",
+      "ranges": [
+        {
+          "startOffset": 5743,
+          "endOffset": 5936,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rebuildWipedSchema",
+      "ranges": [
+        {
+          "startOffset": 6969,
+          "endOffset": 7390,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 7926,
+          "endOffset": 7934,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "invalidateInitDbCache",
+      "ranges": [
+        {
+          "startOffset": 8031,
+          "endOffset": 8062,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "initDb",
+      "ranges": [
+        {
+          "startOffset": 8267,
+          "endOffset": 8880,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requireAllowedInitialDbState",
+      "ranges": [
+        {
+          "startOffset": 8919,
+          "endOffset": 9197,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "finishIfUpToDate",
+      "ranges": [
+        {
+          "startOffset": 9445,
+          "endOffset": 9633,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "runAcquiredMigrations",
+      "ranges": [
+        {
+          "startOffset": 9665,
+          "endOffset": 10756,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "initDbUncached",
+      "ranges": [
+        {
+          "startOffset": 10781,
+          "endOffset": 11819,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "clearAllCaches",
+      "ranges": [
+        {
+          "startOffset": 12620,
+          "endOffset": 12674,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resetDatabase",
+      "ranges": [
+        {
+          "startOffset": 12788,
+          "endOffset": 13072,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

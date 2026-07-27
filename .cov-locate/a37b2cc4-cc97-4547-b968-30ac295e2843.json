@@ -1,0 +1,169 @@
+{
+  "scriptId": "557",
+  "url": "file:///home/user/tickets/src/shared/db/payments/session-record.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 6213,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "storedSessionOutcomeValues",
+      "ranges": [
+        {
+          "startOffset": 2226,
+          "endOffset": 2422,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "storeSessionProgress",
+      "ranges": [
+        {
+          "startOffset": 2460,
+          "endOffset": 3620,
+          "count": 2
+        },
+        {
+          "startOffset": 2652,
+          "endOffset": 2658,
+          "count": 0
+        },
+        {
+          "startOffset": 2803,
+          "endOffset": 2890,
+          "count": 0
+        },
+        {
+          "startOffset": 2934,
+          "endOffset": 3039,
+          "count": 0
+        },
+        {
+          "startOffset": 3081,
+          "endOffset": 3180,
+          "count": 0
+        },
+        {
+          "startOffset": 3440,
+          "endOffset": 3446,
+          "count": 0
+        },
+        {
+          "startOffset": 3502,
+          "endOffset": 3508,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "storeBookingIntent",
+      "ranges": [
+        {
+          "startOffset": 3656,
+          "endOffset": 3749,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "storeCheckoutCreate",
+      "ranges": [
+        {
+          "startOffset": 3786,
+          "endOffset": 3936,
+          "count": 1
+        },
+        {
+          "startOffset": 3840,
+          "endOffset": 3936,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "readStoredBookingIntent",
+      "ranges": [
+        {
+          "startOffset": 3977,
+          "endOffset": 4089,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "readPaymentSessionRow",
+      "ranges": [
+        {
+          "startOffset": 4128,
+          "endOffset": 6123,
+          "count": 2
+        },
+        {
+          "startOffset": 4369,
+          "endOffset": 4479,
+          "count": 0
+        },
+        {
+          "startOffset": 4515,
+          "endOffset": 4521,
+          "count": 0
+        },
+        {
+          "startOffset": 4668,
+          "endOffset": 4752,
+          "count": 0
+        },
+        {
+          "startOffset": 4792,
+          "endOffset": 4896,
+          "count": 0
+        },
+        {
+          "startOffset": 4933,
+          "endOffset": 5029,
+          "count": 0
+        },
+        {
+          "startOffset": 5387,
+          "endOffset": 5432,
+          "count": 0
+        },
+        {
+          "startOffset": 5434,
+          "endOffset": 5530,
+          "count": 0
+        },
+        {
+          "startOffset": 5592,
+          "endOffset": 5705,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "readPaymentSessionRows",
+      "ranges": [
+        {
+          "startOffset": 6163,
+          "endOffset": 6211,
+          "count": 6
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

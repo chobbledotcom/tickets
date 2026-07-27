@@ -1,0 +1,138 @@
+{
+  "scriptId": "769",
+  "url": "file:///home/user/tickets/src/shared/ledger/reconcile.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4303,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "reconcileExternal",
+      "ranges": [
+        {
+          "startOffset": 748,
+          "endOffset": 960,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1431,
+          "endOffset": 1452,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1480,
+          "endOffset": 1509,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "IDENTITY_FIELDS",
+      "ranges": [
+        {
+          "startOffset": 1542,
+          "endOffset": 1576,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1604,
+          "endOffset": 1621,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "IDENTITY_FIELDS",
+      "ranges": [
+        {
+          "startOffset": 1947,
+          "endOffset": 1986,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "IDENTITY_FIELDS",
+      "ranges": [
+        {
+          "startOffset": 2018,
+          "endOffset": 2047,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legFingerprint",
+      "ranges": [
+        {
+          "startOffset": 2085,
+          "endOffset": 2152,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legIdentityDiff",
+      "ranges": [
+        {
+          "startOffset": 2484,
+          "endOffset": 2572,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "multisetDiff",
+      "ranges": [
+        {
+          "startOffset": 2663,
+          "endOffset": 2947,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "reconcileLegs",
+      "ranges": [
+        {
+          "startOffset": 3537,
+          "endOffset": 4301,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

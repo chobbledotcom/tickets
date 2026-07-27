@@ -1,0 +1,49 @@
+{
+  "scriptId": "625",
+  "url": "file:///home/user/tickets/src/shared/validation/parse.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 726,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parseOrNull",
+      "ranges": [
+        {
+          "startOffset": 371,
+          "endOffset": 484,
+          "count": 1
+        },
+        {
+          "startOffset": 475,
+          "endOffset": 481,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parseOrThrow",
+      "ranges": [
+        {
+          "startOffset": 586,
+          "endOffset": 724,
+          "count": 34
+        },
+        {
+          "startOffset": 682,
+          "endOffset": 698,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

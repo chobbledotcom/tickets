@@ -1,0 +1,567 @@
+{
+  "scriptId": "504",
+  "url": "file:///home/user/tickets/src/shared/db/groups.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 32173,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "computeGroupSlugIndex",
+      "ranges": [
+        {
+          "startOffset": 2050,
+          "endOffset": 2072,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2539,
+          "endOffset": 2572,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2624,
+          "endOffset": 2657,
+          "count": 10
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fetchAll",
+      "ranges": [
+        {
+          "startOffset": 2751,
+          "endOffset": 2848,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "idOf",
+      "ranges": [
+        {
+          "startOffset": 2858,
+          "endOffset": 2867,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "keyOf",
+      "ranges": [
+        {
+          "startOffset": 2878,
+          "endOffset": 2895,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "idsFor",
+      "ranges": [
+        {
+          "startOffset": 3255,
+          "endOffset": 3359,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getGroupsById",
+      "ranges": [
+        {
+          "startOffset": 3585,
+          "endOffset": 3641,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getAllGroupNames",
+      "ranges": [
+        {
+          "startOffset": 3820,
+          "endOffset": 3868,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getGroupBySlugIndex",
+      "ranges": [
+        {
+          "startOffset": 3962,
+          "endOffset": 4007,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isGroupSlugTaken",
+      "ranges": [
+        {
+          "startOffset": 4156,
+          "endOffset": 4285,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateUniqueGroupSlug",
+      "ranges": [
+        {
+          "startOffset": 4386,
+          "endOffset": 4449,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getListingsByGroupIds",
+      "ranges": [
+        {
+          "startOffset": 5146,
+          "endOffset": 6339,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingsInGroup",
+      "ranges": [
+        {
+          "startOffset": 6365,
+          "endOffset": 6521,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 6379,
+          "endOffset": 6521,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "groupExists",
+      "ranges": [
+        {
+          "startOffset": 6739,
+          "endOffset": 6813,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validateGroupListingType",
+      "ranges": [
+        {
+          "startOffset": 7425,
+          "endOffset": 7598,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "groupListingTypeError",
+      "ranges": [
+        {
+          "startOffset": 7999,
+          "endOffset": 8764,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getListingsNotInGroup",
+      "ranges": [
+        {
+          "startOffset": 9103,
+          "endOffset": 9242,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "anyGroupMatching",
+      "ranges": [
+        {
+          "startOffset": 9383,
+          "endOffset": 9592,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "anyHiddenPackageGroup",
+      "ranges": [
+        {
+          "startOffset": 9910,
+          "endOffset": 9996,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "anyListingInPackageGroup",
+      "ranges": [
+        {
+          "startOffset": 10278,
+          "endOffset": 10637,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getHiddenPackageMemberIds",
+      "ranges": [
+        {
+          "startOffset": 10981,
+          "endOffset": 11466,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isHiddenPackageMember",
+      "ranges": [
+        {
+          "startOffset": 11742,
+          "endOffset": 11824,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageChildEdgeConflict",
+      "ranges": [
+        {
+          "startOffset": 12378,
+          "endOffset": 12622,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "firstUnpackageableMember",
+      "ranges": [
+        {
+          "startOffset": 13116,
+          "endOffset": 13690,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageMembersError",
+      "ranges": [
+        {
+          "startOffset": 14160,
+          "endOffset": 14361,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "hasPackageBookings",
+      "ranges": [
+        {
+          "startOffset": 14620,
+          "endOffset": 14752,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPackageDisplaysByIds",
+      "ranges": [
+        {
+          "startOffset": 15246,
+          "endOffset": 15772,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageDisplaysForRows",
+      "ranges": [
+        {
+          "startOffset": 16101,
+          "endOffset": 16180,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "assignListingsToGroup",
+      "ranges": [
+        {
+          "startOffset": 16437,
+          "endOffset": 17040,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "cloneGroupMembershipStatement",
+      "ranges": [
+        {
+          "startOffset": 17563,
+          "endOffset": 17878,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingGroupDiffStatements",
+      "ranges": [
+        {
+          "startOffset": 18612,
+          "endOffset": 19935,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "applyListingGroupDiff",
+      "ranges": [
+        {
+          "startOffset": 20195,
+          "endOffset": 20397,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setListingGroups",
+      "ranges": [
+        {
+          "startOffset": 20431,
+          "endOffset": 20568,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setListingGroupsTx",
+      "ranges": [
+        {
+          "startOffset": 20897,
+          "endOffset": 21115,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "resetGroupListings",
+      "ranges": [
+        {
+          "startOffset": 21400,
+          "endOffset": 21621,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "groupFlatPriceSubquery",
+      "ranges": [
+        {
+          "startOffset": 22062,
+          "endOffset": 22351,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getGroupPackagePrices",
+      "ranges": [
+        {
+          "startOffset": 22808,
+          "endOffset": 23045,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageMemberMaps",
+      "ranges": [
+        {
+          "startOffset": 23560,
+          "endOffset": 23833,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadPackageMemberPricing",
+      "ranges": [
+        {
+          "startOffset": 24167,
+          "endOffset": 24380,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getGroupPackagePricesByGroupIds",
+      "ranges": [
+        {
+          "startOffset": 24663,
+          "endOffset": 25050,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "copyPackageOverridesStatement",
+      "ranges": [
+        {
+          "startOffset": 25562,
+          "endOffset": 26203,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "copyPackageMemberOverridesTx",
+      "ranges": [
+        {
+          "startOffset": 26972,
+          "endOffset": 28039,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "clearMembersStatement",
+      "ranges": [
+        {
+          "startOffset": 28230,
+          "endOffset": 28350,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "memberQuantityStatement",
+      "ranges": [
+        {
+          "startOffset": 28737,
+          "endOffset": 29085,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validMembers",
+      "ranges": [
+        {
+          "startOffset": 29601,
+          "endOffset": 29754,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "applyPackageMembers",
+      "ranges": [
+        {
+          "startOffset": 30318,
+          "endOffset": 30939,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setGroupPackageMembers",
+      "ranges": [
+        {
+          "startOffset": 31401,
+          "endOffset": 31656,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setGroupListingsActive",
+      "ranges": [
+        {
+          "startOffset": 31802,
+          "endOffset": 32171,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

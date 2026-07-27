@@ -103,15 +103,11 @@ export const locatePayment = async (
     return { conflict: true, legacy: null, payment: null, requested: null };
   }
   if ("legacy" in promoted) {
-    const checkoutId = promoted.legacy.runtime.sumupCheckout?.sumupId;
     return {
       conflict: false,
       legacy: promoted.legacy,
       payment: null,
-      requested:
-        checkoutId === undefined || checkoutId === ""
-          ? null
-          : PAYMENT_PROVIDER_RESOURCES.sumup.session(checkoutId),
+      requested: promoted.resource,
     };
   }
   return {

@@ -1,0 +1,39 @@
+{
+  "scriptId": "489",
+  "url": "file:///home/user/tickets/src/shared/settings/keys.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2000,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "storedKey",
+      "ranges": [
+        {
+          "startOffset": 1858,
+          "endOffset": 1884,
+          "count": 72
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 1953,
+          "endOffset": 1996,
+          "count": 72
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

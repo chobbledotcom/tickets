@@ -1,0 +1,49 @@
+{
+  "scriptId": "567",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/client/0.17.2/lib-esm/node.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 806,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createClient",
+      "ranges": [
+        {
+          "startOffset": 396,
+          "endOffset": 483,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "_createClient",
+      "ranges": [
+        {
+          "startOffset": 484,
+          "endOffset": 805,
+          "count": 4
+        },
+        {
+          "startOffset": 576,
+          "endOffset": 623,
+          "count": 0
+        },
+        {
+          "startOffset": 692,
+          "endOffset": 741,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

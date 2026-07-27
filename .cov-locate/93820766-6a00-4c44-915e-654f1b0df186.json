@@ -1,0 +1,182 @@
+{
+  "scriptId": "745",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/ws/protobuf_encode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3057,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "ClientMsg",
+      "ranges": [
+        {
+          "startOffset": 108,
+          "endOffset": 377,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "HelloMsg",
+      "ranges": [
+        {
+          "startOffset": 378,
+          "endOffset": 476,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "RequestMsg",
+      "ranges": [
+        {
+          "startOffset": 477,
+          "endOffset": 1817,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "OpenStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1818,
+          "endOffset": 1882,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "CloseStreamReq",
+      "ranges": [
+        {
+          "startOffset": 1883,
+          "endOffset": 1948,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "ExecuteReq",
+      "ranges": [
+        {
+          "startOffset": 1949,
+          "endOffset": 2044,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "BatchReq",
+      "ranges": [
+        {
+          "startOffset": 2045,
+          "endOffset": 2140,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "OpenCursorReq",
+      "ranges": [
+        {
+          "startOffset": 2141,
+          "endOffset": 2271,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "CloseCursorReq",
+      "ranges": [
+        {
+          "startOffset": 2272,
+          "endOffset": 2337,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "FetchCursorReq",
+      "ranges": [
+        {
+          "startOffset": 2338,
+          "endOffset": 2434,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "SequenceReq",
+      "ranges": [
+        {
+          "startOffset": 2435,
+          "endOffset": 2638,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "DescribeReq",
+      "ranges": [
+        {
+          "startOffset": 2639,
+          "endOffset": 2842,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "StoreSqlReq",
+      "ranges": [
+        {
+          "startOffset": 2843,
+          "endOffset": 2928,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "CloseSqlReq",
+      "ranges": [
+        {
+          "startOffset": 2929,
+          "endOffset": 2988,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "GetAutocommitReq",
+      "ranges": [
+        {
+          "startOffset": 2989,
+          "endOffset": 3056,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

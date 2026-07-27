@@ -1,0 +1,138 @@
+{
+  "scriptId": "657",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/rename-utils.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 5778,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "renameState",
+      "ranges": [
+        {
+          "startOffset": 256,
+          "endOffset": 444,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "applyDirectRename",
+      "ranges": [
+        {
+          "startOffset": 472,
+          "endOffset": 649,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "repairLegacyTableRename",
+      "ranges": [
+        {
+          "startOffset": 683,
+          "endOffset": 1608,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "columnRenameState",
+      "ranges": [
+        {
+          "startOffset": 1636,
+          "endOffset": 1707,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "countColumnValueStats",
+      "ranges": [
+        {
+          "startOffset": 1739,
+          "endOffset": 2354,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "escapeRegExp",
+      "ranges": [
+        {
+          "startOffset": 2377,
+          "endOffset": 2430,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sqlIdentifierPattern",
+      "ranges": [
+        {
+          "startOffset": 2461,
+          "endOffset": 2537,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "dropProjectIndexesReferencingColumn",
+      "ranges": [
+        {
+          "startOffset": 2583,
+          "endOffset": 3051,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "columnHasForeignKey",
+      "ranges": [
+        {
+          "startOffset": 3081,
+          "endOffset": 3247,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "repairLegacyColumnRename",
+      "ranges": [
+        {
+          "startOffset": 3282,
+          "endOffset": 4621,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "repairLegacyRenames",
+      "ranges": [
+        {
+          "startOffset": 4833,
+          "endOffset": 5776,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "scriptId": "563",
+  "url": "file:///home/user/tickets/src/shared/db/ordered-collection.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3644,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "flatCollectionSwap",
+      "ranges": [
+        {
+          "startOffset": 110,
+          "endOffset": 191,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "scopedCollectionSwap",
+      "ranges": [
+        {
+          "startOffset": 229,
+          "endOffset": 359,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "columnNames",
+      "ranges": [
+        {
+          "startOffset": 381,
+          "endOffset": 449,
+          "count": 6
+        },
+        {
+          "startOffset": 420,
+          "endOffset": 439,
+          "count": 5
+        },
+        {
+          "startOffset": 440,
+          "endOffset": 449,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "columnValues",
+      "ranges": [
+        {
+          "startOffset": 472,
+          "endOffset": 546,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "matches",
+      "ranges": [
+        {
+          "startOffset": 564,
+          "endOffset": 627,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 587,
+          "endOffset": 612,
+          "count": 3
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "defineOrderedCollection",
+      "ranges": [
+        {
+          "startOffset": 668,
+          "endOffset": 3642,
+          "count": 4
+        },
+        {
+          "startOffset": 809,
+          "endOffset": 818,
+          "count": 2
+        },
+        {
+          "startOffset": 819,
+          "endOffset": 848,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "scopeArgs",
+      "ranges": [
+        {
+          "startOffset": 914,
+          "endOffset": 990,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "inTransaction",
+      "ranges": [
+        {
+          "startOffset": 1016,
+          "endOffset": 1076,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nextMany",
+      "ranges": [
+        {
+          "startOffset": 1097,
+          "endOffset": 1541,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "next",
+      "ranges": [
+        {
+          "startOffset": 1558,
+          "endOffset": 1688,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "append",
+      "ranges": [
+        {
+          "startOffset": 1707,
+          "endOffset": 2445,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "swap",
+      "ranges": [
+        {
+          "startOffset": 2462,
+          "endOffset": 3578,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

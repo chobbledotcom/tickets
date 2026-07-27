@@ -1,0 +1,22 @@
+{
+  "scriptId": "719",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/cross-fetch/4.1.0/dist/node-ponyfill.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 685,
+          "count": 1
+        },
+        {
+          "startOffset": 189,
+          "endOffset": 319,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

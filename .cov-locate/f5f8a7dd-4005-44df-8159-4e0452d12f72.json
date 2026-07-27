@@ -1,0 +1,39 @@
+{
+  "scriptId": "595",
+  "url": "file:///home/user/tickets/src/shared/images/formats.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1748,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isUploadableImageMime",
+      "ranges": [
+        {
+          "startOffset": 1292,
+          "endOffset": 1330,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "canDecodeImageMime",
+      "ranges": [
+        {
+          "startOffset": 1701,
+          "endOffset": 1746,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

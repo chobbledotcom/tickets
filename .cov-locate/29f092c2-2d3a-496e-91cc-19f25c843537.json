@@ -1,0 +1,171 @@
+{
+  "scriptId": "581",
+  "url": "file:///home/user/tickets/src/shared/db/query.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3969,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "queryAndMap",
+      "ranges": [
+        {
+          "startOffset": 423,
+          "endOffset": 495,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 432,
+          "endOffset": 495,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "stringColumnSet",
+      "ranges": [
+        {
+          "startOffset": 742,
+          "endOffset": 803,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "queryColumnSet",
+      "ranges": [
+        {
+          "startOffset": 1059,
+          "endOffset": 1141,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rowsByIds",
+      "ranges": [
+        {
+          "startOffset": 1476,
+          "endOffset": 1567,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "mapByIds",
+      "ranges": [
+        {
+          "startOffset": 1757,
+          "endOffset": 1843,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decryptNameMap",
+      "ranges": [
+        {
+          "startOffset": 1932,
+          "endOffset": 2108,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nameSelect",
+      "ranges": [
+        {
+          "startOffset": 2210,
+          "endOffset": 2330,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nameSource",
+      "ranges": [
+        {
+          "startOffset": 2972,
+          "endOffset": 3296,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "all",
+      "ranges": [
+        {
+          "startOffset": 3025,
+          "endOffset": 3132,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "byIds",
+      "ranges": [
+        {
+          "startOffset": 3145,
+          "endOffset": 3291,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "envNameSource",
+      "ranges": [
+        {
+          "startOffset": 3626,
+          "endOffset": 3695,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3675,
+          "endOffset": 3694,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "columnMapByIds",
+      "ranges": [
+        {
+          "startOffset": 3727,
+          "endOffset": 3967,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

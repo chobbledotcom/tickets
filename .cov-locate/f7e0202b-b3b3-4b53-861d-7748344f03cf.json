@@ -1,0 +1,193 @@
+{
+  "scriptId": "525",
+  "url": "file:///home/user/tickets/src/shared/db/payments/decision-attempts.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 8141,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "loadPaymentState",
+      "ranges": [
+        {
+          "startOffset": 424,
+          "endOffset": 659,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadChargeStates",
+      "ranges": [
+        {
+          "startOffset": 686,
+          "endOffset": 976,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadCaseState",
+      "ranges": [
+        {
+          "startOffset": 1000,
+          "endOffset": 1156,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isDue",
+      "ranges": [
+        {
+          "startOffset": 1172,
+          "endOffset": 1435,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "moneyMatches",
+      "ranges": [
+        {
+          "startOffset": 1458,
+          "endOffset": 1548,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "allChargesMatch",
+      "ranges": [
+        {
+          "startOffset": 1574,
+          "endOffset": 1807,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "currentSnapshotMatches",
+      "ranges": [
+        {
+          "startOffset": 1840,
+          "endOffset": 2727,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legacyAccountMatches",
+      "ranges": [
+        {
+          "startOffset": 2758,
+          "endOffset": 3152,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "originalLegacyChargesMatch",
+      "ranges": [
+        {
+          "startOffset": 3189,
+          "endOffset": 3404,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legacySnapshotMatches",
+      "ranges": [
+        {
+          "startOffset": 3436,
+          "endOffset": 4719,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "snapshotMatches",
+      "ranges": [
+        {
+          "startOffset": 4745,
+          "endOffset": 4947,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "closeStaleDecision",
+      "ranges": [
+        {
+          "startOffset": 4976,
+          "endOffset": 5674,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "runningAttempt",
+      "ranges": [
+        {
+          "startOffset": 5699,
+          "endOffset": 5924,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "beginPaymentDecisionAttempt",
+      "ranges": [
+        {
+          "startOffset": 5969,
+          "endOffset": 7408,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getDuePaymentDecisions",
+      "ranges": [
+        {
+          "startOffset": 7448,
+          "endOffset": 7950,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "reviewPaymentDecisionAgain",
+      "ranges": [
+        {
+          "startOffset": 7994,
+          "endOffset": 8139,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

@@ -1,0 +1,237 @@
+{
+  "scriptId": "727",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/ws/stream.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 7254,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 231,
+          "endOffset": 305,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "open",
+      "ranges": [
+        {
+          "startOffset": 338,
+          "endOffset": 735,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "WsStream",
+      "ranges": [
+        {
+          "startOffset": 760,
+          "endOffset": 1028,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "client",
+      "ranges": [
+        {
+          "startOffset": 1105,
+          "endOffset": 1150,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_sqlOwner",
+      "ranges": [
+        {
+          "startOffset": 1175,
+          "endOffset": 1223,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_execute",
+      "ranges": [
+        {
+          "startOffset": 1248,
+          "endOffset": 1476,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_batch",
+      "ranges": [
+        {
+          "startOffset": 1501,
+          "endOffset": 1727,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_describe",
+      "ranges": [
+        {
+          "startOffset": 1752,
+          "endOffset": 2088,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_sequence",
+      "ranges": [
+        {
+          "startOffset": 2113,
+          "endOffset": 2444,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getAutocommit",
+      "ranges": [
+        {
+          "startOffset": 2639,
+          "endOffset": 2922,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#sendStreamRequest",
+      "ranges": [
+        {
+          "startOffset": 2927,
+          "endOffset": 3134,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_openCursor",
+      "ranges": [
+        {
+          "startOffset": 3159,
+          "endOffset": 3400,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_sendCursorRequest",
+      "ranges": [
+        {
+          "startOffset": 3425,
+          "endOffset": 3968,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "_cursorClosed",
+      "ranges": [
+        {
+          "startOffset": 3993,
+          "endOffset": 4234,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#pushToQueue",
+      "ranges": [
+        {
+          "startOffset": 4239,
+          "endOffset": 4622,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#flushQueue",
+      "ranges": [
+        {
+          "startOffset": 4627,
+          "endOffset": 6103,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#setClosed",
+      "ranges": [
+        {
+          "startOffset": 6108,
+          "endOffset": 6853,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "close",
+      "ranges": [
+        {
+          "startOffset": 6899,
+          "endOffset": 6986,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "closeGracefully",
+      "ranges": [
+        {
+          "startOffset": 7031,
+          "endOffset": 7114,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get closed",
+      "ranges": [
+        {
+          "startOffset": 7171,
+          "endOffset": 7251,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

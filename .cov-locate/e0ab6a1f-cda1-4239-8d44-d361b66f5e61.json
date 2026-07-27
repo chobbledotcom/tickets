@@ -1,0 +1,149 @@
+{
+  "scriptId": "587",
+  "url": "file:///home/user/tickets/src/shared/db/listings/table.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3481,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "computeSlugIndex",
+      "ranges": [
+        {
+          "startOffset": 879,
+          "endOffset": 901,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "normalizeUtcDatetime",
+      "ranges": [
+        {
+          "startOffset": 983,
+          "endOffset": 1422,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "encryptDatetime",
+      "ranges": [
+        {
+          "startOffset": 1448,
+          "endOffset": 1507,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "decryptDatetime",
+      "ranges": [
+        {
+          "startOffset": 1533,
+          "endOffset": 1654,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "writeClosesAt",
+      "ranges": [
+        {
+          "startOffset": 1678,
+          "endOffset": 1779,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readClosesAt",
+      "ranges": [
+        {
+          "startOffset": 1802,
+          "endOffset": 1972,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "writeListingDate",
+      "ranges": [
+        {
+          "startOffset": 1999,
+          "endOffset": 2038,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readProjectedAltText",
+      "ranges": [
+        {
+          "startOffset": 2209,
+          "endOffset": 2243,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readProjectedImageFilename",
+      "ranges": [
+        {
+          "startOffset": 2503,
+          "endOffset": 2599,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2512,
+          "endOffset": 2599,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2914,
+          "endOffset": 2926,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "default",
+      "ranges": [
+        {
+          "startOffset": 2952,
+          "endOffset": 2958,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

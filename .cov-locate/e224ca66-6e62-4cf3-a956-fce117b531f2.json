@@ -1,0 +1,114 @@
+{
+  "scriptId": "499",
+  "url": "file:///home/user/tickets/scripts/cleanup.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2737,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "throwCollectedErrors",
+      "ranges": [
+        {
+          "startOffset": 85,
+          "endOffset": 239,
+          "count": 4
+        },
+        {
+          "startOffset": 124,
+          "endOffset": 140,
+          "count": 0
+        },
+        {
+          "startOffset": 166,
+          "endOffset": 237,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "collectCleanupErrors",
+      "ranges": [
+        {
+          "startOffset": 270,
+          "endOffset": 455,
+          "count": 4
+        },
+        {
+          "startOffset": 344,
+          "endOffset": 436,
+          "count": 8
+        },
+        {
+          "startOffset": 385,
+          "endOffset": 432,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "runCleanups",
+      "ranges": [
+        {
+          "startOffset": 547,
+          "endOffset": 655,
+          "count": 4
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "removeIfPresent",
+      "ranges": [
+        {
+          "startOffset": 768,
+          "endOffset": 872,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "withCleanup",
+      "ranges": [
+        {
+          "startOffset": 983,
+          "endOffset": 1513,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "releaseWhenStarted",
+      "ranges": [
+        {
+          "startOffset": 2216,
+          "endOffset": 2633,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "failAfterCleanups",
+      "ranges": [
+        {
+          "startOffset": 2668,
+          "endOffset": 2735,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

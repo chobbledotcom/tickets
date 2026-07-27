@@ -1,0 +1,203 @@
+{
+  "scriptId": "473",
+  "url": "file:///home/user/tickets/test/shared/payment-runtime/fixtures.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 12209,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createPendingPayment",
+      "ranges": [
+        {
+          "startOffset": 1921,
+          "endOffset": 2259,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createRefundablePayment",
+      "ranges": [
+        {
+          "startOffset": 2300,
+          "endOffset": 3469,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createFullyRefundedPayment",
+      "ranges": [
+        {
+          "startOffset": 3591,
+          "endOffset": 4224,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createRefundablePaymentCase",
+      "ranges": [
+        {
+          "startOffset": 4269,
+          "endOffset": 4662,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createAcceptedPaymentDecision",
+      "ranges": [
+        {
+          "startOffset": 4709,
+          "endOffset": 5082,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createAcceptedRefundDecision",
+      "ranges": [
+        {
+          "startOffset": 5128,
+          "endOffset": 5351,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createRetryingPaymentDecision",
+      "ranges": [
+        {
+          "startOffset": 5398,
+          "endOffset": 5796,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createLegacyAttendeePaymentCase",
+      "ranges": [
+        {
+          "startOffset": 5845,
+          "endOffset": 6270,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentProviderRead",
+      "ranges": [
+        {
+          "startOffset": 6307,
+          "endOffset": 7217,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentCharge",
+      "ranges": [
+        {
+          "startOffset": 7248,
+          "endOffset": 7682,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "paymentCase",
+      "ranges": [
+        {
+          "startOffset": 7704,
+          "endOffset": 8094,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "provenPaymentOperatorCase",
+      "ranges": [
+        {
+          "startOffset": 8137,
+          "endOffset": 8781,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "legacyPaymentOperatorCase",
+      "ranges": [
+        {
+          "startOffset": 8824,
+          "endOffset": 10052,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getStoredPayment",
+      "ranges": [
+        {
+          "startOffset": 10086,
+          "endOffset": 10217,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "completePayment",
+      "ranges": [
+        {
+          "startOffset": 10250,
+          "endOffset": 10763,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createLegacySumupCheckout",
+      "ranges": [
+        {
+          "startOffset": 10928,
+          "endOffset": 12207,
+          "count": 2
+        },
+        {
+          "startOffset": 11566,
+          "endOffset": 11821,
+          "count": 1
+        },
+        {
+          "startOffset": 11822,
+          "endOffset": 11828,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

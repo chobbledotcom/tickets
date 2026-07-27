@@ -1,0 +1,142 @@
+{
+  "scriptId": "552",
+  "url": "file:///home/user/tickets/src/shared/tables/layout.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 4432,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parseTagBody",
+      "ranges": [
+        {
+          "startOffset": 847,
+          "endOffset": 1055,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "collectColumnTag",
+      "ranges": [
+        {
+          "startOffset": 1208,
+          "endOffset": 1847,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "parseColumnTemplate",
+      "ranges": [
+        {
+          "startOffset": 1877,
+          "endOffset": 2461,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "buildDefaultTemplate",
+      "ranges": [
+        {
+          "startOffset": 2660,
+          "endOffset": 2708,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 2677,
+          "endOffset": 2696,
+          "count": 21
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parseLayout",
+      "ranges": [
+        {
+          "startOffset": 2976,
+          "endOffset": 3252,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validateLayout",
+      "ranges": [
+        {
+          "startOffset": 3434,
+          "endOffset": 3591,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "defineTableLayout",
+      "ranges": [
+        {
+          "startOffset": 3699,
+          "endOffset": 4430,
+          "count": 2
+        },
+        {
+          "startOffset": 3842,
+          "endOffset": 3917,
+          "count": 0
+        },
+        {
+          "startOffset": 3956,
+          "endOffset": 4085,
+          "count": 21
+        },
+        {
+          "startOffset": 3988,
+          "endOffset": 4081,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "parse",
+      "ranges": [
+        {
+          "startOffset": 4311,
+          "endOffset": 4365,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "validate",
+      "ranges": [
+        {
+          "startOffset": 4381,
+          "endOffset": 4423,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

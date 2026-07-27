@@ -1,0 +1,142 @@
+{
+  "scriptId": "342",
+  "url": "file:///home/user/tickets/src/shared/request-scoped.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3554,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createScope",
+      "ranges": [
+        {
+          "startOffset": 2105,
+          "endOffset": 2819,
+          "count": 13
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "end",
+      "ranges": [
+        {
+          "startOffset": 2168,
+          "endOffset": 2210,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "run",
+      "ranges": [
+        {
+          "startOffset": 2226,
+          "endOffset": 2646,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "current",
+      "ranges": [
+        {
+          "startOffset": 2672,
+          "endOffset": 2803,
+          "count": 132
+        },
+        {
+          "startOffset": 2751,
+          "endOffset": 2776,
+          "count": 0
+        },
+        {
+          "startOffset": 2789,
+          "endOffset": 2796,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createScopedValue",
+      "ranges": [
+        {
+          "startOffset": 2934,
+          "endOffset": 3109,
+          "count": 5
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "read",
+      "ranges": [
+        {
+          "startOffset": 3000,
+          "endOffset": 3040,
+          "count": 11
+        },
+        {
+          "startOffset": 3019,
+          "endOffset": 3026,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "run",
+      "ranges": [
+        {
+          "startOffset": 3051,
+          "endOffset": 3102,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createRequestScoped",
+      "ranges": [
+        {
+          "startOffset": 3375,
+          "endOffset": 3552,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "current",
+      "ranges": [
+        {
+          "startOffset": 3473,
+          "endOffset": 3504,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "run",
+      "ranges": [
+        {
+          "startOffset": 3515,
+          "endOffset": 3545,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

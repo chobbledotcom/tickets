@@ -1,0 +1,116 @@
+{
+  "scriptId": "759",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/encoding/json/decode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1596,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "string",
+      "ranges": [
+        {
+          "startOffset": 53,
+          "endOffset": 182,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "stringOpt",
+      "ranges": [
+        {
+          "startOffset": 190,
+          "endOffset": 416,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "number",
+      "ranges": [
+        {
+          "startOffset": 424,
+          "endOffset": 553,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "boolean",
+      "ranges": [
+        {
+          "startOffset": 561,
+          "endOffset": 693,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "array",
+      "ranges": [
+        {
+          "startOffset": 701,
+          "endOffset": 823,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "object",
+      "ranges": [
+        {
+          "startOffset": 831,
+          "endOffset": 1003,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "arrayObjectsMap",
+      "ranges": [
+        {
+          "startOffset": 1011,
+          "endOffset": 1119,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "typeError",
+      "ranges": [
+        {
+          "startOffset": 1120,
+          "endOffset": 1517,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "readJsonObject",
+      "ranges": [
+        {
+          "startOffset": 1525,
+          "endOffset": 1595,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

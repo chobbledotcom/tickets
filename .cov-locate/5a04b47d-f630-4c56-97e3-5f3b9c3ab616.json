@@ -1,0 +1,193 @@
+{
+  "scriptId": "762",
+  "url": "file:///root/.cache/deno/npm/registry.npmjs.org/@libsql/hrana-client/0.9.0/lib-esm/encoding/protobuf/encode.js",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 2682,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [
+        {
+          "startOffset": 97,
+          "endOffset": 134,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "MessageWriter",
+      "ranges": [
+        {
+          "startOffset": 140,
+          "endOffset": 321,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#ensure",
+      "ranges": [
+        {
+          "startOffset": 326,
+          "endOffset": 854,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#varint",
+      "ranges": [
+        {
+          "startOffset": 859,
+          "endOffset": 1119,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#varintBig",
+      "ranges": [
+        {
+          "startOffset": 1124,
+          "endOffset": 1415,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "#tag",
+      "ranges": [
+        {
+          "startOffset": 1420,
+          "endOffset": 1492,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bytes",
+      "ranges": [
+        {
+          "startOffset": 1497,
+          "endOffset": 1726,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "string",
+      "ranges": [
+        {
+          "startOffset": 1731,
+          "endOffset": 1815,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "message",
+      "ranges": [
+        {
+          "startOffset": 1820,
+          "endOffset": 1964,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "int32",
+      "ranges": [
+        {
+          "startOffset": 1969,
+          "endOffset": 2055,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "uint32",
+      "ranges": [
+        {
+          "startOffset": 2060,
+          "endOffset": 2118,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "bool",
+      "ranges": [
+        {
+          "startOffset": 2123,
+          "endOffset": 2187,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "sint64",
+      "ranges": [
+        {
+          "startOffset": 2192,
+          "endOffset": 2307,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "double",
+      "ranges": [
+        {
+          "startOffset": 2312,
+          "endOffset": 2476,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "data",
+      "ranges": [
+        {
+          "startOffset": 2481,
+          "endOffset": 2551,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "writeProtobufMessage",
+      "ranges": [
+        {
+          "startOffset": 2561,
+          "endOffset": 2681,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

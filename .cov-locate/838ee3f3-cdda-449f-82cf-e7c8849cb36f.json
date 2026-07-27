@@ -1,0 +1,116 @@
+{
+  "scriptId": "794",
+  "url": "file:///home/user/tickets/src/shared/stripe/endpoints.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 3999,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fetchWebhookEndpoints",
+      "ranges": [
+        {
+          "startOffset": 390,
+          "endOffset": 449,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listStaleEndpointIds",
+      "ranges": [
+        {
+          "startOffset": 480,
+          "endOffset": 674,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteWebhookEndpoints",
+      "ranges": [
+        {
+          "startOffset": 707,
+          "endOffset": 793,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createCheckoutWebhook",
+      "ranges": [
+        {
+          "startOffset": 825,
+          "endOffset": 1005,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isEndpointLimitError",
+      "ranges": [
+        {
+          "startOffset": 1036,
+          "endOffset": 1195,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "setupWebhookEndpoint",
+      "ranges": [
+        {
+          "startOffset": 1233,
+          "endOffset": 2094,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "cleanupOldWebhookEndpoints",
+      "ranges": [
+        {
+          "startOffset": 2138,
+          "endOffset": 2542,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isHealthyOwnEndpoint",
+      "ranges": [
+        {
+          "startOffset": 2573,
+          "endOffset": 2771,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "testStripeConnection",
+      "ranges": [
+        {
+          "startOffset": 2809,
+          "endOffset": 3997,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

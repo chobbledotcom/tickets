@@ -1,0 +1,17 @@
+{
+  "scriptId": "661",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/schema/payments/index.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 636,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    }
+  ]
+}

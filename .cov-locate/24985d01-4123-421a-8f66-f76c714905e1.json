@@ -1,0 +1,193 @@
+{
+  "scriptId": "677",
+  "url": "file:///home/user/tickets/src/shared/booking/tree.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 5934,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "standaloneListingIds",
+      "ranges": [
+        {
+          "startOffset": 355,
+          "endOffset": 468,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "listingNodeKey",
+      "ranges": [
+        {
+          "startOffset": 808,
+          "endOffset": 843,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "groupMemberNodeKey",
+      "ranges": [
+        {
+          "startOffset": 989,
+          "endOffset": 1049,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageMemberNodeKey",
+      "ranges": [
+        {
+          "startOffset": 1230,
+          "endOffset": 1292,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "childNodeKey",
+      "ranges": [
+        {
+          "startOffset": 2025,
+          "endOffset": 2086,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "quantityFieldName",
+      "ranges": [
+        {
+          "startOffset": 2500,
+          "endOffset": 2536,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "customPriceFieldName",
+      "ranges": [
+        {
+          "startOffset": 2667,
+          "endOffset": 2707,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "childQuantityFieldName",
+      "ranges": [
+        {
+          "startOffset": 2828,
+          "endOffset": 2883,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "childPriceFieldName",
+      "ranges": [
+        {
+          "startOffset": 3012,
+          "endOffset": 3069,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageQuantityFieldName",
+      "ranges": [
+        {
+          "startOffset": 3263,
+          "endOffset": 3303,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nodeFixedQuantity",
+      "ranges": [
+        {
+          "startOffset": 3502,
+          "endOffset": 3572,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "isMemberNodeOf",
+      "ranges": [
+        {
+          "startOffset": 3769,
+          "endOffset": 3898,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "packageSubTree",
+      "ranges": [
+        {
+          "startOffset": 4135,
+          "endOffset": 4272,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fixedQuantitiesByListingId",
+      "ranges": [
+        {
+          "startOffset": 4540,
+          "endOffset": 4640,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nodeQuantityFieldName",
+      "ranges": [
+        {
+          "startOffset": 5057,
+          "endOffset": 5520,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "nodePriceFieldName",
+      "ranges": [
+        {
+          "startOffset": 5719,
+          "endOffset": 5932,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

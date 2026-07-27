@@ -1,0 +1,39 @@
+{
+  "scriptId": "770",
+  "url": "file:///home/user/tickets/src/shared/ledger/reverse.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 1209,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "isInverseOf",
+      "ranges": [
+        {
+          "startOffset": 454,
+          "endOffset": 599,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "reverseOf",
+      "ranges": [
+        {
+          "startOffset": 904,
+          "endOffset": 1207,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}

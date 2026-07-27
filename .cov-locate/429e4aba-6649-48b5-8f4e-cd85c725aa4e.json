@@ -1,0 +1,413 @@
+{
+  "scriptId": "658",
+  "url": "file:///home/user/tickets/src/shared/db/migrations/schema-sync.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 0,
+          "endOffset": 23716,
+          "count": 1
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "runMigration",
+      "ranges": [
+        {
+          "startOffset": 752,
+          "endOffset": 1213,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getExistingColumns",
+      "ranges": [
+        {
+          "startOffset": 1305,
+          "endOffset": 1441,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "tableExists",
+      "ranges": [
+        {
+          "startOffset": 1470,
+          "endOffset": 1637,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "snapshotLiveSchema",
+      "ranges": [
+        {
+          "startOffset": 2525,
+          "endOffset": 3390,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "stepUsing",
+      "ranges": [
+        {
+          "startOffset": 3633,
+          "endOffset": 3687,
+          "count": 2
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3646,
+          "endOffset": 3687,
+          "count": 7
+        }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 3654,
+          "endOffset": 3687,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 4015,
+          "endOffset": 4050,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createIndexSql",
+      "ranges": [
+        {
+          "startOffset": 4149,
+          "endOffset": 4319,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "currentSchemaTable",
+      "ranges": [
+        {
+          "startOffset": 4348,
+          "endOffset": 4512,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "currentSchemaColumnsPresentIn",
+      "ranges": [
+        {
+          "startOffset": 4559,
+          "endOffset": 4674,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "copyExpressionFor",
+      "ranges": [
+        {
+          "startOffset": 4702,
+          "endOffset": 4860,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rebuildStatements",
+      "ranges": [
+        {
+          "startOffset": 5222,
+          "endOffset": 5894,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rebuildTableWithColumns",
+      "ranges": [
+        {
+          "startOffset": 5935,
+          "endOffset": 6020,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requiredTriggerColumns",
+      "ranges": [
+        {
+          "startOffset": 6053,
+          "endOffset": 6100,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "triggersDependingOn",
+      "ranges": [
+        {
+          "startOffset": 6130,
+          "endOffset": 6196,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "liveColumnsForTriggerDependency",
+      "ranges": [
+        {
+          "startOffset": 6238,
+          "endOffset": 6414,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "canCreateTrigger",
+      "ranges": [
+        {
+          "startOffset": 6441,
+          "endOffset": 6745,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "recreateTable",
+      "ranges": [
+        {
+          "startOffset": 8215,
+          "endOffset": 9484,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getAppSchemaColumns",
+      "ranges": [
+        {
+          "startOffset": 9521,
+          "endOffset": 9607,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "requireColumns",
+      "ranges": [
+        {
+          "startOffset": 9632,
+          "endOffset": 9725,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 9780,
+          "endOffset": 11202,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "rebuildLegacyPaymentTablesWithoutForeignKeys",
+      "ranges": [
+        {
+          "startOffset": 12115,
+          "endOffset": 13012,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 13072,
+          "endOffset": 14166,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "createTableSql",
+      "ranges": [
+        {
+          "startOffset": 14269,
+          "endOffset": 14426,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "fullSchemaCreateStatements",
+      "ranges": [
+        {
+          "startOffset": 14908,
+          "endOffset": 15086,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "writeStatement",
+      "ranges": [
+        {
+          "startOffset": 15111,
+          "endOffset": 15147,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "noArgStatements",
+      "ranges": [
+        {
+          "startOffset": 15261,
+          "endOffset": 15293,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 15344,
+          "endOffset": 16365,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 16461,
+          "endOffset": 18284,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 18569,
+          "endOffset": 18970,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 20434,
+          "endOffset": 20662,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "backfillModifierAggregates",
+      "ranges": [
+        {
+          "startOffset": 20946,
+          "endOffset": 21245,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "backfillAnswerAggregates",
+      "ranges": [
+        {
+          "startOffset": 21530,
+          "endOffset": 21706,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        {
+          "startOffset": 21960,
+          "endOffset": 22490,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "syncCurrentSchema",
+      "ranges": [
+        {
+          "startOffset": 22526,
+          "endOffset": 23714,
+          "count": 0
+        }
+      ],
+      "isBlockCoverage": false
+    }
+  ]
+}
