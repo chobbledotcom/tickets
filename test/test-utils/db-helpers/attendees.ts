@@ -314,7 +314,6 @@ export const createTestAttendeeWithToken = async (
   return { attendee, listing, token };
 };
 
-/** A booked attendee carrying a phone number, for phone-lookup tests. */
 export const createTestAttendeeWithPhone = async (
   phone = "+447700900123",
 ): Promise<Attendee> => {
