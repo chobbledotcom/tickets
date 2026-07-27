@@ -3,9 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import {
   applyChargeRefund,
   requestChargeRefund,
-  savePaymentCharges,
 } from "#shared/db/payments/charges.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import { pendingRefundObservation } from "#test-utils/payment-refunds.ts";
 import {
   chargeLeg,

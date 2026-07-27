@@ -4,10 +4,10 @@ import { unzipSync } from "fflate";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { createBackupZip, restoreFromZip } from "#shared/db/backup.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
-import { createLegacyPaymentTables } from "#shared/db/migrations/legacy-payment-schema.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createLegacyPaymentTables } from "#test-utils/legacy-payment-tables.ts";
 
 describeWithEnv("old payment backup restore", { db: true }, () => {
   test("restores legacy sources for the pending aggregate migration", async () => {

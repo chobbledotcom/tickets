@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
-import {
-  getPaymentCharges,
-  savePaymentCharges,
-} from "#shared/db/payments/charges.ts";
+import { getPaymentCharges } from "#shared/db/payments/charges.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -13,6 +10,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createPausedAttendeePayment,
   expectAttendeePaymentFence,
+  savePaymentCharges,
 } from "#test-utils/payment-aggregate.ts";
 
 describeWithEnv("attendee deletion payment fence", { db: true }, () => {

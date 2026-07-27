@@ -4,7 +4,6 @@ import {
   applyChargeRefund,
   getPaymentCharges,
   requestChargeRefund,
-  savePaymentCharges,
 } from "#shared/db/payments/charges.ts";
 import {
   applyPaymentSessionClaim,
@@ -17,6 +16,7 @@ import type { PaymentResolution } from "#shared/payment-state/lifecycle.ts";
 import type { ProviderRead } from "#shared/payment-state/observation.ts";
 import type { ChargeLeg } from "#shared/payment-state/resources.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import {
   chargeLeg,
   PAYMENT_ID,

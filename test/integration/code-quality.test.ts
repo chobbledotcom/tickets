@@ -182,6 +182,9 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/db/settings.ts:getCurrentSettingsVersion",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
+  // Resuming a checkout is reached in production only through the whole-module
+  // lazy import in payment-runtime/maintenance.ts, which this scan cannot see.
+  "shared/payment-runtime/create.ts:resumePaymentCheckout",
   // (settings.ts functions now accessed via settings namespace, not individual exports)
   // Reset cached I18N_REPLACEMENTS replacer + compiled formats between tests
   "shared/i18n.ts:resetI18nForTest",

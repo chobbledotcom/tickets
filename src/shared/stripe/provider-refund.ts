@@ -4,6 +4,7 @@ import {
   completedProviderRefund,
   failedProviderRefund,
   makeProviderRefund,
+  makeProviderRefundRequest,
   pendingProviderRefund,
 } from "#shared/payment-runtime/provider-refund.ts";
 import type { RefundResolution } from "#shared/payment-state/resources.ts";
@@ -67,18 +68,15 @@ const checkPendingStripeRefund = async (
   return resolveStripeRefund(charge, lookup.value);
 };
 
-const requestNewStripeRefund: PaymentProvider["refundCharge"] = async (
-  charge,
-  idempotencyKey,
-) => {
-  const result = await stripeApi.requestRefund(
-    charge.providerReference.id,
-    idempotencyKey,
+const requestNewStripeRefund: PaymentProvider["refundCharge"] =
+  makeProviderRefundRequest(
+    (reference, idempotencyKey) =>
+      stripeApi.requestRefund(reference, idempotencyKey),
+    (charge, result) => {
+      validateRefundForCharge(charge, result);
+      return resolveStripeRefund(charge, result);
+    },
   );
-  if (result === null) return failedProviderRefund(charge);
-  validateRefundForCharge(charge, result);
-  return resolveStripeRefund(charge, result);
-};
 
 export const refundStripeCharge: PaymentProvider["refundCharge"] =
   makeProviderRefund(checkPendingStripeRefund, requestNewStripeRefund);

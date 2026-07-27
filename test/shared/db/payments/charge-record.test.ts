@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
-import {
-  getPaymentCharges,
-  savePaymentCharges,
-} from "#shared/db/payments/charges.ts";
+import { getPaymentCharges } from "#shared/db/payments/charges.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import { insertLegacyPaymentCharge } from "./db-fixtures.ts";
 import {
   chargeLeg,

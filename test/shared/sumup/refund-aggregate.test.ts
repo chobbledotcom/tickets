@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { getDb } from "#shared/db/client.ts";
-import {
-  getPaymentCharges,
-  savePaymentCharges,
-} from "#shared/db/payments/charges.ts";
+import { getPaymentCharges } from "#shared/db/payments/charges.ts";
 import {
   applyPaymentSessionClaim,
   requirePaymentSessionClaim,
@@ -25,6 +22,7 @@ import {
   sumupCheckoutResource,
   sumupTransactionResource,
 } from "#test/shared/sumup/fixtures.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 
 const createRefundablePayment = async () => {
   await createStoredSumupPayment();

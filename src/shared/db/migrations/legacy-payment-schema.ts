@@ -78,7 +78,10 @@ const tableSql = (name: LegacyPaymentTableName): string =>
     .map(([column, definition]) => `${column} ${definition}`)
     .join(", ")})`;
 
-const tableStatements = (name: LegacyPaymentTableName): SqlStatement[] => [
+/** The CREATE statements that build one old payment table and its indexes. */
+export const legacyPaymentTableStatements = (
+  name: LegacyPaymentTableName,
+): SqlStatement[] => [
   { args: [], sql: tableSql(name) },
   ...LEGACY_PAYMENT_TABLES[name].indexes.map(([, sql]) => ({ args: [], sql })),
 ];
@@ -105,15 +108,9 @@ export const legacyPaymentRestoreStatements = (
     }),
   );
   return LEGACY_PAYMENT_TABLE_NAMES.filter((name) => dumped.has(name)).flatMap(
-    (name) => tableStatements(name).map((statement) => statement.sql),
+    (name) =>
+      legacyPaymentTableStatements(name).map((statement) => statement.sql),
   );
-};
-
-export const createLegacyPaymentTables = async (
-  getDb: () => Client,
-  names: readonly LegacyPaymentTableName[] = LEGACY_PAYMENT_TABLE_NAMES,
-): Promise<void> => {
-  await getDb().batch(names.flatMap(tableStatements), "write");
 };
 
 type LegacyRequirementAction = (

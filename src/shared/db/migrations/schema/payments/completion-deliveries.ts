@@ -1,4 +1,4 @@
-import type { Table } from "../types.ts";
+import type { Table } from "#shared/db/migrations/schema/types.ts";
 
 export const paymentCompletionDeliveriesTable: [name: string, table: Table] = [
   "payment_completion_deliveries",

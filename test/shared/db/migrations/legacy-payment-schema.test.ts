@@ -1,12 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import {
-  createLegacyPaymentTables,
-  legacyPaymentSchemaMigration,
-} from "#shared/db/migrations/legacy-payment-schema.ts";
+import { legacyPaymentSchemaMigration } from "#shared/db/migrations/legacy-payment-schema.ts";
 import type { SchemaRequirement } from "#shared/db/migrations/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createLegacyPaymentTables } from "#test-utils/legacy-payment-tables.ts";
 import { context } from "./payment-aggregate-test-utils.ts";
 
 const migrationFor = (requires: SchemaRequirement) =>

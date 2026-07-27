@@ -1,6 +1,5 @@
 import { getDb, queryOne } from "#shared/db/client.ts";
 import { recordPaymentCase } from "#shared/db/payments/cases.ts";
-import { savePaymentCharges } from "#shared/db/payments/charges.ts";
 import { storeSessionProgress } from "#shared/db/payments/session-record.ts";
 import { createPaymentSession } from "#shared/db/payments/sessions.ts";
 import type { PaymentCase } from "#shared/db/payments/types.ts";
@@ -13,6 +12,7 @@ import type {
   ProviderSessionResource,
 } from "#shared/payment-state/resources.ts";
 import type { BookingIntent } from "#shared/payments.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 
 export const oldPaymentTime = (): number =>
   nowMs() - PAYMENT_HISTORY_REDACTION_MS - 60_000;

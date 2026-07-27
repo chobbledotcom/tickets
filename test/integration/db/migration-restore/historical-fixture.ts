@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { getDb } from "#shared/db/client.ts";
-import { createLegacyPaymentTables } from "#shared/db/migrations/legacy-payment-schema.ts";
+import { createLegacyPaymentTables } from "#test-utils/legacy-payment-tables.ts";
 
 export interface HistoricalFixtureExpectations {
   attendeeActivity: boolean;

@@ -3,7 +3,6 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { recordPaymentCase } from "#shared/db/payments/cases.ts";
-import { savePaymentCharges } from "#shared/db/payments/charges.ts";
 import { getPaymentCaseDecisions } from "#shared/db/payments/decisions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -17,6 +16,7 @@ import {
   createRetryingPaymentDecision,
 } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 
 const unusedFulfil = (): never => {
   throw new Error("This decision must not fulfil a booking");

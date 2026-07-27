@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb, queryOne } from "#shared/db/client.ts";
-import { resolvePaymentCaseRevision } from "#shared/db/payments/cases.ts";
+import { resolvePaymentCaseForResource } from "#shared/db/payments/cases.ts";
 import { PAYMENT_HISTORY_REDACTION_PAGE_SIZE } from "#shared/db/payments/redaction-page.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -47,11 +47,11 @@ describeWithEnv("db > bounded payment redaction", { db: true }, () => {
     const casePayment = await seedTerminalPayment("case-before-page", {
       createdAt: oldPaymentTime() - 1_000,
     });
-    const paymentCase = await recordTestPaymentCase(casePayment);
+    await recordTestPaymentCase(casePayment);
     expect(
-      await resolvePaymentCaseRevision(
-        paymentCase.id,
-        paymentCase.revision,
+      await resolvePaymentCaseForResource(
+        casePayment.id,
+        casePayment.session,
         oldPaymentTime(),
       ),
     ).toBe(true);

@@ -1,5 +1,5 @@
 /* jscpd:ignore-start -- imports */
-import type { Table } from "../types.ts";
+import type { Table } from "#shared/db/migrations/schema/types.ts";
 import {
   encryptedPaymentColumnOrNull,
   MAX_PAYMENT_INTEGER,

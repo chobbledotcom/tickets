@@ -2,7 +2,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
-import { createLegacyPaymentTables } from "#shared/db/migrations/legacy-payment-schema.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import type { Trigger } from "#shared/db/migrations/schema/types.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
@@ -17,6 +16,7 @@ import {
 } from "#shared/db/migrations.ts";
 import { seedPreDropLedgerColumns } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createLegacyPaymentTables } from "#test-utils/legacy-payment-tables.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import {
   assertHistoricalFixtureSurvived,

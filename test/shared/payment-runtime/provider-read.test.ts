@@ -13,9 +13,7 @@ import {
   signedBookingIntentFromMetadata,
 } from "#shared/payment-runtime/metadata.ts";
 import {
-  checkProviderValue,
   foundProviderRead,
-  makeProviderValueReader,
   missingProviderRead,
   providerFactDetails,
   readProviderOrInvalid,
@@ -35,42 +33,6 @@ import { paymentProviderRead } from "./fixtures.ts";
 
 describeWithEnv("provider read helpers", { db: true }, () => {
   afterEach(() => settings.clearTestOverrides());
-
-  test("distinguishes missing, mismatched, and matching provider values", async () => {
-    const payment = await createPaymentSession(
-      paymentSessionInput(),
-      PAYMENT_TIME,
-    );
-    const readValue = makeProviderValueReader(
-      (id: string) => Promise.resolve(id === "missing" ? null : { id }),
-      (value) => value.id,
-    );
-
-    expect(
-      checkProviderValue(
-        null,
-        "expected",
-        (value: { id: string }) => value.id,
-        payment,
-        SESSION_RESOURCE,
-      ),
-    ).toMatchObject({ read: { status: "unavailable" } });
-    expect(
-      checkProviderValue(
-        { id: "other" },
-        "expected",
-        (value) => value.id,
-        payment,
-        SESSION_RESOURCE,
-      ),
-    ).toMatchObject({ read: { reason: "mismatched_id", status: "invalid" } });
-    expect(await readValue("matching", payment, SESSION_RESOURCE)).toEqual({
-      value: { id: "matching" },
-    });
-    expect(await readValue("missing", null, SESSION_RESOURCE)).toMatchObject({
-      read: { status: "unavailable" },
-    });
-  });
 
   test("validates shared provider facts and optional details", async () => {
     const payment = await createPaymentSession(

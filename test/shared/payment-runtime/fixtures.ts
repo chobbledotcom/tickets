@@ -5,10 +5,7 @@ import {
   getOpenPaymentCases,
   recordPaymentCase,
 } from "#shared/db/payments/cases.ts";
-import {
-  getPaymentCharges,
-  savePaymentCharges,
-} from "#shared/db/payments/charges.ts";
+import { getPaymentCharges } from "#shared/db/payments/charges.ts";
 import {
   applyPaymentSessionClaim,
   requirePaymentSessionClaim,
@@ -55,6 +52,7 @@ import {
   SESSION_RESOURCE,
   sessionProgress,
 } from "#test/shared/db/payments/fixtures.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 
 export const createPendingPayment = async (
   input: PaymentSessionCreate = paymentSessionInput(),

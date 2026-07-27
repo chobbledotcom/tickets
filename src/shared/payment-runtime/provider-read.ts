@@ -69,39 +69,6 @@ export const providerCharge = (
   resource: ChargeLeg["resource"],
 ): ChargeLeg => ({ captured, confirmedRefunded, refunds: [], resource });
 
-export const checkProviderValue = <Value>(
-  value: Value | null,
-  expectedId: string,
-  idOf: (value: Value) => string | undefined,
-  payment: PaymentSession | null,
-  requested: ProviderResource,
-): { read: ProviderRead } | { value: Value } => {
-  if (value === null) {
-    return { read: unavailableProviderRead(payment, requested) };
-  }
-  return idOf(value) === expectedId
-    ? { value }
-    : { read: invalidProviderRead(requested, payment, "mismatched_id") };
-};
-
-export const makeProviderValueReader =
-  <Value>(
-    load: (id: string) => Promise<Value | null>,
-    idOf: (value: Value, expectedId: string) => string | undefined,
-  ) =>
-  async (
-    expectedId: string,
-    payment: PaymentSession | null,
-    requested: ProviderResource,
-  ): Promise<{ read: ProviderRead } | { value: Value }> =>
-    checkProviderValue(
-      await load(expectedId),
-      expectedId,
-      (value) => idOf(value, expectedId),
-      payment,
-      requested,
-    );
-
 export const foundProviderPayment = (
   payment: PaymentSession | null,
   requested: ProviderResource,

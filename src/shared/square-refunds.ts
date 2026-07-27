@@ -6,6 +6,7 @@ import {
   completedProviderRefund,
   failedProviderRefund,
   makeProviderRefund,
+  makeProviderRefundRequest,
   pendingProviderRefund,
 } from "#shared/payment-runtime/provider-refund.ts";
 import {
@@ -46,21 +47,11 @@ const observedSquareRefund = async (
   return completedProviderRefund(charge, pending);
 };
 
-const requestNewSquareRefund: PaymentProvider["refundCharge"] = async (
-  charge,
-  idempotencyKey,
-) => {
-  const remaining = {
-    amount: charge.captured.amount - charge.refunded.amount,
-    currency: charge.captured.currency,
-  };
-  if (remaining.amount <= 0) return completedProviderRefund(charge, null);
-  const result = await squareApi.requestRefund(
-    charge.providerReference.id,
-    remaining,
-    idempotencyKey,
-  );
-  if (result === null) return failedProviderRefund(charge);
+/** Turn Square's answer about a brand-new refund into our own outcome. */
+const resolveNewSquareRefund = (
+  charge: PaymentCharge,
+  result: { id: string; status: string },
+): RefundResolution => {
   const refund = squareResources.refund(result.id, charge.providerReference.id);
   if (result.status === "COMPLETED") {
     return completedProviderRefund(charge, refund);
@@ -69,6 +60,23 @@ const requestNewSquareRefund: PaymentProvider["refundCharge"] = async (
     return pendingProviderRefund(charge, refund);
   }
   return failedProviderRefund(charge, refund);
+};
+
+const requestNewSquareRefund: PaymentProvider["refundCharge"] = (
+  charge,
+  idempotencyKey,
+) => {
+  const remaining = {
+    amount: charge.captured.amount - charge.refunded.amount,
+    currency: charge.captured.currency,
+  };
+  // Nothing left to give back, so there is no refund to ask Square for.
+  if (remaining.amount <= 0)
+    return Promise.resolve(completedProviderRefund(charge, null));
+  return makeProviderRefundRequest(
+    (reference, key) => squareApi.requestRefund(reference, remaining, key),
+    resolveNewSquareRefund,
+  )(charge, idempotencyKey);
 };
 
 export const refundSquareCharge: PaymentProvider["refundCharge"] =

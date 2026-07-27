@@ -7,7 +7,6 @@ import {
   applyChargeRefund,
   getPaymentCharges,
   requestChargeRefund,
-  savePaymentCharges,
 } from "#shared/db/payments/charges.ts";
 import { getPaymentSessions } from "#shared/db/payments/sessions.ts";
 import type { PaymentCharge } from "#shared/db/payments/types.ts";
@@ -22,6 +21,7 @@ import {
   SESSION_RESOURCE,
 } from "#test/shared/db/payments/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import { createRefundablePayment } from "./fixtures.ts";
 import { retryRefundUntilStopped } from "./refund-retries.ts";
 

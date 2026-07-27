@@ -16,7 +16,6 @@ import type {
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb } from "#shared/db/client.ts";
-import { savePaymentCharges } from "#shared/db/payments/charges.ts";
 import {
   applyPaymentSessionClaimKeepingLease,
   requirePaymentSessionClaim,
@@ -48,6 +47,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { maintenanceContext } from "#test-utils/maintenance.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import {
   paymentWorkForCompletion,
   reclaimPaymentWork,

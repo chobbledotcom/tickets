@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
-import { queryOne } from "#shared/db/client.ts";
+import { executeBatch, queryOne } from "#shared/db/client.ts";
 import {
   getPaymentCharges,
-  savePaymentCharges,
+  paymentChargeStatements,
 } from "#shared/db/payments/charges.ts";
 import {
   applyPaymentSessionClaim,
@@ -343,4 +343,24 @@ export const expectAttendeePaymentFence = async (
     lease_token: null,
     revision: fixture.claim.revision + 1,
   });
+};
+
+/**
+ * Write a payment's charges on their own. The site always writes charges
+ * inside a bigger batch, so this standalone write exists to seed a test's
+ * starting state.
+ */
+export const savePaymentCharges = async (
+  paymentId: string,
+  session: ProviderSessionResource,
+  charges: readonly ChargeLeg[],
+  observedAt: number,
+): Promise<void> => {
+  const statements = await paymentChargeStatements(
+    paymentId,
+    session,
+    charges,
+    observedAt,
+  );
+  if (statements.length > 0) await executeBatch(statements);
 };

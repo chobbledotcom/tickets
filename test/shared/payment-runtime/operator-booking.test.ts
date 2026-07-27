@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { recordPaymentCase } from "#shared/db/payments/cases.ts";
-import { savePaymentCharges } from "#shared/db/payments/charges.ts";
 import {
   applyPaymentSessionClaim,
   claimPaymentSession,
@@ -14,6 +13,7 @@ import {
   SESSION_RESOURCE,
 } from "#test/shared/db/payments/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import {
   completePayment,
   createPendingPayment,

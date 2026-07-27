@@ -4,13 +4,12 @@ import * as v from "valibot";
 import { getDb } from "#shared/db/client.ts";
 import {
   applyChargeRefund,
-  getPaymentChargeByResourceOrNull,
   getPaymentCharges,
   requestChargeRefund,
-  savePaymentCharges,
 } from "#shared/db/payments/charges.ts";
 import type { ChargeLeg } from "#shared/payment-state/resources.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import { pendingRefundObservation } from "#test-utils/payment-refunds.ts";
 import { insertLegacyPaymentCharge } from "./db-fixtures.ts";
 import {
@@ -114,7 +113,7 @@ describeWithEnv("db > payments > charges", { db: true }, () => {
     ).rejects.toThrow("cannot be refunded from its current state");
   });
 
-  test("encrypts provider references and looks them up through a blind index", async () => {
+  test("encrypts provider references and matches them through a blind index", async () => {
     await saveCharges([chargeLeg()], PAYMENT_TIME);
     const result = await getDb().execute(
       "SELECT provider_reference, reference_index FROM payment_charges",
@@ -122,15 +121,15 @@ describeWithEnv("db > payments > charges", { db: true }, () => {
 
     expect(String(result.rows[0]?.provider_reference)).toMatch(/^enc:1:/);
     expect(JSON.stringify(result.rows[0])).not.toContain(CHARGE_RESOURCE.id);
-    expect(
-      await getPaymentChargeByResourceOrNull(CHARGE_RESOURCE),
-    ).not.toBeNull();
-    expect(
-      await getPaymentChargeByResourceOrNull({
-        ...CHARGE_RESOURCE,
-        id: "unknown-charge",
-      }),
-    ).toBeNull();
+
+    // Seeing the same charge again updates the row it already has, which only
+    // works because the blind index recognises the encrypted reference.
+    await saveCharges([chargeLeg(500)], PAYMENT_TIME + 1);
+    const stored = await getPaymentCharges(PAYMENT_ID);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({
+      refunded: { amount: 500, currency: "GBP" },
+    });
   });
 
   test("keeps one stable refund idempotency key across retries", async () => {

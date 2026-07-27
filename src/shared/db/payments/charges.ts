@@ -5,7 +5,6 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import {
-  executeBatch,
   inPlaceholders,
   queryBatch,
   queryOne,
@@ -38,7 +37,6 @@ import {
   ChargeLegSchema,
   type Money,
   MoneySchema,
-  type ProviderChargeResource,
   type ProviderRefundResource,
   type ProviderSessionResource,
   ProviderSessionResourceSchema,
@@ -93,21 +91,6 @@ export const paymentChargeStatements = async (
   )(charges);
 };
 
-export const savePaymentCharges = async (
-  paymentId: string,
-  session: ProviderSessionResource,
-  charges: readonly ChargeLeg[],
-  observedAt: number,
-): Promise<void> => {
-  const statements = await paymentChargeStatements(
-    paymentId,
-    session,
-    charges,
-    observedAt,
-  );
-  if (statements.length > 0) await executeBatch(statements);
-};
-
 const loadPaymentCharges = async (
   paymentIds: readonly string[],
 ): Promise<StoredPaymentCharge[]> => {
@@ -137,25 +120,6 @@ export const getPaymentChargesByPaymentIds = async (
 ): Promise<Map<string, StoredPaymentCharge[]>> => {
   const charges = await loadPaymentCharges(paymentIds);
   return Map.groupBy(charges, (charge) => charge.paymentId);
-};
-
-export const getPaymentChargeByResourceOrNull = async (
-  resource: ProviderChargeResource,
-): Promise<PaymentCharge | null> => {
-  const referenceIndex = await paymentStoredJson.chargeResource.index(
-    resource,
-    PAYMENT_STORAGE_CONTEXT.chargeLookup,
-  );
-  const row = await queryOne<StoredCurrentChargeRow>(
-    `SELECT ${columnsSql}
-       FROM payment_charges
-      WHERE reference_index = ?
-      ORDER BY id
-      LIMIT 1`,
-    [referenceIndex],
-  );
-  if (row === null) return null;
-  return readStoredPaymentCharge(row);
 };
 
 export type ChargeRefundRequest = {

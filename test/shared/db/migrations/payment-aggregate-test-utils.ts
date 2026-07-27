@@ -1,12 +1,12 @@
 import { getDb } from "#shared/db/client.ts";
 import paymentAggregateMigration from "#shared/db/migrations/2026-07-26_payment_aggregate.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
-import { createLegacyPaymentTables } from "#shared/db/migrations/legacy-payment-schema.ts";
 import {
   applySchemaChanges,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
 import { additive } from "#shared/db/migrations/verify.ts";
+import { createLegacyPaymentTables } from "#test-utils/legacy-payment-tables.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 export const context = buildMigrationContext({

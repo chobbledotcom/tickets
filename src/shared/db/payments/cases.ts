@@ -372,20 +372,3 @@ export const getOpenPaymentCases = async (): Promise<PaymentCase[]> =>
       )
     ).map(readPaymentCaseRow),
   );
-
-/** Resolve only the exact case revision accepted by an owner decision. */
-export const resolvePaymentCaseRevision = async (
-  caseId: number,
-  caseRevision: number,
-  resolvedAt = Date.now(),
-): Promise<boolean> =>
-  resolutionSucceeded(
-    caseResolutionStatement(
-      "id = ? AND revision = ?",
-      [
-        v.parse(integerAtLeast(1), caseId),
-        v.parse(integerAtLeast(1), caseRevision),
-      ],
-      resolvedAt,
-    ),
-  );

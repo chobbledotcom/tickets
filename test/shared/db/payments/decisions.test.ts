@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import {
   recordPaymentCase,
-  resolvePaymentCaseRevision,
+  resolvePaymentCaseForResource,
 } from "#shared/db/payments/cases.ts";
 import { beginPaymentDecisionAttempt } from "#shared/db/payments/decision-attempts.ts";
 import { PAYMENT_DECISION_LEASE_MS } from "#shared/db/payments/decision-claim.ts";
@@ -145,9 +145,9 @@ describeWithEnv("db > payment case decisions", { db: true }, () => {
 
   test("rejects a decision after the exact case is resolved", async () => {
     const paymentCase = await paymentCaseFor();
-    await resolvePaymentCaseRevision(
-      paymentCase.id,
-      paymentCase.revision,
+    await resolvePaymentCaseForResource(
+      paymentCase.paymentId,
+      SESSION_RESOURCE,
       PAYMENT_TIME + 1,
     );
 
