@@ -1704,30 +1704,27 @@ for how a client script is driven without a real browser.
 ## Finish the mutation tests for the stripe-mock install
 
 *Origin: the chunk that took `scripts/stripe-mock/install.ts` from 67.2% to
-79.8%.*
+83.3%.*
 
-What is left is one cluster: the lock that stops two installs racing each
-other. Twenty-three mutants survive, all in the same few functions —
-`startInstallLockRefresh`, `acquireInstallLock`, `readInstallLockRecord`, and
-the waiting they do between tries. They are the fiddliest part of the file to
-test because every one of them is about *timing*: how often the lock is
-touched, how long a stale lock is tolerated, whether a timer is cleared.
+Nineteen mutants survive, in three small clusters:
 
-The tests that already exist drive these paths through real waits, which is
-why the numbers themselves are not pinned down. The way in is likely the one
-that worked for stripe-mock's own starter in #1960: put a counted stand-in
-in front of the thing being waited on, then assert how many times it happened
-rather than how long it took.
+- **The lock refresh timer.** `startInstallLockRefresh` re-writes the lock every
+  second while an install runs, so another waiting install can tell the lock is
+  still being looked after. Nothing checks that it keeps doing so, or that it
+  stops when the install ends.
+- **Reading a lock record.** `parseInstallLockRecord` copes with an older
+  one-line format and with a lock whose contents are unreadable, falling back to
+  the file's own modified time. Neither fallback is checked.
+- **The platform tables.** The `darwin` and `arm64` entries are never read on a
+  Linux machine, so pinning them needs a test that pretends to be a Mac
+  (`Deno.build` stubbed) rather than one that runs on one.
 
-Two specific ones worth knowing about:
-
-- `INSTALL_LOCK_RETRY_MS` and `INSTALL_LOCK_TIMEOUT_MS` can both be set to
-  zero without a test noticing, which would turn "wait a minute for the other
-  install" into "give up at once".
-- The `darwin` and `arm64` entries in the platform tables are never read on a
-  Linux machine, so they need a test that pretends to be a Mac
-  (`Deno.build.os` stubbed) rather than one that runs on one.
+The waiting itself is now covered — see `test/scripts/stripe-mock/install/
+waiting.test.ts`, which holds the lock from another owner and counts how many
+times ours tries to take it. That counting approach is the one to copy for the
+refresh timer: put a counted stand-in in front of the thing being waited on and
+assert how many times it happened, rather than how long it took.
 
 Starting point: `scripts/stripe-mock/install.ts` lines 90-210, and
 `deno task mutation scripts/stripe-mock/install.ts
-'test/scripts/stripe-mock/install.test.ts' --harness`.
+'test/scripts/stripe-mock/install/*.test.ts' --harness`.

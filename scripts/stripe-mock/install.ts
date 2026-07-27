@@ -138,7 +138,8 @@ const formatInstallLockRecord = (owner: string): string =>
   `${owner}\n${Date.now()}`;
 
 const parseInstallLockRecord = (text: string): InstallLockRecord => {
-  const [first = "", second] = text.split("\n");
+  // Splitting always yields at least one part, so first is always a string.
+  const [first, second] = text.split("\n") as [string, string?];
   const writtenAt = Number(second ?? first);
   return second === undefined ? { writtenAt } : { owner: first, writtenAt };
 };
