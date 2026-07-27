@@ -4,7 +4,7 @@
  * base client test and the coordinates/differences test.
  */
 
-import type { ElementSpec } from "#test-utils/fake-dom.ts";
+import type { ElementSpec, FakeElement } from "#test-utils/fake-dom.ts";
 
 /** The server-rendered address-lookup panel, as an element spec. */
 export const panelSpec = (): ElementSpec => ({
@@ -39,6 +39,22 @@ export const diffSpec = (): ElementSpec => ({
   hidden: true,
   tag: "output",
 });
+
+/** A form holding the lookup panel and the address textarea, plus whatever
+ *  else the page under test needs (the differences notice, pin inputs). */
+export const addressFormSpec = (extras: ElementSpec[] = []): ElementSpec => ({
+  children: [panelSpec(), { name: "address", tag: "textarea" }, ...extras],
+  tag: "form",
+});
+
+/** Look up one element inside the installed form, failing if it is missing. */
+export const oneIn =
+  (form: FakeElement): ((selector: string) => FakeElement) =>
+  (selector: string): FakeElement => {
+    const found = form.querySelector(selector);
+    if (!found) throw new Error(`No ${selector} in the address-lookup form`);
+    return found;
+  };
 
 /** Let an async search settle (fetch → json → DOM writes). */
 export const flushLookup = async (): Promise<void> => {
