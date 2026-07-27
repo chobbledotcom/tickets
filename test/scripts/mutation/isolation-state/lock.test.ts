@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   runLockIsHeld,
   withMutationRunLock,
-  withRunLockIfFree,
+  withRunLockOrNull,
 } from "#scripts/mutation/isolation-lock.ts";
 import { MUTATION_RUN_LOCK_FILE } from "#scripts/mutation/isolation-state.ts";
 import { withTempDir } from "#test/scripts/mutation/isolation-helpers.ts";
@@ -86,11 +86,11 @@ describe("the lock that keeps two runs out of one folder", () => {
       await Deno.mkdir(record.root, { recursive: true });
 
       expect(
-        await withRunLockIfFree(record, () => Promise.resolve("done")),
+        await withRunLockOrNull(record, () => Promise.resolve("done")),
       ).toBe("done");
       // Free again, or this second take would wait for ever.
       expect(
-        await withRunLockIfFree(record, () => Promise.resolve("again")),
+        await withRunLockOrNull(record, () => Promise.resolve("again")),
       ).toBe("again");
     });
   });
@@ -107,7 +107,7 @@ describe("the lock that keeps two runs out of one folder", () => {
         return release.promise;
       });
       await holdingIt.promise;
-      const gaveUp = await withRunLockIfFree(
+      const gaveUp = await withRunLockOrNull(
         record,
         () => {
           ranInside = true;
@@ -125,7 +125,7 @@ describe("the lock that keeps two runs out of one folder", () => {
       // folder is free for the next run.
       await pause(LONG_ENOUGH_TO_BE_LET_IN_MS);
       expect(
-        await withRunLockIfFree(record, () => Promise.resolve("free")),
+        await withRunLockOrNull(record, () => Promise.resolve("free")),
       ).toBe("free");
     });
   });
@@ -137,7 +137,7 @@ describe("the lock that keeps two runs out of one folder", () => {
 
       // Skipping in silence here would leave a copy behind with no word of it.
       await expect(
-        withRunLockIfFree({ root: asFile }, () => Promise.resolve("no")),
+        withRunLockOrNull({ root: asFile }, () => Promise.resolve("no")),
       ).rejects.toThrow();
     });
   });

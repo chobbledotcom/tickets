@@ -25,17 +25,21 @@ const infoOrNull =
   (path: string): Promise<Deno.FileInfo | null> =>
     nullIfNotFound(Deno[look](path));
 
-export const statOrNull = infoOrNull("stat");
+export const statOrNull: (path: string) => Promise<Deno.FileInfo | null> =
+  infoOrNull("stat");
 
 /** As `statOrNull`, but tells you about a link rather than what it points at. */
-export const lstatOrNull = infoOrNull("lstat");
+export const lstatOrNull: (path: string) => Promise<Deno.FileInfo | null> =
+  infoOrNull("lstat");
 
 /**
  * A number from a path's details — its size, when it changed — or `null` when
  * there is nothing there, or the filesystem does not keep that number.
  */
 export const statNumberOrNull =
-  (pick: (info: Deno.FileInfo) => number | null | undefined) =>
+  (
+    pick: (info: Deno.FileInfo) => number | null | undefined,
+  ): ((path: string) => Promise<number | null>) =>
   async (path: string): Promise<number | null> => {
     const info = await statOrNull(path);
     return info === null ? null : (pick(info) ?? null);

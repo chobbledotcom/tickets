@@ -59,7 +59,7 @@ export const runLockIsHeld = async (
  * `timeoutMs`; otherwise give up and answer `null`. Clearing up must never
  * queue behind a run that holds its folder for an hour.
  */
-export const withRunLockIfFree = async <Result>(
+export const withRunLockOrNull = async <Result>(
   record: Pick<MutationRunRecord, "root">,
   run: () => Promise<Result>,
   timeoutMs = 250,

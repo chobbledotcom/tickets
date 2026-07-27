@@ -186,6 +186,19 @@ describe("mutation isolation run records", () => {
     });
   });
 
+  test("ignores a record that is whole but missing its fields", async () => {
+    await withTempDir(async (root) => {
+      const folder = join(root, ".mutation-runs", "half");
+      await Deno.mkdir(folder, { recursive: true });
+      // Valid JSON, but nothing a reader can use — sorting on its createdAt
+      // would have thrown.
+      await Deno.writeTextFile(join(folder, "run.json"), "{}");
+
+      expect(await readRunRecord(join(folder, "run.json"))).toBeNull();
+      expect(await readRunRecords(root)).toEqual([]);
+    });
+  });
+
   test("writes the record so a person can read it", async () => {
     await withTempDir(async (root) => {
       const record = newRunRecord("readable", ["src/a.ts"], root);

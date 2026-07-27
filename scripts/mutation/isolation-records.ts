@@ -2,12 +2,16 @@
  * Reading and writing the small record each mutation run keeps on disk.
  */
 
+/* jscpd:ignore-start */
 import { dirname, join } from "@std/path";
-import { nullIfNotFound, rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { readJsonOrNull } from "#scripts/read-json.ts";
+/* jscpd:ignore-end */
 import {
   MUTATION_RECORD_FILE,
   type MutationRunRecord,
+  MutationRunRecordSchema,
   recordPath,
   runRoot,
   runsRoot,
@@ -36,20 +40,13 @@ export const writeRunRecord = async (
  * written. A disk that cannot be read at all is a different matter and throws:
  * treating it as "no record" would let a live run be cleared away.
  */
-export const readRunRecord = async (
+export const readRunRecord = (
   path: string,
-): Promise<MutationRunRecord | null> => {
-  const text = await nullIfNotFound(Deno.readTextFile(path));
-  if (text === null) return null;
-  try {
-    return JSON.parse(text) as MutationRunRecord;
-  } catch {
-    // A run killed mid-write leaves half a record behind.
-    return null;
-  }
-};
+): Promise<MutationRunRecord | null> =>
+  readJsonOrNull(path, MutationRunRecordSchema);
 
-const recordInCurrentRunDirectory = (
+/** The record as it applies to this checkout, wherever it was written. */
+export const recordInRunDirectory = (
   record: MutationRunRecord,
   id: string,
   root = projectRoot,
@@ -81,7 +78,7 @@ export const readRunRecords = async (
   const records: MutationRunRecord[] = [];
   for (const name of await runDirectoryNames(root)) {
     const record = await readRunRecord(recordPath(name, root));
-    if (record) records.push(recordInCurrentRunDirectory(record, name, root));
+    if (record) records.push(recordInRunDirectory(record, name, root));
   }
   return records.sort((left, right) =>
     right.createdAt.localeCompare(left.createdAt),

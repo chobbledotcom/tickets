@@ -6,6 +6,7 @@
  */
 
 import { isAbsolute, join, relative, resolve, SEPARATOR } from "@std/path";
+import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
@@ -57,24 +58,30 @@ const SKIPPED_FILE_NAMES = new Set([
   "bunny-script.ts.map",
 ]);
 
-export type MutationRunStatus =
-  | "copying"
-  | "running"
-  | "passed"
-  | "failed"
-  | "interrupted";
+export const MutationRunStatusSchema = v.picklist([
+  "copying",
+  "running",
+  "passed",
+  "failed",
+  "interrupted",
+]);
 
-export interface MutationRunRecord {
-  args: string[];
-  createdAt: string;
-  exitCode?: number;
-  id: string;
-  pid?: number;
-  root: string;
-  status: MutationRunStatus;
-  updatedAt: string;
-  workRoot: string;
-}
+export type MutationRunStatus = v.InferOutput<typeof MutationRunStatusSchema>;
+
+/** The shape of a run's record, so half-written ones can be spotted. */
+export const MutationRunRecordSchema = v.object({
+  args: v.array(v.string()),
+  createdAt: v.string(),
+  exitCode: v.optional(v.number()),
+  id: v.string(),
+  pid: v.optional(v.number()),
+  root: v.string(),
+  status: MutationRunStatusSchema,
+  updatedAt: v.string(),
+  workRoot: v.string(),
+});
+
+export type MutationRunRecord = v.InferOutput<typeof MutationRunRecordSchema>;
 
 export type IsolationCommand =
   | { kind: "clean"; target: string }
@@ -170,12 +177,15 @@ export const createRunId = (
 ): string =>
   `${MUTATION_RUN_ID_PREFIX}${compactIso(date.toISOString())}-${suffix}`;
 
+const RUN_ID_SHAPE = new RegExp(
+  `^${MUTATION_RUN_ID_PREFIX}\\d{8}T\\d{6}Z-[0-9a-f]{8}$`,
+);
+
 /**
  * Does this folder name look like one `createRunId` made? Only those are ours
  * to clear away; anything else under .mutation-runs belongs to someone else.
  */
-export const isRunId = (name: string): boolean =>
-  /^mutation-\d{8}T\d{6}Z-[0-9a-f]{8}$/.test(name);
+export const isRunId = (name: string): boolean => RUN_ID_SHAPE.test(name);
 
 export const runsRoot = (root = projectRoot): string =>
   join(root, MUTATION_RUNS_DIR);

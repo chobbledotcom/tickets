@@ -932,7 +932,8 @@ file. The normal `deno task mutation` command first copies the current checkout
 (including dirty source/test edits, excluding `.git`, cache/report folders,
 local databases, secrets, and generated assets) to `.mutation-runs/<id>/work`;
 all in-place writes and per-mutant bundle rebuilds happen inside that copy, not
-the live files. That copy is deleted as soon as the run ends, so
+the live files. A run deletes that copy as soon as it ends — reporting the
+failure if it cannot — so
 `.mutation-runs/` does not fill up with checkout copies. While a run is going —
 and until the *next* run starts — it has a small `.mutation-runs/<id>/run.json`
 holding the child PID/status, so a stray run is easy to find and stop. Starting

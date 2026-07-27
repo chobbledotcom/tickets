@@ -9,10 +9,10 @@ import { join } from "@std/path";
 import { statNumberOrNull } from "#scripts/not-found.ts";
 import { processExists, removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { runLockIsHeld, withRunLockIfFree } from "./isolation-lock.ts";
+import { runLockIsHeld, withRunLockOrNull } from "./isolation-lock.ts";
 import {
   readRunRecord,
-  readRunRecords,
+  recordInRunDirectory,
   runDirectoryNames,
 } from "./isolation-records.ts";
 import {
@@ -20,6 +20,7 @@ import {
   MUTATION_RECORD_FILE,
   type MutationRunRecord,
   newRunRecord,
+  recordPath,
   runRoot,
   runStartedRecently,
   withinStartupGrace,
@@ -54,7 +55,7 @@ export const liveRunIdSet = async (
   return new Set(live.filter((id): id is string => id !== null));
 };
 
-export type RemoveRunResult =
+type RemoveRunResult =
   | { record: MutationRunRecord; removed: true }
   | { error: unknown; record: MutationRunRecord; removed: false };
 
@@ -90,17 +91,17 @@ const activeByRecord = (record: MutationRunRecord): boolean =>
  * is what stops an owner claiming the folder in the moment between the two.
  * `null` means the run is still someone's, so it was left alone.
  */
-export const removeRun = (
+const removeRun = (
   record: MutationRunRecord,
 ): Promise<RemoveRunResult | null> =>
-  withRunLockIfFree(record, async () => {
+  withRunLockOrNull(record, async () => {
     const latest = (await freshRecord(record)) ?? record;
     return activeByRecord(latest)
       ? null
       : await removeRunPath(record, record.root);
   });
 
-export interface CleanedRuns {
+interface CleanedRuns {
   failed: Extract<RemoveRunResult, { removed: false }>[];
   removed: MutationRunRecord[];
   skipped: MutationRunRecord[];
@@ -170,21 +171,17 @@ const recordForUnreadableRun = async (
 };
 
 const runsToSweep = async (root: string): Promise<MutationRunRecord[]> => {
-  // Only folders this runner named: anything else under .mutation-runs was
-  // put there by someone else and is not ours to delete, record or no record.
-  const records = (await readRunRecords(root)).filter((record) =>
-    isRunId(record.id),
+  // Only folders this runner named, and picked out before anything inside them
+  // is read: whatever else sits under .mutation-runs is not ours to touch.
+  const ours = (await runDirectoryNames(root)).filter(isRunId);
+  return await Promise.all(
+    ours.map(async (id) => {
+      const record = await readRunRecord(recordPath(id, root));
+      return record === null
+        ? await recordForUnreadableRun(id, root)
+        : recordInRunDirectory(record, id, root);
+    }),
   );
-  const known = new Set(records.map((record) => record.id));
-  const unreadable = (await runDirectoryNames(root)).filter(
-    (name) => !known.has(name) && isRunId(name),
-  );
-  return [
-    ...records,
-    ...(await Promise.all(
-      unreadable.map((id) => recordForUnreadableRun(id, root)),
-    )),
-  ];
 };
 
 /** Clears out whatever earlier runs left behind, so nothing piles up. */
