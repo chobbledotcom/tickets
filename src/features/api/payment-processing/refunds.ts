@@ -36,6 +36,9 @@ const REFUND_REASONS = {
   price_changed: {
     reason: "the listing price changed while they were paying",
   },
+  registration_closed: {
+    reason: "registration closed while they were paying",
+  },
   sold_out: {
     reason: "an add-on or extra they chose sold out while they were paying",
   },

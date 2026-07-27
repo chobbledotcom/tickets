@@ -211,6 +211,9 @@ type ProviderResource =
 
 export interface ProviderNoticeFixture {
   notice: ProviderNotice | null;
+  /** What the buyer paid, so a refund answered for this session can return the
+   *  same money the charge carries. */
+  paidAmount?: number;
   read: (
     payment: PaymentSession | null,
     requested: ProviderResource,

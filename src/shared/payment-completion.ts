@@ -96,6 +96,7 @@ export const RefundCodeSchema = v.picklist([
   "charge_mismatch",
   "listing_removed",
   "price_changed",
+  "registration_closed",
   "sold_out",
   "unexpected_error",
 ]);

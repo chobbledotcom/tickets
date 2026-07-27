@@ -10,6 +10,7 @@ import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
 import { type ProviderNoticeFixture, stubWebhookVerify } from "./settings.ts";
+import { stripeRefund } from "./stripe/fixtures.ts";
 
 /**
  * The `checkout.session.completed` Stripe event shape almost every
@@ -61,6 +62,7 @@ export const checkoutSessionEvent = (opts: {
       resource: session,
       type: "checkout.session.completed",
     },
+    paidAmount: opts.amountTotal,
     read: (payment, requested) =>
       foundProviderPayment(
         payment,
@@ -171,26 +173,23 @@ export const expectWebhookProcessed = async (
 /**
  * The "kept and refunded" webhook assertion: stub `verifyWebhookSignature` to
  * return `event` and `stripeApi.requestRefund` to succeed, POST the webhook,
- * and assert the standard price-mismatch response — acknowledged but not
- * processed, with an error containing `errorContains` (the generic
- * saved-your-details message by default; pass an override for a scenario with
- * its own message, e.g. an inactive/closed listing). Returns the refund stub
- * so the caller can assert on `mockRefund.calls.length` and continue with
- * scenario-specific checks (the quantity-0 placeholder, the system note, and
- * the terminal payment aggregate).
+ * and assert the standard money-returned response: the notice is acknowledged,
+ * the booking was not processed, and the payment ends up fully refunded. The
+ * reason the money went back is not in this response — it is kept on the
+ * booking's system note, so a scenario that cares about the wording asserts it
+ * with `expectRefundNote`. Returns the refund stub so the caller can assert on
+ * `mockRefund.calls.length` and continue with scenario-specific checks (the
+ * quantity-0 placeholder, the system note, and the terminal payment aggregate).
  */
 export const expectWebhookKeptAndRefunded = async (
   event: Parameters<typeof stubWebhookVerify>[0],
   refundId = "re_test",
-  errorContains: string | string[] = "saved your details",
   signature?: string,
 ) => {
   const mockVerify = await stubWebhookVerify(event);
-  const mockRefund = stub(stripeApi, "requestRefund", () =>
-    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.requestRefund>
-    >),
-  );
+  const paid =
+    event !== null && "paidAmount" in event ? event.paidAmount : undefined;
+  const mockRefund = stubRefundPayment(refundId, paid);
   await postWebhookAndAssert(
     () => {
       mockVerify.restore();
@@ -200,11 +199,7 @@ export const expectWebhookKeptAndRefunded = async (
     (json) => {
       expect(json.received).toBe(true);
       expect(json.processed).toBe(false);
-      for (const substring of Array.isArray(errorContains)
-        ? errorContains
-        : [errorContains]) {
-        expect(json.error).toContain(substring);
-      }
+      expect(json.status).toBe("fully_refunded");
     },
     signature ?? "sig_valid",
   );
@@ -252,6 +247,32 @@ export const expectRefundedWithNote = async (
   expect(mockRefund.calls.length).toBe(1);
   const { getNoteRows } = await import("#shared/db/system-notes.ts");
   expect((await getNoteRows([attendeeId])).length).toBe(1);
+};
+
+/**
+ * Assert why the money went back: the note kept on the listing's placeholder
+ * booking says so. The webhook reply only reports that the payment was
+ * refunded, so this is where a scenario checks the wording the operator reads.
+ */
+export const expectRefundNote = async (
+  listingId: number,
+  contains: string | string[],
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getNotesForAttendee } = await import("#shared/db/system-notes.ts");
+  const { getTestPrivateKey } = await import("./crypto.ts");
+  const { settleDeferredPaymentWork } = await import("./maintenance.ts");
+  await settleDeferredPaymentWork();
+  const [attendee] = await getAttendeesRaw(listingId);
+  if (attendee === undefined) throw new Error("Expected a kept booking");
+  const notes = await getNotesForAttendee(
+    attendee.id,
+    await getTestPrivateKey(),
+  );
+  const text = notes.map((note) => note.note).join("\n");
+  for (const substring of Array.isArray(contains) ? contains : [contains]) {
+    expect(text).toContain(substring);
+  }
 };
 
 /**
@@ -408,11 +429,19 @@ export const expectAttendeeCreatedWithPiiBlob = async (
  *  provider refund id — the bare stub for tests that drive the refund
  *  through the `/payment/success` redirect path directly rather than through
  *  `expectWebhookKeptAndRefunded`. */
-export const stubRefundPayment = (refundId = "re_test") =>
-  stub(stripeApi, "requestRefund", () =>
-    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.requestRefund>
-    >),
+/**
+ * Answer a refund request with a refund that genuinely belongs to the charge
+ * being refunded: the payment reference comes straight back from the request,
+ * so the provider check that a refund matches its charge is satisfied without
+ * every caller restating the id. `amount` must be what is left to refund on
+ * the charge, which is the full paid total unless the test refunded part of it
+ * already.
+ */
+export const stubRefundPayment = (refundId = "re_test", amount = 1000) =>
+  stub(stripeApi, "requestRefund", (intentId: string) =>
+    Promise.resolve(
+      stripeRefund({ amount, id: refundId, payment_intent: intentId }),
+    ),
   );
 
 /** Assert the provider received both the payment reference and a stable key. */

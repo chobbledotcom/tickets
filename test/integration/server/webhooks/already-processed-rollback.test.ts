@@ -12,6 +12,7 @@ import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
+  expectRefundNote,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
@@ -56,8 +57,8 @@ describeWithEnv(
           sessionId: "cs_multi_inactive_wh",
         }),
         "re_test",
-        "no longer accepting",
       );
+      await expectRefundNote(listing2.id, "no longer accepting");
 
       const { getAttendeesRaw } = await import(
         "#shared/db/attendees/queries.ts"

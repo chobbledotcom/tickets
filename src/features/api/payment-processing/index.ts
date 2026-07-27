@@ -14,6 +14,7 @@ import {
 import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import {
   deletedListingSpec,
+  type RefundSpec,
   refundSpec,
 } from "#routes/api/payment-processing/refunds.ts";
 import {
@@ -55,10 +56,22 @@ const validationRefund = (
   storeRefundedBooking(
     work,
     datelessGhostBookings(work.intent.items),
-    validation.status === 404
-      ? deletedListingSpec(work.session)
-      : refundSpec("price_changed")(validation.detail ?? validation.error),
+    validationRefundSpec(work, validation),
   );
+
+/** Say why the money went back. A listing that closed or stopped taking
+ *  bookings is not a price change, and the operator's note and alert have to
+ *  tell them apart. */
+const validationRefundSpec = (
+  work: PaymentWork,
+  validation: PaymentFailureResult,
+): RefundSpec => {
+  if (validation.status === 404) return deletedListingSpec(work.session);
+  const detail = validation.detail ?? validation.error;
+  return validation.status === 410
+    ? refundSpec("registration_closed")(detail)
+    : refundSpec("price_changed")(detail);
+};
 
 /** Fulfil a ready aggregate while retaining its lease and revision fence. */
 export const fulfilPayment = async (
