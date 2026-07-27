@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import type { LegacyPaymentReplay } from "#shared/db/payments/legacy-sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { PAYMENT_PROVIDER_RESOURCES } from "#shared/payment-runtime/current.ts";
 import {
@@ -9,7 +8,11 @@ import {
 } from "#shared/payment-runtime/locate.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { required } from "#test-utils/required.ts";
-import { createLegacySumupCheckout, createPendingPayment } from "./fixtures.ts";
+import {
+  createLegacySumupCheckout,
+  createPendingPayment,
+  legacyReplay,
+} from "./fixtures.ts";
 
 describeWithEnv(
   "finding the payment a caller is asking about",
@@ -91,21 +94,10 @@ describeWithEnv(
     test("refuses an old record the owner put with the wrong provider", async () => {
       // The owner assigned this old payment to Stripe, but the checkout it is
       // filed under is a SumUp one. One of the two is wrong, so we stop.
-      const assignedToStripe: LegacyPaymentReplay = {
-        accountId: "acct_1",
-        attendeeId: null,
-        id: "legacy:sumup:mismatched",
-        mode: "live",
-        provider: "stripe",
-        revision: 1,
-        runtime: {
-          attendeePayment: null,
-          checkoutStage: null,
-          processedPayment: null,
-          sumupCheckout: null,
-        },
-        state: "pending",
-      };
+      const assignedToStripe = legacyReplay(
+        {},
+        { id: "legacy:sumup:mismatched", provider: "stripe" },
+      );
 
       await expect(
         matchLegacyPayment(

@@ -22,6 +22,10 @@ import {
   acceptPaymentDecision,
   retryPaymentDecision,
 } from "#shared/db/payments/decisions.ts";
+import type {
+  LegacyPaymentRuntime,
+  LegacyProcessedPayment,
+} from "#shared/db/payments/legacy.ts";
 import {
   type LegacyPaymentGroup,
   LegacyPaymentRuntimeSchema,
@@ -31,6 +35,7 @@ import {
   prepareLegacyAttendeePaymentReference,
   prepareLegacyPayment,
 } from "#shared/db/payments/legacy-copy.ts";
+import type { LegacyPaymentReplay } from "#shared/db/payments/legacy-sessions.ts";
 import {
   createPaymentSession,
   getPaymentSessions,
@@ -488,3 +493,41 @@ export const createLegacySumupCheckout = async (
   };
   await executeBatch(legacyTargetStatements(await prepareLegacyPayment(group)));
 };
+
+/** One old payment record, as it reads after the upgrade copied it across.
+ *  Nothing is filled in by default — each test adds only the parts it needs. */
+export const legacyReplay = (
+  runtime: Partial<LegacyPaymentRuntime> = {},
+  values: Partial<Omit<LegacyPaymentReplay, "runtime">> = {},
+): LegacyPaymentReplay => ({
+  accountId: null,
+  attendeeId: null,
+  id: "legacy:sumup:example",
+  mode: null,
+  provider: null,
+  revision: 1,
+  runtime: {
+    attendeePayment: null,
+    checkoutStage: null,
+    processedPayment: null,
+    sumupCheckout: null,
+    ...runtime,
+  },
+  state: "pending",
+  ...values,
+});
+
+/** One "we already dealt with this" row from before the upgrade. */
+export const legacyProcessedPayment = (
+  values: Partial<LegacyProcessedPayment> = {},
+): LegacyProcessedPayment => ({
+  attendeeId: null,
+  failureData: "",
+  listingId: null,
+  paymentReference: "",
+  paymentSessionId: "legacy-session",
+  processedAt: "2026-07-25T10:01:00.000Z",
+  providerRefundedAt: "",
+  ticketTokens: "",
+  ...values,
+});
