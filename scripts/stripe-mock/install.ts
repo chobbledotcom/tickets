@@ -327,7 +327,7 @@ const installStripeMock = async (
     await runCommand(
       new Deno.Command(commands.tar, {
         args: ["-xzf", tarPath, "-C", tempDir],
-        stderr: "null",
+        stderr: "piped",
         stdout: "null",
       }),
       "Failed to extract stripe-mock",
@@ -336,7 +336,7 @@ const installStripeMock = async (
     await runCommand(
       new Deno.Command(commands.chmod, {
         args: ["+x", tempBinaryPath],
-        stderr: "null",
+        stderr: "piped",
         stdout: "null",
       }),
       "Failed to make stripe-mock executable",
