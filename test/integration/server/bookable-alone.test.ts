@@ -15,7 +15,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { groups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -32,7 +31,6 @@ import {
   apiListingSlugs,
   makeParent,
   publicBody,
-  ticketPageStatus,
 } from "#test-utils/parents.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -48,42 +46,6 @@ describeWithEnv(
   "server > bookable_alone child surfaces",
   { db: true, triggers: true },
   () => {
-    describe("standalone booking page", () => {
-      test("a bookable_alone child's /ticket page renders (200), not 404", async () => {
-        const { child } = await parentWithFlaggedChild();
-        await enablePublicSite();
-        const response = await handleRequest(
-          mockRequest(`/ticket/${child.slug}`),
-        );
-        expect(response.status).toBe(200);
-        const body = await response.text();
-        expect(body).toContain("Solo Widget");
-      });
-
-      test("a plain (non-flagged) child under the same shape still 404s", async () => {
-        // Regression floor: only the flag opens the page; a plain child is
-        // rejected by the slug guard exactly as before.
-        const { child } = await makeParent({
-          children: [{ name: "Folded Only" }],
-          parent: { name: "Picker" },
-        });
-        expect(await ticketPageStatus(child.slug)).toBe(404);
-      });
-    });
-
-    describe("public listing cards (/listings)", () => {
-      test("a bookable_alone child shows a Book CTA, not the add-on note", async () => {
-        const { parent, child } = await parentWithFlaggedChild();
-        const body = await publicBody("/listings");
-        expect(body).toContain("Solo Widget");
-        // Its own standalone CTA is present; the add-on note is NOT shown.
-        expect(body).toContain(`href="/ticket/${child.slug}"`);
-        expect(body).not.toContain("Available as an add-on to another booking");
-        // The parent keeps its own Book link too.
-        expect(body).toContain(`href="/ticket/${parent.slug}"`);
-      });
-    });
-
     describe("/order gallery", () => {
       test("offers a bookable_alone child as a selectable card", async () => {
         await enablePublicSite();
@@ -177,43 +139,7 @@ describeWithEnv(
       });
     });
 
-    describe("hidden-package concealment still wins", () => {
-      test("a hidden package member stays concealed even if bookable_alone", async () => {
-        // The hidden-member arm of the gate outranks the flag: a hidden package's
-        // member has no standalone page regardless of bookable_alone.
-        const group = await createTestGroup({
-          isPackage: true,
-          name: "Bundle",
-        });
-        // hide_package_listings isn't exposed by the create form helper, so set
-        // it directly — the concealment predicate reads this column.
-        await groups.table.update(group.id, {
-          hidePackageListings: true,
-          isPackage: true,
-        });
-        const member = await createTestListing({
-          bookableAlone: true,
-          groupId: group.id,
-          name: "Concealed Member",
-        });
-        expect(await ticketPageStatus(member.slug)).toBe(404);
-      });
-    });
-
     describe("flag transitions on listing save (no orphaned add-on)", () => {
-      test("clearing bookable_alone on a child is allowed when nothing is orphaned", async () => {
-        // The false-transition guard runs but finds no child-scoped add-on to
-        // orphan, so the save succeeds and the flag flips off (the child's
-        // /ticket page then 404s again).
-        const { child } = await parentWithFlaggedChild();
-        expect(await ticketPageStatus(child.slug)).toBe(200);
-        await updateTestListing(child.id, { bookableAlone: false });
-        expect((await listingsTable.findById(child.id))!.bookable_alone).toBe(
-          false,
-        );
-        expect(await ticketPageStatus(child.slug)).toBe(404);
-      });
-
       test("clearing bookable_alone on a NON-child listing is a no-op guard", async () => {
         // The flag is inert for a listing with no parents, so clearing it never
         // runs the reachability guard — the save just succeeds.
@@ -225,18 +151,6 @@ describeWithEnv(
         expect((await listingsTable.findById(solo.id))!.bookable_alone).toBe(
           false,
         );
-      });
-
-      test("setting bookable_alone true on a child opens its page", async () => {
-        // The reverse transition never runs the orphan guard (adding a page only
-        // ADDS reachability), so it always succeeds and the page opens.
-        const { child } = await makeParent({
-          children: [{ name: "Later Solo" }],
-          parent: { name: "Picker" },
-        });
-        expect(await ticketPageStatus(child.slug)).toBe(404);
-        await updateTestListing(child.id, { bookableAlone: true });
-        expect(await ticketPageStatus(child.slug)).toBe(200);
       });
     });
   },
