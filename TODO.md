@@ -1941,3 +1941,82 @@ scaffolding to add inside a test migration.
 Starting point: `src/ui/client/scanner.js`, the confirmation branches around its
 handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
 for how a client script is driven without a real browser.
+
+---
+
+## Payment findings from the review of the aggregate base branch
+
+*Origin: Codex review on PR #1962 (the payment-aggregate base branch).*
+
+These are real problems the reviewer found in the payment rewrite. None is a
+test failure, so none was fixed while getting the branch's tests green; each
+should be picked up as its own chunk when that part of payments is peeled off.
+
+**Old payments cannot be refunded from an attendee's page.** After an existing
+site upgrades, its copied payments are stored as `origin = 'legacy'`, but every
+attendee refund path loads payments through a query that only looks at current
+ones (`getCurrentPaymentSessions` in `src/shared/db/payments/sessions.ts`). So
+a booking paid for before the upgrade looks like it has no payment to give
+back. Either keep a path for the old ones, or promote them once they are
+resolved. Start at that query and at
+`src/shared/payment-runtime/refund-targets.ts`.
+
+**A refund can be blocked just because new checkouts are switched off.** When
+the owner picks "none" as the payment provider, each stored payment still
+records the provider and account that took its money, but the single-attendee
+refund refuses before reading them
+(`paymentProviderIsConfigured` in `src/features/admin/attendee-refunds.ts`).
+The bulk path over the same targets still refunds. Better: go through the
+stored payment and only report a setup problem when its own account no longer
+works.
+
+**Money the owner sent back is not written into the books.** Choosing
+"refund the rest" on a case for a booking that already exists marks the
+provider side fully refunded and closes the case, but nothing records the
+refund against the attendee, so Money still shows the cash as held
+(`src/shared/payment-runtime/operator.ts`, around the `refund_remaining`
+arm). It needs to finish the attendee's own refund before reporting the
+decision as done.
+
+**Some finished payments are never tidied up.** A payment can end
+`fully_refunded` with no completion plan — the provider refunded it before
+the booking was made, or a balance was refunded because the amount changed.
+The tidy-up only accepts payments whose completion finished
+(`src/shared/db/payments/redaction-eligibility.ts`), so those keep the buyer's
+details for ever instead of for the retention period.
+
+**A paused refund can jam the queue.** When an automatic refund comes back
+part-done, or a provider failure hands the payment to the owner, the payment
+is released with no next-check time while its completion is still pending —
+a state the table's own rule forbids, and one the queue then rejects, holding
+up every payment behind it
+(`src/features/api/payment-processing/completion-refund.ts`).
+
+**Merging a booking mid-delivery loses the site it was given.** If a payment
+has handed out a site but its remaining work is still queued, merging the
+booking repoints the payment and deletes the old booking, leaving the queued
+work pointing at a booking that is gone
+(`src/shared/merge/attendee-merge.ts`). The delete paths already refuse in
+this situation; the merge should too, or move the queued work with it.
+
+**Tickets handed out early are kept for ever.** A buyer who is sent straight
+to their ticket gets its tokens before the payment's remaining work finishes,
+so the copy kept with the payment is never used up — and tidy-up skips
+payments whose tickets are marked ready. Unless the buyer returns to the
+provider's success address later, the tokens and the unredacted payment stay
+put (`src/features/api/webhooks.ts`).
+
+**A SumUp return can be read by the wrong provider.** A new SumUp checkout
+puts our own payment id in `session_id`, but the return address only treats
+`payment_id` as one of ours. Switching or switching off the provider while a
+SumUp checkout is open means the buyer's return cannot find their payment
+(`src/shared/payment-runtime/legacy-sumup.ts`, and the return handling in
+`src/features/api/webhooks.ts`).
+
+**The attendee's payment id is cleared, but pages still read it.** New paid
+bookings store an empty payment id, while the payment panel and the attendee
+export still read that field — so the panel disappears and exports carry a
+blank transaction id even though the payment aggregate has the reference
+(`src/features/api/payment-processing/create.ts` writes the empty value;
+`src/features/admin/attendee-page-data.ts` and
+`src/features/admin/listings-export.ts` read it).
