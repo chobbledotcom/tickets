@@ -97,14 +97,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         "/admin/settings/google-wallet",
-        {
-          csrf_token: csrfToken,
-          google_wallet_issuer_id: "1234567890",
-          google_wallet_service_account_email:
-            "test@test.iam.gserviceaccount.com",
-          google_wallet_service_account_key:
-            generateGoogleTestCreds().serviceAccountKey,
-        },
+        { ...validWalletForm(), csrf_token: csrfToken },
         cookie,
       ),
     );
@@ -115,9 +108,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     )(response);
 
     expect(settings.googleWallet.hasConfig).toBe(true);
-    expect(settings.googleWallet.issuerId).toBe("1234567890");
+    expect(settings.googleWallet.issuerId).toBe(
+      validWalletForm().google_wallet_issuer_id,
+    );
     expect(settings.googleWallet.serviceAccountEmail).toBe(
-      "test@test.iam.gserviceaccount.com",
+      validWalletForm().google_wallet_service_account_email,
     );
   });
 

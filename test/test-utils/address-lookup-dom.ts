@@ -49,7 +49,7 @@ export const addressFormSpec = (extras: ElementSpec[] = []): ElementSpec => ({
 
 /** Look up one element inside the installed form, failing if it is missing. */
 export const oneIn =
-  (form: FakeElement) =>
+  (form: FakeElement): ((selector: string) => FakeElement) =>
   (selector: string): FakeElement => {
     const found = form.querySelector(selector);
     if (!found) throw new Error(`No ${selector} in the address-lookup form`);
