@@ -143,6 +143,22 @@ describe("the lock that keeps two runs out of one folder", () => {
     });
   });
 
+  test("reports a lock that goes while being looked at as not held", async () => {
+    await withTempDir(async (root) => {
+      const record = { root: join(root, ".mutation-runs", "mutation-swept") };
+      await Deno.mkdir(record.root, { recursive: true });
+      const stat = Deno.stat;
+      // Says the lock file is there, but it is not — which is what a clear-up
+      // taking the folder away mid-question looks like.
+      using _stat = stub(Deno, "stat", ((path: string | URL) =>
+        `${path}`.endsWith(MUTATION_RUN_LOCK_FILE)
+          ? stat(record.root)
+          : stat(path)) as typeof Deno.stat);
+
+      expect(await runLockIsHeld(record)).toBe(false);
+    });
+  });
+
   test("says so loudly when the lock cannot be looked at", async () => {
     await withTempDir(async (root) => {
       const record = { root: join(root, "unreadable") };

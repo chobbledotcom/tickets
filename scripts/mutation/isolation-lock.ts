@@ -21,17 +21,24 @@ const timeout = setTimeout(
   () => Deno.exit(${LOCK_HELD_EXIT_CODE}),
   Number(timeoutText),
 );
-const file = await Deno.open(path, { read: true, write: true }).catch(() => null);
-if (file === null) {
+const opened = await Deno.open(path, { read: true, write: true }).catch((why) => why);
+// A lock file that has gone is nobody holding one — a clear-up can take the
+// folder away between being asked and being looked at.
+if (opened instanceof Deno.errors.NotFound) {
+  clearTimeout(timeout);
+  Deno.exit(${LOCK_FREE_EXIT_CODE});
+}
+if (!(opened instanceof Deno.FsFile)) {
   clearTimeout(timeout);
   Deno.exit(2);
 }
+const file = opened;
 try {
   await file.lock(true);
   await file.unlock();
   clearTimeout(timeout);
   file.close();
-  Deno.exit(0);
+  Deno.exit(${LOCK_FREE_EXIT_CODE});
 } catch {
   clearTimeout(timeout);
   file.close();
