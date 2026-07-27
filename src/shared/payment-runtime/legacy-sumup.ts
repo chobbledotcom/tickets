@@ -23,6 +23,7 @@ import { PAYMENT_PROVIDER_RESOURCES } from "#shared/payment-runtime/current.ts";
 import { signedBookingIntentFromMetadata } from "#shared/payment-runtime/metadata.ts";
 import { signedPaymentFacts } from "#shared/payment-runtime/provider-read.ts";
 import type { ProviderSessionResource } from "#shared/payment-state/resources.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 const metadataJson = defineStoredJson(v.record(v.string(), v.string()));
@@ -116,11 +117,12 @@ const currentSumupPayment = async (
         WHERE id = ? AND origin = 'legacy'`,
     },
   ]);
-  const [payment] = await getPaymentSessionsPrimary([reference]);
-  if (payment === null || payment === undefined) {
-    throw new Error(`Legacy SumUp payment ${legacy.id} was not promoted`);
-  }
-  return { payment };
+  return {
+    payment: requireValue(
+      (await getPaymentSessionsPrimary([reference]))[0],
+      `Legacy SumUp payment ${legacy.id} was not promoted`,
+    ),
+  };
 };
 
 /** Promote one encrypted pre-aggregate SumUp checkout without duplicating it. */

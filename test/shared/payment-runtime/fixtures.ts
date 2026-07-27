@@ -444,9 +444,12 @@ export const createLegacySumupCheckout = async (
     /** Which old row this checkout was found in. One reference can be reached
      *  under two of these, which is how a site ends up with two of them. */
     filedUnder?: "session" | "sumup";
+    /** Keep the price proof off the stored details, so nothing vouches for
+     *  what the buyer was asked to pay. */
+    unsigned?: boolean;
   } = {},
 ): Promise<void> => {
-  const { filedUnder = "sumup", finished = false } = options;
+  const { filedUnder = "sumup", finished = false, unsigned = false } = options;
   settings.setForTest({
     currency: "GBP",
     payment_provider: "sumup",
@@ -454,14 +457,12 @@ export const createLegacySumupCheckout = async (
     sumup_merchant_code: "merchant-legacy",
   });
   const dataKey = await generateDataKey();
-  const metadata = signedMeta(
-    {
-      email: "legacy@example.com",
-      items: singleItem(7, 1, 1_000),
-      name: "Legacy buyer",
-    },
-    1_000,
-  );
+  const details = {
+    email: "legacy@example.com",
+    items: singleItem(7, 1, 1_000),
+    name: "Legacy buyer",
+  };
+  const metadata = unsigned ? details : signedMeta(details, 1_000);
   const group: LegacyPaymentGroup = {
     key:
       filedUnder === "sumup"
