@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
 import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -12,6 +10,7 @@ import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("payment success token verification", () => {
@@ -52,24 +51,19 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 500,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          id: "cs_token_verify",
-          metadata: signMeta(
-            {
-              email: "verify@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "Token Verify",
-            },
-            500,
-          ),
-          payment_intent: "pi_token_verify",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 500,
+        metadata: signMeta(
+          {
+            email: "verify@example.com",
+            items: singleItem(listing.id, 1, 500),
+            name: "Token Verify",
+          },
+          500,
+        ),
+        paymentIntent: "pi_token_verify",
+        sessionId: "cs_token_verify",
+      });
 
       try {
         // Process payment to get redirect with token, then render the page

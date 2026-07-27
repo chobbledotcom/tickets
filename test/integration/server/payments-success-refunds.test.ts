@@ -21,28 +21,27 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
-import { expectRefundPaymentCall } from "#test-utils/webhooks.ts";
+import {
+  expectRefundPaymentCall,
+  stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
     test("skips refund for ticket payment when listing not found", async () => {
       await setupStripe();
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_multi_notfound",
-          metadata: {
-            email: "missing@example.com",
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 0,
+        metadata: {
+          email: "missing@example.com",
 
-            items: JSON.stringify([{ e: 99999, p: 500, q: 1 }]),
-            name: "Missing Listing",
-          },
-          payment_intent: "pi_multi_notfound",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+          items: JSON.stringify([{ e: 99999, p: 500, q: 1 }]),
+          name: "Missing Listing",
+        },
+        paymentIntent: "pi_multi_notfound",
+        sessionId: "cs_multi_notfound",
+      });
 
       const mockRefund = spy(stripeApi, "requestRefund");
 
@@ -77,27 +76,22 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
       await deactivateTestListing(member.id);
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_stale_hidden_multi",
-          metadata: signMeta(
-            {
-              email: "stale@example.com",
-              items: JSON.stringify([
-                { e: visible.id, p: 500, q: 1 },
-                { e: member.id, p: 500, q: 1 },
-              ]),
-              name: "Stale Buyer",
-            },
-            1000,
-          ),
-          payment_intent: "pi_stale_hidden_multi",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata: signMeta(
+          {
+            email: "stale@example.com",
+            items: JSON.stringify([
+              { e: visible.id, p: 500, q: 1 },
+              { e: member.id, p: 500, q: 1 },
+            ]),
+            name: "Stale Buyer",
+          },
+          1000,
+        ),
+        paymentIntent: "pi_stale_hidden_multi",
+        sessionId: "cs_stale_hidden_multi",
+      });
       const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({
           id: "re_stale_refund",
@@ -139,27 +133,22 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       await deactivateTestListing(vanished.id);
       await groups.table.deleteById(group.id);
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_stale_pkg_group",
-          metadata: signMeta(
-            {
-              email: "stale-pkg@example.com",
-              items: JSON.stringify([
-                { e: keeper.id, k: "p", p: 500, q: 1, r: group.id },
-                { e: vanished.id, k: "p", p: 500, q: 1, r: group.id },
-              ]),
-              name: "Stale Package Buyer",
-            },
-            1000,
-          ),
-          payment_intent: "pi_stale_pkg_group",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata: signMeta(
+          {
+            email: "stale-pkg@example.com",
+            items: JSON.stringify([
+              { e: keeper.id, k: "p", p: 500, q: 1, r: group.id },
+              { e: vanished.id, k: "p", p: 500, q: 1, r: group.id },
+            ]),
+            name: "Stale Package Buyer",
+          },
+          1000,
+        ),
+        paymentIntent: "pi_stale_pkg_group",
+        sessionId: "cs_stale_pkg_group",
+      });
       const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({
           id: "re_stale_pkg_refund",
@@ -191,24 +180,19 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
       await deactivateTestListing(listing.id);
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          id: "cs_multi_inactive",
-          metadata: signMeta(
-            {
-              email: "inactive@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-              name: "Inactive Listing",
-            },
-            500,
-          ),
-          payment_intent: "pi_multi_inactive",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 500,
+        metadata: signMeta(
+          {
+            email: "inactive@example.com",
+            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+            name: "Inactive Listing",
+          },
+          500,
+        ),
+        paymentIntent: "pi_multi_inactive",
+        sessionId: "cs_multi_inactive",
+      });
 
       const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({
@@ -238,24 +222,19 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
       const listing = await fillSoleCapacityListing();
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_refund_fail",
-          metadata: signMeta(
-            {
-              email: "refund@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Refund Fail",
-            },
-            1000,
-          ),
-          payment_intent: "pi_refund_fail",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata: signMeta(
+          {
+            email: "refund@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "Refund Fail",
+          },
+          1000,
+        ),
+        paymentIntent: "pi_refund_fail",
+        sessionId: "cs_refund_fail",
+      });
 
       // Mock refund to fail, and the payment is not already refunded, so the
       // refund genuinely failed (→ contact-support, not an idempotent success).
@@ -319,27 +298,22 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         paymentId: "pi_first",
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1500,
-          id: "cs_multi_rollback",
-          metadata: signMeta(
-            {
-              email: "rollback@example.com",
-              items: JSON.stringify([
-                { e: listing1.id, p: 500, q: 1 },
-                { e: listing2.id, p: 1000, q: 1 },
-              ]),
-              name: "Rollback User",
-            },
-            1500,
-          ),
-          payment_intent: "pi_multi_rollback",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1500,
+        metadata: signMeta(
+          {
+            email: "rollback@example.com",
+            items: JSON.stringify([
+              { e: listing1.id, p: 500, q: 1 },
+              { e: listing2.id, p: 1000, q: 1 },
+            ]),
+            name: "Rollback User",
+          },
+          1500,
+        ),
+        paymentIntent: "pi_multi_rollback",
+        sessionId: "cs_multi_rollback",
+      });
 
       const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({

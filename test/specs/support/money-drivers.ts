@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import {
   expectHtmlResponse,
   expectRedirect,
@@ -10,6 +8,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // -- Public-payment driver (mirrors server-payments-success.test.ts) ------ //
 
@@ -49,17 +48,12 @@ export const withStripeSuccess = async (
     },
     order.total,
   );
-  const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: order.total,
-      id: sessionId,
-      metadata,
-      payment_intent: order.paymentIntent,
-      payment_status: "paid",
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
-  );
+  const mockRetrieve = stubRetrieveCheckoutSession({
+    amountTotal: order.total,
+    metadata,
+    paymentIntent: order.paymentIntent,
+    sessionId,
+  });
   try {
     await body(
       await handleRequest(

@@ -5,7 +5,6 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -26,6 +25,7 @@ import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectWebhookProcessed,
+  stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -128,24 +128,19 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       state: "processing",
     });
 
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 500,
-        id: "cs_multi_concurrent",
-        metadata: signMeta(
-          webhookMeta({
-            email: "concurrent@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-            name: "Concurrent",
-          }),
-          500,
-        ),
-        payment_intent: "pi_multi_concurrent",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const mockRetrieve = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      metadata: signMeta(
+        webhookMeta({
+          email: "concurrent@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+          name: "Concurrent",
+        }),
+        500,
+      ),
+      paymentIntent: "pi_multi_concurrent",
+      sessionId: "cs_multi_concurrent",
+    });
 
     try {
       const response = await handleRequest(
@@ -173,24 +168,19 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       state: "processing",
     });
 
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1000,
-        id: "cs_single_concurrent",
-        metadata: signMeta(
-          webhookMeta({
-            email: "concurrent@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Concurrent",
-          }),
-          1000,
-        ),
-        payment_intent: "pi_single_concurrent",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const mockRetrieve = stubRetrieveCheckoutSession({
+      amountTotal: 1000,
+      metadata: signMeta(
+        webhookMeta({
+          email: "concurrent@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Concurrent",
+        }),
+        1000,
+      ),
+      paymentIntent: "pi_single_concurrent",
+      sessionId: "cs_single_concurrent",
+    });
 
     try {
       const response = await handleRequest(

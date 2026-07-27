@@ -5,7 +5,6 @@ import { stub } from "@std/testing/mock";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -24,21 +23,16 @@ describeWithEnv(
     test("extractIntent rejects missing items in metadata", async () => {
       await setupStripe();
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_no_items",
-          metadata: {
-            email: "john@example.com",
-            name: "John",
-            // items intentionally omitted — should cause an error
-          },
-          payment_intent: "pi_no_items",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata: {
+          email: "john@example.com",
+          name: "John",
+          // items intentionally omitted — should cause an error
+        },
+        paymentIntent: "pi_no_items",
+        sessionId: "cs_no_items",
+      });
 
       try {
         const redirectResponse = await handleRequest(
@@ -173,22 +167,17 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_foreign_site_token",
-          metadata: {
-            email: "renew@example.com",
-            items: singleItem(tier.id, 1, 1000),
-            name: "Renewer",
-            site_token_index: "foreign-token-index",
-          },
-          payment_intent: "pi_foreign_site_token",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata: {
+          email: "renew@example.com",
+          items: singleItem(tier.id, 1, 1000),
+          name: "Renewer",
+          site_token_index: "foreign-token-index",
+        },
+        paymentIntent: "pi_foreign_site_token",
+        sessionId: "cs_foreign_site_token",
+      });
 
       try {
         const response = await handleRequest(

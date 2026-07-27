@@ -17,7 +17,10 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { expectRefundPaymentCall } from "#test-utils/webhooks.ts";
+import {
+  expectRefundPaymentCall,
+  stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks.ts";
 
 // Stubs the Stripe refund call to report a refund with the given id.
 const stubRefund = (id: string) =>
@@ -33,21 +36,16 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     // No price proof: we cannot prove this balance session is ours, so it is
     // ignored — neither settled nor refunded.
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        id: "cs_balance_unsigned",
-        metadata: {
-          balance_attendee_id: String(attendeeId),
-          items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-          name: "Balance payment",
-        },
-        payment_intent: "pi_balance",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const session = stubRetrieveCheckoutSession({
+      amountTotal: 1500,
+      metadata: {
+        balance_attendee_id: String(attendeeId),
+        items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+        name: "Balance payment",
+      },
+      paymentIntent: "pi_balance",
+      sessionId: "cs_balance_unsigned",
+    });
     try {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_balance_unsigned"),

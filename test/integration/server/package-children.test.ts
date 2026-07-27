@@ -15,6 +15,7 @@ import {
   submitPackageBooking,
 } from "#test-utils/packages.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 /** The REAL booking rows for a listing (a refunded order's quantity-0
  * placeholder is not a booking), newest first, with their parent allocation. */
@@ -375,26 +376,21 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
         status: "succeeded",
       } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
     );
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1000,
-        id: "cs_pkg_grown",
-        metadata: signMeta(
-          {
-            email: "grown@example.com",
-            items: JSON.stringify([
-              { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
-            ]),
-            name: "Grown Buyer",
-          },
-          1000,
-        ),
-        payment_intent: "pi_pkg_grown",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const mockRetrieve = stubRetrieveCheckoutSession({
+      amountTotal: 1000,
+      metadata: signMeta(
+        {
+          email: "grown@example.com",
+          items: JSON.stringify([
+            { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
+          ]),
+          name: "Grown Buyer",
+        },
+        1000,
+      ),
+      paymentIntent: "pi_pkg_grown",
+      sessionId: "cs_pkg_grown",
+    });
 
     try {
       // The operator gives the member a required add-on while the customer is
