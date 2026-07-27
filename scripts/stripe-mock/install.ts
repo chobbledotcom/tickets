@@ -95,12 +95,7 @@ const runCommand = async (
   message: string,
 ): Promise<Deno.CommandOutput> => {
   const output = await command.output();
-  let stderr = "";
-  try {
-    stderr = textDecoder.decode(output.stderr).trim();
-  } catch {
-    stderr = "";
-  }
+  const stderr = textDecoder.decode(output.stderr).trim();
   if (!output.success)
     throw new Error(stderr ? `${message}: ${stderr}` : message);
   return output;

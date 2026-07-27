@@ -61,8 +61,9 @@ describe("a lock left behind by an install that never finished", () => {
   });
 
   test("is taken over when it says a time from the very start of the clock", async () => {
-    // A time of 1 is a real time, however unlikely: 1970 is long ago enough.
-    expect(await installsPast("someone-else\n1")).toBe(true);
+    // The file itself was touched a moment ago, so only reading the time it
+    // claims — 1970, however unlikely — can tell that it is abandoned.
+    expect(await installsPast("someone-else\n1", new Date())).toBe(true);
   });
 
   test("is judged by the file's own age when it says no time at all", async () => {
@@ -72,6 +73,14 @@ describe("a lock left behind by an install that never finished", () => {
   test("is judged by the file's own age when it is from an older install", async () => {
     // Older installs wrote the time alone, with nobody's name against it.
     expect(await installsPast(String(LONG_AGO.getTime()))).toBe(true);
+  });
+
+  test("is judged by the file's age when its time has nothing after it", async () => {
+    // A time with a newline after it and nothing else is not a record we ever
+    // write, so the file's own age decides — and this file is new.
+    expect(await installsPast(`${LONG_AGO.getTime()}\n`, new Date())).toBe(
+      false,
+    );
   });
 
   test("is left alone while it is still fresh", async () => {
