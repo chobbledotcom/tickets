@@ -106,6 +106,14 @@ describe("clearing up before a mutation run", () => {
     );
   });
 
+  test("gives up when a run folder cannot be asked about at all", async () => {
+    // Anything other than a missing folder means the disk is in a state we
+    // must not guess about, so the run stops instead of deleting blind.
+    await expect(
+      runWithStatAnswer(new Deno.errors.PermissionDenied("no access")),
+    ).rejects.toThrow("no access");
+  });
+
   test("reports an earlier run it cannot clear out", async () => {
     await withTempDir(async (root) => {
       await writeFakeMutationScript(root, "Deno.exit(0);\n");
