@@ -36,44 +36,29 @@ const sameFileAt = async (
 };
 
 /**
- * One go at holding the lock at `path` while `body` runs. `null` means the go
- * came to nothing: the file was not there, or the lock it ended up holding was
- * no longer the file at the path.
- */
-const oneGoAtLock = async <Result>(
-  path: string,
-  body: () => Promise<Result>,
-): Promise<{ value: Result } | null> => {
-  const file = await openLockFileOrNull(path);
-  if (file === null) return null;
-  await file.lock(true);
-  try {
-    const { ino } = await file.stat();
-    return (await sameFileAt(path, Number(ino)))
-      ? { value: await body() }
-      : null;
-  } finally {
-    await file.unlock();
-    file.close();
-  }
-};
-
-/**
  * Hold the lock at `path` while `body` runs, waiting as long as it takes and
  * making the folder the lock lives in. A clear-up can take that folder away
- * mid-wait, so it keeps going until the lock it holds is the file at the path.
+ * mid-wait, leaving a lock with nothing pointing at it, so it makes the folder
+ * and takes the lock again until it has the one at the path.
  */
 export const withFileLock = async <Result>(
   path: string,
   body: () => Promise<Result>,
 ): Promise<Result> => {
-  const oneGo = async () => {
+  for (;;) {
     await Deno.mkdir(dirname(path), { recursive: true });
-    return await oneGoAtLock(path, body);
-  };
-  let held = await oneGo();
-  while (held === null) held = await oneGo();
-  return held.value;
+    const file = await openLockFileOrNull(path);
+    if (file !== null) {
+      await file.lock(true);
+      try {
+        const { ino } = await file.stat();
+        if (await sameFileAt(path, Number(ino))) return await body();
+      } finally {
+        await file.unlock();
+        file.close();
+      }
+    }
+  }
 };
 
 /**
