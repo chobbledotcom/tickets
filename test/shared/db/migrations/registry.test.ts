@@ -7,11 +7,11 @@
  */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
 import {
   MIGRATION_IDS,
   MIGRATION_REGISTRY,
 } from "#shared/db/migrations/registry.ts";
-import { loadMigrations } from "#shared/db/migrations.ts";
 
 const MIGRATIONS = await loadMigrations();
 

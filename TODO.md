@@ -100,29 +100,40 @@ actual size before marking an item complete.
 
 ---
 
-## Split the database migration runtime
+## Migration lock: re-acquire after a tolerated missing settings table
 
-*Origin: CodeRabbit review on PR #1845 (`src/shared/db/migrations.ts`).*
+*Origin: CodeRabbit review on PR #1965 (`src/shared/db/migrations/lock.ts`).*
 
-`src/shared/db/migrations.ts` already exceeded 700 lines before PR #1845 and now
-also owns request-sized batches and lease-scoped completion. Split it without
-changing behavior. A useful starting boundary is:
+`acquireMigrationLock(true)` returns a lease token when the `settings` table
+does not exist yet, because the lock row lives in the very table the caller is
+about to create. Setup, restore, and bootstrap rely on this: their route is
+`initializeFreshSchema` → `sealFreshSchema`, which writes with a plain
+`executeBatch` and never checks lock ownership, so the unpersisted token is
+harmless there.
 
-- Move lease acquisition, ownership checks, and release into a focused lock
-  module.
-- Move migration marker and schema marker statement builders into a recording
-  module.
-- Move retry and pending-migration execution into a runner module.
-- Leave `initDb` and database-state routing in `migrations.ts` as thin
-  orchestration.
+There is one narrow interleaving where it is not harmless. Request A probes a
+missing `settings` table and takes the tolerated token; request B then creates
+and stamps the schema; A's re-probe inside `runAcquiredMigrations` now sees
+real markers, and if they read as stale it takes the pending-migrations branch
+and reaches `recordMigrationBatch` with a token no row ever backed. The
+ownership check finds zero rows and throws `MigrationInProgressError`.
 
-Keep the existing request round-trip count, lazy migration loading, partial
-progress behavior, and lock failure tests unchanged. This is intentionally
-separate from PR #1845 because moving the whole migration subsystem while
-changing its locking and batching would make the safety fix much harder to
-review and roll back.
+The outcome today is fail-closed and retryable — no markers are written and no
+data is corrupted, and another isolate genuinely was migrating — so this is a
+tidiness issue, not a correctness bug. Still, A is running migrations without
+holding a real lock until that final check catches it.
 
----
+The fix: after the re-probe in `runAcquiredMigrations`, when the initial
+acquisition was the tolerated one and the database now has a `settings` table,
+re-acquire the lease (and bail out the normal way if another request holds it)
+before entering the pending-migrations branch. A regression test needs to
+control the interleaving: acquire with `allowMissingSettings` against a wiped
+database, create and stamp the schema from another path, then assert the
+lock-gated write either succeeds against a real lease or refuses before any
+migration runs.
+
+Out of scope for #1965, which moved this code verbatim out of `migrations.ts`
+without changing behaviour.
 
 ## Booking unification — phases 3 & 4
 
