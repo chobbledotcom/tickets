@@ -153,14 +153,11 @@ Then(
   },
 );
 
-Then(
-  "the customer cannot open it at all",
-  function (this: TicketsWorld): void {
-    const led = whereItLed(this);
-    expect(led.sentToPay).toBe(false);
-    expect(led.reached).toBe(false);
-  },
-);
+Then("the customer cannot open it at all", function (this: TicketsWorld): void {
+  const led = whereItLed(this);
+  expect(led.sentToPay).toBe(false);
+  expect(led.reached).toBe(false);
+});
 
 Then(
   "nothing was booked for the {word}",
