@@ -2425,3 +2425,30 @@ it should be raised for the owner instead of retried. The test that pins the
 current behaviour is "cannot answer about a refund reported in a state we do
 not know" in `test/shared/sumup/refund-events.test.ts` — it will need changing
 when this is fixed.
+
+## Guards on the owner-decision path that nothing can reach
+
+*Origin: working through the payment branch's coverage tail, after the same
+shape turned up in `square-provider-read.ts` and was deleted there.*
+
+`preparePaymentDecision` (`src/shared/payment-runtime/operator-claim.ts`) starts
+by refusing any decision that was not offered for these payment facts. That one
+check makes two of its own guards impossible to reach:
+
+- **"Payment has no reviewed charges"** (`reviewedCharges`). Every choice
+  offered for a current payment — finish the booking, refund what is left,
+  confirm it was refunded — is only offered when the payment has current
+  charges. So by the time this runs there is always at least one.
+- **The whole "old payment" half of `chargeSnapshot`** (about sixteen lines,
+  including "has no assigned account"). An old payment is only ever offered
+  "keep this as it is" or "give it an account", and both are sent to
+  `legacyAssignmentSnapshot` instead. So this branch never sees one.
+
+Both should go, the way the Square one did. It needs a little care with types:
+the remaining path has to narrow the payment to a current one, and the pattern
+to copy is `requireCurrentPayment` in `src/shared/payment-runtime/operator.ts`.
+
+Left alone for now because deleting guards on the money path deserves its own
+change rather than being folded into coverage work. The choices that *are*
+reachable now have tests in
+`test/shared/payment-runtime/operator-claim.test.ts`.
