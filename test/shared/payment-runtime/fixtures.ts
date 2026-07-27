@@ -8,7 +8,11 @@ import {
   getOpenPaymentCases,
   recordPaymentCase,
 } from "#shared/db/payments/cases.ts";
-import { getPaymentCharges } from "#shared/db/payments/charges.ts";
+import {
+  applyChargeRefund,
+  getPaymentCharges,
+  requestChargeRefund,
+} from "#shared/db/payments/charges.ts";
 import {
   applyPaymentSessionClaim,
   requirePaymentSessionClaim,
@@ -117,6 +121,35 @@ export const createRefundablePayment = async (
   return {
     charges: currentCharges(await getPaymentCharges(PAYMENT_ID)),
     payment,
+  };
+};
+
+/** A payment whose only charge the provider has already refunded in full. */
+export const createFullyRefundedPayment = async (): Promise<{
+  charge: PaymentCharge;
+  payment: PaymentSession;
+}> => {
+  const { charges, payment } = await createRefundablePayment();
+  const charge = required(charges[0], "a refundable charge");
+  const request = await requestChargeRefund(
+    charge.id,
+    "completed-refund-request",
+    PAYMENT_TIME,
+  );
+  const refunded = await applyChargeRefund(
+    charge.id,
+    request.idempotencyKey,
+    charge.captured,
+    { amount: charge.captured, status: "completed" },
+    PAYMENT_TIME + 1,
+  );
+  // The payment moved on when the refund landed, so hand back how it reads now.
+  return {
+    charge: refunded,
+    payment: required(
+      (await getPaymentSessions([payment.id]))[0],
+      "the refunded payment",
+    ),
   };
 };
 

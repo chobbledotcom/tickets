@@ -9,6 +9,7 @@ import { settings } from "#shared/db/settings.ts";
 import {
   currentPaymentCharges,
   refundCharges,
+  refundChargesKeepingClaim,
 } from "#shared/payment-runtime/refund.ts";
 import { refundReferences } from "#shared/payment-runtime/refund-targets.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -18,7 +19,11 @@ import {
   REFUND_RESOURCE,
 } from "#test/shared/db/payments/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createRefundablePayment } from "./fixtures.ts";
+import { required } from "#test-utils/required.ts";
+import {
+  createFullyRefundedPayment,
+  createRefundablePayment,
+} from "./fixtures.ts";
 
 const storedPayment = async (): Promise<
   NonNullable<Awaited<ReturnType<typeof getPaymentSessions>>[number]>
@@ -102,6 +107,26 @@ describeWithEnv("payment refund engine edges", { db: true }, () => {
     expect(cases.rows).toEqual([
       { reason: "failed_refund", state: "retrying" },
     ]);
+  });
+
+  test("keeps the claim when the money was already all sent back", async () => {
+    // Finishing a placeholder booking asks for the refund while holding the
+    // claim. If the provider already returned everything there is nothing to
+    // ask it for, and the claim must stay held so the rest can finish.
+    const { charge, payment } = await createFullyRefundedPayment();
+    const settled = await refundCharges(payment, [charge]);
+    const claim = required(
+      await claimPaymentSession(PAYMENT_ID, 60_000),
+      "the payment claim",
+    );
+    using provider = stub(stripePaymentProvider, "refundCharge", () =>
+      Promise.reject(new Error("A refunded charge must not reach Stripe")),
+    );
+
+    const attempt = await refundChargesKeepingClaim(settled.payment, claim);
+
+    expect(attempt).toMatchObject({ claim, ok: true, status: "completed" });
+    expect(provider.calls).toHaveLength(0);
   });
 
   test("uses a caller's existing claim for the refund", async () => {

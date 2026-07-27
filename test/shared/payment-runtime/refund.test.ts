@@ -3,11 +3,7 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { getDb } from "#shared/db/client.ts";
-import {
-  applyChargeRefund,
-  getPaymentCharges,
-  requestChargeRefund,
-} from "#shared/db/payments/charges.ts";
+import { getPaymentCharges } from "#shared/db/payments/charges.ts";
 import { getPaymentSessions } from "#shared/db/payments/sessions.ts";
 import type { PaymentCharge } from "#shared/db/payments/types.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -23,7 +19,10 @@ import {
 import { currentCharges } from "#test-utils/current-charge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
-import { createRefundablePayment } from "./fixtures.ts";
+import {
+  createFullyRefundedPayment,
+  createRefundablePayment,
+} from "./fixtures.ts";
 import { retryRefundUntilStopped } from "./refund-retries.ts";
 
 const laterRefundResolution = (
@@ -200,21 +199,8 @@ describeWithEnv("payment refund engine", { db: true }, () => {
   });
 
   test("treats every fully refunded charge as a successful provider no-op", async () => {
-    const { charges, payment } = await createRefundablePayment();
-    const charge = charges[0];
-    if (charge === undefined) throw new Error("Expected refundable charge");
-    const request = await requestChargeRefund(
-      charge.id,
-      "completed-refund-request",
-      PAYMENT_TIME,
-    );
-    const completedCharge = await applyChargeRefund(
-      charge.id,
-      request.idempotencyKey,
-      charge.captured,
-      { amount: charge.captured, status: "completed" },
-      PAYMENT_TIME + 1,
-    );
+    const { charge: completedCharge, payment } =
+      await createFullyRefundedPayment();
     using provider = stub(stripePaymentProvider, "refundCharge", () =>
       Promise.reject(new Error("A completed charge must not reach Stripe")),
     );
