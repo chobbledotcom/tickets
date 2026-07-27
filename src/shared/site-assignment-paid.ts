@@ -17,6 +17,7 @@ import type {
   PreparedPaymentCompletionDelivery,
   SiteAssignmentDelivery,
   SiteAssignmentEmailDelivery,
+  SiteAssignmentFacts,
 } from "#shared/payment-completion-delivery.ts";
 import {
   generateRenewalToken,
@@ -107,9 +108,8 @@ export const preparePaidSiteAssignmentDeliveries = async (
 const requireAssignedSiteFacts = (
   site: BuiltSite,
   delivery: SiteAssignmentDelivery,
+  facts: SiteAssignmentFacts,
 ): void => {
-  const facts = delivery.site;
-  if (facts === null) throw new Error("Paid site assignment has no site facts");
   if (
     site.assignmentEffect !== delivery.effectId ||
     site.assignedAttendeeId !== delivery.attendeeId ||
@@ -150,38 +150,46 @@ const reservePaidSite = async (
   return site;
 };
 
+/** Writes down what a site assignment has reserved, so a retry reuses it. */
+type PersistSiteAssignment = (
+  delivery: SiteAssignmentDelivery,
+) => Promise<void>;
+
+/** Reserve a site for this payment, write down what was reserved so a retry
+ *  reuses it, and hand back those facts. Only called before one is reserved. */
+const reserveSiteFacts = async (
+  delivery: SiteAssignmentDelivery,
+  persist: PersistSiteAssignment,
+): Promise<SiteAssignmentFacts> => {
+  const site = await reservePaidSite(delivery);
+  const token = await generateRenewalToken();
+  const facts: SiteAssignmentFacts = {
+    hostingId: site.hostingId,
+    hostingProvider: site.hostingProvider,
+    previousReadOnlyFrom: site.readOnlyFrom,
+    previousRenewalTokenIndex: site.renewalTokenIndex,
+    readOnlyFrom: addMonthsIso(nowIso(), delivery.initialSiteMonths),
+    renewalToken: token.token,
+    renewalTokenIndex: token.index,
+    renewalUrl: renewalUrlFor(token.token),
+    siteId: site.id,
+    siteName: site.name,
+    siteUrl: site.siteUrl,
+  };
+  await persist({ ...delivery, site: facts });
+  return facts;
+};
+
 export const applyPaidSiteAssignment = async (
   initial: SiteAssignmentDelivery,
-  persist: (delivery: SiteAssignmentDelivery) => Promise<void>,
+  persist: PersistSiteAssignment,
 ): Promise<void> => {
   requirePaidBuilderEnabled();
-  let delivery = initial;
-  if (delivery.site === null) {
-    const site = await reservePaidSite(delivery);
-    const token = await generateRenewalToken();
-    delivery = {
-      ...delivery,
-      site: {
-        hostingId: site.hostingId,
-        hostingProvider: site.hostingProvider,
-        previousReadOnlyFrom: site.readOnlyFrom,
-        previousRenewalTokenIndex: site.renewalTokenIndex,
-        readOnlyFrom: addMonthsIso(nowIso(), delivery.initialSiteMonths),
-        renewalToken: token.token,
-        renewalTokenIndex: token.index,
-        renewalUrl: renewalUrlFor(token.token),
-        siteId: site.id,
-        siteName: site.name,
-        siteUrl: site.siteUrl,
-      },
-    };
-    await persist(delivery);
-  }
-  const facts = delivery.site!;
+  const facts = initial.site ?? (await reserveSiteFacts(initial, persist));
   const site = await findBuiltSiteByIdPrimary(facts.siteId);
   if (site === null)
     throw new Error(`Assigned site ${facts.siteId} was removed`);
-  requireAssignedSiteFacts(site, delivery);
+  requireAssignedSiteFacts(site, initial, facts);
   if (siteHasRenewalState(site, facts.readOnlyFrom, facts.renewalTokenIndex)) {
     return;
   }

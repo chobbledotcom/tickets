@@ -73,7 +73,7 @@ const RenewalDeadlineFields = {
   readOnlyFrom: v.string(),
 } as const;
 
-const SiteAssignmentFactsSchema = v.strictObject({
+export const SiteAssignmentFactsSchema = v.strictObject({
   ...HostingSiteFields,
   ...RenewalDeadlineFields,
   previousRenewalTokenIndex: v.nullable(v.string()),
@@ -128,6 +128,10 @@ export type RegistrationWebhookDelivery = v.InferOutput<
 >;
 export type SiteAssignmentDelivery = v.InferOutput<
   typeof SiteAssignmentDeliverySchema
+>;
+/** What a paid site assignment knows about the site once it has one. */
+export type SiteAssignmentFacts = v.InferOutput<
+  typeof SiteAssignmentFactsSchema
 >;
 export type SiteAssignmentEmailDelivery = v.InferOutput<
   typeof SiteAssignmentEmailDeliverySchema

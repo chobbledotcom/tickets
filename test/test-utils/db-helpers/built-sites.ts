@@ -2,6 +2,7 @@ import type {
   BuiltSite,
   BuiltSiteFormInput,
 } from "#shared/db/built-sites/types.ts";
+import type { SiteAssignmentDelivery } from "#shared/payment-completion-delivery.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
@@ -120,4 +121,20 @@ export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
       "delete built site",
     ),
   );
+};
+
+/** Run a paid site assignment and hand back what it wrote down, so a test can
+ * replay it or check the site it reserved. */
+export const runSiteAssignment = async (
+  delivery: SiteAssignmentDelivery,
+): Promise<SiteAssignmentDelivery> => {
+  const { applyPaidSiteAssignment } = await import(
+    "#shared/site-assignment-paid.ts"
+  );
+  let stored = delivery;
+  await applyPaidSiteAssignment(delivery, (next) => {
+    stored = next;
+    return Promise.resolve();
+  });
+  return stored;
 };

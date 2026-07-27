@@ -9,7 +9,10 @@ import { applyPaidRenewal, paidRenewalDeliveriesFor } from "#shared/renewal.ts";
 import { applyPaidSiteAssignment } from "#shared/site-assignment-paid.ts";
 import { sendWebhookStrict } from "#shared/webhook-paid.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import {
+  provisionTestBuiltSite,
+  runSiteAssignment,
+} from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
@@ -70,12 +73,7 @@ describeWithEnv(
       using secrets = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
         Promise.resolve({ ok: true as const }),
       );
-      let stored = assignmentDelivery();
-
-      await applyPaidSiteAssignment(stored, (next) => {
-        stored = next;
-        return Promise.resolve();
-      });
+      const stored = await runSiteAssignment(assignmentDelivery());
       await applyPaidSiteAssignment(stored, () => {
         throw new Error("A staged assignment must not be replaced");
       });
