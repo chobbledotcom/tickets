@@ -58,13 +58,16 @@ describeWithEnv(
         }),
         "re_test",
       );
-      await expectRefundNote(listing2.id, "no longer accepting");
+      await expectRefundNote(listing2.id, "registration closed");
 
+      // The open listing's booking is kept rather than dropped, at quantity 0
+      // so it holds nobody's place while the refund is recorded.
       const { getAttendeesRaw } = await import(
         "#shared/db/attendees/queries.ts"
       );
       const attendees1 = await getAttendeesRaw(listing1.id);
-      expect(attendees1.length).toBe(0);
+      expect(attendees1.length).toBe(1);
+      expect(attendees1[0]!.quantity).toBe(0);
     });
 
     test("webhook handles multi-ticket sold out in second listing", async () => {
@@ -133,16 +136,18 @@ describeWithEnv(
       });
       if (!attResult.success) throw new Error("Failed to create attendee");
 
-      // Reserve and finalize the session with the real attendee
-      const { finalizeProcessedPayment } = await import(
-        "#test-utils/processed-payments.ts"
+      // Record the session as already paid for and booked, so the retry below
+      // is a replay of a finished payment rather than a fresh one.
+      const { createAggregatePayment } = await import(
+        "#test-utils/payment-aggregate.ts"
       );
-      await finalizeProcessedPayment(
-        "cs_del_listing_wh",
-        attResult.attendees[0]!.id,
-        "tok-test",
-        "pi_del_listing_wh",
-      );
+      await createAggregatePayment({
+        attendeeId: attResult.attendees[0]!.id,
+        charges: [{ amount: 1000, reference: "pi_del_listing_wh" }],
+        paymentId: "cs_del_listing_wh",
+        state: "completed",
+        ticketTokens: ["tok-test"],
+      });
 
       // The metadata points at a since-deleted listing (99999). Because the
       // session is already finalized (the attendee exists), the retry is an

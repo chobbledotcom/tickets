@@ -7,14 +7,17 @@ import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectAttendeeWithPricePaid,
+  expectWebhookIgnored,
   expectWebhookProcessed,
-  expectWebhookRejected,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > session resolution", { db: true }, () => {
-  test("webhook fails loudly for an invalid payment status", async () => {
+  // The payment status is not one Stripe documents, so the response fails its
+  // schema before the signature can be read and the session cannot be proven
+  // ours. It is acknowledged rather than booked or refunded.
+  test("webhook ignores a session whose payment status is not a documented one", async () => {
     await setupStripe();
 
     const listing = await createTestListing({
@@ -22,7 +25,7 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    await expectWebhookRejected(
+    await expectWebhookIgnored(
       checkoutSessionEvent({
         amountTotal: 1000,
         eventId: "evt_bad_status",
@@ -35,7 +38,6 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
         paymentStatus: "completed",
         sessionId: "cs_bad_status",
       }),
-      'Expected ("no_payment_required" | "paid" | "unpaid")',
     );
   });
 

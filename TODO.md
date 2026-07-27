@@ -1870,3 +1870,29 @@ was written and then removed, because the product does not do that today.
 Starting point: `attendeesApi.hasAvailableSpots` and the per-day capacity SQL in
 `src/shared/db/attendees/capacity.ts`, plus the listing-type switch in
 `src/features/admin/listings-edit.ts`.
+
+## A payment we cannot prove is ours is dropped without a trace
+
+When a provider's answer about a checkout breaks its own schema, the reply is
+rejected before the signed price proof inside it can be read. With nothing to
+prove the payment is ours, the callback is acknowledged and the payment is left
+alone: no booking, no refund, no case, and nothing written down.
+
+For a payment made through this site that is fine in practice, because the
+payment record is written before the provider is ever called, so ownership is
+known from our own record and a broken answer becomes an operator case. The gap
+is a checkout with no local record — one adopted from a signed link — where a
+malformed answer means real money can go unnoticed.
+
+Worth an explicit decision: keep quiet as now, or record the dropped callback
+so somebody can look. Recording it must not let a stranger's callback create
+noise, which is why unprovable answers are ignored today.
+
+Found while repairing the payment tests: the webhook cases that used to fail
+loudly here now pass through this path, so they assert the quiet behaviour and
+name it in their titles.
+
+Starting point: `resolvePayment` in `src/shared/payment-state/resolve.ts` (the
+`invalid` and `unavailable` arms), `storedObservationFacts` in
+`src/shared/payment-runtime/provider-read.ts`, and the `ignore` arm of
+`webhookResponse` in `src/features/api/webhooks.ts`.

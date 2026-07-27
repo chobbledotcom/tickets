@@ -1,8 +1,6 @@
 // jscpd:ignore-start
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -18,9 +16,10 @@ import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
   expectRefundPaymentCall,
+  expectWebhookIgnored,
   expectWebhookKeptAndRefunded,
-  expectWebhookRejected,
   stubRefundPayment,
+  stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -79,26 +78,21 @@ describeWithEnv(
 
       // amountTotal (800) differs from expectedPrice (1000 * 1 = 1000)
       // Price decreased after checkout was created — should refund
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 800,
-          id: "cs_redirect_mismatch",
-          metadata: signMeta(
-            webhookMeta({
-              email: "redirect@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Redirect Mismatch",
-            }),
-            800,
-          ),
-          payment_intent: "pi_redirect_mismatch",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 800,
+        metadata: signMeta(
+          webhookMeta({
+            email: "redirect@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "Redirect Mismatch",
+          }),
+          800,
+        ),
+        paymentIntent: "pi_redirect_mismatch",
+        sessionId: "cs_redirect_mismatch",
+      });
 
-      const mockRefund = stubRefundPayment("re_redirect");
+      const mockRefund = stubRefundPayment("re_redirect", 800);
 
       try {
         const response = await handleRequest(
@@ -130,7 +124,11 @@ describeWithEnv(
       }
     });
 
-    test("webhook single-ticket fails loudly when metadata email is not a string", async () => {
+    // A session we cannot prove is ours — its provider data breaks the schema
+    // before the signature can be read — is acknowledged and left alone rather
+    // than booked. A session with a local payment record behind it becomes an
+    // operator case instead, because ownership is known without the metadata.
+    test("webhook single-ticket ignores an unprovable session with a non-string email", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -138,7 +136,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      await expectWebhookRejected(
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_no_email_single",
@@ -153,11 +151,10 @@ describeWithEnv(
           paymentIntent: "pi_wh_no_email_single",
           sessionId: "cs_wh_no_email_single",
         }),
-        "Expected string but received 12345",
       );
     });
 
-    test("webhook multi-ticket fails loudly when metadata email is not a string", async () => {
+    test("webhook multi-ticket ignores an unprovable session with a non-string email", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -165,7 +162,7 @@ describeWithEnv(
         unitPrice: 500,
       });
 
-      await expectWebhookRejected(
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 500,
           eventId: "evt_no_email_multi",
@@ -180,7 +177,6 @@ describeWithEnv(
           paymentIntent: "pi_wh_no_email_multi",
           sessionId: "cs_wh_no_email_multi",
         }),
-        "Expected string but received true",
       );
     });
   },
