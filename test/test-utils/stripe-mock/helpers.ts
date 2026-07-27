@@ -10,6 +10,7 @@ import { withTempDir } from "#test-utils/files.ts";
 import { wait } from "#test-utils/mocks.ts";
 
 export type TestStripeMockPaths = { binDir: string; binaryPath: string };
+type StartedStripeMock = Awaited<ReturnType<typeof startStripeMock>>;
 export type StartOptions = NonNullable<Parameters<typeof startStripeMock>[0]>;
 
 export { wait };
@@ -60,35 +61,58 @@ export const expectPortAvailable = (port: number): void => {
 };
 
 /** How many times a taken port is forgiven before the test is failed. */
-const PORT_STEAL_TRIES = 5;
+export const PORT_STEAL_TRIES = 5;
+
+/**
+ * Start once and say whether the port was taken by something else. Starting
+ * finds anything already listening on the port and calls that a success, which
+ * is not the question a failure test is asking.
+ */
+export const startFailedOrPortTaken = async (
+  start: () => Promise<StartedStripeMock>,
+  message?: string,
+): Promise<boolean> => {
+  try {
+    const mock = await start();
+    await mock.stop();
+    return true;
+  } catch (error) {
+    if (message) expect(String(error)).toContain(message);
+    return false;
+  }
+};
+
+/** Ask again while something else keeps taking the port we were handed. */
+export const retryWhilePortTaken = async (
+  attempt: () => Promise<boolean>,
+): Promise<void> => {
+  for (let tries = 0; tries < PORT_STEAL_TRIES; tries++) {
+    if (!(await attempt())) return;
+  }
+  throw new Error(
+    `Starting stripe-mock kept succeeding: the port was taken ${PORT_STEAL_TRIES} times running.`,
+  );
+};
 
 /**
  * A free port is picked and let go of before it is used, so another test
- * starting at that moment can take it. Starting then finds something already
- * listening and says it worked, which is not what this test asked about — so
- * try again on a fresh port rather than reading it as a pass.
+ * starting at that moment can take it. Ask again on a fresh port rather than
+ * reading that as the failure this test came for.
  */
-export const expectStartFails = async (
+export const expectStartFails = (
   options: StartOptions,
   message?: string,
-): Promise<void> => {
-  for (let attempt = 1; attempt <= PORT_STEAL_TRIES; attempt++) {
+): Promise<void> =>
+  retryWhilePortTaken(async () => {
     let portWasTaken = false;
     await withUnusedPort(async (port) => {
-      try {
-        const mock = await startStripeMock({ ...options, port });
-        await mock.stop();
-        portWasTaken = true;
-      } catch (error) {
-        if (message) expect(String(error)).toContain(message);
-      }
+      portWasTaken = await startFailedOrPortTaken(
+        () => startStripeMock({ ...options, port }),
+        message,
+      );
     });
-    if (!portWasTaken) return;
-  }
-  throw new Error(
-    `Starting stripe-mock kept succeeding: the port was taken by something else ${PORT_STEAL_TRIES} times running.`,
-  );
-};
+    return portWasTaken;
+  });
 
 export const expectStripeMockFails = (
   options: StartOptions,
