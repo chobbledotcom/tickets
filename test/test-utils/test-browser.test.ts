@@ -199,6 +199,37 @@ describe("TestBrowser navigation", () => {
     expect(browser.currentUrl).toBe("/done");
   });
 
+  /** A site whose "/away" bounces the visitor off to another host entirely. */
+  const OFF_SITE = "https://elsewhere.test/checkout";
+  const browserSentOffSite = (): TestBrowser => {
+    const browser = new TestBrowser();
+    useHandler(browser, (request) =>
+      new URL(request.url).pathname === "/away"
+        ? new Response(null, { headers: { location: OFF_SITE }, status: 303 })
+        : new Response("arrived"),
+    );
+    return browser;
+  };
+
+  it("keeps the redirect target's origin, which currentUrl drops", async () => {
+    const browser = browserSentOffSite();
+
+    await browser.visit("/away");
+
+    // The same path served locally must be tellable apart from the off-site one.
+    expect(browser.currentUrl).toBe("/checkout");
+    expect(browser.redirectedTo).toBe(OFF_SITE);
+  });
+
+  it("forgets an earlier redirect target once a request does not redirect", async () => {
+    const browser = browserSentOffSite();
+
+    await browser.visit("/away");
+    await browser.visit("/straight-there");
+
+    expect(browser.redirectedTo).toBe("");
+  });
+
   it("follows permanent redirects", async () => {
     const browser = new TestBrowser();
     const seen: string[] = [];

@@ -296,6 +296,11 @@ export class TestBrowser {
   currentUrl = "";
   /** Current page HTML content */
   currentHtml = "";
+  /** The last redirect target exactly as the server sent it, origin and all.
+   * `currentUrl` keeps only the path, so this is what tells an off-site
+   * destination (a payment provider) from a same-path local one. Empty when the
+   * last request did not redirect. */
+  redirectedTo = "";
   /** Cookie jar persisted across requests */
   private cookies = new Map<string, string>();
   /** Lazy-loaded handleRequest function */
@@ -347,6 +352,7 @@ export class TestBrowser {
     options: RequestInit = {},
   ): Promise<Response> {
     let currentPath = toPath(path);
+    this.redirectedTo = "";
     const req = this.buildRequest(currentPath, options);
     let response = await this.send(req, `${options.method ?? "GET"} ${path}`);
 
@@ -356,6 +362,7 @@ export class TestBrowser {
       hops++;
       const location = response.headers.get("location");
       if (!location) break;
+      this.redirectedTo = location;
       const nextPath = toPath(location);
       currentPath = nextPath;
       response = await this.send(
@@ -367,6 +374,7 @@ export class TestBrowser {
     this.currentUrl = currentPath.split("?")[0]!;
     const finalLocation = response.headers.get("location");
     if (finalLocation && isRedirect(response.status)) {
+      this.redirectedTo = finalLocation;
       this.currentUrl = toPath(finalLocation).split("?")[0]!;
     }
     this.currentHtml = await response.text();

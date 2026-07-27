@@ -183,9 +183,10 @@ export const customerPaysMore = (
     );
     // Reaching the provider is not the same as the customer getting there: a
     // page that called it and then showed an error would look identical from
-    // the captured order alone.
+    // the captured order alone. The whole address matters, not just its path —
+    // a local page at the same path is not the payment page.
     const { STUB_CHECKOUT_URL } = await import("#test-utils/checkout.ts");
-    expect(browser.currentUrl).toBe(new URL(STUB_CHECKOUT_URL).pathname);
+    expect(browser.redirectedTo).toBe(STUB_CHECKOUT_URL);
     return whatIsBeingCharged(whatWasCharged());
   });
 
