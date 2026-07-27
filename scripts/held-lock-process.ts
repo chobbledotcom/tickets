@@ -31,7 +31,7 @@ await file.unlock();
 file.close();
 `;
 
-export interface HeldLock {
+interface HeldLock {
   /** The file it locked, or `NaN` when the disk keeps no file numbers. */
   fileNumber: number;
   letGo: () => Promise<void>;

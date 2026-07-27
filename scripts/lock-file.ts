@@ -19,7 +19,7 @@ const openLockFile = (path: string): Promise<Deno.FsFile> =>
  * The lock file at `path`, or `null` when there is no folder to make it in.
  * A disk that cannot be opened at all is a different answer, and throws.
  */
-export const openLockFileOrNull = (path: string): Promise<Deno.FsFile | null> =>
+const openLockFileOrNull = (path: string): Promise<Deno.FsFile | null> =>
   nullIfNotFound(openLockFile(path));
 
 /**

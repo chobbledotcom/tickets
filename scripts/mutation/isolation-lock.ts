@@ -7,15 +7,13 @@
  * holding one, without waiting to find out.
  */
 
-import {
-  openLockFileOrNull,
-  withFileLock,
-  withFileLockOrNull,
-} from "#scripts/lock-file.ts";
+import { withFileLock, withFileLockOrNull } from "#scripts/lock-file.ts";
+import { statOrNull } from "#scripts/not-found.ts";
 import { denoExitCode } from "./child-process.ts";
 import { type MutationRunRecord, runLockPath } from "./isolation-state.ts";
 
 const LOCK_HELD_EXIT_CODE = 124;
+const LOCK_FREE_EXIT_CODE = 0;
 
 const LOCK_PROBE_SCRIPT = `
 const [path, timeoutText] = Deno.args;
@@ -56,11 +54,14 @@ export const runLockIsHeld = async (
   timeoutMs = 50,
 ): Promise<boolean> => {
   const path = runLockPath(record);
-  // No folder means no run to hold it.
-  const file = await openLockFileOrNull(path);
-  if (file === null) return false;
-  file.close();
-  return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
+  // No lock file means no run holding one.
+  if ((await statOrNull(path)) === null) return false;
+  const stopped = await lockProbeExitCode(path, timeoutMs);
+  if (stopped === LOCK_HELD_EXIT_CODE) return true;
+  if (stopped === LOCK_FREE_EXIT_CODE) return false;
+  throw new Error(
+    `Could not tell whether the lock at ${path} is held: the check stopped with code ${stopped}`,
+  );
 };
 
 /**

@@ -132,21 +132,31 @@ describe("the lock that keeps two runs out of one folder", () => {
     });
   });
 
-  test("gives up loudly when the run folder cannot be looked at", async () => {
+  test("says so loudly when the lock cannot be looked at", async () => {
     await withTempDir(async (root) => {
       const record = { root: join(root, "unreadable") };
       await Deno.mkdir(record.root, { recursive: true });
-      const open = Deno.open;
-      using _open = stub(Deno, "open", ((path: string | URL, options) => {
-        if (`${path}`.includes("unreadable")) {
-          return Promise.reject(new Deno.errors.PermissionDenied("no entry"));
-        }
-        return open(path, options);
-      }) as typeof Deno.open);
+      const stat = Deno.stat;
+      using _stat = stub(Deno, "stat", ((path: string | URL) =>
+        `${path}`.includes("unreadable")
+          ? Promise.reject(new Deno.errors.PermissionDenied("no entry"))
+          : stat(path)) as typeof Deno.stat);
 
       // Calling this "nobody is holding it" would let a clear-up delete a run
       // that is very much still going.
       await expect(runLockIsHeld(record)).rejects.toThrow("no entry");
+    });
+  });
+
+  test("says so loudly when the check itself cannot be made", async () => {
+    await withTempDir(async (root) => {
+      const record = { root: join(root, ".mutation-runs", "mutation-odd") };
+      // A folder where the lock file should be: the check can never answer.
+      await Deno.mkdir(join(record.root, MUTATION_RUN_LOCK_FILE), {
+        recursive: true,
+      });
+
+      await expect(runLockIsHeld(record)).rejects.toThrow("Could not tell");
     });
   });
 });
