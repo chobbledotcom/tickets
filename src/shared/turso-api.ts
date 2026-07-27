@@ -45,9 +45,9 @@ const TursoDatabaseSchema = v.object({
 });
 const CreateTursoDatabaseSchema = v.object({ database: TursoDatabaseSchema });
 const TursoTokenSchema = v.object({ jwt: NonEmptyStringSchema });
-const TursoOrganizationsSchema = v.object({
-  organizations: v.array(v.object({ slug: NonEmptyStringSchema })),
-});
+const TursoOrganizationsSchema = v.array(
+  v.object({ slug: NonEmptyStringSchema }),
+);
 const TursoGroupsSchema = v.object({
   groups: v.array(v.object({ name: NonEmptyStringSchema })),
 });
@@ -266,7 +266,7 @@ export const createTursoApi = (
       if (!response.ok) {
         return parseApiError(response, "List Turso organizations");
       }
-      const { organizations } = parseResponse(
+      const organizations = parseResponse(
         TursoOrganizationsSchema,
         response.text,
         "List Turso organizations",
