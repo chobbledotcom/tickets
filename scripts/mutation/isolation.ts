@@ -9,6 +9,7 @@ import { relative } from "@std/path";
 import {
   INHERIT_STDIO,
   processExists,
+  removeTree,
   stopProcess,
   stopProcessNow,
 } from "#scripts/process.ts";
@@ -24,6 +25,7 @@ import {
   createRunId,
   formatRunList,
   ISOLATION_USAGE,
+  isTerminalRunStatus,
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
@@ -84,19 +86,24 @@ type RemoveRunResult =
   | { record: MutationRunRecord; removed: true }
   | { error: unknown; record: MutationRunRecord; removed: false };
 
-const removeRun = async (
+/** Delete one folder of a run, treating an already-missing folder as done. */
+const removeRunPath = async (
   record: MutationRunRecord,
+  path: string,
 ): Promise<RemoveRunResult> => {
   try {
-    await Deno.remove(record.root, { recursive: true });
+    await removeTree(path);
     return { record, removed: true };
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return { record, removed: true };
-    }
-    return { error, record, removed: false };
+    const missing = error instanceof Deno.errors.NotFound;
+    return missing
+      ? { record, removed: true }
+      : { error, record, removed: false };
   }
 };
+
+const removeRun = (record: MutationRunRecord): Promise<RemoveRunResult> =>
+  removeRunPath(record, record.root);
 
 const cleanableRuns = async (
   records: MutationRunRecord[],
@@ -120,6 +127,25 @@ const cleanableRuns = async (
       .filter(({ isActive }) => isActive)
       .map(({ record }) => record),
   };
+};
+
+const reportRemoveFailure = (
+  what: string,
+  { error, record }: Extract<RemoveRunResult, { removed: false }>,
+): void => {
+  console.error(`Failed to remove ${what}${record.id}: ${errorMessage(error)}`);
+};
+
+/** Drops the snapshot of a run that has ended: it is a whole checkout copy. */
+const removeWorkSnapshot = async (record: MutationRunRecord): Promise<void> => {
+  const result = await removeRunPath(record, record.workRoot);
+  if (!result.removed) reportRemoveFailure("the snapshot of ", result);
+};
+
+/** Clears out whatever earlier runs left behind, so nothing piles up. */
+const removeInactiveRuns = async (root: string): Promise<void> => {
+  const { removable } = await cleanableRuns(await readRunRecords(root));
+  await Promise.all(removable.map(removeRun));
 };
 
 const signalRun = async (
@@ -181,6 +207,7 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
   args,
   root = projectRoot,
 ) => {
+  await removeInactiveRuns(root);
   const id = createRunId();
   let record = newRunRecord(id, args, root);
   await writeRunRecord(record);
@@ -240,6 +267,7 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
     console.error(errorMessage(error));
   }
   offTerminationSignals(stopChild);
+  if (isTerminalRunStatus(record.status)) await removeWorkSnapshot(record);
   return exitCode;
 };
 
@@ -314,9 +342,7 @@ const removeMatchedRuns = async (
   );
 
   for (const record of removed) console.log(`Removed ${record.id}.`);
-  for (const { error, record } of failed) {
-    console.error(`Failed to remove ${record.id}: ${errorMessage(error)}`);
-  }
+  for (const result of failed) reportRemoveFailure("", result);
   for (const record of skipped) {
     console.error(`Skipped active isolated mutation run ${record.id}.`);
   }

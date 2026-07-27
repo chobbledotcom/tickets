@@ -28,10 +28,21 @@ export const sendFirstSignalImmediately = (): Disposable => {
   }) as typeof Deno.addSignalListener);
 };
 
-const failSnapshotRead = (reason: unknown): Disposable =>
-  stub(Deno, "readDir", (() => {
+/**
+ * Fail the reads that walk the checkout, so copying a snapshot fails. Reads of
+ * the runs folder itself still work, since finding runs is not the copy.
+ */
+export const failSnapshotRead = (
+  reason: unknown,
+  onFail: () => void = () => {},
+): Disposable => {
+  const readDir = Deno.readDir;
+  return stub(Deno, "readDir", ((path: string | URL) => {
+    if (`${path}`.includes(MUTATION_RUNS_DIR)) return readDir(path);
+    onFail();
     throw reason;
   }) as typeof Deno.readDir);
+};
 
 export const failTextFileWrites = (
   shouldFail: (
@@ -57,6 +68,12 @@ export const failRunningStatusWrite = (): Disposable =>
   failTextFileWrites(
     (_writes, data) => typeof data === "string" && data.includes('"running"'),
   );
+
+/** Refuse to delete a run's snapshot, as a busy or read-only folder would. */
+export const failWorkRemoval = (): Disposable =>
+  stub(Deno, "remove", (() => {
+    throw new Error("work is busy");
+  }) as typeof Deno.remove);
 
 export const capturePlainSnapshotFailure = async (
   root: string,

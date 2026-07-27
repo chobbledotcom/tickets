@@ -103,7 +103,8 @@ export const ISOLATION_USAGE = `Usage:
 
 Mutation runs are copied to .mutation-runs/<run-id>/work first. The normal
 in-place mutation engine then runs inside that copy, so live source files are
-not touched.`;
+not touched. The copy is deleted when the run ends, and anything a stopped run
+left behind is deleted when the next run starts.`;
 
 const nowIso = (): string => new Date().toISOString();
 
