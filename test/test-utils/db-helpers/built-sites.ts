@@ -154,3 +154,22 @@ export const useRenewalTier = (): void => {
     });
   });
 };
+
+/** A built site ready to be renewed: it has a renewal token and a date it
+ *  goes read-only, which is what a paid renewal pushes forward. */
+export const setupRenewalSite = async (
+  readOnlyFrom: string,
+  name = "Renewal Site",
+): Promise<{ site: BuiltSite; tokenIndex: string }> => {
+  const { builtSites, insertBuiltSite } = await import(
+    "#shared/db/built-sites.ts"
+  );
+  await insertBuiltSite(name, "renewal.b-cdn.net", "", "", false, "5001");
+  const sites = await builtSites.getAll();
+  const site = sites.find((candidate) => candidate.name === name);
+  if (site === undefined) throw new Error("Missing the renewal site");
+  const { tokenIndex } = await provisionTestBuiltSite(site.id, {
+    readOnlyFrom,
+  });
+  return { site, tokenIndex };
+};

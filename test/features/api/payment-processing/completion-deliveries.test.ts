@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { deliverNextPaidCompletion } from "#routes/api/payment-processing/completion-deliveries.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { insertBuiltSite } from "#shared/db/built-sites.ts";
+import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
   applyPaymentSessionClaimKeepingLease,
   requirePaymentSessionClaim,
@@ -22,12 +22,16 @@ import {
 } from "#shared/email.ts";
 import type { PreparedPaymentCompletionDelivery } from "#shared/payment-completion-delivery.ts";
 import { paymentProgress } from "#shared/payment-runtime/progress.ts";
+import { paidRenewalDeliveriesFor } from "#shared/renewal.ts";
 import { preparePaidSiteAssignmentDeliveries } from "#shared/site-assignment-paid.ts";
 import { prepareRegistrationWebhookDeliveries } from "#shared/webhook-paid.ts";
 import { PAYMENT_ID } from "#test/shared/db/payments/fixtures.ts";
 import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { useRenewalTier } from "#test-utils/db-helpers/built-sites.ts";
+import {
+  setupRenewalSite,
+  useRenewalTier,
+} from "#test-utils/db-helpers/built-sites.ts";
 import { saveTestEmailConfig, validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -284,6 +288,37 @@ describeWithEnv(
       } finally {
         resetHostEmailConfig();
       }
+    });
+
+    test("a paid renewal pushes the site's read-only date out", async () => {
+      const current = await completionCurrent();
+      const { site, tokenIndex } = await setupRenewalSite("2026-09-01");
+      using secrets = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      await storeRows(
+        current,
+        await paidRenewalDeliveriesFor(tokenIndex)([
+          makeTestEntry(
+            {
+              active: true,
+              hidden: true,
+              id: 8,
+              months_per_unit: 2,
+              purchase_only: true,
+            },
+            { quantity: 1 },
+          ),
+        ]),
+      );
+
+      expect(await deliverNextPaidCompletion(current)).toBe(true);
+
+      expect(secrets.calls).toHaveLength(1);
+      const sites = await builtSites.getAll();
+      expect(sites.find((one) => one.id === site.id)?.readOnlyFrom).toBe(
+        "2026-11-01T00:00:00.000Z",
+      );
     });
   },
 );
