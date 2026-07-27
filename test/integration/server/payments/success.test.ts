@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { fillSoldOutListing } from "#test/integration/server/payments/_shared-setup.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -27,7 +28,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/success", () => {
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/success"));
-      await expectHtmlResponse(response, 400, "Invalid payment callback");
+      await expectHtmlResponse(
+        response,
+        400,
+        t("payment.error.invalid_callback"),
+      );
     });
 
     test("returns error when no provider configured", async () => {
@@ -37,7 +42,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       await expectHtmlResponse(
         response,
         400,
-        "Payment provider not configured",
+        t("payment.error.provider_not_configured"),
       );
     });
 
@@ -47,7 +52,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_invalid"),
       );
-      await expectHtmlResponse(response, 400, "Payment session not found");
+      await expectHtmlResponse(
+        response,
+        400,
+        t("payment.error.session_not_recognized"),
+      );
     });
 
     test("returns error when payment not verified", async () => {
@@ -79,7 +88,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           await expectHtmlResponse(
             response,
             400,
-            "Payment verification failed",
+            t("payment.error.session_not_recognized"),
           );
         },
       );
@@ -101,7 +110,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             mockRequest("/payment/success?session_id=cs_test"),
           );
           // Provider returns null for invalid metadata, so routes report "not found"
-          await expectHtmlResponse(response, 400, "Payment session not found");
+          await expectHtmlResponse(
+            response,
+            400,
+            t("payment.error.session_not_recognized"),
+          );
         },
       );
     });
@@ -134,10 +147,13 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
           );
+          // The money was returned, so the buyer gets the plain refund
+          // message; the reason is kept on the booking's note.
           await expectHtmlResponse(
             response,
-            410,
-            "no longer accepting registrations",
+            200,
+            "saved your details",
+            "automatically refunded",
           );
 
           // Verify exactly one refund was issued, for the right intent.

@@ -248,6 +248,8 @@ export const expectRefundedWithNote = async (
   attendeeId: number,
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
+  const { settleDeferredPaymentWork } = await import("./maintenance.ts");
+  await settleDeferredPaymentWork();
   expect(mockRefund.calls.length).toBe(1);
   const { getNoteRows } = await import("#shared/db/system-notes.ts");
   expect((await getNoteRows([attendeeId])).length).toBe(1);
