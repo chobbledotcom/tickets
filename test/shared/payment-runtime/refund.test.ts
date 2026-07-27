@@ -20,6 +20,7 @@ import {
   REFUND_RESOURCE,
   SESSION_RESOURCE,
 } from "#test/shared/db/payments/fixtures.ts";
+import { currentCharges } from "#test-utils/current-charge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import { createRefundablePayment } from "./fixtures.ts";
@@ -267,12 +268,7 @@ describeWithEnv("payment refund engine", { db: true }, () => {
       }),
       PAYMENT_TIME + 1,
     );
-    const partialCharges = (await getPaymentCharges(PAYMENT_ID)).map(
-      (charge) => {
-        if (!("captured" in charge)) throw new Error("Expected current charge");
-        return charge;
-      },
-    );
+    const partialCharges = currentCharges(await getPaymentCharges(PAYMENT_ID));
     const seen: { amount: number; currency: string }[] = [];
     using _provider = stub(stripePaymentProvider, "refundCharge", (charge) => {
       seen.push(charge.refunded);

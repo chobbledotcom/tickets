@@ -8,6 +8,7 @@ import type { LegacyProviderAssignmentRead } from "#shared/payment-state/operato
 import type { SquarePayment } from "#shared/square-payments.ts";
 import type { SumupTransaction } from "#shared/sumup.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
+import { required } from "#test-utils/required.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 export const account = (
@@ -18,8 +19,10 @@ export const account = (
 export const legacyPayment = async (
   reference: string,
 ): Promise<LegacyPaymentReplay> => {
-  const prepared = await prepareLegacyAttendeePaymentReference(42, reference);
-  if (prepared === null) throw new Error("Expected a legacy payment");
+  const prepared = required(
+    await prepareLegacyAttendeePaymentReference(42, reference),
+    "the legacy payment",
+  );
   return {
     accountId: null,
     attendeeId: 42,
@@ -36,8 +39,10 @@ export const legacyAttendeeBlobPayment = async (
   paymentId: string,
 ): Promise<LegacyPaymentReplay> => {
   const payment = await legacyPayment("temporary-reference");
-  const attendeePayment = payment.runtime.attendeePayment;
-  if (attendeePayment === null) throw new Error("Expected an attendee payment");
+  const attendeePayment = required(
+    payment.runtime.attendeePayment,
+    "the attendee payment",
+  );
   payment.runtime = {
     ...payment.runtime,
     attendeePayment: {

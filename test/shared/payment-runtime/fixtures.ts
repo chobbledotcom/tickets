@@ -59,8 +59,10 @@ import {
   SESSION_RESOURCE,
   sessionProgress,
 } from "#test/shared/db/payments/fixtures.ts";
+import { currentCharges } from "#test-utils/current-charge.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
+import { required } from "#test-utils/required.ts";
 
 export const createPendingPayment = async (
   input: PaymentSessionCreate = paymentSessionInput(),
@@ -112,12 +114,8 @@ export const createRefundablePayment = async (
     })),
     PAYMENT_TIME,
   );
-  const charges = await getPaymentCharges(PAYMENT_ID);
   return {
-    charges: charges.map((charge) => {
-      if (!("captured" in charge)) throw new Error("Expected current charge");
-      return charge;
-    }),
+    charges: currentCharges(await getPaymentCharges(PAYMENT_ID)),
     payment,
   };
 };
@@ -151,8 +149,10 @@ export const createAcceptedPaymentDecision = async (
   selection: PaymentOperatorSelection,
   exact: PaymentOperatorDecision | null = null,
 ): Promise<PaymentCaseDecision> => {
-  const context = await getPaymentOperatorCase(paymentCase.id);
-  if (context === null) throw new Error("Expected a payment case");
+  const context = required(
+    await getPaymentOperatorCase(paymentCase.id),
+    "the payment case",
+  );
   const prepared = preparePaymentDecision(
     context,
     1,
@@ -208,19 +208,17 @@ export const createLegacyAttendeePaymentCase = async (
   reference: string,
   attendeeId = 42,
 ): Promise<PaymentCase> => {
-  const prepared = await prepareLegacyAttendeePaymentReference(
-    attendeeId,
-    reference,
+  const prepared = required(
+    await prepareLegacyAttendeePaymentReference(attendeeId, reference),
+    "the legacy payment",
   );
-  if (prepared === null) throw new Error("Expected a legacy payment");
   await executeBatch(legacyTargetStatements(prepared));
   const paymentCase = (await getOpenPaymentCases()).find(
     (candidate) =>
       candidate.paymentId === prepared.id &&
       candidate.reason === "legacy_provider_unknown",
   );
-  if (paymentCase === undefined) throw new Error("Expected a provider case");
-  return paymentCase;
+  return required(paymentCase, "the provider case");
 };
 
 export const paymentProviderRead = (
@@ -371,10 +369,7 @@ export const legacyPaymentOperatorCase = (): PaymentOperatorCase => ({
 
 export const getStoredPayment = async (): Promise<PaymentSession> => {
   const [payment] = await getPaymentSessions([PAYMENT_ID]);
-  if (payment === null || payment === undefined) {
-    throw new Error("Expected payment");
-  }
-  return payment;
+  return required(payment, "the stored payment");
 };
 
 export const completePayment = async (

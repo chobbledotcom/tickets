@@ -5,6 +5,7 @@ import type {
 } from "#shared/db/built-sites/types.ts";
 import type { SiteAssignmentDelivery } from "#shared/payment-completion-delivery.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { required } from "#test-utils/required.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
 /** The built-sites admin routes 404 unless CAN_BUILD_SITES is on (the feature
@@ -166,8 +167,10 @@ export const setupRenewalSite = async (
   );
   await insertBuiltSite(name, "renewal.b-cdn.net", "", "", false, "5001");
   const sites = await builtSites.getAll();
-  const site = sites.find((candidate) => candidate.name === name);
-  if (site === undefined) throw new Error("Missing the renewal site");
+  const site = required(
+    sites.find((candidate) => candidate.name === name),
+    "the renewal site",
+  );
   const { tokenIndex } = await provisionTestBuiltSite(site.id, {
     readOnlyFrom,
   });

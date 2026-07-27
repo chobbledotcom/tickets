@@ -14,6 +14,8 @@ import {
   legacyPaymentOperatorCase,
   provenPaymentOperatorCase,
 } from "#test/shared/payment-runtime/fixtures.ts";
+import { currentCharges } from "#test-utils/current-charge.ts";
+import { required } from "#test-utils/required.ts";
 
 type FoundRead = Extract<ProviderRead, { status: "found" }>;
 
@@ -24,13 +26,8 @@ const currentPayment = (context: PaymentOperatorCase): PaymentSession => {
   return context.payment.value;
 };
 
-const firstCharge = (context: PaymentOperatorCase): PaymentCharge => {
-  const charge = context.charges[0];
-  if (charge === undefined || !("captured" in charge)) {
-    throw new Error("Expected a current charge");
-  }
-  return charge;
-};
+const firstCharge = (context: PaymentOperatorCase): PaymentCharge =>
+  required(currentCharges(context.charges)[0], "the payment's first charge");
 
 const foundRead = (context: PaymentOperatorCase): FoundRead => {
   const evidence = context.case.evidence;

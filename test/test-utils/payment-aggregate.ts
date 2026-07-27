@@ -35,6 +35,8 @@ import type {
   ChargeLeg,
   ProviderSessionResource,
 } from "#shared/payment-state/resources.ts";
+import { currentCharges } from "#test-utils/current-charge.ts";
+import { required } from "#test-utils/required.ts";
 
 const PAYMENT_TIME = 1_785_024_000_000;
 
@@ -131,14 +133,6 @@ const chargeLegs = (
     },
   }));
 
-const currentCharges = (
-  charges: Awaited<ReturnType<typeof getPaymentCharges>>,
-) =>
-  charges.map((charge): PaymentCharge => {
-    if (!("captured" in charge)) throw new Error("Expected a current charge");
-    return charge;
-  });
-
 const aggregateFixture = async (
   payment: PaymentSession,
   session: ProviderSessionResource,
@@ -175,16 +169,14 @@ const finishAggregatePayment = async (
     );
     return aggregateFixture(payment, session, null);
   }
-  if (input.attendeeId === undefined) {
-    throw new Error(
-      `Completed payment ${processing.payment.id} needs an attendee`,
-    );
-  }
   const ticketTokens = input.ticketTokens ?? [];
   const payment = await applyPaymentSessionClaim(
     processing.claim,
     paymentProgress(processing.payment, {
-      attendeeId: input.attendeeId,
+      attendeeId: required(
+        input.attendeeId,
+        `an attendee for completed payment ${processing.payment.id}`,
+      ),
       completion: completedBooking(intent, createdAt, ticketTokens),
       completionState: "completed",
       nextReconcileAt: null,
@@ -306,8 +298,7 @@ export const createPausedAttendeePayment = async (
     paymentId,
     state: "processing",
   });
-  if (payment.claim === null) throw new Error("Expected a retained claim");
-  return { ...payment, claim: payment.claim };
+  return { ...payment, claim: required(payment.claim, "the retained claim") };
 };
 
 export const expectAttendeePaymentFence = async (
