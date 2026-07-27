@@ -88,17 +88,36 @@ When(
   },
 );
 
+/** The organiser answers the question the door just asked them. The door has to
+ * have asked it: sending an answer to a question that was never put is not
+ * something the organiser could do, and would hide a door that stopped
+ * querying. */
+const answerTheDoor = async function (
+  this: TicketsWorld,
+  who: string,
+  listing: string,
+  asked: string,
+  choices: { confirmedTheirId?: boolean; letInAnyway?: boolean },
+): Promise<void> {
+  expect(lastAnswer(this).status).toBe(asked);
+  await readTicket.call(this, who, listing, choices);
+};
+
 When(
-  "the organiser reads {word}'s ticket at the {word} door and lets her in anyway",
+  "the organiser lets {word} in at the {word} door anyway",
   function (this: TicketsWorld, who: string, listing: string): Promise<void> {
-    return readTicket.call(this, who, listing, { letInAnyway: true });
+    return answerTheDoor.call(this, who, listing, "wrong_listing", {
+      letInAnyway: true,
+    });
   },
 );
 
 When(
-  "the organiser reads {word}'s ticket at the {word} door having checked her ID",
+  "the organiser confirms {word}'s ID at the {word} door",
   function (this: TicketsWorld, who: string, listing: string): Promise<void> {
-    return readTicket.call(this, who, listing, { confirmedTheirId: true });
+    return answerTheDoor.call(this, who, listing, "verify_id", {
+      confirmedTheirId: true,
+    });
   },
 );
 

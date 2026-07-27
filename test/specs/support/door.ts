@@ -96,7 +96,7 @@ const codeOnPage = (browser: TestBrowser): string => {
 };
 
 /** The organiser opens a listing's door. */
-export const openDoor = async (
+const openDoor = async (
   world: TicketsWorld,
   listing: string,
 ): Promise<TestBrowser> => {

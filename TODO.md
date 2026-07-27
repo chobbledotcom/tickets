@@ -1697,3 +1697,28 @@ Starting point: `strippedPageOrphanedAddOn` and
 `firstChildUnreachableAddOnForListings` in `src/shared/db/modifier-resolve.ts`,
 plus whichever direct test already covers the guard, for the shape of the
 fixture.
+
+---
+
+## Test the door's confirmation steps in the browser script
+
+*Origin: reviewer suggestion (Codex) on PR #1959.*
+
+`src/ui/client/scanner.js` is the only part of checking people in that nothing
+tests. It is the script that shows the organiser the question the door asked —
+"this ticket is for another listing, let them in anyway?" and "check this
+person's ID first" — and sends the second request carrying their answer.
+
+The story `attendees.checking-people-in-at-the-door` reads a ticket, gets the
+query back, and then sends the answer, which is the same pair of requests the
+script makes. What it cannot do is press the button: `TestBrowser` runs no
+JavaScript, so a broken confirmation prompt would leave the story green.
+
+That is a pre-existing gap — `scanner.js` had no test before this story either,
+and it is the only client script in `src/ui/client/` with none. Closing it needs
+a DOM test in the shape of `test/ui/client/order.test.ts`, which was too much
+scaffolding to add inside a test migration.
+
+Starting point: `src/ui/client/scanner.js`, the confirmation branches around its
+handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
+for how a client script is driven without a real browser.

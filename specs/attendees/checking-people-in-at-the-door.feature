@@ -77,7 +77,8 @@ Feature: An organiser checks people in at the door
     Scenario: The organiser lets in someone from another listing
       Given Alice has a ticket for the Ceilidh
       And the Quiz is running its own door
-      When the organiser reads Alice's ticket at the Quiz door and lets her in anyway
+      And the organiser reads Alice's ticket at the Quiz door
+      When the organiser lets Alice in at the Quiz door anyway
       Then the door lets Alice in
 
   @rule:attendees.a-listing-that-needs-id-holds-the-ticket-first
@@ -95,7 +96,8 @@ Feature: An organiser checks people in at the door
     @case:door.the-id-is-checked
     Scenario: The organiser checks the ID and lets them in
       Given Alice has a ticket for the Ceilidh, which needs ID checked
-      When the organiser reads Alice's ticket at the Ceilidh door having checked her ID
+      And the organiser reads Alice's ticket at the Ceilidh door
+      When the organiser confirms Alice's ID at the Ceilidh door
       Then the door lets Alice in
 
   @rule:attendees.the-door-only-offers-people-who-are-not-in-yet
