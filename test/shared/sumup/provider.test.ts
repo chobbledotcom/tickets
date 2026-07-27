@@ -217,6 +217,91 @@ describeSumup("SumUp typed provider", () => {
     }
   });
 
+  for (const [status, expected] of [
+    ["PAID", "paid"],
+    ["PENDING", "pending"],
+    ["FAILED", "failed"],
+  ] as const) {
+    test(`a ${status} checkout nobody has paid on yet reads as ${expected}`, async () => {
+      // No transaction id, so there is no charge to read — only the checkout's
+      // own state says where the money got to.
+      const result = await readWith(
+        await createStoredSumupPayment(),
+        sumupCheckoutResource,
+        { status, transactionId: undefined },
+      );
+      expect(result).toMatchObject({
+        observation: { status: expected },
+        status: "found",
+      });
+      if (result.status !== "found") throw new Error("Expected SumUp facts");
+      expect(result.observation.charges).toBeUndefined();
+    });
+  }
+
+  test("a checkout belonging to a different SumUp payment is refused", async () => {
+    // The aggregate was staged against one SumUp checkout; the response names
+    // another, so it is not ours to read.
+    const payment = await createStoredSumupPayment({
+      id: "sumup-other-checkout",
+      kind: "sumup_checkout",
+      provider: "sumup",
+    });
+    expect(await readWith(payment)).toMatchObject({
+      reason: "mismatched_parent",
+      status: "invalid",
+    });
+  });
+
+  test("a resource that is not SumUp's is refused before anything is asked", async () => {
+    const payment = await createStoredSumupPayment();
+    expect(
+      await readWith(payment, {
+        id: "cs_stripe",
+        kind: "stripe_checkout_session",
+        provider: "stripe",
+      }),
+    ).toMatchObject({ reason: "mismatched_parent", status: "invalid" });
+  });
+
+  test("a charge asked for by a different transaction id is refused", async () => {
+    expect(
+      await readWith(
+        await createStoredSumupPayment(),
+        {
+          id: "sumup-other-transaction",
+          kind: "sumup_transaction",
+          parentId: sumupCheckoutResource.id,
+          provider: "sumup",
+        },
+        {},
+        {},
+      ),
+    ).toMatchObject({ reason: "mismatched_id", status: "invalid" });
+  });
+
+  test("a charge asked for on a checkout with no payment on it is refused", async () => {
+    // Asking about a charge when the checkout never captured one has no
+    // answer, so it is refused rather than reported as an empty success.
+    expect(
+      await readWith(
+        await createStoredSumupPayment(),
+        sumupTransactionResource,
+        { status: "PENDING" },
+        { status: "PENDING" },
+      ),
+    ).toMatchObject({ reason: "unsupported_status", status: "invalid" });
+  });
+
+  test("a checkout the site has never recorded is reported missing", async () => {
+    // Nothing staged this checkout, so there is no payment to attach it to.
+    expect(
+      await readWith(null, sumupCheckoutResource, {
+        reference: "never-seen",
+      }),
+    ).toMatchObject({ status: "missing" });
+  });
+
   test("polls a pending SumUp refund without posting again", async () => {
     using provider = stubSumupProvider({
       refund: () => Promise.reject(new Error("must not post")),
