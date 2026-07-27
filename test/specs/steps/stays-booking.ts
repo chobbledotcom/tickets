@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { addDays, formatDateRangeLabel } from "#shared/dates.ts";
+import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   daysOfferedFor,
@@ -211,20 +212,30 @@ When(
   },
 );
 
-/** What the organiser reads on the booking's own page. The label must name the
- * stay's first and last day, so a stay stored a day short or long fails. */
+/** How long the stay runs, checked two ways that cannot both drift together.
+ *
+ * The days the site stored are compared against the day the story started on
+ * plus its own number of days — arithmetic the site's own wording plays no part
+ * in. Then the booking's page is read, so the organiser is shown a label naming
+ * exactly those days. Checking only the label would let a change to how ranges
+ * are worded pass unnoticed, because the expected label is built by the same
+ * helper the page uses. */
 export const expectStayRunsFor = async (
   world: TicketsWorld,
   days: number,
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/attendees/${world.attendeeId}`);
   const first = stayStart(world);
+  const dayAfterTheLast = addDays(first, days);
+  const bookingId = requiredWorldValue(world.attendeeId, "the booking");
+  const browser = await adminBrowser(world);
+  await browser.visit(`/admin/attendees/${bookingId}`);
+  const stored = await getAttendeeRaw(bookingId);
+  if (!stored) throw new Error(`Booking ${bookingId} has gone`);
+  expect(stored.date).toBe(first);
+  // The site stores the day after the last day held.
+  expect(stored.end_date).toBe(dayAfterTheLast);
   expect(browser.pageText).toContain(
-    formatDateRangeLabel(
-      `${first}T00:00:00Z`,
-      `${addDays(first, days)}T00:00:00Z`,
-    ),
+    formatDateRangeLabel(`${first}T00:00:00Z`, `${dayAfterTheLast}T00:00:00Z`),
   );
 };
 
