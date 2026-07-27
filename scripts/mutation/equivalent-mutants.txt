@@ -977,3 +977,7 @@ scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it a
 
 # Isolated mutation runs: the exit code before any path has set one.
 scripts/mutation/isolation.ts:197:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
+
+# Cucumber runs: telling Cucumber to be strict, when we already reject the
+# statuses strictness is about.
+scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
