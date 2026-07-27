@@ -71,6 +71,9 @@ Feature: An organiser sells several things as one bundle
       When the organiser stops selling the Weekend as a bundle
       Then the organiser is told to make its contents public first
       And the Weekend is still sold as one bundle
+      And their ticket names the Weekend
+      And their ticket never names the Tent
+      And their ticket never names the Breakfast
 
     @case:bundles.unbundling-is-allowed-once-the-parts-are-public
     Scenario: The organiser makes the contents public and then stops bundling

@@ -11,6 +11,7 @@ import { toMinorUnits } from "#shared/currency.ts";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
 import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
@@ -186,13 +187,17 @@ export const customerBuysBundle = async (
   const group = bundleNamed(world, name);
   const browser = new TestBrowser();
   await browser.visit(`/ticket/${group.slug}`);
-  expect(browser.currentHtml).toContain(`name="package_quantity_${group.id}"`);
+  // The box has to be there and be able to take a one, or the bundle could not
+  // be chosen in a real browser however well a crafted send goes through.
+  const wanting = `package_quantity_${group.id}`;
+  expect(browser.currentHtml).toContain(`name="${wanting}"`);
+  expect(whyValueCannotBeSent(browser.currentHtml, wanting, "1")).toBeNull();
   world.bundleBookingPage = browser.pageText;
   await browser.submitForm(
     {
       email: "buyer@example.com",
       name: "Buyer",
-      [`package_quantity_${group.id}`]: "1",
+      [wanting]: "1",
     },
     "Continue",
   );
@@ -225,7 +230,6 @@ export const organiserDeletesBundle = async (
   return browser.pageText;
 };
 
-/** Whether the bundle is still there at all. */
 export const bundleStillExists = async (
   world: TicketsWorld,
   name: string,
