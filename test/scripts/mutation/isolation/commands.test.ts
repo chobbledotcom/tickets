@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { cleanableRuns } from "#scripts/mutation/isolation-cleanup.ts";
+import { removeFinishedRuns } from "#scripts/mutation/isolation-cleanup.ts";
 import { withMutationRunLock } from "#scripts/mutation/isolation-lock.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
@@ -150,7 +150,7 @@ describe("mutation isolation commands", () => {
       // What is on disk now: the same run, started moments ago.
       await writeRunRecord(markRunning(asRead, Deno.pid));
 
-      expect((await cleanableRuns([asRead])).removable).toEqual([]);
+      expect((await removeFinishedRuns([asRead])).skipped).toEqual([asRead]);
     });
   });
 
@@ -165,9 +165,13 @@ describe("mutation isolation commands", () => {
       await writeRunRecord(settling);
 
       await withMutationRunLock(settling.root, async () => {
-        expect((await cleanableRuns([settling])).removable).toEqual([]);
+        expect((await removeFinishedRuns([settling])).skipped).toEqual([
+          settling,
+        ]);
       });
-      expect((await cleanableRuns([settling])).removable).toEqual([settling]);
+      expect((await removeFinishedRuns([settling])).removed).toEqual([
+        settling,
+      ]);
     });
   });
 

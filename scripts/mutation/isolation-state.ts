@@ -251,12 +251,19 @@ export const isTerminalRunStatus = (status: MutationRunStatus): boolean =>
  */
 export const RUN_STARTUP_GRACE_MS = 30_000;
 
-/** Was `at` within the startup grace? Unknown times count as long ago. */
+/**
+ * Was `at` within the startup grace? Unknown times count as long ago, and so
+ * do times in the future: a clock put back must not make a folder look busy
+ * for ever.
+ */
 export const withinStartupGrace = (
   at: number,
   now: Date = new Date(),
   graceMs: number = RUN_STARTUP_GRACE_MS,
-): boolean => at > 0 && now.getTime() - at < graceMs;
+): boolean => {
+  const age = now.getTime() - at;
+  return at > 0 && age >= 0 && age < graceMs;
+};
 
 export const runStartedRecently = (
   record: MutationRunRecord,

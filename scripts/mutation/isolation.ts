@@ -19,12 +19,10 @@ import {
 import { errorMessage } from "#shared/error-message.ts";
 import { envWith } from "./child-process.ts";
 import {
-  cleanableRuns,
   liveRunIdSet,
   processBelongsToRun,
-  type RemoveRunResult,
+  removeFinishedRuns,
   removeInactiveRuns,
-  removeRun,
   removeWorkSnapshot,
   reportRemoveFailure,
 } from "./isolation-cleanup.ts";
@@ -235,18 +233,7 @@ const removeMatchedRuns = async (
   records: MutationRunRecord[],
   target: string,
 ): Promise<number> => {
-  const { removable, skipped } = await cleanableRuns(records);
-  const removeResults = await Promise.all(removable.map(removeRun));
-  const removed = removeResults
-    .filter(
-      (result): result is Extract<RemoveRunResult, { removed: true }> =>
-        result.removed,
-    )
-    .map(({ record }) => record);
-  const failed = removeResults.filter(
-    (result): result is Extract<RemoveRunResult, { removed: false }> =>
-      !result.removed,
-  );
+  const { failed, removed, skipped } = await removeFinishedRuns(records);
 
   for (const record of removed) console.log(`Removed ${record.id}.`);
   for (const result of failed) reportRemoveFailure("", result);

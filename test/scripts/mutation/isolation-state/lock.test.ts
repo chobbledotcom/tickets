@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   runLockIsHeld,
   withMutationRunLock,
+  withRunLockIfFree,
 } from "#scripts/mutation/isolation-lock.ts";
 import { MUTATION_RUN_LOCK_FILE } from "#scripts/mutation/isolation-state.ts";
 import { withTempDir } from "#test/scripts/mutation/isolation-helpers.ts";
@@ -76,6 +77,67 @@ describe("the lock that keeps two runs out of one folder", () => {
       expect(
         await withMutationRunLock(runFolder, () => Promise.resolve("ok")),
       ).toBe("ok");
+    });
+  });
+
+  test("takes a free lock and gives it back", async () => {
+    await withTempDir(async (root) => {
+      const record = { root: join(root, ".mutation-runs", "mutation-free") };
+      await Deno.mkdir(record.root, { recursive: true });
+
+      expect(
+        await withRunLockIfFree(record, () => Promise.resolve("done")),
+      ).toBe("done");
+      // Free again, or this second take would wait for ever.
+      expect(
+        await withRunLockIfFree(record, () => Promise.resolve("again")),
+      ).toBe("again");
+    });
+  });
+
+  test("gives up rather than queue behind a run that holds its folder", async () => {
+    await withTempDir(async (root) => {
+      const record = { root: join(root, ".mutation-runs", "mutation-taken") };
+      const release = Promise.withResolvers<void>();
+      const holdingIt = Promise.withResolvers<void>();
+      let ranInside = false;
+
+      const holding = withMutationRunLock(record.root, () => {
+        holdingIt.resolve();
+        return release.promise;
+      });
+      await holdingIt.promise;
+      const gaveUp = await withRunLockIfFree(
+        record,
+        () => {
+          ranInside = true;
+          return Promise.resolve("should not happen");
+        },
+        LONG_ENOUGH_TO_BE_LET_IN_MS,
+      );
+
+      expect(gaveUp).toBeNull();
+      expect(ranInside).toBe(false);
+
+      release.resolve();
+      await holding;
+      // The lock it gave up on is handed back when it finally arrives, so the
+      // folder is free for the next run.
+      await pause(LONG_ENOUGH_TO_BE_LET_IN_MS);
+      expect(
+        await withRunLockIfFree(record, () => Promise.resolve("free")),
+      ).toBe("free");
+    });
+  });
+
+  test("answers nothing when the folder cannot hold a lock", async () => {
+    await withTempDir(async (root) => {
+      const asFile = join(root, "not-a-folder");
+      await Deno.writeTextFile(asFile, "");
+
+      expect(
+        await withRunLockIfFree({ root: asFile }, () => Promise.resolve("no")),
+      ).toBeNull();
     });
   });
 

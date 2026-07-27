@@ -54,6 +54,38 @@ export const runLockIsHeld = async (
   return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
 };
 
+/**
+ * Hold a run's lock while `run` works, but only if it is free within
+ * `timeoutMs`; otherwise give up and answer `null`. Clearing up must never
+ * queue behind a run that holds its folder for an hour.
+ */
+export const withRunLockIfFree = async <Result>(
+  record: Pick<MutationRunRecord, "root">,
+  run: () => Promise<Result>,
+  timeoutMs = 250,
+): Promise<Result | null> => {
+  const file = await openLockFile(runLockPath(record)).catch(() => null);
+  if (file === null) return null;
+  const locked = file.lock(true).then(() => true);
+  let waited = 0;
+  const gaveUp = new Promise<false>((resolve) => {
+    waited = setTimeout(() => resolve(false), timeoutMs);
+    Deno.unrefTimer(waited);
+  });
+  if (!(await Promise.race([locked, gaveUp]))) {
+    // Closing hands back anything the abandoned wait is later granted.
+    file.close();
+    return null;
+  }
+  clearTimeout(waited);
+  try {
+    return await run();
+  } finally {
+    await file.unlock();
+    file.close();
+  }
+};
+
 /** Hold a run's own lock, making its folder first so there is one to lock. */
 export const withMutationRunLock = async <Result>(
   runRootPath: string,

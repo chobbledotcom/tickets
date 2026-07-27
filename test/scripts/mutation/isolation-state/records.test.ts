@@ -118,6 +118,19 @@ describe("mutation isolation run records", () => {
     ).toBe(false);
   });
 
+  test("treats a run stamped in the future as not recent", () => {
+    // A clock put back must not leave a dead run looking busy for ever.
+    const future = markRunning(
+      newRunRecord("future", [], "/repo", "2027-01-01T00:00:00.000Z"),
+      5,
+      "2027-01-01T00:00:00.000Z",
+    );
+
+    expect(
+      runStartedRecently(future, new Date("2026-07-10T12:00:00.000Z")),
+    ).toBe(false);
+  });
+
   test("counts a run stamped a moment after the epoch", () => {
     const justAfterEpoch = markRunning(
       newRunRecord("epoch", [], "/repo", "1970-01-01T00:00:00.001Z"),

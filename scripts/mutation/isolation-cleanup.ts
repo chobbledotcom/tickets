@@ -9,7 +9,7 @@ import { join } from "@std/path";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { processExists, removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { runLockIsHeld } from "./isolation-lock.ts";
+import { runLockIsHeld, withRunLockIfFree } from "./isolation-lock.ts";
 import {
   readRunRecord,
   readRunRecords,
@@ -35,42 +35,12 @@ export const processBelongsToRun = async (
   record: MutationRunRecord,
 ): Promise<boolean> => runProcessIsUp(record) && (await runLockIsHeld(record));
 
-/**
- * A run that looks alive still counts as active while it is young, before its
- * lock shows: a run writes its record moments before it takes the lock, and
- * deleting its folder in that gap would pull the work out from under it.
- */
-const stillActive =
-  (looksAlive: (record: MutationRunRecord) => boolean) =>
-  async (record: MutationRunRecord): Promise<boolean> =>
-    looksAlive(record) &&
-    (runStartedRecently(record) || (await runLockIsHeld(record)));
-
-const copyingRunStillActive = stillActive(
-  (record) => record.status === "copying",
-);
-
-const runningProcessStillExists = stillActive(runProcessIsUp);
-
-const looksActive = async (record: MutationRunRecord): Promise<boolean> =>
-  (await copyingRunStillActive(record)) ||
-  (await runningProcessStillExists(record));
-
-/**
- * A run counts as active if either the record we started from, or the one on
- * disk now, says so. Waiting on the lock takes time, and the run can move from
- * copying to running while we wait — the record we read first is by then out of
- * date, and acting on it would delete a run that had just come to life.
- */
-const runIsActive = async (record: MutationRunRecord): Promise<boolean> => {
-  if (await looksActive(record)) return true;
-  // Whoever holds the folder's lock owns it, whatever its record says — the
-  // supervisor takes it again to write its last record once its child has gone.
-  if (await runLockIsHeld(record)) return true;
+/** The record as it reads on disk right now, if it can be read at all. */
+const freshRecord = async (
+  record: MutationRunRecord,
+): Promise<MutationRunRecord | null> => {
   const latest = await readRunRecord(join(record.root, MUTATION_RECORD_FILE));
-  return (
-    latest !== null && (await looksActive({ ...latest, root: record.root }))
-  );
+  return latest === null ? null : { ...latest, root: record.root };
 };
 
 export const liveRunIdSet = async (
@@ -104,28 +74,57 @@ const removeRunPath = async (
   }
 };
 
+/**
+ * Judged from the record alone: the caller already holds the folder's lock, so
+ * a live run is one whose child is up, or one so young its record may not have
+ * caught up yet.
+ */
+const activeByRecord = (record: MutationRunRecord): boolean =>
+  record.status === "copying"
+    ? runStartedRecently(record)
+    : runProcessIsUp(record) && runStartedRecently(record);
+
+/**
+ * Delete a run's whole folder, but only while holding its lock, and only if
+ * the record read under that lock still says the run is over. Holding the lock
+ * is what stops an owner claiming the folder in the moment between the two.
+ * `null` means the run is still someone's, so it was left alone.
+ */
 export const removeRun = (
   record: MutationRunRecord,
-): Promise<RemoveRunResult> => removeRunPath(record, record.root);
+): Promise<RemoveRunResult | null> =>
+  withRunLockIfFree(record, async () => {
+    const latest = (await freshRecord(record)) ?? record;
+    return activeByRecord(latest)
+      ? null
+      : await removeRunPath(record, record.root);
+  });
 
-export const cleanableRuns = async (
-  records: MutationRunRecord[],
-): Promise<{
-  removable: MutationRunRecord[];
+export interface CleanedRuns {
+  failed: Extract<RemoveRunResult, { removed: false }>[];
+  removed: MutationRunRecord[];
   skipped: MutationRunRecord[];
-}> => {
-  const statuses = await Promise.all(
+}
+
+/** Delete every run in `records` that is finished with, and say what happened. */
+export const removeFinishedRuns = async (
+  records: MutationRunRecord[],
+): Promise<CleanedRuns> => {
+  const results = await Promise.all(
     records.map(async (record) => ({
-      isActive: await runIsActive(record),
+      outcome: await removeRun(record),
       record,
     })),
   );
   return {
-    removable: statuses
-      .filter(({ isActive }) => !isActive)
+    failed: results
+      .map(({ outcome }) => outcome)
+      .filter((outcome) => outcome?.removed === false),
+    removed: results
+      .filter(({ outcome }) => outcome?.removed === true)
       .map(({ record }) => record),
-    skipped: statuses
-      .filter(({ isActive }) => isActive)
+    skipped: results
+      .filter(({ outcome }) => outcome === null || outcome === undefined)
       .map(({ record }) => record),
   };
 };
@@ -192,9 +191,6 @@ const runsToSweep = async (root: string): Promise<MutationRunRecord[]> => {
 
 /** Clears out whatever earlier runs left behind, so nothing piles up. */
 export const removeInactiveRuns = async (root: string): Promise<void> => {
-  const { removable } = await cleanableRuns(await runsToSweep(root));
-  const results = await Promise.all(removable.map(removeRun));
-  for (const result of results) {
-    if (!result.removed) reportRemoveFailure("the earlier run", result);
-  }
+  const { failed } = await removeFinishedRuns(await runsToSweep(root));
+  for (const result of failed) reportRemoveFailure("the earlier run", result);
 };
