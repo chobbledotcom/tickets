@@ -10,24 +10,27 @@ import {
   expectPortAvailable,
   expectPortOpen,
   expectStripeMockFails,
-  freePort,
-  runsToCompletion,
-  startCount,
-  startFailureMessage,
   testEnv,
   withFakeCurl,
   withHeldPort,
   withTempStripeMockPaths,
   withUnusedPort,
+  writeFailingMock,
+} from "#test/test-utils/stripe-mock/helpers.ts";
+import { pathExists } from "#test-utils/files.ts";
+import {
+  freePort,
+  runsToCompletion,
+  startCount,
+  startFailureMessage,
+  withCountedLooks,
   writeCountingFailingMock,
   writeDiesWhileConfirmingMock,
-  writeFailingMock,
   writeShortLivedMock,
   writeSlowToListenMock,
   writeSlowToStopMock,
   writeWrongPortMock,
-} from "#test/test-utils/stripe-mock/helpers.ts";
-import { pathExists } from "#test-utils/files.ts";
+} from "./fixtures.ts";
 
 const START_LOCK_NAME = "stripe-mock.start.lock";
 
@@ -155,24 +158,52 @@ describe("starting stripe-mock", () => {
     });
   });
 
-  test("polls again after waiting when the port is not open yet", async () => {
+  test("looks again after waiting when the port is not open yet", async () => {
     await withTempStripeMockPaths(async (paths) => {
-      // Listens soon, but never on the very first look.
-      await writeSlowToListenMock(paths, 60);
+      await writeSlowToListenMock(paths, 0);
 
       await withUnusedPort(async (port) => {
-        const stripeMock = await startStripeMock({
-          budgetMs: 5000,
-          delayMs: 300,
-          paths,
-          port,
-        });
+        // The first look after starting the mock is refused, however quickly it
+        // really opened, so reaching the port at all means looking twice.
+        await withCountedLooks(
+          (look) => look === 2,
+          async (looks) => {
+            const stripeMock = await startStripeMock({
+              budgetMs: 5000,
+              delayMs: 10,
+              paths,
+              port,
+            });
 
-        try {
-          await expectPortOpen(port);
-        } finally {
-          await stripeMock.stop();
-        }
+            try {
+              expect(looks.count).toBeGreaterThanOrEqual(3);
+            } finally {
+              await stripeMock.stop();
+            }
+          },
+        );
+      });
+    });
+  });
+
+  test("waits between looks instead of asking as fast as it can", async () => {
+    await withTempStripeMockPaths(async (paths) => {
+      await writeShortLivedMock(paths);
+
+      await withUnusedPort(async (port) => {
+        // Nothing ever answers, so the starter looks until its time is up.
+        await withCountedLooks(
+          () => true,
+          async (looks) => {
+            await expect(
+              startStripeMock({ budgetMs: 300, paths, port }),
+            ).rejects.toThrow(STRIPE_MOCK_FAILED_TO_START);
+
+            // Three hundred milliseconds of looking, ten milliseconds apart, is
+            // tens of looks. Without the wait it would be many thousands.
+            expect(looks.count).toBeLessThan(200);
+          },
+        );
       });
     });
   });
