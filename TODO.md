@@ -2246,3 +2246,44 @@ guard that refuses if a payment landed in the meantime
 refuse, the listing stays but its file is already gone, so the link on it
 leads nowhere. The record should be claimed before anything outside the
 database is removed.
+
+## Four more upgrade findings from the review
+
+*Origin: Codex review on PR #1962, commit 3e950d2c.*
+
+**The owner cannot pick the right account for an old payment.** An old
+payment that was still being paid when the site upgraded already knows which
+provider it used — that came across with it — but not which account or whether
+it was live or test. The check at
+`src/shared/db/payments/decision-attempts.ts` (around line 164) treats
+"provider known, account not" as nothing to decide, so it closes the case
+before asking the provider, and the list of choices offered leaves out the
+provider the payment actually used. On a site with one provider, which is
+most of them, the owner is left with no usable choice at all. This one
+matters most of the four: it is the repair path the others rely on.
+
+**A payment that was mid-flight at upgrade never reaches the owner.** If the
+upgrade finds a checkout that had started but no record of it finishing,
+`src/shared/db/payments/legacy-copy.ts` (around line 93) copies it as still
+going and stops there, without raising anything for the owner. Nothing picks
+it up afterwards — the catch-up only looks at payments made since the
+upgrade, and a later callback just reports a clash. So a payment or refund
+that was in the air stays invisible for good. It should be put in front of
+the owner as something to sort out.
+
+**Old payment details are kept for ever.** Payment history is meant to be
+cleared after a set time. A payment that came from before the upgrade keeps
+at least one copied charge, and the check at
+`src/shared/db/payments/redaction-eligibility.ts` (around line 31) reads that
+as "still legacy, skip" — permanently. Choosing "keep the older record" closes
+the case but changes nothing, so the details are never cleared, including the
+buyer's encrypted personal details when that old payment was the only place
+they were referenced.
+
+**Upgrading can hand out tickets that were already used.** A finished old
+payment whose ticket codes were already handed over has them blanked. The
+upgrade sees the blank and falls back to the copy still sitting in the
+half-finished checkout record (`src/shared/db/payments/legacy.ts`, around
+line 299), so it marks the tickets as ready to give out again — and keeps them.
+A finished payment should be believed even when its ticket field is empty; the
+half-finished record should only be read when there is no finished one.
