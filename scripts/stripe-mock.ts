@@ -26,11 +26,12 @@ const STRIPE_MOCK_HOST = "localhost";
 
 export const STRIPE_MOCK_FAILED_TO_START = "stripe-mock failed to start";
 const START_CONFIRM_DELAY_MS = 50;
-/** How often to re-check whether stripe-mock is listening yet. It takes most of
- * a second to load its API spec, so a coarse poll spends its last tick asleep
- * on a mock that is already up. The pair below keeps the same 10-second ceiling. */
+/** How long to keep looking for a mock that has not opened its port yet. It
+ * takes most of a second to load its API spec, so the wait has to be generous. */
+const START_BUDGET_MS = 10_000;
+/** How often to look while waiting. Only the budget above bounds the wait, so
+ * a finer poll just spends less of it asleep on a mock that is already up. */
 const START_POLL_DELAY_MS = 10;
-const START_MAX_ATTEMPTS = 1_000;
 const START_ATTEMPTS = 5;
 const STOP_TIMEOUT_MS = 2_000;
 const START_LOCK_NAME = "stripe-mock.start.lock";
@@ -93,7 +94,7 @@ const raceWithDelay = async <T>(
   delayMs: number,
   delayedValue: () => T,
 ): Promise<T> => {
-  let timeout = 0;
+  let timeout: number | undefined;
   const delayed = new Promise<T>((resolve) => {
     timeout = setTimeout(() => resolve(delayedValue()), delayMs);
   });
@@ -118,7 +119,7 @@ const confirmProcessStillRunning = (
 const waitForOwnedStripeMock = async (
   process: Deno.ChildProcess,
   port: number,
-  maxAttempts: number,
+  budgetMs: number,
   delayMs: number,
   confirmDelayMs: number,
 ): Promise<boolean> => {
@@ -127,7 +128,8 @@ const waitForOwnedStripeMock = async (
     exited = true;
   });
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  const giveUpAt = Date.now() + budgetMs;
+  while (Date.now() < giveUpAt) {
     if (exited) return false;
     if (await isStripeMockRunning(port)) {
       return await confirmProcessStillRunning(
@@ -164,7 +166,7 @@ type StartStripeMockOptions = StripeMockInstallOptions & {
   confirmDelayMs?: number;
   delayMs?: number;
   env?: StripeMockEnvSource;
-  maxAttempts?: number;
+  budgetMs?: number;
   paths?: StripeMockPaths;
   port?: number;
   startAttempts?: number;
@@ -232,22 +234,30 @@ const resolveStripeMockPort = (
   options: StartStripeMockOptions,
   env: StripeMockEnvSource,
 ): number => {
-  const choosePort = options.choosePort ?? chooseStripeMockPort;
-  return options.port ?? choosePort(env);
+  const { choosePort = chooseStripeMockPort } = options;
+  // Only a missing port is replaced, so an explicit one is always honoured.
+  const { port = choosePort(env) } = options;
+  return port;
 };
 
 const confirmOwnedStripeMock = (
   options: StartStripeMockOptions,
   port: number,
   spawned: SpawnedStripeMock,
-): Promise<boolean> =>
-  waitForOwnedStripeMock(
+): Promise<boolean> => {
+  const {
+    budgetMs = START_BUDGET_MS,
+    confirmDelayMs = START_CONFIRM_DELAY_MS,
+    delayMs = START_POLL_DELAY_MS,
+  } = options;
+  return waitForOwnedStripeMock(
     spawned.process,
     port,
-    options.maxAttempts ?? START_MAX_ATTEMPTS,
-    options.delayMs ?? START_POLL_DELAY_MS,
-    options.confirmDelayMs ?? START_CONFIRM_DELAY_MS,
+    budgetMs,
+    delayMs,
+    confirmDelayMs,
   );
+};
 
 type StripeMockStartAttempt =
   | { readonly kind: "running"; readonly mock: RunningStripeMock }
@@ -278,7 +288,7 @@ const attemptStartStripeMock = async (
   if (configuredPort) await downloadStripeMock(options);
 
   const spawned = spawnStripeMock(paths, port);
-  const stopTimeoutMs = options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
+  const { stopTimeoutMs = STOP_TIMEOUT_MS } = options;
 
   if (await confirmOwnedStripeMock(options, port, spawned)) {
     return {
@@ -320,16 +330,18 @@ const startStripeMockProcess = async (
 export const startStripeMock = async (
   options: StartStripeMockOptions = {},
 ): Promise<RunningStripeMock> => {
-  const env = options.env ?? Deno.env;
-  const paths = options.paths ?? defaultStripeMockPaths;
+  const {
+    env = Deno.env,
+    paths = defaultStripeMockPaths,
+    startAttempts = START_ATTEMPTS,
+  } = options;
   const configuredPort = hasConfiguredPort(options, env);
-  const startAttempts = configuredPort
-    ? 1
-    : (options.startAttempts ?? START_ATTEMPTS);
   if (!configuredPort) await downloadStripeMock(options);
 
   const ctx: StripeMockStartContext = { configuredPort, env, options, paths };
-  const start = () => startStripeMockProcess(ctx, startAttempts);
+  // A pinned port belongs to one mock only, so retrying it cannot help.
+  const start = () =>
+    startStripeMockProcess(ctx, configuredPort ? 1 : startAttempts);
   return configuredPort
     ? await start()
     : await withStripeMockStartLock(paths, start);

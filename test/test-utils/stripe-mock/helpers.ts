@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { projectRoot } from "#scripts/project-root.ts";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import {
   STRIPE_MOCK_FAILED_TO_START,
@@ -400,3 +401,153 @@ export const withFakeCurl = async (
     await makeExecutable(fakeCurl);
     await body(fakeCurl);
   });
+
+/** A mock that opens its port, then dies while the starter is confirming it. */
+export const writeDiesWhileConfirmingMock = async (
+  paths: TestStripeMockPaths,
+  aliveMs = 30,
+): Promise<void> => {
+  await Deno.writeTextFile(
+    paths.binaryPath,
+    [
+      "#!/bin/sh",
+      'nc -l -p "$2" -s 127.0.0.1 -w 1 >/dev/null 2>&1 &',
+      `sleep ${aliveMs / 1000}`,
+      "exit 1",
+    ].join("\n"),
+  );
+  await makeExecutable(paths.binaryPath);
+};
+
+/** A mock that keeps its port shut until well after the first few polls. */
+export const writeSlowToListenMock = async (
+  paths: TestStripeMockPaths,
+  quietMs = 300,
+): Promise<void> => {
+  await Deno.writeTextFile(
+    paths.binaryPath,
+    ["#!/bin/sh", `sleep ${quietMs / 1000}`, keepPortOpenCommand].join("\n"),
+  );
+  await makeExecutable(paths.binaryPath);
+};
+
+/**
+ * A mock that takes a moment to shut down when asked politely, and leaves a
+ * note behind once it has. No note means it was killed before it could finish.
+ */
+export const writeSlowToStopMock = async (
+  paths: TestStripeMockPaths,
+  notePath: string,
+  shutdownMs = 200,
+): Promise<void> => {
+  await Deno.writeTextFile(
+    paths.binaryPath,
+    [
+      "#!/bin/sh",
+      `exec perl -MIO::Socket::INET -e '$SIG{TERM}=sub{ select(undef,undef,undef,${
+        shutdownMs / 1000
+      }); open(my $fh, ">", $ARGV[2]); close $fh; exit 0 }; my $socket=IO::Socket::INET->new(LocalAddr=>"127.0.0.1", LocalPort=>$ARGV[1], Proto=>"tcp", Listen=>5, Reuse=>1) or die $!; while (1) { my $client=$socket->accept(); close $client if $client; }' -- "$@" ${shellQuote(
+        notePath,
+      )}`,
+    ].join("\n"),
+  );
+  await makeExecutable(paths.binaryPath);
+};
+
+/** Counts how many times the mock binary was started. */
+export const writeCountingFailingMock = async (
+  paths: TestStripeMockPaths,
+  countPath: string,
+  message: string,
+): Promise<void> => {
+  await Deno.writeTextFile(
+    paths.binaryPath,
+    [
+      "#!/bin/sh",
+      `echo x >> ${shellQuote(countPath)}`,
+      `echo ${shellQuote(message)} >&2`,
+      "exit 1",
+    ].join("\n"),
+  );
+  await makeExecutable(paths.binaryPath);
+};
+
+/** How many times a counting mock was started. */
+export const startCount = async (countPath: string): Promise<number> => {
+  const text = await Deno.readTextFile(countPath);
+  return text.split("\n").filter((line) => line.length > 0).length;
+};
+
+/** A mock that listens somewhere else, so the port it was asked for never opens. */
+export const writeWrongPortMock = async (
+  paths: TestStripeMockPaths,
+  decoyPort: number,
+): Promise<void> => {
+  await Deno.writeTextFile(
+    paths.binaryPath,
+    [
+      "#!/bin/sh",
+      `exec nc -l -p ${decoyPort} -s 127.0.0.1 >/dev/null 2>&1`,
+    ].join("\n"),
+  );
+  await makeExecutable(paths.binaryPath);
+};
+
+/** The exact message a failed start threw, for tests that need the whole text. */
+export const startFailureMessage = async (
+  options: StartOptions,
+): Promise<string> => {
+  const failures: string[] = [];
+  await expect(
+    startStripeMock(options).catch((error: Error) => {
+      failures.push(error.message);
+      throw error;
+    }),
+  ).rejects.toThrow();
+  return failures.join("");
+};
+
+/**
+ * Run a snippet in its own Deno process, using this project's config so the
+ * `#` import names resolve, and say whether it finished in time.
+ */
+export const runsToCompletion = async (
+  source: string,
+  timeoutMs = 20_000,
+): Promise<boolean> => {
+  const scriptPath = await Deno.makeTempFile({ suffix: ".ts" });
+  await Deno.writeTextFile(scriptPath, source);
+  // Its own coverage folder, thrown away with the script: the run's report
+  // cannot read entries for a file that is about to be deleted.
+  const coverageDir = await Deno.makeTempDir();
+  try {
+    const child = new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "-A",
+        "--config",
+        join(projectRoot, "deno.json"),
+        scriptPath,
+      ],
+      env: { DENO_COVERAGE_DIR: coverageDir },
+      // Whatever it leaves running is killed once the time is up, so a script
+      // that cannot finish on its own comes back as a failure rather than
+      // hanging the suite.
+      signal: AbortSignal.timeout(timeoutMs),
+      stderr: "null",
+      stdout: "null",
+    }).spawn();
+    return (await child.status).success;
+  } finally {
+    await Deno.remove(scriptPath);
+    await Deno.remove(coverageDir, { recursive: true });
+  }
+};
+
+/** A port nothing is listening on right now. */
+export const freePort = (): number => {
+  const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
+  const { port } = listener.addr as Deno.NetAddr;
+  listener.close();
+  return port;
+};

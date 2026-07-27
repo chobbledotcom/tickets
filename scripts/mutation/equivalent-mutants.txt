@@ -977,3 +977,6 @@ scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it a
 
 # Isolated mutation runs: the exit code before any path has set one.
 scripts/mutation/isolation.ts:197:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
+
+# stripe-mock: how often the starter looks for the port, not how long it waits.
+scripts/stripe-mock.ts:34:29  10 → 0   # the wait is bounded by START_BUDGET_MS, not by this delay, so polling with no pause between looks reaches exactly the same three endings — the port opened, the mock died, or the budget ran out — and only spends more CPU getting there
