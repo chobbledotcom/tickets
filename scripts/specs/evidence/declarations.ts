@@ -152,6 +152,90 @@ const PAYMENT_PROVIDER_CSS = `${brandedThemeCss(
 }
 `;
 
+const DOOR_CHECK_IN_CSS = `${brandedThemeCss(
+  "8px",
+  "#164e63",
+  "#071525",
+  "#10283c",
+  "#67e8f9",
+  "#22d3ee",
+  "#22d3ee1f",
+  "#02081780",
+  "#22d3ee",
+  "#e6f7fb",
+  "#9bb7c5",
+)}
+
+#manual-checkin {
+  background: #0b1d2e;
+  border: 1px solid #25758b;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px var(--color-shadow);
+  padding: 1rem;
+}
+
+#manual-checkin label {
+  color: #bdeff7;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#manual-checkin input[type="text"] {
+  background: #071525;
+  border: 1px solid #2f7188;
+  border-radius: 6px;
+  color: var(--color-text);
+}
+
+/* The page's own script opens the list of people still to arrive once the
+ * organiser starts typing. A capture is a plain page load, so show the list
+ * the scenario proves is offered. */
+/* The search box's placeholder is drawn by the input's own text layer, which
+ * rasterises differently from run to run and would change the captured bytes
+ * without changing what the page says. The label above the box already says
+ * what the box is for, so the capture leaves it empty. */
+#manual-checkin input::placeholder {
+  color: transparent;
+}
+
+#ticket-options.hidden {
+  display: block;
+}
+
+#ticket-options {
+  margin-top: 0.5rem;
+  position: static;
+}
+
+#ticket-options [role="option"] {
+  background: #0d3a42;
+  border: 1px solid #22566d;
+  border-radius: 6px;
+  color: #cffafe;
+  /* Each row's own text carries the ticket token, which is new every run and
+   * would change the captured bytes. Show the row's name and place count
+   * instead, both read from the row the organiser would click. */
+  font-size: 0;
+  padding: 0.5rem;
+}
+
+#ticket-options [role="option"]::before {
+  content: attr(data-name) " (" attr(data-quantity) ")";
+  font-size: 1rem;
+}
+
+#manual-checkin button[type="submit"] {
+  background: var(--color-accent);
+  border-color: #2f7188;
+  border-radius: 6px;
+  color: #e6f7fb;
+  font-weight: 800;
+  width: 100%;
+}
+`;
+
 export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
   v.parse(EvidenceCaptureDeclarationSchema, {
     caseId: "servicing.hold-on-dashboard",
@@ -168,6 +252,15 @@ export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
     element: ".page-regions.admin-page",
     id: "payment-provider-choice",
     path: "/admin/settings",
+    presentation: "branded",
+    profiles: ["mobile"],
+  }),
+  v.parse(EvidenceCaptureDeclarationSchema, {
+    caseId: "door.someone-still-to-arrive-can-be-picked",
+    css: DOOR_CHECK_IN_CSS,
+    element: "article:has(#manual-checkin)",
+    id: "qr-code-check-in",
+    path: "/admin/listing/{doorListingId}/scanner",
     presentation: "branded",
     profiles: ["mobile"],
   }),
