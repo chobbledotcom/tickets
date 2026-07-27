@@ -20,6 +20,7 @@ Feature: A customer books from a code the organiser printed
       And a customer reads that code
       Then the customer is sent straight off to pay
       And they are asked for 12.00
+      And it is for 1 place
       And the booking is in the name "Ada Lovelace"
 
   @rule:bookings.the-price-on-the-code-is-what-they-pay

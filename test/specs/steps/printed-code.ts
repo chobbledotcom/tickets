@@ -156,6 +156,13 @@ Then(
 );
 
 Then(
+  "it is for {int} place(s)",
+  function (this: TicketsWorld, places: number): void {
+    expect(payingNow(this).places).toBe(places);
+  },
+);
+
+Then(
   "the booking is in the name {string}",
   function (this: TicketsWorld, who: string): void {
     expect(payingNow(this).nameOnIt).toBe(who);

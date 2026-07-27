@@ -80,8 +80,9 @@ export const organiserMakesCode = async (
 export interface WhereTheCodeLed {
   /** The page they landed on, when they were not sent to pay. */
   page: string;
-  /** What paying would charge, and whose name it is in, when they were. */
-  paying: { nameOnIt: string; priceEach: number } | null;
+  /** What paying would charge, for how many, and in whose name — when they
+   * were sent to pay at all. */
+  paying: WhatIsBeingCharged | null;
   /** Whether the site could open anything for them at all. */
   reached: boolean;
 }
@@ -113,15 +114,25 @@ const withPayingStubbed = async <Answer>(
   return answer;
 };
 
-/** What the customer is being asked to pay, and in whose name. Reaching
- * checkout with nothing to charge is not a state the site can be in, so it is
- * raised here rather than left to fail somewhere later. */
+/** What the customer is being asked to pay for. */
+export interface WhatIsBeingCharged {
+  nameOnIt: string;
+  places: number;
+  priceEach: number;
+}
+
+/** Reaching paying with nothing to charge is not a state the site can be in,
+ * so it is raised here rather than left to fail somewhere later. */
 const whatIsBeingCharged = (
   charged: CheckoutIntent | undefined,
-): { nameOnIt: string; priceEach: number } => {
+): WhatIsBeingCharged => {
   const line = charged?.items[0];
   if (!line) throw new Error("Paying was reached with nothing to charge for");
-  return { nameOnIt: charged.name, priceEach: line.unitPrice };
+  return {
+    nameOnIt: charged.name,
+    places: line.quantity,
+    priceEach: line.unitPrice,
+  };
 };
 
 /** A customer follows a printed code. */
@@ -157,7 +168,7 @@ const priceBoxOn = (html: string): string => {
 export const customerPaysMore = (
   link: string,
   price: number,
-): Promise<{ nameOnIt: string; priceEach: number }> =>
+): Promise<WhatIsBeingCharged> =>
   withPayingStubbed(async (whatWasCharged) => {
     const browser = new TestBrowser();
     await browser.visit(link);
@@ -170,6 +181,11 @@ export const customerPaysMore = (
       },
       "Continue",
     );
+    // Reaching the provider is not the same as the customer getting there: a
+    // page that called it and then showed an error would look identical from
+    // the captured order alone.
+    const { STUB_CHECKOUT_URL } = await import("#test-utils/checkout.ts");
+    expect(browser.currentUrl).toBe(new URL(STUB_CHECKOUT_URL).pathname);
     return whatIsBeingCharged(whatWasCharged());
   });
 
