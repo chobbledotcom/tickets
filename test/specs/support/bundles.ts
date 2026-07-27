@@ -133,7 +133,10 @@ export const isStillABundle = async (
 ): Promise<boolean> => {
   const { groups } = await import("#shared/db/groups.ts");
   const found = await groups.table.findById(bundleNamed(world, name).id);
-  return found?.is_package === true;
+  // A bundle that vanished is not the same as one that stopped being a bundle,
+  // and answering "no" for both would hide a group the site destroyed.
+  if (!found) throw new Error(`The ${name} is gone altogether`);
+  return found.is_package;
 };
 
 /** What the bundle charges for each part, by the part's name. A part the
@@ -172,6 +175,7 @@ export const customerBuysBundle = async (
   const browser = new TestBrowser();
   await browser.visit(`/ticket/${group.slug}`);
   expect(browser.currentHtml).toContain(`name="package_quantity_${group.id}"`);
+  world.bundleBookingPage = browser.pageText;
   await browser.submitForm(
     {
       email: "buyer@example.com",
@@ -218,13 +222,15 @@ export const bundleStillExists = async (
   return (await groups.table.findById(bundleNamed(world, name).id)) !== null;
 };
 
-/** Whether one of the bundle's parts is still for sale on its own account. */
-export const partStillExists = async (
+/** A customer opens one of the bundle's parts on its own. Its page has to
+ * answer, be that thing's page, and offer a way to book it — a row left in the
+ * database that nobody can reach is not "for sale". */
+export const expectPartOnSaleAlone = async (
   world: TicketsWorld,
   part: string,
-): Promise<boolean> => {
-  const { getListingWithCount } = await import(
-    "#shared/db/listings/records.ts"
-  );
-  return (await getListingWithCount(stayListing(world, part).id)) !== null;
+): Promise<void> => {
+  const browser = new TestBrowser();
+  await browser.visit(`/ticket/${stayListing(world, part).slug}`);
+  expect(browser.pageText).toContain(part);
+  expect(browser.currentHtml).toContain('name="quantity_');
 };

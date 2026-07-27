@@ -27,6 +27,8 @@ export interface TicketsWorld extends World {
   bookingPath?: string;
   bookingWasTaken?: boolean;
   bulkRefundMessage?: string;
+  bundleBookingPage?: string;
+  bundleDeleteReply?: string;
   bundleParts?: PartOfBundle[];
   bundles?: Map<string, Group>;
   bundleTicketPath?: string;

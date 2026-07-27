@@ -34,7 +34,9 @@ Feature: An organiser sells several things as one bundle
       Given a Weekend group holding a Tent at 40.00 and a Breakfast at 10.00
       And the organiser sells the Weekend as a private bundle
       When a customer buys the Weekend
-      Then their ticket names the Weekend
+      Then the booking page never named the Tent
+      And the booking page never named the Breakfast
+      And their ticket names the Weekend
       And their ticket never names the Tent
 
   @rule:bookings.a-private-bundle-that-has-sold-cannot-be-pulled-apart
@@ -52,7 +54,8 @@ Feature: An organiser sells several things as one bundle
       And the organiser sells the Weekend as a private bundle
       And a customer buys the Weekend
       When the organiser tries to delete the Weekend
-      Then the Weekend is still there
+      Then the organiser is told to make its contents public first
+      And the Weekend is still there
       And their ticket never names the Tent
 
     @case:bundles.unbundling-a-sold-private-bundle-is-refused

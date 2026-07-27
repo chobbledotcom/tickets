@@ -2,20 +2,24 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
 import {
   bundlePrices,
   bundleStillExists,
   buyersTicket,
   customerBuysBundle,
+  expectPartOnSaleAlone,
   isStillABundle,
   organiserDeletesBundle,
   organiserRevealsParts,
   organiserSellsAsBundle,
   organiserStopsBundling,
   type PartOfBundle,
-  partStillExists,
 } from "#test/specs/support/bundles.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
@@ -116,7 +120,18 @@ When(
 When(
   "the organiser tries to delete the {word}",
   async function (this: TicketsWorld, bundle: string): Promise<void> {
-    await organiserDeletesBundle(this, bundle);
+    this.bundleDeleteReply = await organiserDeletesBundle(this, bundle);
+  },
+);
+
+Then(
+  "the organiser is told to make its contents public first",
+  function (this: TicketsWorld): void {
+    // The site's own words, so a refusal that stopped explaining itself — or
+    // stopped happening at all — fails here rather than passing quietly.
+    expect(
+      requiredWorldValue(this.bundleDeleteReply, "what the organiser was told"),
+    ).toContain(t("error.sold_hidden_package"));
   },
 );
 
@@ -198,7 +213,16 @@ Then(
 
 Then(
   "the {word} is still for sale on its own",
-  async function (this: TicketsWorld, part: string): Promise<void> {
-    expect(await partStillExists(this, part)).toBe(true);
+  function (this: TicketsWorld, part: string): Promise<void> {
+    return expectPartOnSaleAlone(this, part);
+  },
+);
+
+Then(
+  "the booking page never named the {word}",
+  function (this: TicketsWorld, thing: string): void {
+    expect(
+      requiredWorldValue(this.bundleBookingPage, "the booking page"),
+    ).not.toContain(thing);
   },
 );
