@@ -7,8 +7,8 @@ import {
 } from "#shared/db/client.ts";
 import { stringColumnSet } from "#shared/db/query.ts";
 import { logDebug } from "#shared/logger.ts";
-import { existingLegacyPaymentTables } from "./legacy-payment-retirement.ts";
 import {
+  LEGACY_PAYMENT_TABLE_NAMES,
   legacyPaymentTableColumns,
   legacyPaymentTableStatements,
 } from "./legacy-payment-schema.ts";
@@ -387,17 +387,25 @@ const backfillListingAttendees = fromAttendeeColumns(
  */
 const rebuildLegacyPaymentTablesWithoutForeignKeys =
   async (): Promise<void> => {
-    for (const name of await existingLegacyPaymentTables(getDb)) {
-      const liveColumns = await getExistingColumns(name);
+    // One read for every table's columns, then one write for every rebuild:
+    // an upgrade may make only fifty database calls, and a call per table
+    // would spend them here instead of on the migrations themselves.
+    const live = await snapshotLiveSchema();
+    const statements = LEGACY_PAYMENT_TABLE_NAMES.flatMap((name) => {
+      const liveColumns = live.tables.get(name);
+      if (liveColumns === undefined) return [];
       const columns = legacyPaymentTableColumns(name);
-      await rebuildTableWithColumns({
-        columns,
-        copyColumns: columns.filter(([column]) => liveColumns.has(column)),
-        tableName: name,
-      });
-      // The rebuild dropped the original, and its indexes with it.
-      await executeBatch(legacyPaymentTableStatements(name));
-    }
+      return [
+        ...rebuildStatements({
+          columns,
+          copyColumns: columns.filter(([column]) => liveColumns.has(column)),
+          tableName: name,
+        }).map((sql) => ({ args: [], sql })),
+        // The rebuild dropped the original, and its indexes with it.
+        ...legacyPaymentTableStatements(name),
+      ];
+    });
+    if (statements.length > 0) await executeBatch(statements);
   };
 
 const dropDeprecatedAttendeeColumns = fromAttendeeColumns(async (cols) => {

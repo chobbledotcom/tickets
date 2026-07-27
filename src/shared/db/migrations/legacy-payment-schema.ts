@@ -137,9 +137,13 @@ const withLegacyTable =
   (getDb, requirement) =>
     action(getDb, requirement, legacyTableNameFor(requirement));
 
+/** Check one retired table in a single database call: the tables, the indexes,
+ * and every column list this migration cares about are read together, so the
+ * upgrade's fifty-call budget is not spent one table at a time. */
 const verifyLegacyRequirement = withLegacyTable(
   async (getDb, requirement, retiredTable): Promise<void> => {
-    const [tables, indexes] = await getDb().batch(
+    const columnTables = Object.keys(requirement.columns ?? {});
+    const results = await getDb().batch(
       [
         {
           args: [],
@@ -149,19 +153,25 @@ const verifyLegacyRequirement = withLegacyTable(
           args: [],
           sql: "SELECT name FROM sqlite_master WHERE type = 'index'",
         },
+        ...columnTables.map((name) => ({
+          args: [],
+          sql: `PRAGMA table_info(${name})`,
+        })),
       ],
       "read",
     );
-    const tableNames = namesInMigrationResult(tables!);
-    const indexNames = namesInMigrationResult(indexes!);
+    const tableNames = namesInMigrationResult(results[0]!);
+    const indexNames = namesInMigrationResult(results[1]!);
     if (!tableNames.has(retiredTable)) return;
     assertLegacyNamesPresent("table", requirement.newTables, tableNames);
     assertLegacyNamesPresent("index", requirement.indexes, indexNames);
-    await Promise.all(
-      Object.entries(requirement.columns ?? {}).map(([name, columns]) =>
-        verifyLegacyColumns(getDb, name, columns),
-      ),
-    );
+    columnTables.forEach((name, position) => {
+      assertLegacyColumnsPresent(
+        name,
+        requirement.columns?.[name] ?? [],
+        namesInMigrationResult(results[position + 2]!),
+      );
+    });
   },
 );
 
@@ -175,12 +185,11 @@ const assertLegacyNamesPresent = (
     throw new Error(`Missing legacy ${kind} ${missing}`);
 };
 
-const verifyLegacyColumns = async (
-  getDb: () => Client,
+const assertLegacyColumnsPresent = (
   name: string,
   columns: readonly string[],
-): Promise<void> => {
-  const existing = await legacyColumnNames(getDb, name);
+  existing: ReadonlySet<string>,
+): void => {
   const missing = columns.find((column) => !existing.has(column));
   if (missing !== undefined) {
     throw new Error(`Missing legacy column ${name}.${missing}`);
@@ -204,44 +213,69 @@ function legacyTableNameFor(
   return name as LegacyPaymentTableName;
 }
 
-const addLegacyColumns = async (
-  getDb: () => Client,
+/** The ALTER statements that bring an already-present table up to the columns
+ * this migration needs. A table that is not there yet needs none — the CREATE
+ * below already gives it every column. */
+const addColumnStatements = (
   name: LegacyPaymentTableName,
-  columns: readonly string[],
-): Promise<void> => {
+  wanted: readonly string[],
+  existing: ReadonlySet<string>,
+): SqlStatement[] => {
   const table = LEGACY_PAYMENT_TABLES[name];
-  const existing = await legacyColumnNames(getDb, name);
-  for (const column of columns) {
-    if (existing.has(column)) continue;
+  // Check every asked-for column against the table's own shape first. A
+  // migration naming a column this table never had is a mistake in the
+  // migration, and says so whether or not the table is there yet.
+  const asked = wanted.map((column) => {
     const definition = table.columns.find(
       ([candidate]) => candidate === column,
     )?.[1];
     if (definition === undefined) {
       throw new Error(`Unknown legacy column ${name}.${column}`);
     }
-    await getDb().execute(
-      `ALTER TABLE ${name} ADD COLUMN ${column} ${definition}`,
-    );
-  }
+    return [column, definition] as const;
+  });
+  if (existing.size === 0) return [];
+  return asked
+    .filter(([column]) => !existing.has(column))
+    .map(([column, definition]) => ({
+      args: [],
+      sql: `ALTER TABLE ${name} ADD COLUMN ${column} ${definition}`,
+    }));
 };
 
-const addLegacyIndexes = async (
-  getDb: () => Client,
+const indexStatements = (
   name: LegacyPaymentTableName,
   indexes: readonly string[],
-): Promise<void> => {
+): SqlStatement[] => {
   const required = new Set(indexes);
-  const statements = LEGACY_PAYMENT_TABLES[name].indexes
+  return LEGACY_PAYMENT_TABLES[name].indexes
     .filter(([index]) => required.has(index))
     .map(([, sql]) => ({ args: [], sql }));
-  if (statements.length > 0) await getDb().batch(statements, "write");
 };
 
+/**
+ * Bring one retired table up to the shape this migration expects, in two
+ * database calls: read what is there, then write everything in one batch.
+ *
+ * Upgrades run inside a request, which may make at most fifty database calls
+ * in total. A call per column would spend that budget on a handful of old
+ * tables and leave the upgrade unable to record what it had done.
+ */
 const applyLegacyRequirement = withLegacyTable(
   async (getDb, requirement, name): Promise<void> => {
-    await getDb().execute(tableSql(name));
-    await addLegacyColumns(getDb, name, requirement.columns?.[name] ?? []);
-    await addLegacyIndexes(getDb, name, requirement.indexes ?? []);
+    const existing = await legacyColumnNames(getDb, name);
+    await getDb().batch(
+      [
+        { args: [], sql: tableSql(name) },
+        ...addColumnStatements(
+          name,
+          requirement.columns?.[name] ?? [],
+          existing,
+        ),
+        ...indexStatements(name, requirement.indexes ?? []),
+      ],
+      "write",
+    );
   },
 );
 
