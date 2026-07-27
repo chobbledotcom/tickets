@@ -58,4 +58,15 @@ describeSquare(() => {
       "https://connect.squareupsandbox.com/v2/payments?limit=100&location_id=location-one&sort_order=ASC&cursor=current-page",
     );
   });
+
+  test("reads a last page that lists nothing and goes no further", async () => {
+    // Square leaves both fields out when there is nothing more to send.
+    installMockFetch(() => Promise.resolve(jsonResponse({})));
+    const client = await squareApi.getSquareClient();
+    if (client === null) throw new Error("Expected Square client");
+
+    const page = await client.payments.list({ locationId: "location-one" });
+
+    expect(page).toEqual({ payments: [] });
+  });
 });

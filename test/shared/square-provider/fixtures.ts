@@ -1,12 +1,19 @@
 import { createPaymentSession } from "#shared/db/payments/sessions.ts";
 import type { PaymentSession } from "#shared/db/payments/types.ts";
 import { resolvePaymentAccount } from "#shared/payment-runtime/account.ts";
+import type { ProviderRead } from "#shared/payment-state/observation.ts";
 import type { SquareResourceRead } from "#shared/square.ts";
 import type { SquareOrder, SquarePayment } from "#shared/square-payments.ts";
+import { squarePaymentProvider } from "#shared/square-provider.ts";
 import {
   PAYMENT_INTENT,
   PAYMENT_TIME,
 } from "#test/shared/db/payments/fixtures.ts";
+import {
+  configureSquare,
+  withSquareClient,
+} from "#test/test-utils/square/fixtures.ts";
+import { required } from "#test-utils/required.ts";
 
 export const session = {
   id: "order-typed",
@@ -74,6 +81,23 @@ export const foundOrder = (
   status: "found",
   value: { ...orderResponse().order, ...changes },
 });
+
+/** What Square is taken to be saying about a payment, given how it answers
+ *  about the order and about the location's payments. */
+export const squareReadWith = async (
+  impls: Parameters<typeof withSquareClient>[0],
+  requested: Parameters<typeof squarePaymentProvider.readPayment>[1] = session,
+): Promise<ProviderRead> => {
+  await configureSquare({ locationId: squareLocation, sandbox: true });
+  let read: ProviderRead | undefined;
+  await withSquareClient(impls, async () => {
+    read = await squarePaymentProvider.readPayment(
+      await squarePayment(),
+      requested,
+    );
+  });
+  return required(read, "the Square read");
+};
 
 export const paymentResponse = (id: string): { payment: SquarePayment } => ({
   payment: {

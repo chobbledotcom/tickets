@@ -13,6 +13,7 @@ import {
   session,
   squareLocation,
   squarePayment,
+  squareReadWith,
   unresolvedSquareReads,
 } from "#test/shared/square-provider/fixtures.ts";
 import {
@@ -285,28 +286,19 @@ describeSquare(() => {
   });
 
   test("rejects a completed order with no completed payment", async () => {
-    await configureSquare({ locationId: squareLocation, sandbox: true });
-    await withSquareClient(
-      {
+    expect(
+      await squareReadWith({
         ordersGet: () =>
           Promise.resolve({ order: { ...validOrder(), state: "COMPLETED" } }),
         paymentsList: () =>
           Promise.resolve({
             payments: [{ ...validPayment(), status: "PENDING" }],
           }),
-      },
-      async () => {
-        expect(
-          await squarePaymentProvider.readPayment(
-            await squarePayment(),
-            session,
-          ),
-        ).toMatchObject({
-          reason: "missing_documented_resource",
-          status: "invalid",
-        });
-      },
-    );
+      }),
+    ).toMatchObject({
+      reason: "missing_documented_resource",
+      status: "invalid",
+    });
   });
 
   test("returns a retry after the bounded payment-list pages are exhausted", async () => {

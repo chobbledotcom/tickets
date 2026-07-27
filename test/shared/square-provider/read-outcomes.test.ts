@@ -11,6 +11,7 @@ import {
   session,
   squareLocation,
   squarePayment,
+  squareReadWith,
   unresolvedSquareReads,
 } from "#test/shared/square-provider/fixtures.ts";
 import {
@@ -114,6 +115,20 @@ describeSquare(() => {
         expect(payment.calls).toHaveLength(0);
       },
     );
+  });
+
+  test("refuses an order naming a payment Square does not list", async () => {
+    // The order says a payment was taken, but asking Square for the location's
+    // payments does not turn it up, so the order cannot be believed.
+    expect(
+      await squareReadWith({
+        ordersGet: () => Promise.resolve({ order: foundOrder().value }),
+        paymentsList: () => Promise.resolve({ payments: [] }),
+      }),
+    ).toMatchObject({
+      reason: "missing_documented_resource",
+      status: "invalid",
+    });
   });
 
   for (const [state, status] of [

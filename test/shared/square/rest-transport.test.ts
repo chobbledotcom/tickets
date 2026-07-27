@@ -197,6 +197,7 @@ describeSquare(() => {
                   id: "t_3",
                   payment_id: "pay_fallback",
                 },
+                { payment_id: "pay_4" },
               ],
               total_money: { amount: 5000, currency: "USD" },
             },
@@ -217,6 +218,8 @@ describeSquare(() => {
       expect(result.order?.tenders?.[0]?.id).toBe("t_1");
       expect(result.order?.tenders?.[0]?.paymentId).toBe("pay_1");
       expect(result.order?.tenders?.[1]?.paymentId).toBeUndefined();
+      // Square does not always name the tender itself, only what paid it.
+      expect(result.order?.tenders?.[3]).toEqual({ paymentId: "pay_4" });
       expect(result.order?.tenders?.[2]?.paymentId).toBe("pay_fallback");
       expect(result.order!.state).toBe("COMPLETED");
       expect(result.order!.totalMoney!.amount).toBe(BigInt(5000));

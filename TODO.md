@@ -768,41 +768,37 @@ back while Money still shows it as held, and the page that could repair it is
 gone. Block the delete while refund work is unfinished, or keep something for
 the refund to finish against.
 
-## The snapshot check in `decision-attempts.ts` runs, but coverage says it does not
+## The snapshot check in `decision-attempts.ts` reports as uncovered
 
 `currentSnapshotMatches` in `src/shared/db/payments/decision-attempts.ts` is
-reported as uncovered by both `deno coverage` locally and the CI gate. It is
-not. Instrumenting the function proves it: with the existing tests in
-`test/shared/db/payments/decision-attempts.test.ts` it is entered five times,
-each with a payment whose origin, provider, mode and account match the saved
-snapshot, and with the expected number of charges.
+reported as uncovered by both `deno coverage` locally and the CI gate, while
+instrumenting proves it is entered five times by the existing tests in
+`test/shared/db/payments/decision-attempts.test.ts`.
 
-Things that were ruled out along the way:
+**The likely cause is now known, from fixing the same symptom elsewhere.** In
+`src/shared/square-provider-read.ts` a guard body showed exactly this: proved to
+run by instrumenting, yet reported uncovered. It was not a measurement fault.
+The reads reaching that guard could only ever be "found" or "missing", so two of
+its three arms could never be taken; the tool was reporting real dead code, and
+the multi-line shape made the report point at the whole block rather than the
+arms. Narrowing the type to the two cases that actually arrive deleted the dead
+arms, and the file went to 100% on both lines and branches.
+
+So the thing to check here is the same: which terms of the `&&` chain can never
+decide the answer, given what the callers can actually pass? Do that before
+concluding anything about the coverage tool — the earlier suspicion that the
+measurement was at fault was wrong once already.
+
+Ruled out along the way, and still ruled out:
 
 - The case is still `needs_action` at the claim's revision after the payment
   changes, so the guard in front of `snapshotMatches` does not skip it.
 - The stored decision reloads with `reviewed.kind === "charges"`, so it is the
   current-payment branch that runs, not the legacy one.
 - A test written specifically to make every term of the `&&` chain evaluate
-  (only the refunded amount differing, before the first attempt, so refund
-  progress is not allowed) still leaves the lines reported uncovered.
-- The same shape *does* clear elsewhere: the equivalent error branches in
-  `src/shared/renewal.ts` went covered as soon as tests triggered each throw
-  (see `test/shared/renewal-failures.test.ts`), so this is not simply how
-  multi-line boolean expressions are always reported.
+  still leaves the lines reported uncovered.
 
-So the open question is a measurement one, not a code one, and it matters
-beyond this file: if the same artefact affects other multi-line boolean
-expressions, part of the reported coverage debt may not be real. Worth
-settling before spending much more on the tail of the coverage work.
-
-Where to pick it up: the raw V8 coverage JSON under a `--coverage` directory
-holds per-function ranges with hit counts. For this file the ranges attributed
-to `currentSnapshotMatches` did not line up with the function's own byte
-offsets, which is the thread to pull. Compare a file that reports correctly
-(`renewal.ts`) against this one.
-
-Separately, and regardless of the measurement: the TS check here duplicates the
+Separately, and regardless of the above: the TS check here duplicates the
 SQL condition in `decision-claim.ts`, and only ever runs to explain why that
 SQL claim failed. If the two can never disagree, the honest fix is to collapse
 them — when the fast claim fails and the case is unchanged, the reason *is*

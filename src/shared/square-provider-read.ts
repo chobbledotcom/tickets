@@ -40,7 +40,13 @@ type ProviderRead = Awaited<ReturnType<PaymentProvider["readPayment"]>>;
 type StoredPayment = Parameters<PaymentProvider["readPayment"]>[0];
 type RequestedPayment = Parameters<PaymentProvider["readPayment"]>[1];
 type SquarePaymentIssue = Parameters<typeof invalidProviderRead>[2];
-type SquarePaymentRead = readonly [string, SquareResourceRead<SquarePayment>];
+/** A payment the order says exists: either Square listed it, or it did not.
+ *  Square is never merely unreachable here — the whole list is read in one go
+ *  before any of these are made, so a failure there stops us earlier. */
+type DocumentedPaymentRead =
+  | { status: "found"; value: SquarePayment }
+  | { status: "missing" };
+type SquarePaymentRead = readonly [string, DocumentedPaymentRead];
 
 type SquareReadContext = {
   locationId: string;
@@ -202,21 +208,12 @@ const checkDocumentedSquarePayment = (
   context: SquareReadContext,
   order: SquareOrder,
   id: string,
-  read: SquareResourceRead<SquarePayment>,
+  read: DocumentedPaymentRead,
 ): { payment: readonly [string, SquarePayment] } | { read: ProviderRead } => {
-  if (read.status !== "found") {
-    return {
-      read:
-        read.status === "unavailable"
-          ? unavailableProviderRead(context.payment, context.requested)
-          : invalidProviderRead(
-              context.requested,
-              context.payment,
-              read.status === "missing"
-                ? "missing_documented_resource"
-                : read.reason,
-            ),
-    };
+  if (read.status === "missing") {
+    // The order names this payment, so Square not listing it means the order
+    // cannot be believed.
+    return invalidSquareRead(context, "missing_documented_resource");
   }
   const checked = checkSquarePayment(
     read.value,
