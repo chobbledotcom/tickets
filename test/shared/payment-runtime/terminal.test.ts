@@ -9,6 +9,9 @@ const replayed = (changes: Partial<PaymentSession>) =>
   terminalPaymentOutcome(storedStripePayment(changes), "callback");
 
 describe("a callback about a payment that has already finished", () => {
+  // TODO.md records that this answer is wrong: a refused payment has no case
+  // for the owner, and answering "conflict" stops the cancel page showing on a
+  // reload. This pins today's behaviour, and changes when that is fixed.
   test("puts a refused payment in front of the owner", () => {
     expect(replayed({ state: "failed" })).toMatchObject({
       status: "conflict",

@@ -2452,3 +2452,42 @@ Left alone for now because deleting guards on the money path deserves its own
 change rather than being folded into coverage work. The choices that *are*
 reachable now have tests in
 `test/shared/payment-runtime/operator-claim.test.ts`.
+
+## Three more payment findings from the review
+
+*Origin: Codex review on PR #1962, commit eaf7bb54.*
+
+**A failed payment tells the buyer to seek a review that does not exist.**
+When a checkout is cancelled or refused, it is filed as failed and ignored, and
+no case is raised for the owner. A later callback or reload does not go back
+through that path: it hits the terminal map instead, where a failed payment
+answers "conflict" (`src/shared/payment-runtime/terminal.ts`, the handler map).
+Reloading a cancelled SumUp return therefore no longer matches
+`cancelledSumupResponse` in `src/features/api/webhooks.ts`, which needs the
+answer "ignore", so instead of the cancel page the buyer is told the payment
+needs review — while the owner has nothing to review.
+
+*Note for whoever fixes this:* the test "puts a refused payment in front of the
+owner" in `test/shared/payment-runtime/terminal.test.ts` pins the current
+answer. It was written to cover the line, before this was known to be wrong, so
+it must be changed rather than worked around.
+
+**A payment can hold its claim for ever when the account cannot be resolved.**
+If the provider's credentials are removed after checkout, or the account lookup
+is briefly unavailable, `resolvePaymentAccount` throws after the session has
+already been claimed (`src/shared/payment-runtime/process.ts`, around line 150).
+Only valibot errors are turned into a read, and nothing releases the claim on
+the way out, so the payment keeps its five-minute lease with no retry written
+down and no case raised. With credentials missing this repeats for ever and the
+booking never completes. The failure should either be written down as a retry
+or a case, or the claim released before it propagates.
+
+**Mail queued before the business email changed still goes to the old address.**
+A paid completion prepares its outgoing mail up front. When the messages are
+sent, only some settings are compared first (`src/shared/email.ts`, around line
+530), so a changed business email is not among them. The owner's notification —
+which carries the buyer's details — is still sent to the old address, and the
+buyer's confirmation can still carry it as the reply-to, even though the guard
+is meant to refuse mail once the email settings have changed. Messages aimed at
+the business address should record that, and the address should be checked
+against the current setting before sending.
