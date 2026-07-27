@@ -2,15 +2,17 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import {
-  customerFollows,
   customerPaysMore,
+  customerScans,
+  customerScansLater,
   expectNothingBooked,
   meddledWith,
-  organiserMakesCode,
+  organiserShowsCode,
   somethingForSale,
   takeOffSale,
-} from "#test/specs/support/printed-code.ts";
+} from "#test/specs/support/shown-code.ts";
 import { stayListing } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
@@ -61,25 +63,25 @@ Given(
 );
 
 When(
-  "the organiser makes a code for the {word} for {string} at {float}",
+  "the organiser shows a code for the {word} for {string} at {float}",
   async function (
     this: TicketsWorld,
     name: string,
     who: string,
     price: number,
   ): Promise<void> {
-    this.printedCode = await organiserMakesCode(this, name, { price, who });
+    this.shownCode = await organiserShowsCode(this, name, { price, who });
   },
 );
 
 When(
-  "the organiser makes a code for the {word} at {float}",
+  "the organiser shows a code for the {word} at {float}",
   async function (
     this: TicketsWorld,
     name: string,
     price: number,
   ): Promise<void> {
-    this.printedCode = await organiserMakesCode(this, name, { price });
+    this.shownCode = await organiserShowsCode(this, name, { price });
   },
 );
 
@@ -90,21 +92,46 @@ When(
   },
 );
 
-/** The code the organiser printed, as it is about to be read. */
-const printed = (world: TicketsWorld): string =>
-  requiredWorldValue(world.printedCode, "the printed code");
+/** The code the organiser is holding up. */
+const onScreen = (world: TicketsWorld) =>
+  requiredWorldValue(world.shownCode, "the code on the screen");
 
 When(
-  "a customer reads that code",
+  "a customer scans that code",
   async function (this: TicketsWorld): Promise<void> {
-    this.codeLedTo = await customerFollows(printed(this));
+    this.codeLedTo = await customerScans(onScreen(this).link);
   },
 );
 
 When(
-  "a customer reads that code after it has been changed",
+  "a customer scans that code a minute later",
   async function (this: TicketsWorld): Promise<void> {
-    this.codeLedTo = await customerFollows(meddledWith(printed(this)));
+    this.codeLedTo = await customerScansLater(onScreen(this).link, 60);
+  },
+);
+
+When(
+  "a customer scans that code an hour later",
+  async function (this: TicketsWorld): Promise<void> {
+    this.codeLedTo = await customerScansLater(onScreen(this).link, 60 * 60);
+  },
+);
+
+When(
+  "a customer scans that code after it has been changed",
+  async function (this: TicketsWorld): Promise<void> {
+    this.codeLedTo = await customerScans(meddledWith(onScreen(this).link));
+  },
+);
+
+Then(
+  "the screen says how long each code lasts",
+  function (this: TicketsWorld): void {
+    // Taken from the site's own setting, so shortening the life of a code
+    // without telling the organiser fails the story.
+    expect(onScreen(this).page).toContain(
+      `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`,
+    );
   },
 );
 
@@ -113,7 +140,10 @@ When(
   async function (this: TicketsWorld, price: number): Promise<void> {
     // What they end up paying replaces what the code alone would have charged,
     // so the story reads the answer from one place either way.
-    whereItLed(this).paying = await customerPaysMore(printed(this), price);
+    whereItLed(this).paying = await customerPaysMore(
+      onScreen(this).link,
+      price,
+    );
   },
 );
 

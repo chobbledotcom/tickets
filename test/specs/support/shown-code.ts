@@ -1,7 +1,7 @@
 /**
- * Booking from a code the organiser prints out. The organiser fills in the
- * listing's own "make a booking code" page and gets back a link; a customer
- * follows that link. Both halves go through the real pages, so the story is
+ * Booking from a code the organiser shows on a screen. The organiser fills in
+ * the listing's own "make a booking code" page and it puts a code up; a
+ * customer scans it. Both halves go through the real pages, so the story is
  * always using a code the site itself would hand out.
  */
 
@@ -48,14 +48,22 @@ export const somethingForSale = async (
   );
 };
 
-/** The organiser makes a printed code for something, through the page that
- * makes them. The link it gives back is the whole point, so a page that stops
- * producing one fails the story here. */
-export const organiserMakesCode = async (
+/** The screen the organiser is holding up, once they have put a code on it. */
+export interface CodeOnScreen {
+  /** The address the code points at, which a scan opens. */
+  link: string;
+  /** What the organiser can read on the screen while they hold it up. */
+  page: string;
+}
+
+/** The organiser puts a code up for something, through the page that makes
+ * them. The code is the whole point, so a page that stops producing one fails
+ * the story here. */
+export const organiserShowsCode = async (
   world: TicketsWorld,
   name: string,
   wanted: CodeWanted = {},
-): Promise<string> => {
+): Promise<CodeOnScreen> => {
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${stayListing(world, name).id}/qr`);
   await browser.submitForm(
@@ -72,7 +80,10 @@ export const organiserMakesCode = async (
     /\/ticket\/[^"\s]*\/qr-book\?t=[^"\s]+/,
   );
   if (!link) throw new Error(`The page gave the organiser no code for ${name}`);
-  return link[0].replaceAll("&amp;", "&");
+  return {
+    link: link[0].replaceAll("&amp;", "&"),
+    page: browser.currentHtml,
+  };
 };
 
 /** Where a printed code took the customer. Either it carried everything and
@@ -150,8 +161,21 @@ const whatIsBeingCharged = (
   };
 };
 
-/** A customer follows a printed code. */
-export const customerFollows = (link: string): Promise<WhereTheCodeLed> =>
+/** A customer scans a code that has been up for `secondsOld` seconds. The clock
+ * only moves for this one scan, which is what a customer arriving later — or
+ * scanning a photo of the screen — actually does. */
+export const customerScansLater = async (
+  link: string,
+  secondsOld: number,
+): Promise<WhereTheCodeLed> => {
+  const { FakeTime } = await import("@std/testing/time");
+  using clock = new FakeTime();
+  clock.tick(secondsOld * 1000);
+  return await customerScans(link);
+};
+
+/** A customer scans a code the moment it goes up. */
+export const customerScans = (link: string): Promise<WhereTheCodeLed> =>
   withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
     const { STUB_CHECKOUT_URL } = await import("#test-utils/checkout.ts");
     const { handleRequest } = await import("#routes");

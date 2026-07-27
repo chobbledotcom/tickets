@@ -7,7 +7,7 @@
  *  - Skip-to-Stripe when all required data is carried in the signed token
  *  - Price override on POST for fixed-price listings
  *
- * Sits beside the story `@story:bookings.booking-from-a-printed-code`: these
+ * Sits beside the story `@story:bookings.booking-from-a-code-on-the-door`: these
  * own the branch cover, and the cases needing a fake clock or a hand-signed
  * token the organiser's page would never produce.
  */
