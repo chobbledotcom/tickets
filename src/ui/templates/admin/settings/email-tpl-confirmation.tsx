@@ -12,22 +12,22 @@ import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 /* jscpd:ignore-end */
 
 // Liquid variables the confirmation template can use, shown in the reference
-// table below: [what you type, what it renders].
-const TEMPLATE_VARIABLES: [code: string, meaning: string][] = [
-  ["{{ listing_names }}", 'All listing names joined with "and"'],
-  ["{{ ticket_url }}", "Link to view tickets"],
-  ["{{ attendee.name }}", t("admin.attendees.delete_label")],
-  ["{{ attendee.email }}", "Attendee email"],
-  ["{{ attendee.phone }}", "Attendee phone"],
-  ["{{ attendee.address }}", "Attendee address"],
-  ["{{ attendee.special_instructions }}", "Special instructions"],
-  ["{{ entries }}", "Array of listing+attendee pairs"],
-  ["{{ entry.listing.name }}", "Listing name (in loop)"],
-  ["{{ entry.listing.is_paid }}", "Whether listing has a price"],
-  ["{{ entry.attendee.quantity }}", "Ticket quantity"],
-  ["{{ entry.attendee.price_paid | currency }}", "Price formatted as currency"],
-  ["{{ entry.attendee.date }}", "Selected date (if any)"],
-  ['{{ 2 | pluralize: "ticket", "tickets" }}', "Pluralize based on count"],
+// table below: [what you type, the message key describing it].
+const TEMPLATE_VARIABLES: [code: string, key: string][] = [
+  ["{{ listing_names }}", "listing_names"],
+  ["{{ ticket_url }}", "ticket_url"],
+  ["{{ attendee.name }}", "attendee_name"],
+  ["{{ attendee.email }}", "attendee_email"],
+  ["{{ attendee.phone }}", "attendee_phone"],
+  ["{{ attendee.address }}", "attendee_address"],
+  ["{{ attendee.special_instructions }}", "attendee_special_instructions"],
+  ["{{ entries }}", "entries"],
+  ["{{ entry.listing.name }}", "entry_listing_name"],
+  ["{{ entry.listing.is_paid }}", "entry_listing_is_paid"],
+  ["{{ entry.attendee.quantity }}", "entry_attendee_quantity"],
+  ["{{ entry.attendee.price_paid | currency }}", "entry_attendee_price_paid"],
+  ["{{ entry.attendee.date }}", "entry_attendee_date"],
+  ['{{ 2 | pluralize: "ticket", "tickets" }}', "pluralize"],
 ];
 
 export const ConfirmationEmailTemplateForm = (
@@ -53,12 +53,12 @@ export const ConfirmationEmailTemplateForm = (
       <summary>{t("settings.advanced.available_variables")}</summary>
       <div class="table-scroll">
         <table>
-          {TEMPLATE_VARIABLES.map(([code, meaning]) => (
+          {TEMPLATE_VARIABLES.map(([code, key]) => (
             <tr>
               <td>
                 <code>{code}</code>
               </td>
-              <td>{meaning}</td>
+              <td>{t(`settings.advanced.email_variables.${key}`)}</td>
             </tr>
           ))}
         </table>

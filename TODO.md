@@ -958,28 +958,6 @@ machinery to resolve this. Starting point: the preflight in
 the pruner in `src/shared/db/prune.ts` (`prunePayments`), and the
 classification in `src/shared/session-ledger.ts`.
 
-## Localise the confirmation-email template-variable reference table
-
-*Origin: CodeRabbit review on PR #1800.*
-
-`src/ui/templates/admin/settings/email-tpl-confirmation.tsx` builds
-`TEMPLATE_VARIABLES` — the operator-facing reference table of Liquid variables
-(`{{ ticket_url }}` → "Link to view tickets", etc.). The `meaning` column is
-hard-coded English, and `{{ attendee.name }}` borrows
-`t("admin.attendees.delete_label")` (which happens to render "Attendee name",
-so no visible bug, but it's a fragile cross-context key reuse).
-
-Follow-up: give each variable's description its own locale key under a new
-`settings.advanced.email_variables.*` namespace and reference them, replacing the
-`delete_label` reuse with a dedicated key. Out of scope for the jscpd-dedup PR
-(these are developer/operator reference docs for a technical feature, and the
-i18n-coverage gate doesn't flag them), but worth doing when this settings surface
-is next touched. Keep the copy plain per the Simple-Language rules.
-
----
-
----
-
 ## Stripe webhook setup hardening — deferred edges (from PR #1827)
 
 *Origin: CodeRabbit and Codex review of PR #1827 (the same-URL cleanup +
