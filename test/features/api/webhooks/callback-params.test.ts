@@ -6,8 +6,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 import {
   expectResponseWithText,
   routedResponse,
@@ -156,26 +158,20 @@ describeWithEnv("payment callback params", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    const { stripeApi } = await import("#shared/stripe.ts");
-    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1000,
-        id: "cs_explicit",
-        metadata: signedMeta(
-          {
-            email: "bob@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Bob",
-            thank_you_url: "https://example.com/explicit-thanks",
-          },
-          1000,
-        ),
-        payment_intent: "pi_explicit",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const retrieve = stubRetrieveCheckoutSession({
+      amountTotal: 1000,
+      metadata: signedMeta(
+        {
+          email: "bob@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Bob",
+          thank_you_url: "https://example.com/explicit-thanks",
+        },
+        1000,
+      ),
+      paymentIntent: "pi_explicit",
+      sessionId: "cs_explicit",
+    });
 
     try {
       // First hit: processes and direct-renders with explicit thank-you + tokens
@@ -245,25 +241,19 @@ describeWithEnv("payment callback params", { db: true }, () => {
     });
 
     const { deleteListing } = await import("#shared/db/listings/delete.ts");
-    const { stripeApi } = await import("#shared/stripe.ts");
-    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1000,
-        id: "cs_deleted_listing",
-        metadata: signedMeta(
-          {
-            email: "carol@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Carol",
-          },
-          1000,
-        ),
-        payment_intent: "pi_deleted_listing",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const retrieve = stubRetrieveCheckoutSession({
+      amountTotal: 1000,
+      metadata: signedMeta(
+        {
+          email: "carol@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Carol",
+        },
+        1000,
+      ),
+      paymentIntent: "pi_deleted_listing",
+      sessionId: "cs_deleted_listing",
+    });
 
     try {
       // First hit: processes and redirects (clearing tokens)
@@ -272,11 +262,19 @@ describeWithEnv("payment callback params", { db: true }, () => {
       );
       expect(first.status).toBe(302);
 
-      // Delete the listing between requests
+      // The booking has to be finished off before the listing can go: a
+      // half-finished payment holds on to what it still needs.
+      await settleDeferredPaymentWork();
       await deleteListing(listing.id);
 
       // Second hit: listing gone, tokens cleared; singleListingThankYou
       // returns "" for a deleted listing (no meta-refresh, no redirect link)
+      // The first replay hands the ticket over and uses up its link; the one
+      // after it has no ticket left to send anyone to.
+      const replay = await routedResponse(
+        mockRequest("/payment/success?session_id=cs_deleted_listing"),
+      );
+      expect(replay.status).toBe(302);
       const second = await routedResponse(
         mockRequest("/payment/success?session_id=cs_deleted_listing"),
       );

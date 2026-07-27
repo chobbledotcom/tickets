@@ -19,6 +19,20 @@ export const maintenanceContext = (
 const MAX_SETTLE_PASSES = 20;
 
 /**
+ * Run one round of scheduled payment work. Use this when the work is meant to
+ * remain outstanding afterwards — a refund the provider keeps refusing, say —
+ * where waiting for everything to settle would never finish.
+ */
+export const runPaymentMaintenanceOnce = async (): Promise<void> => {
+  const { runPaymentMaintenance } = await import(
+    "#shared/payment-runtime/maintenance.ts"
+  );
+  await runPaymentMaintenance(
+    maintenanceContext({ database: 40, external: 20, total: 60 }),
+  );
+};
+
+/**
  * Finish the payment work a callback deliberately left for later. A paid
  * callback only does the work that must happen while the buyer waits, so the
  * note, the ledger entries and the activity log are written by scheduled
