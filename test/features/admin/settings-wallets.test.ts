@@ -30,100 +30,66 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     method: "POST",
   });
 
-  test("requires Issuer ID", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
-
-    const response = await handleRequest(
-      mockFormRequest(
-        "/admin/settings/google-wallet",
-        {
-          csrf_token: csrfToken,
-          google_wallet_issuer_id: "",
-          google_wallet_service_account_email:
-            "test@test.iam.gserviceaccount.com",
-          google_wallet_service_account_key:
-            generateGoogleTestCreds().serviceAccountKey,
-        },
-        cookie,
-      ),
-    );
-    await expectFlashRedirect(
-      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
-      expect.stringContaining("Issuer ID is required"),
-      false,
-    )(response);
+  /** A valid Google Wallet form; each validation case blanks or breaks one
+   *  field so only that field's message can be the reason for the refusal. */
+  const validWalletForm = () => ({
+    google_wallet_issuer_id: "1234567890",
+    google_wallet_service_account_email: "test@test.iam.gserviceaccount.com",
+    google_wallet_service_account_key:
+      generateGoogleTestCreds().serviceAccountKey,
   });
 
-  test("requires Service Account Email", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+  const REFUSED_WALLET_FORMS: {
+    name: string;
+    field: keyof ReturnType<typeof validWalletForm>;
+    value: string;
+    message: string;
+  }[] = [
+    {
+      field: "google_wallet_issuer_id",
+      message: "Issuer ID is required",
+      name: "requires Issuer ID",
+      value: "",
+    },
+    {
+      field: "google_wallet_service_account_email",
+      message: "Service account email is required",
+      name: "requires Service Account Email",
+      value: "",
+    },
+    {
+      field: "google_wallet_service_account_key",
+      message: "Service account private key is required",
+      name: "requires private key on initial setup",
+      value: "",
+    },
+    {
+      field: "google_wallet_service_account_key",
+      message: "Service account private key is not a valid PEM private key",
+      name: "rejects invalid PEM private key",
+      value: "not a valid key",
+    },
+  ];
 
-    const response = await handleRequest(
-      mockFormRequest(
-        "/admin/settings/google-wallet",
-        {
-          csrf_token: csrfToken,
-          google_wallet_issuer_id: "1234567890",
-          google_wallet_service_account_email: "",
-          google_wallet_service_account_key:
-            generateGoogleTestCreds().serviceAccountKey,
-        },
-        cookie,
-      ),
-    );
-    await expectFlashRedirect(
-      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
-      expect.stringContaining("Service account email is required"),
-      false,
-    )(response);
-  });
+  for (const { name, field, value, message } of REFUSED_WALLET_FORMS) {
+    test(name, async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
 
-  test("requires private key on initial setup", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/google-wallet",
+          { ...validWalletForm(), [field]: value, csrf_token: csrfToken },
+          cookie,
+        ),
+      );
 
-    const response = await handleRequest(
-      mockFormRequest(
-        "/admin/settings/google-wallet",
-        {
-          csrf_token: csrfToken,
-          google_wallet_issuer_id: "1234567890",
-          google_wallet_service_account_email:
-            "test@test.iam.gserviceaccount.com",
-          google_wallet_service_account_key: "",
-        },
-        cookie,
-      ),
-    );
-    await expectFlashRedirect(
-      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
-      expect.stringContaining("Service account private key is required"),
-      false,
-    )(response);
-  });
-
-  test("rejects invalid PEM private key", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
-
-    const response = await handleRequest(
-      mockFormRequest(
-        "/admin/settings/google-wallet",
-        {
-          csrf_token: csrfToken,
-          google_wallet_issuer_id: "1234567890",
-          google_wallet_service_account_email:
-            "test@test.iam.gserviceaccount.com",
-          google_wallet_service_account_key: "not a valid key",
-        },
-        cookie,
-      ),
-    );
-    await expectFlashRedirect(
-      "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
-      expect.stringContaining(
-        "Service account private key is not a valid PEM private key",
-      ),
-      false,
-    )(response);
-  });
+      await expectFlashRedirect(
+        "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
+        expect.stringContaining(message),
+        false,
+      )(response);
+    });
+  }
 
   test("saves all settings successfully", async () => {
     const { cookie, csrfToken } = await loginAsAdmin();
@@ -131,14 +97,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         "/admin/settings/google-wallet",
-        {
-          csrf_token: csrfToken,
-          google_wallet_issuer_id: "1234567890",
-          google_wallet_service_account_email:
-            "test@test.iam.gserviceaccount.com",
-          google_wallet_service_account_key:
-            generateGoogleTestCreds().serviceAccountKey,
-        },
+        { ...validWalletForm(), csrf_token: csrfToken },
         cookie,
       ),
     );
@@ -149,9 +108,11 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     )(response);
 
     expect(settings.googleWallet.hasConfig).toBe(true);
-    expect(settings.googleWallet.issuerId).toBe("1234567890");
+    expect(settings.googleWallet.issuerId).toBe(
+      validWalletForm().google_wallet_issuer_id,
+    );
     expect(settings.googleWallet.serviceAccountEmail).toBe(
-      "test@test.iam.gserviceaccount.com",
+      validWalletForm().google_wallet_service_account_email,
     );
   });
 
