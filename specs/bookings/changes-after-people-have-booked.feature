@@ -3,10 +3,9 @@
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 Feature: A listing changes after people have already booked
-  An organiser can close a day of the week, make stays longer, or start booking
-  a listing by the day when it was not before. Whatever they change, the people
-  who already booked keep what they were sold — and the room they take up is
-  still counted.
+  An organiser can close a day of the week, or make stays longer than the
+  window the listing takes bookings for. Either way, the people who already
+  booked keep the days they were sold; only new bookings are turned away.
 
   @rule:bookings.closing-a-day-leaves-booked-stays-alone
   @surface:admin

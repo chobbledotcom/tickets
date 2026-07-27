@@ -12,6 +12,30 @@ import {
 
 describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
   describe("edge cases: realistic unusual scenarios", () => {
+    /**
+     * The dated range-capacity SQL settling two simultaneous multi-day inserts.
+     * The story `@case:stay.two-customers-race-for-the-last-stay` tells the same
+     * race in the customers' terms; this owns the direct contract, because the
+     * other concurrency test (`create-attendee-atomic.test.ts`) races an undated
+     * standard listing and so never touches the range check.
+     */
+    test("two simultaneous multi-day bookings for one place — only one is taken", async () => {
+      const listing = await createDailyTestListing({
+        durationDays: 2,
+        maxAttendees: 1,
+      });
+      const results = await Promise.all(
+        ["a@test.com", "b@test.com"].map((email) =>
+          bookAttendee(listing, {
+            date: "2026-06-12",
+            durationDays: 2,
+            email,
+          }),
+        ),
+      );
+      expect(results.filter(({ success }) => success).length).toBe(1);
+    });
+
     test("9: listing type switch from standard to daily preserves existing attendees", async () => {
       // Standard listing gets attendees, then admin switches to daily.
       // Existing attendees have null start_at/end_at (no date).

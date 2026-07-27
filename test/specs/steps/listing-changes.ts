@@ -9,6 +9,7 @@ import {
 } from "#test/specs/support/listing-changes.ts";
 import {
   daysOfferedFor,
+  expectRefusedForWantOfRoom,
   visitorTriesToBook,
 } from "#test/specs/support/public-booking.ts";
 import {
@@ -97,6 +98,9 @@ When(
       visitorTriesToBook(listing, { ...guest(2), day }),
     ]);
     this.raceWinners = attempts.filter(({ wasBooked }) => wasBooked).length;
+    const loser = attempts.find(({ wasBooked }) => !wasBooked);
+    // Left unset when both were taken, so the Then names what went wrong.
+    if (loser) this.raceLoser = loser;
     this.raceListing = name;
   },
 );
@@ -105,8 +109,14 @@ Then(
   "only one of them got the stay",
   async function (this: TicketsWorld): Promise<void> {
     expect(requiredWorldValue(this.raceWinners, "who got the stay")).toBe(1);
-    // And the listing holds that one stay only — the day never went over.
     const name = requiredWorldValue(this.raceListing, "the listing raced for");
+    // The other one has to be turned away for want of room: a validation or
+    // server error would otherwise pass for the site settling the race.
+    expectRefusedForWantOfRoom(
+      requiredWorldValue(this.raceLoser, "the customer who missed out"),
+      name,
+    );
+    // And the listing holds that one stay only — the day never went over.
     expect((await staysOn(this, name)).length).toBe(1);
   },
 );

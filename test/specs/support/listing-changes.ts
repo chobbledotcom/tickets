@@ -1,40 +1,40 @@
 /**
- * Changes an organiser makes to a listing after people have already booked.
- *
- * These go through the listing's own edit form, but not through the story
- * browser: clearing one of the bookable-day checkboxes is a change the browser
- * helper cannot express by merging values over the rendered form — it can tick
- * a box, not clear one.
+ * Changes an organiser makes to a listing after people have already booked,
+ * driven through the listing's own edit page.
  */
 
+import { expect } from "@std/expect";
+import { DAY_NAMES } from "#shared/day-names.ts";
+import { adminBrowser } from "#test/specs/support/browser.ts";
 import { stayListing } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { updateTestListing } from "#test-utils/db-helpers/listings.ts";
+import { extractFormEntries } from "#test-utils/test-browser.ts";
 
-const WEEKDAYS = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-/** The name of the weekday a date falls on. */
+/** The name of the weekday a date falls on, in the words the site uses. */
 export const weekdayOf = (day: string): string => {
-  const name = WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()];
+  // DAY_NAMES runs Sunday first, the same order a date reports its weekday in.
+  const name = DAY_NAMES[new Date(`${day}T00:00:00Z`).getUTCDay()];
   if (name === undefined) throw new Error(`Not a day: ${day}`);
   return name;
 };
 
-/** The organiser stops opening a listing on one day of the week. */
+/** The organiser stops opening a listing on one day of the week, by unticking
+ * that day on the listing's own edit form. The days that stay ticked are read
+ * off the served page, so a page that stops offering them fails the story. */
 export const stopOpeningOn = async (
   world: TicketsWorld,
   name: string,
   weekday: string,
 ): Promise<void> => {
-  await updateTestListing(stayListing(world, name).id, {
-    bookableDays: WEEKDAYS.filter((day) => day !== weekday),
-  });
+  const browser = await adminBrowser(world);
+  await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
+  const ticked = extractFormEntries(browser.currentHtml)
+    .filter(([field]) => field === "bookable_days")
+    .map(([, day]) => day);
+  expect(ticked).toContain(weekday);
+  await browser.submitForm(
+    { bookable_days: ticked.filter((day) => day !== weekday) },
+    "Save Changes",
+  );
+  expect(browser.containsText("Listing updated")).toBe(true);
 };
