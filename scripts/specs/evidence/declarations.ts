@@ -236,32 +236,45 @@ const DOOR_CHECK_IN_CSS = `${brandedThemeCss(
 }
 `;
 
+/** One branded mobile capture: the page an authored case leaves behind, the
+ * part of it worth showing, and the styling it is shown in. */
+const brandedMobileCapture = (
+  caseId: string,
+  id: string,
+  path: string,
+  element: string,
+  css: string,
+): EvidenceCaptureDeclaration =>
+  v.parse(EvidenceCaptureDeclarationSchema, {
+    caseId,
+    css,
+    element,
+    id,
+    path,
+    presentation: "branded",
+    profiles: ["mobile"],
+  });
+
 export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
-  v.parse(EvidenceCaptureDeclarationSchema, {
-    caseId: "servicing.hold-on-dashboard",
-    css: SERVICING_STUDIO_CSS,
-    element: "#servicing-form",
-    id: "servicing-studio-floor-hold",
-    path: "/admin/servicing/{servicingEventId}",
-    presentation: "branded",
-    profiles: ["mobile"],
-  }),
-  v.parse(EvidenceCaptureDeclarationSchema, {
-    caseId: "payments.select-saved-stripe",
-    css: PAYMENT_PROVIDER_CSS,
-    element: ".page-regions.admin-page",
-    id: "payment-provider-choice",
-    path: "/admin/settings",
-    presentation: "branded",
-    profiles: ["mobile"],
-  }),
-  v.parse(EvidenceCaptureDeclarationSchema, {
-    caseId: "door.someone-still-to-arrive-can-be-picked",
-    css: DOOR_CHECK_IN_CSS,
-    element: "article:has(#manual-checkin)",
-    id: "qr-code-check-in",
-    path: "/admin/listing/{doorListingId}/scanner",
-    presentation: "branded",
-    profiles: ["mobile"],
-  }),
+  brandedMobileCapture(
+    "servicing.hold-on-dashboard",
+    "servicing-studio-floor-hold",
+    "/admin/servicing/{servicingEventId}",
+    "#servicing-form",
+    SERVICING_STUDIO_CSS,
+  ),
+  brandedMobileCapture(
+    "payments.select-saved-stripe",
+    "payment-provider-choice",
+    "/admin/settings",
+    ".page-regions.admin-page",
+    PAYMENT_PROVIDER_CSS,
+  ),
+  brandedMobileCapture(
+    "door.someone-still-to-arrive-can-be-picked",
+    "qr-code-check-in",
+    "/admin/listing/{doorListingId}/scanner",
+    "article:has(#manual-checkin)",
+    DOOR_CHECK_IN_CSS,
+  ),
 ];
