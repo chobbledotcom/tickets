@@ -7,13 +7,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
 import type { Trigger } from "#shared/db/migrations/schema/types.ts";
 import { assertLiveTableColumns } from "#shared/db/migrations/schema-assertions.ts";
 import {
   currentSchemaColumnsPresentIn,
   runMigration,
 } from "#shared/db/migrations/schema-sync.ts";
-import { loadMigrations } from "#shared/db/migrations.ts";
+
 import {
   additiveMigrations,
   dropOwnedObjects,

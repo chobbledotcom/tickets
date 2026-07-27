@@ -6,6 +6,10 @@
  *  - Pre-fill rendering when the listing still needs user input
  *  - Skip-to-Stripe when all required data is carried in the signed token
  *  - Price override on POST for fixed-price listings
+ *
+ * Sits beside the story `@story:bookings.booking-from-a-code-on-the-door`: these
+ * own the branch cover, and the cases needing a fake clock or a hand-signed
+ * token the organiser's page would never produce.
  */
 
 import { expect } from "@std/expect";
@@ -15,7 +19,6 @@ import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type CheckoutSessionResult, paymentsApi } from "#shared/payments.ts";
 import {
@@ -161,16 +164,6 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       expect(body).toContain(`/ticket/${listing.slug}`);
     });
 
-    test("invalid signature renders the error page", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const response = await awaitTestRequest(
-        qrBookPath(listing.slug, "qr1.not-a-real-token.signature"),
-      );
-      expect(response.status).toBe(400);
-      const body = await response.text();
-      expect(body).toContain("expired or invalid");
-    });
-
     test("unknown listing slug renders the error page", async () => {
       const token = await signQrBookToken(
         "unknown-slug",
@@ -197,16 +190,6 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("deactivated listing is treated like unknown (404)", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      await listingsTable.update(listing.id, { active: false });
-      const response = await scanRequest(listing, { name: "Ada", value: 500 });
-      expect(response.status).toBe(404);
-    });
-
     test("daily listing with an un-bookable date is rejected", async () => {
       const listing = await createDailyTestListing({ unitPrice: 500 });
       const token = await signQrBookToken(
@@ -225,23 +208,6 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
   });
 
   describe("pre-fill rendering", () => {
-    test("pre-fills the name input when the listing still needs other fields", async () => {
-      const listing = await createTestListing({
-        fields: "email",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ name: "Ada Lovelace", value: 500 }),
-      );
-      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      expect(body).toContain('value="Ada Lovelace"');
-      expect(body).toContain('name="qr_token"');
-    });
-
     test("pre-fills custom_price input for can_pay_more listings", async () => {
       const listing = await createTestListing({
         canPayMore: true,
@@ -294,23 +260,6 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
   });
 
   describe("skip-to-Stripe", () => {
-    test("redirects straight to Stripe when name + value are both set and no extra fields are required", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      await scanWithStripe(listing, async ({ response, stripe }) => {
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toContain("stripe.example");
-        expect(stripe.calls()).toBe(1);
-        const checkout = stripe.getCaptured()!;
-        expect(checkout.bookingIntent.name).toBe("Ada");
-        expect(checkout.order.lines[0]!.amount).toBe(1000);
-        expect(checkout.order.lines[0]!.quantity).toBe(1);
-      });
-    });
-
     test("renders the booking form (never direct checkout) for a customisable listing", async () => {
       const listing = await createTestListing({
         customisableDays: true,
@@ -381,18 +330,6 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
       });
       expect(response.status).toBe(400);
       expect(await response.text()).toContain(refusal);
-    });
-
-    test("falls through to the form when the listing requires email", async () => {
-      const listing = await createTestListing({
-        fields: "email",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      await scanWithStripe(listing, async ({ response, stripe }) => {
-        expect(response.status).toBe(200);
-        expect(stripe.calls()).toBe(0);
-      });
     });
 
     test("falls through when name is missing even though value is set", async () => {
@@ -499,28 +436,6 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
           qr_token: "qr1.forged.signature",
         });
         expectStripeCheckoutAtPrice(response, stripe, 500);
-      });
-    });
-
-    test("can_pay_more listing: user's custom_price wins over the qr_token value", async () => {
-      await setupStripe();
-      const listing = await createTestListing({
-        canPayMore: true,
-        fields: "email",
-        maxAttendees: 10,
-        maxPrice: 10000,
-        unitPrice: 500,
-      });
-      const token = await bookToken(listing.slug);
-      await withStripe(async (stripe) => {
-        const response = await submitTicketForm(listing.slug, {
-          [`custom_price_${listing.id}`]: "50.00",
-          [`quantity_${listing.id}`]: "1",
-          email: "ada@example.com",
-          name: "Ada",
-          qr_token: token,
-        });
-        expectStripeCheckoutAtPrice(response, stripe, 5000);
       });
     });
 

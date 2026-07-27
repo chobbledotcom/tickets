@@ -1,12 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
-import {
-  initDb,
-  renameEventsToListings,
-  SCHEMA_HASH,
-} from "#shared/db/migrations.ts";
+import { initDb, SCHEMA_HASH } from "#shared/db/migrations.ts";
 import {
   columnNames,
   downgradeListingDomainToLegacyNames,
@@ -15,7 +10,6 @@ import {
   schemaHashMarker,
   seedListingDomainRows,
   tableExists,
-  tableNames,
   tableRowCount,
 } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -25,58 +19,6 @@ describeWithEnv(
   "db > migrations > 2026-06-14_rename_events_to_listings",
   { db: true },
   () => {
-    describe("renameEventsToListings", () => {
-      test("renames legacy tables and columns while preserving rows", async () => {
-        await createTestListing();
-        await downgradeListingDomainToLegacyNames();
-
-        await renameEventsToListings();
-
-        const tables = await tableNames();
-        expect(tables.has("listings")).toBe(true);
-        expect(tables.has("events")).toBe(false);
-        expect(tables.has("listing_attendees")).toBe(true);
-        expect(tables.has("listing_questions")).toBe(true);
-
-        expect(await columnNames("listings")).toContain("listing_type");
-        expect(await columnNames("listing_attendees")).toContain("listing_id");
-        expect(await columnNames("listing_questions")).toContain("listing_id");
-        expect(await columnNames("activity_log")).toContain("listing_id");
-        expect(await columnNames("built_sites")).toContain(
-          "assigned_listing_id",
-        );
-
-        const listings = await getAllListings();
-        expect(listings.length).toBe(1);
-      });
-
-      test("skips column renames for tables that do not exist", async () => {
-        await downgradeListingDomainToLegacyNames();
-        await getDb().execute("DROP TABLE built_sites");
-
-        await renameEventsToListings();
-
-        const tables = await tableNames();
-        expect(tables.has("listings")).toBe(true);
-        expect(await columnNames("built_sites")).toContain(
-          "assigned_listing_id",
-        );
-      });
-
-      test("is a no-op when listing tables already exist", async () => {
-        const before = await getAllListings();
-
-        await renameEventsToListings();
-
-        const after = await getAllListings();
-        expect(after.length).toBe(before.length);
-
-        const tables = await tableNames();
-        expect(tables.has("events")).toBe(false);
-        expect(tables.has("listings")).toBe(true);
-      });
-    });
-
     describe("pre-rename migration ordering", () => {
       test("a pre-rename database migrates successfully and preserves rows in the renamed tables", async () => {
         const listingId = await seedListingDomainRows();

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { getDb } from "#shared/db/client.ts";
+import { acquireMigrationLock } from "#shared/db/migrations/lock.ts";
 import type {
   AdditiveMigration,
   Migration,
@@ -37,6 +38,35 @@ export const tableExists = async (table: string): Promise<boolean> => {
 
 export const settingsTableExists = (): Promise<boolean> =>
   tableExists("settings");
+
+/** The stored value of one settings row, or null when there is no such row. */
+export const settingsValueOrNull = async (
+  key: string,
+): Promise<string | null> => {
+  const result = await getDb().execute({
+    args: [key],
+    sql: "SELECT value FROM settings WHERE key = ?",
+  });
+  return (result.rows[0]?.value as string) ?? null;
+};
+
+/** Every migration id the database has recorded as applied, in id order. */
+export const appliedMigrationIds = async (): Promise<string[]> => {
+  const result = await getDb().execute(
+    "SELECT id FROM schema_migrations ORDER BY id",
+  );
+  return result.rows.map((row) => String(row.id));
+};
+
+/** Take the migration lock for a test, failing loudly if another lease holds
+ *  it — a test that cannot lock has nothing meaningful to assert. */
+export const takeMigrationLock = async (): Promise<string> => {
+  const lockToken = await acquireMigrationLock(false);
+  if (lockToken === null) {
+    throw new Error("Could not take the migration lock for this test");
+  }
+  return lockToken;
+};
 
 export const schemaMarkerKeys = async (): Promise<string[]> => {
   const result = await getDb().execute(

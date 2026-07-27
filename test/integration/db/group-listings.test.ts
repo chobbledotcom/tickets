@@ -7,7 +7,8 @@ import {
   setGroupPackageMembers,
   setListingGroups,
 } from "#shared/db/groups.ts";
-import { loadMigrations } from "#shared/db/migrations.ts";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
+
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestGroup,

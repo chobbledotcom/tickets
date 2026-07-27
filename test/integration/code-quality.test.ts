@@ -191,8 +191,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // DB version/hash constants used in production but test pattern doesn't detect constant comparison
   "shared/db/migrations.ts:LATEST_UPDATE",
   "shared/db/migrations.ts:SCHEMA_HASH",
-  // Migration lock TTL used in production (same-file) but test pattern doesn't detect same-file usage
-  "shared/db/migrations.ts:MIGRATION_LOCK_TTL_MS",
   // Backup freshness window used in production (same-file) but test pattern doesn't detect same-file usage
   "shared/db/backup.ts:BACKUP_FRESHNESS_WINDOW_MS",
   // Attendees page size used in production (same-file) but test pattern doesn't detect same-file usage

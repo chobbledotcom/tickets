@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { loadMigrations } from "#shared/db/migrations.ts";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
+
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 const MIGRATIONS = await loadMigrations();
