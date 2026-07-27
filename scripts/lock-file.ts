@@ -22,42 +22,34 @@ const openLockFile = (path: string): Promise<Deno.FsFile> =>
 export const openLockFileOrNull = (path: string): Promise<Deno.FsFile | null> =>
   nullIfNotFound(openLockFile(path));
 
-/** Is the open file the one sitting at `path`? */
-const heldLockIsAtPath = async (
-  file: Deno.FsFile,
+/**
+ * Is the file numbered `fileNumber` the one sitting at `path`? A disk that
+ * keeps no file numbers cannot tell two apart, so there it is taken at its word.
+ */
+const sameFileAt = async (
   path: string,
+  fileNumber: number,
 ): Promise<boolean> => {
   const atPath = await statOrNull(path);
   if (atPath === null) return false;
-  const held = await file.stat();
-  // Some filesystems keep no file numbers; there, take the lock at its word.
-  return held.ino === null || atPath.ino === null || held.ino === atPath.ino;
+  return atPath.ino === null || fileNumber === atPath.ino;
 };
-
-/** A wait for a lock: `true` once it is held, `false` if it gave up first. */
-type WaitForLock = (file: Deno.FsFile) => Promise<boolean>;
-
-const waitHoweverLong: WaitForLock = (file) => file.lock(true).then(() => true);
 
 /**
  * One go at holding the lock at `path` while `body` runs. `null` means the go
- * came to nothing: the file was not there, the wait gave up, or the lock it
- * ended up holding was no longer the file at the path.
+ * came to nothing: the file was not there, or the lock it ended up holding was
+ * no longer the file at the path.
  */
 const oneGoAtLock = async <Result>(
   path: string,
-  waitForLock: WaitForLock,
   body: () => Promise<Result>,
 ): Promise<{ value: Result } | null> => {
   const file = await openLockFileOrNull(path);
   if (file === null) return null;
-  if (!(await waitForLock(file))) {
-    // Closing hands back anything the abandoned wait is later granted.
-    file.close();
-    return null;
-  }
+  await file.lock(true);
   try {
-    return (await heldLockIsAtPath(file, path))
+    const { ino } = await file.stat();
+    return (await sameFileAt(path, Number(ino)))
       ? { value: await body() }
       : null;
   } finally {
@@ -77,7 +69,7 @@ export const withFileLock = async <Result>(
 ): Promise<Result> => {
   const oneGo = async () => {
     await Deno.mkdir(dirname(path), { recursive: true });
-    return await oneGoAtLock(path, waitHoweverLong, body);
+    return await oneGoAtLock(path, body);
   };
   let held = await oneGo();
   while (held === null) held = await oneGo();
@@ -100,15 +92,9 @@ export const withFileLockOrNull = async <Result>(
   const held = await holdLockOrNull(path, timeoutMs);
   if (held === null) return null;
   try {
-    const atPath = await statOrNull(path);
     // The wait may have been won because somebody deleted the folder: a lock on
     // a file nothing points at keeps nobody out, so it is not worth holding.
-    const sameFile =
-      atPath !== null &&
-      (held.fileNumber === null ||
-        atPath.ino === null ||
-        held.fileNumber === atPath.ino);
-    return sameFile ? await body() : null;
+    return (await sameFileAt(path, held.fileNumber)) ? await body() : null;
   } finally {
     await held.letGo();
   }
