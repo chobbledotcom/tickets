@@ -2020,3 +2020,29 @@ blank transaction id even though the payment aggregate has the reference
 (`src/features/api/payment-processing/create.ts` writes the empty value;
 `src/features/admin/attendee-page-data.ts` and
 `src/features/admin/listings-export.ts` read it).
+
+## Upgrading a site with old payments needs foreign keys switched off
+
+*Origin: the last failing test on the payment-aggregate base branch,
+`test/integration/db/legacy-migration/backfill.test.ts`.*
+
+That test starts from a database in the shape sites had before the rewrite,
+with one old payment row, and upgrades it while leaving foreign keys switched
+on. It does that on purpose: rebuilding a table is the one operation SQLite
+says needs them off, and the test proves the upgrade does not rely on that.
+
+It now fails. Rebuilding `attendees` breaks the old `processed_payments`
+row's link to it. Nothing recreates that table without the link, because the
+app no longer declares it, and the migration that removes it
+(`2026-07-26_retire_legacy_payment_tables`) runs after the rebuild.
+
+So this is a question of order, not of one bad statement: either the old
+payment tables have to go before the rebuild — which they cannot, since the
+aggregate copies from them first — or the rebuild has to tolerate a leftover
+link. Worth deciding properly, because it is the upgrade path every existing
+site takes.
+
+Starting point: `initDb` in `src/shared/db/migrations.ts` for where the table
+rebuild sits relative to the dated migrations, `applySchemaChanges` in
+`src/shared/db/migrations/schema-sync.ts` for the rebuild itself, and
+`src/shared/db/migrations/legacy-payment-retirement.ts` for the removal.
