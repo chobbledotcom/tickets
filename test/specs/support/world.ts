@@ -1,6 +1,7 @@
 import type { World } from "@cucumber/cucumber";
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
 import type { Listing } from "#shared/types.ts";
+import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
 import type {
   JourneyCatalogSpec,
@@ -9,7 +10,7 @@ import type {
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 export interface TicketsWorld extends World {
-  apiAnswer?: { body: Record<string, unknown>; status: number };
+  apiAnswer?: ApiAnswer;
   apiFirstDay?: string;
   apiListing?: string;
   apiRoomAnswer?: boolean;

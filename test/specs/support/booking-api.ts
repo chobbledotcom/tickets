@@ -1,14 +1,15 @@
 /**
  * Booking through the site's own booking API — the way another system books on
- * a customer's behalf. Every call goes through the real endpoints with a real
- * key, so a story proves what an outside caller can actually do.
+ * a customer's behalf. The booking API needs no key, so every call here is made
+ * without one: a story must fail if the endpoints ever start demanding
+ * authorisation, because real callers would stop working that day.
  */
 
 import { expect } from "@std/expect";
 import { settings } from "#shared/db/settings.ts";
 import { stayListing } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { apiRequest } from "#test-utils/session.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 /** What the API answered: the code it sent back, and the body it sent with it. */
 export interface ApiAnswer {
@@ -20,7 +21,19 @@ const ask = async (
   path: string,
   options: { body?: Record<string, unknown>; method?: string } = {},
 ): Promise<ApiAnswer> => {
-  const response = await apiRequest(path, options);
+  const { handleRequest } = await import("#routes");
+  const method = options.method ?? "GET";
+  const response = await handleRequest(
+    mockRequest(path, {
+      ...(options.body === undefined
+        ? {}
+        : {
+            body: JSON.stringify(options.body),
+            headers: { "content-type": "application/json" },
+          }),
+      method,
+    }),
+  );
   return { body: await response.json(), status: response.status };
 };
 
@@ -55,7 +68,13 @@ export const apiSaysThereIsRoom = async (
     `/api/listings/${slug}/availability?date=${day}&quantity=1`,
   );
   expect(status).toBe(200);
-  return body.available === true;
+  // The answer has to be the yes-or-no the API documents. A missing or renamed
+  // field would otherwise read as "no room" and pass a refusal story silently.
+  const { available } = body;
+  if (typeof available !== "boolean") {
+    throw new Error(`The API did not say whether there is room: ${status}`);
+  }
+  return available;
 };
 
 /** Book a stay through the API, keeping whatever it answered — a story can
