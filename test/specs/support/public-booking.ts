@@ -55,14 +55,20 @@ const expectControlCanSend = (
   expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
 };
 
-/** Try to place an order through a page the site serves. Returns what the
- * visitor was shown rather than throwing, so a story can prove a refusal as
- * well as a booking. */
-export const visitorTriesToOrder = async (
+/** An order filled in and waiting on the visitor to press Continue. Splitting
+ * the two lets a story hold several visitors at the form and release them
+ * together, which is the only way to make a race a real race. */
+export interface FilledOrder {
+  press: () => Promise<BookingAttempt>;
+}
+
+/** Open a page the site serves and fill the order in, checking as it goes that
+ * a visitor could really send every value. Nothing is submitted yet. */
+export const visitorFillsInOrder = async (
   path: string,
   lines: OrderLine[],
   choices: BookingChoices,
-): Promise<BookingAttempt> => {
+): Promise<FilledOrder> => {
   const browser = new TestBrowser();
   await browser.visit(path);
   for (const { listing } of lines) {
@@ -90,25 +96,51 @@ export const visitorTriesToOrder = async (
   for (const [field, chosen] of Object.entries(fields)) {
     expectControlCanSend(browser.currentHtml, field, chosen);
   }
-  await browser.submitForm(fields, "Continue");
-  return { browser, wasBooked: browser.pageText.includes(THANK_YOU) };
+  return {
+    press: async () => {
+      await browser.submitForm(fields, "Continue");
+      return { browser, wasBooked: browser.pageText.includes(THANK_YOU) };
+    },
+  };
 };
+
+/** Fill the order in and press Continue straight away — what all but the race
+ * stories want. */
+export const visitorTriesToOrder = async (
+  path: string,
+  lines: OrderLine[],
+  choices: BookingChoices,
+): Promise<BookingAttempt> =>
+  (await visitorFillsInOrder(path, lines, choices)).press();
+
+/** The path and lines for one listing's own public page, so filling one in and
+ * ordering from one both describe it the same way. */
+export const oneListingOrder = (
+  listing: Listing,
+  choices: BookingChoices,
+): [path: string, lines: OrderLine[]] => [
+  `/ticket/${listing.slug}`,
+  [
+    {
+      listing,
+      ...(choices.places === undefined ? {} : { places: choices.places }),
+    },
+  ],
+];
+
+/** Fill in one listing's own page, ready to press Continue later. */
+export const visitorFillsInBooking = (
+  listing: Listing,
+  choices: BookingChoices,
+): Promise<FilledOrder> =>
+  visitorFillsInOrder(...oneListingOrder(listing, choices), choices);
 
 /** Try to book one listing, on its own public page. */
 export const visitorTriesToBook = (
   listing: Listing,
   choices: BookingChoices,
 ): Promise<BookingAttempt> =>
-  visitorTriesToOrder(
-    `/ticket/${listing.slug}`,
-    [
-      {
-        listing,
-        ...(choices.places === undefined ? {} : { places: choices.places }),
-      },
-    ],
-    choices,
-  );
+  visitorTriesToOrder(...oneListingOrder(listing, choices), choices);
 
 /** Book through the public page and insist it worked, for the setup and the
  * happy paths that are not themselves about being refused. */

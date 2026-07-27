@@ -10,7 +10,7 @@ import {
 import {
   daysOfferedFor,
   expectRefusedForWantOfRoom,
-  visitorTriesToBook,
+  visitorFillsInBooking,
 } from "#test/specs/support/public-booking.ts";
 import {
   dayFromToday,
@@ -92,11 +92,15 @@ When(
   ): Promise<void> {
     const listing = stayListing(this, name);
     const day = dayFromToday(this, startsIn);
-    // Both press Continue together, so the site has to settle the race itself.
-    const attempts = await Promise.all([
-      visitorTriesToBook(listing, { ...guest(1), day }),
-      visitorTriesToBook(listing, { ...guest(2), day }),
-    ]);
+    // Both customers fill the form in first. Only once both are waiting do they
+    // press Continue, so one cannot quietly finish before the other starts and
+    // turn the race into two ordinary bookings.
+    const waiting = await Promise.all(
+      [guest(1), guest(2)].map((who) =>
+        visitorFillsInBooking(listing, { ...who, day }),
+      ),
+    );
+    const attempts = await Promise.all(waiting.map(({ press }) => press()));
     this.raceWinners = attempts.filter(({ wasBooked }) => wasBooked).length;
     const loser = attempts.find(({ wasBooked }) => !wasBooked);
     // Left unset when both were taken, so the Then names what went wrong.

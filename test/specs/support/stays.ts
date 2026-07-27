@@ -10,6 +10,7 @@ import { addDays } from "#shared/dates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -119,8 +120,14 @@ export const changeStayLength = async (
 ): Promise<string> => {
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
-  expect(browser.currentHtml).toContain('name="duration_days"');
-  await browser.submitForm({ duration_days: String(days) }, "Save Changes");
+  const length = String(days);
+  // The organiser has to be able to send this length: a box that is missing,
+  // disabled, or fixed at another value would mean they cannot make the change
+  // at all, however happily the form post is accepted.
+  expect(
+    whyValueCannotBeSent(browser.currentHtml, "duration_days", length),
+  ).toBeNull();
+  await browser.submitForm({ duration_days: length }, "Save Changes");
   expect(browser.containsText("Listing updated")).toBe(true);
   return browser.pageText;
 };
