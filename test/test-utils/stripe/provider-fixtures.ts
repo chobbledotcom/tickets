@@ -97,13 +97,12 @@ interface PersistedStripeRefundStubs {
   [name: string]: Stub;
 }
 
-/** Stub polling an existing Stripe refund and reject any accidental new POST. */
+/** Stub polling an existing Stripe refund. Asking for a new one is recorded
+ *  but never answered — each test checks it was not asked for. */
 export const stubPersistedStripeRefund = (
   refund: () => StripeRefund,
 ): PersistedStripeRefundStubs => ({
-  create: stub(stripeApi, "requestRefund", () =>
-    Promise.reject(new Error("must not POST")),
-  ),
+  create: stub(stripeApi, "requestRefund"),
   retrieve: stub(stripeApi, "retrieveRefund", () =>
     Promise.resolve({ status: "found" as const, value: refund() }),
   ),
