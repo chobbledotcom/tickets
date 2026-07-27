@@ -6,7 +6,7 @@
  */
 
 import { join } from "@std/path";
-import { statNumberOrNull } from "#scripts/not-found.ts";
+import { statNumberOrNull, statOrNull } from "#scripts/not-found.ts";
 import { processExists, removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { runLockIsHeld, withRunLockOrNull } from "./isolation-lock.ts";
@@ -91,15 +91,22 @@ const activeByRecord = (record: MutationRunRecord): boolean =>
  * is what stops an owner claiming the folder in the moment between the two.
  * `null` means the run is still someone's, so it was left alone.
  */
-const removeRun = (
+const removeRun = async (
   record: MutationRunRecord,
-): Promise<RemoveRunResult | null> =>
-  withRunLockOrNull(record, async () => {
+): Promise<RemoveRunResult | null> => {
+  const outcome = await withRunLockOrNull(record, async () => {
     const latest = (await freshRecord(record)) ?? record;
     return activeByRecord(latest)
       ? null
       : await removeRunPath(record, record.root);
   });
+  if (outcome !== null) return outcome;
+  // Nothing left to leave alone means another clear-up got there first, which
+  // is the outcome we wanted, not a run we skipped.
+  return (await statOrNull(record.root)) === null
+    ? { record, removed: true }
+    : null;
+};
 
 interface CleanedRuns {
   failed: Extract<RemoveRunResult, { removed: false }>[];

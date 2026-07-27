@@ -8,6 +8,7 @@
  */
 
 import { dirname } from "@std/path";
+import { holdLockOrNull } from "#scripts/held-lock-process.ts";
 import { nullIfNotFound, statOrNull } from "#scripts/not-found.ts";
 
 /** Open (creating if needed) a file to hold an advisory lock. */
@@ -37,20 +38,6 @@ const heldLockIsAtPath = async (
 type WaitForLock = (file: Deno.FsFile) => Promise<boolean>;
 
 const waitHoweverLong: WaitForLock = (file) => file.lock(true).then(() => true);
-
-/** Wait for the lock, but only for `timeoutMs`. */
-const waitUpTo =
-  (timeoutMs: number): WaitForLock =>
-  async (file) => {
-    let waited = 0;
-    const gaveUp = new Promise<false>((resolve) => {
-      waited = setTimeout(() => resolve(false), timeoutMs);
-      Deno.unrefTimer(waited);
-    });
-    const held = await Promise.race([waitHoweverLong(file), gaveUp]);
-    clearTimeout(waited);
-    return held;
-  };
 
 /**
  * One go at holding the lock at `path` while `body` runs. `null` means the go
@@ -102,12 +89,27 @@ export const withFileLock = async <Result>(
  * `timeoutMs`; otherwise answer `null`. Unlike `withFileLock` this never makes
  * the folder or waits it out — a caller clearing up after other people must
  * not queue behind them for an hour, nor bring back a folder they removed.
+ *
+ * A child process does the waiting, so giving up really lets this one finish.
  */
 export const withFileLockOrNull = async <Result>(
   path: string,
   timeoutMs: number,
   body: () => Promise<Result>,
 ): Promise<Result | null> => {
-  const held = await oneGoAtLock(path, waitUpTo(timeoutMs), body);
-  return held === null ? null : held.value;
+  const held = await holdLockOrNull(path, timeoutMs);
+  if (held === null) return null;
+  try {
+    const atPath = await statOrNull(path);
+    // The wait may have been won because somebody deleted the folder: a lock on
+    // a file nothing points at keeps nobody out, so it is not worth holding.
+    const sameFile =
+      atPath !== null &&
+      (held.fileNumber === null ||
+        atPath.ino === null ||
+        held.fileNumber === atPath.ino);
+    return sameFile ? await body() : null;
+  } finally {
+    await held.letGo();
+  }
 };
