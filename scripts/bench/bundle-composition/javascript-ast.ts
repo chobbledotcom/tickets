@@ -2,13 +2,9 @@ import { parseSync } from "npm:oxc-parser@0.132.0";
 import { map } from "#fp";
 
 const countAstNodes = (root: object): number => {
-  const visited = new WeakSet<object>();
   let count = 0;
   const visit = (value: unknown): void => {
-    if (value === null || typeof value !== "object" || visited.has(value)) {
-      return;
-    }
-    visited.add(value);
+    if (value === null || typeof value !== "object") return;
     if ("type" in value) count += 1;
     map(visit)(Object.values(value));
   };

@@ -1,21 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { CommandResult, RunCommand } from "#scripts/precommit/git.ts";
+import type { RunCommand } from "#scripts/precommit/git.ts";
+import type { CapturedOutput } from "#scripts/process.ts";
 import { defineEvidenceCommit } from "#scripts/specs/evidence/git.ts";
+import { capturedFail, capturedOk } from "#test-utils/captured-output.ts";
 
-const result = (
-  stdout: string,
-  success = true,
-  stderr = "",
-): CommandResult => ({
-  code: success ? 0 : 1,
-  stderr,
-  stdout,
-  success,
-});
+const result = (stdout: string, success = true, stderr = ""): CapturedOutput =>
+  success ? capturedOk(stdout) : capturedFail(1, stderr, stdout);
 
 const gitFixture = (
-  results: CommandResult[],
+  results: CapturedOutput[],
 ): {
   calls: Array<{ cmd: string[]; cwd: string | undefined }>;
   readCommit: (cwd: string) => Promise<string>;

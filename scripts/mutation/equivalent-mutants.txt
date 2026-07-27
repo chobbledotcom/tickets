@@ -928,3 +928,49 @@ scripts/mutation/test-map.ts:119:46  && → ||   # ownedTest gives every integra
 # SumUp client: values that are never falsy apart from null.
 src/shared/sumup.ts:215:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
 src/shared/sumup.ts:254:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+
+# Bundle AST bench: the parser's filename argument is a diagnostic label only.
+scripts/bench/bundle-composition/javascript-ast.ts:17:28  bundle.js → ""   # oxc uses the name only to label diagnostics and to pick a language from its extension; "bundle.js" and "" both select the default JavaScript parser, and the only parser output this module reads is errors[0].message (which never contains the name) and the node count
+
+# Script cleanup: the second length check can never see a single error.
+scripts/cleanup.ts:7:23  1 → 0   # the line above already throws when there is exactly one error, so this check only ever runs with 0 or 2+ errors, where > 1 and > 0 agree
+
+# Compact test reporter: fallbacks for values the regexes always provide, and
+# comparisons an earlier line has already ruled out.
+scripts/compact-test-reporter.ts:85:33  ?? → ||   # /^\s*/ matches every string, so the optional chain always yields a length and the fallback never runs
+scripts/compact-test-reporter.ts:85:37  0 → 1   # same line: the fallback is unreachable because /^\s*/ always matches
+scripts/compact-test-reporter.ts:91:62  0 → 1   # this arm runs only when every line is blank, and slicing 0 or 1 characters off blank lines leaves the same text once the join is trimmed
+scripts/compact-test-reporter.ts:131:35  ?? → ||   # match[2] exists whenever the line matched, and its trimmed value is a string, so ?? "" and || "" agree
+scripts/compact-test-reporter.ts:131:39   → "mutated"   # unreachable fallback: match[2] is always present on a matched line
+scripts/compact-test-reporter.ts:132:33  ?? → ||   # match[1] is the indent capture, always present on a matched line
+scripts/compact-test-reporter.ts:132:37   → "mutated"   # unreachable fallback for the same reason
+scripts/compact-test-reporter.ts:169:58  ?? → ||   # atIndex came from findIndex, so lines[atIndex] is always a string
+scripts/compact-test-reporter.ts:169:62   → "mutated"   # unreachable fallback for the same reason
+scripts/compact-test-reporter.ts:175:31  ?? → ||   # match[1] is one of file/line/column on a matched line, never missing
+scripts/compact-test-reporter.ts:175:35   → "mutated"   # unreachable fallback; an unknown key is ignored by assignAtField either way
+scripts/compact-test-reporter.ts:175:63  ?? → ||   # match[2] is always present on a matched line
+scripts/compact-test-reporter.ts:175:67   → "mutated"   # unreachable fallback for the same reason
+scripts/compact-test-reporter.ts:203:40  ?? → ||   # parseYamlTapDiagnostic returns an object or undefined, so its only falsy value is the undefined the fallback handles
+scripts/compact-test-reporter.ts:208:43  ?? → ||   # diagnostic.message is a string or undefined, and the empty string it can be is the fallback itself
+scripts/compact-test-reporter.ts:208:47   → "mutated"   # neither the empty string nor "mutated" matches the step-failure pattern, so the outcome is the same
+scripts/compact-test-reporter.ts:239:61  ?? → ||   # String.match with a global pattern returns an array or null, and an array is always truthy
+scripts/compact-test-reporter.ts:323:60   → "mutated"   # the fallback text for an unreadable file is only counted for test declarations, and neither the empty string nor "mutated" holds one
+scripts/compact-test-reporter.ts:347:50  ?? → ||   # an estimated total of 0 falls back to 0, so ?? and || pick the same number
+scripts/compact-test-reporter.ts:347:54  0 → 1   # the total is immediately grown to the number of finished tests, which is 1 or more whenever it is read
+scripts/compact-test-reporter.ts:348:46  ?? → ||   # hideProgress is a boolean or undefined, and false falls back to false either way
+scripts/compact-test-reporter.ts:349:34  ?? → ||   # the stdout option is a function when present, and functions are always truthy
+scripts/compact-test-reporter.ts:350:34  ?? → ||   # the stderr option is a function when present, and functions are always truthy
+scripts/compact-test-reporter.ts:384:21  --- → ""   # a line that trims to nothing has already returned above, so comparing the trimmed line with "" is never true
+scripts/compact-test-reporter.ts:384:42  ... → ""   # same line, same reason
+scripts/compact-test-reporter.ts:443:44  ?? → ||   # locationFromStack returns a location object or undefined, and objects are always truthy
+
+# Mutation summary: grouped results are arrays or absent, never falsy-but-set.
+scripts/mutation/summary.ts:65:69  ?? → ||   # Object.groupBy gives each status a non-empty array or nothing at all, and an array is always truthy
+scripts/mutation/summary.ts:92:33  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
+
+# Lock file: the handle exists only to carry the advisory lock.
+scripts/lock-file.ts:4:41  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
+
+# Process helpers: the timer handle before the timer exists.
+scripts/process.ts:60:17  0 → 1   # the promise body runs straight away and overwrites this handle, so its starting value is never the one cleared
+scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it and replacing it store the same timer id

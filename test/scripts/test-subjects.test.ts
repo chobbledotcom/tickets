@@ -192,6 +192,25 @@ describe("test subjects", () => {
       ).toEqual(["src/shared/email.ts"]);
     });
 
+    test("ignores what the env overlay reaches too", async () => {
+      const files = {
+        "test/shared/email.test.ts": [
+          `import { sendEmail } from "#shared/email.ts";`,
+          `import { withEnv } from "#test-utils/env.ts";`,
+        ].join("\n"),
+        "test/test-utils/env.ts": `import { config } from "#shared/config.ts";`,
+      };
+      const read = readerFor(files);
+      expect(
+        await collectTestSubjects(
+          "test/shared/email.test.ts",
+          read,
+          IMPORT_MAP,
+          testTreeOf(files),
+        ),
+      ).toEqual(["src/shared/email.ts"]);
+    });
+
     test("follows helpers through more than one hop", async () => {
       const files = {
         "test/a.test.ts": `import { one } from "#test/first.ts";`,

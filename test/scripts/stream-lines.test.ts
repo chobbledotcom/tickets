@@ -19,6 +19,16 @@ describe("readStream", () => {
     expect(lines).toEqual(["a", "bc", "d"]);
   });
 
+  test("joins a character split across two chunks", async () => {
+    const pound = new TextEncoder().encode("£");
+    const stream = ReadableStream.from([
+      pound.slice(0, 1),
+      pound.slice(1),
+    ]) as ReadableStream<Uint8Array>;
+
+    expect(await readStream(stream)).toBe("£");
+  });
+
   test("accumulates text without a line callback", async () => {
     const text = await readStream(streamOf("hello ", "world"));
     expect(text).toBe("hello world");

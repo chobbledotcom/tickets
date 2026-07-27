@@ -28,6 +28,28 @@ export const runDeno = (
     stdout: "inherit",
   }).output();
 
+/** What a captured command run tells us: its result plus its decoded output. */
+export interface CapturedOutput {
+  code: number;
+  stderr: string;
+  stdout: string;
+  success: boolean;
+}
+
+/** Run a command that has its output piped, and decode both streams as text. */
+export const captureOutput = async (
+  command: Deno.Command,
+): Promise<CapturedOutput> => {
+  const output = await command.output();
+  const decoder = new TextDecoder();
+  return {
+    code: output.code,
+    stderr: decoder.decode(output.stderr),
+    stdout: decoder.decode(output.stdout),
+    success: output.success,
+  };
+};
+
 export const removeTree = (path: string): Promise<void> =>
   Deno.remove(path, { recursive: true });
 
