@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
+import {
+  builtSites,
+  insertBuiltSite,
+  updateBuiltSiteRenewalState,
+} from "#shared/db/built-sites.ts";
 import { execute } from "#shared/db/client.ts";
 import {
   type EmailConfig,
@@ -185,6 +189,26 @@ describeWithEnv(
           () => Promise.resolve(),
         ),
       ).rejects.toThrow("Paid site assignment facts changed after payment");
+    });
+
+    test("a site renewed by someone else after payment is refused", async () => {
+      // Two renewals paid at the same time both write down the date the site
+      // had when they started. If the other one moves that date first, this
+      // work must stop rather than push the date back from a stale reading.
+      await insertBuiltSite("Ready", "raced.example.com", "", "", true, "83");
+      using _secrets = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      const stored = await runSiteAssignment(assignmentDelivery());
+      await updateBuiltSiteRenewalState(stored.site!.siteId, {
+        readOnlyFrom: "2099-01-01T00:00:00.000Z",
+        renewalTokenIndex: "another-renewal",
+      });
+      builtSites.invalidate();
+
+      await expect(
+        applyPaidSiteAssignment(stored, () => Promise.resolve()),
+      ).rejects.toThrow("renewal facts changed after payment");
     });
 
     test("a site removed after it was reserved is reported, not replaced", async () => {
