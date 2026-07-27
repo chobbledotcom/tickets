@@ -6,97 +6,23 @@ import {
   createFakeArchive,
   expectStartFails,
   expectStripeMockFails,
-  makeExecutable,
-  type TestStripeMockPaths,
   wait,
   waitForFile,
   waitForNoInstallTempDir,
   withFakeCurl,
   withInstallLockHeld,
   withInstallLockOpenFailure,
-  withInstallLockRemoveFailure,
   withInstallLockWriteFailure,
-  withLockReadFailure,
   withLockRemovedDuringRead,
   withSecondLockRefreshHeld,
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
 import { tempDir } from "#test-utils/files.ts";
-
-const oldDate = (): Date => new Date(Date.now() - 1_000);
-
-const makeLockFileOld = async (lockPath: string): Promise<void> => {
-  const date = oldDate();
-  await Deno.utime(lockPath, date, date);
-};
-
-const expectStaleLockRemoved = async (lockText: string): Promise<void> => {
-  const fakeArchive = await createFakeArchive();
-
-  try {
-    await withTempStripeMockPaths(async (paths) => {
-      const lockPath = installLockPath(paths);
-      await Deno.writeTextFile(lockPath, lockText);
-      await makeLockFileOld(lockPath);
-      await withFakeCurl(
-        `cat ${JSON.stringify(fakeArchive.archivePath)}`,
-        async (curl) => {
-          await expectStripeMockFails({
-            budgetMs: 30,
-            commands: { curl },
-            delayMs: 10,
-            installLockRetryMs: 1,
-            installLockStaleMs: 1,
-            paths,
-          });
-        },
-      );
-
-      await expect(Deno.stat(lockPath)).rejects.toThrow();
-      expect((await Deno.stat(paths.binaryPath)).isFile).toBe(true);
-    });
-  } finally {
-    await fakeArchive.cleanup();
-  }
-};
-
-const releaseLockAfterWritingBinary = async (
-  paths: TestStripeMockPaths,
-  releaseLock: () => Promise<void>,
-): Promise<void> => {
-  const pendingBinaryPath = `${paths.binaryPath}.pending`;
-  await wait(30);
-  await Deno.writeTextFile(pendingBinaryPath, "#!/bin/sh\nexit 0\n");
-  await makeExecutable(pendingBinaryPath);
-  await Deno.rename(pendingBinaryPath, paths.binaryPath);
-  await releaseLock();
-};
-
-const withBinaryReleasedAfterDelay = async (
-  paths: TestStripeMockPaths,
-  releaseLock: () => Promise<void>,
-  body: (releaseLock: () => Promise<void>) => Promise<void>,
-): Promise<void> => {
-  const releasing = releaseLockAfterWritingBinary(paths, releaseLock);
-
-  try {
-    await body(releaseLock);
-  } finally {
-    await releasing;
-  }
-};
-
-const expectDownloadWithLockCleanup = async (
-  paths: TestStripeMockPaths,
-  curl: string,
-): Promise<void> => {
-  await expectStripeMockFails({
-    budgetMs: 30,
-    commands: { curl },
-    delayMs: 10,
-    paths,
-  });
-};
+import {
+  expectDownloadWithLockCleanup,
+  expectStaleLockRemoved,
+  withBinaryReleasedAfterDelay,
+} from "./lock-fixture.ts";
 
 describe("stripe-mock install", () => {
   test("downloads a missing binary before trying to start it", async () => {
@@ -319,127 +245,5 @@ describe("stripe-mock install", () => {
     } finally {
       await fakeArchive.cleanup();
     }
-  });
-
-  test("ignores a missing install lock during cleanup", async () => {
-    const fakeArchive = await createFakeArchive();
-
-    try {
-      await withTempStripeMockPaths(async (paths) => {
-        const lockPath = installLockPath(paths);
-        await withInstallLockRemoveFailure(
-          lockPath,
-          new Deno.errors.NotFound(),
-          async () => {
-            await withFakeCurl(
-              `cat ${JSON.stringify(fakeArchive.archivePath)}`,
-              (curl) => expectDownloadWithLockCleanup(paths, curl),
-            );
-          },
-        );
-
-        expect((await Deno.stat(paths.binaryPath)).isFile).toBe(true);
-      });
-    } finally {
-      await fakeArchive.cleanup();
-    }
-  });
-
-  test("throws when install lock cleanup fails", async () => {
-    const fakeArchive = await createFakeArchive();
-
-    try {
-      await withTempStripeMockPaths(async (paths) => {
-        const lockPath = installLockPath(paths);
-        await withInstallLockRemoveFailure(
-          lockPath,
-          new Error("install lock cleanup failed"),
-          async () => {
-            await withFakeCurl(
-              `cat ${JSON.stringify(fakeArchive.archivePath)}`,
-              async (curl) => {
-                await expectStartFails(
-                  { commands: { curl }, paths },
-                  "install lock cleanup failed",
-                );
-              },
-            );
-          },
-        );
-      });
-    } finally {
-      await fakeArchive.cleanup();
-    }
-  });
-
-  test("keeps a replacement install lock during cleanup", async () => {
-    await withTempStripeMockPaths(async (paths) => {
-      const lockPath = installLockPath(paths);
-      const replacementOwner = crypto.randomUUID();
-      await withFakeCurl(
-        [
-          `cat > ${JSON.stringify(lockPath)} <<'EOF'`,
-          replacementOwner,
-          String(Date.now()),
-          "EOF",
-          "exit 7",
-        ].join("\n"),
-        async (curl) => {
-          await expectStartFails(
-            { commands: { curl }, paths },
-            "Failed to download stripe-mock",
-          );
-        },
-      );
-
-      expect(await Deno.readTextFile(lockPath)).toContain(replacementOwner);
-    });
-  });
-
-  test("throws when the install lock stale check fails", async () => {
-    await withTempStripeMockPaths(async (paths) => {
-      const lockPath = installLockPath(paths);
-      await Deno.writeTextFile(lockPath, String(Date.now()));
-      await withLockReadFailure(lockPath, async () => {
-        await expectStartFails({ paths }, "stale check failed");
-      });
-    });
-  });
-
-  test("stops the lock refresh without scheduling another write when the install fails mid-refresh", async () => {
-    // Regression: scheduleNextRefresh (line 157) checks `if (stopped) return;`
-    // — the branch where a lock refresh write is still in-flight when the
-    // install fails and stopRefreshingLock is called. Without coverage, a
-    // mutation to that guard (e.g. `if (!stopped) return;`) would silently
-    // schedule an extra refresh write after the lock is released.
-    await withTempStripeMockPaths(async (paths) => {
-      const proceedPath = join(paths.binDir, "proceed");
-      await withSecondLockRefreshHeld(
-        installLockPath(paths),
-        async (lockWrite) => {
-          await withFakeCurl(
-            `while [ ! -f ${JSON.stringify(proceedPath)} ]; do sleep 0.01; done; exit 7`,
-            async (curl) => {
-              const started = expectStartFails(
-                { commands: { curl }, installLockTouchMs: 1, paths },
-                "Failed to download stripe-mock",
-              );
-              // Wait for the 3rd lock refresh write to be intercepted and
-              // paused — at that point the install body is still running
-              // (curl is spinning on the proceed file).
-              await lockWrite.waitForWrite();
-              // Let curl fail now — the install body throws and
-              // stopRefreshingLock sets stopped=true while the 3rd write
-              // is still in-flight.
-              await Deno.writeTextFile(proceedPath, "");
-              // Releasing the paused write lets scheduleNextRefresh run with
-              // stopped=true — it returns early instead of scheduling another.
-              lockWrite.releaseWrite();
-              await started;
-            },
-          );
-        },
-      );
-    });
   });
 });
