@@ -36,8 +36,7 @@ const heldLockIsAtPath = async (
 /** A wait for a lock: `true` once it is held, `false` if it gave up first. */
 type WaitForLock = (file: Deno.FsFile) => Promise<boolean>;
 
-const waitHoweverLong: WaitForLock = (file) =>
-  file.lock(true).then(() => true);
+const waitHoweverLong: WaitForLock = (file) => file.lock(true).then(() => true);
 
 /** Wait for the lock, but only for `timeoutMs`. */
 const waitUpTo =
