@@ -7,11 +7,13 @@
 
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** What the organiser types on the page that makes the code. A box left out is
  * left as the page had it, the way it would be for a person who fills in one
@@ -76,78 +78,23 @@ export const organiserMakesCode = async (
 /** Where a printed code took the customer. Either it carried everything and
  * they went straight off to pay, or they landed on a page to fill in. */
 export interface WhereTheCodeLed {
-  /** The page they landed on, when they were not. */
+  /** The page they landed on, when they were not sent to pay. */
   page: string;
-  /** What paying would have charged for one place, when they were sent to pay. */
-  priceEach: number | null;
+  /** What paying would charge, and whose name it is in, when they were. */
+  paying: { nameOnIt: string; priceEach: number } | null;
   /** Whether the site could open anything for them at all. */
   reached: boolean;
-  sentToPay: boolean;
 }
 
-/** A customer follows a printed code. Paying is stubbed at the provider, so the
- * story can see what the customer would have been charged without a real
- * checkout. */
-export const customerFollows = async (
-  link: string,
-): Promise<WhereTheCodeLed> => {
-  const { stubCheckout, STUB_CHECKOUT_URL } = await import(
-    "#test-utils/checkout.ts"
-  );
-  const { handleRequest } = await import("#routes");
-  const { mockProviderType, mockRequest, withMocks } = await import(
-    "#test-utils/mocks.ts"
-  );
-  const { paymentsApi } = await import("#shared/payments.ts");
-  let led: WhereTheCodeLed | undefined;
-  await withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const checkout = stubCheckout();
-      try {
-        const response = await handleRequest(mockRequest(link));
-        const sentToPay =
-          response.status === 302 &&
-          (response.headers.get("location") ?? "").startsWith(
-            STUB_CHECKOUT_URL,
-          );
-        led = {
-          page: sentToPay ? "" : await response.text(),
-          priceEach: sentToPay
-            ? (checkout.getCaptured()?.items[0]?.unitPrice ?? null)
-            : null,
-          reached: response.status !== 404,
-          sentToPay,
-        };
-        if (sentToPay) response.body?.cancel();
-      } finally {
-        checkout.checkout.restore();
-      }
-    },
-  );
-  if (!led) throw new Error("Following the code led nowhere");
-  return led;
-};
-
-/** The customer decides to pay more than the code says, on the form the code
- * opened for them, and books. The code is carried through from that page's own
- * hidden field, which is how the customer's browser would carry it. */
-export const customerPaysMore = async (
-  world: TicketsWorld,
-  name: string,
-  page: string,
-  price: number,
-): Promise<number | null> => {
-  const carried = page.match(/name="qr_token"[^>]*value="([^"]*)"/);
-  if (!carried?.[1]) throw new Error("The form is not carrying the code");
+/** Run `body` with paying stubbed at the provider, so a story can see what the
+ * customer would have been charged without a real checkout. */
+const withPayingStubbed = async <Answer>(
+  body: (whatWasCharged: () => CheckoutIntent | undefined) => Promise<Answer>,
+): Promise<Answer> => {
   const { stubCheckout } = await import("#test-utils/checkout.ts");
-  const { submitTicketForm } = await import("#test-utils/csrf.ts");
   const { mockProviderType, withMocks } = await import("#test-utils/mocks.ts");
   const { paymentsApi } = await import("#shared/payments.ts");
-  let charged: number | null = null;
+  let answer: Answer | undefined;
   await withMocks(
     () =>
       stub(paymentsApi, "getConfiguredProvider", () =>
@@ -156,23 +103,75 @@ export const customerPaysMore = async (
     async () => {
       const checkout = stubCheckout();
       try {
-        const response = await submitTicketForm(stayListing(world, name).slug, {
-          custom_price: price.toFixed(2),
-          email: "buyer@example.com",
-          name: "Ada",
-          qr_token: carried[1] as string,
-          quantity: "1",
-        });
-        expect(response.status).toBe(302);
-        response.body?.cancel();
-        charged = checkout.getCaptured()?.items[0]?.unitPrice ?? null;
+        answer = await body(checkout.getCaptured);
       } finally {
         checkout.checkout.restore();
       }
     },
   );
-  return charged;
+  if (answer === undefined) throw new Error("Nothing came of that");
+  return answer;
 };
+
+/** What the customer is being asked to pay, and in whose name. Reaching
+ * checkout with nothing to charge is not a state the site can be in, so it is
+ * raised here rather than left to fail somewhere later. */
+const whatIsBeingCharged = (
+  charged: CheckoutIntent | undefined,
+): { nameOnIt: string; priceEach: number } => {
+  const line = charged?.items[0];
+  if (!line) throw new Error("Paying was reached with nothing to charge for");
+  return { nameOnIt: charged.name, priceEach: line.unitPrice };
+};
+
+/** A customer follows a printed code. */
+export const customerFollows = (link: string): Promise<WhereTheCodeLed> =>
+  withPayingStubbed(async (whatWasCharged) => {
+    const { STUB_CHECKOUT_URL } = await import("#test-utils/checkout.ts");
+    const { handleRequest } = await import("#routes");
+    const { mockRequest } = await import("#test-utils/mocks.ts");
+    const response = await handleRequest(mockRequest(link));
+    const sentToPay =
+      response.status === 302 &&
+      (response.headers.get("location") ?? "").startsWith(STUB_CHECKOUT_URL);
+    if (sentToPay) response.body?.cancel();
+    return {
+      page: sentToPay ? "" : await response.text(),
+      paying: sentToPay ? whatIsBeingCharged(whatWasCharged()) : null,
+      reached: response.status !== 404,
+    };
+  });
+
+/** The box the page offers for choosing what to pay. Its name carries the
+ * listing it belongs to, so it is read off the page rather than guessed — a
+ * page that stopped offering one fails the story here. */
+const priceBoxOn = (html: string): string => {
+  const box = html.match(/name="(custom_price[^"]*)"/);
+  if (!box?.[1]) throw new Error("The page offers no box for paying more");
+  return box[1];
+};
+
+/** The customer decides to pay more than the code says. They fill it in on the
+ * very page the code opened and press the button on it, so a form whose action,
+ * one-use code, or price box was broken fails here. */
+export const customerPaysMore = (
+  link: string,
+  price: number,
+): Promise<{ nameOnIt: string; priceEach: number }> =>
+  withPayingStubbed(async (whatWasCharged) => {
+    const browser = new TestBrowser();
+    await browser.visit(link);
+    expect(browser.currentHtml).toContain('name="qr_token"');
+    await browser.submitForm(
+      {
+        [priceBoxOn(browser.currentHtml)]: price.toFixed(2),
+        email: "buyer@example.com",
+        name: "Ada Lovelace",
+      },
+      "Continue",
+    );
+    return whatIsBeingCharged(whatWasCharged());
+  });
 
 /** The same code with its signed part meddled with, as anyone reading the link
  * off a poster could do. */

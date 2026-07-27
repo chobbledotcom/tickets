@@ -54,7 +54,6 @@ export interface TicketsWorld extends World {
   orderDay?: string;
   placeholderId?: number;
   printedCode?: string;
-  printedCodeListing?: string;
   questionId?: number;
   raceListing?: string;
   raceLoser?: BookingAttempt;

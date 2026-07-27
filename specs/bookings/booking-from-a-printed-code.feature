@@ -16,10 +16,11 @@ Feature: A customer books from a code the organiser printed
     @case:printed-code.straight-to-paying
     Scenario: A customer reads a code with nothing left to fill in
       Given a Workshop is on sale at 5.00
-      When the organiser makes a code for the Workshop for Ada at 12.00
+      When the organiser makes a code for the Workshop for "Ada Lovelace" at 12.00
       And a customer reads that code
       Then the customer is sent straight off to pay
       And they are asked for 12.00
+      And the booking is in the name "Ada Lovelace"
 
   @rule:bookings.the-price-on-the-code-is-what-they-pay
   Rule: The price on the code is what the customer pays
@@ -29,7 +30,7 @@ Feature: A customer books from a code the organiser printed
     @case:printed-code.the-codes-price-wins
     Scenario: A code carries a price of its own
       Given a Workshop is on sale at 5.00
-      When the organiser makes a code for the Workshop for Ada at 12.00
+      When the organiser makes a code for the Workshop for "Ada Lovelace" at 12.00
       And a customer reads that code
       Then they are asked for 12.00
 
@@ -49,10 +50,10 @@ Feature: A customer books from a code the organiser printed
     @case:printed-code.the-form-opens-with-the-name-filled-in
     Scenario: A code cannot answer everything the listing asks
       Given a Workshop is on sale at 5.00, and asks the customer for an email
-      When the organiser makes a code for the Workshop for Ada at 12.00
+      When the organiser makes a code for the Workshop for "Ada Lovelace" at 12.00
       And a customer reads that code
       Then the customer is not sent off to pay
-      And the form is already filled in with the name Ada
+      And the form is already filled in with the name "Ada Lovelace"
 
   @rule:bookings.a-code-that-cannot-be-trusted-books-nothing
   Rule: A code that cannot be trusted books nothing
@@ -63,7 +64,7 @@ Feature: A customer books from a code the organiser printed
     @case:printed-code.a-changed-code-is-refused
     Scenario: Someone changes the code before reading it
       Given a Workshop is on sale at 5.00
-      When the organiser makes a code for the Workshop for Ada at 12.00
+      When the organiser makes a code for the Workshop for "Ada Lovelace" at 12.00
       And a customer reads that code after it has been changed
       Then the customer is told the code does not work
       And nothing was booked for the Workshop
@@ -71,7 +72,7 @@ Feature: A customer books from a code the organiser printed
     @case:printed-code.a-code-for-something-withdrawn
     Scenario: The organiser takes something off sale after printing the codes
       Given a Workshop is on sale at 5.00
-      When the organiser makes a code for the Workshop for Ada at 12.00
+      When the organiser makes a code for the Workshop for "Ada Lovelace" at 12.00
       And the organiser takes the Workshop off sale
       And a customer reads that code
       Then the customer cannot open it at all

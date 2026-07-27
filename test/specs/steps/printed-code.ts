@@ -25,6 +25,13 @@ const inPennies = (amount: number): number => Math.round(amount * 100);
 const whereItLed = (world: TicketsWorld) =>
   requiredWorldValue(world.codeLedTo, "where the code led");
 
+/** What the customer is being asked to pay, once they have got that far. */
+const payingNow = (world: TicketsWorld) => {
+  const paying = whereItLed(world).paying;
+  if (!paying) throw new Error("They were never asked to pay for anything");
+  return paying;
+};
+
 Given(
   "a {word} is on sale at {float}",
   function (this: TicketsWorld, name: string, price: number): Promise<void> {
@@ -53,14 +60,13 @@ Given(
 );
 
 When(
-  "the organiser makes a code for the {word} for {word} at {float}",
+  "the organiser makes a code for the {word} for {string} at {float}",
   async function (
     this: TicketsWorld,
     name: string,
     who: string,
     price: number,
   ): Promise<void> {
-    this.printedCodeListing = name;
     this.printedCode = await organiserMakesCode(this, name, { price, who });
   },
 );
@@ -72,7 +78,6 @@ When(
     name: string,
     price: number,
   ): Promise<void> {
-    this.printedCodeListing = name;
     this.printedCode = await organiserMakesCode(this, name, { price });
   },
 );
@@ -105,38 +110,35 @@ When(
 When(
   "the customer decides to pay {float} instead",
   async function (this: TicketsWorld, price: number): Promise<void> {
-    const name = requiredWorldValue(this.printedCodeListing, "the listing");
-    const led = whereItLed(this);
     // What they end up paying replaces what the code alone would have charged,
     // so the story reads the answer from one place either way.
-    led.priceEach = await customerPaysMore(this, name, led.page, price);
-    led.sentToPay = true;
+    whereItLed(this).paying = await customerPaysMore(printed(this), price);
   },
 );
 
 Then(
   "the customer is sent straight off to pay",
   function (this: TicketsWorld): void {
-    expect(whereItLed(this).sentToPay).toBe(true);
+    expect(whereItLed(this).paying).not.toBeNull();
   },
 );
 
 Then(
   "the customer is not sent off to pay",
   function (this: TicketsWorld): void {
-    expect(whereItLed(this).sentToPay).toBe(false);
+    expect(whereItLed(this).paying).toBeNull();
   },
 );
 
 Then(
   "they are asked for {float}",
   function (this: TicketsWorld, price: number): void {
-    expect(whereItLed(this).priceEach).toBe(inPennies(price));
+    expect(payingNow(this).priceEach).toBe(inPennies(price));
   },
 );
 
 Then(
-  "the form is already filled in with the name {word}",
+  "the form is already filled in with the name {string}",
   function (this: TicketsWorld, who: string): void {
     expect(whereItLed(this).page).toMatch(
       new RegExp(`name="name"[^>]*value="${who}"`),
@@ -148,14 +150,21 @@ Then(
   "the customer is told the code does not work",
   function (this: TicketsWorld): void {
     const led = whereItLed(this);
-    expect(led.sentToPay).toBe(false);
+    expect(led.paying).toBeNull();
     expect(led.page).toContain("expired or invalid");
+  },
+);
+
+Then(
+  "the booking is in the name {string}",
+  function (this: TicketsWorld, who: string): void {
+    expect(payingNow(this).nameOnIt).toBe(who);
   },
 );
 
 Then("the customer cannot open it at all", function (this: TicketsWorld): void {
   const led = whereItLed(this);
-  expect(led.sentToPay).toBe(false);
+  expect(led.paying).toBeNull();
   expect(led.reached).toBe(false);
 });
 
