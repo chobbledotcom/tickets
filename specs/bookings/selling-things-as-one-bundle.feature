@@ -80,6 +80,8 @@ Feature: An organiser sells several things as one bundle
       Given a Weekend group holding a Tent at 40.00 and a Breakfast at 10.00
       And the organiser sells the Weekend as a private bundle
       And a customer buys the Weekend
+      And the organiser stops selling the Weekend as a bundle
+      And the organiser is told to make its contents public first
       When the organiser lets people see what is inside the Weekend
       Then the Weekend is still sold as one bundle
       When the organiser stops selling the Weekend as a bundle
@@ -92,6 +94,8 @@ Feature: An organiser sells several things as one bundle
       Given a Weekend group holding a Tent at 40.00 and a Breakfast at 10.00
       And the organiser sells the Weekend as a private bundle
       And a customer buys the Weekend
+      And the organiser tries to delete the Weekend
+      And the organiser is told to make its contents public first
       When the organiser lets people see what is inside the Weekend
       Then the Weekend is still sold as one bundle
       When the organiser tries to delete the Weekend

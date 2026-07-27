@@ -249,7 +249,9 @@ export const organiserDeletesBundle = async (
 ): Promise<string> => {
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/groups/${bundleNamed(world, name).id}/delete`);
-  await browser.submitForm({ confirm_identifier: name }, "Delete Group");
+  const typed = "confirm_identifier";
+  expect(whyValueCannotBeSent(browser.currentHtml, typed, name)).toBeNull();
+  await browser.submitForm({ [typed]: name }, "Delete Group");
   return browser.pageText;
 };
 
