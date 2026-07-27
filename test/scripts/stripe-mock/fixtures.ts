@@ -159,6 +159,7 @@ export const startFailureMessage = async (
 export const runsToCompletion = async (
   source: string,
   timeoutMs = 20_000,
+  env: Record<string, string> = {},
 ): Promise<boolean> => {
   const scriptPath = await Deno.makeTempFile({ suffix: ".ts" });
   await Deno.writeTextFile(scriptPath, source);
@@ -174,7 +175,7 @@ export const runsToCompletion = async (
         join(projectRoot, "deno.json"),
         scriptPath,
       ],
-      env: { DENO_COVERAGE_DIR: coverageDir },
+      env: { ...env, DENO_COVERAGE_DIR: coverageDir },
       // Whatever it leaves running is killed once the time is up, so a script
       // that cannot finish on its own comes back as a failure rather than
       // hanging the suite.
