@@ -174,7 +174,9 @@ problem:
   merely being undone in the books,
 - the ordinary "duration changed" history entry, when only the exceptional
   overflow warning was carried across,
-- that a booking still exists, as opposed to merely having no refund against it.
+- that a booking still exists, as opposed to merely having no refund against it,
+- that a race was settled by capacity rather than by one request simply failing,
+- the exact reason a refusal was given, where only its absence was checked.
 
 Then finish the job:
 
@@ -217,7 +219,51 @@ missing form, a 500, or a redirect to login all produce the same absence. Assert
 the **specific reason** the site gives — ideally by importing the production
 message builder rather than copying its wording. The same applies to an admin
 action: assert the flash the operator is shown, not merely that a redirect
-happened.
+happened, and to an unchanged row count, which any failure produces.
+
+Two sharper versions of the same trap:
+
+- **A refusal must leave nothing behind.** Prove the row is absent, not just
+  that a later booking still fits. A scenario with a limit of 3 refused a
+  2-place booking and then probed with 1 place: had the refused booking leaked a
+  row, the probe would *still* have passed on the one place left over. Assert
+  the refused thing does not exist.
+- **Both halves of a race need proving.** When two requests run at once, assert
+  the loser was turned away *for want of room*. Counting one winner and one row
+  passes just as well when the loser died on a validation error.
+
+### Never build the expectation from the code under test
+
+A `Then` that calls the same production helper that produced the value proves
+nothing: change the helper and both sides move together. A download's date
+column was checked with `csvDateRange`, the very function that writes it, so
+changing its exclusive-end arithmetic would have kept the story green. Write the
+expected value out in the step from the story's own numbers.
+
+This is not the same as importing a production *constant* or *message*, which
+you should do — a wording or a day-name list is a shared fact, not the
+calculation under test.
+
+### Cucumber mechanics that bite
+
+These cost hours each, and none of them fail in a way that names the cause.
+
+- **A step function's parameter count must match its expression's.** Cucumber
+  binds arguments by position against the parameters in the step text, so a
+  shared implementation with an optional trailing parameter (`(a, b?) => …`)
+  reports the wrong arity and silently mis-binds — the symptom was a page
+  request with no listing resolved, several steps later. If two steps take
+  different numbers of parameters, give them **separate step functions** over a
+  shared plain helper. Curry the helper, never the step's signature.
+- **Plurals belong in the pattern, not in a second step.** `{int} days long`
+  does not match "1 day long". Write `{int} day(s) long`, which matches both.
+  Note the `(s)` is pattern syntax — never write it in a Scenario's own text.
+- **Two definitions matching one step text is an Ambiguous error**, and a
+  generic `{word}` step will collide with the literal ones already registered.
+  Before adding a generic step, grep for the literals it would swallow. Merge
+  them only when their assertions are genuinely the same; if a literal asserts
+  *more* (a conservation check, an extra surface), keep it and word the new step
+  differently.
 
 ### The clock and the calendar
 
@@ -259,6 +305,16 @@ count towards it. Two consequences bite regularly:
 And the rule that catches both: a story may never be the only cover of a
 production line or branch.
 
+**A green coverage number does not mean the contract survived.** Coverage counts
+lines, and a technical contract is usually about *conditions*, not lines. A
+direct test of two simultaneous multi-day bookings was replaced by a story, and
+coverage stayed at 100% because other tests walked the same lines — but nothing
+directly exercised the dated range-capacity check under a race any more. When
+the test you are deleting is about concurrency, a query budget, an exact stored
+shape, or an ordering guarantee, keep a direct test for it *and* write the
+story. Say in a comment which story it sits beside, so nobody deletes it again
+as a duplicate.
+
 ### Say what the product actually does
 
 Plain language must still be true. "The organiser hands the money back"
@@ -266,3 +322,20 @@ described a choice that returns nothing to the customer's card — it records
 credit owed to them. A reader would have learned the opposite of the truth. When
 naming a money decision, a status, or an outcome, check what the code does
 before you name it.
+
+**The Feature's own prose is a claim.** The narrative under `Feature:` and the
+paragraph under each `Rule:` are published in the story catalog as statements
+about the product, and *nothing executes them*. A Feature description promising
+that "the room they take up is still counted" survived after the scenario that
+would have tested it was removed — so the catalog would have published a
+guarantee the product does not give, with every scenario passing. Describe only
+what the Rules below actually exercise. When you remove a scenario, re-read the
+prose above it.
+
+**When the story fails because the product does not do that, do not soften the
+story.** This is the most valuable thing a migration finds, and the temptation
+is to reword the `Then` until it goes green. Instead: delete the scenario, leave
+the original test where it is, and write the question up in `TODO.md` with what
+you expected, what the product does, and the ways it could be settled. Say it in
+the pull request too. A scenario weakened to match behaviour nobody chose is
+worse than no scenario — it makes the accident look intended.

@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { addDays, formatDateRangeLabel } from "#shared/dates.ts";
+import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   daysOfferedFor,
@@ -30,9 +31,19 @@ import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 const stayStart = (world: TicketsWorld): string =>
   requiredWorldValue(world.stayStartsOn, "the stay's first day");
 
-/** The days the page offered when the customer looked. */
+/** The days a listing's page offered when the customer looked at it. */
+export const offeredDaysOf = (world: TicketsWorld, name: string): string[] =>
+  requiredWorldValue(
+    world.daysOffered?.get(name),
+    `the days the ${name} page offered`,
+  );
+
+/** The days the page offered the last time a customer looked. */
 const offeredDays = (world: TicketsWorld): string[] =>
-  requiredWorldValue(world.daysOffered, "the days the page offered");
+  offeredDaysOf(
+    world,
+    requiredWorldValue(world.daysOfferedLastLook, "the listing looked at"),
+  );
 
 /** The day the organiser closed for a holiday. */
 const closedDay = (world: TicketsWorld): string =>
@@ -195,24 +206,31 @@ When(
 When(
   "a customer looks at the days the {word} offers",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    this.daysOffered = await daysOfferedFor(stayListing(this, name));
+    this.daysOffered ??= new Map();
+    this.daysOffered.set(name, await daysOfferedFor(stayListing(this, name)));
+    this.daysOfferedLastLook = name;
   },
 );
 
-/** What the organiser reads on the booking's own page. The label must name the
- * stay's first and last day, so a stay stored a day short or long fails. */
+/** How long the stay runs, checked against the story's own days as well as the
+ * page. The label alone would not do: it is built by the same helper the page
+ * renders with, so a miscalculated range would match itself. */
 export const expectStayRunsFor = async (
   world: TicketsWorld,
   days: number,
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/attendees/${world.attendeeId}`);
   const first = stayStart(world);
+  const dayAfterTheLast = addDays(first, days);
+  const bookingId = requiredWorldValue(world.attendeeId, "the booking");
+  const browser = await adminBrowser(world);
+  await browser.visit(`/admin/attendees/${bookingId}`);
+  const stored = await getAttendeeRaw(bookingId);
+  if (!stored) throw new Error(`Booking ${bookingId} has gone`);
+  expect(stored.date).toBe(first);
+  // The site stores the day after the last day held.
+  expect(stored.end_date).toBe(dayAfterTheLast);
   expect(browser.pageText).toContain(
-    formatDateRangeLabel(
-      `${first}T00:00:00Z`,
-      `${addDays(first, days)}T00:00:00Z`,
-    ),
+    formatDateRangeLabel(`${first}T00:00:00Z`, `${dayAfterTheLast}T00:00:00Z`),
   );
 };
 

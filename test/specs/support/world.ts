@@ -1,6 +1,7 @@
 import type { World } from "@cucumber/cucumber";
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
 import type { Listing } from "#shared/types.ts";
+import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
 import type {
   JourneyCatalogSpec,
   OrderJourneyCtx,
@@ -20,7 +21,8 @@ export interface TicketsWorld extends World {
   closedDayOn?: string;
   confirmName?: string;
   customerBrowser?: TestBrowser;
-  daysOffered?: string[];
+  daysOffered?: Map<string, string[]>;
+  daysOfferedLastLook?: string;
   duplicateId?: number;
   duplicateToken?: string;
   evidenceValues: Map<string, string>;
@@ -42,6 +44,9 @@ export interface TicketsWorld extends World {
   orderDay?: string;
   placeholderId?: number;
   questionId?: number;
+  raceListing?: string;
+  raceLoser?: BookingAttempt;
+  raceWinners?: number;
   refundCalls?: () => number;
   secondBody?: string;
   secondStatus?: number;

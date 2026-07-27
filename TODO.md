@@ -1681,3 +1681,35 @@ generated API docs — a moved export silently disappears from them otherwise.
 
 Starting point: the "Hybrid Encryption" section of `src/shared/crypto/keys.ts`,
 and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
+
+---
+
+## Decide what happens to undated bookings when a listing starts being booked by the day
+
+*Origin: found while migrating the multi-day tests to stories (PR for batch 8).*
+
+A listing booked as one date can be switched to being booked by the day. The
+people who booked before the switch have no day of their own (`start_at` is
+NULL), and the per-day capacity count deliberately excludes them on a daily
+listing — see the null-start_at case in
+`test/e2e/duration-days/booking-flows.test.ts`.
+
+The effect is that a full listing stops being full the moment it is switched. A
+Hall with room for 2, with both places taken, accepts a further booking on any
+day after the switch, so it ends up holding 3 people. The listing's *total*
+check still counts them (`attendeesApi.hasAvailableSpots(id, 1)` with no date
+returns false), so the two checks disagree.
+
+This may be intended — an undated booking genuinely has no day to block — but
+nothing states the intent, and an organiser switching a sold-out listing would
+not expect it to reopen. Worth an explicit decision: either give the undated
+bookings a day at the point of the switch, count them against every day, or
+refuse the switch while undated bookings exist.
+
+It was out of scope for the migration, which only moves existing tests into
+stories. A story asserting "people booked before the change still take up room"
+was written and then removed, because the product does not do that today.
+
+Starting point: `attendeesApi.hasAvailableSpots` and the per-day capacity SQL in
+`src/shared/db/attendees/capacity.ts`, plus the listing-type switch in
+`src/features/admin/listings-edit.ts`.
