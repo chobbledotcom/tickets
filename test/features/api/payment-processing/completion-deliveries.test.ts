@@ -18,7 +18,7 @@ import { prepareRegistrationWebhookDeliveries } from "#shared/webhook-paid.ts";
 import { PAYMENT_ID } from "#test/shared/db/payments/fixtures.ts";
 import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { saveTestEmailConfig } from "#test-utils/email.ts";
+import { saveTestEmailConfig, validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -173,9 +173,12 @@ describeWithEnv("paid completion delivery outbox", { db: true }, () => {
       {
         data: {
           assignmentKeys: ["site-assignment:0"],
-          config: { fromAddress: "from@test.com", provider: "resend" },
+          config: {
+            fromAddress: validEmail("from@test.com"),
+            provider: "resend",
+          },
           kind: "site_assignment_email",
-          recipient: "buyer@example.com",
+          recipient: validEmail("buyer@example.com"),
         },
         key: "site-assignment-email:0",
       },
@@ -201,9 +204,12 @@ describeWithEnv("paid completion delivery outbox", { db: true }, () => {
         {
           data: {
             assignmentKeys: ["registration-email:0"],
-            config: { fromAddress: "from@test.com", provider: "resend" },
+            config: {
+              fromAddress: validEmail("from@test.com"),
+              provider: "resend",
+            },
             kind: "site_assignment_email",
-            recipient: "buyer@example.com",
+            recipient: validEmail("buyer@example.com"),
           },
           key: "site-assignment-email:0",
         },

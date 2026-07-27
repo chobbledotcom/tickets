@@ -1,5 +1,8 @@
 import * as v from "valibot";
 import type { PaymentResult, PaymentWork } from "#routes/api/webhook-types.ts";
+import { encryptWithKey } from "#shared/crypto/encryption.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { generateDataKey, wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import {
   getOpenPaymentCases,
@@ -15,10 +18,14 @@ import {
   acceptPaymentDecision,
   retryPaymentDecision,
 } from "#shared/db/payments/decisions.ts";
-import { LegacyPaymentRuntimeSchema } from "#shared/db/payments/legacy.ts";
+import {
+  type LegacyPaymentGroup,
+  LegacyPaymentRuntimeSchema,
+} from "#shared/db/payments/legacy.ts";
 import {
   legacyTargetStatements,
   prepareLegacyAttendeePaymentReference,
+  prepareLegacyPayment,
 } from "#shared/db/payments/legacy-copy.ts";
 import {
   createPaymentSession,
@@ -52,6 +59,7 @@ import {
   SESSION_RESOURCE,
   sessionProgress,
 } from "#test/shared/db/payments/fixtures.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 
 export const createPendingPayment = async (
@@ -390,4 +398,43 @@ export const completePayment = async (
     success: true,
     ticketTokens: ["ticket-one"],
   };
+};
+
+/** Put one old SumUp checkout in the database, the way a site that has not
+ *  been upgraded yet would still hold it. */
+export const createLegacySumupCheckout = async (
+  reference: string,
+  sumupId: string,
+): Promise<void> => {
+  settings.setForTest({
+    currency: "GBP",
+    payment_provider: "sumup",
+    sumup_api_key: "sk_test_legacy",
+    sumup_merchant_code: "merchant-legacy",
+  });
+  const dataKey = await generateDataKey();
+  const metadata = signedMeta(
+    {
+      email: "legacy@example.com",
+      items: singleItem(7, 1, 1_000),
+      name: "Legacy buyer",
+    },
+    1_000,
+  );
+  const group: LegacyPaymentGroup = {
+    key: `sumup:${await hmacHash(reference)}`,
+    runtime: {
+      attendeePayment: null,
+      checkoutStage: null,
+      processedPayment: null,
+      sumupCheckout: {
+        createdAt: "2026-07-26T12:00:00.000Z",
+        metadata: await encryptWithKey(JSON.stringify(metadata), dataKey),
+        referenceIndex: await hmacHash(reference),
+        sumupId,
+        wrappedKey: await wrapKeyWithToken(dataKey, reference),
+      },
+    },
+  };
+  await executeBatch(legacyTargetStatements(await prepareLegacyPayment(group)));
 };
