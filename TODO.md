@@ -1693,3 +1693,30 @@ Starting point: filter the names in `readRunRecords` with `isRunId` the way
 `test/scripts/mutation/isolation/commands.test.ts`,
 `test/scripts/mutation/isolation/list-and-kill.test.ts`, and
 `test/scripts/mutation/isolation-state/records.test.ts`.
+
+## Give the stripe-mock install lock the same shape as every other lock
+
+*Origin: noticed while unifying the locks behind `scripts/lock-file.ts`.*
+
+Every lock in the repo — the precommit gate, the browser-asset build, the
+stripe-mock start, each mutation run — now goes through `withFileLock`, which
+holds one advisory lock and checks that the lock it holds is still the file at
+its path. `scripts/stripe-mock/install.ts` is the exception: it has a second,
+hand-rolled protocol underneath (`createNew` to claim the lock, a timestamp
+written inside it, and `removeStaleInstallLock` to break a lock whose owner
+died), guarded by a `withFileLock` on a separate guard file.
+
+It answers a question the shared lock cannot: "the process that claimed this
+walked away, so take it from them". The mutation runner answers the same
+question a different way — a record with a status, a pid, and a startup grace,
+plus `processExists`. Two mechanisms for one job.
+
+Worth folding into one: either teach `lock-file.ts` about an owner that can go
+away, or let the install reuse the run-record shape. It stayed out of PR #1957
+because it is a whole protocol, not a shared helper, and the install path has
+its own timing tests.
+
+Starting point: `tryAcquireInstallLock`/`removeStaleInstallLock` in
+`scripts/stripe-mock/install.ts`, `activeByRecord` in
+`scripts/mutation/isolation-cleanup.ts` for the other approach, and
+`test/scripts/stripe-mock/install.test.ts` for what the timing tests expect.

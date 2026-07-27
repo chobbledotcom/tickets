@@ -3,7 +3,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { removeIfPresent } from "#scripts/cleanup.ts";
-import { withFileLock } from "#scripts/lock-file.ts";
+import { withFileLock, withFileLockOrNull } from "#scripts/lock-file.ts";
+import { withTempDir } from "#test-utils/files.ts";
 
 const LOCK_PATH = join(
   Deno.env.get("TMPDIR") ?? "/tmp",
@@ -219,5 +220,153 @@ describe("withFileLock", () => {
     await expect(
       withFileLock(LOCK_PATH, () => Promise.resolve("recovered")),
     ).resolves.toBe("recovered");
+  });
+});
+
+describe("a lock that stops being the file at its path", () => {
+  test("takes the lock again when the folder is swept mid-wait", async () => {
+    await withTempDir(async (root) => {
+      const path = join(root, "swept", "one.lock");
+      let checks = 0;
+      const stat = Deno.stat;
+      // The first lock taken reads as a file nothing points at, standing in for
+      // a clear-up that removed the folder while this queued for it.
+      using _stat = stub(Deno, "stat", (async (at: string | URL) => {
+        checks += 1;
+        const info = await stat(at);
+        return checks === 1 ? { ...info, ino: (info.ino ?? 0) + 1 } : info;
+      }) as typeof Deno.stat);
+
+      expect(await withFileLock(path, () => Promise.resolve("ran"))).toBe(
+        "ran",
+      );
+      // Once for the stale lock, once for the one it kept.
+      expect(checks).toBe(2);
+    });
+  });
+
+  test("takes the lock again when the folder goes before it opens", async () => {
+    await withTempDir(async (root) => {
+      const path = join(root, "early", "one.lock");
+      let opens = 0;
+      const open = Deno.open;
+      using _open = stub(Deno, "open", ((at: string | URL, options) => {
+        if (!`${at}`.includes("early")) return open(at, options);
+        opens += 1;
+        return opens === 1
+          ? Promise.reject(new Deno.errors.NotFound("swept"))
+          : open(at, options);
+      }) as typeof Deno.open);
+
+      expect(await withFileLock(path, () => Promise.resolve("ran"))).toBe(
+        "ran",
+      );
+      expect(opens).toBe(2);
+    });
+  });
+
+  test("holds a lock on a filesystem that keeps no file numbers", async () => {
+    await withTempDir(async (root) => {
+      const path = join(root, "one.lock");
+      const stat = Deno.stat;
+      using _stat = stub(Deno, "stat", (async (at: string | URL) => ({
+        ...(await stat(at)),
+        ino: null,
+      })) as typeof Deno.stat);
+
+      expect(await withFileLock(path, () => Promise.resolve("in"))).toBe("in");
+    });
+  });
+});
+
+describe("withFileLockOrNull", () => {
+  test("takes a free lock and gives it back", async () => {
+    await withTempDir(async (root) => {
+      const path = join(root, "one.lock");
+
+      expect(
+        await withFileLockOrNull(path, 250, () => Promise.resolve("done")),
+      ).toBe("done");
+      // Free again, or this second take would wait for ever.
+      expect(
+        await withFileLockOrNull(path, 250, () => Promise.resolve("again")),
+      ).toBe("again");
+    });
+  });
+
+  test("gives up rather than queue behind whoever holds it", async () => {
+    await withTempDir(async (root) => {
+      const path = join(root, "one.lock");
+      const release = Promise.withResolvers<void>();
+      const holdingIt = Promise.withResolvers<void>();
+      let ranInside = false;
+
+      const holding = withFileLock(path, () => {
+        holdingIt.resolve();
+        return release.promise;
+      });
+      await holdingIt.promise;
+      const gaveUp = await withFileLockOrNull(path, 30, () => {
+        ranInside = true;
+        return Promise.resolve("should not happen");
+      });
+
+      expect(gaveUp).toBeNull();
+      expect(ranInside).toBe(false);
+
+      release.resolve();
+      await holding;
+      // The lock it gave up on is handed back when it finally arrives, so the
+      // path is free for the next holder.
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(
+        await withFileLockOrNull(path, 250, () => Promise.resolve("free")),
+      ).toBe("free");
+    });
+  });
+
+  test("leaves a folder that has already gone to whoever took it", async () => {
+    await withTempDir(async (root) => {
+      let ranInside = false;
+
+      const answer = await withFileLockOrNull(
+        join(root, "never-made", "one.lock"),
+        250,
+        () => {
+          ranInside = true;
+          return Promise.resolve("should not happen");
+        },
+      );
+
+      expect(answer).toBeNull();
+      expect(ranInside).toBe(false);
+    });
+  });
+
+  test("gives up when the folder was deleted while it queued", async () => {
+    await withTempDir(async (root) => {
+      const folder = join(root, "doomed");
+      const path = join(folder, "one.lock");
+      const holdingIt = Promise.withResolvers<void>();
+      const swept = Promise.withResolvers<void>();
+      let ranInside = false;
+
+      const holding = withFileLock(path, async () => {
+        holdingIt.resolve();
+        await swept.promise;
+        await Deno.remove(folder, { recursive: true });
+      });
+      await holdingIt.promise;
+      const waiting = withFileLockOrNull(path, 5_000, () => {
+        ranInside = true;
+        return Promise.resolve("should not happen");
+      });
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      swept.resolve();
+      await holding;
+
+      expect(await waiting).toBeNull();
+      expect(ranInside).toBe(false);
+    });
   });
 });
