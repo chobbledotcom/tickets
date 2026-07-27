@@ -32,6 +32,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 // -- Tests ---------------------------------------------------------------- //
 
@@ -262,6 +263,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       // The booking predates the ledger, so the provider refund succeeds but the
       // reversal finds no clean order to post — refund status is ledger-only now,
       // so this must surface for a manual adjustment, not read as refunded.
+      await setupStripe();
       const listing = await createPaidListing();
       const attendee = await createPaidAttendeeWithoutLedger(
         listing.id,
@@ -274,6 +276,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await createAggregatePayment({
         attendeeId: attendee.id,
         charges: [{ amount: 500, reference: "pi_unrecorded" }],
+        configuredAccount: true,
         paymentId: "pay_unrecorded",
         state: "completed",
       });
