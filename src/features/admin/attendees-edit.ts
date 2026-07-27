@@ -204,6 +204,12 @@ const refreshLoadedPayment = async (
     outcomes.length > 0 &&
     outcomes.every((outcome) => outcome.status === "completed");
   if (!allRefunded) {
+    // Nothing new came back, but the money may already be returned from an
+    // earlier refresh whose note cleanup did not finish. The "could NOT be
+    // refunded" note is wrong once it has, so clear it either way.
+    if (attendee.refunded) {
+      await cleanupStaleManualRefundNote(attendeeId, privateKey);
+    }
     return redirect(
       `/admin/attendees/${attendeeId}`,
       t("success.payment_status_current"),

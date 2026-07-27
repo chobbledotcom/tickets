@@ -9,6 +9,7 @@ import {
 } from "#shared/db/migrations/schema-sync.ts";
 import { additive } from "#shared/db/migrations/verify.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createLegacyPaymentTables } from "#test-utils/legacy-payment-tables.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const LEGACY_TRIGGER_NAMES = ["insert", "update", "delete"].map(
@@ -47,6 +48,8 @@ describeWithEnv(
     });
 
     test("the migration creates only the checkout stage table and indexes", async () => {
+      // The site no longer builds this table, so start from one that has it.
+      await createLegacyPaymentTables(getDb, ["checkout_stages"]);
       await getDb().execute("DROP TABLE checkout_stages");
 
       await runMigration();
@@ -129,6 +132,7 @@ describeWithEnv(
     });
 
     test("a stage cannot be stored without a payment session id", async () => {
+      await createLegacyPaymentTables(getDb, ["checkout_stages"]);
       await expect(
         getDb().execute(`INSERT INTO checkout_stages
           (payment_session_id, attendee_id, provider, ticket_tokens, state, created_at)
@@ -154,6 +158,7 @@ describeWithEnv(
     });
 
     test("the cleanup migration atomically removes legacy revision storage and reruns safely", async () => {
+      await createLegacyPaymentTables(getDb, ["checkout_stages"]);
       await getDb().execute(
         "CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL)",
       );
