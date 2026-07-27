@@ -18,11 +18,15 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
+import { runPaymentMaintenanceOnce } from "#test-utils/maintenance.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { requirePaymentAggregateByProviderSession } from "#test-utils/payment-aggregate.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectRefundPaymentCall,
+  expectUnrecognisedPayment,
+  stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
 
@@ -51,7 +55,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         // Unsigned → ignored as not ours: not-recognized page, never refunded
         // (the session may belong to a different instance sharing the provider).
-        await expectHtmlResponse(response, 400, "not recognized");
+        await expectUnrecognisedPayment(response);
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockRetrieve.restore();
@@ -92,12 +96,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         paymentIntent: "pi_stale_hidden_multi",
         sessionId: "cs_stale_hidden_multi",
       });
-      const mockRefund = stub(stripeApi, "requestRefund", () =>
-        Promise.resolve({
-          id: "re_stale_refund",
-          status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
-      );
+      const mockRefund = stubRefundPayment("re_stale_refund", 1000);
       try {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_stale_hidden_multi"),
@@ -149,19 +148,14 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         paymentIntent: "pi_stale_pkg_group",
         sessionId: "cs_stale_pkg_group",
       });
-      const mockRefund = stub(stripeApi, "requestRefund", () =>
-        Promise.resolve({
-          id: "re_stale_pkg_refund",
-          status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
-      );
+      const mockRefund = stubRefundPayment("re_stale_pkg_refund", 1000);
       try {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_stale_pkg_group"),
         );
-        expect(response.status).toBe(410);
+        expect(response.status).toBe(200);
         const body = await response.text();
-        expect(body).toContain("no longer accepting registrations");
+        expect(body).toContain("refunded");
         expect(body).not.toContain("Vanished Member XYZ");
         expectRefundPaymentCall(mockRefund, "pi_stale_pkg_group");
       } finally {
@@ -194,12 +188,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         sessionId: "cs_multi_inactive",
       });
 
-      const mockRefund = stub(stripeApi, "requestRefund", () =>
-        Promise.resolve({
-          id: "re_inactive_refund",
-          status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
-      );
+      const mockRefund = stubRefundPayment("re_inactive_refund", 500);
 
       try {
         const response = await handleRequest(
@@ -207,8 +196,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         await expectHtmlResponse(
           response,
-          410,
-          "no longer accepting registrations",
+          200,
+          "saved your details",
           "refunded",
         );
       } finally {
@@ -253,23 +242,24 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_refund_fail"),
         );
-        // Kept as a quantity-0 placeholder; the refund FAILED, so the customer is
-        // told their details are saved and the refund is being arranged (HTTP 200).
-        await expectHtmlResponse(
-          response,
-          200,
-          "saved your details",
-          "refund is being arranged",
-        );
+        // The refund failed, so the money is still with the provider. The page
+        // says so and points the buyer at the organiser rather than pretending
+        // the booking is settled.
+        expect(response.status).toBe(503);
+        expect(await response.text()).toContain("contact support");
+        await runPaymentMaintenanceOnce();
         const { getAttendeesRaw } = await import(
           "#shared/db/attendees/queries.ts"
         );
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
         const ghost = (await getAttendeesRaw(listing.id)).find(
           (a) => a.quantity === 0,
         );
         expect(ghost).toBeDefined();
-        expect(await getNoteRows([ghost!.id])).toHaveLength(1);
+        // The refund is still owed, so the payment stays in the refunding
+        // state and maintenance will keep trying.
+        const payment =
+          await requirePaymentAggregateByProviderSession("cs_refund_fail");
+        expect(payment.state).toBe("refunding");
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -315,12 +305,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         sessionId: "cs_multi_rollback",
       });
 
-      const mockRefund = stub(stripeApi, "requestRefund", () =>
-        Promise.resolve({
-          id: "re_rollback_refund",
-          status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
-      );
+      const mockRefund = stubRefundPayment("re_rollback_refund", 1500);
 
       try {
         const response = await handleRequest(

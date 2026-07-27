@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import {
@@ -50,7 +51,9 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_balance_unsigned"),
       );
-      expect(await response.text()).toContain("not recognized");
+      expect(await response.text()).toContain(
+        t("payment.error.session_not_recognized"),
+      );
       // The balance is untouched — nothing was settled.
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);
