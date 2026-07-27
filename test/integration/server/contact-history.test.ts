@@ -28,6 +28,8 @@ const seededRecord = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+/** Sits beside the story `@story:attendees.the-record-kept-about-someone`: these
+ * own the branch cover, and the values a real form would block. */
 describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
   describe("GET", () => {
     testRequiresAuth("/admin/history/somehash");
@@ -122,28 +124,6 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       expect(record.publicBookingCount).toBe(0);
       expect(record.adminBookingCount).toBe(0);
       expect(record.visits).toBe(4);
-    });
-
-    test("editing one contact's record leaves another's untouched", async () => {
-      const pk = await getTestPrivateKey();
-      const target = await hashEmail("target@example.com");
-      const other = await hashEmail("other@example.com");
-      await saveContactRecord(
-        other,
-        seededRecord({ adminNotes: "Other note" }),
-      );
-
-      await adminFormPost(`/admin/history/${toContactHashParam(target)}`, {
-        admin_notes: "Target note",
-        public_booking_count: "5",
-      });
-
-      // The unrelated contact's record is untouched...
-      expect((await getContactRecord(other, pk)).adminNotes).toBe("Other note");
-      // ...and only the targeted hash received the edit.
-      const edited = await getContactRecord(target, pk);
-      expect(edited.adminNotes).toBe("Target note");
-      expect(edited.publicBookingCount).toBe(5);
     });
 
     test("rejects an over-long note and persists nothing", async () => {
