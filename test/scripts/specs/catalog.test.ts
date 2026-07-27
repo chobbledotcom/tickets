@@ -29,6 +29,7 @@ describe("Cucumber story catalog", () => {
       "bookings.changing-how-long-a-stay-lasts",
       "bookings.day-limits-shared-across-listings",
       "bookings.ordering-several-things-at-once",
+      "bookings.selling-things-as-one-bundle",
       "bookings.volunteer-sign-up",
       "payments.capacity-after-payment",
       "payments.correcting-the-books",
