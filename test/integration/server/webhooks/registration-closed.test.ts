@@ -50,10 +50,13 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_closed"),
         );
+        // The money was returned, so the page tells the buyer that and points
+        // them at the organiser. Why it happened is kept on the booking's
+        // note for the organiser, not shown to the buyer.
         await expectHtmlResponse(
           response,
-          410,
-          "registration closed",
+          200,
+          "saved your details",
           "refunded",
         );
       } finally {

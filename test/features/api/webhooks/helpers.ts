@@ -1,7 +1,5 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
-import type { Spy } from "@std/testing/mock";
-import { stub } from "@std/testing/mock";
 import { routePayment } from "#routes/api/webhooks.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
@@ -60,25 +58,22 @@ export const stubRetrieveSession = async (
   listing: { id: number },
   unitPrice: number,
   extraMeta: Record<string, string> = {},
-): Promise<Spy> => {
-  const { stripeApi } = await import("#shared/stripe.ts");
-  return stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: unitPrice,
-      id: sessionId,
-      metadata: signedMeta(
-        {
-          email: "john@example.com",
-          items: singleItem(listing.id, 1, unitPrice),
-          name: "John",
-          ...extraMeta,
-        },
-        unitPrice,
-      ),
-      payment_intent: paymentIntent,
-      payment_status: "paid",
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
+): Promise<{ restore: () => void }> => {
+  const { stubRetrieveCheckoutSession } = await import(
+    "#test-utils/webhooks.ts"
   );
+  return stubRetrieveCheckoutSession({
+    amountTotal: unitPrice,
+    metadata: signedMeta(
+      {
+        email: "john@example.com",
+        items: singleItem(listing.id, 1, unitPrice),
+        name: "John",
+        ...extraMeta,
+      },
+      unitPrice,
+    ),
+    paymentIntent,
+    sessionId,
+  });
 };

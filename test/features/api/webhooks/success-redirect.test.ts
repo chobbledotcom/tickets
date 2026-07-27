@@ -5,6 +5,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import {
   createSoldOutListing,
   routedResponse,
@@ -100,7 +101,10 @@ describeWithEnv("payment success redirect", { db: true }, () => {
     }
   });
 
-  test("logs the first listing id when redirect processing fails", async () => {
+  // A listing that filled up while the buyer was paying is an ordinary race,
+  // not a fault, so nothing is logged as an error. What is traceable is the
+  // booking itself: it survives against that listing at quantity 0, refunded.
+  test("keeps a traceable refunded booking when the listing filled up", async () => {
     await setupStripe();
     const listing = await createSoldOutListing();
     const retrieve = await stubRetrieveSession(
@@ -109,14 +113,24 @@ describeWithEnv("payment success redirect", { db: true }, () => {
       listing,
       1000,
     );
+    // The sold-out listing cannot be booked, so the money goes back.
+    const refund = stubRefundPayment("re_fail_log");
 
     try {
       const response = await routedResponse(
         mockRequest("/payment/success?session_id=cs_fail_log"),
       );
       expect(response.status).toBe(200);
-      expect(errors.contains(`listing=${listing.id}`)).toBe(true);
+      expect(refund.calls).toHaveLength(1);
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
+      const kept = await getAttendeesRaw(listing.id);
+      // The listing was already full, so the refunded booking is the extra
+      // one, held at quantity 0 so it takes nobody's place.
+      expect(kept.filter((a) => a.quantity === 0)).toHaveLength(1);
     } finally {
+      refund.restore();
       retrieve.restore();
     }
   });

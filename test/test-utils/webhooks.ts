@@ -10,7 +10,11 @@ import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
 import { type ProviderNoticeFixture, stubWebhookVerify } from "./settings.ts";
-import { stripeRefund } from "./stripe/fixtures.ts";
+import {
+  stripeCharge,
+  stripePaymentIntent,
+  stripeRefund,
+} from "./stripe/fixtures.ts";
 
 /**
  * The `checkout.session.completed` Stripe event shape almost every
@@ -373,28 +377,67 @@ export const stubRetrieveCheckoutSession = (
     | { metadata: Record<string, unknown> }
     | { email: string; items: string; name: string }
   ),
-) =>
-  stub(stripeApi, "retrieveCheckoutSession", () =>
+) => stubSessionLookup(session);
+
+/** Stub both reads a paid Stripe session needs: the session itself and the
+ *  payment intent behind it. The intent mirrors the session's reference and
+ *  amount, so the money the provider reports matches what was paid. */
+const stubSessionLookup = (
+  session: Parameters<typeof stubRetrieveCheckoutSession>[0],
+) => {
+  const intent = stub(stripeApi, "lookupPaymentIntent", () =>
     Promise.resolve({
-      amount_total: session.amountTotal,
-      id: session.sessionId,
-      metadata:
-        "metadata" in session
-          ? session.metadata
-          : signedMeta(
-              {
-                email: session.email,
-                items: session.items,
-                name: session.name,
-              },
-              session.amountTotal,
-            ),
-      payment_intent: session.paymentIntent,
-      payment_status: session.paymentStatus ?? "paid",
+      status: "found" as const,
+      value: stripePaymentIntent({
+        amount: session.amountTotal,
+        amount_received: session.amountTotal,
+        id: session.paymentIntent ?? "pi_test",
+        latest_charge: stripeCharge({
+          amount: session.amountTotal,
+          amount_captured: session.amountTotal,
+          amount_refunded: 0,
+          payment_intent: session.paymentIntent ?? "pi_test",
+        }),
+      }),
+    } as unknown as Awaited<ReturnType<typeof stripeApi.lookupPaymentIntent>>),
+  );
+  const lookup = stub(stripeApi, "lookupCheckoutSession", () =>
+    Promise.resolve({
+      status: "found" as const,
+      value: {
+        amount_total: session.amountTotal,
+        created: 1_700_000_000,
+        currency: "gbp",
+        id: session.sessionId,
+        livemode: false,
+        metadata:
+          "metadata" in session
+            ? session.metadata
+            : signedMeta(
+                {
+                  email: session.email,
+                  items: session.items,
+                  name: session.name,
+                },
+                session.amountTotal,
+              ),
+        payment_intent: session.paymentIntent,
+        payment_status: session.paymentStatus ?? "paid",
+        status: "complete",
+        url: null,
+      },
     } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      ReturnType<typeof stripeApi.lookupCheckoutSession>
     >),
   );
+  return {
+    calls: lookup.calls,
+    restore: () => {
+      lookup.restore();
+      intent.restore();
+    },
+  };
+};
 
 /** Assert a listing has exactly one attendee recorded with the given
  *  `price_paid` — the tail check for a processed webhook whose test cares
