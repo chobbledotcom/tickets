@@ -17,7 +17,11 @@ import {
 } from "#test/shared/db/migrations/payment-aggregate-test-utils.ts";
 import { SESSION_RESOURCE } from "#test/shared/db/payments/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { completePayment, paymentProviderRead } from "./fixtures.ts";
+import {
+  completePayment,
+  createLegacySumupCheckout,
+  paymentProviderRead,
+} from "./fixtures.ts";
 
 const PROVIDERS = [
   {
@@ -271,6 +275,34 @@ describeWithEnv("legacy payment replay", { db: true }, () => {
       "SELECT origin, provider FROM payment_sessions",
     );
     expect(sessions.rows).toEqual([{ origin: "legacy", provider: "stripe" }]);
+  });
+
+  test("asks the owner about an old record that never finished", async () => {
+    // The provider says this checkout belongs to a payment we only have an
+    // unfinished old record for. There is no ending to replay, so it goes in
+    // front of the owner rather than being guessed at.
+    const reference = "legacy-unfinished";
+    await createLegacySumupCheckout(reference, "sumup-unfinished", {
+      filedUnder: "session",
+    });
+    const resource = {
+      id: "sumup-unfinished",
+      kind: "sumup_checkout" as const,
+      provider: "sumup" as const,
+    };
+    using read = stub(sumupPaymentProvider, "readPayment", () => {
+      throw new Error("An unfinished old record must not be read again");
+    });
+
+    const outcome = await reconcilePayment(
+      "sumup",
+      { kind: "provider", resource },
+      completePayment,
+    );
+
+    expect(outcome.status).toBe("conflict");
+    // The old record already says all we know, so SumUp is never asked.
+    expect(read.calls).toHaveLength(0);
   });
 
   test("records a required-action case for an ambiguous legacy session", async () => {
