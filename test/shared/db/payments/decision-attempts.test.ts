@@ -122,6 +122,25 @@ describeWithEnv("db > payment decision attempts", { db: true }, () => {
     );
     expect(stored.rows).toEqual([{ state: "completed" }]);
   });
+  test("sends a decision back when a refund moved on before it first ran", async () => {
+    // The first run has not happened yet, so a refund that moved since the
+    // owner looked is a change to the payment, not progress on their decision.
+    const { decision, payment } = await createAcceptedRefundDecision();
+    const charges = await getDb().execute(
+      "SELECT id FROM payment_charges WHERE payment_id = ? ORDER BY id",
+      [payment.id],
+    );
+    await getDb().execute(
+      `UPDATE payment_charges
+          SET refunded_amount = 400, refund_state = 'partial'
+        WHERE id = ?`,
+      [Number(charges.rows[0]!.id)],
+    );
+
+    expect(
+      await beginPaymentDecisionAttempt(decision.id, PAYMENT_TIME + 1),
+    ).toEqual({ status: "review_again" });
+  });
 });
 
 /** An old payment the owner has looked at but not yet assigned a provider. */

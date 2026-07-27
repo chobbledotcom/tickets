@@ -728,40 +728,47 @@ errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
 until a real collect-all site (e.g. the multi-item-checkout "no shared date"
 diagnostic above) makes it pay for itself.
 
-## Cover the error branches in the saved-decision snapshot check
+## The snapshot check in `decision-attempts.ts` runs, but coverage says it does not
 
-`src/shared/db/payments/decision-attempts.ts` re-derives, in TypeScript, the
-same "does the payment still look the way the owner saw it" check that
-`decision-claim.ts` already expresses as one SQL condition. The TS copy runs
-only when the SQL claim fails, to explain *why*.
+`currentSnapshotMatches` in `src/shared/db/payments/decision-attempts.ts` is
+reported as uncovered by both `deno coverage` locally and the CI gate. It is
+not. Instrumenting the function proves it: with the existing tests in
+`test/shared/db/payments/decision-attempts.test.ts` it is entered five times,
+each with a payment whose origin, provider, mode and account match the saved
+snapshot, and with the expected number of charges.
 
-Tests on this branch cover the outcomes of that path. What is still uncovered
-is the comparison bodies — `currentSnapshotMatches` and
-`legacySnapshotMatches`. They are reported as unrun because each `&&` chain
-short-circuits at whichever term was changed, and the remainder of the
-expression never evaluates; the coverage report lists the whole multi-line
-span. So this is ordinary error-branch coverage, not an unreachable path.
+Things that were ruled out along the way:
 
-Fix direction: one test per term, each changing only that term, so the chain
-reaches the next one — payment origin, provider, mode, account, then each
-charge field in turn (id, origin, reference index, captured money, currency,
-refunded money with and without refund progress allowed). Same for the legacy
-side: origin, the two account shapes, the charge reference, and the
-assign-provider re-check.
+- The case is still `needs_action` at the claim's revision after the payment
+  changes, so the guard in front of `snapshotMatches` does not skip it.
+- The stored decision reloads with `reviewed.kind === "charges"`, so it is the
+  current-payment branch that runs, not the legacy one.
+- A test written specifically to make every term of the `&&` chain evaluate
+  (only the refunded amount differing, before the first attempt, so refund
+  progress is not allowed) still leaves the lines reported uncovered.
+- The same shape *does* clear elsewhere: the equivalent error branches in
+  `src/shared/renewal.ts` went covered as soon as tests triggered each throw
+  (see `test/shared/renewal-failures.test.ts`), so this is not simply how
+  multi-line boolean expressions are always reported.
 
-Worth deciding first whether the TS copy should exist at all. It duplicates
-the SQL condition, and if the two can never disagree, the honest fix is to
-collapse them: when the fast claim fails and the case is unchanged, the reason
-*is* that the payment moved, so `closeStaleDecision` can be called without
+So the open question is a measurement one, not a code one, and it matters
+beyond this file: if the same artefact affects other multi-line boolean
+expressions, part of the reported coverage debt may not be real. Worth
+settling before spending much more on the tail of the coverage work.
+
+Where to pick it up: the raw V8 coverage JSON under a `--coverage` directory
+holds per-function ranges with hit counts. For this file the ranges attributed
+to `currentSnapshotMatches` did not line up with the function's own byte
+offsets, which is the thread to pull. Compare a file that reports correctly
+(`renewal.ts`) against this one.
+
+Separately, and regardless of the measurement: the TS check here duplicates the
+SQL condition in `decision-claim.ts`, and only ever runs to explain why that
+SQL claim failed. If the two can never disagree, the honest fix is to collapse
+them — when the fast claim fails and the case is unchanged, the reason *is*
+that the payment moved, so `closeStaleDecision` can be called without
 re-deriving anything. That is a behaviour change on a money path and wants its
 own change with its own tests.
-
-Start points: `claimPaymentDecisionAttempt` in
-`src/shared/db/payments/decision-claim.ts` (the SQL), `snapshotMatches` in
-`decision-attempts.ts` (the TS copy), and
-`test/shared/db/payments/decision-attempts.test.ts` (the outcome tests).
-`test/shared/renewal-failures.test.ts` is the pattern to copy: it clears the
-same kind of span by triggering each error in turn.
 
 ## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
 
