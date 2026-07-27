@@ -5,6 +5,10 @@ import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
 import type {
+  CodeOnScreen,
+  WhereTheCodeLed,
+} from "#test/specs/support/shown-code.ts";
+import type {
   JourneyCatalogSpec,
   OrderJourneyCtx,
 } from "#test-utils/order-journey.ts";
@@ -25,6 +29,7 @@ export interface TicketsWorld extends World {
   cashBefore?: number;
   cleanup: Array<() => void | Promise<void>>;
   closedDayOn?: string;
+  codeLedTo?: WhereTheCodeLed;
   confirmName?: string;
   customerBrowser?: TestBrowser;
   daysOffered?: Map<string, string[]>;
@@ -62,6 +67,7 @@ export interface TicketsWorld extends World {
   sessionId?: string;
   sharedDayLimit?: number;
   sharedDayOver?: string;
+  shownCode?: CodeOnScreen;
   stayListings?: Map<string, Listing>;
   stayStartsOn?: string;
   testBrowser?: TestBrowser;
