@@ -46,6 +46,7 @@ import type {
   PaymentOperatorDecision,
   PaymentOperatorSelection,
 } from "#shared/payment-state/lifecycle.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { sameJson } from "#shared/same-json.ts";
 
 /* jscpd:ignore-end */
@@ -204,10 +205,12 @@ const upgradeAttachedLegacyCharge = async (
   if (snapshot.kind !== "legacy_assignment") {
     throw new Error(`Payment decision ${running.id} lost its legacy charge`);
   }
-  const legacyCharge = snapshot.charges[0];
-  if (legacyCharge === undefined) {
-    throw new Error(`Payment decision ${running.id} lost its legacy charge`);
-  }
+  // A written-down legacy review always names at least one charge — the
+  // stored shape refuses to hold none — so this only fails if that broke.
+  const legacyCharge = requireValue(
+    snapshot.charges[0],
+    `Payment decision ${running.id} lost its legacy charge`,
+  );
   await upgradeLegacyPaymentCharge(
     context.case.paymentId,
     read.session,
