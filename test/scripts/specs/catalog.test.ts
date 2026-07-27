@@ -20,6 +20,7 @@ describe("Cucumber story catalog", () => {
       "bookings.backup-and-restore",
       "bookings.book-through-the-site",
       "bookings.booking-several-days",
+      "bookings.booking-through-the-api",
       "bookings.changes-after-people-have-booked",
       "bookings.changing-how-long-a-stay-lasts",
       "bookings.day-limits-shared-across-listings",
