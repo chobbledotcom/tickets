@@ -83,16 +83,20 @@ describe("mutation isolation run records", () => {
       // Stop the swap half way, which is where a reader could catch a partly
       // written record if the new text went straight into run.json.
       const rename = Deno.rename;
+      const swapping = Promise.withResolvers<void>();
       const held = Promise.withResolvers<void>();
       using _rename = stub(Deno, "rename", (async (
         from: string | URL,
         to: string | URL,
       ) => {
+        swapping.resolve();
         await held.promise;
         await rename(from, to);
       }) as typeof Deno.rename);
 
       const writing = writeRunRecord(markRunning(record, 4242));
+      // Read only once the swap is under way, or this would prove nothing.
+      await swapping.promise;
       expect(await readRunRecord(recordPath("swap", root))).toMatchObject({
         status: "copying",
       });
