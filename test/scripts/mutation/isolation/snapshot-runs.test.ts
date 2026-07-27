@@ -3,10 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
-import {
-  MUTATION_SNAPSHOT_CHILD_ENV,
-  withMutationRunLock,
-} from "#scripts/mutation/isolation-state.ts";
+import { MUTATION_SNAPSHOT_CHILD_ENV } from "#scripts/mutation/isolation-state.ts";
 import {
   captureConsole,
   captureMutationCommand,
@@ -17,20 +14,17 @@ import { pathExists } from "#test-utils/files.ts";
 import {
   capturePlainSnapshotFailure,
   captureSimpleSnapshotMutation,
-  childCommand,
   controlledChild,
-  denoCommand,
   failRunningStatusWrite,
   failTextFileWrites,
   finishedChild,
   readOnlyRunRecord,
-  recordingCommand,
-  runSimpleSnapshotMutation,
+  recordAroundClean,
   SNAPSHOT_FAILED,
   sendFirstSignalImmediately,
+  stubCommand,
   waitForRecord,
   waitForRunningRecord,
-  waitForRunRecord,
   withCapturedStopChild,
 } from "./helpers.ts";
 
@@ -69,11 +63,7 @@ describe("running mutation inside a snapshot", () => {
   test("tells the child it is running inside a snapshot", async () => {
     await withTempDir(async (root) => {
       const starts: Deno.CommandOptions[] = [];
-      using _command = stub(
-        denoCommand,
-        "Command",
-        recordingCommand(finishedChild(42_426), starts),
-      );
+      using _command = stubCommand(finishedChild(42_426), starts);
 
       await captureSimpleSnapshotMutation(root);
 
@@ -81,34 +71,18 @@ describe("running mutation inside a snapshot", () => {
     });
   });
 
-  test("writes the run record before waiting for the lock", async () => {
+  test("writes the run record before it queues for the lock", async () => {
     await withTempDir(async (root) => {
-      using _command = stub(
-        denoCommand,
-        "Command",
-        recordingCommand(finishedChild(42_427), []),
-      );
-      const holderInside = Promise.withResolvers<void>();
-      const releaseHolder = Promise.withResolvers<void>();
+      // A record on disk this early is what makes a queued run findable.
+      expect((await recordAroundClean(root)).beforeLock).toBe(true);
+    });
+  });
 
-      // Hold the run lock, so the run below cannot get past it.
-      const holding = withMutationRunLock(
-        join(root, ".mutation-runs"),
-        async () => {
-          holderInside.resolve();
-          await releaseHolder.promise;
-        },
-      );
-      await holderInside.promise;
-
-      const running = runSimpleSnapshotMutation(root);
-      // The record must be on disk while the run is still queued, so a stray
-      // run is findable before it ever starts.
-      await waitForRunRecord(root);
-
-      releaseHolder.resolve();
-      await holding;
-      await running;
+  test("writes the run record again if a clean removes it while queueing", async () => {
+    await withTempDir(async (root) => {
+      // The clean above dropped the record; the run must put it back, or the
+      // snapshot it is about to make would belong to no run anyone can find.
+      expect((await recordAroundClean(root)).atChildStart).toBe(true);
     });
   });
 
@@ -196,11 +170,7 @@ describe("running mutation inside a snapshot", () => {
         killCalls.push(signal);
         finish({ code: 143, signal: "SIGTERM", success: false });
       });
-      using _command = stub(
-        denoCommand,
-        "Command",
-        childCommand(process.child),
-      );
+      using _command = stubCommand(process.child);
 
       using _writeTextFile = failRunningStatusWrite();
 
@@ -228,11 +198,7 @@ describe("running mutation inside a snapshot", () => {
           50,
         );
       });
-      using _command = stub(
-        denoCommand,
-        "Command",
-        childCommand(process.child),
-      );
+      using _command = stubCommand(process.child);
       using _writeTextFile = failRunningStatusWrite();
 
       await captureSimpleSnapshotMutation(root);
@@ -269,11 +235,7 @@ describe("running mutation inside a snapshot", () => {
         killCalls += 1;
         throw new Error("already stopped");
       });
-      using _command = stub(
-        denoCommand,
-        "Command",
-        childCommand(process.child),
-      );
+      using _command = stubCommand(process.child);
 
       await withCapturedStopChild(async (getStopChild) => {
         const run = captureSimpleSnapshotMutation(root);

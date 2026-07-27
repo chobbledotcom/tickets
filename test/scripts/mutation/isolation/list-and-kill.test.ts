@@ -14,7 +14,12 @@ import {
   runQuietMutationCommand,
   withTempDir,
 } from "#test/scripts/mutation/isolation-helpers.ts";
-import { denoCommand, type KillCall, writeRecords } from "./helpers.ts";
+import {
+  finishedChild,
+  type KillCall,
+  stubCommand,
+  writeRecords,
+} from "./helpers.ts";
 
 describe("listing, signalling and cleaning isolated runs", () => {
   test("runs invalid, help, and empty list commands", async () => {
@@ -90,12 +95,13 @@ describe("listing, signalling and cleaning isolated runs", () => {
       );
       await writeRunRecord(stale);
 
-      using _command = stub(denoCommand, "Command", function failCommand() {
-        throw new Error("unexpected external command");
-      });
+      const starts: Deno.CommandOptions[] = [];
+      using _command = stubCommand(finishedChild(42_428), starts);
 
       const list = await captureMutationCommand(["--list"], root);
 
+      // A stale pid is judged from the record alone, with nothing shelled out.
+      expect(starts).toEqual([]);
       expect(list).toEqual({
         errors: [],
         logs: [

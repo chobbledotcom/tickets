@@ -199,6 +199,9 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
     console.log(`Creating isolated mutation run ${id}`);
     console.log(`Snapshot: ${relative(root, record.workRoot)}`);
     child = await withMutationRunLock(record.root, async () => {
+      // A `--clean` running in the gap above sees an unlocked copying run and
+      // removes it, so write the record again now the lock makes it safe.
+      await writeRunRecord(record);
       await copyMutationSnapshot(root, record.workRoot);
       if (interrupted) {
         record = markInterrupted(record);

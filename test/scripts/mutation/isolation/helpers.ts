@@ -1,20 +1,24 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
 import {
+  MUTATION_RECORD_FILE,
+  MUTATION_RUNS_DIR,
   type MutationRunRecord,
   readRunRecords,
   writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import { captureConsole } from "#test/scripts/mutation/isolation-helpers.ts";
 
-export const wait = async (milliseconds: number): Promise<void> => {
+const wait = async (milliseconds: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
 };
 
 export const SNAPSHOT_FAILED = "snapshot failed";
 
-export const sendFirstSignalImmediately = () => {
+export const sendFirstSignalImmediately = (): Disposable => {
   let sent = false;
   return stub(Deno, "addSignalListener", ((_signal, listener) => {
     if (!sent) {
@@ -24,14 +28,14 @@ export const sendFirstSignalImmediately = () => {
   }) as typeof Deno.addSignalListener);
 };
 
-export const failSnapshotRead = (reason: unknown) =>
+export const failSnapshotRead = (reason: unknown): Disposable =>
   stub(Deno, "readDir", (() => {
     throw reason;
   }) as typeof Deno.readDir);
 
 export const failTextFileWrites = (
   shouldFail: (writeNumber: number) => boolean,
-) => {
+): Disposable => {
   const writeTextFile = Deno.writeTextFile;
   let writes = 0;
   return stub(Deno, "writeTextFile", ((
@@ -45,7 +49,7 @@ export const failTextFileWrites = (
   }) as typeof Deno.writeTextFile);
 };
 
-export const failRunningStatusWrite = () => {
+export const failRunningStatusWrite = (): Disposable => {
   const original = Deno.writeTextFile;
   return stub(Deno, "writeTextFile", ((
     path: string | URL,
@@ -96,14 +100,6 @@ export const writeRecords = async (
   await Promise.all(records.map(writeRunRecord));
 };
 
-/** Wait until the run has written its record, so the check is not a race. */
-export const waitForRunRecord = (root: string): Promise<MutationRunRecord> =>
-  waitForRecord(
-    root,
-    (records) => records[0],
-    "The run never wrote its record while waiting for the lock.",
-  );
-
 export const readOnlyRunRecord = async (
   root: string,
 ): Promise<MutationRunRecord> => {
@@ -137,28 +133,64 @@ export const withCapturedStopChild = async (
 };
 
 export type KillCall = { pid: number; signal: Deno.Signal | undefined };
+
+/** `Deno.Command` is a class, so stubbing it needs a looser view of `Deno`. */
 type DenoCommandShim = { Command: (...args: unknown[]) => unknown };
+const denoCommand = Deno as unknown as DenoCommandShim;
 
-export const denoCommand = Deno as unknown as DenoCommandShim;
-export const childCommand = (child: Deno.ChildProcess) =>
-  function fakeCommand(): { spawn: () => Deno.ChildProcess } {
-    return {
-      spawn: () => child,
-    };
-  };
-
-/** A stand-in command that records how each child was started. */
-export const recordingCommand = (
+/**
+ * Hand out the given child instead of starting a real one, recording the
+ * options each start was asked for.
+ */
+export const stubCommand = (
   child: Deno.ChildProcess,
-  starts: Deno.CommandOptions[],
-) =>
-  function fakeCommand(..._args: unknown[]): {
-    spawn: () => Deno.ChildProcess;
-  } {
-    const [, options] = _args as [unknown, Deno.CommandOptions];
+  starts: Deno.CommandOptions[] = [],
+  onStart: () => void = () => {},
+): Disposable =>
+  stub(denoCommand, "Command", (...args: unknown[]) => {
+    const [, options] = args as [unknown, Deno.CommandOptions];
     starts.push(options);
+    onStart();
     return { spawn: () => child };
-  };
+  });
+
+/**
+ * Run a snapshot mutation while a `--clean` sweeps its record away in the gap
+ * before the lock, and report whether the record was there at each point.
+ */
+export const recordAroundClean = async (
+  root: string,
+): Promise<{ beforeLock: boolean; atChildStart: boolean }> => {
+  const realMkdir = Deno.mkdir;
+  let runDir = "";
+  // The run folder is made twice: once to write the record, then again by the
+  // lock. The second time is the moment the run starts queueing.
+  const madeRunFolder = new Set<string>();
+  const result = { atChildStart: false, beforeLock: false };
+  const recordPath = () => join(runDir, MUTATION_RECORD_FILE);
+
+  using _mkdir = stub(Deno, "mkdir", (async (
+    path: string | URL,
+    options?: Deno.MkdirOptions,
+  ) => {
+    await realMkdir(path, options);
+    if (runDir || !`${path}`.includes(`${MUTATION_RUNS_DIR}/mutation-`)) return;
+    if (!madeRunFolder.has(`${path}`)) {
+      madeRunFolder.add(`${path}`);
+      return;
+    }
+    runDir = `${path}`;
+    result.beforeLock = existsSync(recordPath());
+    // Stand in for a `--clean` sweeping away a run it sees as unlocked.
+    await Deno.remove(recordPath());
+  }) as typeof Deno.mkdir);
+  using _command = stubCommand(finishedChild(42_427), [], () => {
+    result.atChildStart = existsSync(recordPath());
+  });
+
+  await captureSimpleSnapshotMutation(root);
+  return result;
+};
 
 /** A child that has already finished with the given exit code. */
 export const finishedChild = (pid: number, code = 0): Deno.ChildProcess =>
@@ -173,12 +205,12 @@ export const controlledChild = (
     signal: Deno.Signal | undefined,
     finish: (status: Deno.CommandStatus) => void,
   ) => void,
-) => {
-  // The Promise executor below runs at once, so this is set before any use.
-  let resolveStatus!: (status: Deno.CommandStatus) => void;
-  const status = new Promise<Deno.CommandStatus>((resolve) => {
-    resolveStatus = resolve;
-  });
+): {
+  child: Deno.ChildProcess;
+  finish: (status: Deno.CommandStatus) => void;
+} => {
+  const { promise: status, resolve: resolveStatus } =
+    Promise.withResolvers<Deno.CommandStatus>();
   const child = {
     kill: (signal?: Deno.Signal) => onKill(signal, resolveStatus),
     pid,
