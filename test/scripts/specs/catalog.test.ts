@@ -11,15 +11,19 @@ const FEATURE_PATH = "specs/payments/capacity-after-payment.feature";
 describe("Cucumber story catalog", () => {
   test("reads every story from the repository catalog", async () => {
     expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
+      "attendees.checking-people-in-at-the-door",
       "attendees.downloading-the-attendee-list",
       "attendees.editing-and-moving",
       "attendees.merging-duplicate-bookings",
       "attendees.no-quantity-tickets",
       "attendees.removing-one-part-of-an-order",
+      "attendees.the-record-kept-about-someone",
+      "bookings.add-ons-sold-on-their-own",
       "bookings.adding-a-booking-by-hand",
       "bookings.backup-and-restore",
       "bookings.book-through-the-site",
       "bookings.booking-several-days",
+      "bookings.booking-through-the-api",
       "bookings.changes-after-people-have-booked",
       "bookings.changing-how-long-a-stay-lasts",
       "bookings.day-limits-shared-across-listings",

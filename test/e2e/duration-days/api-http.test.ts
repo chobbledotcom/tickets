@@ -1,12 +1,10 @@
 import { expect } from "@std/expect";
-import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { addDays } from "#shared/dates.ts";
+import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { assertJson, fetchListingExportCsv } from "#test-utils/assertions.ts";
-import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
@@ -102,84 +100,6 @@ describeWithEnv("e2e: multi-day bookings — API & HTTP", { db: true }, () => {
         (body: { listing: { duration_days: number } }) => {
           expect(body.listing.duration_days).toBe(1);
         },
-      );
-    });
-  });
-
-  describe("public booking API", () => {
-    beforeEach(async () => {
-      await settings.update.showPublicApi(true);
-    });
-
-    /** Fetch the listing's bookable start dates as the public API reports them. */
-    const fetchAvailableDates = async (slug: string): Promise<string[]> => {
-      const body = await assertJson<{
-        listing: { availableDates: string[] };
-      }>(apiRequest(`/api/listings/${slug}`), 200);
-      return body.listing.availableDates;
-    };
-
-    test("POST /api/listings/:slug/book on a 3-day listing stores a 3-day range", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 5,
-      });
-      const dates = await fetchAvailableDates(listing.slug);
-      expect(dates.length).toBeGreaterThan(0);
-
-      await assertJson(
-        apiRequest(`/api/listings/${listing.slug}/book`, {
-          body: {
-            date: dates[0],
-            email: "multi@test.com",
-            name: "Multi Day",
-          },
-          method: "POST",
-        }),
-        200,
-        (body: { booking?: { ticketToken?: string } }) => {
-          expect(body.booking?.ticketToken).toBeDefined();
-        },
-      );
-
-      const range = await rawListingRange(listing.id);
-      expect(range!.start_at).toBe(`${dates[0]}T00:00:00Z`);
-      const expectedEnd = new Date(
-        new Date(`${dates[0]}T00:00:00Z`).getTime() + 3 * 86_400_000,
-      ).toISOString();
-      expect(range!.end_at).toBe(expectedEnd);
-    });
-
-    test("availability and booking reject a start date whose middle day is full", async () => {
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 2,
-      });
-      const dates = await fetchAvailableDates(listing.slug);
-      const start = dates[0]!;
-      const middle = addDays(start, 1);
-      await bookAttendee(listing, {
-        date: middle,
-        durationDays: 1,
-        quantity: 2,
-      });
-
-      await assertJson(
-        apiRequest(
-          `/api/listings/${listing.slug}/availability?date=${start}&quantity=1`,
-        ),
-        200,
-        (body: { available: boolean }) => {
-          expect(body.available).toBe(false);
-        },
-      );
-
-      await assertJson(
-        apiRequest(`/api/listings/${listing.slug}/book`, {
-          body: { date: start, email: "blocked@test.com", name: "Blocked" },
-          method: "POST",
-        }),
-        409,
       );
     });
   });

@@ -384,12 +384,12 @@ deliberately left for later:_
   CPU per run). The biggest remaining import-time chunks are `@libsql/client`
   (~65ms, needed) and the `#routes` feature tree (~150ms). Any further
   import-time work moved behind `once()`/dynamic import pays for itself ~250×
-  per run — profile with a `performance.now()` probe around
-  `import("#test-utils")` under `deno test` before and after.
-- **`test/integration/stripe-mock-ports.test.ts` (~4s)** spawns real child
-  processes to test the harness's port handling; each spawn is inherently slow.
-  If it grows, the port-conflict cases could stub the child-process layer the
-  same way the supervisor tests do.
+  per run — profile with a `performance.now()` probe around `import("#test-utils")`
+  under `deno test` before and after.
+- **`test/scripts/stripe-mock/ports.test.ts` (~4s)** spawns real child processes
+  to test the harness's port handling; each spawn is inherently slow. If it
+  grows, the port-conflict cases could stub the child-process layer the same
+  way the supervisor tests do.
 
 ---
 
@@ -984,28 +984,6 @@ the preflight in `src/features/api/payment-processing/index.ts`
 Build this through the unified payment aggregate described below, not through
 another replay marker beside `processed_payments` and the ledger.
 
-## Localise the confirmation-email template-variable reference table
-
-_Origin: CodeRabbit review on PR #1800._
-
-`src/ui/templates/admin/settings/email-tpl-confirmation.tsx` builds
-`TEMPLATE_VARIABLES` — the operator-facing reference table of Liquid variables
-(`{{ ticket_url }}` → "Link to view tickets", etc.). The `meaning` column is
-hard-coded English, and `{{ attendee.name }}` borrows
-`t("admin.attendees.delete_label")` (which happens to render "Attendee name", so
-no visible bug, but it's a fragile cross-context key reuse).
-
-Follow-up: give each variable's description its own locale key under a new
-`settings.advanced.email_variables.*` namespace and reference them, replacing
-the `delete_label` reuse with a dedicated key. Out of scope for the jscpd-dedup
-PR (these are developer/operator reference docs for a technical feature, and the
-i18n-coverage gate doesn't flag them), but worth doing when this settings
-surface is next touched. Keep the copy plain per the Simple-Language rules.
-
----
-
----
-
 ## Stripe webhook setup hardening — deferred edges (from PR #1827)
 
 _Origin: CodeRabbit and Codex review of PR #1827 (the same-URL cleanup + atomic
@@ -1531,38 +1509,6 @@ re-conflict with the import-only changes that are the actual subject of the PR.
 The ~400-line target is guidance, and the cold-start PR's brief was explicitly
 about import-graph narrowing, not test reorganisation.
 
-## Export REFRESH_DELAY_MS for test reuse
-
-_Origin: CodeRabbit review on PR #1909 (independent test hardening)._
-
-`src/ui/client/admin/order-gallery.ts` declares `const REFRESH_DELAY_MS = 200`
-privately. The debounce-timing test in
-`test/ui/client/admin/order-gallery.test.ts` hard-codes `199` and `1` to assert
-the exact 200 ms boundary. Importing the production constant
-(`REFRESH_DELAY_MS - 1` then `1`) would keep the test aligned if the delay
-changes. This requires exporting `REFRESH_DELAY_MS` from the production module —
-a small production change that was out of scope for the test-only PR. Starting
-point: add `export` to the `const REFRESH_DELAY_MS` declaration, then replace
-the hard-coded `199` in the "waits for the debounce delay" test with
-`REFRESH_DELAY_MS - 1`.
-
-## Split the sms-webhook test suite
-
-_Origin: Codex review on PR #1909 (independent test hardening)._
-
-`test/features/api/sms-webhook.test.ts` is 461 lines (the ~400-line target
-applies to test files too). It bundles three concerns that can stand alone:
-phone-index normalisation/unit tests
-(`describeWithEnv({ encryptionKey: true })`), attendee phone-index DB tests
-(`describeWithEnv({ db: true })`), and the webhook handler tests
-(`describeWithEnv({ db: true })`). The file was already 427 lines on main; the
-independent-test-hardening PR added 34 lines of new webhook coverage. Splitting
-now was deferred because the PR's brief was test hardening, not test
-reorganisation. Starting point: move the two phone-index describe blocks into
-`test/shared/sms/phone-index.test.ts`, keeping the `makeAttendee` /
-`storedPhoneIndex` helpers in whichever file needs them (or lift to
-`#test-utils` if both do). The webhook test file drops to ~380 lines.
-
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
@@ -1841,6 +1787,37 @@ and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
 
 ---
 
+## Make `--clean` synchronize with the run lock before removing a run
+
+*Origin: reviewer suggestion on PR #1951.*
+
+`cleanableRuns` in `scripts/mutation/isolation.ts` decides a `copying` run is
+abandoned when its lock is not held, and `removeRun` then deletes
+`record.root` recursively. Neither step takes the run lock, so a run can pass
+the check while still queueing, take the lock, and start copying — and the
+clean, already committed to its decision, removes the record and the
+half-copied snapshot underneath it.
+
+PR #1951 narrowed this: the run now writes its record again once it holds the
+lock, so a clean that lands entirely *before* the lock leaves a run that is
+still findable. That is the common ordering and it is covered by
+`recordAroundClean` in `test/scripts/mutation/isolation/helpers.ts`. The
+remaining window — clean decides, run takes the lock, clean removes — is not
+closed by that write, and no write can close it: the fix has to be that the
+clean holds the run lock across both the decision and the removal.
+
+It was left out of #1951 because that PR is about test coverage of
+`isolation.ts`, and this is a behaviour change to the clean path with its own
+concurrency design to think through (a clean that blocks on every run's lock
+must not hang on a genuinely live run — the existing `runLockIsHeld` check
+would become a `tryLock`).
+
+Starting point: `cleanableRuns`, `removeRun`, and `cleanRuns` in
+`scripts/mutation/isolation.ts`, plus `withMutationRunLock` and `runLockIsHeld`
+in `scripts/mutation/isolation-state.ts`.
+
+---
+
 ## Decide what happens to undated bookings when a listing starts being booked by the day
 
 *Origin: found while migrating the multi-day tests to stories (PR for batch 8).*
@@ -1917,3 +1894,50 @@ its log line was removed with them.
 
 Starting point: the callback entry points in `src/features/api/webhooks.ts`
 (`processSessionAndRedirect` and the cancel route beside it).
+
+---
+
+## Tell the story of a refused "stop selling this on its own"
+
+*Origin: reviewer suggestion (Codex) on PR #1952.*
+
+The site refuses to stop selling an add-on on its own when doing so would leave
+another add-on with no way to be bought — `strippedPageOrphanedAddOn` in
+`src/shared/listings-actions.ts` re-runs the reachability guard and blocks the
+save. The story `bookings.add-ons-sold-on-their-own` covers only the plain
+cases, where nothing depends on the page, and its rule is worded to say so.
+
+The refusal is an operator-facing rule worth telling: the organiser is stopped,
+and told which add-on would be stranded. It was left out of that PR because
+setting it up needs a child-scoped optional modifier, which no story support
+builds yet — a bigger piece of scaffolding than the migration it sat in.
+
+Starting point: `strippedPageOrphanedAddOn` and
+`firstChildUnreachableAddOnForListings` in `src/shared/db/modifier-resolve.ts`,
+plus whichever direct test already covers the guard, for the shape of the
+fixture.
+
+---
+
+## Test the door's confirmation steps in the browser script
+
+*Origin: reviewer suggestion (Codex) on PR #1959.*
+
+`src/ui/client/scanner.js` is the only part of checking people in that nothing
+tests. It is the script that shows the organiser the question the door asked —
+"this ticket is for another listing, let them in anyway?" and "check this
+person's ID first" — and sends the second request carrying their answer.
+
+The story `attendees.checking-people-in-at-the-door` reads a ticket, gets the
+query back, and then sends the answer, which is the same pair of requests the
+script makes. What it cannot do is press the button: `TestBrowser` runs no
+JavaScript, so a broken confirmation prompt would leave the story green.
+
+That is a pre-existing gap — `scanner.js` had no test before this story either,
+and it is the only client script in `src/ui/client/` with none. Closing it needs
+a DOM test in the shape of `test/ui/client/order.test.ts`, which was too much
+scaffolding to add inside a test migration.
+
+Starting point: `src/ui/client/scanner.js`, the confirmation branches around its
+handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
+for how a client script is driven without a real browser.

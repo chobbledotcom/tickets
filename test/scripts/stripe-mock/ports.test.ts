@@ -129,9 +129,9 @@ describe("startStripeMock ports", () => {
     await withTempStripeMockPaths(async (paths) => {
       await writePortThief(paths);
       await expectStripeMockFails({
+        budgetMs: 200,
         confirmDelayMs: 20,
         delayMs: 10,
-        maxAttempts: 20,
         paths,
       });
     });
@@ -142,8 +142,8 @@ describe("startStripeMock ports", () => {
       await writeFailingMock(paths, "wrong binary");
       await expectStripeMockFails(
         {
+          budgetMs: 100,
           delayMs: 10,
-          maxAttempts: 10,
           paths,
         },
         `${STRIPE_MOCK_FAILED_TO_START}: wrong binary`,
@@ -155,10 +155,10 @@ describe("startStripeMock ports", () => {
     await withTempStripeMockPaths(async (paths) => {
       await writePortThief(paths, false, keepPortOpenCommand);
       const stripeMock = await startStripeMock({
+        budgetMs: 2000,
         confirmDelayMs: 100,
         delayMs: 20,
         env: testEnv({}),
-        maxAttempts: 100,
         paths,
         startAttempts: 3,
       });
@@ -177,9 +177,9 @@ describe("startStripeMock ports", () => {
       await writeTermIgnoringMock(paths);
       await withUnusedPort(async (port) => {
         const stripeMock = await startStripeMock({
+          budgetMs: 1000,
           confirmDelayMs: 50,
           delayMs: 10,
-          maxAttempts: 100,
           paths,
           port,
           stopTimeoutMs: 50,

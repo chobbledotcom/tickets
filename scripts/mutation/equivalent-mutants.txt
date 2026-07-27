@@ -958,3 +958,6 @@ scripts/lock-file.ts:4:41  true → false   # nothing ever reads or writes throu
 # Process helpers: the timer handle before the timer exists.
 scripts/process.ts:60:17  0 → 1   # the promise body runs straight away and overwrites this handle, so its starting value is never the one cleared
 scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it and replacing it store the same timer id
+
+# Isolated mutation runs: the exit code before any path has set one.
+scripts/mutation/isolation.ts:197:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
