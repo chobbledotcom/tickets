@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import { resolvePaymentAccount } from "#shared/payment-runtime/account.ts";
+import {
+  configuredPaymentAccounts,
+  resolvePaymentAccount,
+} from "#shared/payment-runtime/account.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -37,6 +40,36 @@ describeWithEnv("payment runtime account", { encryptionKey: true }, () => {
     expect(stripe.accountId).not.toContain("sk_test_account");
     expect(square.accountId).not.toContain("square-token");
     expect(sumup.accountId).not.toContain("merchant-one");
+  });
+
+  test("lists one account for each provider that is set up", async () => {
+    settings.setForTest({
+      square_access_token: "square-token",
+      square_location_id: "location-one",
+      stripe_secret_key: "sk_test_listed",
+      sumup_api_key: "sk_live_listed",
+      sumup_merchant_code: "merchant-listed",
+    });
+
+    expect(await configuredPaymentAccounts()).toMatchObject([
+      { provider: "square" },
+      { provider: "stripe" },
+      { provider: "sumup" },
+    ]);
+  });
+
+  test("lists nothing while no provider is set up", async () => {
+    // Half-finished settings do not count: a key without the account it
+    // belongs to cannot be used to take or give back money.
+    settings.setForTest({
+      square_access_token: "square-token",
+      square_location_id: "",
+      stripe_secret_key: "",
+      sumup_api_key: "sk_live_listed",
+      sumup_merchant_code: "",
+    });
+
+    expect(await configuredPaymentAccounts()).toEqual([]);
   });
 
   test("keeps stable accounts across credential rotation", async () => {
