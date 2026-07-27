@@ -660,13 +660,33 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     const debugLines = (): string[] => debugMessages(debugSpy()).map(String);
 
+    /** Leave one marker as this build's and stale the other, so only a
+     *  database matching on BOTH counts can read as up to date. */
+    const staleOneMarker = async (
+      staleKey: string,
+      freshKey: string,
+      freshValue: string,
+    ): Promise<void> => {
+      await getDb().batch(
+        [
+          {
+            args: [staleKey],
+            sql: "UPDATE settings SET value = 'stale' WHERE key = ?",
+          },
+          {
+            args: [freshValue, freshKey],
+            sql: "UPDATE settings SET value = ? WHERE key = ?",
+          },
+        ],
+        "write",
+      );
+      invalidateInitDbCache();
+    };
+
     test("a marker that matches only halfway still needs work", async () => {
       // The update marker is this build's, but the schema hash is not: the
       // database is not up to date, so the boot must repair the markers.
-      await getDb().execute(
-        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-      );
-      invalidateInitDbCache();
+      await staleOneMarker("db_schema_hash", "latest_db_update", LATEST_UPDATE);
 
       await initDb();
 
@@ -674,10 +694,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
 
     test("the other half-matching marker needs work too", async () => {
-      await getDb().execute(
-        "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",
-      );
-      invalidateInitDbCache();
+      await staleOneMarker("latest_db_update", "db_schema_hash", SCHEMA_HASH);
 
       await initDb();
 
@@ -754,8 +771,12 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await initDb();
     });
 
-    test("a held lock names the database and how long it is honoured", async () => {
-      const { fetchStub, restore } = stubNtfyFetch({ DB_URL: "" });
+    /** Hold a fresh migration lock, boot with the given DB_URL, and report
+     *  every ntfy body the failed boot sent. */
+    const bootWithLockHeld = async (
+      dbUrl: string | undefined,
+    ): Promise<{ bodies: string[]; error: unknown }> => {
+      const { fetchStub, restore } = stubNtfyFetch({ DB_URL: dbUrl });
       using _env = restore;
       using _fetch = fetchStub;
       try {
@@ -771,18 +792,13 @@ describeWithEnv("db > migrations", { db: true }, () => {
         );
         invalidateInitDbCache();
 
-        await expect(initDb()).rejects.toThrow(
-          "reclaimed automatically after 2 minutes",
-        );
-
-        // An unset DB_URL is reported as an empty name, not as "unknown".
-        expect(
-          fetchStub.calls.some((call) =>
-            String((call.args[1] as { body?: string })?.body).endsWith(
-              "E_DB_MIGRATION_LOCK ",
-            ),
+        const error = await initDb().catch((caught: unknown) => caught);
+        return {
+          bodies: fetchStub.calls.map((call) =>
+            String((call.args[1] as { body?: string })?.body),
           ),
-        ).toBe(true);
+          error,
+        };
       } finally {
         await getDb().batch(
           [
@@ -796,6 +812,49 @@ describeWithEnv("db > migrations", { db: true }, () => {
         );
         invalidateInitDbCache();
       }
+    };
+
+    test("a held lock says so, and how long it is honoured", async () => {
+      const { error } = await bootWithLockHeld(undefined);
+
+      expect(String(error)).toContain(
+        "Database migration is already in progress (migration_lock held).",
+      );
+      expect(String(error)).toContain(
+        "reclaimed automatically after 2 minutes",
+      );
+    });
+
+    test("a held lock names an unset database as unknown", async () => {
+      const { bodies } = await bootWithLockHeld(undefined);
+
+      expect(
+        bodies.some((body) => body.endsWith("E_DB_MIGRATION_LOCK unknown")),
+      ).toBe(true);
+    });
+
+    test("a held lock reports a blank database name as blank", async () => {
+      // An empty DB_URL is a real, if odd, setting — it is not missing, so it
+      // is not reported as "unknown".
+      const { bodies } = await bootWithLockHeld("");
+
+      expect(bodies.some((body) => body.endsWith("E_DB_MIGRATION_LOCK "))).toBe(
+        true,
+      );
+    });
+
+    test("one missing marker is a database to update, not a blank one", async () => {
+      // Only one of the two markers is gone: the database has been set up, so
+      // the boot must repair it rather than treat it as uninitialized.
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'db_schema_hash'",
+      );
+      invalidateInitDbCache();
+
+      await initDb();
+
+      expect(await settingsValue("db_schema_hash")).toBe(SCHEMA_HASH);
+      expect(await settingsValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
   });
 });
