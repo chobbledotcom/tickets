@@ -194,6 +194,47 @@ describe("the lock that keeps two runs out of one folder", () => {
     });
   });
 
+  test("takes its own lock again when the folder is swept mid-wait", async () => {
+    await withTempDir(async (root) => {
+      const runFolder = join(root, ".mutation-runs", "mutation-retaken");
+      let checks = 0;
+      const stat = Deno.stat;
+      // The first lock this takes reads as a file nothing points at, standing
+      // in for a clear-up that removed the folder while it queued.
+      using _stat = stub(Deno, "stat", (async (path: string | URL) => {
+        checks += 1;
+        const info = await stat(path);
+        return checks === 1 ? { ...info, ino: (info.ino ?? 0) + 1 } : info;
+      }) as typeof Deno.stat);
+
+      expect(
+        await withMutationRunLock(runFolder, () => Promise.resolve("ran")),
+      ).toBe("ran");
+      // Once for the stale lock, once for the one it kept.
+      expect(checks).toBe(2);
+    });
+  });
+
+  test("gives up loudly when the run folder cannot be looked at", async () => {
+    await withTempDir(async (root) => {
+      const record = {
+        root: join(root, ".mutation-runs", "mutation-unreadable"),
+      };
+      await Deno.mkdir(record.root, { recursive: true });
+      const open = Deno.open;
+      using _open = stub(Deno, "open", ((path: string | URL, options) => {
+        if (`${path}`.includes("mutation-unreadable")) {
+          return Promise.reject(new Deno.errors.PermissionDenied("no entry"));
+        }
+        return open(path, options);
+      }) as typeof Deno.open);
+
+      // Calling this "nobody is holding it" would let a clear-up delete a run
+      // that is very much still going.
+      await expect(runLockIsHeld(record)).rejects.toThrow("no entry");
+    });
+  });
+
   test("gives up loudly when the folder cannot hold a lock", async () => {
     await withTempDir(async (root) => {
       const asFile = join(root, "not-a-folder");
@@ -234,18 +275,12 @@ describe("the lock that keeps two runs out of one folder", () => {
     });
   });
 
-  test("reports whether a run lock is held", async () => {
+  test("reports a run whose folder is not there as not held", async () => {
     await withTempDir(async (root) => {
-      const record = { root };
-      expect(await runLockIsHeld(record, 100)).toBe(false);
-      await withMutationRunLock(root, async () => {
-        expect(await runLockIsHeld(record, 100)).toBe(true);
-      });
-      expect(await runLockIsHeld(record, 100)).toBe(false);
-
-      const fileRoot = join(root, "file-root");
-      await Deno.writeTextFile(fileRoot, "");
-      expect(await runLockIsHeld({ root: fileRoot }, 100)).toBe(false);
+      // Nothing to make a lock file in, so nobody can be holding one.
+      expect(await runLockIsHeld({ root: join(root, "never-made") }, 100)).toBe(
+        false,
+      );
     });
   });
 });

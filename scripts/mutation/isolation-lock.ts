@@ -2,15 +2,10 @@
  * The lock each mutation run holds while it owns its folder.
  */
 
-import { join } from "@std/path";
-import { openLockFile, withFileLock } from "#scripts/lock-file.ts";
+import { openLockFile } from "#scripts/lock-file.ts";
 import { nullIfNotFound, statOrNull } from "#scripts/not-found.ts";
 import { denoExitCode } from "./child-process.ts";
-import {
-  MUTATION_RUN_LOCK_FILE,
-  type MutationRunRecord,
-  runLockPath,
-} from "./isolation-state.ts";
+import { type MutationRunRecord, runLockPath } from "./isolation-state.ts";
 
 const LOCK_HELD_EXIT_CODE = 124;
 
@@ -49,7 +44,9 @@ export const runLockIsHeld = async (
   timeoutMs = 50,
 ): Promise<boolean> => {
   const path = runLockPath(record);
-  const file = await openLockFile(path).catch(() => null);
+  // No folder means no run to hold it. A disk that cannot be opened at all is
+  // not the same answer, so it throws rather than reading as "nobody's".
+  const file = await nullIfNotFound(openLockFile(path));
   if (file === null) return false;
   file.close();
   return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
@@ -67,6 +64,52 @@ const stillTheLockFile = async (
   return held.ino === null || atPath.ino === null || held.ino === atPath.ino;
 };
 
+/** A wait for a lock: `true` once it is held, `false` if it gave up first. */
+type WaitForLock = (file: Deno.FsFile) => Promise<boolean>;
+
+const waitHoweverLong: WaitForLock = (file) => file.lock(true).then(() => true);
+
+/** Wait for the lock, but only for `timeoutMs`. */
+const waitUpTo =
+  (timeoutMs: number): WaitForLock =>
+  async (file) => {
+    let waited = 0;
+    const gaveUp = new Promise<false>((resolve) => {
+      waited = setTimeout(() => resolve(false), timeoutMs);
+      Deno.unrefTimer(waited);
+    });
+    const held = await Promise.race([waitHoweverLong(file), gaveUp]);
+    clearTimeout(waited);
+    return held;
+  };
+
+/**
+ * Run `work` while holding `file` as the run's lock. `null` means the lock was
+ * never taken, or that the file it took is no longer the one at the path: a
+ * clear-up can remove the folder while this waits, and a lock on a file nothing
+ * points at keeps nobody out.
+ */
+const underLockFile = async <Result>(
+  file: Deno.FsFile,
+  record: Pick<MutationRunRecord, "root">,
+  waitForLock: WaitForLock,
+  work: () => Promise<Result>,
+): Promise<{ value: Result } | null> => {
+  if (!(await waitForLock(file))) {
+    // Closing hands back anything the abandoned wait is later granted.
+    file.close();
+    return null;
+  }
+  try {
+    return (await stillTheLockFile(file, record))
+      ? { value: await work() }
+      : null;
+  } finally {
+    await file.unlock();
+    file.close();
+  }
+};
+
 /**
  * Hold a run's lock while `run` works, but only if it is free within
  * `timeoutMs`; otherwise give up and answer `null`. Clearing up must never
@@ -81,34 +124,26 @@ export const withRunLockOrNull = async <Result>(
   // first. Any other failure to open means a disk we must not guess about.
   const file = await nullIfNotFound(openLockFile(runLockPath(record)));
   if (file === null) return null;
-  const locked = file.lock(true).then(() => true);
-  let waited = 0;
-  const gaveUp = new Promise<false>((resolve) => {
-    waited = setTimeout(() => resolve(false), timeoutMs);
-    Deno.unrefTimer(waited);
-  });
-  if (!(await Promise.race([locked, gaveUp]))) {
-    // Closing hands back anything the abandoned wait is later granted.
-    file.close();
-    return null;
-  }
-  clearTimeout(waited);
-  try {
-    // The wait may have been won only because somebody deleted the folder: the
-    // open file lives on with nothing pointing at it, so a lock on it now keeps
-    // nobody out. Only the file still sitting at the path is worth holding.
-    return (await stillTheLockFile(file, record)) ? await run() : null;
-  } finally {
-    await file.unlock();
-    file.close();
-  }
+  const held = await underLockFile(file, record, waitUpTo(timeoutMs), run);
+  return held === null ? null : held.value;
 };
 
-/** Hold a run's own lock, making its folder first so there is one to lock. */
+/**
+ * Hold a run's own lock, making its folder first so there is one to lock. A
+ * clear-up can take the folder away while this waits, so it makes the folder
+ * and takes the lock again until the one it holds is the file at the path.
+ */
 export const withMutationRunLock = async <Result>(
   runRootPath: string,
   run: () => Promise<Result>,
 ): Promise<Result> => {
-  await Deno.mkdir(runRootPath, { recursive: true });
-  return await withFileLock(join(runRootPath, MUTATION_RUN_LOCK_FILE), run);
+  const record = { root: runRootPath };
+  const oneGo = async () => {
+    await Deno.mkdir(runRootPath, { recursive: true });
+    const file = await openLockFile(runLockPath(record));
+    return await underLockFile(file, record, waitHoweverLong, run);
+  };
+  let held = await oneGo();
+  while (held === null) held = await oneGo();
+  return held.value;
 };
