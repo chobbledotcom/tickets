@@ -265,6 +265,27 @@ describe("a lock that stops being the file at its path", () => {
     });
   });
 
+  test("takes the lock again when the file at its path has gone", async () => {
+    await withTempDir(async (root) => {
+      const path = join(root, "one.lock");
+      let looks = 0;
+      const stat = Deno.stat;
+      // The first look finds nothing at the path, as it would for a lock file
+      // a clear-up deleted while this was waiting for it.
+      using _stat = stub(Deno, "stat", ((at: string | URL) => {
+        looks += 1;
+        return looks === 1
+          ? Promise.reject(new Deno.errors.NotFound("gone"))
+          : stat(at);
+      }) as typeof Deno.stat);
+
+      expect(await withFileLock(path, () => Promise.resolve("ran"))).toBe(
+        "ran",
+      );
+      expect(looks).toBe(2);
+    });
+  });
+
   test("holds a lock on a filesystem that keeps no file numbers", async () => {
     await withTempDir(async (root) => {
       const path = join(root, "one.lock");
