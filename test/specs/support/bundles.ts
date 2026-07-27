@@ -6,7 +6,7 @@
  */
 
 import { expect } from "@std/expect";
-import { map, mapNotNullish } from "#fp";
+import { map } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
@@ -96,7 +96,13 @@ const choiceOnForm = (
   html: string,
   field: string,
   wanted: boolean,
-): string[] => (wanted ? [checkboxValueOffered(html, field)] : []);
+): string[] => {
+  // Read the box either way. Clearing it needs the same working box as ticking
+  // it, so a page that stopped offering it fails here rather than the story
+  // sending an empty answer nobody could have sent.
+  const value = checkboxValueOffered(html, field);
+  return wanted ? [value] : [];
+};
 
 /** The organiser's own page for one bundle. */
 const bundlePage = async (
@@ -109,14 +115,13 @@ const bundlePage = async (
 };
 
 /** The organiser turns a group into a bundle, pricing each part, and says
- * whether what is inside stays private. Keeps whatever they were told, so a
- * story can read the refusal as well as the success. */
+ * whether what is inside stays private. */
 export const organiserSellsAsBundle = async (
   world: TicketsWorld,
   name: string,
   parts: PartOfBundle[],
   keepPartsPrivate: boolean,
-): Promise<string> => {
+): Promise<void> => {
   const browser = await bundlePage(world, name);
   const page = browser.currentHtml;
   await browser.submitForm(
@@ -127,10 +132,8 @@ export const organiserSellsAsBundle = async (
     },
     "Save Changes",
   );
-  return browser.pageText;
 };
 
-/** The organiser's two choices on the bundle form. */
 const BUNDLE_BOX = "is_package";
 const PRIVATE_BOX = "hide_package_listings";
 
@@ -182,30 +185,20 @@ export const isStillABundle = async (
   return found.is_package;
 };
 
-/** What the bundle charges for each part, by the part's name. A part the
- * organiser left blank is absent — the bundle charges the thing's own price. */
-export const bundlePrices = async (
+/** What the bundle charges for one part, or nothing when the organiser set no
+ * price of its own for it. A part that is not in the bundle at all is a
+ * different thing altogether and throws, so "no price" can never be read from a
+ * part the save quietly dropped. */
+export const bundleChargeForOrNull = async (
   world: TicketsWorld,
   name: string,
-): Promise<Map<string, number>> => {
+  part: string,
+): Promise<number | null> => {
+  const wanted = stayListing(world, part).id;
   const rows = await getGroupPackagePrices(bundleNamed(world, name).id);
-  const named = new Map<number, string>();
-  for (const [thing, listing] of world.stayListings ?? []) {
-    named.set(listing.id, thing);
-  }
-  return new Map(
-    mapNotNullish((row: GroupListing) =>
-      row.package_price === null
-        ? undefined
-        : ([
-            requiredWorldValue(
-              named.get(row.listing_id),
-              "a part of the bundle",
-            ),
-            row.package_price,
-          ] as const),
-    )(rows),
-  );
+  const inBundle = rows.find((row: GroupListing) => row.listing_id === wanted);
+  if (!inBundle) throw new Error(`The ${part} is not in the ${name} at all`);
+  return inBundle.package_price;
 };
 
 /** A customer buys the bundle from its own page, and keeps the ticket they end

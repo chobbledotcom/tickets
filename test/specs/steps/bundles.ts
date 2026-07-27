@@ -5,7 +5,7 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { toMinorUnits } from "#shared/currency.ts";
 import {
-  bundlePrices,
+  bundleChargeForOrNull,
   bundleStillExists,
   buyersTicket,
   customerBuysBundle,
@@ -149,16 +149,19 @@ Then(
     price: number,
     part: string,
   ): Promise<void> {
-    const charged = await bundlePrices(this, onlyBundle(this));
-    expect(charged.get(part)).toBe(toMinorUnits(price));
+    expect(await bundleChargeForOrNull(this, onlyBundle(this), part)).toBe(
+      toMinorUnits(price),
+    );
   },
 );
 
 Then(
   "the bundle sets no price of its own for the {word}",
   async function (this: TicketsWorld, part: string): Promise<void> {
-    const charged = await bundlePrices(this, onlyBundle(this));
-    expect([...charged.keys()]).not.toContain(part);
+    // The part is still in the bundle — reading its price is what says so.
+    expect(
+      await bundleChargeForOrNull(this, onlyBundle(this), part),
+    ).toBeNull();
   },
 );
 
