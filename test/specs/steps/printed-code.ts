@@ -11,6 +11,7 @@ import {
   somethingForSale,
   takeOffSale,
 } from "#test/specs/support/printed-code.ts";
+import { stayListing } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -152,6 +153,9 @@ Then(
     const led = whereItLed(this);
     expect(led.paying).toBeNull();
     expect(led.page).toContain("expired or invalid");
+    // Anything reading the site rather than the page — a cache, a monitor —
+    // goes by the answer's own code, so a refusal has to say it is one.
+    expect(led.status).toBe(400);
   },
 );
 
@@ -161,6 +165,10 @@ Then(
     expect(payingNow(this).places).toBe(places);
   },
 );
+
+Then("it is for the {word}", function (this: TicketsWorld, name: string): void {
+  expect(payingNow(this).forWhat).toBe(stayListing(this, name).slug);
+});
 
 Then(
   "the booking is in the name {string}",
@@ -172,7 +180,7 @@ Then(
 Then("the customer cannot open it at all", function (this: TicketsWorld): void {
   const led = whereItLed(this);
   expect(led.paying).toBeNull();
-  expect(led.reached).toBe(false);
+  expect(led.status).toBe(404);
 });
 
 Then(

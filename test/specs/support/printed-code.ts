@@ -83,14 +83,18 @@ export interface WhereTheCodeLed {
   /** What paying would charge, for how many, and in whose name — when they
    * were sent to pay at all. */
   paying: WhatIsBeingCharged | null;
-  /** Whether the site could open anything for them at all. */
-  reached: boolean;
+  /** What the site answered with, which callers and caches go by as much as
+   * the reader goes by the page. */
+  status: number;
 }
 
 /** Run `body` with paying stubbed at the provider, so a story can see what the
  * customer would have been charged without a real checkout. */
 const withPayingStubbed = async <Answer>(
-  body: (whatWasCharged: () => CheckoutIntent | undefined) => Promise<Answer>,
+  body: (paying: {
+    timesReached: () => number;
+    whatWasCharged: () => CheckoutIntent | undefined;
+  }) => Promise<Answer>,
 ): Promise<Answer> => {
   const { stubCheckout } = await import("#test-utils/checkout.ts");
   const { mockProviderType, withMocks } = await import("#test-utils/mocks.ts");
@@ -104,7 +108,10 @@ const withPayingStubbed = async <Answer>(
     async () => {
       const checkout = stubCheckout();
       try {
-        answer = await body(checkout.getCaptured);
+        answer = await body({
+          timesReached: checkout.calls,
+          whatWasCharged: checkout.getCaptured,
+        });
       } finally {
         checkout.checkout.restore();
       }
@@ -116,19 +123,27 @@ const withPayingStubbed = async <Answer>(
 
 /** What the customer is being asked to pay for. */
 export interface WhatIsBeingCharged {
+  forWhat: string;
   nameOnIt: string;
   places: number;
   priceEach: number;
 }
 
 /** Reaching paying with nothing to charge is not a state the site can be in,
- * so it is raised here rather than left to fail somewhere later. */
+ * so it is raised here rather than left to fail somewhere later. Being sent
+ * there twice for one press is not either: only the last order would be
+ * visible, while the customer would have two of them. */
 const whatIsBeingCharged = (
   charged: CheckoutIntent | undefined,
+  timesReached: number,
 ): WhatIsBeingCharged => {
   const line = charged?.items[0];
   if (!line) throw new Error("Paying was reached with nothing to charge for");
+  if (timesReached !== 1) {
+    throw new Error(`Paying was set up ${timesReached} times, not once`);
+  }
   return {
+    forWhat: line.slug,
     nameOnIt: charged.name,
     places: line.quantity,
     priceEach: line.unitPrice,
@@ -137,19 +152,22 @@ const whatIsBeingCharged = (
 
 /** A customer follows a printed code. */
 export const customerFollows = (link: string): Promise<WhereTheCodeLed> =>
-  withPayingStubbed(async (whatWasCharged) => {
+  withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
     const { STUB_CHECKOUT_URL } = await import("#test-utils/checkout.ts");
     const { handleRequest } = await import("#routes");
     const { mockRequest } = await import("#test-utils/mocks.ts");
     const response = await handleRequest(mockRequest(link));
+    // The whole address has to be the payment page, not merely start like it.
     const sentToPay =
       response.status === 302 &&
-      (response.headers.get("location") ?? "").startsWith(STUB_CHECKOUT_URL);
+      response.headers.get("location") === STUB_CHECKOUT_URL;
     if (sentToPay) response.body?.cancel();
     return {
       page: sentToPay ? "" : await response.text(),
-      paying: sentToPay ? whatIsBeingCharged(whatWasCharged()) : null,
-      reached: response.status !== 404,
+      paying: sentToPay
+        ? whatIsBeingCharged(whatWasCharged(), timesReached())
+        : null,
+      status: response.status,
     };
   });
 
@@ -169,7 +187,7 @@ export const customerPaysMore = (
   link: string,
   price: number,
 ): Promise<WhatIsBeingCharged> =>
-  withPayingStubbed(async (whatWasCharged) => {
+  withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
     const browser = new TestBrowser();
     await browser.visit(link);
     expect(browser.currentHtml).toContain('name="qr_token"');
@@ -187,7 +205,7 @@ export const customerPaysMore = (
     // a local page at the same path is not the payment page.
     const { STUB_CHECKOUT_URL } = await import("#test-utils/checkout.ts");
     expect(browser.redirectedTo).toBe(STUB_CHECKOUT_URL);
-    return whatIsBeingCharged(whatWasCharged());
+    return whatIsBeingCharged(whatWasCharged(), timesReached());
   });
 
 /** The same code with its signed part meddled with, as anyone reading the link
