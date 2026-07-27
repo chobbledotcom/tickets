@@ -154,6 +154,25 @@ describeWithEnv("payment reconciliation maintenance", { db: true }, () => {
     ]);
   });
 
+  test("refuses a queued bulk refund whose payment came back empty", async () => {
+    // The refund was queued against a payment, so reconciling it has to hand
+    // that payment back. Coming back with nothing means the books cannot be
+    // squared, and saying so beats carrying on with a missing record.
+    const { actions } = fakeActions();
+    const losingActions: PaymentMaintenanceActions = {
+      ...actions,
+      reconcile: () =>
+        Promise.resolve({ payment: null, status: "retry" as const }),
+    };
+
+    await expect(
+      processDuePaymentSession(
+        { ...duePayment("refunding"), bulkRefund: true },
+        losingActions,
+      ),
+    ).rejects.toThrow("lost its payment aggregate");
+  });
+
   test("resumes created checkout input through the create runtime", async () => {
     const { actions, calls } = fakeActions();
 
