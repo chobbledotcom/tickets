@@ -19,9 +19,6 @@ const INSTALL_LOCK_GUARD_SUFFIX = ".guard";
 const BIN_DIR = join(projectRoot, ".bin");
 const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 
-const platformMap: Record<string, string> = { darwin: "darwin" };
-const archMap: Record<string, string> = { aarch64: "arm64" };
-
 export type StripeMockPaths = {
   binDir: string;
   binaryPath: string;
@@ -79,10 +76,16 @@ const defaultCommands: StripeMockCommands = {
 
 const textDecoder = new TextDecoder();
 
-/** What stripe-mock calls this machine, which is not always what Deno calls it. */
-const getPlatform = (): string => platformMap[Deno.build.os] ?? "linux";
+/**
+ * What stripe-mock calls this machine in its release names, which is not always
+ * what Deno calls it. Everything that is not a Mac is named as Linux, and every
+ * processor that is not 64-bit ARM is named as amd64.
+ */
+const getPlatform = (): string =>
+  Deno.build.os === "darwin" ? "darwin" : "linux";
 
-const getArch = (): string => archMap[Deno.build.arch] ?? "amd64";
+const getArch = (): string =>
+  Deno.build.arch === "aarch64" ? "arm64" : "amd64";
 
 const stripeMockDownloadUrl = (): string =>
   `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${getPlatform()}_${getArch()}.tar.gz`;

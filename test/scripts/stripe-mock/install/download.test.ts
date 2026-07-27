@@ -12,6 +12,26 @@ import {
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
 
+/** Make the code believe it is running on a different machine. */
+const pretendMachineIs = ({
+  arch,
+  os,
+}: {
+  arch: string;
+  os: string;
+}): Disposable => {
+  const real = Deno.build;
+  Object.defineProperty(Deno, "build", {
+    configurable: true,
+    value: { ...real, arch, os },
+  });
+  return {
+    [Symbol.dispose]: () => {
+      Object.defineProperty(Deno, "build", { configurable: true, value: real });
+    },
+  };
+};
+
 /** What stripe-mock calls the machine this test is running on. */
 const expectedPlatform = (): string =>
   Deno.build.os === "darwin" ? "darwin" : "linux";
@@ -20,7 +40,13 @@ const expectedArch = (): string =>
   Deno.build.arch === "aarch64" ? "arm64" : "amd64";
 
 /** Run a download with a curl that records what it was asked for. */
-const curlArgsFor = async (): Promise<string[]> => {
+const curlArgsFor = async (build?: {
+  arch: string;
+  os: string;
+}): Promise<string[]> => {
+  using _build = build
+    ? pretendMachineIs(build)
+    : { [Symbol.dispose]: () => {} };
   const fakeArchive = await createFakeArchive();
   let args: string[] = [];
   try {
@@ -53,6 +79,22 @@ describe("what stripe-mock is fetched with", () => {
     expect(url).toBe(
       `https://github.com/stripe/stripe-mock/releases/download/v${version}/stripe-mock_${version}_${expectedPlatform()}_${expectedArch()}.tar.gz`,
     );
+  });
+
+  test("names the release for a Mac on Apple silicon", async () => {
+    const url = (await curlArgsFor({ arch: "aarch64", os: "darwin" })).find(
+      (arg) => arg.startsWith("https://"),
+    );
+
+    expect(url).toContain("_darwin_arm64.tar.gz");
+  });
+
+  test("names the release for an ordinary Linux machine", async () => {
+    const url = (await curlArgsFor({ arch: "x86_64", os: "linux" })).find(
+      (arg) => arg.startsWith("https://"),
+    );
+
+    expect(url).toContain("_linux_amd64.tar.gz");
   });
 
   test("asks curl to work quietly, follow redirects, and hand the file back", async () => {
