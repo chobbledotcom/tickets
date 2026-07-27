@@ -7,7 +7,8 @@
 
 import { expect } from "@std/expect";
 import { mapNotNullish } from "#fp";
-import { getGroupPackagePrices } from "#shared/db/groups.ts";
+import { toMinorUnits } from "#shared/currency.ts";
+import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
@@ -26,7 +27,13 @@ export interface PartOfBundle {
    * thing's own price. */
   bundlePrice?: number;
   name: string;
-  ownPrice?: number;
+}
+
+/** One thing before it is in a bundle, at the price it sells for by itself.
+ * That price is what a blank bundle price falls back to, so a story cannot
+ * leave it unsaid. */
+export interface ThingForSale extends PartOfBundle {
+  ownPrice: number;
 }
 
 /** The bundle a story is talking about. */
@@ -38,7 +45,7 @@ const bundleNamed = (world: TicketsWorld, name: string): Group =>
 export const thingsGroupedTogether = async (
   world: TicketsWorld,
   name: string,
-  parts: PartOfBundle[],
+  parts: ThingForSale[],
 ): Promise<void> => {
   await enablePublicSite();
   const group = await createTestGroup({ name });
@@ -53,7 +60,7 @@ export const thingsGroupedTogether = async (
         maxAttendees: 10,
         maxQuantity: 10,
         name: part.name,
-        unitPrice: Math.round((part.ownPrice ?? 0) * 100),
+        unitPrice: toMinorUnits(part.ownPrice),
       }),
     );
   }
@@ -128,13 +135,16 @@ export const organiserRevealsParts = async (
   await browser.submitForm({ hide_package_listings: [] }, "Save Changes");
 };
 
+/** The bundle as the site has it now, or nothing if it is gone. */
+const storedBundle = (world: TicketsWorld, name: string) =>
+  groups.table.findById(bundleNamed(world, name).id);
+
 /** Whether the site is still selling this as one bundle. */
 export const isStillABundle = async (
   world: TicketsWorld,
   name: string,
 ): Promise<boolean> => {
-  const { groups } = await import("#shared/db/groups.ts");
-  const found = await groups.table.findById(bundleNamed(world, name).id);
+  const found = await storedBundle(world, name);
   // A bundle that vanished is not the same as one that stopped being a bundle,
   // and answering "no" for both would hide a group the site destroyed.
   if (!found) throw new Error(`The ${name} is gone altogether`);
@@ -219,10 +229,7 @@ export const organiserDeletesBundle = async (
 export const bundleStillExists = async (
   world: TicketsWorld,
   name: string,
-): Promise<boolean> => {
-  const { groups } = await import("#shared/db/groups.ts");
-  return (await groups.table.findById(bundleNamed(world, name).id)) !== null;
-};
+): Promise<boolean> => (await storedBundle(world, name)) !== null;
 
 /** A customer opens one of the bundle's parts on its own. Its page has to
  * answer, be that thing's page, and offer a way to book it — a row left in the

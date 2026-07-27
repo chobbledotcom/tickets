@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { toMinorUnits } from "#shared/currency.ts";
 import {
   bundlePrices,
   bundleStillExists,
@@ -15,6 +16,8 @@ import {
   organiserSellsAsBundle,
   organiserStopsBundling,
   type PartOfBundle,
+  type ThingForSale,
+  thingsGroupedTogether,
 } from "#test/specs/support/bundles.ts";
 import {
   requiredWorldValue,
@@ -22,9 +25,6 @@ import {
 } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
-
-/** Money as the story writes it, in the smallest units the site stores. */
-const inPennies = (amount: number): number => Math.round(amount * 100);
 
 Given(
   "a {word} group holding a {word} at {float} and a {word} at {float}",
@@ -40,25 +40,15 @@ Given(
       { name: firstPart, ownPrice: firstPrice },
       { name: secondPart, ownPrice: secondPrice },
     ];
-    return thingsGrouped(this, bundle);
+    return thingsGroupedTogether(this, bundle, partsOf(this));
   },
 );
 
 /** The things the story grouped together, as the organiser will price them. */
-const partsOf = (world: TicketsWorld): PartOfBundle[] => {
+const partsOf = (world: TicketsWorld): ThingForSale[] => {
   const parts = world.bundleParts;
   if (!parts) throw new Error("The story grouped nothing together");
   return parts;
-};
-
-const thingsGrouped = async (
-  world: TicketsWorld,
-  bundle: string,
-): Promise<void> => {
-  const { thingsGroupedTogether } = await import(
-    "#test/specs/support/bundles.ts"
-  );
-  await thingsGroupedTogether(world, bundle, partsOf(world));
 };
 
 /** The organiser turns the group into a bundle, however the story words it. */
@@ -135,19 +125,16 @@ Then(
   },
 );
 
-Then(
-  "the {word} is sold as one bundle",
-  async function (this: TicketsWorld, bundle: string): Promise<void> {
-    expect(await isStillABundle(this, bundle)).toBe(true);
-  },
-);
+/** The site sells this as one bundle, however the story words the check. */
+const expectSoldAsBundle = async function (
+  this: TicketsWorld,
+  bundle: string,
+): Promise<void> {
+  expect(await isStillABundle(this, bundle)).toBe(true);
+};
 
-Then(
-  "the {word} is still sold as one bundle",
-  async function (this: TicketsWorld, bundle: string): Promise<void> {
-    expect(await isStillABundle(this, bundle)).toBe(true);
-  },
-);
+Then("the {word} is sold as one bundle", expectSoldAsBundle);
+Then("the {word} is still sold as one bundle", expectSoldAsBundle);
 
 Then(
   "the {word} is no longer sold as one bundle",
@@ -164,7 +151,7 @@ Then(
     part: string,
   ): Promise<void> {
     const charged = await bundlePrices(this, onlyBundle(this));
-    expect(charged.get(part)).toBe(inPennies(price));
+    expect(charged.get(part)).toBe(toMinorUnits(price));
   },
 );
 

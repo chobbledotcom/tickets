@@ -61,6 +61,7 @@ Feature: An organiser sells several things as one bundle
       And the Weekend is still there
       And their ticket names the Weekend
       And their ticket never names the Tent
+      And their ticket never names the Breakfast
 
     @case:bundles.unbundling-a-sold-private-bundle-is-refused
     Scenario: The organiser tries to stop bundling a private bundle someone has bought
