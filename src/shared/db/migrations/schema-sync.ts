@@ -389,7 +389,6 @@ const rebuildLegacyPaymentTablesWithoutForeignKeys =
   async (): Promise<void> => {
     for (const name of await existingLegacyPaymentTables(getDb)) {
       const liveColumns = await getExistingColumns(name);
-      if (!liveColumns.has("attendee_id")) continue;
       const columns = legacyPaymentTableColumns(name);
       await rebuildTableWithColumns({
         columns,
