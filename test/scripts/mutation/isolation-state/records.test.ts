@@ -69,6 +69,38 @@ describe("mutation isolation run records", () => {
     expect(runStartedRecently(stale, now)).toBe(false);
   });
 
+  test("treats a record whose time makes no sense as not started recently", () => {
+    const broken = markRunning(
+      newRunRecord("broken", [], "/repo", "not a time"),
+      3,
+      "not a time",
+    );
+
+    expect(
+      runStartedRecently(broken, new Date("2026-07-10T12:00:00.000Z")),
+    ).toBe(false);
+  });
+
+  test("counts a run stamped a moment after the epoch", () => {
+    const justAfterEpoch = markRunning(
+      newRunRecord("epoch", [], "/repo", "1970-01-01T00:00:00.001Z"),
+      4,
+      "1970-01-01T00:00:00.001Z",
+    );
+
+    expect(runStartedRecently(justAfterEpoch, new Date(1), 1000)).toBe(true);
+  });
+
+  test("gives each run a plain id with an eight-letter tail", () => {
+    const id = createRunId();
+    const tail = id.split("-").at(-1);
+
+    // Two runs started in the same second must still land in their own folder.
+    expect(tail).toHaveLength(8);
+    expect(id.startsWith("mutation-")).toBe(true);
+    expect(createRunId()).not.toBe(id);
+  });
+
   test("writes, reads, sorts, and ignores broken records", async () => {
     await withTempDir(async (root) => {
       expect(await readRunRecords(root)).toEqual([]);
@@ -89,6 +121,21 @@ describe("mutation isolation run records", () => {
       const records = await readRunRecords(root);
       expect(records.map((record) => record.id)).toEqual(["newer", "older"]);
       expect(await readRunRecord(join(root, "missing.json"))).toBeNull();
+    });
+  });
+
+  test("writes the record so a person can read it", async () => {
+    await withTempDir(async (root) => {
+      const record = newRunRecord("readable", ["src/a.ts"], root);
+      await writeRunRecord(record);
+
+      const written = await Deno.readTextFile(
+        join(root, ".mutation-runs", "readable", "run.json"),
+      );
+
+      // Indented and one line per field, so `cat run.json` is worth doing.
+      expect(written.split("\n")[1]).toBe('  "args": [');
+      expect(written.endsWith("}\n")).toBe(true);
     });
   });
 
