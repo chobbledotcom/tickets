@@ -21,6 +21,10 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** Everyone a story talks about has an email the site files them under. */
 const emailFor = (who: string): string => `${who.toLowerCase()}@example.com`;
 
+/** Bookings the organiser took by hand, seeded on the record that cannot be
+ * read. Repairing the note must leave this count alone too. */
+const HAND_BOOKINGS = 2;
+
 /** The record page the organiser is looking at. */
 const recordPage = (world: TicketsWorld): TestBrowser =>
   requiredWorldValue(world.customerBrowser, "the record page");
@@ -67,7 +71,7 @@ Given(
     visits: number,
   ): Promise<void> {
     return unreadableRecord(emailFor(who), {
-      bookedByHand: 2,
+      bookedByHand: HAND_BOOKINGS,
       bookedThroughTheSite: booked,
       visits,
     });
@@ -226,5 +230,6 @@ Then(
     const record = await recordFor(emailFor(who));
     expect(record.publicBookingCount).toBe(booked);
     expect(record.visits).toBe(visits);
+    expect(record.adminBookingCount).toBe(HAND_BOOKINGS);
   },
 );

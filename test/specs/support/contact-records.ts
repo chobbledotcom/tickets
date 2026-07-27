@@ -108,17 +108,15 @@ const BOXES = {
 /** The organiser fills the record's own form in and saves it. Every box has to
  * be on the page — including the ones this edit does not touch, because those
  * are carried forward from what the page showed, so a box that quietly vanished
- * would be saved as nothing without anyone noticing. */
+ * would be saved as nothing without anyone noticing. What the organiser types
+ * must also be something the box itself would accept, so a story can never send
+ * what a real form would block. */
 export const saveRecord = async (
   world: TicketsWorld,
   email: string,
   edit: RecordEdit,
 ): Promise<TestBrowser> => {
   const browser = await openRecord(world, email);
-  // Every box has to be there, including the ones this edit leaves alone: those
-  // are carried forward from the page, so one that quietly vanished would be
-  // saved as nothing. And what the organiser types has to be something the box
-  // itself would accept — a story must never send what a real form would block.
   for (const box of Object.values(BOXES)) {
     expect(browser.currentHtml).toContain(`name="${box}"`);
   }
