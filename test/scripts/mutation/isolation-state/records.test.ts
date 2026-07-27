@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   createRunId,
   markFinished,
@@ -9,6 +10,7 @@ import {
   newRunRecord,
   readRunRecord,
   readRunRecords,
+  recordPath,
   runLockIsHeld,
   runRoot,
   runStartedRecently,
@@ -67,6 +69,37 @@ describe("mutation isolation run records", () => {
     );
     expect(runStartedRecently(fresh, now)).toBe(true);
     expect(runStartedRecently(stale, now)).toBe(false);
+  });
+
+  test("keeps the last complete record readable while writing a new one", async () => {
+    await withTempDir(async (root) => {
+      const record = newRunRecord("swap", [], root);
+      await writeRunRecord(record);
+
+      // Stop the swap half way, which is where a reader could catch a partly
+      // written record if the new text went straight into run.json.
+      const rename = Deno.rename;
+      const held = Promise.withResolvers<void>();
+      using _rename = stub(Deno, "rename", (async (
+        from: string | URL,
+        to: string | URL,
+      ) => {
+        await held.promise;
+        await rename(from, to);
+      }) as typeof Deno.rename);
+
+      const writing = writeRunRecord(markRunning(record, 4242));
+      expect(await readRunRecord(recordPath("swap", root))).toMatchObject({
+        status: "copying",
+      });
+
+      held.resolve();
+      await writing;
+      expect(await readRunRecord(recordPath("swap", root))).toMatchObject({
+        pid: 4242,
+        status: "running",
+      });
+    });
   });
 
   test("writes, reads, sorts, and ignores broken records", async () => {

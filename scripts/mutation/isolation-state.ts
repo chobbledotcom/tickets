@@ -21,6 +21,7 @@ import { denoExitCode } from "./child-process.ts";
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
 export const MUTATION_RECORD_FILE = "run.json";
+export const MUTATION_RECORD_PENDING_SUFFIX = ".writing";
 export const MUTATION_RUN_LOCK_FILE = "run.lock";
 export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
 export const MUTATION_RUN_ID_ENV = "TICKETS_MUTATION_RUN_ID";
@@ -276,16 +277,19 @@ export const runStartedRecently = (
   now?: Date,
 ): boolean => withinStartupGrace(Date.parse(record.updatedAt), now);
 
+/**
+ * Write the record in one step: the new text goes to a spare file that is then
+ * swapped into place, so another run reading at that moment sees either the
+ * old record or the new one — never half of one.
+ */
 export const writeRunRecord = async (
   record: MutationRunRecord,
 ): Promise<void> => {
-  await Deno.mkdir(dirname(join(record.root, MUTATION_RECORD_FILE)), {
-    recursive: true,
-  });
-  await Deno.writeTextFile(
-    join(record.root, MUTATION_RECORD_FILE),
-    `${JSON.stringify(record, null, 2)}\n`,
-  );
+  const path = join(record.root, MUTATION_RECORD_FILE);
+  await Deno.mkdir(dirname(path), { recursive: true });
+  const pending = `${path}${MUTATION_RECORD_PENDING_SUFFIX}`;
+  await Deno.writeTextFile(pending, `${JSON.stringify(record, null, 2)}\n`);
+  await Deno.rename(pending, path);
 };
 
 export const readRunRecord = async (
