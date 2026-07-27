@@ -4,6 +4,7 @@ import type { SumUp } from "@sumup/sdk";
 import { createPaymentSession } from "#shared/db/payments/sessions.ts";
 import type { PaymentSession } from "#shared/db/payments/types.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import { resolvePaymentAccount } from "#shared/payment-runtime/account.ts";
 import type {
   ProviderChargeResource,
@@ -19,6 +20,7 @@ import {
   PAYMENT_INTENT,
   PAYMENT_TIME,
 } from "#test/shared/db/payments/fixtures.ts";
+import { preparedCheckout } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
@@ -40,6 +42,32 @@ export const sumupTransactionResource: ProviderChargeResource = {
   parentId: sumupCheckoutResource.id,
   provider: "sumup",
 };
+
+/** One buyer wanting one place, priced and ready to send to SumUp. */
+export const sumupCheckoutSnapshot = (
+  localPaymentId = SUMUP_LOCAL_PAYMENT_ID,
+): Promise<PaymentCheckoutCreateSnapshot> =>
+  preparedCheckout(
+    {
+      address: "",
+      date: null,
+      email: "alice@example.com",
+      items: [
+        {
+          listingId: 1,
+          name: "Event",
+          quantity: 1,
+          slug: "event",
+          unitPrice: SUMUP_MONEY.amount,
+        },
+      ],
+      name: "Alice",
+      phone: "",
+      special_instructions: "",
+    },
+    "sumup",
+    localPaymentId,
+  );
 
 export const describeSumup = (name: string, body: () => void): void =>
   describeWithEnv(name, { db: true }, () => {

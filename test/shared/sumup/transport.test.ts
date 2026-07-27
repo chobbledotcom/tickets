@@ -6,26 +6,8 @@ import * as v from "valibot";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { sumupApi } from "#shared/sumup.ts";
-import { preparedCheckout } from "#test-utils/checkout.ts";
+import { sumupCheckoutSnapshot } from "#test/shared/sumup/fixtures.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
-
-const INTENT = {
-  address: "",
-  date: null,
-  email: "alice@example.com",
-  items: [
-    {
-      listingId: 1,
-      name: "Event",
-      quantity: 1,
-      slug: "event",
-      unitPrice: 1000,
-    },
-  ],
-  name: "Alice",
-  phone: "",
-  special_instructions: "",
-};
 
 const apiError = (status: number): APIError<unknown> =>
   new APIError(
@@ -74,9 +56,7 @@ describe("SumUp transport", () => {
     } as unknown as SumUp);
 
     await expect(
-      sumupApi.createCheckout(
-        await preparedCheckout(INTENT, "sumup", "sumup-local"),
-      ),
+      sumupApi.createCheckout(await sumupCheckoutSnapshot()),
     ).resolves.toEqual({
       id: "co_created",
       reference: "sumup-local",
@@ -100,9 +80,7 @@ describe("SumUp transport", () => {
     } as unknown as SumUp);
 
     await expect(
-      sumupApi.createCheckout(
-        await preparedCheckout(INTENT, "sumup", "sumup-local"),
-      ),
+      sumupApi.createCheckout(await sumupCheckoutSnapshot()),
     ).rejects.toThrow(v.ValiError);
   });
 
@@ -125,6 +103,21 @@ describe("SumUp transport", () => {
         status: "unavailable",
       });
     }
+  });
+
+  test("reports a failure that is not an error at all", async () => {
+    // The SDK is not ours, so it can throw anything. Whatever it throws, the
+    // read has to come back as unavailable rather than crashing the request.
+    using _client = withClient({
+      checkouts: {
+        // deno-lint-ignore no-throw-literal
+        get: () => Promise.reject("something odd"),
+      },
+    } as unknown as SumUp);
+
+    await expect(sumupApi.retrieveCheckoutById("co_odd")).resolves.toEqual({
+      status: "unavailable",
+    });
   });
 
   test("returns a structured accepted refund without an invented id", async () => {

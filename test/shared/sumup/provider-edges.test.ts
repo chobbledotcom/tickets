@@ -1,10 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { settings } from "#shared/db/settings.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { paymentCharge } from "#test/shared/payment-runtime/fixtures.ts";
 import {
+  createStoredSumupPayment,
   describeSumup,
+  foundSumupCheckout,
+  foundSumupTransaction,
   stubSumupProvider,
+  sumupCheckoutResource,
+  sumupCheckoutSnapshot,
   sumupTransaction,
 } from "#test/shared/sumup/fixtures.ts";
 
@@ -93,5 +99,67 @@ describeSumup("SumUp provider edges", () => {
         "key-4",
       ),
     ).toMatchObject({ status: "failed" });
+  });
+
+  test("reports a checkout SumUp would not create", async () => {
+    // Without a merchant code SumUp cannot be asked at all, so there is no
+    // checkout to send the buyer to.
+    settings.setForTest({ sumup_merchant_code: "" });
+
+    expect(
+      await sumupPaymentProvider.createCheckout(await sumupCheckoutSnapshot()),
+    ).toBeNull();
+  });
+
+  test("refuses a checkout charging a different amount than we asked for", async () => {
+    const payment = await createStoredSumupPayment();
+    using _sumup = stubSumupProvider({
+      checkout: () => foundSumupCheckout({ amountMinor: 2_500 }),
+    });
+
+    expect(
+      await sumupPaymentProvider.readPayment(payment, sumupCheckoutResource),
+    ).toMatchObject({ reason: "malformed_response", status: "invalid" });
+  });
+
+  test("reports a refund SumUp says did not work", async () => {
+    const payment = await createStoredSumupPayment();
+    using _sumup = stubSumupProvider({
+      transaction: () =>
+        foundSumupTransaction({
+          refunds: [
+            { amount: { amount: 400, currency: "GBP" }, status: "failed" },
+          ],
+        }),
+    });
+
+    expect(
+      await sumupPaymentProvider.readPayment(payment, sumupCheckoutResource),
+    ).toMatchObject({
+      observation: {
+        charges: [
+          {
+            refunds: [
+              {
+                amount: { amount: 400, currency: "GBP" },
+                reason: "provider_failed",
+                status: "failed",
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  test("cannot read a payment whose transaction SumUp will not answer about", async () => {
+    const payment = await createStoredSumupPayment();
+    using _sumup = stubSumupProvider({
+      transaction: () => Promise.resolve({ status: "unavailable" as const }),
+    });
+
+    expect(
+      await sumupPaymentProvider.readPayment(payment, sumupCheckoutResource),
+    ).toMatchObject({ reason: "provider_unavailable", status: "unavailable" });
   });
 });

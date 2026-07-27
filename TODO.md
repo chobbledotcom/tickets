@@ -2393,3 +2393,25 @@ removes a row before the upgrade has copied it, the check that everything was
 copied sees an empty table and is satisfied — the payment is gone with nothing
 saying so. Deletes need blocking too, with a way for the upgrade itself to
 clear rows it has already copied.
+
+## A SumUp refund state we do not know is asked about for ever
+
+*Origin: found while writing the tests that cover SumUp's transaction reading
+on the payment-aggregate base branch.*
+
+SumUp reports what happened to a payment as a list of events. A refund event
+carries a state, and only four of them mean anything to us. Any other state
+makes the reading refuse, which is right — but the refusal is then treated the
+same as SumUp being unreachable (`src/shared/sumup/boundary.ts`, `toRefundFact`;
+the reading is wrapped by `readSumupTransport` in `src/shared/sumup.ts`).
+
+So the payment is filed as "we cannot answer right now" and asked again a
+minute later, for ever, and nothing is ever put in front of the owner. Unlike a
+network wobble, this one can never come good on its own: the answer will carry
+the same unknown state every time.
+
+A state we do not know is a permanent problem with what SumUp is telling us, so
+it should be raised for the owner instead of retried. The test that pins the
+current behaviour is "cannot answer about a refund reported in a state we do
+not know" in `test/shared/sumup/refund-events.test.ts` — it will need changing
+when this is fixed.
