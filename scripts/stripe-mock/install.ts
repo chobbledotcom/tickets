@@ -79,6 +79,7 @@ const defaultCommands: StripeMockCommands = {
 
 const textDecoder = new TextDecoder();
 
+/** What stripe-mock calls this machine, which is not always what Deno calls it. */
 const getPlatform = (): string => platformMap[Deno.build.os] ?? "linux";
 
 const getArch = (): string => archMap[Deno.build.arch] ?? "amd64";
@@ -119,13 +120,18 @@ export const installLockPath = (paths: StripeMockPaths): string =>
 const installLockGuardPath = (lockPath: string): string =>
   `${lockPath}${INSTALL_LOCK_GUARD_SUFFIX}`;
 
-const installLockSettings = (
-  options: StripeMockInstallOptions,
-): InstallLockSettings => ({
-  retryMs: options.installLockRetryMs ?? INSTALL_LOCK_RETRY_MS,
-  staleMs: options.installLockStaleMs ?? INSTALL_LOCK_STALE_MS,
-  timeoutMs: options.installLockTimeoutMs ?? INSTALL_LOCK_TIMEOUT_MS,
-  touchMs: options.installLockTouchMs ?? INSTALL_LOCK_TOUCH_MS,
+const installLockSettings = ({
+  // Only a missing setting takes the standard value, so an explicit one —
+  // including a deliberate zero — is always kept.
+  installLockRetryMs: retryMs = INSTALL_LOCK_RETRY_MS,
+  installLockStaleMs: staleMs = INSTALL_LOCK_STALE_MS,
+  installLockTimeoutMs: timeoutMs = INSTALL_LOCK_TIMEOUT_MS,
+  installLockTouchMs: touchMs = INSTALL_LOCK_TOUCH_MS,
+}: StripeMockInstallOptions): InstallLockSettings => ({
+  retryMs,
+  staleMs,
+  timeoutMs,
+  touchMs,
 });
 
 const formatInstallLockRecord = (owner: string): string =>
@@ -349,7 +355,7 @@ const installStripeMock = async (
 export const downloadStripeMock = async (
   options: StripeMockInstallOptions,
 ): Promise<void> => {
-  const paths = options.paths ?? defaultStripeMockPaths;
+  const { paths = defaultStripeMockPaths } = options;
   if (await stripeMockBinaryExists(paths)) return;
 
   await withInstallLock(paths, options, async () => {
