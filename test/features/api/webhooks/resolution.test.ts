@@ -260,4 +260,76 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
     expect(response.status).toBe(409);
     expect(await response.text()).toContain("Your payment needs review.");
   });
+
+  test("a signed webhook with no signature is refused", async () => {
+    settings.setForTest({
+      payment_provider: "stripe",
+      stripe_secret_key: "sk_test_webhook-runtime",
+    });
+    const request = new Request("https://example.com/payment/webhook", {
+      body: "{}",
+      headers: { "stripe-signature": "" },
+      method: "POST",
+    });
+
+    const response = await routePayment(request, "/payment/webhook", "POST");
+
+    expect(response?.status).toBe(400);
+    expect(await response?.text()).toBe("Missing signature");
+  });
+
+  test("a webhook we cannot trust is refused with the reason", async () => {
+    settings.setForTest({
+      payment_provider: "stripe",
+      stripe_secret_key: "sk_test_webhook-runtime",
+    });
+    using _verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
+      Promise.resolve({ error: "bad signature", valid: false as const }),
+    );
+
+    const response = await sendWebhook();
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe("bad signature");
+  });
+
+  test("a trusted webhook about nothing we act on is acknowledged", async () => {
+    settings.setForTest({
+      payment_provider: "stripe",
+      stripe_secret_key: "sk_test_webhook-runtime",
+    });
+    using _verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
+      Promise.resolve({ notice: null, valid: true as const }),
+    );
+
+    const response = await sendWebhook();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+  });
+
+  test("a notice about another provider's payment is left alone", async () => {
+    settings.setForTest({
+      payment_provider: "stripe",
+      stripe_secret_key: "sk_test_webhook-runtime",
+    });
+    using _verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
+      Promise.resolve({
+        notice: {
+          ...notice,
+          resource: {
+            id: "sq-order",
+            kind: "square_order" as const,
+            provider: "square" as const,
+          },
+        },
+        valid: true as const,
+      }),
+    );
+
+    const response = await sendWebhook();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+  });
 });
