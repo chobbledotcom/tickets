@@ -16,7 +16,10 @@ import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
+import {
+  expectUnreadableSessionRejected,
+  expectUnrecognisedPayment,
+} from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -51,38 +54,16 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_invalid"),
           );
-          await expectHtmlResponse(
-            response,
-            400,
-            t("payment.error.session_not_recognized"),
-          );
+          await expectUnrecognisedPayment(response);
         },
       );
     });
 
     test("returns error for invalid session metadata", async () => {
       await setupStripe();
-
-      await withMocks(
-        () =>
-          stubRetrieveCheckoutSession({
-            amountTotal: 0,
-            metadata: {}, // Missing required fields
-            paymentIntent: null,
-            paymentStatus: "unpaid",
-            sessionId: "cs_test_cancel",
-          }),
-        async () => {
-          const response = await handleRequest(
-            mockRequest("/payment/cancel?session_id=cs_test_cancel"),
-          );
-          // Provider returns null for invalid metadata, so routes report "not found"
-          await expectHtmlResponse(
-            response,
-            400,
-            t("payment.error.session_not_recognized"),
-          );
-        },
+      await expectUnreadableSessionRejected(
+        "/payment/cancel",
+        "cs_test_cancel",
       );
     });
 
@@ -292,11 +273,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           // Without readable items there is nothing tying the checkout to a
           // listing, so it cannot be shown to be ours.
-          await expectHtmlResponse(
-            response,
-            400,
-            t("payment.error.session_not_recognized"),
-          );
+          await expectUnrecognisedPayment(response);
         },
       );
     });
@@ -315,11 +292,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           // Without readable items there is nothing tying the checkout to a
           // listing, so it cannot be shown to be ours.
-          await expectHtmlResponse(
-            response,
-            400,
-            t("payment.error.session_not_recognized"),
-          );
+          await expectUnrecognisedPayment(response);
         },
       );
     });

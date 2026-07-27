@@ -12,6 +12,7 @@ import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
+  expectKeptAtQuantityZero,
   expectRefundNote,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
@@ -60,14 +61,7 @@ describeWithEnv(
       );
       await expectRefundNote(listing2.id, "registration closed");
 
-      // The open listing's booking is kept rather than dropped, at quantity 0
-      // so it holds nobody's place while the refund is recorded.
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      expect(attendees1.length).toBe(1);
-      expect(attendees1[0]!.quantity).toBe(0);
+      await expectKeptAtQuantityZero(listing1.id);
     });
 
     test("webhook handles multi-ticket sold out in second listing", async () => {

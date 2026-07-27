@@ -226,6 +226,64 @@ export const expectSessionFailed = async (sessionId: string): Promise<void> => {
 };
 
 /**
+ * Assert a payment page turned the visitor away because the checkout could not
+ * be shown to be ours — an unsigned or unreadable one, or a session the
+ * provider does not know.
+ */
+export const expectUnrecognisedPayment = async (
+  response: Response,
+): Promise<void> => {
+  const { t } = await import("#i18n");
+  const { expectHtmlResponse } = await import("./assertions.ts");
+  await expectHtmlResponse(
+    response,
+    400,
+    t("payment.error.session_not_recognized"),
+  );
+};
+
+/**
+ * Drive a payment callback for a checkout whose stored details cannot be read,
+ * and assert the visitor is told it is not recognised. Shared by the success
+ * and cancel pages, which answer an unreadable checkout the same way.
+ */
+export const expectUnreadableSessionRejected = async (
+  path: string,
+  sessionId: string,
+): Promise<void> => {
+  const { handleRequest } = await import("#routes");
+  const { mockRequest, withMocks } = await import("./mocks.ts");
+  await withMocks(
+    () =>
+      stubRetrieveCheckoutSession({
+        amountTotal: 0,
+        metadata: {},
+        paymentIntent: null,
+        paymentStatus: "unpaid",
+        sessionId,
+      }),
+    async () => {
+      await expectUnrecognisedPayment(
+        await handleRequest(mockRequest(`${path}?session_id=${sessionId}`)),
+      );
+    },
+  );
+};
+
+/**
+ * Assert a listing kept exactly one booking, held at quantity 0 so it takes
+ * nobody's place while the money goes back.
+ */
+export const expectKeptAtQuantityZero = async (
+  listingId: number,
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const kept = await getAttendeesRaw(listingId);
+  expect(kept).toHaveLength(1);
+  expect(kept[0]!.quantity).toBe(0);
+};
+
+/**
  * Assert the refund fired exactly once and a system note recorded the reason
  * against `attendeeId` — the shared tail of every "kept and refunded"
  * scenario, regardless of how the caller located the quantity-0 placeholder
