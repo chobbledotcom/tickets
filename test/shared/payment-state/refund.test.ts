@@ -55,6 +55,22 @@ describe("refund resolver", () => {
     });
   });
 
+  test("reports a pending refund the provider has not named yet", () => {
+    // SumUp says a refund is on its way before it says what it is called.
+    expect(
+      resolved(
+        chargeLeg({
+          refunds: [
+            { amount: { amount: 100, currency: "GBP" }, status: "pending" },
+          ],
+        }),
+      ),
+    ).toEqual({
+      amount: { amount: 100, currency: "GBP" },
+      status: "pending",
+    });
+  });
+
   test("classifies full confirmed refunds with and without a refund id", () => {
     for (const refunds of [[refundObservation()], []]) {
       expect(
