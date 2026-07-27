@@ -10,6 +10,7 @@ import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
   expectMergedMultiListingAttendee,
+  expectRefundedWithNote,
   expectRefundPaymentCall,
   expectSessionFailed,
   expectWebhookKeptAndRefunded,
@@ -74,9 +75,9 @@ describeWithEnv(
         200,
         (json) => {
           expect(json.processed).toBe(false);
-          // The capacity reason now lives in the note; the customer sees the
-          // generic saved-details message.
-          expect(json.error).toContain("saved your details");
+          // The reply says only that the money went back; why it happened is
+          // kept on the booking's note.
+          expect(json.status).toBe("fully_refunded");
         },
       );
 
@@ -132,12 +133,8 @@ describeWithEnv(
         listing1.id,
         listing2.id,
       );
-      const { getNoteRows } = await import("#shared/db/system-notes.ts");
-      expect((await getNoteRows([attendee.id])).length).toBe(1);
+      await expectRefundedWithNote(attendee.id, mockRefund);
       await expectSessionFailed("cs_multi_mismatch");
-
-      // Verify refund was attempted exactly once
-      expect(mockRefund.calls.length).toBe(1);
       expectRefundPaymentCall(mockRefund, "pi_multi_mismatch");
     });
 

@@ -2,7 +2,7 @@
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -51,11 +51,16 @@ describeWithEnv(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_test",
-          metadata: webhookMeta({
-            email: "john@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "John",
-          }),
+          // Signed, so the checkout is provably ours and its unpaid state is
+          // what decides the outcome.
+          metadata: signedMeta(
+            {
+              email: "john@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "John",
+            },
+            1000,
+          ),
           paymentIntent: "pi_test",
           paymentStatus: "unpaid",
           sessionId: "cs_test",
