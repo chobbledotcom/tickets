@@ -34,7 +34,10 @@ export const failSnapshotRead = (reason: unknown): Disposable =>
   }) as typeof Deno.readDir);
 
 export const failTextFileWrites = (
-  shouldFail: (writeNumber: number) => boolean,
+  shouldFail: (
+    writeNumber: number,
+    data: string | ReadableStream<string>,
+  ) => boolean,
 ): Disposable => {
   const writeTextFile = Deno.writeTextFile;
   let writes = 0;
@@ -44,24 +47,16 @@ export const failTextFileWrites = (
     options?: Deno.WriteFileOptions,
   ) => {
     writes += 1;
-    if (shouldFail(writes)) throw new Error("record write failed");
+    if (shouldFail(writes, data)) throw new Error("record write failed");
     return writeTextFile(path, data, options);
   }) as typeof Deno.writeTextFile);
 };
 
-export const failRunningStatusWrite = (): Disposable => {
-  const original = Deno.writeTextFile;
-  return stub(Deno, "writeTextFile", ((
-    path: string | URL,
-    data: string | ReadableStream<string>,
-    options?: Deno.WriteFileOptions,
-  ) => {
-    if (typeof data === "string" && data.includes('"running"')) {
-      throw new Error("record write failed");
-    }
-    return original(path, data, options);
-  }) as typeof Deno.writeTextFile);
-};
+/** Let every write through except the one marking the run as running. */
+export const failRunningStatusWrite = (): Disposable =>
+  failTextFileWrites(
+    (_writes, data) => typeof data === "string" && data.includes('"running"'),
+  );
 
 export const capturePlainSnapshotFailure = async (
   root: string,
@@ -173,16 +168,20 @@ export const recordAroundClean = async (
     path: string | URL,
     options?: Deno.MkdirOptions,
   ) => {
-    await realMkdir(path, options);
-    if (runDir || !`${path}`.includes(`${MUTATION_RUNS_DIR}/mutation-`)) return;
-    if (!madeRunFolder.has(`${path}`)) {
-      madeRunFolder.add(`${path}`);
+    const isRunFolder =
+      !runDir && `${path}`.includes(`${MUTATION_RUNS_DIR}/mutation-`);
+    const isLockMakingIt = isRunFolder && madeRunFolder.has(`${path}`);
+    if (isRunFolder) madeRunFolder.add(`${path}`);
+    if (!isLockMakingIt) {
+      await realMkdir(path, options);
       return;
     }
     runDir = `${path}`;
     result.beforeLock = existsSync(recordPath());
-    // Stand in for a `--clean` sweeping away a run it sees as unlocked.
-    await Deno.remove(recordPath());
+    // Stand in for a `--clean`, which takes the whole folder of a run whose
+    // lock it does not see held. The mkdir below is the lock putting it back.
+    await Deno.remove(runDir, { recursive: true });
+    await realMkdir(path, options);
   }) as typeof Deno.mkdir);
   using _command = stubCommand(finishedChild(42_427), [], () => {
     result.atChildStart = existsSync(recordPath());
