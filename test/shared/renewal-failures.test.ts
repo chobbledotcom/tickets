@@ -4,11 +4,25 @@ import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { builtSites } from "#shared/db/built-sites.ts";
 import type { RenewalDelivery } from "#shared/payment-completion-delivery.ts";
-import { applyPaidRenewal } from "#shared/renewal.ts";
+import { applyPaidRenewal, paidRenewalDeliveriesFor } from "#shared/renewal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupRenewalSite } from "#test-utils/db-helpers/built-sites.ts";
+import { makeTestEntry } from "#test-utils/factories.ts";
 
 const READ_ONLY_FROM = "2026-09-01T00:00:00.000Z";
+
+/** One unit of a listing that really is a renewal tier. */
+const renewalTierEntry = ({ quantity = 1 }: { quantity?: number } = {}) =>
+  makeTestEntry(
+    {
+      active: true,
+      hidden: true,
+      id: 8,
+      months_per_unit: 2,
+      purchase_only: true,
+    },
+    { quantity },
+  );
 
 /** What the site looked like when the buyer paid, ready to be spoilt one
  *  field at a time. */
@@ -87,6 +101,32 @@ describeWithEnv(
       await expect(applyPaidRenewal(delivery)).rejects.toThrow(
         `Renewal site ${delivery.siteId} was removed`,
       );
+    });
+
+    test("refuses a renewal for a listing that is not a renewal tier", async () => {
+      const { tokenIndex } = await setupRenewalSite(READ_ONLY_FROM);
+
+      await expect(
+        paidRenewalDeliveriesFor(tokenIndex)([
+          makeTestEntry({ hidden: false, id: 9, months_per_unit: 2 }),
+        ]),
+      ).rejects.toThrow("is not an active hidden purchase-only renewal tier");
+    });
+
+    test("refuses a renewal whose site cannot be found", async () => {
+      await expect(
+        paidRenewalDeliveriesFor("no-such-token-index")([renewalTierEntry()]),
+      ).rejects.toThrow("Renewal site not found for token index");
+    });
+
+    test("prepares nothing when the months bought come to none", async () => {
+      const { tokenIndex } = await setupRenewalSite(READ_ONLY_FROM);
+
+      expect(
+        await paidRenewalDeliveriesFor(tokenIndex)([
+          renewalTierEntry({ quantity: 0 }),
+        ]),
+      ).toEqual([]);
     });
   },
 );
