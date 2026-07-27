@@ -20,6 +20,7 @@ Feature: An organiser reads and corrects the record kept about someone
       Given the site has seen Sam book 5 times and get in touch 4 times
       When the organiser opens Sam's record
       Then the record shows Sam booked 5 times through the site
+      And the record shows Sam has been in touch 4 times
       And the record shows the note about Sam written out
 
     @case:contact-record.someone-the-site-has-never-seen
@@ -39,6 +40,9 @@ Feature: An organiser reads and corrects the record kept about someone
       When the organiser sets Sam's bookings to 11 and note to "Paid in cash"
       Then the record shows Sam booked 11 times through the site
       And the note kept about Sam is "Paid in cash"
+      When the organiser sets Sam's messages to 7
+      Then the record shows Sam has been in touch 7 times
+      And Sam is counted as having been in touch 7 times
 
     @case:contact-record.a-blank-or-impossible-count-means-none
     Scenario: The organiser leaves a count blank or types a silly one
@@ -68,6 +72,7 @@ Feature: An organiser reads and corrects the record kept about someone
       When the organiser tries to save Sam a note longer than the box allows
       Then the organiser is told the note is too long
       And Sam is counted as having booked no times at all
+      And no note is kept about Sam at all
 
   @rule:attendees.a-record-the-site-cannot-read-can-still-be-repaired
   @surface:admin

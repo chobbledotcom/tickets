@@ -19,8 +19,9 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
-/** What the organiser types into the record's form. Anything left out is sent
- * as the form's own empty value, the way a blank box would be. */
+/** What the organiser types into the record's form. A box left out here keeps
+ * whatever the page already had in it, the way it would for a person who edits
+ * one field and presses save. */
 export interface RecordEdit {
   bookedByHand?: string;
   bookedThroughTheSite?: string;
@@ -103,7 +104,9 @@ const BOXES = {
 } as const;
 
 /** The organiser fills the record's own form in and saves it. Every box has to
- * be on the page, so a form that stops offering one fails the story. */
+ * be on the page — including the ones this edit does not touch, because those
+ * are carried forward from what the page showed, so a box that quietly vanished
+ * would be saved as nothing without anyone noticing. */
 export const saveRecord = async (
   world: TicketsWorld,
   email: string,
@@ -112,10 +115,9 @@ export const saveRecord = async (
   const browser = await openRecord(world, email);
   const values: Record<string, string> = {};
   for (const [word, box] of Object.entries(BOXES)) {
-    const typed = edit[word as keyof RecordEdit];
-    if (typed === undefined) continue;
     expect(browser.currentHtml).toContain(`name="${box}"`);
-    values[box] = typed;
+    const typed = edit[word as keyof RecordEdit];
+    if (typed !== undefined) values[box] = typed;
   }
   await browser.submitForm(values, "Save record");
   return browser;

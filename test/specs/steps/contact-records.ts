@@ -83,6 +83,19 @@ When(
 );
 
 When(
+  "the organiser sets {word}'s messages to {int}",
+  async function (
+    this: TicketsWorld,
+    who: string,
+    messages: number,
+  ): Promise<void> {
+    this.customerBrowser = await saveRecord(this, emailFor(who), {
+      messages: String(messages),
+    });
+  },
+);
+
+When(
   "the organiser sets {word}'s bookings to {int} and note to {string}",
   async function (
     this: TicketsWorld,
@@ -176,17 +189,41 @@ Then(
   },
 );
 
+/** The note the site has kept about them, however the story words the check. */
+const expectNoteKept = async function (
+  this: TicketsWorld,
+  who: string,
+  note: string,
+): Promise<void> {
+  expect((await recordFor(emailFor(who))).adminNotes).toBe(note);
+};
+
+Then("the note kept about {word} is {string}", expectNoteKept);
+Then("the note kept about {word} is still {string}", expectNoteKept);
+
 Then(
-  "the note kept about {word} is {string}",
-  async function (this: TicketsWorld, who: string, note: string) {
-    expect((await recordFor(emailFor(who))).adminNotes).toBe(note);
+  "the record shows {word} has been in touch {int} times",
+  function (this: TicketsWorld, _who: string, messages: number): void {
+    boxShows(recordPage(this), "messages", String(messages));
   },
 );
 
 Then(
-  "the note kept about {word} is still {string}",
-  async function (this: TicketsWorld, who: string, note: string) {
-    expect((await recordFor(emailFor(who))).adminNotes).toBe(note);
+  "{word} is counted as having been in touch {int} times",
+  async function (
+    this: TicketsWorld,
+    who: string,
+    messages: number,
+  ): Promise<void> {
+    expect((await recordFor(emailFor(who))).contactCount).toBe(messages);
+  },
+);
+
+Then(
+  "no note is kept about {word} at all",
+  async function (this: TicketsWorld, who: string): Promise<void> {
+    // The refused save must not have written the over-long note either.
+    expect((await recordFor(emailFor(who))).adminNotes).toBe("");
   },
 );
 
