@@ -11,7 +11,7 @@ import { dirname } from "@std/path";
 import { nullIfNotFound, statOrNull } from "#scripts/not-found.ts";
 
 /** Open (creating if needed) a file to hold an advisory lock. */
-export const openLockFile = (path: string): Promise<Deno.FsFile> =>
+const openLockFile = (path: string): Promise<Deno.FsFile> =>
   Deno.open(path, { create: true, read: true, write: true });
 
 /**
@@ -34,13 +34,13 @@ const heldLockIsAtPath = async (
 };
 
 /** A wait for a lock: `true` once it is held, `false` if it gave up first. */
-export type WaitForLock = (file: Deno.FsFile) => Promise<boolean>;
+type WaitForLock = (file: Deno.FsFile) => Promise<boolean>;
 
-export const waitHoweverLong: WaitForLock = (file) =>
+const waitHoweverLong: WaitForLock = (file) =>
   file.lock(true).then(() => true);
 
 /** Wait for the lock, but only for `timeoutMs`. */
-export const waitUpTo =
+const waitUpTo =
   (timeoutMs: number): WaitForLock =>
   async (file) => {
     let waited = 0;
