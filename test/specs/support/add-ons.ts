@@ -4,16 +4,15 @@
  * every check here opens a page the way they would.
  */
 
-/** The box on the edit form, and the value it carries when it is ticked. */
+/** The box on the edit form. Its value is read off the page, not assumed. */
 const FIELD = "bookable_alone";
-const TICKED = "1";
 
 import { expect } from "@std/expect";
 import { groups } from "#shared/db/groups.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
+  checkboxValueOffered,
   tickedCheckboxes,
-  whyValueCannotBeSent,
 } from "#test/specs/support/form-controls.ts";
 import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
@@ -101,14 +100,16 @@ export const sellOnItsOwn = async (
 ): Promise<void> => {
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
-  expect(whyValueCannotBeSent(browser.currentHtml, FIELD, TICKED)).toBeNull();
+  // Send whatever the page's own box sends, rather than a value this file
+  // believes in: a box rewritten to carry something else must fail the story.
+  const ticked = checkboxValueOffered(browser.currentHtml, FIELD);
   expect(tickedCheckboxes(browser.currentHtml, FIELD)).toEqual(
-    onItsOwn ? [] : [TICKED],
+    onItsOwn ? [] : [ticked],
   );
-  // Unticking a box sends nothing at all for it, which is what an empty list
-  // means here.
+  // Unticking a box sends nothing at all for it, which is what a real browser
+  // does.
   await browser.submitForm(
-    { [FIELD]: onItsOwn ? [TICKED] : [] },
+    { [FIELD]: onItsOwn ? [ticked] : [] },
     "Save Changes",
   );
   expect(browser.containsText("Listing updated")).toBe(true);

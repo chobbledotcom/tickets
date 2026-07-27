@@ -38,8 +38,9 @@ Feature: An add-on that can also be bought on its own
 
   @rule:bookings.the-organiser-can-open-and-close-the-page-again
   @surface:admin
-  Rule: The organiser can open and close that page whenever they like
+  Rule: The organiser can open that page, and close it again
     Marking an ordinary add-on opens its page; unmarking it closes it again.
+    These are the plain cases, where nothing else was relying on that page.
 
     @case:add-ons.marking-one-opens-its-page
     Scenario: The organiser starts selling an add-on on its own

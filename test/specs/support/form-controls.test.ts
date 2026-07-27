@@ -8,6 +8,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  checkboxValueOffered,
   optionsOffered,
   tickedCheckboxes,
   whyValueCannotBeSent,
@@ -207,5 +208,32 @@ describe("the days a page has ticked", () => {
     expect(
       tickedCheckboxes(`${day("Monday")}${other}`, "bookable_days"),
     ).toEqual(["Monday"]);
+  });
+
+  describe("the value a page's own box sends", () => {
+    test("reads it off the box rather than assuming one", () => {
+      expect(
+        checkboxValueOffered(
+          '<input type="checkbox" name="bookable_alone" value="on">',
+          "bookable_alone",
+        ),
+      ).toBe("on");
+    });
+
+    test("ignores a box nobody could tick", () => {
+      const off =
+        '<input type="checkbox" name="bookable_alone" value="1" disabled>';
+      const usable =
+        '<input type="checkbox" name="bookable_alone" value="yes">';
+      expect(checkboxValueOffered(`${off}${usable}`, "bookable_alone")).toBe(
+        "yes",
+      );
+    });
+
+    test("throws when the page offers no such box", () => {
+      expect(() =>
+        checkboxValueOffered("<p>nothing</p>", "bookable_alone"),
+      ).toThrow("The page offers no bookable_alone box to tick");
+    });
   });
 });
