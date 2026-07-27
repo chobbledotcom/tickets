@@ -1,12 +1,15 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { type HeldLock, holdLockOrNull } from "#scripts/held-lock-process.ts";
+import { holdLockOrNull } from "#scripts/held-lock-process.ts";
 import { withFileLock } from "#scripts/lock-file.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 /** Long enough that a lock the operating system would hand over has arrived. */
 const LONG_ENOUGH_TO_BE_LET_IN_MS = 200;
+
+/** A lock that was taken, as `holdLockOrNull` hands it back. */
+type HeldLock = NonNullable<Awaited<ReturnType<typeof holdLockOrNull>>>;
 
 const pause = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
