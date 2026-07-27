@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -31,7 +32,7 @@ describeWithEnv(
   () => {
     test("missing terminal payment records fail loudly", async () => {
       await expect(expectSessionFailed("missing-session")).rejects.toThrow(
-        "Processed payment missing-session was not stored",
+        "Payment missing-session was not stored",
       );
     });
 
@@ -60,7 +61,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(
           response,
           400,
-          "Payment session not found",
+          t("payment.error.session_not_recognized"),
         );
         expect(html).not.toContain("contact support");
       } finally {
@@ -123,7 +124,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(
           response,
           400,
-          "Payment verification failed",
+          t("payment.error.session_not_recognized"),
         );
         // Should NOT contain refund-related text
         expect(html).not.toContain("refunded");
@@ -141,7 +142,7 @@ describeWithEnv(
       await expectHtmlResponse(
         response,
         400,
-        "Payment provider not configured",
+        t("payment.error.provider_not_configured"),
       );
     });
 
