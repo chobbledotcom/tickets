@@ -16,6 +16,7 @@ describe("Cucumber story catalog", () => {
       "attendees.merging-duplicate-bookings",
       "attendees.no-quantity-tickets",
       "attendees.removing-one-part-of-an-order",
+      "bookings.add-ons-sold-on-their-own",
       "bookings.adding-a-booking-by-hand",
       "bookings.backup-and-restore",
       "bookings.book-through-the-site",

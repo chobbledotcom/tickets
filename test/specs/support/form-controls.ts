@@ -76,26 +76,46 @@ const whyNumberIsOutOfRange = (
   return null;
 };
 
-/** The values a page has already ticked for one field, counting only real
- * checkboxes a person could untick. A day carried by a hidden box instead is
- * left out, because nobody can untick that. */
-export const tickedCheckboxes = (html: string, field: string): string[] => {
-  const ticked: string[] = [];
+/** Every checkbox on the page for one field that a person could actually
+ * tick — a switched-off one is not one of them. Each is given as the value it
+ * would send and whether it is already ticked. */
+const usableCheckboxes = (
+  html: string,
+  field: string,
+): Array<{ ticked: boolean; value: string }> => {
+  const boxes: Array<{ ticked: boolean; value: string }> = [];
   for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
     const tag = box[1]!;
     const value = attribute(tag, "value");
     if (
       tag.includes('type="checkbox"') &&
       tag.includes(`name="${field}"`) &&
-      tag.includes("checked") &&
       !tag.includes("disabled") &&
       value !== null
     ) {
-      ticked.push(value);
+      boxes.push({ ticked: tag.includes("checked"), value });
     }
   }
-  return ticked;
+  return boxes;
 };
+
+/** The value the page's own box for a field sends when ticked — what a person
+ * ticking it would send, rather than a value the caller believes in. Throws
+ * when the page offers no such box, so "the box is gone" and "the box sends
+ * something else" stay separate failures. */
+export const checkboxValueOffered = (html: string, field: string): string => {
+  const box = usableCheckboxes(html, field)[0];
+  if (!box) throw new Error(`The page offers no ${field} box to tick`);
+  return box.value;
+};
+
+/** The values a page has already ticked for one field, counting only real
+ * checkboxes a person could untick. A day carried by a hidden box instead is
+ * left out, because nobody can untick that. */
+export const tickedCheckboxes = (html: string, field: string): string[] =>
+  usableCheckboxes(html, field)
+    .filter(({ ticked }) => ticked)
+    .map(({ value }) => value);
 
 /**
  * Why a visitor could not send this value through the page's own control, or

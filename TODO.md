@@ -1691,3 +1691,25 @@ was written and then removed, because the product does not do that today.
 Starting point: `attendeesApi.hasAvailableSpots` and the per-day capacity SQL in
 `src/shared/db/attendees/capacity.ts`, plus the listing-type switch in
 `src/features/admin/listings-edit.ts`.
+
+---
+
+## Tell the story of a refused "stop selling this on its own"
+
+*Origin: reviewer suggestion (Codex) on PR #1952.*
+
+The site refuses to stop selling an add-on on its own when doing so would leave
+another add-on with no way to be bought — `strippedPageOrphanedAddOn` in
+`src/shared/listings-actions.ts` re-runs the reachability guard and blocks the
+save. The story `bookings.add-ons-sold-on-their-own` covers only the plain
+cases, where nothing depends on the page, and its rule is worded to say so.
+
+The refusal is an operator-facing rule worth telling: the organiser is stopped,
+and told which add-on would be stranded. It was left out of that PR because
+setting it up needs a child-scoped optional modifier, which no story support
+builds yet — a bigger piece of scaffolding than the migration it sat in.
+
+Starting point: `strippedPageOrphanedAddOn` and
+`firstChildUnreachableAddOnForListings` in `src/shared/db/modifier-resolve.ts`,
+plus whichever direct test already covers the guard, for the shape of the
+fixture.
