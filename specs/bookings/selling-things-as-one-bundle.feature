@@ -72,6 +72,17 @@ Feature: An organiser sells several things as one bundle
       Then the organiser is told to make its contents public first
       And the Weekend is still sold as one bundle
 
+    @case:bundles.unbundling-is-allowed-once-the-parts-are-public
+    Scenario: The organiser makes the contents public and then stops bundling
+      Given a Weekend group holding a Tent at 40.00 and a Breakfast at 10.00
+      And the organiser sells the Weekend as a private bundle
+      And a customer buys the Weekend
+      When the organiser lets people see what is inside the Weekend
+      And the organiser stops selling the Weekend as a bundle
+      Then the Weekend is no longer sold as one bundle
+      And their ticket names the Tent
+      And their ticket names the Breakfast
+
     @case:bundles.deleting-is-allowed-once-the-parts-are-public
     Scenario: The organiser makes the contents public and then deletes the bundle
       Given a Weekend group holding a Tent at 40.00 and a Breakfast at 10.00
@@ -98,3 +109,5 @@ Feature: An organiser sells several things as one bundle
       And a customer buys the Weekend
       When the organiser stops selling the Weekend as a bundle
       Then the Weekend is no longer sold as one bundle
+      And their ticket names the Tent
+      And their ticket names the Breakfast
