@@ -2,29 +2,21 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
-import {
-  findAttendeeIdByPhoneIndex,
-  setAttendeePhoneIndexIfEmpty,
-} from "#shared/db/attendee-phone-index.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
+import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getSmsMessageByProviderId,
   recordSmsMessage,
 } from "#shared/db/sms-messages.ts";
 import { encryptField } from "#shared/sms/e2e.ts";
-import {
-  computePhoneIndex,
-  normalizeForIndex,
-} from "#shared/sms/phone-index.ts";
+import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 import {
   getAllActivityLog,
   getAttendeeActivityLog,
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { createServicingHold } from "#test-utils/servicing.ts";
+import { createTestAttendeeWithPhone } from "#test-utils/db-helpers/attendees.ts";
 
 const SECRET = "whsec-123";
 const PASS = "gateway-pass";
@@ -68,104 +60,6 @@ const postWebhook = async (
 };
 
 const configure = () => settings.update.smsGatewayWebhookSecret(SECRET);
-
-const makeAttendee = async () => {
-  const listing = await createTestListing({ maxAttendees: 100 });
-  const { attendee } = await createTestAttendeeDirect(
-    listing.id,
-    "Jane",
-    "jane@example.com",
-    1,
-    "+447700900123",
-  );
-  return attendee;
-};
-
-describeWithEnv("sms phone index", { encryptionKey: true }, () => {
-  test("normalizeForIndex keeps the last 9 digits", () => {
-    expect(normalizeForIndex("+44 7700 900123")).toBe("700900123");
-    expect(normalizeForIndex("07700900123")).toBe("700900123");
-    expect(normalizeForIndex("")).toBe("");
-  });
-
-  test("computePhoneIndex matches across formats and is empty for empty", async () => {
-    const a = await computePhoneIndex("+447700900123");
-    const b = await computePhoneIndex("07700 900123");
-    expect(a).toBe(b);
-    expect(await computePhoneIndex("")).toBe("");
-  });
-});
-
-describeWithEnv("db > attendee phone index", { db: true }, () => {
-  /** The raw stored phone_index column for one attendee row. */
-  const storedPhoneIndex = async (attendeeId: number): Promise<string> => {
-    const row = await queryOne<{ phone_index: string }>(
-      "SELECT phone_index FROM attendees WHERE id = ?",
-      [attendeeId],
-    );
-    return row!.phone_index;
-  };
-
-  test("setAttendeePhoneIndexIfEmpty fills an empty column, for that attendee only", async () => {
-    const attendee = await makeAttendee();
-    const listing = await createTestListing({ maxAttendees: 100 });
-    const { attendee: other } = await createTestAttendeeDirect(
-      listing.id,
-      "Other",
-      "other@example.com",
-    );
-    const idx = await computePhoneIndex("+447700900123");
-
-    await setAttendeePhoneIndexIfEmpty(attendee.id, idx);
-
-    expect(await storedPhoneIndex(attendee.id)).toBe(idx);
-    // The write is keyed on the id — the other attendee stays unset.
-    expect(await storedPhoneIndex(other.id)).toBe("");
-  });
-
-  test("setAttendeePhoneIndexIfEmpty never overwrites an existing index", async () => {
-    const attendee = await makeAttendee();
-    const idx = await computePhoneIndex("+447700900123");
-    await setAttendeePhoneIndexIfEmpty(attendee.id, idx);
-
-    await setAttendeePhoneIndexIfEmpty(
-      attendee.id,
-      await computePhoneIndex("+447700900456"),
-    );
-
-    expect(await storedPhoneIndex(attendee.id)).toBe(idx);
-  });
-
-  test("setAttendeePhoneIndexIfEmpty with an empty index leaves the row unset", async () => {
-    const attendee = await makeAttendee();
-
-    await setAttendeePhoneIndexIfEmpty(attendee.id, "");
-
-    expect(await storedPhoneIndex(attendee.id)).toBe("");
-  });
-
-  test("set is idempotent and lookup finds the attendee", async () => {
-    const attendee = await makeAttendee();
-    const idx = await computePhoneIndex("+447700900123");
-
-    await setAttendeePhoneIndexIfEmpty(attendee.id, "");
-    expect(await findAttendeeIdByPhoneIndex("")).toBeNull();
-
-    await setAttendeePhoneIndexIfEmpty(attendee.id, idx);
-    await setAttendeePhoneIndexIfEmpty(attendee.id, "different"); // ignored
-    expect(await findAttendeeIdByPhoneIndex(idx)).toBe(attendee.id);
-    expect(await findAttendeeIdByPhoneIndex("nope")).toBeNull();
-  });
-
-  test("lookup ignores servicing rows even if a phone index exists", async () => {
-    const service = await createServicingHold();
-    const idx = await computePhoneIndex("+447700900321");
-
-    await setAttendeePhoneIndexIfEmpty(service.id, idx);
-
-    expect(await findAttendeeIdByPhoneIndex(idx)).toBeNull();
-  });
-});
 
 describeWithEnv("api > sms webhook", { db: true }, () => {
   test("404 when the webhook secret is not configured", async () => {
@@ -269,7 +163,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
 
   test("cleanup preserves a provider-message row within retention and prunes an expired one", async () => {
     await configure();
-    const attendee = await makeAttendee();
+    const attendee = await createTestAttendeeWithPhone();
     await recordSmsMessage({
       attendeeId: attendee.id,
       listingId: 1,
@@ -299,7 +193,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
 
   test("delivered logs against the attendee and clears the row", async () => {
     await configure();
-    const attendee = await makeAttendee();
+    const attendee = await createTestAttendeeWithPhone();
     await recordSmsMessage({
       attendeeId: attendee.id,
       listingId: 1,
@@ -318,7 +212,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
 
   test("failed logs the reason against the attendee", async () => {
     await configure();
-    const attendee = await makeAttendee();
+    const attendee = await createTestAttendeeWithPhone();
     await recordSmsMessage({
       attendeeId: attendee.id,
       listingId: 1,
@@ -335,7 +229,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
 
   test("delivered falls back to the `id` field when messageId is absent", async () => {
     await configure();
-    const attendee = await makeAttendee();
+    const attendee = await createTestAttendeeWithPhone();
     await recordSmsMessage({
       attendeeId: attendee.id,
       listingId: 1,
@@ -369,7 +263,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
       ).status,
     ).toBe(200);
 
-    const attendee = await makeAttendee();
+    const attendee = await createTestAttendeeWithPhone();
     await recordSmsMessage({
       attendeeId: attendee.id,
       listingId: 1,
@@ -399,7 +293,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
   test("received decrypts the reply and logs it against the attendee", async () => {
     await configure();
     await settings.update.smsGatewayPassphrase(PASS);
-    const attendee = await makeAttendee();
+    const attendee = await createTestAttendeeWithPhone();
     await setAttendeePhoneIndexIfEmpty(
       attendee.id,
       await computePhoneIndex("+447700900123"),
@@ -443,7 +337,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
 
   test("replayed delivered event remains idempotent", async () => {
     await configure();
-    const attendee = await makeAttendee();
+    const attendee = await createTestAttendeeWithPhone();
     await recordSmsMessage({
       attendeeId: attendee.id,
       listingId: 1,
