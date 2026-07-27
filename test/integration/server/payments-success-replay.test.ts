@@ -151,13 +151,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(response1.status).toBe(302);
         // Replaying gives the buyer the same ticket link again, and must still
         // suppress the concealed member's thank-you URL.
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_hidden_replay"),
-        );
+        const { html, redirectResponse: response2 } =
+          await renderPaymentSuccess("cs_hidden_replay");
         expect(response2.status).toBe(302);
-        const html = await (
-          await followRedirect(response2, handleRequest)
-        ).text();
         expect(html).toContain("Thank you for your order");
         expect(html).not.toContain("https://example.com/concealed-replay");
       } finally {
@@ -197,13 +193,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
         // Replaying the same session gives the buyer the same ticket link
         // again, rather than a second booking.
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_dupe_session"),
-        );
+        const { html, redirectResponse: response2 } =
+          await renderPaymentSuccess("cs_dupe_session");
         expect(response2.status).toBe(302);
-        const html = await (
-          await followRedirect(response2, handleRequest)
-        ).text();
         expect(html).toContain("Thank you for your order");
 
         // Should still only have one attendee
@@ -255,13 +247,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(tokenHtml).toContain("redirected");
 
         // Replaying gives the buyer the same ticket link again.
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_cart_single"),
-        );
+        const { html, redirectResponse: response2 } =
+          await renderPaymentSuccess("cs_cart_single");
         expect(response2.status).toBe(302);
-        const html = await (
-          await followRedirect(response2, handleRequest)
-        ).text();
         expect(html).toContain("Thank you for your order");
         // Single-item cart replay also shows thank_you_url
         expect(html).toContain("redirected");
@@ -309,13 +297,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         expect(response1.status).toBe(302);
 
         // Replaying gives the buyer the same ticket link again.
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_multi_dupe"),
-        );
+        const { html, redirectResponse: response2 } =
+          await renderPaymentSuccess("cs_multi_dupe");
         expect(response2.status).toBe(302);
-        const html = await (
-          await followRedirect(response2, handleRequest)
-        ).text();
         expect(html).toContain("Thank you for your order");
       } finally {
         mockRetrieve.restore();
