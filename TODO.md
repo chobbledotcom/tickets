@@ -1701,32 +1701,3 @@ Starting point: `src/ui/client/scanner.js`, the confirmation branches around its
 handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
 for how a client script is driven without a real browser.
 
-## Finish the mutation tests for the stripe-mock install
-
-*Origin: the chunk that took `scripts/stripe-mock/install.ts` from 67.2% to
-83.3%.*
-
-Nineteen mutants survive, in three small clusters:
-
-- **The lock refresh timer.** `startInstallLockRefresh` re-writes the lock every
-  second while an install runs, so another waiting install can tell the lock is
-  still being looked after. Nothing checks that it keeps doing so, or that it
-  stops when the install ends.
-- **Reading a lock record.** `parseInstallLockRecord` copes with an older
-  one-line format and with a lock whose contents are unreadable, falling back to
-  the file's own modified time. Neither fallback is checked.
-- **The platform tables.** The `darwin` and `arm64` entries are never read on a
-  Linux machine, so pinning them needs a test that pretends to be a Mac
-  (`Deno.build` stubbed) rather than one that runs on one.
-
-The waiting itself is now covered — see `test/scripts/stripe-mock/install/
-waiting.test.ts`, which holds the lock from another owner and counts how many
-times ours tries to take it. That counting approach is the one to copy for the
-refresh timer: put a counted stand-in in front of the thing being waited on and
-assert how many times it happened, rather than how long it took.
-
-Starting point: the lock functions in `scripts/stripe-mock/install.ts` —
-`startInstallLockRefresh`, `acquireInstallLock`, `readInstallLockRecord` and
-`removeStaleInstallLock` — and
-`deno task mutation scripts/stripe-mock/install.ts
-'test/scripts/stripe-mock/install/*.test.ts' --harness`.
