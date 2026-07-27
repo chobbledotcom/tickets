@@ -2,6 +2,9 @@
  * Tests for the QR scanner admin feature
  * GET /admin/listing/:id/scanner - Scanner page
  * POST /admin/listing/:id/scan - JSON check-in API
+ *
+ * Sits beside the story `@story:attendees.checking-people-in-at-the-door`:
+ * these own the branch cover, and the requests only a crafted POST can make.
  */
 
 import { expect } from "@std/expect";
@@ -297,52 +300,6 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(body).toContain('role="combobox"');
     });
 
-    test("datalist includes unchecked-in attendees", async () => {
-      const { listing, token } = await createTestAttendeeWithToken(
-        "Alice Unchecked",
-        "alice-uc@test.com",
-      );
-      const body = await getScannerBody(listing.id);
-      expect(body).toContain(token);
-      expect(body).toContain("Alice Unchecked");
-    });
-
-    test("datalist excludes checked-in attendees", async () => {
-      const { listing, token, session } = await setupScanTest(
-        "Bob Checked",
-        "bob-checked@test.com",
-      );
-      // Check in the attendee
-      await handleRequest(
-        mockScanRequest(
-          listing.id,
-          { token },
-          session.cookie,
-          session.csrfToken,
-        ),
-      );
-      const body = await getScannerBody(listing.id);
-      expect(body).not.toContain(token);
-    });
-
-    test("datalist excludes refunded attendees", async () => {
-      const { getAttendeesByTokens } = await import(
-        "#shared/db/attendees/tokens.ts"
-      );
-      const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
-      const { listing, token } = await createTestAttendeeWithToken(
-        "Carol Refunded",
-        "carol-ref@test.com",
-      );
-      const attendees = await getAttendeesByTokens([token]);
-      await postAttendeeRefund({
-        attendeeId: attendees[0]!.id,
-        listingId: listing.id,
-      });
-      const body = await getScannerBody(listing.id);
-      expect(body).not.toContain(token);
-    });
-
     test("datalist shows attendee quantity", async () => {
       const { listing } = await createTestAttendeeWithToken(
         "Dave Multi",
@@ -365,31 +322,35 @@ describeWithEnv("QR Scanner", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:id/scan", () => {
-    test("checks in attendee from same listing", async () => {
-      const { response } = await setupAndScan("Alice", "alice@test.com");
-      await assertJson(Promise.resolve(response), 200, (result) => {
-        expect(result.status).toBe("checked_in");
-        expect(result.name).toBe("Alice");
-        expect(result.quantity).toBe(1);
-      });
+    test("returns Unknown listing when attendee's listing is deleted", async () => {
+      const { token } = await createTestAttendeeWithToken(
+        "Frank",
+        "frank@test.com",
+      );
+      const listingB = await createTestListing({ maxAttendees: 10 });
+
+      // Point attendee at a non-existent listing to simulate orphan
+      const { getDb } = await orphanAttendee(token);
+      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
+
+      // Scan from listing B - attendee's listing_id still points to deleted listing A
+      const result = await crossListingScanAndGetJson(listingB.id, { token });
+      expect(result.status).toBe("wrong_listing");
+      expect(result.listingName).toBe("Unknown listing");
     });
 
-    test("returns already_checked_in for checked-in attendee", async () => {
-      const { listing, token, session } = await setupAndScan(
-        "Bob",
-        "bob@test.com",
+    test("returns wrong_listing for attendee from different listing", async () => {
+      const { listing: listingA, token } = await createTestAttendeeWithToken(
+        "Carol",
+        "carol@test.com",
       );
+      const listingB = await createTestListing({ maxAttendees: 10 });
 
-      // Second scan - already checked in
-      const result = await scanAndGetJson(
-        listing.id,
-        { token },
-        session.cookie,
-        session.csrfToken,
-      );
-      expect(result.status).toBe("already_checked_in");
-      expect(result.name).toBe("Bob");
-      expect(result.quantity).toBe(1);
+      // Scan token from listing A while on listing B's scanner
+      const result = await crossListingScanAndGetJson(listingB.id, { token });
+      expect(result.status).toBe("wrong_listing");
+      expect(result.name).toBe("Carol");
+      expect(result.listingName).toBe(listingA.name);
     });
 
     test("returns refunded status for refunded attendee", async () => {
@@ -418,51 +379,36 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(result.name).toBe("Refund");
     });
 
-    test("returns wrong_listing for attendee from different listing", async () => {
-      const { listing: listingA, token } = await createTestAttendeeWithToken(
-        "Carol",
-        "carol@test.com",
+    test("returns already_checked_in for checked-in attendee", async () => {
+      const { listing, token, session } = await setupAndScan(
+        "Bob",
+        "bob@test.com",
       );
-      const listingB = await createTestListing({ maxAttendees: 10 });
 
-      // Scan token from listing A while on listing B's scanner
-      const result = await crossListingScanAndGetJson(listingB.id, { token });
-      expect(result.status).toBe("wrong_listing");
-      expect(result.name).toBe("Carol");
-      expect(result.listingName).toBe(listingA.name);
+      // Second scan - already checked in
+      const result = await scanAndGetJson(
+        listing.id,
+        { token },
+        session.cookie,
+        session.csrfToken,
+      );
+      expect(result.status).toBe("already_checked_in");
+      expect(result.name).toBe("Bob");
+      expect(result.quantity).toBe(1);
     });
 
-    test("checks in cross-listing attendee with force flag", async () => {
-      const { token } = await createTestAttendeeWithToken(
-        "Dave",
-        "dave@test.com",
+    test("returns verify_id for non-transferable listing without id_verified", async () => {
+      const { response } = await setupAndScan(
+        "Alice",
+        "alice@test.com",
+        {},
+        { nonTransferable: true },
       );
-      const listingB = await createTestListing({ maxAttendees: 10 });
-
-      // Force check-in from listing B's scanner
-      const result = await crossListingScanAndGetJson(listingB.id, {
-        force: true,
-        token,
+      await assertJson(Promise.resolve(response), 200, (result) => {
+        expect(result.status).toBe("verify_id");
+        expect(result.name).toBe("Alice");
+        expect(result.quantity).toBe(1);
       });
-      expect(result.status).toBe("checked_in");
-      expect(result.name).toBe("Dave");
-    });
-
-    test("returns Unknown listing when attendee's listing is deleted", async () => {
-      const { token } = await createTestAttendeeWithToken(
-        "Frank",
-        "frank@test.com",
-      );
-      const listingB = await createTestListing({ maxAttendees: 10 });
-
-      // Point attendee at a non-existent listing to simulate orphan
-      const { getDb } = await orphanAttendee(token);
-      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
-
-      // Scan from listing B - attendee's listing_id still points to deleted listing A
-      const result = await crossListingScanAndGetJson(listingB.id, { token });
-      expect(result.status).toBe("wrong_listing");
-      expect(result.listingName).toBe("Unknown listing");
     });
 
     test("returns not_found for invalid token", async () => {
@@ -567,41 +513,6 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
     });
 
-    test("returns verify_id for non-transferable listing without id_verified", async () => {
-      const { response } = await setupAndScan(
-        "Alice",
-        "alice@test.com",
-        {},
-        { nonTransferable: true },
-      );
-      await assertJson(Promise.resolve(response), 200, (result) => {
-        expect(result.status).toBe("verify_id");
-        expect(result.name).toBe("Alice");
-        expect(result.quantity).toBe(1);
-      });
-    });
-
-    test("checks in non-transferable attendee with id_verified flag", async () => {
-      const { response } = await setupAndScan(
-        "Bob",
-        "bob@test.com",
-        { id_verified: true },
-        { nonTransferable: true },
-      );
-      await assertJson(Promise.resolve(response), 200, (result) => {
-        expect(result.status).toBe("checked_in");
-        expect(result.name).toBe("Bob");
-      });
-    });
-
-    test("checks in transferable listing without id_verified", async () => {
-      const { response } = await setupAndScan("Carol", "carol@test.com");
-      await assertJson(Promise.resolve(response), 200, (result) => {
-        expect(result.status).toBe("checked_in");
-        expect(result.name).toBe("Carol");
-      });
-    });
-
     test("force check-in with deleted listing returns not_found", async () => {
       const { token } = await createTestAttendeeWithToken(
         "Eve",
@@ -624,18 +535,6 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       });
 
       await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
-    });
-
-    test("logs activity when checking in via scanner", async () => {
-      const { listing, session } = await setupAndScan("Eve", "eve@test.com");
-
-      // Check activity log (now the listing entity page's Activity tab)
-      const logResponse = await awaitTestRequest(
-        `/admin/listing/${listing.id}/activity`,
-        { cookie: session.cookie },
-      );
-      const logBody = await logResponse.text();
-      expect(logBody).toContain("checked in via scanner for 'Test Listing 1'");
     });
   });
 
