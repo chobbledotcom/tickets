@@ -6,7 +6,7 @@ import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { validEmail } from "#test-utils/email.ts";
+import { saveTestEmailConfig, validEmail } from "#test-utils/email.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 
@@ -19,14 +19,12 @@ const testConfig: EmailConfig = {
 const setupDbEmailConfig = async (
   opts: { businessEmail?: string } = {},
 ): Promise<void> => {
-  await settings.update.email.provider("resend");
-  await settings.update.email.apiKey("test-key");
-  await settings.update.email.fromAddress("from@test.com");
+  await saveTestEmailConfig();
   if (opts.businessEmail) {
     await updateBusinessEmail(opts.businessEmail);
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
   }
-  settings.invalidateCache();
-  await settings.loadKeys(ALL_SETTINGS_KEYS);
 };
 
 const setupAndSendRegistration = async (

@@ -169,20 +169,25 @@ const squareAssignment = async (): Promise<{
   };
 };
 
+/** Save an owner's "use this Square account" decision on an old payment, run
+ *  it once, then change what it looked at and run it again. */
+const legacyAttemptAfterChange = async (
+  change: (paymentId: string) => Promise<unknown>,
+): Promise<Attempt> => {
+  const { exact, selection } = await squareAssignment();
+  const { decision, paymentId } = await savedLegacyDecision(selection, {
+    ...exact,
+    caseRevision: 1,
+  });
+  await change(paymentId);
+  return beginPaymentDecisionAttempt(decision.id, PAYMENT_TIME + 3);
+};
+
 describeWithEnv("db > old payment decision attempts", { db: true }, () => {
   afterEach(() => settings.clearTestOverrides());
 
   test("runs again while the old payment still looks the way it did", async () => {
-    const { exact, selection } = await squareAssignment();
-    const { decision } = await savedLegacyDecision(selection, {
-      ...exact,
-      caseRevision: 1,
-    });
-
-    const attempt = await beginPaymentDecisionAttempt(
-      decision.id,
-      PAYMENT_TIME + 3,
-    );
+    const attempt = await legacyAttemptAfterChange(() => Promise.resolve());
 
     expect(attempt.status).toBe("running");
   });
@@ -190,35 +195,25 @@ describeWithEnv("db > old payment decision attempts", { db: true }, () => {
   test("sends the decision back when the old charge has gone", async () => {
     // This decision saw no provider record, so a charge that no longer looks
     // the way the owner saw it leaves nothing to match on.
-    const { exact, selection } = await squareAssignment();
-    const { decision, paymentId } = await savedLegacyDecision(selection, {
-      ...exact,
-      caseRevision: 1,
-    });
-    await getDb().execute("DELETE FROM payment_charges WHERE payment_id = ?", [
-      paymentId,
-    ]);
+    const attempt = await legacyAttemptAfterChange((paymentId) =>
+      getDb().execute("DELETE FROM payment_charges WHERE payment_id = ?", [
+        paymentId,
+      ]),
+    );
 
-    expect(
-      await beginPaymentDecisionAttempt(decision.id, PAYMENT_TIME + 3),
-    ).toEqual({ status: "review_again" });
+    expect(attempt).toEqual({ status: "review_again" });
   });
 
   test("sends the decision back once another account claimed the payment", async () => {
-    const { exact, selection } = await squareAssignment();
-    const { decision, paymentId } = await savedLegacyDecision(selection, {
-      ...exact,
-      caseRevision: 1,
-    });
-    await getDb().execute(
-      `UPDATE payment_sessions
-          SET provider = 'stripe', mode = 'test', account_id = 'acct_other'
-        WHERE id = ?`,
-      [paymentId],
+    const attempt = await legacyAttemptAfterChange((paymentId) =>
+      getDb().execute(
+        `UPDATE payment_sessions
+            SET provider = 'stripe', mode = 'test', account_id = 'acct_other'
+          WHERE id = ?`,
+        [paymentId],
+      ),
     );
 
-    expect(
-      await beginPaymentDecisionAttempt(decision.id, PAYMENT_TIME + 3),
-    ).toEqual({ status: "review_again" });
+    expect(attempt).toEqual({ status: "review_again" });
   });
 });
