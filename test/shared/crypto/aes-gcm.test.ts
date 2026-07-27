@@ -8,6 +8,10 @@ import {
   aesGcmEncryptRaw,
 } from "#shared/crypto/aes-gcm.ts";
 import { getRandomBytes } from "#shared/crypto/utils.ts";
+// The standard runners preload this, but the payloads below are large enough
+// that a direct `deno test` on this file alone would spend ten seconds
+// comparing them a number at a time without it.
+import "#test-utils/fast-expect.ts";
 
 /**
  * How many bytes the authentication tag takes, read from the module's own

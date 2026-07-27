@@ -126,22 +126,36 @@ describe("fast byte-array comparison", () => {
     expect(BigInt64Array.from([1n])).not.toEqual(BigInt64Array.from([2n]));
   });
 
-  // Floats keep the built-in's number rules, which the bytes underneath do not
-  // follow: these two hold different bits but are equal numbers, and NaN is
-  // equal to itself here even though it is equal to nothing in plain JS.
-  test("zero and minus zero match in a float array", () => {
-    expect(Float64Array.from([0])).toEqual(Float64Array.from([-0]));
-  });
+  // Every kind is compared by its numbers under the built-in's rules, which
+  // the bytes underneath do not follow: these hold different bits but are
+  // equal numbers, and NaN is equal to itself here even though it is equal to
+  // nothing in plain JS. Float16Array is in the list because this runtime has
+  // one — a fast path that named only the kinds it knew about would read it
+  // as raw bytes and call these pairs unequal.
+  for (const kind of [Float16Array, Float32Array, Float64Array]) {
+    test(`zero and minus zero match in a ${kind.name}`, () => {
+      expect(kind.from([0])).toEqual(kind.from([-0]));
+    });
 
-  test("NaN matches itself in a float array", () => {
-    expect(Float64Array.from([Number.NaN])).toEqual(
-      Float64Array.from([Number.NaN]),
-    );
-  });
+    test(`NaN matches itself in a ${kind.name}`, () => {
+      expect(kind.from([Number.NaN])).toEqual(kind.from([Number.NaN]));
+    });
+  }
 
   test("differing floats do not match", () => {
     expect(Float64Array.from([1.5])).not.toEqual(Float64Array.from([1.25]));
     expect(Float32Array.from([1.5])).not.toEqual(Float32Array.from([1.25]));
+    expect(Float16Array.from([1.5])).not.toEqual(Float16Array.from([1.25]));
+  });
+
+  // The one place this differs from the built-in, recorded so it is a known
+  // trade rather than a surprise: telling these apart needs the `Object.keys`
+  // call that makes the built-in slow in the first place.
+  test("extra properties hung off a byte array are not compared", () => {
+    const labelled = (label: string) =>
+      Object.assign(bytes(1, 2), { label }) as unknown as Uint8Array;
+
+    expect(labelled("a")).toEqual(labelled("b"));
   });
 
   // The tester answers only for pairs of typed arrays, so everything else

@@ -6,7 +6,6 @@
  * `scripts/mutation/runner.ts`), so every test isolate installs both
  * automatically and no assertion has to be written differently to get them.
  */
-import { equals as bytesEqual } from "@std/bytes";
 import { expect } from "@std/expect";
 
 /**
@@ -60,55 +59,46 @@ expect.extend({
  * suite flags a test as slow.
  *
  * `addEqualityTesters` is the supported way in: a tester runs before all of
- * that and can answer for the pairs it recognises, returning `undefined` to
- * leave everything else exactly as it was. Every matcher built on the deep
+ * that and can answer for the pairs it recognises, returning nothing to leave
+ * everything else exactly as it was. Every matcher built on the deep
  * comparison — `toEqual`, `toStrictEqual`, `toContainEqual` — gets this, so no
- * assertion in the suite has to change. The same 64KB comparison now takes
- * about 0.05ms.
+ * assertion in the suite has to change. A 70KB comparison in the storage tests
+ * went from 521ms to 10ms.
+ *
+ * One known difference from the built-in: a typed array carrying extra
+ * properties (`bytes.label = "x"`) is judged on its elements alone, where the
+ * built-in would also compare the extras. Telling the two cases apart needs
+ * the very `Object.keys` call that makes the built-in slow, and nothing in
+ * this codebase hangs properties off a typed array.
  */
 
-/** The bytes a view actually covers — not its whole buffer, so a `subarray`
- * compares by what it shows rather than what it was cut from. */
-const bytesOf = (view: ArrayBufferView): Uint8Array =>
-  new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-
-/** Every typed array except the float kinds, whose values do not compare
- * byte-for-byte — see {@link sameNumbers}. */
-const comparesByBytes = (view: ArrayBufferView): boolean =>
-  !(view instanceof Float32Array || view instanceof Float64Array);
+/** A typed array — a view over a buffer with elements. A DataView is not one:
+ * it has no elements to walk, and the built-in already handles it. */
+const isTypedArray = (value: unknown): value is Uint8Array =>
+  ArrayBuffer.isView(value) && !(value instanceof DataView);
 
 /**
- * Compare float arrays a number at a time, the way the built-in comparison
- * does: two NaNs count as equal, and `0` equals `-0`. Neither of those holds
- * for the bytes underneath, so floats cannot take the fast path.
+ * Compare elements the way the built-in comparison compares numbers: two NaNs
+ * count as equal, and `0` equals `-0`. Both matter for the float kinds, and
+ * following the same rule for every kind means there is one path here rather
+ * than a list of which kinds may be read as raw bytes — a list that would go
+ * stale the next time a `Float16Array` turns up.
  */
-const sameNumbers = (a: Float32Array | Float64Array, b: typeof a): boolean => {
-  for (let index = 0; index < a.length; index++) {
-    const left = a[index] as number;
-    const right = b[index] as number;
-    if (left !== right && !(Number.isNaN(left) && Number.isNaN(right))) {
-      return false;
-    }
-  }
-  return true;
-};
-
-/** A typed array — a view over bytes with a length. A DataView is not one:
- * it has no elements to compare, and the built-in handles it. */
-const isTypedArray = (value: unknown): value is ArrayBufferView =>
-  ArrayBuffer.isView(value) && !(value instanceof DataView);
+const sameElements = (a: Uint8Array, b: Uint8Array): boolean =>
+  a.every((value, index) => {
+    const other = b[index] as number;
+    return value === other || (Number.isNaN(value) && Number.isNaN(other));
+  });
 
 expect.addEqualityTesters([
   (a: unknown, b: unknown): boolean | undefined => {
     // Anything that is not a pair of typed arrays is none of this tester's
-    // business, and `undefined` hands it back untouched.
+    // business, and returning nothing hands it back untouched.
     if (!isTypedArray(a) || !isTypedArray(b)) return;
     // Different kinds are never equal, which is what the built-in says too —
     // it compares `[object Uint8Array]` against `[object Int8Array]` first.
     if (a.constructor !== b.constructor) return false;
-    if (a.byteLength !== b.byteLength) return false;
-    return comparesByBytes(a)
-      ? bytesEqual(bytesOf(a), bytesOf(b))
-      : sameNumbers(a as Float64Array, b as Float64Array);
+    if (a.length !== b.length) return false;
+    return sameElements(a, b);
   },
 ]);

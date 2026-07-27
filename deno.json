@@ -121,7 +121,6 @@
     "valibot": "npm:valibot@^1.4.1",
     "temporal-polyfill": "npm:temporal-polyfill@^0.3.0",
     "@std/assert": "jsr:@std/assert@^1.0.19",
-    "@std/bytes": "jsr:@std/bytes@^1.0.6",
     "@std/cli": "jsr:@std/cli@^1.0.30",
     "@std/collections": "jsr:@std/collections@^1.2.0",
     "@std/expect": "jsr:@std/expect@^1.0.18",
