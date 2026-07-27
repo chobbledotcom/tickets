@@ -64,6 +64,28 @@ describe("Stripe provider reads", () => {
     expect(read.observation.charges).toBeUndefined();
   });
 
+  for (const [name, changed] of [
+    ["an amount on it", { amount_total: 500 }],
+    ["a payment behind it", { payment_intent: "pi_unexpected" }],
+    ["not finished yet", { status: "open" as const }],
+  ] as const) {
+    test(`refuses a checkout that needs no payment but has ${name}`, async () => {
+      const zeroValue = {
+        amount_total: 0,
+        payment_intent: null,
+        payment_status: "no_payment_required" as const,
+      };
+      const read = await readPayment(
+        providerSession({ ...zeroValue, ...changed }),
+      );
+
+      expect(read).toMatchObject({
+        reason: "malformed_response",
+        status: "invalid",
+      });
+    });
+  }
+
   test("reports exact provider money, mode, time, and partial refund facts", async () => {
     const read = await readPayment();
 
