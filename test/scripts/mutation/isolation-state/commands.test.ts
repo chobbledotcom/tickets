@@ -18,7 +18,9 @@ describe("mutation isolation command parsing and listing", () => {
       message: "Mutation source and test globs are required.",
     });
     expect(parseIsolationCommand(["--help"])).toEqual({ kind: "help" });
+    expect(parseIsolationCommand(["-h"])).toEqual({ kind: "help" });
     expect(parseIsolationCommand(["--list"])).toEqual({ kind: "list" });
+    expect(parseIsolationCommand(["list"])).toEqual({ kind: "list" });
     expect(parseIsolationCommand(["kill", "run-1", "--force"])).toEqual({
       force: true,
       kind: "kill",
@@ -31,6 +33,10 @@ describe("mutation isolation command parsing and listing", () => {
     expect(parseIsolationCommand(["clean", "finished"])).toEqual({
       kind: "clean",
       target: "finished",
+    });
+    expect(parseIsolationCommand(["--clean", "all"])).toEqual({
+      kind: "clean",
+      target: "all",
     });
     expect(parseIsolationCommand(["clean"])).toEqual({
       kind: "invalid",
@@ -73,6 +79,14 @@ describe("mutation isolation command parsing and listing", () => {
     ).toEqual(["mutation-passed", "mutation-failed", "mutation-interrupted"]);
     expect(selectedRuns(records, "mutation-running")).toEqual([running]);
     expect(selectedRuns(records, "mutation-runn")).toEqual([running]);
+    // A whole id wins outright, even when it also starts another run's id.
+    const longer = markRunning(
+      newRunRecord("mutation-running-again", ["src/f.ts"], "/repo"),
+      12,
+    );
+    expect(selectedRuns([...records, longer], "mutation-running")).toEqual([
+      running,
+    ]);
     expect(selectedRuns(records, "mutation-")).toEqual([]);
     expect(selectedRuns(records, "missing")).toEqual([]);
   });
@@ -91,6 +105,16 @@ describe("mutation isolation command parsing and listing", () => {
       formatRunList([running], new Set(["mutation-running"]), "/repo"),
     ).toEqual([
       "mutation-running running pid=10 exit=- work=.mutation-runs/mutation-running/work args=src/a.ts",
+    ]);
+    // Several arguments are spaced out the way they were typed.
+    const twoArgs = markRunning(
+      newRunRecord("mutation-two", ["src/a.ts", "test/a.test.ts"], "/repo"),
+      11,
+    );
+    expect(
+      formatRunList([twoArgs], new Set(["mutation-two"]), "/repo"),
+    ).toEqual([
+      "mutation-two running pid=11 exit=- work=.mutation-runs/mutation-two/work args=src/a.ts test/a.test.ts",
     ]);
     expect(formatRunList([running], new Set(), "/repo")).toEqual([
       "mutation-running stale pid=10 exit=- work=.mutation-runs/mutation-running/work args=src/a.ts",

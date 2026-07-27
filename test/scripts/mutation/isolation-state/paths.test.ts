@@ -10,6 +10,21 @@ import { withTempDir } from "#test/scripts/mutation/isolation-helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
 
 describe("mutation isolation paths", () => {
+  test("copies into a snapshot folder that is already there", async () => {
+    await withTempDir(async (dir) => {
+      const source = join(dir, "source");
+      const snapshot = join(dir, "snapshot");
+      await Deno.mkdir(source, { recursive: true });
+      await Deno.writeTextFile(join(source, "kept.ts"), "export {};\n");
+      // The run's lock makes this folder before the copy starts.
+      await Deno.mkdir(snapshot, { recursive: true });
+
+      await copyMutationSnapshot(source, snapshot);
+
+      expect(await pathExists(join(snapshot, "kept.ts"))).toBe(true);
+    });
+  });
+
   test("copies source-like files and skips git, reports, secrets, dbs, and generated assets", async () => {
     await withTempDir(async (dir) => {
       const source = join(dir, "source");

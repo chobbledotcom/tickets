@@ -13,7 +13,7 @@ import {
   resolve,
   SEPARATOR,
 } from "@std/path";
-import { openLockFile } from "#scripts/lock-file.ts";
+import { openLockFile, withFileLock } from "#scripts/lock-file.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { denoExitCode } from "./child-process.ts";
@@ -44,7 +44,6 @@ const SKIPPED_TOP_LEVEL_NAMES = new Set([
   "cov",
   "cov_profile",
   "dist",
-  "docs-output",
   "misc",
   "node_modules",
   "undefined",
@@ -65,7 +64,6 @@ const SKIPPED_FILE_NAMES = new Set([
   ".test-junit.xml",
   "bunny-script.ts",
   "bunny-script.ts.map",
-  "tickets.db",
 ]);
 
 export type MutationRunStatus =
@@ -157,19 +155,16 @@ const copyDirectory = async (
     if (entry.isDirectory) {
       await copyDirectory(fromRoot, toRoot, childPath);
     } else {
-      await Deno.mkdir(dirname(to), { recursive: true });
       await Deno.copyFile(from, to);
     }
   }
 };
 
-export const copyMutationSnapshot = async (
+/** Copy a checkout into a snapshot, leaving out everything a run must not carry. */
+export const copyMutationSnapshot = (
   fromRoot: string,
   toRoot: string,
-): Promise<void> => {
-  await Deno.mkdir(toRoot, { recursive: true });
-  await copyDirectory(fromRoot, toRoot);
-};
+): Promise<void> => copyDirectory(fromRoot, toRoot);
 
 const compactIso = (iso: string): string =>
   iso
@@ -452,19 +447,13 @@ export const runLockIsHeld = async (
   return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
 };
 
+/** Hold a run's own lock, making its folder first so there is one to lock. */
 export const withMutationRunLock = async <Result>(
   runRootPath: string,
   run: () => Promise<Result>,
 ): Promise<Result> => {
   await Deno.mkdir(runRootPath, { recursive: true });
-  const file = await openLockFile(join(runRootPath, MUTATION_RUN_LOCK_FILE));
-  try {
-    await file.lock(true);
-    return await run();
-  } finally {
-    await file.unlock();
-    file.close();
-  }
+  return await withFileLock(join(runRootPath, MUTATION_RUN_LOCK_FILE), run);
 };
 
 export const selectedRuns = (
