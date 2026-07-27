@@ -197,15 +197,15 @@ const legacySnapshotMatches = async (
     decision.decision?.kind === "assign_provider"
       ? decision.decision.read
       : null;
+  const [charge, ...extraCharges] = charges;
   if (
     selection.kind !== "assign_provider" ||
     read?.status !== "attached" ||
-    charges.length !== 1
+    charge === undefined ||
+    extraCharges.length > 0
   ) {
     return false;
   }
-  const [charge] = charges;
-  if (charge === undefined) return false;
   const [index] = await paymentDecisionChargeIndexes({
     accountId: selection.accountId,
     charges: [
