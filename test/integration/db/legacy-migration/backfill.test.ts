@@ -93,8 +93,15 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
     expect(payments.rows[0]!.result_state).toBe("succeeded");
     expect(payments.rows[0]!.ticket_state).toBe("consumed");
     expect(payments.rows[0]!.completion_state).toBe("legacy_unknown");
+    // The old payment table is drained into payment_sessions and then dropped,
+    // even though this upgrade could not turn foreign keys off.
     expect(
-      (await client.execute("SELECT 1 FROM processed_payments")).rows,
+      (
+        await client.execute(
+          `SELECT name FROM sqlite_master
+             WHERE type = 'table' AND name = 'processed_payments'`,
+        )
+      ).rows,
     ).toEqual([]);
   });
 

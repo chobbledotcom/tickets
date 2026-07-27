@@ -73,6 +73,14 @@ export const LEGACY_PAYMENT_TABLE_NAMES: LegacyPaymentTableName[] = [
   "sumup_checkouts",
 ];
 
+/** One old payment table's columns, ready to hand to a table rebuild. The
+ * rebuilt copy carries no foreign keys, which is how attendees becomes
+ * droppable while these tables still hold their rows. */
+export const legacyPaymentTableColumns = (
+  name: LegacyPaymentTableName,
+): readonly [name: string, definition: string][] =>
+  LEGACY_PAYMENT_TABLES[name].columns;
+
 const tableSql = (name: LegacyPaymentTableName): string =>
   `CREATE TABLE IF NOT EXISTS ${name} (${LEGACY_PAYMENT_TABLES[name].columns
     .map(([column, definition]) => `${column} ${definition}`)

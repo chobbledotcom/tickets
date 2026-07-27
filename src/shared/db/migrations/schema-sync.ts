@@ -7,6 +7,11 @@ import {
 } from "#shared/db/client.ts";
 import { stringColumnSet } from "#shared/db/query.ts";
 import { logDebug } from "#shared/logger.ts";
+import { existingLegacyPaymentTables } from "./legacy-payment-retirement.ts";
+import {
+  legacyPaymentTableColumns,
+  legacyPaymentTableStatements,
+} from "./legacy-payment-schema.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import { APP_SCHEMA, SCHEMA } from "./schema/index.ts";
 import {
@@ -370,6 +375,32 @@ const backfillListingAttendees = fromAttendeeColumns(
  * SQLite can't DROP COLUMN when a FK references the column, so we recreate
  * the table. Idempotent: if every existing column matches the schema, skip.
  */
+/**
+ * Rebuild the old payment tables that point at attendees(id) so the copies
+ * carry no foreign key.
+ *
+ * These tables are not in the current schema — they are dropped later, once
+ * the durable payment copy has drained them — so recreateTable cannot rebuild
+ * them. They still have to lose their foreign key here, because SQLite will
+ * not drop attendees while one of them references it, and an upgrade cannot
+ * turn foreign keys off: the pragma does not survive a remote libsql request.
+ */
+const rebuildLegacyPaymentTablesWithoutForeignKeys =
+  async (): Promise<void> => {
+    for (const name of await existingLegacyPaymentTables(getDb)) {
+      const liveColumns = await getExistingColumns(name);
+      if (!liveColumns.has("attendee_id")) continue;
+      const columns = legacyPaymentTableColumns(name);
+      await rebuildTableWithColumns({
+        columns,
+        copyColumns: columns.filter(([column]) => liveColumns.has(column)),
+        tableName: name,
+      });
+      // The rebuild dropped the original, and its indexes with it.
+      await executeBatch(legacyPaymentTableStatements(name));
+    }
+  };
+
 const dropDeprecatedAttendeeColumns = fromAttendeeColumns(async (cols) => {
   const expected = getAppSchemaColumns("attendees");
   const hasLegacy = [...cols].some((c) => !expected.has(c));
@@ -384,6 +415,7 @@ const dropDeprecatedAttendeeColumns = fromAttendeeColumns(async (cols) => {
   // original tables have FK declarations baked in from their CREATE TABLE.
   // libsql won't let us DROP attendees while those FKs exist. Recreating
   // them first replaces the FK-bearing originals with clean versions.
+  await rebuildLegacyPaymentTablesWithoutForeignKeys();
   logDebug("Migration", "Recreating listing_attendees (removing FKs)...");
   await recreateTable("listing_attendees");
   logDebug("Migration", "Recreating attendee_answers (removing FKs)...");
