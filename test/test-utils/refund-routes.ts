@@ -118,19 +118,25 @@ const withStripeProvider = async (
         "#shared/stripe-provider.ts"
       );
       const { stripeApi } = await import("#shared/stripe.ts");
+      // Only stand in an account when the test has not set Stripe up itself.
+      // A payment made by a fixture belongs to the account that was configured
+      // when it was made, and a refund only goes out on its own account, so
+      // swapping the account here would refuse every one of those refunds.
       const previousKey = settings.stripe.secretKey;
-      settings.setForTest({ stripe_secret_key: "sk_test_admin_refunds" });
-      using _account = stub(stripeApi, "retrieveAccount", () =>
-        Promise.resolve({ id: "acct_admin_refunds" }),
-      );
+      const standInAccount = previousKey === "";
+      const account = standInAccount
+        ? stub(stripeApi, "retrieveAccount", () =>
+            Promise.resolve({ id: "acct_admin_refunds" }),
+          )
+        : null;
+      if (standInAccount) {
+        settings.setForTest({ stripe_secret_key: "sk_test_admin_refunds" });
+      }
       try {
         await body(stripePaymentProvider);
       } finally {
-        if (previousKey === "") {
-          settings.clearTestOverride("stripe_secret_key");
-        } else {
-          settings.setForTest({ stripe_secret_key: previousKey });
-        }
+        account?.restore();
+        if (standInAccount) settings.clearTestOverride("stripe_secret_key");
       }
     },
   );
