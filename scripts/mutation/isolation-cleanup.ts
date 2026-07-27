@@ -64,6 +64,9 @@ const looksActive = async (record: MutationRunRecord): Promise<boolean> =>
  */
 const runIsActive = async (record: MutationRunRecord): Promise<boolean> => {
   if (await looksActive(record)) return true;
+  // Whoever holds the folder's lock owns it, whatever its record says — the
+  // supervisor takes it again to write its last record once its child has gone.
+  if (await runLockIsHeld(record)) return true;
   const latest = await readRunRecord(join(record.root, MUTATION_RECORD_FILE));
   return (
     latest !== null && (await looksActive({ ...latest, root: record.root }))

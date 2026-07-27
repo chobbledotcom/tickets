@@ -154,6 +154,23 @@ describe("mutation isolation commands", () => {
     });
   });
 
+  test("keeps a finished run whose folder is still held", async () => {
+    await withTempDir(async (root) => {
+      // A supervisor writing its last record holds the lock after its child
+      // has gone, so the record can already read as finished.
+      const settling = markFinished(
+        newRunRecord("mutation-settling", [], root, LONG_AGO.toISOString()),
+        0,
+      );
+      await writeRunRecord(settling);
+
+      await withMutationRunLock(settling.root, async () => {
+        expect((await cleanableRuns([settling])).removable).toEqual([]);
+      });
+      expect((await cleanableRuns([settling])).removable).toEqual([settling]);
+    });
+  });
+
   test("cleans stale running records whose pid was reused after the grace period", async () => {
     await withTempDir(async (root) => {
       const staleReused = markRunning(
