@@ -14,6 +14,7 @@ import { readSpecCatalog } from "./catalog.ts";
 import { messageIssues } from "./messages.ts";
 import { shouldCheckUnusedSteps } from "./options.ts";
 import { specWorkerCount } from "./parallel.ts";
+import { SPEC_REPORT_DIR, SPEC_SUPPORT_GLOBS } from "./paths.ts";
 import { selectSpecCases } from "./selection.ts";
 import type { SpecCatalog } from "./types.ts";
 
@@ -51,14 +52,12 @@ interface SpecRunControls {
   parallel?: number;
 }
 
-const REPORT_DIR = join(projectRoot, "reports");
-const DEFAULT_SUPPORT = [
-  "test/specs/support/**/*.ts",
-  "test/specs/steps/**/*.ts",
-];
+/** A tag no Feature carries, so asking for it selects nothing at all. */
+const NO_MATCHING_CASE_TAG = "@__tickets_no_matching_case__";
+
 const DEFAULT_ENVIRONMENT: SpecRunEnvironment = {
-  reportDir: REPORT_DIR,
-  support: DEFAULT_SUPPORT,
+  reportDir: SPEC_REPORT_DIR,
+  support: SPEC_SUPPORT_GLOBS,
 };
 const withProcessEnvironment = environmentTasks(processEnvironment);
 const reportFormats = (reports: boolean, reportDir: string): string[] =>
@@ -117,25 +116,27 @@ export const runSpecs = async (
   environment: SpecRunEnvironment = DEFAULT_ENVIRONMENT,
   controls: SpecRunControls = {},
 ): Promise<SpecRunSummary> => {
-  const paths = options.paths ?? ["specs"];
-  if (options.reports ?? true) await prepareReports(environment.reportDir);
+  // Only a missing value takes the default, so an explicit one always wins.
+  const { paths = ["specs"], reports = true, tags = "" } = options;
+  if (reports) await prepareReports(environment.reportDir);
   const catalog = await readSpecCatalog(paths);
   await controls.beforeRun?.(catalog);
-  const selectedPaths = selectSpecCases(catalog, options.tags ?? "");
+  const selectedPaths = selectSpecCases(catalog, tags);
+  const {
+    parallel = specWorkerCount(
+      selectedPaths.length,
+      Deno.env.get("DENO_JOBS"),
+      navigator.hardwareConcurrency,
+    ),
+  } = controls;
   const complete: CompleteRunSpecsOptions = {
     enforceUnused: shouldCheckUnusedSteps(options),
-    parallel:
-      controls.parallel ??
-      specWorkerCount(
-        selectedPaths.length,
-        Deno.env.get("DENO_JOBS"),
-        navigator.hardwareConcurrency,
-      ),
+    parallel,
     paths: selectedPaths.length > 0 ? selectedPaths : paths,
-    reports: options.reports ?? true,
+    reports,
     tags:
       selectedPaths.length === 0 && options.tags !== undefined
-        ? "@__tickets_no_matching_case__"
+        ? NO_MATCHING_CASE_TAG
         : "",
   };
   const messages: Envelope[] = [];
