@@ -49,6 +49,18 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
     }
   });
 
+  test("a test that cannot take the lock fails loudly", async () => {
+    try {
+      await holdLockSince(new Date().toISOString());
+
+      await expect(takeMigrationLock()).rejects.toThrow(
+        "Could not take the migration lock for this test",
+      );
+    } finally {
+      await clearLock();
+    }
+  });
+
   test("a fresh lock held by someone else is not taken", async () => {
     try {
       await holdLockSince(new Date().toISOString());
