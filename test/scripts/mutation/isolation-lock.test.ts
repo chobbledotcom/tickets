@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   runLockIsHeld,
   withMutationRunLock,
@@ -142,6 +143,54 @@ describe("the lock that keeps two runs out of one folder", () => {
 
       expect(answer).toBeNull();
       expect(ranInside).toBe(false);
+    });
+  });
+
+  test("gives up when the folder was deleted while it queued for the lock", async () => {
+    await withTempDir(async (root) => {
+      const record = { root: join(root, ".mutation-runs", "mutation-swept") };
+      const holdingIt = Promise.withResolvers<void>();
+      const swept = Promise.withResolvers<void>();
+      let ranInside = false;
+
+      const holding = withMutationRunLock(record.root, async () => {
+        holdingIt.resolve();
+        await swept.promise;
+        // Standing in for a clear-up that took the whole folder away: the lock
+        // this run still holds is now a file nothing points at.
+        await Deno.remove(record.root, { recursive: true });
+      });
+      await holdingIt.promise;
+      const waiting = withRunLockOrNull(
+        record,
+        () => {
+          ranInside = true;
+          return Promise.resolve("should not happen");
+        },
+        5_000,
+      );
+      await pause(LONG_ENOUGH_TO_BE_LET_IN_MS);
+      swept.resolve();
+      await holding;
+
+      expect(await waiting).toBeNull();
+      expect(ranInside).toBe(false);
+    });
+  });
+
+  test("holds a lock on a filesystem that keeps no file numbers", async () => {
+    await withTempDir(async (root) => {
+      const record = { root: join(root, ".mutation-runs", "mutation-no-ino") };
+      await Deno.mkdir(record.root, { recursive: true });
+      const stat = Deno.stat;
+      using _stat = stub(Deno, "stat", (async (path: string | URL) => ({
+        ...(await stat(path)),
+        ino: null,
+      })) as typeof Deno.stat);
+
+      expect(await withRunLockOrNull(record, () => Promise.resolve("in"))).toBe(
+        "in",
+      );
     });
   });
 

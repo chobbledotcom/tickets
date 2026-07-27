@@ -4,7 +4,7 @@
 
 import { join } from "@std/path";
 import { openLockFile, withFileLock } from "#scripts/lock-file.ts";
-import { nullIfNotFound } from "#scripts/not-found.ts";
+import { nullIfNotFound, statOrNull } from "#scripts/not-found.ts";
 import { denoExitCode } from "./child-process.ts";
 import {
   MUTATION_RUN_LOCK_FILE,
@@ -55,6 +55,18 @@ export const runLockIsHeld = async (
   return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
 };
 
+/** Is the open lock file still the one sitting at the run's lock path? */
+const stillTheLockFile = async (
+  file: Deno.FsFile,
+  record: Pick<MutationRunRecord, "root">,
+): Promise<boolean> => {
+  const atPath = await statOrNull(runLockPath(record));
+  if (atPath === null) return false;
+  const held = await file.stat();
+  // Some filesystems keep no inode numbers; there, take the file at its word.
+  return held.ino === null || atPath.ino === null || held.ino === atPath.ino;
+};
+
 /**
  * Hold a run's lock while `run` works, but only if it is free within
  * `timeoutMs`; otherwise give up and answer `null`. Clearing up must never
@@ -82,7 +94,10 @@ export const withRunLockOrNull = async <Result>(
   }
   clearTimeout(waited);
   try {
-    return await run();
+    // The wait may have been won only because somebody deleted the folder: the
+    // open file lives on with nothing pointing at it, so a lock on it now keeps
+    // nobody out. Only the file still sitting at the path is worth holding.
+    return (await stillTheLockFile(file, record)) ? await run() : null;
   } finally {
     await file.unlock();
     file.close();
