@@ -12,7 +12,7 @@ import { projectRoot } from "#scripts/project-root.ts";
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
 export const MUTATION_RECORD_FILE = "run.json";
-export const MUTATION_RUN_ID_PREFIX = "mutation-";
+const MUTATION_RUN_ID_PREFIX = "mutation-";
 export const MUTATION_RUN_LOCK_FILE = "run.lock";
 export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
 export const MUTATION_RUN_ID_ENV = "TICKETS_MUTATION_RUN_ID";
@@ -58,7 +58,7 @@ const SKIPPED_FILE_NAMES = new Set([
   "bunny-script.ts.map",
 ]);
 
-export const MutationRunStatusSchema = v.picklist([
+const MutationRunStatusSchema = v.picklist([
   "copying",
   "running",
   "passed",

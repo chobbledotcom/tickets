@@ -11,13 +11,13 @@ import {
   runRoot,
   runsRoot,
 } from "#scripts/mutation/isolation-state.ts";
+import { captureSimpleSnapshotMutation } from "#test/scripts/mutation/isolation/helpers.ts";
 import {
   LONG_AGO,
   withTempDir,
   writeFakeMutationScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
-import { captureSimpleSnapshotMutation } from "./helpers.ts";
 
 /** Shaped like a real run id, so the sweep counts the folder as one of ours. */
 const BROKEN_RUN_ID = createRunId(

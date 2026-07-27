@@ -130,6 +130,21 @@ describe("the lock that keeps two runs out of one folder", () => {
     });
   });
 
+  test("leaves a folder that has already gone to whoever took it", async () => {
+    await withTempDir(async (root) => {
+      const gone = { root: join(root, ".mutation-runs", "mutation-gone") };
+      let ranInside = false;
+
+      const answer = await withRunLockOrNull(gone, () => {
+        ranInside = true;
+        return Promise.resolve("should not happen");
+      });
+
+      expect(answer).toBeNull();
+      expect(ranInside).toBe(false);
+    });
+  });
+
   test("gives up loudly when the folder cannot hold a lock", async () => {
     await withTempDir(async (root) => {
       const asFile = join(root, "not-a-folder");
@@ -167,6 +182,21 @@ describe("the lock that keeps two runs out of one folder", () => {
       expect(await asked.promise).toBe(true);
       release.resolve();
       await holding;
+    });
+  });
+
+  test("reports whether a run lock is held", async () => {
+    await withTempDir(async (root) => {
+      const record = { root };
+      expect(await runLockIsHeld(record, 100)).toBe(false);
+      await withMutationRunLock(root, async () => {
+        expect(await runLockIsHeld(record, 100)).toBe(true);
+      });
+      expect(await runLockIsHeld(record, 100)).toBe(false);
+
+      const fileRoot = join(root, "file-root");
+      await Deno.writeTextFile(fileRoot, "");
+      expect(await runLockIsHeld({ root: fileRoot }, 100)).toBe(false);
     });
   });
 });

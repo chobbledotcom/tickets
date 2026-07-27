@@ -1593,37 +1593,6 @@ and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
 
 ---
 
-## Make `--clean` synchronize with the run lock before removing a run
-
-*Origin: reviewer suggestion on PR #1951.*
-
-`cleanableRuns` in `scripts/mutation/isolation.ts` decides a `copying` run is
-abandoned when its lock is not held, and `removeRun` then deletes
-`record.root` recursively. Neither step takes the run lock, so a run can pass
-the check while still queueing, take the lock, and start copying — and the
-clean, already committed to its decision, removes the record and the
-half-copied snapshot underneath it.
-
-PR #1951 narrowed this: the run now writes its record again once it holds the
-lock, so a clean that lands entirely *before* the lock leaves a run that is
-still findable. That is the common ordering and it is covered by
-`recordAroundClean` in `test/scripts/mutation/isolation/helpers.ts`. The
-remaining window — clean decides, run takes the lock, clean removes — is not
-closed by that write, and no write can close it: the fix has to be that the
-clean holds the run lock across both the decision and the removal.
-
-It was left out of #1951 because that PR is about test coverage of
-`isolation.ts`, and this is a behaviour change to the clean path with its own
-concurrency design to think through (a clean that blocks on every run's lock
-must not hang on a genuinely live run — the existing `runLockIsHeld` check
-would become a `tryLock`).
-
-Starting point: `cleanableRuns`, `removeRun`, and `cleanRuns` in
-`scripts/mutation/isolation.ts`, plus `withMutationRunLock` and `runLockIsHeld`
-in `scripts/mutation/isolation-state.ts`.
-
----
-
 ## Decide what happens to undated bookings when a listing starts being booked by the day
 
 *Origin: found while migrating the multi-day tests to stories (PR for batch 8).*

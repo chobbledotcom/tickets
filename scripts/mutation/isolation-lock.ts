@@ -4,6 +4,7 @@
 
 import { join } from "@std/path";
 import { openLockFile, withFileLock } from "#scripts/lock-file.ts";
+import { nullIfNotFound } from "#scripts/not-found.ts";
 import { denoExitCode } from "./child-process.ts";
 import {
   MUTATION_RUN_LOCK_FILE,
@@ -64,9 +65,10 @@ export const withRunLockOrNull = async <Result>(
   run: () => Promise<Result>,
   timeoutMs = 250,
 ): Promise<Result | null> => {
-  // A lock file that cannot even be opened means the disk is in a state we
-  // must not guess about: better to stop than to delete or to skip in silence.
-  const file = await openLockFile(runLockPath(record));
+  // A folder that has gone is nobody's to take: another clear-up got there
+  // first. Any other failure to open means a disk we must not guess about.
+  const file = await nullIfNotFound(openLockFile(runLockPath(record)));
+  if (file === null) return null;
   const locked = file.lock(true).then(() => true);
   let waited = 0;
   const gaveUp = new Promise<false>((resolve) => {
