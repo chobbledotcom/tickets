@@ -15,7 +15,7 @@ import { stringEntries } from "#shared/string-entries.ts";
  * messages can honour the earliest choice.
  */
 
-export const REFRESH_DELAY_MS = 200;
+const REFRESH_DELAY_MS = 200;
 
 /** Build the availability query from the form (checkboxes, date, order). */
 const availabilityQuery = (form: HTMLFormElement): URLSearchParams =>

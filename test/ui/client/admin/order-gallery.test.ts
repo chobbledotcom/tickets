@@ -9,10 +9,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import {
-  initOrderGallery,
-  REFRESH_DELAY_MS,
-} from "#src/ui/client/admin/order-gallery.ts";
+import { initOrderGallery } from "#src/ui/client/admin/order-gallery.ts";
 import {
   createDomInstaller,
   createGlobalStash,
@@ -23,6 +20,11 @@ type AvailabilityBody = {
   dateNeeded?: boolean;
   states?: Record<string, CardState>;
 };
+
+// The gallery must wait this long after a change before it asks what is still
+// available. Stated here on purpose: the test guards the 200 ms contract, so it
+// should fail if the production delay moves.
+const EXPECTED_REFRESH_DELAY_MS = 200;
 
 const GALLERY_HTML = `
   <form data-order-gallery>
@@ -214,7 +216,7 @@ describe("initOrderGallery", () => {
   test("waits for the debounce delay before checking availability", async () => {
     const page = harness();
     page.tick("select_package_7", true);
-    await clock.time!.tickAsync(REFRESH_DELAY_MS - 1);
+    await clock.time!.tickAsync(EXPECTED_REFRESH_DELAY_MS - 1);
     expect(page.requests).toHaveLength(0);
 
     await clock.time!.tickAsync(1);
