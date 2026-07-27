@@ -100,6 +100,41 @@ actual size before marking an item complete.
 
 ---
 
+## Migration lock: re-acquire after a tolerated missing settings table
+
+*Origin: CodeRabbit review on PR #1965 (`src/shared/db/migrations/lock.ts`).*
+
+`acquireMigrationLock(true)` returns a lease token when the `settings` table
+does not exist yet, because the lock row lives in the very table the caller is
+about to create. Setup, restore, and bootstrap rely on this: their route is
+`initializeFreshSchema` → `sealFreshSchema`, which writes with a plain
+`executeBatch` and never checks lock ownership, so the unpersisted token is
+harmless there.
+
+There is one narrow interleaving where it is not harmless. Request A probes a
+missing `settings` table and takes the tolerated token; request B then creates
+and stamps the schema; A's re-probe inside `runAcquiredMigrations` now sees
+real markers, and if they read as stale it takes the pending-migrations branch
+and reaches `recordMigrationBatch` with a token no row ever backed. The
+ownership check finds zero rows and throws `MigrationInProgressError`.
+
+The outcome today is fail-closed and retryable — no markers are written and no
+data is corrupted, and another isolate genuinely was migrating — so this is a
+tidiness issue, not a correctness bug. Still, A is running migrations without
+holding a real lock until that final check catches it.
+
+The fix: after the re-probe in `runAcquiredMigrations`, when the initial
+acquisition was the tolerated one and the database now has a `settings` table,
+re-acquire the lease (and bail out the normal way if another request holds it)
+before entering the pending-migrations branch. A regression test needs to
+control the interleaving: acquire with `allowMissingSettings` against a wiped
+database, create and stamp the schema from another path, then assert the
+lock-gated write either succeeds against a real lease or refuses before any
+migration runs.
+
+Out of scope for #1965, which moved this code verbatim out of `migrations.ts`
+without changing behaviour.
+
 ## Booking unification — phases 3 & 4
 
 *Origin: `booking-unification.md`, `booking-unification-phase2.md`.*
