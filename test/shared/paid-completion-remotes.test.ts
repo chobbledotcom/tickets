@@ -181,5 +181,32 @@ describeWithEnv(
         fetch.restore();
       }
     });
+
+    test("a webhook address pointing back inside the network is refused", async () => {
+      // The address comes from the organiser, so it could name the machine the
+      // site runs on. Nothing is sent, and no request is made to find out.
+      using fetch = stubFetch(() => {
+        throw new Error("Nothing should be sent to an unsafe address");
+      });
+      await expect(
+        sendWebhookStrict("http://127.0.0.1/register", {
+          address: "",
+          amount_owed: 0,
+          business_email: "",
+          currency: "GBP",
+          email: "buyer@example.com",
+          name: "Buyer",
+          notification_type: "registration.completed",
+          payment_id: "payment-2",
+          phone: "",
+          price_paid: 100,
+          special_instructions: "",
+          ticket_url: "https://tickets.example.com/t/two",
+          tickets: [],
+          timestamp: "2026-07-26T12:00:00.000Z",
+        }),
+      ).rejects.toThrow("Refused to send webhook to an unsafe URL");
+      expect(fetch.calls).toHaveLength(0);
+    });
   },
 );

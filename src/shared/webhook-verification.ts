@@ -1,3 +1,4 @@
+import { errorMessage } from "#shared/error-message.ts";
 import { type ErrorCodeType, logError } from "#shared/logger.ts";
 
 export type VerifiedWebhookPayload =
@@ -22,7 +23,7 @@ export const finishWebhookVerification = (
     // still cannot read it. Say so, or the payment goes missing in silence.
     logError({
       code: errorCode,
-      detail: `invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      detail: `invalid JSON: ${errorMessage(error)}`,
     });
     return { error: `Invalid webhook JSON (${errorCode})`, valid: false };
   }
