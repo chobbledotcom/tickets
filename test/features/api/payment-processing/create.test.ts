@@ -10,8 +10,8 @@ import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
 import type { PaymentWork } from "#routes/api/webhook-types.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { bookingCompletion } from "#shared/payment-completion.ts";
 import type { BookingIntent, CheckoutIntent } from "#shared/payments.ts";
-import { PAYMENT_BOOKING_COMPLETION } from "#test/shared/db/payments/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
@@ -74,6 +74,8 @@ test("builds standalone and package booking slots", () => {
     packageGroupId: 9,
   });
 });
+
+const PREPARATION_SESSION = "cs_preparation_failure";
 
 type PreparationOptions = {
   chargedUnitAmount?: number;
@@ -145,16 +147,30 @@ const preparationResult = (options: PreparationOptions) => {
     modifierApplications: [],
     total: options.total,
   };
-  // Preparation fails before any claimed write, so the paid session is the
-  // only part of the work these cases read.
+  const completion = bookingCompletion(
+    intent,
+    {
+      flow: "registration",
+      listingId: listing.id,
+      occurredAt: "2026-07-01T12:00:00.000Z",
+      promos: [],
+    },
+    ["stable-ticket-token"],
+  );
+  // Preparation fails before anything is claimed or written, so the work only
+  // needs the paid session and the order it was taken for. The stored order
+  // has to be the one the completion carries, or booking refuses to go on.
   const work = {
+    claim: { leaseToken: "lease", paymentId: PREPARATION_SESSION, revision: 1 },
+    intent,
+    payment: { bookingIntent: completion.input, id: PREPARATION_SESSION },
     session: {
       amountTotal: 1000,
       createdAt: "2026-07-01T12:00:00.000Z",
-      id: "cs_preparation_failure",
+      id: PREPARATION_SESSION,
       paymentReference: "pi_preparation_failure",
     },
-  } as PaymentWork;
+  } as unknown as PaymentWork;
 
   return createAttendeeForSession(
     work,
@@ -163,7 +179,7 @@ const preparationResult = (options: PreparationOptions) => {
     pricingIntent,
     pricedOrder,
     "stable-ticket-token",
-    PAYMENT_BOOKING_COMPLETION,
+    completion,
   );
 };
 
@@ -175,19 +191,19 @@ const stubSuccessfulBooking = () =>
     } as never),
   );
 
-test("reports a preparation error before the atomic write starts", async () => {
-  const result = await preparationResult({ total: Number.NaN });
-  expect(result).toEqual({
-    detail:
-      "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
-    ok: false,
-    reason: "unexpected_error",
-  });
-  if (result.ok !== false) throw new Error("Expected preparation to fail");
-  expect(specForFailure(result).code).toBe("unexpected_error");
-});
-
 describeWithEnv("payment booking lines", { db: true }, () => {
+  test("reports a preparation error before the atomic write starts", async () => {
+    const result = await preparationResult({ total: Number.NaN });
+    expect(result).toEqual({
+      detail:
+        "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
+      ok: false,
+      reason: "unexpected_error",
+    });
+    if (result.ok !== false) throw new Error("Expected preparation to fail");
+    expect(specForFailure(result).code).toBe("unexpected_error");
+  });
+
   test("reports a missing paid amount before the atomic write starts", async () => {
     using create = stubSuccessfulBooking();
 
