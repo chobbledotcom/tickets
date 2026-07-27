@@ -101,7 +101,7 @@
   "settings.advanced.email_variables.attendee_phone": "Attendee phone",
   "settings.advanced.email_variables.attendee_address": "Attendee address",
   "settings.advanced.email_variables.attendee_special_instructions": "Special instructions",
-  "settings.advanced.email_variables.entries": "Every listing and attendee pair",
+  "settings.advanced.email_variables.entries": "One row per booked listing. A hidden package is one row, not its parts.",
   "settings.advanced.email_variables.entry_listing_name": "Listing name, inside the loop",
   "settings.advanced.email_variables.entry_listing_is_paid": "Whether the listing has a price",
   "settings.advanced.email_variables.entry_attendee_quantity": "Ticket quantity",
