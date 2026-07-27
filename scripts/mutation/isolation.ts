@@ -6,6 +6,7 @@
  */
 
 import { relative } from "@std/path";
+import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import {
   INHERIT_STDIO,
   processExists,
@@ -38,10 +39,13 @@ import {
   parseIsolationCommand,
   readRunRecords,
   rewriteMutationArgs,
+  runDirectoryNames,
   runLockIsHeld,
+  runRoot,
   runStartedRecently,
   type SnapshotArgsFn,
   selectedRuns,
+  withinStartupGrace,
   withMutationRunLock,
   writeRunRecord,
 } from "./isolation-state.ts";
@@ -57,10 +61,16 @@ const processBelongsToRun = async (
   return await runLockIsHeld(record);
 };
 
+/**
+ * A run that is still copying counts as active while it is young, even before
+ * its lock shows: a run writes its record moments before it takes the lock, and
+ * deleting its folder in that gap would pull the snapshot out from under it.
+ */
 const copyingRunStillActive = async (
   record: MutationRunRecord,
 ): Promise<boolean> =>
-  record.status === "copying" && (await runLockIsHeld(record));
+  record.status === "copying" &&
+  (runStartedRecently(record) || (await runLockIsHeld(record)));
 
 const runningProcessStillExists = async (
   record: MutationRunRecord,
@@ -142,10 +152,55 @@ const removeWorkSnapshot = async (record: MutationRunRecord): Promise<void> => {
   if (!result.removed) reportRemoveFailure("the snapshot of ", result);
 };
 
+/** When a folder last changed, or 0 when that cannot be told. */
+const folderChangedAt = async (path: string): Promise<number> => {
+  const info = await Deno.stat(path).catch((error: unknown) => {
+    rethrowUnlessNotFound(error);
+    return null;
+  });
+  return info?.mtime?.getTime() ?? 0;
+};
+
+/**
+ * A folder whose record cannot be read belongs to a run that was killed while
+ * writing it. Stand in for that record so the folder can be checked and
+ * cleared like any other.
+ */
+const recordForUnreadableRun = async (
+  id: string,
+  root: string,
+): Promise<MutationRunRecord> => {
+  const changedAt = await folderChangedAt(runRoot(id, root));
+  return {
+    ...newRunRecord(id, [], root),
+    // Young folders are left alone, in case a run is writing its record now.
+    updatedAt: withinStartupGrace(changedAt)
+      ? new Date().toISOString()
+      : new Date(0).toISOString(),
+  };
+};
+
+const runsToSweep = async (root: string): Promise<MutationRunRecord[]> => {
+  const records = await readRunRecords(root);
+  const known = new Set(records.map((record) => record.id));
+  const unreadable = (await runDirectoryNames(root)).filter(
+    (name) => !known.has(name),
+  );
+  return [
+    ...records,
+    ...(await Promise.all(
+      unreadable.map((id) => recordForUnreadableRun(id, root)),
+    )),
+  ];
+};
+
 /** Clears out whatever earlier runs left behind, so nothing piles up. */
 const removeInactiveRuns = async (root: string): Promise<void> => {
-  const { removable } = await cleanableRuns(await readRunRecords(root));
-  await Promise.all(removable.map(removeRun));
+  const { removable } = await cleanableRuns(await runsToSweep(root));
+  const results = await Promise.all(removable.map(removeRun));
+  for (const result of results) {
+    if (!result.removed) reportRemoveFailure("the earlier run ", result);
+  }
 };
 
 const signalRun = async (

@@ -264,13 +264,17 @@ export const isTerminalRunStatus = (status: MutationRunStatus): boolean =>
  */
 export const RUN_STARTUP_GRACE_MS = 30_000;
 
-export const runStartedRecently = (
-  record: MutationRunRecord,
+/** Was `at` within the startup grace? Unknown times count as long ago. */
+export const withinStartupGrace = (
+  at: number,
   now: Date = new Date(),
   graceMs: number = RUN_STARTUP_GRACE_MS,
-): boolean =>
-  Date.parse(record.updatedAt) > 0 &&
-  now.getTime() - Date.parse(record.updatedAt) < graceMs;
+): boolean => at > 0 && now.getTime() - at < graceMs;
+
+export const runStartedRecently = (
+  record: MutationRunRecord,
+  now?: Date,
+): boolean => withinStartupGrace(Date.parse(record.updatedAt), now);
 
 export const writeRunRecord = async (
   record: MutationRunRecord,
@@ -305,20 +309,28 @@ const recordInCurrentRunDirectory = (
   workRoot: workRoot(id, root),
 });
 
+/** Every run folder, whether or not it still holds a readable record. */
+export const runDirectoryNames = async (
+  root = projectRoot,
+): Promise<string[]> => {
+  const names: string[] = [];
+  try {
+    for await (const entry of Deno.readDir(runsRoot(root))) {
+      if (entry.isDirectory) names.push(entry.name);
+    }
+  } catch (error) {
+    rethrowUnlessNotFound(error);
+  }
+  return names;
+};
+
 export const readRunRecords = async (
   root = projectRoot,
 ): Promise<MutationRunRecord[]> => {
   const records: MutationRunRecord[] = [];
-  try {
-    for await (const entry of Deno.readDir(runsRoot(root))) {
-      if (!entry.isDirectory) continue;
-      const record = await readRunRecord(recordPath(entry.name, root));
-      if (record) {
-        records.push(recordInCurrentRunDirectory(record, entry.name, root));
-      }
-    }
-  } catch (error) {
-    rethrowUnlessNotFound(error);
+  for (const name of await runDirectoryNames(root)) {
+    const record = await readRunRecord(recordPath(name, root));
+    if (record) records.push(recordInCurrentRunDirectory(record, name, root));
   }
   return records.sort((left, right) =>
     right.createdAt.localeCompare(left.createdAt),

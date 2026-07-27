@@ -73,7 +73,13 @@ describe("mutation isolation commands", () => {
   test("skips active runs during cleanup", async () => {
     await withTempDir(async (root) => {
       const copying = newRunRecord("mutation-copying", [], root);
-      const staleCopying = newRunRecord("mutation-stale-copying", [], root);
+      // Old enough that the startup grace no longer covers it.
+      const staleCopying = newRunRecord(
+        "mutation-stale-copying",
+        [],
+        root,
+        "2026-01-01T00:00:00.000Z",
+      );
       const running = markRunning(
         newRunRecord("mutation-running", [], root),
         Deno.pid,
