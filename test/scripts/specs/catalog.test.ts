@@ -11,6 +11,7 @@ const FEATURE_PATH = "specs/payments/capacity-after-payment.feature";
 describe("Cucumber story catalog", () => {
   test("reads every story from the repository catalog", async () => {
     expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
+      "attendees.checking-people-in-at-the-door",
       "attendees.downloading-the-attendee-list",
       "attendees.editing-and-moving",
       "attendees.merging-duplicate-bookings",

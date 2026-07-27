@@ -1,70 +1,63 @@
 import type { Envelope } from "@cucumber/messages";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { runSpecs, type SpecRunEnvironment } from "#scripts/specs/run.ts";
+import { stub } from "@std/testing/mock";
+import { runSpecs } from "#scripts/specs/run.ts";
+import type { SpecCatalog } from "#scripts/specs/types.ts";
 import { CONCURRENT_ROWS } from "#test/scripts/specs/fixtures/concurrent.steps.ts";
 import {
   requiredSpecRunsPath,
   SPEC_RUNS_PATH_ENV,
 } from "#test/scripts/specs/fixtures/record-step.ts";
 import { withEnv } from "#test-utils/env.ts";
-
-interface OutlineFixture {
-  directory: string;
-  environment: SpecRunEnvironment;
-  featurePath: string;
-  runsPath: string;
-}
-
-const createOutlineFixture = async (
-  support: string,
-): Promise<OutlineFixture> => {
-  const directory = await Deno.makeTempDir();
-  const featurePath = `${directory}/outline.feature`;
-  const runsPath = `${directory}/runs.txt`;
-  await Deno.writeTextFile(
-    featurePath,
-    `
-@story:payments.outline-selection
-@owner:payments @risk:high
-@actor:customer @edition:managed
-Feature: Select a payment example
-  A stable case id selects one example from a Scenario Outline.
-
-  @rule:payments.outline-selection-rule
-  Rule: One example is selected
-    Only the requested example is run.
-
-    Scenario Outline: Payment result <label>
-      Given a selected example runs
-
-      Examples:
-        | case_id                  | label  |
-        | payment.selection-first  | first  |
-        | payment.selection-second | second |
-`,
-  );
-  return {
-    directory,
-    environment: {
-      env: { [SPEC_RUNS_PATH_ENV]: runsPath },
-      reportDir: `${directory}/reports`,
-      support: [support],
-    },
-    featurePath,
-    runsPath,
-  };
-};
-
-const removeOutlineFixture = async (fixture: OutlineFixture): Promise<void> => {
-  await Deno.remove(fixture.directory, { recursive: true });
-};
+import {
+  createOutlineFixture,
+  type OutlineFixture,
+  removeOutlineFixture,
+} from "./outline-fixture.ts";
 
 const readMessages = async (reportDir: string): Promise<Envelope[]> =>
   (await Deno.readTextFile(`${reportDir}/cucumber.ndjson`))
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line));
+
+const WORKING_STEPS = "test/scripts/specs/fixtures/selected.steps.ts";
+
+/** Run the throwaway Feature, with whatever is passed layered on top. */
+const runOutline = async (
+  fixture: OutlineFixture,
+  options: Parameters<typeof runSpecs>[0],
+  support: string[] = [WORKING_STEPS],
+): Promise<{ success: boolean }> =>
+  await runSpecs(
+    { paths: [fixture.featurePath], ...options },
+    { reportDir: fixture.environment.reportDir, support },
+    { env: { [SPEC_RUNS_PATH_ENV]: fixture.runsPath }, parallel: 0 },
+  );
+
+const withOutline = async (
+  body: (fixture: OutlineFixture) => Promise<void>,
+): Promise<void> => {
+  const fixture = await createOutlineFixture(WORKING_STEPS);
+  try {
+    await body(fixture);
+  } finally {
+    await removeOutlineFixture(fixture);
+  }
+};
+
+/** Everything the run complained about while it ran. */
+const complaintsFrom = async (
+  run: () => Promise<unknown>,
+): Promise<string[]> => {
+  const complaints: string[] = [];
+  using _error = stub(console, "error", (...parts: unknown[]) => {
+    complaints.push(parts.map(String).join(" "));
+  });
+  await run();
+  return complaints;
+};
 
 describe("Cucumber execution", () => {
   test("requires the path used to record selected examples", () => {
@@ -204,6 +197,93 @@ describe("Cucumber execution", () => {
           { reportDir: `${directory}/reports`, support: [] },
         ),
       ).toEqual({ success: false });
+    } finally {
+      await Deno.remove(directory, { recursive: true });
+    }
+  });
+
+  test("selects nothing at all when the asked-for case is not in the catalog", async () => {
+    await withOutline(async (fixture) => {
+      // The Feature would pass if it ran, so only a filter that keeps every
+      // case out can make this fail.
+      expect(
+        await runOutline(fixture, { tags: "@case:not.in-catalog" }),
+      ).toEqual({ success: false });
+
+      // Nothing was tried at all, rather than tried and failed.
+      const messages = await readMessages(fixture.environment.reportDir);
+      expect(messages.filter(({ testCase }) => testCase)).toEqual([]);
+    });
+  });
+
+  test("fails a run whose steps nobody has written", async () => {
+    await withOutline(async (fixture) => {
+      expect(
+        await runOutline(
+          fixture,
+          { reports: false, tags: "@case:payment.selection-first" },
+          [],
+        ),
+      ).toEqual({ success: false });
+    });
+  });
+
+  test("runs a failing case once instead of trying it again", async () => {
+    await withOutline(async (fixture) => {
+      const complaints = await complaintsFrom(() =>
+        runOutline(fixture, { tags: "@case:payment.selection-first" }, [
+          "test/scripts/specs/fixtures/failing.steps.ts",
+        ]),
+      );
+
+      // A second attempt would be reported as a retry, which we never allow.
+      expect(complaints).toEqual([]);
+      const messages = await readMessages(fixture.environment.reportDir);
+      expect(
+        messages.filter(({ testCaseStarted }) => testCaseStarted),
+      ).toHaveLength(1);
+    });
+  });
+
+  test("makes the whole reports folder, however deep it is", async () => {
+    const directory = await Deno.makeTempDir();
+    try {
+      const reportDir = `${directory}/nested/deeper/reports`;
+
+      await expect(
+        runSpecs({ paths: ["specs/owners.json"] }, { reportDir, support: [] }),
+      ).rejects.toThrow("No Cucumber Feature files found");
+
+      expect((await Deno.stat(reportDir)).isDirectory).toBe(true);
+    } finally {
+      await Deno.remove(directory, { recursive: true });
+    }
+  });
+
+  test("reads the specs folder when asked for no paths in particular", async () => {
+    const directory = await Deno.makeTempDir();
+    let catalogued: SpecCatalog | undefined;
+    try {
+      await expect(
+        runSpecs(
+          { reports: false },
+          { reportDir: `${directory}/reports`, support: [] },
+          {
+            beforeRun: (catalog) => {
+              catalogued = catalog;
+              // Stop before Cucumber runs: the catalog is all this checks.
+              throw new Error("read the catalog");
+            },
+          },
+        ),
+      ).rejects.toThrow("read the catalog");
+
+      expect(catalogued?.stories.length).toBeGreaterThan(0);
+      // Everything it found came from the specs folder, not from wherever the
+      // command happened to be run.
+      expect(
+        catalogued?.stories.every((story) => story.uri.startsWith("specs/")),
+      ).toBe(true);
     } finally {
       await Deno.remove(directory, { recursive: true });
     }
