@@ -728,6 +728,46 @@ errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
 until a real collect-all site (e.g. the multi-item-checkout "no shared date"
 diagnostic above) makes it pay for itself.
 
+**A payment can be described in the wrong currency.** The work that goes out
+after a payment — the registration webhook and the ticket attached to the
+buyer's email — reads the site's *current* currency setting rather than the
+currency the payment was actually taken in
+(`src/features/api/payment-processing/completion-deliveries.ts`, around where
+it reads `settings.currency`). The payment already carries what it charged, in
+`current.payment.expected`. If the owner changes the site currency between the
+buyer paying and that work running, the amount is labelled with the wrong
+currency — and, where the two currencies count pennies differently, scaled
+wrong too. Use the payment's own currency.
+
+**Retrying a SumUp checkout can ask for a hundred times the money.** When an
+uncertain SumUp checkout is tried again, the amount is converted to major units
+using the site's live currency setting, while the saved payment still carries
+the currency it was created with (`src/shared/sumup.ts`, the `toMajorUnits`
+call). Switch the site from a currency with pennies to one without, and a £10
+payment is retried as 1000 of the new currency. The reply is read back with the
+same live setting, so the check on the way in does not catch it. Convert using
+`expected.currency`, not the setting.
+
+**One destination that can never succeed blocks all the others.** The queue that
+sends out what a payment bought always hands back its oldest unfinished row
+first (`deliverNextPaidCompletion` in
+`src/features/api/payment-processing/completion-deliveries.ts`). If that row can
+never succeed — an email or webhook refused outright, or a saved address that is
+no longer safe to call — it throws without being moved on, so every later run
+picks the same row again and the webhooks, sites and renewals behind it never go
+out. Give a destination a way to be marked finished-badly or needing the owner,
+so the rest can carry on and the owner has something to act on.
+
+**Deleting a booking mid-refund loses the money's trail.** The guard that stops
+a booking being deleted while work is outstanding only looks at whether its
+*completion* is pending (`src/shared/db/attendees/delete.ts`). A booking with a
+refund still in flight passes it, and the delete unlinks the payment. When the
+provider then confirms the refund, the single-refund path has no booking left to
+record it against and the bulk path throws looking for one — so the money goes
+back while Money still shows it as held, and the page that could repair it is
+gone. Block the delete while refund work is unfinished, or keep something for
+the refund to finish against.
+
 ## The snapshot check in `decision-attempts.ts` runs, but coverage says it does not
 
 `currentSnapshotMatches` in `src/shared/db/payments/decision-attempts.ts` is
