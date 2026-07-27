@@ -13,14 +13,16 @@ import { dirname } from "@std/path";
 import { statOrNull } from "#scripts/not-found.ts";
 
 /**
- * Takes the lock, says which file it got, and holds it until its input closes
- * — which happens when we let go, or if we die first.
+ * Says it is about to wait, takes the lock, says which file it got, and holds
+ * it until its input closes — when we let go, or if we die first.
  */
 const HOLD_LOCK_SCRIPT = `
+const say = (line) => Deno.stdout.write(new TextEncoder().encode(line + "\\n"));
 const file = await Deno.open(Deno.args[0], { create: true, read: true, write: true });
+await say("waiting");
 await file.lock(true);
 const { ino } = await file.stat();
-await Deno.stdout.write(new TextEncoder().encode(\`held \${ino ?? ""}\\n\`));
+await say(\`held \${ino ?? ""}\`);
 await Deno.stdin.read(new Uint8Array(1));
 await file.unlock();
 file.close();
@@ -32,12 +34,23 @@ export interface HeldLock {
   letGo: () => Promise<void>;
 }
 
-/** The first line the child says, or `null` if it says nothing at all. */
-const firstLine = async (
+/**
+ * The child's `held` line, or `null` if it stops before saying one. Calls
+ * `nowWaiting` as soon as the child is up and queueing for the lock.
+ */
+const heldLine = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
+  nowWaiting: () => void,
 ): Promise<string | null> => {
-  const { value } = await reader.read();
-  return value === undefined ? null : new TextDecoder().decode(value).trim();
+  let said = "";
+  for (;;) {
+    const { value } = await reader.read();
+    if (value === undefined) return null;
+    said += new TextDecoder().decode(value);
+    if (said.includes("waiting\n")) nowWaiting();
+    const held = said.split("\n").find((line) => line.startsWith("held"));
+    if (held !== undefined) return held;
+  }
 };
 
 /** The file number in a `held <number>` line, or `null` if it carries none. */
@@ -80,13 +93,23 @@ export const holdLockOrNull = async (
     stdout: "piped",
   }).spawn();
 
+  // The clock starts when the child is up and queueing, not when it is asked
+  // to start: how long we are prepared to wait is about the lock, not about
+  // how busy the machine is with starting processes.
+  const nowWaiting = Promise.withResolvers<void>();
   let waited = 0;
-  const gaveUp = new Promise<null>((resolve) => {
-    waited = setTimeout(() => resolve(null), timeoutMs);
-    Deno.unrefTimer(waited);
-  });
+  const gaveUp = nowWaiting.promise.then(
+    () =>
+      new Promise<null>((resolve) => {
+        waited = setTimeout(() => resolve(null), timeoutMs);
+        Deno.unrefTimer(waited);
+      }),
+  );
   const reader = child.stdout.getReader();
-  const line = await Promise.race([firstLine(reader), gaveUp]);
+  const line = await Promise.race([
+    heldLine(reader, nowWaiting.resolve),
+    gaveUp,
+  ]);
   clearTimeout(waited);
   // Cancelling ends the read the timeout walked away from, so the child's
   // output is closed either way and nothing is left holding it.
