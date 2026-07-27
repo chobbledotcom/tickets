@@ -2088,3 +2088,38 @@ it, so the second page no longer knows the two belong together and makes a
 second payment record for the same money. Its outcome, ticket, and refund
 facts are then split across the two. Pages need to keep a payment's ids
 together rather than cutting the list wherever 25 falls.
+
+## Finishing the payment branch's test coverage
+
+*Origin: the coverage gate on the payment-aggregate base branch, which only
+started running once the suite itself went green.*
+
+The payment rewrite arrived with a lot of code no test ever reached. The gate
+that would have caught it never got to run, because the suite was failing
+before it. With the suite green the real number showed: **1011 lines and 257
+branches across 78 files**.
+
+This is being worked through file by file, largest gap first, with each file
+committed on its own. To see what is left:
+
+```bash
+deno task test:coverage
+```
+
+Run it with nothing else running — two runs at once share the `coverage`
+folder and give a nonsense answer.
+
+Three things come up over and over, and are worth knowing before starting a
+file:
+
+- Some of what is uncovered is **code nothing can reach**. A guard below the
+  code that already guarantees it, for example. Delete it rather than write a
+  test that keeps it alive — and check the branch really is unreachable first.
+- Every new test file has to be checked against the duplicate-code gate. Tests
+  for one module tend to repeat their setup, and repeat it against the older
+  test files next door. Pull the shared part out.
+- A private helper cannot be tested directly, and must not be exported just so
+  a test can reach it. Drive it through the surface that uses it.
+
+Done so far: handing out a site when someone pays for one, and the SumUp
+answers a read can get.
