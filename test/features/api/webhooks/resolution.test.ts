@@ -46,6 +46,19 @@ const PROVIDER_UNAVAILABLE_READ: ProviderRead = {
   status: "unavailable",
 };
 
+/** The settings every one of these webhooks is answered under. */
+const useStripeSettings = (): void =>
+  settings.setForTest({
+    payment_provider: "stripe",
+    stripe_secret_key: "sk_test_webhook-runtime",
+  });
+
+/** We took the notice and had nothing to do about it. */
+const expectAcknowledged = async (response: Response): Promise<void> => {
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ received: true });
+};
+
 const sendWebhook = async (): Promise<Response> => {
   const request = new Request("https://example.com/payment/webhook", {
     body: "{}",
@@ -75,10 +88,7 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
   afterEach(() => settings.clearTestOverrides());
 
   const setUpPayment = async (): Promise<void> => {
-    settings.setForTest({
-      payment_provider: "stripe",
-      stripe_secret_key: "sk_test_webhook-runtime",
-    });
+    useStripeSettings();
     const account = await resolvePaymentAccount("stripe");
     await createPaymentSession(
       { ...paymentSessionInput(), accountId: account.accountId },
@@ -130,10 +140,7 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
   });
 
   test("returns 503 when a verified unavailable callback has no local payment", async () => {
-    settings.setForTest({
-      payment_provider: "stripe",
-      stripe_secret_key: "sk_test_webhook-runtime",
-    });
+    useStripeSettings();
     using _verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
       Promise.resolve({ notice, valid: true }),
     );
@@ -262,10 +269,7 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
   });
 
   test("a signed webhook with no signature is refused", async () => {
-    settings.setForTest({
-      payment_provider: "stripe",
-      stripe_secret_key: "sk_test_webhook-runtime",
-    });
+    useStripeSettings();
     const request = new Request("https://example.com/payment/webhook", {
       body: "{}",
       headers: { "stripe-signature": "" },
@@ -279,10 +283,7 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
   });
 
   test("a webhook we cannot trust is refused with the reason", async () => {
-    settings.setForTest({
-      payment_provider: "stripe",
-      stripe_secret_key: "sk_test_webhook-runtime",
-    });
+    useStripeSettings();
     using _verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
       Promise.resolve({ error: "bad signature", valid: false as const }),
     );
@@ -294,25 +295,18 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
   });
 
   test("a trusted webhook about nothing we act on is acknowledged", async () => {
-    settings.setForTest({
-      payment_provider: "stripe",
-      stripe_secret_key: "sk_test_webhook-runtime",
-    });
+    useStripeSettings();
     using _verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
       Promise.resolve({ notice: null, valid: true as const }),
     );
 
     const response = await sendWebhook();
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ received: true });
+    await expectAcknowledged(response);
   });
 
   test("a notice about another provider's payment is left alone", async () => {
-    settings.setForTest({
-      payment_provider: "stripe",
-      stripe_secret_key: "sk_test_webhook-runtime",
-    });
+    useStripeSettings();
     using _verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
       Promise.resolve({
         notice: {
@@ -329,7 +323,28 @@ describeWithEnv("payment webhook reconciliation", { db: true }, () => {
 
     const response = await sendWebhook();
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ received: true });
+    await expectAcknowledged(response);
+  });
+
+  test("cancelling a payment nobody knows says so", async () => {
+    useStripeSettings();
+    using _read = stub(stripePaymentProvider, "readPayment", () =>
+      Promise.resolve({
+        reason: "unsupported_status" as const,
+        requested: SESSION_RESOURCE,
+        status: "invalid" as const,
+      }),
+    );
+
+    const response = await routePayment(
+      new Request(
+        `https://example.com/payment/cancel?session_id=${SESSION_RESOURCE.id}`,
+      ),
+      "/payment/cancel",
+      "GET",
+    );
+
+    expect(response?.status).toBe(400);
+    expect(await response?.text()).toContain("We could not find this payment.");
   });
 });
