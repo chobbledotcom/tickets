@@ -38,6 +38,23 @@ export const tableExists = async (table: string): Promise<boolean> => {
 export const settingsTableExists = (): Promise<boolean> =>
   tableExists("settings");
 
+/** The stored value of one settings row, or null when it has none. */
+export const settingsValue = async (key: string): Promise<string | null> => {
+  const result = await getDb().execute({
+    args: [key],
+    sql: "SELECT value FROM settings WHERE key = ?",
+  });
+  return (result.rows[0]?.value as string) ?? null;
+};
+
+/** Every migration id the database has recorded as applied, in id order. */
+export const appliedMigrationIds = async (): Promise<string[]> => {
+  const result = await getDb().execute(
+    "SELECT id FROM schema_migrations ORDER BY id",
+  );
+  return result.rows.map((row) => String(row.id));
+};
+
 export const schemaMarkerKeys = async (): Promise<string[]> => {
   const result = await getDb().execute(
     "SELECT key FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash') ORDER BY key",

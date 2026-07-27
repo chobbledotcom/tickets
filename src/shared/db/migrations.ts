@@ -75,16 +75,6 @@ import {
   syncTriggers,
 } from "./migrations/schema-sync.ts";
 
-export {
-  loadMigrations,
-  renameEventsToListings,
-} from "./migrations/context.ts";
-export { MIGRATION_LOCK_TTL_MS } from "./migrations/lock.ts";
-export {
-  applyMigrationWithRetry,
-  VERIFY_RETRY_BACKOFF_MS,
-  verifyMigrationWithRetry,
-} from "./migrations/runner.ts";
 export { SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "./migrations/schema/index.ts";
 export { LATEST_UPDATE } from "./migrations/schema/version.ts";
 export type { Migration, SchemaRequirement } from "./migrations/types.ts";

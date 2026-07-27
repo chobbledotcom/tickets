@@ -1,3 +1,4 @@
+import { loadMigrations } from "#shared/db/migrations/context.ts";
 /**
  * Run-scoped test state: the golden schema database plus the completed
  * site-setup rows (settings, users, admin session) that DB tests start from.
@@ -32,11 +33,7 @@ import { getDb, insert, setDb } from "#shared/db/client.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "#shared/db/migrations/schema/version.ts";
-import {
-  LATEST_UPDATE,
-  loadMigrations,
-  SCHEMA_HASH,
-} from "#shared/db/migrations.ts";
+import { LATEST_UPDATE, SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";

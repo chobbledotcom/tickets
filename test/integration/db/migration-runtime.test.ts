@@ -3,7 +3,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
+import { MIGRATION_LOCK_TTL_MS } from "#shared/db/migrations/lock.ts";
 import { baselineCurrentSchemaIfNeeded } from "#shared/db/migrations/runner.ts";
 import {
   DB_SCHEMA_HASH_KEY,
@@ -18,8 +20,6 @@ import {
 import {
   initDb,
   invalidateInitDbCache,
-  loadMigrations,
-  MIGRATION_LOCK_TTL_MS,
   rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,

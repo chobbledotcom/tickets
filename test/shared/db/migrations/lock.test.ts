@@ -1,5 +1,7 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
 import {
@@ -164,5 +166,37 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
       releaseAfterMigrationFailure(lockToken!, failure),
     ).rejects.toThrow(failure);
     expect(await heldLock()).toBeNull();
+  });
+
+  /** Make the lock INSERT fail the way a database without a settings table
+   *  does, leaving every other statement alone. */
+  const failLockWriteWith = (message: string) => {
+    const client = getDb();
+    const execute = client.execute.bind(client);
+    return stub(client, "execute", (statement: InStatement) =>
+      typeof statement !== "string" &&
+      statement.sql.startsWith("INSERT INTO settings")
+        ? Promise.reject(new Error(message))
+        : execute(statement),
+    );
+  };
+
+  test("a missing settings table is only tolerated when it is expected", async () => {
+    using _execute = failLockWriteWith("no such table: settings");
+
+    // Setup and restore create the table, so they carry on without a lock...
+    expect(await acquireMigrationLock(true)).not.toBeNull();
+    // ...but an ordinary request must not treat it as a free lock.
+    await expect(acquireMigrationLock(false)).rejects.toThrow(
+      "no such table: settings",
+    );
+  });
+
+  test("any other write failure is raised even when bootstrapping", async () => {
+    using _execute = failLockWriteWith("database is locked");
+
+    await expect(acquireMigrationLock(true)).rejects.toThrow(
+      "database is locked",
+    );
   });
 });

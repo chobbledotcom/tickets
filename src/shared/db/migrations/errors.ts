@@ -31,6 +31,7 @@ const missingTableError =
     );
   };
 
-export const isMissingSettingsTableError = missingTableError("settings");
-export const isMissingMigrationsTableError =
+export const isMissingSettingsTableError: (error: unknown) => boolean =
+  missingTableError("settings");
+export const isMissingMigrationsTableError: (error: unknown) => boolean =
   missingTableError("schema_migrations");

@@ -19,6 +19,7 @@ import {
 } from "#shared/db/migrations/schema/version.ts";
 import type { Migration } from "#shared/db/migrations/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { settingsValue } from "#test-utils/migrations.ts";
 
 describeWithEnv("db > migrations > markers", { db: true }, () => {
   const testMigration: Migration = {
@@ -26,14 +27,6 @@ describeWithEnv("db > migrations > markers", { db: true }, () => {
     id: "marker-test-migration",
     up: () => Promise.resolve(),
     verify: () => Promise.resolve(),
-  };
-
-  const settingsValue = async (key: string): Promise<string | null> => {
-    const result = await getDb().execute({
-      args: [key],
-      sql: "SELECT value FROM settings WHERE key = ?",
-    });
-    return (result.rows[0]?.value as string) ?? null;
   };
 
   const staleSchemaMarkers = async (): Promise<void> => {

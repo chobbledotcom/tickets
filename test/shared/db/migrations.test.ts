@@ -10,26 +10,32 @@ import { stub } from "@std/testing/mock";
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
 import { getDb, insert, setDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
+import { loadMigrations } from "#shared/db/migrations/context.ts";
 import { MissingSettingsTableError } from "#shared/db/migrations/errors.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
-  loadMigrations,
+  rebuildWipedSchema,
   resetDatabase,
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
+import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+import { setBuildCommitForTest } from "#shared/update.ts";
 import {
   markCurrentSchemaMigrationPending,
   markMigrationsForRerun,
 } from "#test/test-utils/db/migration-test-helpers.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import {
+  appliedMigrationIds,
   assertSchemaEmpty,
   schemaMarkerKeys,
   settingsTableExists,
+  settingsValue,
   tableExists,
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
@@ -112,21 +118,6 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
       );
       return result.rows.length > 0;
-    };
-
-    const appliedMigrationIds = async (): Promise<string[]> => {
-      const result = await getDb().execute(
-        "SELECT id FROM schema_migrations ORDER BY id",
-      );
-      return result.rows.map((row) => String(row.id));
-    };
-
-    const settingValue = async (key: string): Promise<string | undefined> => {
-      const result = await getDb().execute({
-        args: [key],
-        sql: "SELECT value FROM settings WHERE key = ?",
-      });
-      return result.rows[0]?.value as string | undefined;
     };
 
     /** Put the database in the "site upgrading from an older release" state:
@@ -251,7 +242,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await initDb();
 
       // The migration ran: the stored template's tag is rewritten...
-      expect(await settingValue("attendee_column_order")).toBe(
+      expect(await settingsValue("attendee_column_order")).toBe(
         "{{name}}, {{listings}}, {{email}}",
       );
       // ...it is now recorded in schema_migrations...
@@ -259,7 +250,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "2026-07-03_attendee_listings_tag",
       );
       // ...and the markers are refreshed to the current release.
-      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+      expect(await settingsValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
     test("runs the broken-image cleanup on a site upgrading from the previous release", async () => {
@@ -282,7 +273,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await appliedMigrationIds()).toContain(
         "2026-07-12_remove_broken_image_records",
       );
-      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+      expect(await settingsValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
     test("runs the completed activity backfill migration on an old completed site", async () => {
@@ -305,7 +296,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await appliedMigrationIds()).toContain(
         "2026-07-21_activity_backfill_complete",
       );
-      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+      expect(await settingsValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
     test("moves feature visibility on a site upgrading from the previous release", async () => {
@@ -325,7 +316,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
       await initDb();
 
-      const stored = await settingValue("enabled_features");
+      const stored = await settingsValue("enabled_features");
       if (!stored) throw new Error("enabled_features was not migrated");
       expect(JSON.parse(stored)).toEqual({
         apiKeys: false,
@@ -337,12 +328,12 @@ describeWithEnv("db > migrations", { db: true }, () => {
         servicing: false,
         site: true,
       });
-      expect(await settingValue("has_logistics")).toBeUndefined();
-      expect(await settingValue("show_public_site")).toBeUndefined();
+      expect(await settingsValue("has_logistics")).toBeNull();
+      expect(await settingsValue("show_public_site")).toBeNull();
       expect(await appliedMigrationIds()).toContain(
         "2026-07-15_enabled_features",
       );
-      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+      expect(await settingsValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
     test("initDb restores stale markers after a crash between recording migrations and writing markers", async () => {
@@ -406,9 +397,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
         expect(partial.length).toBeGreaterThan(0);
         expect(partial.length).toBeLessThan(MIGRATION_IDS.length);
         expect(partial).not.toContain(crashing.id);
-        expect(await settingValue("db_schema_hash")).toBe("stale");
+        expect(await settingsValue("db_schema_hash")).toBe("stale");
         // The advisory lock is freed on the error path, so a retry isn't blocked.
-        expect(await settingValue("migration_lock")).toBeUndefined();
+        expect(await settingsValue("migration_lock")).toBeNull();
       } finally {
         // Always un-stub: a leaked stub would break every later test's migrations.
         upStub.restore();
@@ -420,8 +411,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
       await initDb();
 
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
-      expect(await settingValue("db_schema_hash")).toBe(SCHEMA_HASH);
-      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+      expect(await settingsValue("db_schema_hash")).toBe(SCHEMA_HASH);
+      expect(await settingsValue("latest_db_update")).toBe(LATEST_UPDATE);
       // The pre-crash row survived the crash and the recovery re-run intact.
       const survived = await getDb().execute({
         args: [listingId],
@@ -660,6 +651,150 @@ describeWithEnv("db > migrations", { db: true }, () => {
         );
       } finally {
         setDb(null);
+      }
+    });
+  });
+
+  describe("boot messages and batching", () => {
+    const debugSpy = useDebugLogSpy();
+
+    const debugLines = (): string[] => debugMessages(debugSpy()).map(String);
+
+    test("a marker that matches only halfway still needs work", async () => {
+      // The update marker is this build's, but the schema hash is not: the
+      // database is not up to date, so the boot must repair the markers.
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+      invalidateInitDbCache();
+
+      await initDb();
+
+      expect(await settingsValue("db_schema_hash")).toBe(SCHEMA_HASH);
+    });
+
+    test("the other half-matching marker needs work too", async () => {
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",
+      );
+      invalidateInitDbCache();
+
+      await initDb();
+
+      expect(await settingsValue("latest_db_update")).toBe(LATEST_UPDATE);
+    });
+
+    test("a single outstanding migration is run, not assumed applied", async () => {
+      await markCurrentSchemaMigrationPending();
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+      invalidateInitDbCache();
+
+      await initDb();
+
+      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+      expect(debugLines()).toContain("[Migration] Updating version marker...");
+    });
+
+    test("a fresh database says it is starting from the current schema", async () => {
+      await resetDatabase();
+      invalidateTestDbCache();
+
+      await initDb({ allowMissingSettings: true });
+
+      expect(debugLines()).toContain(
+        "[Migration] Initializing fresh database from current schema",
+      );
+    });
+
+    test("outside a request, the build's own commit is stored before boot returns", async () => {
+      await resetDatabase();
+      invalidateTestDbCache();
+      setBuildCommitForTest("abc1234");
+      try {
+        await initDb({ allowMissingSettings: true });
+
+        // Nothing else waits for this write, so boot must not return early.
+        expect(await settingsValue("current_script_commit")).toBe("abc1234");
+      } finally {
+        setBuildCommitForTest(null);
+      }
+    });
+
+    test("a rebuild after a wipe says so", async () => {
+      await resetDatabase();
+      invalidateTestDbCache();
+
+      await rebuildWipedSchema();
+
+      expect(debugLines()).toContain(
+        "[Migration] Rebuilding wiped database from current schema",
+      );
+      await initDb();
+    });
+
+    test("only four migrations run per request when the request budget applies", async () => {
+      await markMigrationsForRerun();
+
+      await runWithQueryLogContext(async () => {
+        await expect(initDb()).rejects.toThrow(
+          "Database update is continuing on the next request.",
+        );
+      });
+
+      expect((await appliedMigrationIds()).length).toBe(4);
+      expect(debugLines()).toContain(
+        "[Migration] Recorded 4 migrations; continuing on the next request...",
+      );
+
+      // Leave the database fully migrated for the tests that follow.
+      invalidateInitDbCache();
+      await markMigrationsForRerun();
+      await initDb();
+    });
+
+    test("a held lock names the database and how long it is honoured", async () => {
+      const { fetchStub, restore } = stubNtfyFetch({ DB_URL: "" });
+      using _env = restore;
+      using _fetch = fetchStub;
+      try {
+        await getDb().batch(
+          [
+            "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+            {
+              args: ["migration_lock", new Date().toISOString()],
+              sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+            },
+          ],
+          "write",
+        );
+        invalidateInitDbCache();
+
+        await expect(initDb()).rejects.toThrow(
+          "reclaimed automatically after 2 minutes",
+        );
+
+        // An unset DB_URL is reported as an empty name, not as "unknown".
+        expect(
+          fetchStub.calls.some((call) =>
+            String((call.args[1] as { body?: string })?.body).endsWith(
+              "E_DB_MIGRATION_LOCK ",
+            ),
+          ),
+        ).toBe(true);
+      } finally {
+        await getDb().batch(
+          [
+            "DELETE FROM settings WHERE key = 'migration_lock'",
+            {
+              args: [SCHEMA_HASH],
+              sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
+            },
+          ],
+          "write",
+        );
+        invalidateInitDbCache();
       }
     });
   });

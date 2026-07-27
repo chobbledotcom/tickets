@@ -36,9 +36,7 @@ export const schemaMarkerStatements = (): SqlStatement[] =>
   }));
 
 /** The same schema markers, written only while this request holds the lock. */
-export const ownedSchemaMarkerStatements = (
-  lockToken: string,
-): SqlStatement[] =>
+const ownedSchemaMarkerStatements = (lockToken: string): SqlStatement[] =>
   SCHEMA_MARKERS.map(([key, value]) =>
     whileMigrationLockOwned(
       "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
