@@ -96,7 +96,8 @@ describeStripe("stripe", () => {
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.error).toBe("Invalid JSON payload");
+        // The message names the provider whose payload could not be read.
+        expect(result.error).toBe("Invalid webhook JSON (E_STRIPE_SIGNATURE)");
       }
     });
 

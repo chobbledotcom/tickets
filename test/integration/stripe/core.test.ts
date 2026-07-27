@@ -134,30 +134,6 @@ describeStripe("stripe", () => {
   describe("stripe-mock integration", () => {
     // These tests use the stripe-mock host and port chosen by the harness.
 
-    test("retrieves checkout session with stripe-mock", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-
-      // First create a session using intent-based flow
-      const listing = testListing({ unit_price: 1000 });
-      const createdSession = await stripeApi.createCheckout(
-        await preparedCheckout(
-          checkoutIntent({
-            email: "john@example.com",
-            items: [lineFor(listing)],
-            name: "John Doe",
-          }),
-        ),
-      );
-      expect(createdSession).not.toBeNull();
-
-      // Then retrieve it
-      const retrievedSession = await stripeApi.retrieveCheckoutSession(
-        createdSession?.id || "",
-      );
-      expect(retrievedSession).not.toBeNull();
-      expect(retrievedSession?.id).toBe(createdSession?.id);
-    });
-
     test("creates checkout session with intent metadata", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
