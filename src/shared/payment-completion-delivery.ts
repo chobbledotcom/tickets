@@ -56,7 +56,7 @@ const WebhookPayloadSchema = v.strictObject({
 
 const RegistrationWebhookDeliverySchema = v.strictObject({
   kind: v.literal("registration_webhook"),
-  listingId: v.optional(integerAtLeast(1)),
+  listingId: integerAtLeast(1),
   payload: WebhookPayloadSchema,
   url: v.string(),
 });

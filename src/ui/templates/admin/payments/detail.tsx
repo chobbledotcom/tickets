@@ -108,20 +108,18 @@ const retryDecision = (
   data: PaymentCasePageData,
   decision: PaymentCaseDecision,
 ): JSX.Element | null => {
-  if (decision.state !== "retrying") return null;
-  if (decision.nextRetryAt === null) {
-    throw new Error(`Retrying payment decision ${decision.id} has no due time`);
-  }
+  // The database only lets a decision be retrying when it has a due time, so
+  // no due time means there is nothing waiting to run.
+  const dueAt = decision.state === "retrying" ? decision.nextRetryAt : null;
+  if (dueAt === null) return null;
   return (
     <>
       <p>
         {t("admin.payments.decision_next_retry", {
-          date: formatDatetimeShort(
-            new Date(decision.nextRetryAt).toISOString(),
-          ),
+          date: formatDatetimeShort(new Date(dueAt).toISOString()),
         })}
       </p>
-      {decision.nextRetryAt <= Date.now() && (
+      {dueAt <= Date.now() && (
         <SaveForm
           action={`${adminPath("paymentCase", { caseId: data.context.case.id })}/retry/${decision.id}`}
           submitIcon="rotate-ccw"

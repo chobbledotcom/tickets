@@ -103,7 +103,7 @@ export type RegistrationEntry = {
 };
 
 export interface RegistrationWebhookRequest {
-  listingId: number | undefined;
+  listingId: number;
   payload: WebhookPayload;
   url: string;
 }
@@ -273,6 +273,8 @@ export const registrationWebhookRequests = async (
   entries: RegistrationEntry[],
   currency: string,
 ): Promise<RegistrationWebhookRequest[]> => {
+  const first = entries[0];
+  if (first === undefined) return [];
   const urls = unique(
     mapNotNullish(
       (entry: RegistrationEntry) => entry.listing.webhook_url || null,
@@ -284,8 +286,11 @@ export const registrationWebhookRequests = async (
     currency,
     await loadPackageOverrides(entries),
   );
-  const listingId = entries[0]?.listing.id;
-  return urls.map((url) => ({ listingId, payload, url }));
+  return urls.map((url) => ({
+    listingId: first.listing.id,
+    payload,
+    url,
+  }));
 };
 
 /**

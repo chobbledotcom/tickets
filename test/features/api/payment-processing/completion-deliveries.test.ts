@@ -82,6 +82,19 @@ const storeWebhookRows = async (
 };
 
 describeWithEnv("paid completion delivery outbox", { db: true }, () => {
+  test("prepares no webhook when the payment bought nothing", async () => {
+    expect(await prepareRegistrationWebhookDeliveries([], "GBP")).toEqual([]);
+  });
+
+  test("prepares no webhook when no listing has one set up", async () => {
+    expect(
+      await prepareRegistrationWebhookDeliveries(
+        [makeTestEntry({ id: 1, webhook_url: "" })],
+        "GBP",
+      ),
+    ).toEqual([]);
+  });
+
   test("delivers a bounded page without truncating webhook destinations", async () => {
     const current = await completionCurrent();
     await storeWebhookRows(current, [

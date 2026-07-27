@@ -31,7 +31,7 @@ export const prepareRegistrationWebhookDeliveries = async (
   return requests.map(({ listingId, payload, url }, index) => ({
     data: {
       kind: "registration_webhook" as const,
-      ...(listingId === undefined ? {} : { listingId }),
+      listingId,
       payload,
       url,
     },

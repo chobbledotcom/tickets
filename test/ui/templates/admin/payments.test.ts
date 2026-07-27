@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { PaymentCasePageData } from "#routes/admin/payments/data.ts";
+import type { PaymentCaseDecision } from "#shared/db/payments/types.ts";
 import { adminPaymentCasePage } from "#templates/admin/payments/detail.tsx";
 import {
   formatPaymentMoney,
@@ -26,6 +27,35 @@ const pageData = (): PaymentCasePageData => ({
   attendee: { id: 42, name: "Linked buyer" },
   context: provenPaymentOperatorCase(),
   listings: [{ id: 7, name: "Linked listing" }],
+});
+
+/** One decision the owner already saved against this case. */
+const savedDecision = (
+  caseId: number,
+  changes: Partial<PaymentCaseDecision> = {},
+): PaymentCaseDecision => ({
+  attemptCount: 2,
+  claim: {
+    actorId: 1,
+    caseRevision: 1,
+    claimedAt: 1_785_024_000_000,
+    reason: "Checked the payment",
+    reviewed: reviewedPaymentSnapshot(),
+    selection: { kind: "refund_remaining" },
+  },
+  decision: {
+    actorId: 1,
+    caseRevision: 1,
+    decidedAt: 1_785_024_000_000,
+    kind: "refund_remaining",
+    reason: "Checked the payment",
+  },
+  id: 9,
+  lastAttemptAt: 1_785_024_010_000,
+  nextRetryAt: 1_785_024_060_000,
+  paymentCaseId: caseId,
+  state: "retrying",
+  ...changes,
 });
 
 describe("admin payment case templates", () => {
@@ -137,40 +167,24 @@ describe("admin payment case templates", () => {
     expect(mixedHtml).toContain("More than one currency");
   });
 
-  test("renders retry timing, saved decisions, and flash messages", () => {
+  /** The page for a case waiting to be checked again, carrying this one
+   *  decision the owner already saved. */
+  const retryingCasePage = (
+    changes: Partial<PaymentCaseDecision>,
+    flash: Parameters<typeof adminPaymentCasePage>[2] = {},
+  ): string => {
     const data = pageData();
     data.context.case.state = "retrying";
     data.context.case.nextReconcileAt = 1_785_024_060_000;
-    data.context.decisions = [
-      {
-        attemptCount: 2,
-        claim: {
-          actorId: 1,
-          caseRevision: 1,
-          claimedAt: 1_785_024_000_000,
-          reason: "Checked the payment",
-          reviewed: reviewedPaymentSnapshot(),
-          selection: { kind: "refund_remaining" },
-        },
-        decision: {
-          actorId: 1,
-          caseRevision: 1,
-          decidedAt: 1_785_024_000_000,
-          kind: "refund_remaining",
-          reason: "Checked the payment",
-        },
-        id: 9,
-        lastAttemptAt: 1_785_024_010_000,
-        nextRetryAt: 1_785_024_060_000,
-        paymentCaseId: data.context.case.id,
-        state: "retrying",
-      },
-    ];
+    data.context.decisions = [savedDecision(data.context.case.id, changes)];
+    return adminPaymentCasePage(data, OWNER_SESSION, flash);
+  };
 
-    const html = adminPaymentCasePage(data, OWNER_SESSION, {
-      error: "Review this case.",
-      success: "Saved.",
-    });
+  test("renders retry timing, saved decisions, and flash messages", () => {
+    const html = retryingCasePage(
+      {},
+      { error: "Review this case.", success: "Saved." },
+    );
 
     expect(html).toContain("The next check is due after");
     expect(html).toContain("waiting to try again");
@@ -178,6 +192,15 @@ describe("admin payment case templates", () => {
     expect(html).toContain("/retry/9");
     expect(html).toContain("Review this case.");
     expect(html).not.toContain("Choose what happens");
+  });
+
+  test("shows no retry timing for a decision that has finished", () => {
+    const html = retryingCasePage({ nextRetryAt: null, state: "completed" });
+
+    // The case's own next check still shows; the decision's does not.
+    expect(html).toContain("The next check is due after");
+    expect(html).not.toContain("waiting to try again");
+    expect(html).not.toContain("/retry/9");
   });
 
   test("links only cases that need an owner decision", () => {
