@@ -4,6 +4,7 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import {
   bookingLinkFor,
+  bookingPageFor,
   everythingForSale,
   expectCustomerCannotOpen,
   expectCustomerCanOpen,
@@ -99,6 +100,20 @@ Then(
     expect(
       forSalePage(this).containsText("as an add-on to another booking"),
     ).toBe(false);
+  },
+);
+
+Then(
+  "the {word} is still offered when booking the {word}",
+  async function (
+    this: TicketsWorld,
+    addOn: string,
+    mainThing: string,
+  ): Promise<void> {
+    // Selling it on its own must not take it off the page of the thing it goes
+    // with — that is where most people will meet it.
+    const page = await bookingPageFor(this, mainThing);
+    expect(page.pageText).toContain(addOn);
   },
 );
 

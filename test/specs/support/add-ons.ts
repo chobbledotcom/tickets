@@ -4,16 +4,21 @@
  * every check here opens a page the way they would.
  */
 
+/** The box on the edit form, and the value it carries when it is ticked. */
+const FIELD = "bookable_alone";
+const TICKED = "1";
+
 import { expect } from "@std/expect";
 import { groups } from "#shared/db/groups.ts";
-import type { Listing } from "#shared/types.ts";
+import { adminBrowser } from "#test/specs/support/browser.ts";
+import {
+  tickedCheckboxes,
+  whyValueCannotBeSent,
+} from "#test/specs/support/form-controls.ts";
 import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import {
-  createTestListing,
-  updateTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeParent, ticketPageStatus } from "#test-utils/parents.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
@@ -85,14 +90,39 @@ export const expectCustomerCannotOpen = async (
   expect(await ticketPageStatus(stayListing(world, name).slug)).toBe(404);
 };
 
-/** The organiser turns selling-on-its-own on or off, through the listing's own
- * edit form. */
+/** The organiser turns selling-on-its-own on or off, by ticking or unticking
+ * the box on the listing's own edit form. The box has to be there and be
+ * usable, so a page that stops offering it fails the story rather than the
+ * change being forced through underneath. */
 export const sellOnItsOwn = async (
   world: TicketsWorld,
   name: string,
   onItsOwn: boolean,
-): Promise<Listing> =>
-  updateTestListing(stayListing(world, name).id, { bookableAlone: onItsOwn });
+): Promise<void> => {
+  const browser = await adminBrowser(world);
+  await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
+  expect(whyValueCannotBeSent(browser.currentHtml, FIELD, TICKED)).toBeNull();
+  expect(tickedCheckboxes(browser.currentHtml, FIELD)).toEqual(
+    onItsOwn ? [] : [TICKED],
+  );
+  // Unticking a box sends nothing at all for it, which is what an empty list
+  // means here.
+  await browser.submitForm(
+    { [FIELD]: onItsOwn ? [TICKED] : [] },
+    "Save Changes",
+  );
+  expect(browser.containsText("Listing updated")).toBe(true);
+};
+
+/** Whether the Chair's own booking page still offers the Cover with it. */
+export const bookingPageFor = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<TestBrowser> => {
+  const browser = new TestBrowser();
+  await browser.visit(bookingLinkFor(world, name));
+  return browser;
+};
 
 /** Everything the site currently offers for sale, as the customer sees it. */
 export const everythingForSale = async (): Promise<TestBrowser> => {

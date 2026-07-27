@@ -6,7 +6,7 @@ Feature: An add-on that can also be bought on its own
   Some things are only sold alongside something else — a seat cover with a
   chair, a guide with a tour. An organiser can also mark one of those as
   something people may buy on its own. It then gets its own page and its own
-  place in the list, while still being offered as an add-on where it belongs.
+  place in the list, and it is still offered with the thing it goes with.
 
   @rule:bookings.only-an-add-on-marked-for-it-has-its-own-page
   Rule: Only an add-on marked as sellable on its own has a page of its own
@@ -34,6 +34,7 @@ Feature: An add-on that can also be bought on its own
       Then the Cover is offered with a link to its own page
       And the Cover is not called an add-on there
       And the Chair is still offered too
+      And the Cover is still offered when booking the Chair
 
   @rule:bookings.the-organiser-can-open-and-close-the-page-again
   @surface:admin
