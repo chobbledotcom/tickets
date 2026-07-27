@@ -2,7 +2,6 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   boxShows,
   contactWithHistory,
@@ -111,25 +110,10 @@ When(
 );
 
 When(
-  "the organiser leaves {word}'s site bookings blank and types {int} by hand",
-  async function (
-    this: TicketsWorld,
-    who: string,
-    byHand: number,
-  ): Promise<void> {
-    this.customerBrowser = await saveRecord(this, emailFor(who), {
-      bookedByHand: String(byHand),
-      bookedThroughTheSite: "",
-    });
-  },
-);
-
-When(
-  "the organiser tries to save {word} a note longer than the box allows",
+  "the organiser leaves {word}'s site bookings blank",
   async function (this: TicketsWorld, who: string): Promise<void> {
     this.customerBrowser = await saveRecord(this, emailFor(who), {
-      bookedThroughTheSite: "4",
-      note: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+      bookedThroughTheSite: "",
     });
   },
 );
@@ -177,8 +161,11 @@ Then(
 Then(
   "the record shows nothing was ever counted",
   function (this: TicketsWorld): void {
+    // Every count, not just the two the page happens to show first.
     boxShows(recordPage(this), "visits", "0");
     boxShows(recordPage(this), "bookedThroughTheSite", "0");
+    boxShows(recordPage(this), "bookedByHand", "0");
+    boxShows(recordPage(this), "messages", "0");
   },
 );
 
@@ -220,27 +207,11 @@ Then(
 );
 
 Then(
-  "no note is kept about {word} at all",
-  async function (this: TicketsWorld, who: string): Promise<void> {
-    // The refused save must not have written the over-long note either.
-    expect((await recordFor(emailFor(who))).adminNotes).toBe("");
-  },
-);
-
-Then(
   "{word} is counted as having booked no times at all",
   async function (this: TicketsWorld, who: string): Promise<void> {
     const record = await recordFor(emailFor(who));
     expect(record.publicBookingCount).toBe(0);
     expect(record.adminBookingCount).toBe(0);
-  },
-);
-
-Then(
-  "the organiser is told the note is too long",
-  function (this: TicketsWorld): void {
-    // Told in place, on the form they were filling in — not sent away.
-    expect(recordPage(this).containsText("characters or fewer")).toBe(true);
   },
 );
 

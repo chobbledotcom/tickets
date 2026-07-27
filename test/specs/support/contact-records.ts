@@ -6,6 +6,7 @@
  */
 
 import { expect } from "@std/expect";
+import { mapNotNullish } from "#fp";
 import { execute } from "#shared/db/client.ts";
 import {
   type ContactRecord,
@@ -15,6 +16,7 @@ import {
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -22,7 +24,7 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** What the organiser types into the record's form. A box left out here keeps
  * whatever the page already had in it, the way it would for a person who edits
  * one field and presses save. */
-export interface RecordEdit {
+interface RecordEdit {
   bookedByHand?: string;
   bookedThroughTheSite?: string;
   messages?: string;
@@ -113,12 +115,21 @@ export const saveRecord = async (
   edit: RecordEdit,
 ): Promise<TestBrowser> => {
   const browser = await openRecord(world, email);
-  const values: Record<string, string> = {};
-  for (const [word, box] of Object.entries(BOXES)) {
+  // Every box has to be there, including the ones this edit leaves alone: those
+  // are carried forward from the page, so one that quietly vanished would be
+  // saved as nothing. And what the organiser types has to be something the box
+  // itself would accept — a story must never send what a real form would block.
+  for (const box of Object.values(BOXES)) {
     expect(browser.currentHtml).toContain(`name="${box}"`);
-    const typed = edit[word as keyof RecordEdit];
-    if (typed !== undefined) values[box] = typed;
   }
+  const values = Object.fromEntries(
+    mapNotNullish(([word, box]: [string, string]) => {
+      const typed = edit[word as keyof RecordEdit];
+      if (typed === undefined) return;
+      expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
+      return [box, typed] as const;
+    })(Object.entries(BOXES)),
+  );
   await browser.submitForm(values, "Save record");
   return browser;
 };

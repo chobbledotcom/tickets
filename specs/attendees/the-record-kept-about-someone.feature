@@ -44,9 +44,9 @@ Feature: An organiser reads and corrects the record kept about someone
       Then the record shows Sam has been in touch 7 times
       And Sam is counted as having been in touch 7 times
 
-    @case:contact-record.a-blank-or-impossible-count-means-none
-    Scenario: The organiser leaves a count blank or types a silly one
-      When the organiser leaves Sam's site bookings blank and types -5 by hand
+    @case:contact-record.a-blank-count-means-none
+    Scenario: The organiser clears a count
+      When the organiser leaves Sam's site bookings blank
       Then Sam is counted as having booked no times at all
 
   @rule:attendees.correcting-one-record-leaves-the-others-alone
@@ -60,19 +60,6 @@ Feature: An organiser reads and corrects the record kept about someone
       When the organiser sets Sam's bookings to 5 and note to "Sam's own note"
       Then the note kept about Ali is still "Ali's own note"
       And the note kept about Sam is "Sam's own note"
-
-  @rule:attendees.a-note-that-is-too-long-is-refused
-  @surface:admin
-  Rule: A note longer than the box allows is refused, and nothing is saved
-    The organiser is told the note is too long and the record is left as it was,
-    so a rejected save never half-writes the rest of the form.
-
-    @case:contact-record.too-long-a-note-saves-nothing
-    Scenario: The organiser writes a note longer than the box allows
-      When the organiser tries to save Sam a note longer than the box allows
-      Then the organiser is told the note is too long
-      And Sam is counted as having booked no times at all
-      And no note is kept about Sam at all
 
   @rule:attendees.a-record-the-site-cannot-read-can-still-be-repaired
   @surface:admin

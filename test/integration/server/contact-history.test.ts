@@ -28,13 +28,8 @@ const seededRecord = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-/**
- * The contact-record editor's own routes and rendering. The story
- * `@story:attendees.the-record-kept-about-someone` tells the same page in the
- * organiser's words; these keep the direct cover of its branches — the empty
- * record, the note preview, the counter coercion and the over-long note — which
- * a Cucumber journey may never be the only test of.
- */
+/** Sits beside the story `@story:attendees.the-record-kept-about-someone`: these
+ * own the branch cover, and the values a real form would block. */
 describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
   describe("GET", () => {
     testRequiresAuth("/admin/history/somehash");
