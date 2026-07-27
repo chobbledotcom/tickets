@@ -57,5 +57,28 @@ describeWithEnv(
       expect(located.payment?.id).toBe("legacy-locate-one");
       expect(located.requested).toMatchObject({ id: "sumup-checkout-one" });
     });
+
+    test("leaves a finished old SumUp payment as it is, and says where it was", async () => {
+      // The buyer already paid before the upgrade, so there is nothing to
+      // bring forward — the old record stands, named by its SumUp checkout.
+      await createLegacySumupCheckout(
+        "legacy-locate-two",
+        "sumup-checkout-two",
+        true,
+      );
+
+      const located = await locatePayment("sumup", {
+        id: "legacy-locate-two",
+        kind: "local",
+      });
+
+      expect(located.payment).toBeNull();
+      expect(located.legacy?.attendeeId).toBe(42);
+      expect(located.legacy?.state).toBe("completed");
+      expect(located.requested).toMatchObject({
+        id: "sumup-checkout-two",
+        kind: "sumup_checkout",
+      });
+    });
   },
 );

@@ -400,6 +400,8 @@ export const completePayment = async (
 export const createLegacySumupCheckout = async (
   reference: string,
   sumupId: string,
+  /** A checkout the buyer already finished paying for, before the upgrade. */
+  finished = false,
 ): Promise<void> => {
   settings.setForTest({
     currency: "GBP",
@@ -421,7 +423,18 @@ export const createLegacySumupCheckout = async (
     runtime: {
       attendeePayment: null,
       checkoutStage: null,
-      processedPayment: null,
+      processedPayment: finished
+        ? {
+            attendeeId: 42,
+            failureData: "",
+            listingId: 7,
+            paymentReference: "",
+            paymentSessionId: reference,
+            processedAt: "2026-07-26T12:05:00.000Z",
+            providerRefundedAt: "",
+            ticketTokens: "",
+          }
+        : null,
       sumupCheckout: {
         createdAt: "2026-07-26T12:00:00.000Z",
         metadata: await encryptWithKey(JSON.stringify(metadata), dataKey),
