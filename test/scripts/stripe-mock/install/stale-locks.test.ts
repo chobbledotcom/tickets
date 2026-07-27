@@ -36,7 +36,9 @@ const installsPast = async (
             await downloadStripeMock({
               commands: { curl },
               installLockRetryMs: 1,
-              installLockTimeoutMs: 200,
+              // No time to try again, so an abandoned lock has to be taken
+              // over on the very first look for this install to happen at all.
+              installLockTimeoutMs: 0,
               paths,
             });
             installed = true;

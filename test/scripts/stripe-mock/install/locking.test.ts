@@ -234,6 +234,9 @@ describe("stripe-mock install", () => {
                 commands: { curl },
                 delayMs: 10,
                 installLockRetryMs: 1,
+                // No time to try again: a lock that vanished counts as gone
+                // straight away, or this install never gets to run.
+                installLockTimeoutMs: 0,
                 paths,
               });
             },
