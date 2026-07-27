@@ -14,9 +14,11 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
 import { singleItem } from "#test-utils/factories.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import { withRefundMock } from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -42,13 +44,31 @@ export const paidPlaceEach = async (
   world.confirmName = name;
   world.attendeeIds = [];
   for (const [index, who] of people.entries()) {
-    const attendee = await createPaidTestAttendee(
+    const reference = `pi_bulk_${index + 1}`;
+    const paymentId = `cs_bulk_${index + 1}`;
+    const attendee = await createPaidAttendeeWithoutLedger(
       listing.id,
       who,
       `${who.toLowerCase()}@example.com`,
-      `pi_bulk_${index + 1}`,
+      reference,
       minorUnits(price),
     );
+    // The refund-everyone page works from the payment the site recorded, and
+    // gives the money back by reversing that payment's own ledger entries, so
+    // the sale has to be filed under the payment rather than on its own.
+    await postPaymentLeg(
+      attendee.id,
+      minorUnits(price),
+      paymentId,
+      listing.id,
+      minorUnits(price),
+    );
+    await createAggregatePayment({
+      attendeeId: attendee.id,
+      charges: [{ amount: minorUnits(price), reference }],
+      configuredAccount: true,
+      paymentId,
+    });
     world.attendeeIds.push(attendee.id);
   }
 };

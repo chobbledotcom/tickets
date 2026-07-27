@@ -14,6 +14,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { mockRequest, withExpectedError } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
@@ -154,6 +155,10 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const attendeeId = requiredWorldValue(this.placeholderId, "placeholder id");
     const sessionId = requiredWorldValue(this.sessionId, "session id");
+    // The note is written by the scheduled work that finishes a refunded
+    // booking, moments after the customer is answered. Run it first, the way
+    // the site does, or the organiser's page is read too early.
+    await settleDeferredPaymentWork();
     const notes = await getNotesForAttendee(
       attendeeId,
       await getTestPrivateKey(),
@@ -196,11 +201,13 @@ Given(
     const attendee = await findKeptPlaceholder(listingId);
     this.placeholderId = attendee.id;
     this.attendeeIds = (await getAttendeesRaw(listingId)).map(({ id }) => id);
+    // Let the scheduled work finish the refunded booking before reading what
+    // was filed, so the record compared against the replay is the settled one.
+    await expectRefundedWithNote(attendee.id, refund);
     const record = await storedPayment(sessionId);
     if (record?.state !== "fully_refunded")
       throw new Error("terminal refund was not stored");
     this.firstFailureData = JSON.stringify(record.completion);
-    await expectRefundedWithNote(attendee.id, refund);
   },
 );
 
