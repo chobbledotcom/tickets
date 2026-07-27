@@ -23,7 +23,7 @@ const pricesFor = async (
   intent: BookingIntent,
 ): Promise<Array<number | null>> => {
   const result = await validateAllItems(
-    paymentSession(id, amount, intent),
+    paymentSession(id, amount),
     intent,
   );
   if (!("ok" in result) || !result.ok) {
@@ -45,7 +45,7 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
 
     expect(
       await validateAllItems(
-        paymentSession("cs_items_single_closed", 400, intent),
+        paymentSession("cs_items_single_closed", 400),
         intent,
       ),
     ).toEqual({

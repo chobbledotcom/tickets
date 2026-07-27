@@ -41,7 +41,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       await withMocks(
         () => ({
-          mockRefund: spy(stripeApi, "refundPayment"),
+          mockRefund: spy(stripeApi, "requestRefund"),
           // Unsigned metadata (no price_proof) for a non-existent listing.
           mockRetrieve: stubRetrieveCheckoutSession({
             amountTotal: 0,

@@ -4,24 +4,16 @@ import { stub } from "@std/testing/mock";
 import {
   bookingSlot,
   createAttendeeForSession,
-  logPromoCodeModifiers,
   pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
+import type { PaymentWork } from "#routes/api/webhook-types.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { queryAll } from "#shared/db/client.ts";
-import type {
-  BookingIntent,
-  CheckoutIntent,
-  ValidatedPaymentSession,
-} from "#shared/payments.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import type { BookingIntent, CheckoutIntent } from "#shared/payments.ts";
+import { PAYMENT_BOOKING_COMPLETION } from "#test/shared/db/payments/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A validated item carries a listing (the only field the pairing reads). */
 const item = (id: number) => ({ listing: testListingWithCount({ id }) });
@@ -153,21 +145,25 @@ const preparationResult = (options: PreparationOptions) => {
     modifierApplications: [],
     total: options.total,
   };
-  const session: ValidatedPaymentSession = {
-    amountTotal: 1000,
-    id: "cs_preparation_failure",
-    metadata: webhookMeta({ name: "Buyer" }),
-    paymentReference: "pi_preparation_failure",
-    paymentStatus: "paid",
-  };
+  // Preparation fails before any claimed write, so the paid session is the
+  // only part of the work these cases read.
+  const work = {
+    session: {
+      amountTotal: 1000,
+      createdAt: "2026-07-01T12:00:00.000Z",
+      id: "cs_preparation_failure",
+      paymentReference: "pi_preparation_failure",
+    },
+  } as PaymentWork;
 
   return createAttendeeForSession(
-    session,
+    work,
     intent,
     [{ expectedPrice: 1000, item: bookingItem, listing }],
     pricingIntent,
     pricedOrder,
     "stable-ticket-token",
+    PAYMENT_BOOKING_COMPLETION,
   );
 };
 
@@ -257,30 +253,5 @@ describeWithEnv("payment booking lines", { db: true }, () => {
         reason: "capacity_exceeded",
       },
     );
-  });
-
-  test("logs a zero-value promo without calling it a discount", async () => {
-    const listing = await createTestListing();
-    const attendee = await bookTestAttendee(
-      [listing.id],
-      "Promo buyer",
-      "promo@example.com",
-    );
-    await logPromoCodeModifiers(
-      [{ id: 1, name: "FREE" } as never],
-      [{ delta: 0, modifierId: 1 } as never],
-      listing as never,
-      attendee.id,
-    );
-    const [row] = await queryAll<{ message: string }>(
-      "SELECT message FROM activity_log WHERE attendee_id = ?",
-      [attendee.id],
-    );
-    expect(
-      await decryptWithOwnerKey(
-        row!.message as never,
-        await getTestPrivateKey(),
-      ),
-    ).toBe("Promo code 'FREE' used: +£0");
   });
 });

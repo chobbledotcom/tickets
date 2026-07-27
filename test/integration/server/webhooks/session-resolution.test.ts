@@ -1,6 +1,5 @@
 // jscpd:ignore-start
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
@@ -8,8 +7,6 @@ import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectAttendeeWithPricePaid,
-  expectWebhookIgnored,
-  expectWebhookPending,
   expectWebhookProcessed,
   expectWebhookRejected,
 } from "#test-utils/webhooks.ts";
@@ -17,74 +14,6 @@ import {
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > session resolution", { db: true }, () => {
-  test("webhook with checkout listing type but no extractable session acknowledges without processing", async () => {
-    await setupStripe();
-
-    // Listing type matches checkoutCompletedEventType but data lacks metadata
-    // so extractSessionFromListing returns null (covers lines 498-500)
-    // and data object has no id/order_id so sessionId is null (covers lines 597-602)
-    // Returns 200 to prevent provider retries
-    await expectWebhookIgnored({
-      data: {
-        object: {
-          // No id, no order_id, no proper metadata
-          some_field: "value",
-        },
-      },
-      id: "evt_no_extract",
-      type: "checkout.session.completed",
-    });
-  });
-
-  test("webhook returns pending when resolveWebhookSession returns skip", async () => {
-    await setupStripe();
-
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    const mockResolve = stub(
-      stripePaymentProvider,
-      "resolveWebhookSession",
-      () => Promise.resolve("skip" as const),
-    );
-
-    await expectWebhookPending(
-      {
-        data: { object: {} },
-        id: "evt_skip",
-        type: "checkout.session.completed",
-      },
-      () => {
-        mockResolve.restore();
-      },
-    );
-  });
-
-  test("webhook acknowledges when resolveWebhookSession returns null", async () => {
-    await setupStripe();
-
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    const mockResolve = stub(
-      stripePaymentProvider,
-      "resolveWebhookSession",
-      () => Promise.resolve(null),
-    );
-
-    // Returns 200 to prevent provider retries
-    await expectWebhookIgnored(
-      {
-        data: { object: {} },
-        id: "evt_null",
-        type: "checkout.session.completed",
-      },
-      () => {
-        mockResolve.restore();
-      },
-    );
-  });
-
   test("webhook fails loudly for an invalid payment status", async () => {
     await setupStripe();
 

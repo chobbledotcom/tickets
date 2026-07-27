@@ -3,10 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
-import {
-  type StripeWebhookEvent,
-  verifyWebhookSignature,
-} from "#shared/stripe/webhook.ts";
+import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
 import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
 import {
   noWebhooks,
@@ -184,7 +181,7 @@ describeStripe("stripe", () => {
   describe("webhook signing", () => {
     test("creates valid payload and signature pair", async () => {
       const secret = "whsec_test_construction";
-      const listing: StripeWebhookEvent = {
+      const listing = {
         data: {
           object: {
             amount: 1000,

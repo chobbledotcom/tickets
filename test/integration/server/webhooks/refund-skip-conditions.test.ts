@@ -146,7 +146,7 @@ describeWithEnv(
       });
       // listing2 does not exist (id 99999) — validation fails before any attendees are created
 
-      const mockRefund = spy(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "requestRefund");
 
       // Unsigned session (no valid price proof): ignored (200 ack) without
       // processing, without a refund, and without creating any attendee.

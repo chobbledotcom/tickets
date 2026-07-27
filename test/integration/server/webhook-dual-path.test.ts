@@ -62,11 +62,11 @@ const paidSession = async (
       sessionId: `cs_${ref}`,
     }),
   );
-  const mockRefund = stub(stripeApi, "refundPayment", () =>
+  const mockRefund = stub(stripeApi, "requestRefund", () =>
     Promise.resolve({
       id: `re_${ref}`,
       status: "succeeded",
-    } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
+    } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
   );
   return { mockRefund, mockVerify };
 };

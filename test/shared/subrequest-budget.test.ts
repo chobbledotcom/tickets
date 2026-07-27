@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  BULK_REFUND_LIMIT,
+  BULK_REFUND_FOREGROUND_REFERENCE_LIMIT,
   BUNNY_SUBREQUEST_LIMIT,
   countSubrequest,
   getSubrequestRemaining,
@@ -112,8 +112,8 @@ describe("combined subrequest budget", () => {
     });
   });
 
-  test("reserves five provider calls for bounded bulk refunds", () => {
-    expect(BULK_REFUND_LIMIT).toBe(5);
+  test("allows three references per bounded bulk refund wave", () => {
+    expect(BULK_REFUND_FOREGROUND_REFERENCE_LIMIT).toBe(3);
   });
 
   test("does not count startup work outside a request scope", () => {

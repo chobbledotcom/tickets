@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import {
-  type StripeWebhookEvent,
-  verifyWebhookSignature,
-} from "#shared/stripe/webhook.ts";
+import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
 import {
   signedHeader,
   signedWebhook,
@@ -104,7 +101,7 @@ describeStripe("stripe", () => {
     });
 
     test("verifies valid signature successfully", async () => {
-      const listing: StripeWebhookEvent = {
+      const listing = {
         data: {
           object: {
             id: "cs_test_123",
@@ -125,8 +122,8 @@ describeStripe("stripe", () => {
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.listing.id).toBe("evt_test_123");
-        expect(result.listing.type).toBe("checkout.session.completed");
+        // The verified payload is handed back exactly as it was signed.
+        expect(result.value).toEqual(listing);
       }
     });
 

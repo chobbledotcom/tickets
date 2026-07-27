@@ -25,7 +25,9 @@ const balanceSession = (
 > => ({
   amount_total: amount,
   created: 1_782_000_000,
+  currency: "gbp",
   id: sessionId,
+  livemode: false,
   metadata: signedMeta(
     {
       balance_attendee_id: String(attendeeId),
@@ -37,6 +39,7 @@ const balanceSession = (
   ),
   payment_intent: `pi_${sessionId}`,
   payment_status: "paid",
+  status: "complete",
   url: null,
 });
 
@@ -49,11 +52,11 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
     using _mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve(session),
     );
-    using mockRefund = stub(stripeApi, "refundPayment", () =>
+    using mockRefund = stub(stripeApi, "requestRefund", () =>
       Promise.resolve({
         id: "re_should_not_happen",
         status: "succeeded",
-      } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
+      } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
     );
 
     const first = await handleRequest(

@@ -16,14 +16,12 @@ describeWithEnv(
   "server webhooks > acknowledging edge-case sessions",
   { db: true },
   () => {
-    test("acknowledges non-checkout listings", async () => {
+    // An event we have nothing to act on (any type the provider does not turn
+    // into a payment notice) is acknowledged so the provider stops retrying.
+    test("acknowledges an event that carries no payment notice", async () => {
       await setupStripe();
 
-      await expectWebhookIgnored({
-        data: { object: {} },
-        id: "evt_test",
-        type: "payment_intent.created",
-      });
+      await expectWebhookIgnored(null);
     });
 
     test("acknowledges webhook with unrecognized session metadata", async () => {
@@ -63,20 +61,6 @@ describeWithEnv(
           sessionId: "cs_test",
         }),
       );
-    });
-
-    test("webhook handles non-checkout listing type by acknowledging", async () => {
-      await setupStripe();
-
-      await expectWebhookIgnored({
-        data: {
-          object: {
-            id: "pi_test",
-          },
-        },
-        id: "evt_other_type",
-        type: "payment_intent.succeeded",
-      });
     });
   },
 );

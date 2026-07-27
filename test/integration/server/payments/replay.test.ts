@@ -183,13 +183,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       await withMocks(
         () => ({
-          // The provider's refund call fails (e.g. transiently down) and the
-          // payment is not already refunded, so the refund genuinely failed.
-          mockRefund: stub(stripePaymentProvider, "refundPayment", () =>
-            Promise.resolve(false),
-          ),
-          mockRefunded: stub(stripePaymentProvider, "isPaymentRefunded", () =>
-            Promise.resolve(false),
+          // The provider's refund call fails (e.g. transiently down) and none
+          // of the charge has been refunded, so the refund genuinely failed.
+          mockRefund: stub(stripePaymentProvider, "refundCharge", (charge) =>
+            Promise.resolve({
+              amount: charge.refunded,
+              reason: "provider_failed" as const,
+              status: "failed" as const,
+            }),
           ),
           mockRetrieve: stubRetrieveCheckoutSession({
             amountTotal: 1000,

@@ -170,7 +170,7 @@ export const expectWebhookProcessed = async (
 
 /**
  * The "kept and refunded" webhook assertion: stub `verifyWebhookSignature` to
- * return `event` and `stripeApi.refundPayment` to succeed, POST the webhook,
+ * return `event` and `stripeApi.requestRefund` to succeed, POST the webhook,
  * and assert the standard price-mismatch response — acknowledged but not
  * processed, with an error containing `errorContains` (the generic
  * saved-your-details message by default; pass an override for a scenario with
@@ -404,7 +404,7 @@ export const expectAttendeeCreatedWithPiiBlob = async (
   return attendees[0]!;
 };
 
-/** Stub `stripeApi.refundPayment` to succeed with the given (or default)
+/** Stub `stripeApi.requestRefund` to succeed with the given (or default)
  *  provider refund id — the bare stub for tests that drive the refund
  *  through the `/payment/success` redirect path directly rather than through
  *  `expectWebhookKeptAndRefunded`. */

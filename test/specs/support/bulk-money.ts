@@ -9,10 +9,8 @@ import type { Stub } from "@std/testing/mock";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
-import {
-  runStripeSuccess,
-  withRefundMock,
-} from "#test/specs/support/money-drivers.ts";
+import { runStripeSuccess } from "#test/specs/support/money-drivers.ts";
+import { withRefundMock } from "#test-utils/refund-routes.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,

@@ -62,7 +62,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
 
     const items = validatedItems(
       await validateAllItems(
-        paymentSession("cs_items_days", 400, intent),
+        paymentSession("cs_items_days", 400),
         intent,
       ),
     );
@@ -77,7 +77,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       failureResult(
         await validateAllItems(
-          paymentSession("cs_items_missing", 500, intent),
+          paymentSession("cs_items_missing", 500),
           intent,
         ),
       ),
@@ -103,7 +103,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       failureResult(
         await validateAllItems(
-          paymentSession("cs_items_inactive", 500, intent),
+          paymentSession("cs_items_inactive", 500),
           intent,
         ),
       ),
@@ -135,7 +135,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       failureResult(
         await validateAllItems(
-          paymentSession("cs_items_closed", 700, intent),
+          paymentSession("cs_items_closed", 700),
           intent,
         ),
       ).error,
@@ -171,7 +171,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       failureResult(
         await validateAllItems(
-          paymentSession("cs_items_hidden", 700, intent),
+          paymentSession("cs_items_hidden", 700),
           intent,
         ),
       ).error,
@@ -200,7 +200,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_stale_hidden", 700, intent),
+          paymentSession("cs_items_stale_hidden", 700),
           intent,
         ),
       ).map((item) => item.expectedPrice),
@@ -211,7 +211,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       failureResult(
         await validateAllItems(
-          paymentSession("cs_items_stale_hidden_closed", 700, intent),
+          paymentSession("cs_items_stale_hidden_closed", 700),
           intent,
         ),
       ).error,
@@ -225,7 +225,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_folded", 800, intent),
+          paymentSession("cs_items_folded", 800),
           intent,
         ),
       ).map((item) => item.expectedPrice),
@@ -248,7 +248,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_child_surplus", 1000, intent),
+          paymentSession("cs_items_child_surplus", 1000),
           intent,
         ),
       ).map((item) => item.expectedPrice),
@@ -277,7 +277,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_package_child", 150, intent),
+          paymentSession("cs_items_package_child", 150),
           intent,
         ),
       )[0]?.expectedPrice,
@@ -308,7 +308,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_bundle_drift", 300, intent),
+          paymentSession("cs_items_bundle_drift", 300),
           intent,
         ),
       )[0]?.expectedPrice,
@@ -325,7 +325,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_edge_drift", 500, intent),
+          paymentSession("cs_items_edge_drift", 500),
           intent,
         ),
       )[0]?.expectedPrice,

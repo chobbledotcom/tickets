@@ -1,17 +1,15 @@
 import { expect } from "@std/expect";
-import { type Stub, stub } from "@std/testing/mock";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
 } from "#test-utils/assertions.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
-import { mockProviderType, mockRequest, withMocks } from "#test-utils/mocks.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 // -- Public-payment driver (mirrors server-payments-success.test.ts) ------ //
 
@@ -110,31 +108,3 @@ export const completePaidOrder = async (
   expect(attendees.length).toBe(1);
   return attendees[0]!.id;
 };
-
-// -- Refund driver (mirrors server-refunds.test.ts withRefundMock) -------- //
-
-/** Run `body` with the payment provider resolved to a stripe provider whose
- *  `refundPayment` is stubbed, so the admin refund routes reach the ledger
- *  reversal without a real network call. `refund` is either a fixed outcome or a
- *  per-`paymentId` function — the latter lets a bulk refund decline one specific
- *  payment while the rest succeed. */
-export const withRefundMock = (
-  refund: boolean | ((paymentId: string) => Promise<boolean>),
-  body: (mockRefund: Stub) => Promise<void>,
-): Promise<void> =>
-  withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const behave =
-        typeof refund === "function" ? refund : () => Promise.resolve(refund);
-      const mockRefund = stub(stripePaymentProvider, "refundPayment", behave);
-      try {
-        await body(mockRefund);
-      } finally {
-        mockRefund.restore();
-      }
-    },
-  );

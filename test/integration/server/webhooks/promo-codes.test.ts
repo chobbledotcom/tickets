@@ -144,4 +144,44 @@ describeWithEnv("server webhooks > promo codes", { db: true }, () => {
       log.some((e) => e.message === "Promo code 'MULTI20' used: £2 off"),
     ).toBe(true);
   });
+
+  // A promo worth nothing changes no money, so it is not a discount. It must
+  // read as "+£0" — only a code that takes money off says "off".
+  test("logs a zero-value promo code without calling it a discount", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    const modifier = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 0,
+      direction: "discount",
+      name: "FREEBIE",
+      trigger: "code",
+    });
+
+    await expectWebhookProcessed(
+      checkoutSessionEvent({
+        // £10 ticket with a £0 promo = £10.00.
+        amountTotal: 1000,
+        eventId: "evt_promo_zero",
+        metadata: signedMeta(
+          {
+            email: "zero@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+            name: "Zero Buyer",
+          },
+          1000,
+        ),
+        paymentIntent: "pi_promo_zero",
+        sessionId: "cs_promo_zero",
+      }),
+    );
+    const log = await getAllActivityLog();
+    expect(
+      log.some((e) => e.message === "Promo code 'FREEBIE' used: +£0"),
+    ).toBe(true);
+  });
 });

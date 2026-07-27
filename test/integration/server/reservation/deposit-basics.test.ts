@@ -138,7 +138,7 @@ describeWithEnv(
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
-      const refund = stub(stripeApi, "refundPayment", () =>
+      const refund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({ id: "re_1", status: "succeeded" } as never),
       );
       // Expected total is 200 (deposit 100 + fee 100); charge a wrong 150.

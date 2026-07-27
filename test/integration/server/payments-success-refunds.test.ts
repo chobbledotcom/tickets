@@ -44,7 +44,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
 
-      const mockRefund = spy(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "requestRefund");
 
       try {
         const response = await handleRequest(
@@ -98,11 +98,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
+      const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({
           id: "re_stale_refund",
           status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
+        } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
       );
       try {
         const response = await handleRequest(
@@ -160,11 +160,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
       );
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
+      const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({
           id: "re_stale_pkg_refund",
           status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
+        } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
       );
       try {
         const response = await handleRequest(
@@ -210,11 +210,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
+      const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({
           id: "re_inactive_refund",
           status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
+        } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
       );
 
       try {
@@ -259,7 +259,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
       // Mock refund to fail, and the payment is not already refunded, so the
       // refund genuinely failed (→ contact-support, not an idempotent success).
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
+      const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve(null),
       );
       const mockIntent = stub(stripeApi, "retrievePaymentIntent", () =>
@@ -341,11 +341,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
+      const mockRefund = stub(stripeApi, "requestRefund", () =>
         Promise.resolve({
           id: "re_rollback_refund",
           status: "succeeded",
-        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
+        } as unknown as Awaited<ReturnType<typeof stripeApi.requestRefund>>),
       );
 
       try {

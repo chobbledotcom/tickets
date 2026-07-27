@@ -17,6 +17,7 @@ const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
   assignable: false,
   assignedAttendeeId: null,
   assignedListingId: null,
+  assignmentEffect: null,
   created: "2026-01-01",
   dbProvider: "bunny",
   dbToken: "",
