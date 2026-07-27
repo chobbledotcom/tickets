@@ -37,7 +37,7 @@ interface HeldLock {
   letGo: () => Promise<void>;
 }
 
-/** The child's `held` line, or `null` if it ends before saying one. */
+/** The child's `held` line, or `null` if it ends before saying a whole one. */
 const heldLine = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
 ): Promise<string | null> => {
@@ -46,7 +46,11 @@ const heldLine = async (
     const { value } = await reader.read();
     if (value === undefined) return null;
     said += new TextDecoder().decode(value);
-    const held = said.split("\n").find((line) => line.startsWith("held"));
+    // Whole lines only — everything after the last newline is still arriving.
+    // "held" and its file number can come in two pieces, and half a line taken
+    // for the whole of one loses the number.
+    const whole = said.split("\n").slice(0, -1);
+    const held = whole.find((line) => line.startsWith("held"));
     if (held !== undefined) return held;
   }
 };

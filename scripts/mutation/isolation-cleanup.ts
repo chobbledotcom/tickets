@@ -123,7 +123,6 @@ interface CleanedRuns {
  */
 const RUNS_CLEARED_AT_ONCE = 8;
 
-/** Delete every run in `records` that is finished with, and say what happened. */
 export const removeFinishedRuns = async (
   records: MutationRunRecord[],
 ): Promise<CleanedRuns> => {

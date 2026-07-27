@@ -1,44 +1,63 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { holdLockOrNull } from "#scripts/held-lock-process.ts";
+import { type HeldLock, holdLockOrNull } from "#scripts/held-lock-process.ts";
 import { withFileLock } from "#scripts/lock-file.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 /** Long enough that a lock the operating system would hand over has arrived. */
 const LONG_ENOUGH_TO_BE_LET_IN_MS = 200;
 
+const pause = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+/**
+ * Take a lock that must be free, and let it go however the work inside ends —
+ * a holder left behind would keep the next test out of the same file.
+ */
+const holdingLock = async (
+  path: string,
+  work: (held: HeldLock) => Promise<void>,
+): Promise<void> => {
+  const held = await holdLockOrNull(path, LONG_ENOUGH_TO_BE_LET_IN_MS);
+  expect(held).not.toBeNull();
+  if (held === null) return;
+  try {
+    await work(held);
+  } finally {
+    await held.letGo();
+  }
+};
+
 describe("a lock held for us by another process", () => {
   test("takes a free lock and says which file it got", async () => {
     await withTempDir(async (root) => {
       const path = join(root, "one.lock");
 
-      const held = await holdLockOrNull(path, LONG_ENOUGH_TO_BE_LET_IN_MS);
-
-      expect(held).not.toBeNull();
-      // The number names the file it locked, so we can tell it is still ours.
-      expect(held?.fileNumber).toBe((await Deno.stat(path)).ino);
-      await held?.letGo();
+      await holdingLock(path, async (held) => {
+        // The number names the file it locked, so we can tell it is still ours.
+        expect(held.fileNumber).toBe((await Deno.stat(path)).ino);
+      });
     });
   });
 
   test("keeps everyone else out while it holds the lock", async () => {
     await withTempDir(async (root) => {
       const path = join(root, "one.lock");
-      const held = await holdLockOrNull(path, LONG_ENOUGH_TO_BE_LET_IN_MS);
       let ranInside = false;
+      let second: Promise<void> = Promise.resolve();
 
-      const second = withFileLock(path, () => {
-        ranInside = true;
-        return Promise.resolve();
+      await holdingLock(path, async (_held) => {
+        second = withFileLock(path, () => {
+          ranInside = true;
+          return Promise.resolve();
+        });
+        // Long enough that a lock excluding nobody would have been handed over.
+        await pause(LONG_ENOUGH_TO_BE_LET_IN_MS);
+
+        expect(ranInside).toBe(false);
       });
-      await new Promise((resolve) =>
-        setTimeout(resolve, LONG_ENOUGH_TO_BE_LET_IN_MS),
-      );
 
-      expect(ranInside).toBe(false);
-
-      await held?.letGo();
       await second;
       expect(ranInside).toBe(true);
     });
@@ -47,11 +66,9 @@ describe("a lock held for us by another process", () => {
   test("gives up on a lock somebody else is holding", async () => {
     await withTempDir(async (root) => {
       const path = join(root, "one.lock");
-      const first = await holdLockOrNull(path, LONG_ENOUGH_TO_BE_LET_IN_MS);
-
-      expect(await holdLockOrNull(path, 30)).toBeNull();
-
-      await first?.letGo();
+      await holdingLock(path, async () => {
+        expect(await holdLockOrNull(path, 30)).toBeNull();
+      });
     });
   });
 
@@ -82,14 +99,10 @@ describe("a lock held for us by another process", () => {
   test("takes the lock again once the last holder lets go", async () => {
     await withTempDir(async (root) => {
       const path = join(root, "one.lock");
-      const first = await holdLockOrNull(path, LONG_ENOUGH_TO_BE_LET_IN_MS);
-      await first?.letGo();
+      await holdingLock(path, () => Promise.resolve());
 
       // A holder that did not really let go would make this wait for ever.
-      const second = await holdLockOrNull(path, LONG_ENOUGH_TO_BE_LET_IN_MS);
-
-      expect(second).not.toBeNull();
-      await second?.letGo();
+      await holdingLock(path, () => Promise.resolve());
     });
   });
 });

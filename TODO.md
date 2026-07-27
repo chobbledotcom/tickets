@@ -1687,14 +1687,17 @@ Starting point: filter the names in `readRunRecords` with `isRunId` the way
 `test/scripts/mutation/isolation/list-and-kill.test.ts`, and
 `test/scripts/mutation/isolation-state/records.test.ts`.
 
-## Give the stripe-mock install lock the same shape as every other lock
+## Give the stripe-mock install lock the same shape as every other file lock
 
 *Origin: noticed while unifying the locks behind `scripts/lock-file.ts`.*
 
-Every lock in the repo — the precommit gate, the browser-asset build, the
+Every lock that is a file — the precommit gate, the browser-asset build, the
 stripe-mock start, each mutation run — now goes through `withFileLock`, which
 holds one advisory lock and checks that the lock it holds is still the file at
-its path. `scripts/stripe-mock/install.ts` is the exception: it has a second,
+its path. (The database migration lock is not one of these: it is a row in a
+table, and is named below for the pattern it shares.)
+
+`scripts/stripe-mock/install.ts` is the exception: it has a second,
 hand-rolled protocol underneath (`createNew` to claim the lock, a timestamp
 written inside it, and `removeStaleInstallLock` to break a lock whose owner
 died), guarded by a `withFileLock` on a separate guard file.
