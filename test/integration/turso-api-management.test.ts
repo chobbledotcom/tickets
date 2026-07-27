@@ -115,9 +115,7 @@ describe("Turso management API", () => {
               "Bearer platform-token",
             );
             return new Response(
-              JSON.stringify({
-                organizations: [{ slug: "personal" }, { slug: "team" }],
-              }),
+              JSON.stringify([{ slug: "personal" }, { slug: "team" }]),
             );
           },
           (url) => {
@@ -370,7 +368,7 @@ describe("Turso management API", () => {
       () =>
         stubFetch((_url, init) => {
           receivedSignal = init?.signal;
-          return new Response(JSON.stringify({ organizations: [] }));
+          return new Response(JSON.stringify([]));
         }),
       async () => {
         await action();
