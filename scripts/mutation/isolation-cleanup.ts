@@ -6,7 +6,7 @@
  */
 
 import { join } from "@std/path";
-import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { nullIfNotFound } from "#scripts/not-found.ts";
 import { processExists, removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { runLockIsHeld, withRunLockIfFree } from "./isolation-lock.ts";
@@ -16,8 +16,8 @@ import {
   runDirectoryNames,
 } from "./isolation-records.ts";
 import {
+  isRunId,
   MUTATION_RECORD_FILE,
-  MUTATION_RUN_ID_PREFIX,
   type MutationRunRecord,
   newRunRecord,
   runRoot,
@@ -147,10 +147,7 @@ export const removeWorkSnapshot = async (
 
 /** When a folder last changed, or 0 when that cannot be told. */
 const folderChangedAt = async (path: string): Promise<number> => {
-  const info = await Deno.stat(path).catch((error: unknown) => {
-    rethrowUnlessNotFound(error);
-    return null;
-  });
+  const info = await nullIfNotFound(Deno.stat(path));
   return info?.mtime?.getTime() ?? 0;
 };
 
@@ -179,7 +176,7 @@ const runsToSweep = async (root: string): Promise<MutationRunRecord[]> => {
   // Only folders this runner named: anything else under .mutation-runs was
   // put there by someone else and is not ours to delete.
   const unreadable = (await runDirectoryNames(root)).filter(
-    (name) => !known.has(name) && name.startsWith(MUTATION_RUN_ID_PREFIX),
+    (name) => !known.has(name) && isRunId(name),
   );
   return [
     ...records,

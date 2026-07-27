@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
+  createRunId,
   MUTATION_RECORD_FILE,
   markFinished,
   newRunRecord,
@@ -18,12 +19,18 @@ import {
 import { pathExists } from "#test-utils/files.ts";
 import { captureSimpleSnapshotMutation } from "./helpers.ts";
 
+/** Shaped like a real run id, so the sweep counts the folder as one of ours. */
+const BROKEN_RUN_ID = createRunId(
+  new Date("2026-01-01T00:00:00.000Z"),
+  "0badc0de",
+);
+
 /** A run folder holding a snapshot and a record too broken to read. */
 const writeUnreadableRun = async (
   root: string,
   changedAt: Date,
 ): Promise<string> => {
-  const folder = runRoot("mutation-broken", root);
+  const folder = runRoot(BROKEN_RUN_ID, root);
   await Deno.mkdir(join(folder, "work"), { recursive: true });
   await Deno.writeTextFile(join(folder, MUTATION_RECORD_FILE), "{ half");
   await Deno.utime(folder, changedAt, changedAt);
@@ -36,7 +43,7 @@ const stubRunsFolderStat = (
 ): Disposable => {
   const stat = Deno.stat;
   return stub(Deno, "stat", ((path: string | URL) => {
-    if (!`${path}`.includes("mutation-broken")) return stat(path);
+    if (!`${path}`.includes(BROKEN_RUN_ID)) return stat(path);
     return info instanceof Error
       ? Promise.reject(info)
       : Promise.resolve(info as Deno.FileInfo);

@@ -170,6 +170,13 @@ export const createRunId = (
 ): string =>
   `${MUTATION_RUN_ID_PREFIX}${compactIso(date.toISOString())}-${suffix}`;
 
+/**
+ * Does this folder name look like one `createRunId` made? Only those are ours
+ * to clear away; anything else under .mutation-runs belongs to someone else.
+ */
+export const isRunId = (name: string): boolean =>
+  /^mutation-\d{8}T\d{6}Z-[0-9a-f]{8}$/.test(name);
+
 export const runsRoot = (root = projectRoot): string =>
   join(root, MUTATION_RUNS_DIR);
 

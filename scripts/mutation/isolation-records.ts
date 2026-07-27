@@ -3,7 +3,7 @@
  */
 
 import { dirname, join } from "@std/path";
-import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { nullIfNotFound, rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import {
   MUTATION_RECORD_FILE,
@@ -31,12 +31,20 @@ export const writeRunRecord = async (
   await Deno.rename(pending, path);
 };
 
+/**
+ * The record at `path`, or `null` when there is none to read or it is half
+ * written. A disk that cannot be read at all is a different matter and throws:
+ * treating it as "no record" would let a live run be cleared away.
+ */
 export const readRunRecord = async (
   path: string,
 ): Promise<MutationRunRecord | null> => {
+  const text = await nullIfNotFound(Deno.readTextFile(path));
+  if (text === null) return null;
   try {
-    return JSON.parse(await Deno.readTextFile(path)) as MutationRunRecord;
+    return JSON.parse(text) as MutationRunRecord;
   } catch {
+    // A run killed mid-write leaves half a record behind.
     return null;
   }
 };

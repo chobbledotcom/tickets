@@ -13,6 +13,7 @@ import {
 } from "#scripts/mutation/isolation-records.ts";
 import {
   createRunId,
+  isRunId,
   markFinished,
   markInterrupted,
   markRunning,
@@ -153,6 +154,13 @@ describe("mutation isolation run records", () => {
     expect(tail).toHaveLength(8);
     expect(id.startsWith("mutation-")).toBe(true);
     expect(createRunId()).not.toBe(id);
+  });
+
+  test("knows which folder names are its own runs", () => {
+    expect(isRunId(createRunId())).toBe(true);
+    // Named by someone else, so never ours to clear away.
+    expect(isRunId("mutation-backups")).toBe(false);
+    expect(isRunId("mutation-20260709T123456Z-nothex!")).toBe(false);
   });
 
   test("writes, reads, sorts, and ignores broken records", async () => {
