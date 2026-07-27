@@ -74,11 +74,13 @@ const readLegacySessionPage = async (
           sql: `SELECT
             payment_session_id AS paymentSessionId,
             attendee_id AS attendeeId,
+            -- Any booking names the listing, including one refunded down to
+            -- no quantity. Skipping those would leave a paid record with a
+            -- buyer and no listing, which the upgrade refuses to write.
             CASE WHEN attendee_id IS NULL THEN NULL ELSE (
               SELECT booking.listing_id FROM listing_attendees AS booking
                WHERE booking.attendee_id = processedPayment.attendee_id
-                 AND booking.quantity > 0
-               ORDER BY booking.id LIMIT 1
+               ORDER BY booking.quantity > 0 DESC, booking.id LIMIT 1
             ) END AS listingId,
             processed_at AS processedAt,
             ticket_tokens AS ticketTokens,

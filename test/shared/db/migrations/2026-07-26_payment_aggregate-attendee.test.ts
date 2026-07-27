@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
+import { encrypt } from "#shared/crypto/encryption.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -79,5 +80,44 @@ describeWithEnv("payment aggregate attendee migration", { db: true }, () => {
     expect(paymentCase.rows).toEqual([
       { reason: "legacy_provider_unknown", state: "needs_action" },
     ]);
+  });
+
+  test("brings forward a paid booking refunded down to no quantity", async () => {
+    // The booking still names its listing even with nothing left on it. If the
+    // upgrade skipped it, the copied record would have a buyer and no listing,
+    // which it refuses to write — so the whole upgrade would stop here.
+    await getDb().batch(
+      [
+        {
+          args: [42, "2026-07-25T09:00:00.000Z", "hyb:1:legacy-pii", "tok-0"],
+          sql: `INSERT INTO attendees (id, created, pii_blob, ticket_token_index)
+            VALUES (?, ?, ?, ?)`,
+        },
+        {
+          args: [],
+          sql: `INSERT INTO listing_attendees
+            (listing_id, attendee_id, quantity) VALUES (7, 42, 0)`,
+        },
+        {
+          args: [
+            "sess-no-quantity",
+            42,
+            "2026-07-25T10:01:00.000Z",
+            await encrypt("legacy-ticket"),
+          ],
+          sql: `INSERT INTO processed_payments
+            (payment_session_id, attendee_id, processed_at, ticket_tokens)
+            VALUES (?, ?, ?, ?)`,
+        },
+      ],
+      "write",
+    );
+
+    await runMigration();
+
+    const rows = await getDb().execute(
+      "SELECT origin, attendee_id FROM payment_sessions",
+    );
+    expect(rows.rows).toEqual([{ attendee_id: 42, origin: "legacy" }]);
   });
 });
