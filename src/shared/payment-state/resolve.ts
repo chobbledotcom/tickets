@@ -156,25 +156,25 @@ export const pendingPayment = (
   reason: PendingPaymentResolution["reason"],
 ): PendingPaymentResolution => ({ observation, reason, status: "pending" });
 
+const paymentConflict = (
+  observation: PaymentObservation,
+  issue: PaymentConflict,
+): PaidPaymentResolution => ({
+  issue,
+  observation,
+  resource: observation.session,
+  status: "conflict",
+});
+
 export const resolvePaidPayment = (
   observation: PaymentObservation & { status: "paid" },
 ): PaidPaymentResolution => {
   if (observation.charges === undefined) {
-    return {
-      issue: { kind: "paid_without_charge" },
-      observation,
-      resource: observation.session,
-      status: "conflict",
-    };
+    return paymentConflict(observation, { kind: "paid_without_charge" });
   }
   const checked = validatePaymentObservation(observation);
   if (!checked.valid) {
-    return {
-      issue: checked.issue,
-      observation,
-      resource: observation.session,
-      status: "conflict",
-    };
+    return paymentConflict(observation, checked.issue);
   }
 
   const refunds = observation.charges.map(resolveRefund);
@@ -208,6 +208,18 @@ export const resolvePaidPayment = (
   return { observation, status: "ready" };
 };
 
+const resolveNoPaymentRequired = (
+  observation: PaymentObservation & { status: "no_payment_required" },
+): PaidPaymentResolution => {
+  const checked = validatePaymentObservation(observation);
+  if (!checked.valid) return paymentConflict(observation, checked.issue);
+  return observation.expected.amount === 0 &&
+    observation.providerTotal.amount === 0 &&
+    observation.charges === undefined
+    ? { observation, status: "ready" }
+    : paymentConflict(observation, { kind: "paid_without_charge" });
+};
+
 const foundReadResolution = (
   read: Extract<ProviderRead, { status: "found" }>,
 ): PaymentResolution => {
@@ -220,6 +232,12 @@ const foundReadResolution = (
       resource: read.returned,
       status: "ignore",
     };
+  }
+  if (read.observation.status === "no_payment_required") {
+    return resolveNoPaymentRequired({
+      ...read.observation,
+      status: "no_payment_required",
+    });
   }
   return resolvePaidPayment({ ...read.observation, status: "paid" });
 };

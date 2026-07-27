@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { execute } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
   expectProcessed,
@@ -12,9 +10,7 @@ import {
   setupPackage,
   setupWithListing,
   signedMeta,
-  webhookRequest,
 } from "#test/lib/webhook-price-signature/helpers.ts";
-import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";

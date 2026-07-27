@@ -9,6 +9,7 @@
 
 import {
   completePlaceholderRefund,
+  noPaymentFailure,
   placeholderFailure,
 } from "#routes/api/payment-processing/completion-refund.ts";
 import { paymentWorkWithCompletion } from "#routes/api/payment-processing/completion-runtime.ts";
@@ -196,16 +197,18 @@ export const storeRefundedBooking = async (
   const completion = placeholderRefundCompletion(
     intent,
     facts,
-    placeholderFailure(
-      { facts },
-      [
-        {
-          amount: { amount: 0, currency: payment.expected.currency },
-          status: "pending",
-        },
-      ],
-      payment.state,
-    ),
+    session.amountTotal === 0
+      ? noPaymentFailure({ facts })
+      : placeholderFailure(
+          { facts },
+          [
+            {
+              amount: { amount: 0, currency: payment.expected.currency },
+              status: "pending",
+            },
+          ],
+          payment.state,
+        ),
   );
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the

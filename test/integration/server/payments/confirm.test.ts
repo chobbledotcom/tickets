@@ -15,8 +15,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
-import { requirePaymentAggregateByProviderSession } from "#test-utils/payment-aggregate.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { requirePaymentAggregateByProviderSession } from "#test-utils/payment-aggregate.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -105,9 +105,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.pii_blob).not.toBe("");
 
-          const payment = await requirePaymentAggregateByProviderSession(
-            "cs_test_paid",
-          );
+          const payment =
+            await requirePaymentAggregateByProviderSession("cs_test_paid");
           expect(payment.ticketTokens).toHaveLength(1);
           expect(payment.state).toBe("completed");
         },

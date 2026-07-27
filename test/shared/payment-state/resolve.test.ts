@@ -126,6 +126,29 @@ describe("payment resolver", () => {
     });
   });
 
+  test("accepts a completed zero-value checkout without a charge", () => {
+    const observation = paymentObservation({
+      charges: undefined,
+      expected: { amount: 0, currency: "GBP" },
+      providerTotal: { amount: 0, currency: "GBP" },
+      status: "no_payment_required",
+    });
+
+    expect(resolvePayment(foundRead(observation))).toEqual({
+      observation,
+      status: "ready",
+    });
+  });
+
+  test("rejects a positive checkout that has no charge", () => {
+    const observation = paymentObservation({
+      charges: undefined,
+      status: "no_payment_required",
+    });
+
+    expect(issueKind(foundRead(observation))).toBe("paid_without_charge");
+  });
+
   test("ignores a failed payment", () => {
     const observation = paymentObservation({
       charges: undefined,

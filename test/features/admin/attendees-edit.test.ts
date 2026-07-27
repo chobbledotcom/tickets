@@ -228,10 +228,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       if (charge === undefined || !("captured" in charge)) {
         throw new Error("Expected a current payment charge");
       }
-      await confirmChargesFullyRefunded(
-        "refresh-balance-already-refunded",
-        [{ captured: charge.captured, chargeId: charge.id }],
-      );
+      await confirmChargesFullyRefunded("refresh-balance-already-refunded", [
+        { captured: charge.captured, chargeId: charge.id },
+      ]);
 
       const queried = await submitRefreshPayment(attendee, (reference) =>
         Promise.resolve(reference === "pi_refresh_deposit"),

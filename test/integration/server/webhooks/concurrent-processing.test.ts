@@ -40,20 +40,20 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
 
     const mockVerify = await stubWebhookVerify(
       checkoutSessionEvent({
-          amountTotal: 1000,
-          created: 1_700_000_000,
-          eventId: "evt_concurrent",
-          metadata: signedMeta(
-            {
-              email: "concurrent@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Concurrent Webhook",
-            },
-            1000,
-          ),
-          paymentIntent: "pi_webhook_concurrent",
-          sessionId: "cs_webhook_concurrent",
-        }),
+        amountTotal: 1000,
+        created: 1_700_000_000,
+        eventId: "evt_concurrent",
+        metadata: signedMeta(
+          {
+            email: "concurrent@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "Concurrent Webhook",
+          },
+          1000,
+        ),
+        paymentIntent: "pi_webhook_concurrent",
+        sessionId: "cs_webhook_concurrent",
+      }),
     );
     const createBooking = attendeesApi.createBookingAtomic;
     const bookingStarted = Promise.withResolvers<void>();
@@ -238,20 +238,20 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
 
     await expectWebhookProcessed(
       checkoutSessionEvent({
-          amountTotal: 500,
-          created: 1_700_000_000,
-          eventId: "evt_already_done",
-          metadata: signedMeta(
-            {
-              email: "already@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-              name: "Already Done",
-            },
-            500,
-          ),
-          paymentIntent: "pi_already_done",
-          sessionId: "cs_multi_already_done",
-        }),
+        amountTotal: 500,
+        created: 1_700_000_000,
+        eventId: "evt_already_done",
+        metadata: signedMeta(
+          {
+            email: "already@example.com",
+            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+            name: "Already Done",
+          },
+          500,
+        ),
+        paymentIntent: "pi_already_done",
+        sessionId: "cs_multi_already_done",
+      }),
     );
   });
 });

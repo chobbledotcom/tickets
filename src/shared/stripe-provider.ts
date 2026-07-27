@@ -18,6 +18,7 @@ import {
   providerFactDetails,
 } from "#shared/payment-runtime/provider-read.ts";
 import {
+  type ObservedPaymentStatus,
   type ProviderRead,
   ProviderReadSchema,
 } from "#shared/payment-state/observation.ts";
@@ -213,7 +214,7 @@ const foundStripePayment = async (
   payment: PaymentSession | null,
   requested: ProviderResource,
   session: StripeCheckoutSession,
-  status: "failed" | "paid" | "pending",
+  status: ObservedPaymentStatus,
   charges?: ChargeLeg[],
 ): Promise<ProviderRead> => {
   const metadata = hasRequiredSessionMetadata(session.metadata)
@@ -284,11 +285,49 @@ const readCapturedStripeIntent = async (
   return foundStripePayment(payment, requested, session, "paid", charges);
 };
 
-const readPaidStripePayment = async (
+interface StripePaymentReadContext {
+  payment: PaymentSession | null;
+  requested: ProviderResource;
+  session: StripeCheckoutSession;
+}
+
+const readUnpaidStripePayment = (
   payment: PaymentSession | null,
   requested: ProviderResource,
   session: StripeCheckoutSession,
 ): Promise<ProviderRead> => {
+  if (requested.kind !== "stripe_checkout_session") {
+    return Promise.resolve(
+      invalidProviderRead(requested, payment, "missing_documented_resource"),
+    );
+  }
+  if (session.payment_status !== "no_payment_required") {
+    return foundStripePayment(
+      payment,
+      requested,
+      session,
+      session.status === "expired" ? "failed" : "pending",
+    );
+  }
+  if (
+    session.amount_total !== 0 ||
+    session.payment_intent !== null ||
+    session.status !== "complete"
+  ) {
+    return Promise.resolve(
+      invalidProviderRead(requested, payment, "malformed_response"),
+    );
+  }
+  return foundStripePayment(payment, requested, session, "no_payment_required");
+};
+
+const readKnownStripePayment = async (
+  context: StripePaymentReadContext,
+): Promise<ProviderRead> => {
+  const { payment, requested, session } = context;
+  if (session.payment_status !== "paid") {
+    return readUnpaidStripePayment(payment, requested, session);
+  }
   if (session.status !== "complete") {
     return invalidProviderRead(requested, payment, "unsupported_status");
   }
@@ -333,22 +372,7 @@ const readStripePayment: PaymentProvider["readPayment"] = async (
   if (session.id !== sessionId.id) {
     return invalidProviderRead(requested, payment, "mismatched_id");
   }
-  if (session.payment_status !== "paid") {
-    if (requested.kind !== "stripe_checkout_session") {
-      return invalidProviderRead(
-        requested,
-        payment,
-        "missing_documented_resource",
-      );
-    }
-    return foundStripePayment(
-      payment,
-      requested,
-      session,
-      session.status === "expired" ? "failed" : "pending",
-    );
-  }
-  return readPaidStripePayment(payment, requested, session);
+  return readKnownStripePayment({ payment, requested, session });
 };
 
 const verifyStripeNotice = async (

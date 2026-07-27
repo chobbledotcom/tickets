@@ -21,6 +21,7 @@ import type {
   PaymentWork,
 } from "#routes/api/webhook-types.ts";
 import type { TxScope } from "#shared/db/client.ts";
+import { applyPaymentSessionClaimKeepingLease } from "#shared/db/payments/claims.ts";
 import {
   requirePaymentCompletionRecordId,
   runPaymentCompletionDbEffect,
@@ -32,6 +33,7 @@ import {
   type PlaceholderRefundEffect,
   PlaceholderRefundEffectSchema,
 } from "#shared/payment-completion.ts";
+import { paymentProgress } from "#shared/payment-runtime/progress.ts";
 import { refundChargesKeepingClaim } from "#shared/payment-runtime/refund.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
 
@@ -70,22 +72,48 @@ export const placeholderFailure = (
   };
 };
 
+export const noPaymentFailure = (
+  plan: Pick<PlaceholderRefundCompletion, "facts">,
+): PaymentFailureResult => ({
+  detail: plan.facts.spec.detail,
+  error: t("payment.error.no_payment_taken"),
+  moneyStatus: "not_taken",
+  status: 200,
+  success: false,
+});
+
 export interface PlaceholderCompletionContext {
   current: CompletionCurrent;
   plan: PlaceholderRefundCompletion;
   work: PaymentWork;
 }
 
+const completionPaymentReference = (
+  context: PlaceholderCompletionContext,
+): string => {
+  const reference = context.work.session.paymentReference;
+  if (reference === null) {
+    throw new Error(
+      `Refund completion ${context.work.payment.id} has no payment reference`,
+    );
+  }
+  return reference;
+};
+
 const placeholderNote = (
   context: PlaceholderCompletionContext,
   status: "pending" | "completed",
 ): string =>
-  refundedNoteText(
-    completionAttendeeId(context.current),
-    context.plan.facts.spec,
-    status,
-    context.work.session.paymentReference,
-  );
+  context.plan.facts.amount === 0
+    ? t("payment.note.no_payment_taken", {
+        reason: context.plan.facts.spec.reason,
+      })
+    : refundedNoteText(
+        completionAttendeeId(context.current),
+        context.plan.facts.spec,
+        status,
+        completionPaymentReference(context),
+      );
 
 export type PlaceholderCompletionActions = Record<
   PlaceholderRefundEffect,
@@ -121,6 +149,10 @@ const recordPlaceholderLedger = async (
 ): Promise<
   CompletionStep<PaymentFailureResult, PlaceholderRefundCompletion>
 > => {
+  const effect = refunded ? "refund_ledger" : "payment_ledger";
+  if (context.plan.facts.amount === 0) {
+    return runPlaceholderDbEffect(context, effect, () => Promise.resolve(null));
+  }
   const posted = await recordPlaceholderRefund(
     ledgerFacts(context),
     context.plan.facts.spec.code,
@@ -168,6 +200,21 @@ export const placeholderCompletionActions: PlaceholderCompletionActions = {
       ),
     ),
   provider_refund: async (context) => {
+    if (context.plan.facts.amount === 0) {
+      const completion = {
+        ...context.plan,
+        result: noPaymentFailure(context.plan),
+      };
+      const current = await applyPaymentSessionClaimKeepingLease(
+        context.current.claim,
+        paymentProgress(context.current.payment, {
+          completion,
+          nextReconcileAt: Date.now(),
+          state: "fully_refunded",
+        }),
+      );
+      return completedStep(current, completion);
+    }
     const attempt = await refundChargesKeepingClaim(
       context.current.payment,
       context.current.claim,
@@ -202,7 +249,9 @@ export const placeholderCompletionActions: PlaceholderCompletionActions = {
     runPlaceholderDbEffect(context, "refund_activity", async (transaction) => {
       await logCompletionActivity(
         context.current,
-        `Automatic refund (${context.plan.facts.spec.code}); booking kept at quantity 0`,
+        context.plan.facts.amount === 0
+          ? `No payment taken (${context.plan.facts.spec.code}); booking kept at quantity 0`
+          : `Automatic refund (${context.plan.facts.spec.code}); booking kept at quantity 0`,
         context.plan.facts.listingId,
         transaction,
       );

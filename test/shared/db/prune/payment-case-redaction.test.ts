@@ -43,7 +43,8 @@ describeWithEnv("db > resolved payment case redaction", { db: true }, () => {
       },
     );
     const attempt = await beginPaymentDecisionAttempt(decision.id, observedAt);
-    if (attempt.status !== "running") throw new Error("Expected decision claim");
+    if (attempt.status !== "running")
+      throw new Error("Expected decision claim");
     await completePaymentDecisionAndResolveCase(attempt.decision);
 
     const first = await runDatabasePruning();

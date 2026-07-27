@@ -28,7 +28,7 @@ export type BookingPayment = {
   amountTotal: number;
   createdAt: string;
   id: string;
-  paymentReference: string;
+  paymentReference: string | null;
 };
 
 export type PaymentWork = {

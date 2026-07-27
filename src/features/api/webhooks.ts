@@ -322,6 +322,9 @@ const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
 const failedFulfilmentResponse = (
   result: Extract<PaymentResult, { success: false }>,
 ): Response => {
+  if (result.moneyStatus === "not_taken") {
+    return webhookAckResponse({ processed: false, status: "not_taken" });
+  }
   const refund = result.refund;
   if (refund === undefined) {
     return webhookAckResponse({ processed: false, status: "needs_action" });

@@ -221,14 +221,14 @@ export const stubWebhookVerify = async (
   fixture: ProviderNotice | ProviderNoticeFixture | null,
 ): Promise<{ restore: () => void }> => {
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  const notice = fixture !== null && "notice" in fixture
-    ? fixture.notice
-    : fixture;
-  const read = fixture !== null && "notice" in fixture
-    ? stub(stripePaymentProvider, "readPayment", fixture.read)
-    : null;
+  const notice =
+    fixture !== null && "notice" in fixture ? fixture.notice : fixture;
+  const read =
+    fixture !== null && "notice" in fixture
+      ? stub(stripePaymentProvider, "readPayment", fixture.read)
+      : null;
   const verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
-    Promise.resolve({ notice, valid: true as const })
+    Promise.resolve({ notice, valid: true as const }),
   );
   return {
     restore: () => {

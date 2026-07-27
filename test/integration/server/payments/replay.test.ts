@@ -152,9 +152,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
           expect(mockRefund.calls.length).toBe(1);
 
-          const payment = await requirePaymentAggregateByProviderSession(
-            "cs_replay_price",
-          );
+          const payment =
+            await requirePaymentAggregateByProviderSession("cs_replay_price");
           expect(payment.attendeeId).toBe(attendees[0]!.id);
           expect(payment.state).toBe("fully_refunded");
 
@@ -207,9 +206,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(mockRefund.calls.length).toBe(1);
           expect(await response.text()).toContain("contact support");
-          const pending = await getPaymentAggregateByProviderSessionOrNull(
-            "cs_refund_failed",
-          );
+          const pending =
+            await getPaymentAggregateByProviderSessionOrNull(
+              "cs_refund_failed",
+            );
           expect(pending?.state).toBe("refunding");
           expect(pending?.leaseExpiresAt).toBeNull();
 

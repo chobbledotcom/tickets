@@ -20,6 +20,7 @@ const PaymentSuccessSchema = v.strictObject({
 const PaymentFailureSchema = v.strictObject({
   detail: v.optional(v.string()),
   error: v.string(),
+  moneyStatus: v.optional(v.literal("not_taken")),
   refund: v.optional(RefundResolutionSchema),
   status: v.optional(integerAtLeast(100)),
   success: v.literal(false),
@@ -141,7 +142,7 @@ export type BookingCompletion = v.InferOutput<typeof BookingCompletionSchema>;
 const PlaceholderRefundCompletionSchema = v.strictObject({
   effects: PlaceholderRefundEffectStatesSchema,
   facts: v.strictObject({
-    amount: integerAtLeast(1),
+    amount: integerAtLeast(0),
     listingId: integerAtLeast(1),
     occurredAt: OccurredAtSchema,
     spec: v.strictObject({

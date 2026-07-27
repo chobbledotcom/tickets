@@ -122,9 +122,8 @@ describeWithEnv(
         const { requirePaymentAggregateByProviderSession } = await import(
           "#test-utils/payment-aggregate.ts"
         );
-        const payment = await requirePaymentAggregateByProviderSession(
-          "cs_addon_sold",
-        );
+        const payment =
+          await requirePaymentAggregateByProviderSession("cs_addon_sold");
         expect(payment.completion?.kind).toBe("placeholder_refund");
         expect(payment.state).toBe("fully_refunded");
       } finally {

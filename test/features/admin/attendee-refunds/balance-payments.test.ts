@@ -41,9 +41,7 @@ const expectSettledReservationRefundFailure = async (
       false,
     )(response);
     expect(
-      mockRefund.calls
-        .map((call) => call.args[0].providerReference.id)
-        .sort(),
+      mockRefund.calls.map((call) => call.args[0].providerReference.id).sort(),
     ).toEqual(SETTLED_RESERVATION_REFERENCES);
   });
 };

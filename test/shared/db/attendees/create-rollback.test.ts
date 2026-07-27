@@ -49,14 +49,11 @@ const paidPlan = async (
   ticketTotal = 500,
   modifierApplications: PricedOrder["modifierApplications"] = [],
 ) =>
-  bookingBatchPlan(
-    modifierApplications,
-    {
-      eventId: sessionId,
-      occurredAt: OCCURRED_AT,
-      pricedOrder: pricedOrder(listingId, ticketTotal, modifierApplications),
-    },
-  );
+  bookingBatchPlan(modifierApplications, {
+    eventId: sessionId,
+    occurredAt: OCCURRED_AT,
+    pricedOrder: pricedOrder(listingId, ticketTotal, modifierApplications),
+  });
 
 const input = (
   bookings: { listingId: number; pricePaid: number; quantity: number }[],

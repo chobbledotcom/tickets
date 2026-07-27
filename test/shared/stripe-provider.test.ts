@@ -34,6 +34,36 @@ const readPayment = (
   });
 
 describe("Stripe provider reads", () => {
+  test("reports a completed zero-value checkout without a charge", async () => {
+    const stored = payment({
+      bookingIntent: {
+        ...payment().bookingIntent,
+        items: [{ e: 1, p: 0, q: 1 }],
+      },
+      expected: { amount: 0, currency: "GBP" },
+    });
+    const read = await readPayment(
+      providerSession({
+        amount_total: 0,
+        payment_intent: null,
+        payment_status: "no_payment_required",
+      }),
+      providerIntent(),
+      SESSION_RESOURCE,
+      stored,
+    );
+
+    expect(read).toMatchObject({
+      observation: {
+        providerTotal: { amount: 0, currency: "GBP" },
+        status: "no_payment_required",
+      },
+      status: "found",
+    });
+    if (read.status !== "found") throw new Error("Expected found checkout");
+    expect(read.observation.charges).toBeUndefined();
+  });
+
   test("reports exact provider money, mode, time, and partial refund facts", async () => {
     const read = await readPayment();
 

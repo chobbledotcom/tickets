@@ -58,6 +58,7 @@ export const stagedPaymentOwnership = (
 export const ObservedPaymentStatusSchema = v.picklist([
   "pending",
   "paid",
+  "no_payment_required",
   "failed",
 ]);
 export type ObservedPaymentStatus = v.InferOutput<

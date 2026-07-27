@@ -1,12 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { decrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute } from "#shared/db/client.ts";
 import { groups, setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import { runPaymentReconciliationMaintenance } from "#shared/payment-runtime/maintenance.ts";
 import {
   expectPackageRefund,
   expectProcessed,
   expectStoredRefund,
+  expectStoredRefundRecord,
   packageMetadata,
   runFailedRefund,
   runWebhook,
@@ -19,8 +23,9 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, webhookMeta } from "#test-utils/factories.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { maintenanceContext } from "#test-utils/maintenance.ts";
 import { requirePaymentAggregateByProviderSession } from "#test-utils/payment-aggregate.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "webhook signed price oracle — mismatch & package overrides",
@@ -84,17 +89,60 @@ describeWithEnv(
       );
     });
 
-    test("a no-override package member refunds a £0 booking (charges its base)", async () => {
+    test("a no-override package member keeps the £0 booking without refunding", async () => {
       const { group, listing } = await setupPackage();
-      // No override (null) → the member keeps its 5000 base, so a signed £0 line
-      // no longer matches and must take the price_changed refund path.
       await setGroupPackageMembers(group.id, [
         { listingId: listing.id, price: null },
       ]);
-      await expectPackageRefund(
-        "cs_pkg_no_ov",
-        listing.id,
-        packageMetadata(group.id, listing.id, 0),
+      await runWebhook(
+        {
+          amount_total: 0,
+          id: "cs_pkg_no_ov",
+          metadata: packageMetadata(group.id, listing.id, 0),
+        },
+        async (refund) => {
+          await assertJson(webhookRequest(), 200, (json) => {
+            expect(json.processed).toBe(false);
+            expect(json.status).toBe("not_taken");
+          });
+          await expectStoredRefundRecord(listing.id);
+          expect(refund.calls.length).toBe(0);
+          const pending =
+            await requirePaymentAggregateByProviderSession("cs_pkg_no_ov");
+          expect(pending.completionState).toBe("pending");
+          await execute(
+            "UPDATE payment_sessions SET next_reconcile_at = 0 WHERE id = ?",
+            [pending.id],
+          );
+
+          await runPaymentReconciliationMaintenance(
+            maintenanceContext({ database: 21, external: 11, total: 32 }),
+          );
+
+          const completed =
+            await requirePaymentAggregateByProviderSession("cs_pkg_no_ov");
+          expect(completed.state).toBe("fully_refunded");
+          expect(completed.completionState).toBe("completed");
+          expect(refund.calls.length).toBe(0);
+          const transfers = await execute(
+            `SELECT kind FROM transfers
+              WHERE (source_type = 'attendee' AND source_id = ?)
+                 OR (dest_type = 'attendee' AND dest_id = ?)`,
+            [String(completed.attendeeId), String(completed.attendeeId)],
+          );
+          expect(transfers.rows).toEqual([]);
+          const notes = await execute(
+            "SELECT note FROM system_notes WHERE attendee_id = ?",
+            [completed.attendeeId],
+          );
+          const encrypted = notes.rows[0]?.note;
+          if (typeof encrypted !== "string") {
+            throw new Error("Expected no-payment note");
+          }
+          expect(await decrypt(encrypted as EnvKeyEncrypted)).toContain(
+            "No payment was taken.",
+          );
+        },
       );
     });
 

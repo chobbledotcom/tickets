@@ -171,7 +171,10 @@ const runFulfilment = async (
   fulfil: FulfilPayment,
 ): Promise<PaymentReconcileOutcome> => {
   const charge = resolution.observation.charges?.[0];
-  if (charge === undefined) {
+  if (
+    charge === undefined &&
+    resolution.observation.status !== "no_payment_required"
+  ) {
     throw new Error(`Ready payment ${payment.id} has no charge`);
   }
   const result = await fulfil({
@@ -183,7 +186,7 @@ const runFulfilment = async (
       amountTotal: resolution.observation.providerTotal.amount,
       createdAt: resolution.observation.createdAt,
       id: payment.id,
-      paymentReference: charge.resource.id,
+      paymentReference: charge?.resource.id ?? null,
     },
   });
   return { ...paymentOutcome(payment, "fulfilled"), result };

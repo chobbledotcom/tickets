@@ -1,18 +1,15 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import * as v from "valibot";
 import { ProviderMetadataSchema } from "#shared/payment-helpers.ts";
 import { foundProviderPayment } from "#shared/payment-runtime/provider-read.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { Attendee } from "#shared/types.ts";
-import * as v from "valibot";
 import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
-import {
-  type ProviderNoticeFixture,
-  stubWebhookVerify,
-} from "./settings.ts";
+import { type ProviderNoticeFixture, stubWebhookVerify } from "./settings.ts";
 
 /**
  * The `checkout.session.completed` Stripe event shape almost every
@@ -39,21 +36,25 @@ export const checkoutSessionEvent = (opts: {
     provider: "stripe" as const,
   };
   const paymentReference = opts.paymentIntent ?? `pi_${opts.sessionId}`;
-  const charges = opts.amountTotal === 0
-    ? undefined
-    : [
-        {
-          captured: { amount: opts.amountTotal, currency: "GBP" },
-          confirmedRefunded: { amount: 0, currency: "GBP" },
-          refunds: [],
-          resource: {
-            id: paymentReference,
-            kind: "stripe_payment_intent" as const,
-            parentId: opts.sessionId,
-            provider: "stripe" as const,
+  const charges =
+    opts.amountTotal === 0
+      ? undefined
+      : [
+          {
+            captured: { amount: opts.amountTotal, currency: "GBP" },
+            confirmedRefunded: { amount: 0, currency: "GBP" },
+            refunds: [],
+            resource: {
+              id: paymentReference,
+              kind: "stripe_payment_intent" as const,
+              parentId: opts.sessionId,
+              provider: "stripe" as const,
+            },
           },
-        },
-      ];
+        ];
+  const paymentStatus =
+    opts.paymentStatus ??
+    (opts.amountTotal === 0 ? "no_payment_required" : "paid");
   return {
     notice: {
       eventId: opts.eventId,
@@ -66,9 +67,11 @@ export const checkoutSessionEvent = (opts: {
         requested,
         session,
         { amount: opts.amountTotal, currency: "GBP" },
-        opts.paymentStatus === undefined || opts.paymentStatus === "paid"
-          ? "paid"
-          : "pending",
+        paymentStatus === "paid" || paymentStatus === "no_payment_required"
+          ? paymentStatus
+          : paymentStatus === "failed"
+            ? "failed"
+            : "pending",
         {
           ...(charges === undefined ? {} : { charges }),
           createdAt: new Date(

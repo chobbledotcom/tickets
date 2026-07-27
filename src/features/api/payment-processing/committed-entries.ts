@@ -79,7 +79,7 @@ export const committedEntries = async (
     listing_id: row.listing_id,
     lng: "",
     package_group_id: row.package_group_id,
-    payment_id: session.paymentReference,
+    payment_id: session.paymentReference ?? "",
     pii_blob: "",
     price_paid: String(row.price_paid),
     quantity: row.quantity,
