@@ -1,15 +1,14 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -31,24 +30,19 @@ const followPaymentRedirectAndGetAttendees = async (
   },
   listingId: number,
 ) => {
-  const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: session.amountTotal,
-      id: session.sessionId,
-      metadata: signMeta(
-        webhookMeta({
-          email: session.email,
-          items: session.items,
-          name: session.name,
-        }),
-        session.amountTotal,
-      ),
-      payment_intent: session.paymentIntent,
-      payment_status: "paid",
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
-  );
+  const mockRetrieve = stubRetrieveCheckoutSession({
+    amountTotal: session.amountTotal,
+    metadata: signMeta(
+      webhookMeta({
+        email: session.email,
+        items: session.items,
+        name: session.name,
+      }),
+      session.amountTotal,
+    ),
+    paymentIntent: session.paymentIntent,
+    sessionId: session.sessionId,
+  });
 
   try {
     const redirectResponse = await handleRequest(

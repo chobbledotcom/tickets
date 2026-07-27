@@ -117,25 +117,6 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
   }
 };
 
-/** A signed Stripe event that violates its provider schema must reach the
- * request boundary and fail there instead of becoming an unpaid booking. */
-export const expectWebhookRejected = async (
-  event: Parameters<typeof stubWebhookVerify>[0],
-  message: string,
-): Promise<void> => {
-  const { handleRequest } = await import("#routes");
-  const verify = await stubWebhookVerify(event);
-  try {
-    await expect(
-      handleRequest(
-        mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-      ),
-    ).rejects.toThrow(message);
-  } finally {
-    verify.restore();
-  }
-};
-
 /**
  * Stub `verifyWebhookSignature` to return `event`, POST the webhook, assert
  * its JSON response, and restore the stub — the stub-post-assert-restore
@@ -172,6 +153,11 @@ export const expectWebhookProcessed = async (
     expect(json.received).toBe(true);
     expect(json.processed).toBe(true);
   });
+  // The callback books the ticket and leaves the rest — answers, activity
+  // entries, outgoing messages — for scheduled maintenance, so finish that
+  // work here and leave the booking as the site has it a moment later.
+  const { settleDeferredPaymentWork } = await import("./maintenance.ts");
+  await settleDeferredPaymentWork();
 };
 
 /**
@@ -423,8 +409,12 @@ const stubSessionLookup = (
                 },
                 session.amountTotal,
               ),
-        payment_intent: session.paymentIntent,
-        payment_status: session.paymentStatus ?? "paid",
+        // A checkout that costs nothing never has a payment behind it.
+        payment_intent:
+          session.amountTotal === 0 ? null : session.paymentIntent,
+        payment_status:
+          session.paymentStatus ??
+          (session.amountTotal === 0 ? "no_payment_required" : "paid"),
         status: "complete",
         url: null,
       },
