@@ -14,8 +14,12 @@ import {
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
 
-/** How long the other install keeps hold of the lock before letting go. */
-const HELD_FOR_MS = 250;
+/**
+ * How long the other install keeps hold of the lock before letting go. Long
+ * enough for a few tries at the standard fifty-millisecond pause, and short
+ * enough that a mutation run repeating it stays quick.
+ */
+const HELD_FOR_MS = 120;
 
 type Tries = { count: number };
 
