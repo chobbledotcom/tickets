@@ -50,11 +50,16 @@ export const daysTheApiOffers = async (
     `/api/listings/${stayListing(world, name).slug}`,
   );
   expect(status).toBe(200);
-  const listing = body.listing as { availableDates?: string[] } | undefined;
-  if (!listing?.availableDates) {
-    throw new Error(`The API told us nothing about the ${name}`);
+  const { availableDates } = (body.listing ?? {}) as Record<string, unknown>;
+  // Every day has to be a day. A list carrying anything else is a broken
+  // promise to the systems that read it, even when the first day is fine.
+  if (
+    !Array.isArray(availableDates) ||
+    availableDates.some((day) => typeof day !== "string")
+  ) {
+    throw new Error(`The API did not list the days the ${name} offers`);
   }
-  return listing.availableDates;
+  return availableDates;
 };
 
 /** Whether the API says a stay starting on this day can still be booked. */
