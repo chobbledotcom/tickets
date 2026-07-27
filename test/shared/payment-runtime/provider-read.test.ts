@@ -136,6 +136,13 @@ describeWithEnv("provider read helpers", { db: true }, () => {
         price_proof: proof.replace(PAYMENT_ID, "another-id"),
       }),
     ).toBeNull();
+    // A proof naming no payment at all is refused the same way.
+    expect(
+      await signedBookingIntentFromMetadata({
+        ...metadata,
+        price_proof: proof.replace(PAYMENT_ID, " "),
+      }),
+    ).toBeNull();
 
     expect(
       await foundProviderRead(null, SESSION_RESOURCE, {

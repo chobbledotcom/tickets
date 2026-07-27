@@ -149,6 +149,19 @@ describe("payment resolver", () => {
     expect(issueKind(foundRead(observation))).toBe("paid_without_charge");
   });
 
+  test("rejects a checkout needing no payment that charged something", () => {
+    // Nothing was due, so a provider total above zero does not add up and the
+    // payment cannot be treated as settled.
+    const observation = paymentObservation({
+      charges: undefined,
+      expected: { amount: 0, currency: "GBP" },
+      providerTotal: { amount: 500, currency: "GBP" },
+      status: "no_payment_required",
+    });
+
+    expect(issueKind(foundRead(observation))).toBe("provider_total_mismatch");
+  });
+
   test("ignores a failed payment", () => {
     const observation = paymentObservation({
       charges: undefined,
