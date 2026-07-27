@@ -9,38 +9,55 @@
  * Then update LATEST_UPDATE to describe the change.
  * The schema hash is computed automatically — if you forget to update
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
+ *
+ * This file is the boot path only: it works out what state the database is in
+ * and routes to the right response. The pieces it routes to live beside it —
+ * `migrations/lock.ts`, `migrations/markers.ts`, `migrations/runner.ts`, and
+ * `migrations/context.ts`.
  */
 
 import type { Client } from "@libsql/client";
-import { lazyRef, once } from "#fp";
+import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
-import {
-  executeBatch,
-  executeBatchWithResults,
-  getDb,
-  inPlaceholders,
-  type SqlStatement,
-} from "#shared/db/client.ts";
-import { stringColumnSet } from "#shared/db/query.ts";
+import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
-import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
-import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
-import { retryWithBackoff } from "#shared/retry.ts";
 import { recordScriptVersion } from "#shared/update.ts";
 
 export * from "./migrations/errors.ts";
 
+import { nowIso } from "#shared/now.ts";
 import {
+  ensureDefaultAttendeeStatus,
+  loadMigrations,
+} from "./migrations/context.ts";
+import {
+  isMissingMigrationsTableError,
+  isMissingSettingsTableError,
   MigrationInProgressError,
   MissingSettingsTableError,
 } from "./migrations/errors.ts";
-import { MIGRATION_IDS, MIGRATION_REGISTRY } from "./migrations/registry.ts";
-import { EVENT_TO_LISTING_RENAME_PLAN } from "./migrations/rename-plan.ts";
-import { repairLegacyRenames } from "./migrations/rename-utils.ts";
+import {
+  acquireMigrationLock,
+  MIGRATION_LOCK_TTL_MS,
+  releaseAfterMigrationFailure,
+  releaseMigrationLock,
+} from "./migrations/lock.ts";
+import {
+  migrationMarkerStatement,
+  recordMigrationBatch,
+  schemaMarkerStatements,
+} from "./migrations/markers.ts";
+import { MIGRATION_IDS } from "./migrations/registry.ts";
+import {
+  baselineCurrentSchemaIfNeeded,
+  missingMigrations,
+  restoreStaleSchemaMarkers,
+  runPendingMigrations,
+} from "./migrations/runner.ts";
 import { SCHEMA, SCHEMA_HASH } from "./migrations/schema/index.ts";
 import { TRIGGERS } from "./migrations/schema/triggers.ts";
 import {
@@ -52,46 +69,33 @@ import {
 } from "./migrations/schema/version.ts";
 import {
   applySchemaChanges,
-  backfillAnswerAggregates,
-  backfillListingAggregates,
-  backfillModifierAggregates,
-  createTableSql,
   fullSchemaCreateStatements,
   noArgStatements,
-  recreateTable,
-  syncCurrentSchema as syncCurrentSchemaBase,
   syncIndexes,
   syncTriggers,
-  tableExists,
-  verifyCurrentAppSchema,
 } from "./migrations/schema-sync.ts";
-import type { Migration, MigrationContext } from "./migrations/types.ts";
-import { additive, verifyRequirement } from "./migrations/verify.ts";
 
+export {
+  loadMigrations,
+  renameEventsToListings,
+} from "./migrations/context.ts";
+export { MIGRATION_LOCK_TTL_MS } from "./migrations/lock.ts";
+export {
+  applyMigrationWithRetry,
+  VERIFY_RETRY_BACKOFF_MS,
+  verifyMigrationWithRetry,
+} from "./migrations/runner.ts";
 export { SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "./migrations/schema/index.ts";
 export { LATEST_UPDATE } from "./migrations/schema/version.ts";
 export type { Migration, SchemaRequirement } from "./migrations/types.ts";
 
-// ─── Helpers ────────────────────────────────────────────────────
+// ─── Probing the database's state ───────────────────────────────
 
 type DbState =
   | "up_to_date"
   | "needs_migration"
   | "missing_settings"
   | "uninitialized_settings";
-
-/** Build a checker for "this exact table is missing" database errors. */
-const missingTableError =
-  (table: string) =>
-  (error: unknown): boolean => {
-    const message = errorMessage(error);
-    return new RegExp(`no such table:?\\s*(\\w+\\.)?${table}\\b`, "i").test(
-      message,
-    );
-  };
-
-const isMissingSettingsTableError = missingTableError("settings");
-const isMissingMigrationsTableError = missingTableError("schema_migrations");
 
 /** Everything the boot path needs to know, answered by one round trip. */
 type DbProbe = {
@@ -167,76 +171,7 @@ const probeDbState = (): Promise<DbProbe> => {
   );
 };
 
-/**
- * Rename the legacy "event" domain to "listing". Public entrypoint so tests
- * can drive the rename directly; in production it is called by the baseline
- * reconcile and by the `2026-06-14_rename_events_to_listings` migration (as an
- * idempotent verification/cleanup step).
- */
-export const renameEventsToListings = async (): Promise<void> => {
-  await repairLegacyRenames(EVENT_TO_LISTING_RENAME_PLAN);
-  await applySchemaChanges();
-  await syncIndexes();
-};
-
-const syncCurrentSchema = async (): Promise<void> => {
-  await syncCurrentSchemaBase(() =>
-    repairLegacyRenames(EVENT_TO_LISTING_RENAME_PLAN),
-  );
-};
-
-/** Seed the default attendee status. Loaded on demand: only migration,
- *  fresh-install, and restore paths need it, and a static import would put the
- *  attendee-statuses module into every cold start's eager graph. */
-const ensureDefaultAttendeeStatus = async (): Promise<void> => {
-  const { ensureDefaultAttendeeStatus: seedDefaultStatus } = await import(
-    "#shared/db/attendee-statuses.ts"
-  );
-  await seedDefaultStatus();
-};
-
-const schemaMarkerStatements = (): SqlStatement[] => [
-  {
-    args: [LATEST_UPDATE],
-    sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('${LATEST_DB_UPDATE_KEY}', ?)`,
-  },
-  {
-    args: [SCHEMA_HASH],
-    sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('${DB_SCHEMA_HASH_KEY}', ?)`,
-  },
-];
-
-const migrationContext: MigrationContext = {
-  additive,
-  applySchemaChanges,
-  backfillAnswerAggregates,
-  backfillListingAggregates,
-  backfillModifierAggregates,
-  ensureDefaultAttendeeStatus,
-  getDb,
-  recreateTable,
-  renameEventsToListings,
-  syncCurrentSchema,
-  syncIndexes,
-  syncTriggers,
-  tableExists,
-  verifyCurrentAppSchema,
-  verifyRequirement,
-};
-
-/**
- * Load and build every migration, in run order. Deliberately lazy (and cached
- * after the first call): a steady-state boot only ever needs the migration
- * *ids* for its probe, so the ~70 dated migration modules — and the domain
- * modules they import — stay out of the cold-start graph and load only on the
- * rare request that has real migration work (or a fresh install) to do.
- */
-export const loadMigrations = once(async (): Promise<Migration[]> => {
-  const modules = await Promise.all(
-    MIGRATION_REGISTRY.map((migration) => migration.load()),
-  );
-  return modules.map((module) => module.default(migrationContext));
-});
+// ─── Creating a schema from scratch ─────────────────────────────
 
 /** Seed and stamp a freshly created schema: the default attendee status, the
  *  schema markers, and every migration recorded as applied — so the next boot
@@ -298,354 +233,16 @@ export const rebuildWipedSchema = async (): Promise<void> => {
   await sealFreshSchema();
 };
 
-const ensureMigrationTrackingTable = async (): Promise<void> => {
-  await getDb().execute(
-    createTableSql(SCHEMA.find(([name]) => name === SCHEMA_MIGRATIONS_TABLE)!),
-  );
-};
-
-const getAppliedMigrationIds = async (): Promise<Set<string>> => {
-  await ensureMigrationTrackingTable();
-  const result = await getDb().execute(
-    `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE}`,
-  );
-  return stringColumnSet(result.rows, "id");
-};
-
-/** Build the INSERT that records a migration as applied. */
-const migrationMarkerStatement = (
-  migration: Migration,
-  appliedAt: string,
-): SqlStatement => ({
-  args: [migration.id, migration.description, appliedAt],
-  sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
-});
-
-const buildMigrationMarkerStatements =
-  (build: (migration: Migration, appliedAt: string) => SqlStatement) =>
-  (migrations: Migration[]): SqlStatement[] => {
-    const appliedAt = nowIso();
-    return migrations.map((migration) => build(migration, appliedAt));
-  };
-
-const migrationMarkerStatements = buildMigrationMarkerStatements(
-  migrationMarkerStatement,
-);
-
-const whileMigrationLockOwned = (
-  sql: string,
-  args: SqlStatement["args"],
-  lockToken: string,
-): SqlStatement => ({
-  args: [...args, MIGRATION_LOCK_KEY, lockToken],
-  sql: `${sql} WHERE EXISTS (SELECT 1 FROM settings WHERE key = ? AND value = ?)`,
-});
-
-const ownedMigrationMarkerStatements = (
-  migrations: Migration[],
-  lockToken: string,
-): SqlStatement[] =>
-  buildMigrationMarkerStatements((migration, appliedAt) =>
-    whileMigrationLockOwned(
-      `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) SELECT ?, ?, ?`,
-      [migration.id, migration.description, appliedAt],
-      lockToken,
-    ),
-  )(migrations);
-
-const ownedSchemaMarkerStatements = (lockToken: string): SqlStatement[] =>
-  (
-    [
-      [LATEST_DB_UPDATE_KEY, LATEST_UPDATE],
-      [DB_SCHEMA_HASH_KEY, SCHEMA_HASH],
-    ] as const
-  ).map(([key, value]) =>
-    whileMigrationLockOwned(
-      "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
-      [key, value],
-      lockToken,
-    ),
-  );
-
-const executeWhileMigrationLockOwned = async (
-  statements: SqlStatement[],
-  lockToken: string,
-): Promise<void> => {
-  const [ownership] = await executeBatchWithResults([
-    {
-      args: [MIGRATION_LOCK_KEY, lockToken],
-      sql: "UPDATE settings SET value = value WHERE key = ? AND value = ?",
-    },
-    ...statements,
-  ]);
-  if (ownership!.rowsAffected !== 1) {
-    throw new MigrationInProgressError(
-      "Database migration lock ownership was lost before completion.",
-    );
-  }
-};
-
-/**
- * Record several completed migrations in one batch transaction, so one
- * round-trip replaces one write per migration. Callers only pass a non-empty
- * list.
- */
-const markMigrationsApplied = async (
-  migrations: Migration[],
-): Promise<void> => {
-  await getDb().batch(migrationMarkerStatements(migrations), "write");
-};
-
-const writeSchemaMarkers = async (): Promise<void> => {
-  await executeBatch(schemaMarkerStatements());
-};
-
-/** The migrations whose ids are not yet recorded as applied, in run order.
- *  Checks the ids first so the implementations only load when at least one
- *  migration is actually missing. */
-const missingMigrations = async (): Promise<Migration[]> => {
-  const applied = await getAppliedMigrationIds();
-  if (MIGRATION_IDS.every((id) => applied.has(id))) return [];
-  return (await loadMigrations()).filter(
-    (migration) => !applied.has(migration.id),
-  );
-};
-
-const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
-  const missing = await missingMigrations();
-  if (missing.length === 0) return;
-
-  await verifyCurrentAppSchema();
-  logDebug(
-    "Migration",
-    `Baselining ${missing.length} already-applied migration(s)`,
-  );
-  await markMigrationsApplied(missing);
-};
-
-/**
- * Backoff (ms) before each re-attempt of a migration's verify(). Its length is
- * the number of retries, so four verify attempts in total.
- *
- * A migration applies DDL in up() and then verify() reads the live schema back
- * to confirm it landed. The snapshot is already pinned to the primary
- * (queryBatchPrimary, "write" mode) to dodge replica lag, but a freshly-opened
- * primary connection can still briefly observe the pre-DDL schema —
- * read-your-writes propagation lag — so a column the ALTER just added reads as
- * missing and verify() throws spuriously. (Observed in production: a column-add
- * migration failed verification on one request and passed on the retry moments
- * later.) verify() re-snapshots on every call, so retrying after a short backoff
- * lets the schema settle within the same request rather than 503-ing it. A
- * genuine schema defect stays missing across every attempt and still throws, so
- * this never masks a real bug.
- *
- * Retrying verify() alone is not always enough, though: up() can itself skip a
- * write when its own snapshot lagged. syncIndexes() reads the live schema to
- * decide which indexes to create and skips any whose table the snapshot doesn't
- * show — correct for an index on a table a later migration creates, but it also
- * skips an index whose table THIS migration just created when the read lags
- * behind that write. The index is then never created, so verify() fails on every
- * attempt until up() runs again — the observed "missing index
- * idx_system_notes_attendee_id, passed on the next request" failure. So once
- * verify()'s own retries are exhausted, {@link applyMigrationWithRetry} re-runs
- * up() once and verifies again.
- */
-export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
-
-/**
- * Run a migration's verify(), retrying a transient failure (read-your-writes
- * lag on the just-applied DDL) on a fresh schema snapshot before giving up.
- */
-export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
-  retryWithBackoff(
-    () => migration.verify(),
-    VERIFY_RETRY_BACKOFF_MS,
-    (error, { attempt, willRetry }) => {
-      if (!willRetry) return;
-      logDebug(
-        "Migration",
-        `verify ${migration.id} failed on attempt ${attempt + 1}, retrying: ${errorMessage(
-          error,
-        )}`,
-      );
-    },
-  );
-
-/**
- * Apply a migration: run up(), then verify() with retries. If verify() never
- * passes across a full round of retries, re-run up() once and verify again.
- *
- * Re-running up() repairs the case where up() itself skipped a write because its
- * own schema snapshot lagged (see VERIFY_RETRY_BACKOFF_MS) — the missing-index
- * failure. up() is idempotent by construction (the runner already re-runs it on
- * a later request whenever a prior run died before recording its marker), so the
- * second pass — now reading a settled snapshot — completes the skipped write.
- *
- * The re-run is deferred until verify()'s own retries are exhausted, not fired
- * on the first verify miss, so a migration whose up() is NOT a cheap no-op after
- * success — e.g. 2026-06-20_free_text_questions, which recopies attendee_answers
- * / listing_questions / questions via recreateTable — is not re-run on a pure
- * verify-lag (up() did its work; only verify()'s snapshot lagged), which would
- * recopy large tables and risk the edge request budget. up() therefore runs at
- * most twice, never once per retry.
- */
-export const applyMigrationWithRetry = async (
-  migration: Migration,
-): Promise<void> => {
-  await migration.up();
-  try {
-    await verifyMigrationWithRetry(migration);
-  } catch (error) {
-    logDebug(
-      "Migration",
-      `verify ${migration.id} still failing after retries, re-running up(): ${errorMessage(
-        error,
-      )}`,
-    );
-    await migration.up();
-    await verifyMigrationWithRetry(migration);
-  }
-};
-
-const combinedFailures = (
-  message: string,
-  first: unknown,
-  second: unknown,
-): AggregateError => new AggregateError([first, second], message);
-
-const runPendingMigrations = async (
-  pending: Migration[],
-  lockToken: string,
-): Promise<void> => {
-  const completed: Migration[] = [];
-  try {
-    for (const migration of pending) {
-      logDebug(
-        "Migration",
-        `Running ${migration.id}: ${migration.description}`,
-      );
-      await applyMigrationWithRetry(migration);
-      completed.push(migration);
-    }
-  } catch (error) {
-    // Keep successful progress when a later migration fails. The success path
-    // writes these markers with the schema markers and lock release below.
-    if (completed.length > 0) {
-      try {
-        await executeWhileMigrationLockOwned(
-          ownedMigrationMarkerStatements(completed, lockToken),
-          lockToken,
-        );
-      } catch (markerError) {
-        throw combinedFailures(
-          "Database migration failed and completed progress could not be recorded.",
-          error,
-          markerError,
-        );
-      }
-    }
-    throw error;
-  }
-};
-
-/**
- * Stale markers with nothing pending happen two ways: a previous run was
- * killed after recording its migrations but before refreshing the markers
- * (verification passes — rewrite the markers), or SCHEMA was changed without
- * adding a named migration (verification fails — refuse to guess).
- */
-const restoreStaleSchemaMarkers = async (): Promise<void> => {
-  try {
-    await verifyCurrentAppSchema();
-  } catch (error) {
-    const detail = errorMessage(error);
-    throw new Error(
-      "Database schema markers are stale, no named migrations are pending, " +
-        `and the live schema does not match (${detail}). ` +
-        "Every SCHEMA change must ship with a new entry in MIGRATIONS.",
-    );
-  }
-  logDebug("Migration", "Schema verified; restoring stale schema markers");
-  await writeSchemaMarkers();
-};
+// ─── Main migration ─────────────────────────────────────────────
 
 // A batch of four leaves room for the lock, probes, schema checks, and the
 // largest migrations while staying below Bunny's 50-subrequest request cap.
 const MIGRATIONS_PER_REQUEST = 4;
 
-/** Record one migration batch, optionally seal the finished schema, and release
- * its lock atomically. */
-const recordMigrationBatch = async (
-  migrations: Migration[],
-  finished: boolean,
-  lockToken: string,
-): Promise<void> => {
-  await executeWhileMigrationLockOwned(
-    [
-      ...ownedMigrationMarkerStatements(migrations, lockToken),
-      ...(finished ? ownedSchemaMarkerStatements(lockToken) : []),
-      {
-        args: [MIGRATION_LOCK_KEY, lockToken],
-        sql: "DELETE FROM settings WHERE key = ? AND value = ?",
-      },
-    ],
-    lockToken,
-  );
-};
-
-/**
- * A migration lock older than this is treated as abandoned and stolen.
- * Migrations run inline on edge isolates that can be evicted mid-run,
- * orphaning the lock; the TTL lets the next boot self-heal instead of
- * requiring a manual DELETE FROM settings.
- */
-export const MIGRATION_LOCK_TTL_MS = 2 * 60 * 1000;
-
-/**
- * Acquire an advisory migration lock via the settings table.
- * Returns this request's timestamp-prefixed lease token when acquired, or null
- * when another process holds a fresh lock. The ISO-8601 prefix sorts
- * lexicographically, so one atomic UPSERT both takes a free lock and steals an
- * expired one: DO UPDATE only fires when the held lock predates the cutoff, and
- * a fresh lock leaves rowsAffected at 0. The random suffix lets completion and
- * cleanup prove they still own this exact lease.
- */
-const acquireMigrationLock = async (
-  allowMissingSettings: boolean,
-): Promise<string | null> => {
-  const now = new Date();
-  const cutoff = new Date(now.getTime() - MIGRATION_LOCK_TTL_MS).toISOString();
-  const stamp = now.toISOString();
-  const lockToken = `${stamp}|${crypto.randomUUID()}`;
-  const result = await getDb()
-    .execute({
-      args: [MIGRATION_LOCK_KEY, lockToken, lockToken, cutoff],
-      sql:
-        "INSERT INTO settings (key, value) VALUES (?, ?) " +
-        "ON CONFLICT(key) DO UPDATE SET value = ? WHERE settings.value < ?",
-    })
-    .catch((error) => {
-      if (allowMissingSettings && isMissingSettingsTableError(error)) {
-        return null;
-      }
-      throw error;
-    });
-  return result === null || result.rowsAffected === 1 ? lockToken : null;
-};
-
-/** Release only the migration lock lease acquired by this request. */
-const releaseMigrationLock = (lockToken: string): Promise<unknown> =>
-  getDb().execute({
-    args: [MIGRATION_LOCK_KEY, lockToken],
-    sql: "DELETE FROM settings WHERE key = ? AND value = ?",
-  });
-
 type InitDbOptions = {
   /** Only setup/restore/bootstrap callers should create a missing settings table. */
   allowMissingSettings?: boolean;
 };
-
-// ─── Main migration ─────────────────────────────────────────────
 
 /**
  * The client most recently confirmed ready by initDb. initDb runs on every
@@ -746,24 +343,6 @@ const runAcquiredMigrations = async (
   return finished ? "released" : "continue";
 };
 
-const releaseAfterMigrationFailure = async (
-  lockToken: string,
-  failure: unknown,
-): Promise<never> => {
-  try {
-    await releaseMigrationLock(lockToken);
-  } catch (releaseError) {
-    throw combinedFailures(
-      `Database migration failed and its lock could not be released: ${errorMessage(
-        failure,
-      )}; ${errorMessage(releaseError)}`,
-      failure,
-      releaseError,
-    );
-  }
-  throw failure;
-};
-
 const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   const probe = await probeDbState();
   if (await finishIfUpToDate(probe)) return;
@@ -776,7 +355,7 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
       "Database migration is already in progress (migration_lock held). " +
         `The request can be retried; a crashed migration's lock is reclaimed automatically after ${
           MIGRATION_LOCK_TTL_MS / 60000
-        } minutes, or manually DELETE FROM settings WHERE key = 'migration_lock'.`,
+        } minutes, or manually DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'.`,
     );
   }
 

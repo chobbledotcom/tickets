@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
+import { baselineCurrentSchemaIfNeeded } from "#shared/db/migrations/runner.ts";
 import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
@@ -142,6 +143,25 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         .map((e) => e.name)
         .filter((n) => n.startsWith("backup-"));
       expect(files.length).toBe(0);
+    });
+
+    test("baselining writes nothing when every migration is already recorded", async () => {
+      const client = getDb();
+      const batch = client.batch.bind(client);
+      const written: string[] = [];
+      using _batch = stub(
+        client,
+        "batch",
+        (statements: BatchStatement[], mode?: TransactionMode) => {
+          written.push(...statements.map(statementSql));
+          return batch(statements, mode);
+        },
+      );
+
+      await baselineCurrentSchemaIfNeeded();
+
+      // Nothing is missing, so no marker is re-stamped.
+      expect(written).toEqual([]);
     });
 
     test("sends ntfy notification with DB_URL when migration lock is held", async () => {
