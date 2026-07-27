@@ -2108,14 +2108,19 @@ blank transaction id even though the payment aggregate has the reference
 `src/features/admin/listings-export.ts` read it).
 
 
-**An upgraded site cannot copy a payment whose listing was deleted.** The
+**An upgraded site cannot copy a payment whose booking row was deleted.** The
 schema for an old payment insists a completed row has both an attendee and a
-live booking (`LegacyProcessedPaymentSchema` in
-`src/shared/db/payments/legacy.ts`). But the reader hands back a null listing
-whenever the booking's listing is gone, which is a normal thing to find on a
-site that has been running for years. The copy then rejects the row and the
-upgrade stops, every time it is retried. It needs to accept a finished payment
-whose booking no longer points anywhere, and record it as such.
+listing (`LegacyProcessedPaymentSchema` in `src/shared/db/payments/legacy.ts`).
+The reader hands back a null listing when the booking is gone, so the copy
+rejects the row and the upgrade stops, every time it is retried.
+
+Half of this is fixed: the reader used to skip bookings refunded down to no
+quantity, which are ordinary and still name their listing, so those sites now
+upgrade (see the test "brings forward a paid booking refunded down to no
+quantity"). What is left is the booking row being deleted outright, where there
+is no listing to name at all. A finished result requires a listing everywhere
+downstream, so deciding what such a payment means is a real decision rather
+than a one-line relaxation.
 
 **Two renewals paid at the same time can undo each other.** A paid renewal
 checks that the site's current read-only date still matches the one taken when
@@ -2491,86 +2496,3 @@ buyer's confirmation can still carry it as the reply-to, even though the guard
 is meant to refuse mail once the email settings have changed. Messages aimed at
 the business address should record that, and the address should be checked
 against the current setting before sending.
-
-## Payment findings from the review of the aggregate branch
-
-These came from an automated review of the payment aggregate branch. The first
-was reproduced and fixed on that branch; the rest are recorded here because
-each is a change to how money or personal details are handled, and the branch's
-job was repairing the rewrite so the suite passes.
-
-**Old payments are missing from an attendee's refundable payments.** After an
-upgrade, a site's historical payments are marked as old rather than current.
-The reader behind `getPaymentRefundTargets` (`src/shared/db/payments/sessions.ts`,
-around line 213) asks only for current ones, so the attendee page reports that
-these bookings have nothing to refund even when the upgrade copied a real
-charge across. Old payments that have been resolved need a refund path.
-
-**A paused refund can hold up every other payment.** When an automatic refund
-turns out partial, or moves the payment in front of the owner, the paused
-completion is stored with no time to try again
-(`src/features/api/payment-processing/completion-refund.ts`, around line 243),
-which the session rules forbid. Releasing the claim then fails, the payment is
-scheduled immediately, and the one-at-a-time maintenance page keeps picking it
-ahead of everything else. Store a real retry time, or finish the pending
-completion before unscheduling.
-
-**Merging two people can send a paid site to the deleted one.** If the person
-being merged away still has an unfinished paid completion, the payment is moved
-to the person being kept but the prepared site handover still names the deleted
-one (`src/shared/merge/attendee-merge.ts`, around line 828). A later worker can
-assign the paid site to that deleted id, so it vanishes from the merged record.
-Either block the merge until the completion finishes, or move the queued
-handover facts at the same time.
-
-**Turning checkout off stops single refunds.** Setting the active provider to
-none makes the single-attendee refund refuse
-(`src/features/admin/attendee-refunds.ts`, around line 123), even though every
-stored charge still names the provider and account that took the money — and
-the bulk refund can still refund the same person. The check should be against
-the stored payment, not against whether new checkouts are allowed.
-
-**Tickets handed out early are never marked as used up.** When the booking is
-made and the buyer is given their tickets while some deliveries are still
-queued, the response hands over the tickets but only marks them used up for a
-fully finished payment (`src/features/api/webhooks.ts`, around line 239).
-Maintenance can finish the payment later without coming back through that
-response, so the tickets stay marked ready — and the tidy-up that removes old
-personal details skips ready tickets, so both the tickets and the buyer's
-details are kept indefinitely.
-
-**A SumUp return is read as the wrong provider.** If a SumUp checkout is open
-and the owner switches the site to Stripe or Square, the return address still
-carries the SumUp id, but it is looked up as the newly chosen provider
-(`src/features/api/webhooks.ts`, around line 168). The paid record is not found
-and the buyer's booking cannot complete. A local SumUp id should be recognised
-before the active provider is consulted.
-
-**A refund the owner approves is not written into Money.** When the owner
-chooses to refund what is left on a payment that belongs to an attendee, the
-provider is refunded and the charge updated, but the case is closed without
-writing the refund into the attendee's Money record
-(`src/shared/payment-runtime/operator.ts`, around line 100). The money has left
-the provider while Money still shows it as held.
-
-**A refund with no booking behind it is never tidied up.** A payment that is
-fully refunded before any booking was made — a refund at the provider before
-the booking ran — has no completion recorded, and the tidy-up only accepts
-fully refunded payments that also completed
-(`src/shared/db/payments/redaction-eligibility.ts`, around line 21). Those
-payments keep the buyer's encrypted details for ever.
-
-**New bookings show no payment reference to the operator.** New paid bookings
-no longer copy the payment id onto the attendee, but the attendee payment panel
-and the CSV transaction column still read it from there
-(`src/features/api/payment-processing/create.ts`, around line 193). The
-operator loses the payment details panel and exports a blank transaction id,
-even though the aggregate still holds the references. Those surfaces should
-read from the aggregate.
-
-**An upgrade still stops when a paid booking row is gone entirely.** The
-quantity-zero case is fixed, but if the booking row was deleted outright the
-copied record has a buyer and no listing, which the upgrade refuses to write —
-stopping the whole upgrade. A completed result requires a listing all the way
-through, so deciding what such a payment means is a real decision, not a
-one-line relaxation.
