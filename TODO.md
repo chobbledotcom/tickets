@@ -2123,3 +2123,72 @@ file:
 
 Done so far: handing out a site when someone pays for one, and the SumUp
 answers a read can get.
+
+## An upgrade that runs out of database calls cannot give back its lock
+
+*Origin: found while fixing the payment branch's upgrade, which was spending
+fifty-eight of its fifty allowed database calls.*
+
+An upgrade runs inside a request, and a request may make fifty database calls.
+Going over is not just a failed upgrade — it is a stuck one:
+
+1. the run stops at the call that goes over
+2. writing down what it had done needs a call, so nothing is recorded
+3. giving back the lock needs a call too, so the lock stays held
+4. the next request is refused for two minutes, then does the same thing
+
+The site never gets past it. The cost was brought down to about thirty-one
+calls, so there is room again, but the trap is still there: the next thing that
+adds a few calls to an upgrade brings it straight back, and the failure gives
+no hint that a call budget is the cause.
+
+Worth making the upgrade keep back the few calls it needs to write down its
+progress and let go of the lock — so going over ends a request early, as it is
+meant to, instead of stopping the site from ever finishing.
+
+Starting point: `initDbUncached` and `runAcquiredMigrations` in
+`src/shared/db/migrations.ts` for where the batch size is chosen,
+`countDatabaseRoundTrip` in `src/shared/db/query-log.ts` for the counter, and
+`recordMigrationBatch` in `src/shared/db/migrations/markers.ts` for the write
+that never happens.
+
+## More payment findings from the review
+
+*Origin: Codex review on PR #1962.*
+
+**Confirming a full refund closes the case but not the books.** When the owner
+picks "already fully refunded", `src/shared/payment-runtime/operator.ts`
+(around line 112) updates the charges and reports success, but never moves the
+payment itself to refunded or finishes the attendee's ledger. The case closes
+while the payment still reads as needing action and the money still shows as
+held, and later callbacks keep reading the stale state.
+
+**An old payment whose reference is only in the attendee's record is dropped.**
+On an upgrade, a finished old payment from before the reference column existed
+keeps the provider's id inside the attendee's encrypted record. The first pass
+makes a payment with no charge, and the `NOT EXISTS` check at
+`2026-07-26_payment_aggregate.ts` (around line 188) then skips that attendee in
+the only pass that reads the encrypted record — so the payment ends up with no
+evidence and no case for the owner to work from.
+
+**A Stripe refund that has vanished is polled forever.** In
+`src/shared/stripe/provider-refund.ts` (around line 65), a refund the provider
+says is gone is treated the same as one it could not answer about right now.
+The charge stays pending, the same id is read again every time, and nothing is
+ever put in front of the owner. A refund that is genuinely missing should be
+treated as failed.
+
+**A checkout the provider refuses outright is retried forever.** Square and
+SumUp return nothing both for a network wobble and for a permanent refusal such
+as a bad key. `src/shared/payment-runtime/create.ts` (around line 100) files
+every one as created and asks again in a minute, so a spell of bad settings
+leaves rows that keep calling the provider long after it is fixed. A refusal
+that will never succeed should be filed as failed.
+
+**Reading a Square payment scans the whole location.** When a return or a later
+run needs an order the webhook has not finished yet,
+`src/shared/square-client.ts` (around line 348) looks for the payment by
+scanning the location's payment list oldest-first, and stops after eight pages.
+At a location with more than eight hundred payments, a new one is never found,
+so the buyer's paid booking never completes. Square can be asked for a payment
+by its id, which the order already names.
