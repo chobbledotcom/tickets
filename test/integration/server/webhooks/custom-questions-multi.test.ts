@@ -13,6 +13,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
@@ -114,6 +115,8 @@ describeWithEnv(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         expect(response.status).toBe(200);
+        // Answers are saved by maintenance after the callback returns.
+        await settleDeferredPaymentWork();
 
         // Verify answers were saved for the created attendee
         const { getAttendeesRaw } = await import(

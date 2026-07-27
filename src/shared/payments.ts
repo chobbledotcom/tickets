@@ -137,8 +137,16 @@ export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
 const ModifierRefSchema = v.object({ i: positiveInt, q: positiveInt });
 export type ModifierRef = v.InferOutput<typeof ModifierRefSchema>;
 
-const TextAnswerRefSchema = v.object({ q: positiveInt, s: positiveInt });
+/** A free-text answer as it arrives in checkout metadata. The string id can be
+ *  missing when it was lost between the form and the callback; booking drops
+ *  that one answer rather than throwing away a paid order. */
+const TextAnswerRefSchema = v.object({
+  q: positiveInt,
+  s: v.optional(positiveInt),
+});
 export type TextAnswerRef = v.InferOutput<typeof TextAnswerRefSchema>;
+/** A text answer that still knows which stored string it points at. */
+export type StoredTextAnswerRef = TextAnswerRef & { s: number };
 
 /** Per-listing answer references carried through a checkout, shared by the
  * booking and checkout intents. */
