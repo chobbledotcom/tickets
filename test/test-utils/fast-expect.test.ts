@@ -4,6 +4,7 @@
  * an assertion actually fails — that message path never runs in a passing
  * suite, so it is exercised directly here.
  */
+import { Buffer } from "node:buffer";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import "#test-utils/fast-expect.ts"; // installs the fast toContain override
@@ -96,6 +97,19 @@ describe("fast byte-array comparison", () => {
   test("two kinds holding the same numbers do not match", () => {
     expect(bytes(1, 2)).not.toEqual(
       Int8Array.from([1, 2]) as unknown as Uint8Array,
+    );
+  });
+
+  // The built-in refuses these pairs as well, so answering `false` for them
+  // keeps the fast path in step with it rather than tightening anything.
+  test("a subclass does not match the plain kind it extends", () => {
+    class Sub extends Uint8Array {}
+    expect(Sub.from([1, 2])).not.toEqual(bytes(1, 2));
+  });
+
+  test("a Buffer does not match a byte array of the same numbers", () => {
+    expect(Buffer.from([1, 2]) as unknown as Uint8Array).not.toEqual(
+      bytes(1, 2),
     );
   });
 
