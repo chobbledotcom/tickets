@@ -10,7 +10,10 @@ import { apiRoutes } from "#routes/api/index.ts";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
-import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import {
+  PublicListingDetailSchema,
+  PublicListingSchema,
+} from "#test-utils/api-schemas.ts";
 import { documented, isBlank, jsonLeaves } from "./helpers.ts";
 
 describe("every documented endpoint", () => {
@@ -61,6 +64,15 @@ describe("every documented endpoint", () => {
       // Browsing and the package endpoint must describe the same bundle.
       expect(bundle.slug).toBe(documentedPackageSlug());
     }
+  });
+
+  test("the single listing example is one the endpoint could send", () => {
+    const listing = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "GET", "/api/listings/:slug").response,
+    ).listing;
+
+    // A listing on its own page may also carry the add-ons to choose from.
+    expect(() => v.parse(PublicListingDetailSchema, listing)).not.toThrow();
   });
 
   test("only a listing sold by the day offers dates to choose", () => {

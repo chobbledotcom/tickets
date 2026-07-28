@@ -42,6 +42,16 @@ export const PublicListingSchema = v.strictObject({
 });
 
 /**
+ * A listing as the API returns it on its own page, where a parent also carries
+ * the add-ons a buyer must choose from. An add-on cannot itself have add-ons —
+ * the app does not offer two levels of nesting — so this shape is one deep.
+ */
+export const PublicListingDetailSchema = v.strictObject({
+  ...PublicListingSchema.entries,
+  children: v.optional(v.array(PublicListingSchema)),
+});
+
+/**
  * Shape of a listing as returned by the admin JSON API (mirrors the production
  * `AdminListing` type). Written out by hand rather than derived from
  * `toAdminListing`, so it can catch a change that both the function and its

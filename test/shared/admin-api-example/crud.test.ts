@@ -17,7 +17,11 @@ import {
   AdminGroupSchema,
   AdminListingSchema,
 } from "#test-utils/api-schemas.ts";
-import { documented, freshTotals, isBlank } from "./helpers.ts";
+import { documented, freshTotals, isBlank, jsonLeaves } from "./helpers.ts";
+
+/** A stored datetime says which timezone it is in (see the listings table's
+ * normalizer, which refuses one that does not). */
+const TZ_SUFFIX = /(?:Z|[+-]\d{2}:\d{2})$/i;
 
 describe("documented admin CRUD endpoints", () => {
   test("the admin listing list also shows the groups a listing is in", () => {
@@ -72,6 +76,26 @@ describe("documented admin CRUD endpoints", () => {
       for (const [field, value] of Object.entries(freshTotals(example))) {
         expect(createResponse[field]).toBe(value);
       }
+    }
+  });
+
+  test("a documented date is one the system could store", () => {
+    // Storage appends "Z" to a value with no timezone, which turns a friendly
+    // date into an invalid one and refuses the write. Every documented date
+    // must therefore say its timezone and parse.
+    const dates = ADMIN_API_ENDPOINTS.filter(
+      (endpoint) => endpoint.request !== undefined,
+    )
+      .flatMap((endpoint) =>
+        jsonLeaves(JSON.parse(endpoint.request!), endpoint.path),
+      )
+      .filter(({ field }) => field === "date")
+      .map(({ value }) => String(value));
+
+    expect(dates.length).toBeGreaterThan(0);
+    for (const date of dates) {
+      expect(TZ_SUFFIX.test(date)).toBe(true);
+      expect(Number.isNaN(new Date(date).getTime())).toBe(false);
     }
   });
 

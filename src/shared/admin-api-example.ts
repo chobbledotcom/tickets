@@ -40,7 +40,8 @@ export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {
   can_pay_more: true,
-  date: "Sat 20 Aug 2025, 10:00 AM",
+  // Stored dates carry their timezone: one without is refused on the way in.
+  date: "2025-08-20T10:00:00Z",
   description:
     "A hands-on workshop covering watercolours and sketching techniques.",
   fields: "email",
