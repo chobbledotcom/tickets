@@ -16,19 +16,29 @@ import {
 export const isSnapshotChild = (): boolean =>
   Deno.env.get(MUTATION_SNAPSHOT_CHILD_ENV) === "1";
 
-const runRootFromEnv = (): string | null => {
-  const id = Deno.env.get(MUTATION_RUN_ID_ENV);
-  const runRoot = Deno.env.get(MUTATION_RUN_ROOT_ENV);
-  const workRoot = Deno.env.get(MUTATION_WORK_ROOT_ENV);
-  return id && runRoot && workRoot ? runRoot : null;
+/**
+ * Where this child's run lives. Saying it is a child and then leaving out
+ * which run it belongs to is a broken setup, not a run to carry on with: the
+ * work would go ahead in whatever checkout it was started from, unlocked.
+ */
+const runValue = (name: string): string => {
+  const value = Deno.env.get(name);
+  if (!value) {
+    throw new Error(
+      `${MUTATION_SNAPSHOT_CHILD_ENV} is set, but ${name} is not. A snapshot child cannot run without its own run to work in.`,
+    );
+  }
+  return value;
+};
+
+const runRootFromEnv = (): string => {
+  runValue(MUTATION_RUN_ID_ENV);
+  const runRoot = runValue(MUTATION_RUN_ROOT_ENV);
+  runValue(MUTATION_WORK_ROOT_ENV);
+  return runRoot;
 };
 
 /** Do the run's work, holding its lock so a clear-up cannot take the copy. */
-export const runSnapshotChild = async <Result>(
+export const runSnapshotChild = <Result>(
   body: () => Promise<Result>,
-): Promise<Result> => {
-  const runRoot = runRootFromEnv();
-  return runRoot === null
-    ? await body()
-    : await withMutationRunLock(runRoot, body);
-};
+): Promise<Result> => withMutationRunLock(runRootFromEnv(), body);

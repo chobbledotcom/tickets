@@ -53,17 +53,24 @@ describe("the worker inside a snapshot", () => {
     });
   });
 
-  test("works without a lock when it was not started by a run", async () => {
-    await withTempDir(async (runRoot) => {
+  test("refuses to work when it is not told which run it belongs to", async () => {
+    await withTempDir((runRoot) => {
       setRunVars(runRoot);
-      // A half-set environment is not a run, so no lock is taken.
+      Deno.env.set(MUTATION_SNAPSHOT_CHILD_ENV, "1");
       Deno.env.delete(MUTATION_WORK_ROOT_ENV);
+      let ranAnyway = false;
 
-      const result = await runSnapshotChild(() =>
-        pathExists(join(runRoot, MUTATION_RUN_LOCK_FILE)),
+      expect(() =>
+        runSnapshotChild(() => {
+          ranAnyway = true;
+          return Promise.resolve(0);
+        }),
+      ).toThrow(
+        `${MUTATION_SNAPSHOT_CHILD_ENV} is set, but ${MUTATION_WORK_ROOT_ENV} is not`,
       );
-
-      expect(result).toBe(false);
+      // Carrying on would mutate whatever checkout it was started from.
+      expect(ranAnyway).toBe(false);
+      return Promise.resolve();
     });
   });
 });

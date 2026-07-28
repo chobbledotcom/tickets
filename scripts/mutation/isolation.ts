@@ -127,7 +127,7 @@ const settleRecord = (
 /** Record the child's result, then bring back what the run means to keep. */
 const finishChild = (
   record: MutationRunRecord,
-  interrupted: boolean,
+  wasInterrupted: () => boolean,
   code: number,
   root: string,
   copyBack: CopyBackFile[],
@@ -136,12 +136,15 @@ const finishChild = (
   // before its kept files are read nor take the folder while the last record
   // write lands in it.
   withMutationRunLock(record.root, async () => {
+    // Asked again here: waiting for the lock is a moment long enough for the
+    // operator to interrupt, and an interrupted run keeps nothing.
     const failedToKeep =
-      interrupted || copyBack.length === 0
+      wasInterrupted() || copyBack.length === 0
         ? 0
         : await withCopyBackLock(root, () =>
             bringFilesBack(root, record.workRoot, copyBack),
           );
+    const interrupted = wasInterrupted();
     // A run that could not keep its files failed, whatever the child said.
     const exitCode = interrupted ? 130 : failedToKeep || code;
     const settled = settleRecord(record, interrupted, exitCode);
@@ -201,7 +204,7 @@ export const runInSnapshot = async (
       const status = await child.status;
       const finished = await finishChild(
         record,
-        interrupted,
+        () => interrupted,
         status.code,
         root,
         copyBack,

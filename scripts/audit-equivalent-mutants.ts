@@ -68,7 +68,8 @@ if (import.meta.main) {
       ? await runSnapshotChild(() => runAudit(options))
       : await runInSnapshot({
           args: Deno.args,
-          copyBack: [EQUIVALENT_MUTANTS_PATH],
+          // Only a --write audit rewrites the list, so only it keeps a file.
+          copyBack: options.write ? [EQUIVALENT_MUTANTS_PATH] : [],
           entryScript: "scripts/audit-equivalent-mutants.ts",
         }),
   );
