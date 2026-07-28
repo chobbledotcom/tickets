@@ -1,9 +1,12 @@
 import type { PaymentWork } from "#routes/api/webhook-types.ts";
 import {
+  applyPaymentSessionClaimKeepingLease,
   type RetainedPaymentSessionClaim,
   requirePaymentSessionClaim,
 } from "#shared/db/payments/claims.ts";
 import { getPaymentSessions } from "#shared/db/payments/sessions.ts";
+import type { PaymentSession } from "#shared/db/payments/types.ts";
+import { paymentProgress } from "#shared/payment-runtime/progress.ts";
 import type { PaymentResolution } from "#shared/payment-state/lifecycle.ts";
 import { required } from "#test-utils/required.ts";
 
@@ -30,6 +33,23 @@ export const paymentWorkForCompletion = (
     },
   };
 };
+
+/** A claimed payment the provider has already said is paid for — the state
+ *  every "now finish the booking" test starts from. */
+export const claimPaymentReadyToFinish = async (
+  paymentId: string,
+  resolution: ReadyResolution,
+  payment: PaymentSession,
+): Promise<RetainedPaymentSessionClaim> =>
+  applyPaymentSessionClaimKeepingLease(
+    await requirePaymentSessionClaim(paymentId, 60_000),
+    paymentProgress(payment, {
+      nextReconcileAt: Date.now() + 60_000,
+      result: resolution,
+      resultState: "succeeded",
+      state: "processing",
+    }),
+  );
 
 export const reclaimPaymentWork = async (
   work: PaymentWork,

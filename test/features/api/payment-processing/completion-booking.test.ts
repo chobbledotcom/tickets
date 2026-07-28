@@ -33,21 +33,17 @@ import {
 } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  claimPaymentReadyToFinish,
   paymentWorkForCompletion,
   reclaimPaymentWork,
 } from "#test-utils/payment-completion.ts";
 
 const paymentWork = async (): Promise<PaymentWork> => {
   const payment = await createPendingPayment();
-  const claimed = await requirePaymentSessionClaim(PAYMENT_ID, 60_000);
-  const processing = await applyPaymentSessionClaimKeepingLease(
-    claimed,
-    paymentProgress(payment, {
-      nextReconcileAt: Date.now() + 60_000,
-      result: READY_RESULT,
-      resultState: "succeeded",
-      state: "processing",
-    }),
+  const processing = await claimPaymentReadyToFinish(
+    PAYMENT_ID,
+    READY_RESULT,
+    payment,
   );
   const attached = await applyPaymentSessionClaimKeepingLease(
     processing.claim,

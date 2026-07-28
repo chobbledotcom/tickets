@@ -2,29 +2,24 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import type { PaymentWork } from "#routes/api/webhook-types.ts";
-import {
-  applyPaymentSessionClaimKeepingLease,
-  requirePaymentSessionClaim,
-} from "#shared/db/payments/claims.ts";
+import { applyPaymentSessionClaimKeepingLease } from "#shared/db/payments/claims.ts";
 import { paymentProgress } from "#shared/payment-runtime/progress.ts";
 import { PAYMENT_ID, READY_RESULT } from "#test/shared/db/payments/fixtures.ts";
 import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { paymentWorkForCompletion } from "#test-utils/payment-completion.ts";
+import {
+  claimPaymentReadyToFinish,
+  paymentWorkForCompletion,
+} from "#test-utils/payment-completion.ts";
 
 /** A claim that has since been overtaken: the payment moved on, so this
  *  reading of it no longer proves anything about what was written. */
 const overtakenWork = async (): Promise<PaymentWork> => {
   const payment = await createPendingPayment();
-  const claimed = await requirePaymentSessionClaim(PAYMENT_ID, 60_000);
-  const processing = await applyPaymentSessionClaimKeepingLease(
-    claimed,
-    paymentProgress(payment, {
-      nextReconcileAt: Date.now() + 60_000,
-      result: READY_RESULT,
-      resultState: "succeeded",
-      state: "processing",
-    }),
+  const processing = await claimPaymentReadyToFinish(
+    PAYMENT_ID,
+    READY_RESULT,
+    payment,
   );
   const work = paymentWorkForCompletion(processing, READY_RESULT);
   // The payment moves on again, leaving the reading above behind.
