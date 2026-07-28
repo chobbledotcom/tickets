@@ -40,8 +40,9 @@ const PACKAGE_EXAMPLE_CHILD = {
 } satisfies PublicListing;
 
 /** The package-book example's `children`, parsed through the LIVE request
- * schema ({@link PackageChildrenSchema}) — a drifted example is a build-time
- * parse error, so the docs can never show a body the endpoint rejects. */
+ * schema ({@link PackageChildrenSchema}), so an example of the wrong shape is
+ * a build-time error. Whether the slugs name anything the package really
+ * offers is checked by the documentation tests, not here. */
 const PACKAGE_BOOK_CHILDREN_EXAMPLE = v.parse(PackageChildrenSchema, [
   { parent: "tent-pitch", quantity: 1, slug: "extra-bedding" },
 ]);

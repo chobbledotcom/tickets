@@ -16,15 +16,32 @@ import {
 import { documented } from "./helpers.ts";
 
 describe("documented package endpoints", () => {
+  /** One add-on a member publishes. A member may publish one that cannot be
+   * booked right now — the bundle stays on sale through its other add-ons. */
+  type Child = {
+    canPayMore: boolean;
+    isClosed: boolean;
+    isSoldOut: boolean;
+    maxPrice: number;
+    maxPurchasable: number;
+    slug: string;
+    unitPrice: number;
+  };
+
   /** One member of the documented package, with any add-ons it publishes. */
   type PackageMember = {
     quantity: number;
     slug: string;
-    children?: { maxPurchasable: number; slug: string }[];
+    children?: Child[];
   };
 
   /** One add-on the documented booking chooses, under its member. */
-  type Selection = { parent: string; quantity: number; slug: string };
+  type Selection = {
+    customPrice?: number;
+    parent: string;
+    quantity: number;
+    slug: string;
+  };
 
   const documentedPackage = () =>
     JSON.parse(
@@ -78,15 +95,26 @@ describe("documented package endpoints", () => {
     // so each add-on under each member is chosen exactly once.
     const picks = chosen.map(({ parent, slug }) => `${parent}/${slug}`);
     expect(new Set(picks).size).toBe(picks.length);
-    for (const { parent, quantity, slug } of chosen) {
+    for (const { customPrice, parent, quantity, slug } of chosen) {
       const offered = offeredBy.get(parent);
       if (!offered) throw new Error(`The package has no member ${parent}`);
       const child = offered.get(slug);
       if (!child) throw new Error(`The package has no ${slug} under ${parent}`);
 
+      // A closed or sold-out add-on cannot be booked, so choosing one would
+      // document a booking the endpoint refuses.
+      expect(child.isClosed).toBe(false);
+      expect(child.isSoldOut).toBe(false);
       expect(Number.isSafeInteger(quantity)).toBe(true);
       expect(quantity).toBeGreaterThan(0);
       expect(quantity).toBeLessThanOrEqual(child.maxPurchasable);
+
+      // An add-on at a fixed price ignores a price sent for it, so offering
+      // one documents a choice that does nothing.
+      if (customPrice === undefined) continue;
+      expect(child.canPayMore).toBe(true);
+      expect(customPrice).toBeGreaterThanOrEqual(child.unitPrice);
+      expect(customPrice).toBeLessThanOrEqual(child.maxPrice);
     }
 
     for (const member of members) {

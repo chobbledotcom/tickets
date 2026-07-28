@@ -3,7 +3,6 @@
  * endpoint looks like, and how its example bodies are written out.
  */
 
-/** A documented API endpoint with example request and response */
 export type EndpointDoc = {
   method: string;
   path: string;

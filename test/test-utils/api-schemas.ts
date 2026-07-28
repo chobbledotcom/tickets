@@ -156,10 +156,6 @@ const PublishedChildSchema = v.intersect([
     description: NonEmpty,
     // An empty list is the real "name and email only" setting.
     fields: v.string(),
-    // A closed or sold-out add-on cannot be chosen, so publishing one under a
-    // member would document a booking the endpoint refuses.
-    isClosed: v.literal(false),
-    isSoldOut: v.literal(false),
     listingType: NonEmpty,
     maxPrice: Price,
     maxPurchasable: AtLeastOne,
@@ -220,6 +216,12 @@ export const PackageResponseSchema = v.union([
     dayCounts: v.pipe(
       v.array(v.strictObject({ days: AtLeastOne, priceMinor: Price })),
       v.nonEmpty(),
+      // The endpoint prices each length once, so two prices for one length
+      // would leave a caller unable to say what that length costs.
+      v.check(
+        (counts) =>
+          new Set(counts.map(({ days }) => days)).size === counts.length,
+      ),
     ),
   }),
 ]);
@@ -259,8 +261,13 @@ const groupEntries = {
 /** One priced member of a package group, as the admin API hydrates it. Only a
  * member with repriced spans carries `day_prices`. */
 const AdminPackageMemberSchema = v.strictObject({
+  // Present only on a member with repriced spans: the API leaves it out
+  // rather than sending an empty map.
   day_prices: v.optional(
-    v.record(v.string(), v.pipe(v.number(), v.integer(), v.minValue(0))),
+    v.pipe(
+      v.record(v.string(), v.pipe(v.number(), v.integer(), v.minValue(0))),
+      v.check((spans) => Object.keys(spans).length > 0),
+    ),
   ),
   listing_id: v.pipe(v.number(), v.integer(), v.minValue(1)),
   price: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0))),

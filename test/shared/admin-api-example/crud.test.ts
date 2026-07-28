@@ -19,8 +19,8 @@ import {
 } from "#test-utils/api-schemas.ts";
 import { documented, freshTotals, isBlank, jsonLeaves } from "./helpers.ts";
 
-/** A stored datetime says which timezone it is in (see the listings table's
- * normalizer, which refuses one that does not). */
+/** A stored datetime says which timezone it is in. Storage appends "Z" to one
+ * that does not, which is a guess we should never document. */
 const TZ_SUFFIX = /(?:Z|[+-]\d{2}:\d{2})$/i;
 
 /** A stored datetime is what the system reads back, so a documented one must
@@ -28,6 +28,16 @@ const TZ_SUFFIX = /(?:Z|[+-]\d{2}:\d{2})$/i;
 const asStored = (date: string): string => new Date(date).toISOString();
 
 describe("documented admin CRUD endpoints", () => {
+  test("a created listing is answered with in full, and nothing more", () => {
+    // The strict shape refuses a key the record does not have, so a total that
+    // is removed or renamed cannot linger in the documented answer.
+    const created = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "POST", "/api/admin/listings").response,
+    ).listing;
+
+    expect(() => v.parse(AdminListingSchema, created)).not.toThrow();
+  });
+
   test("the admin listing list also shows the groups a listing is in", () => {
     const listEndpoint = documented(
       ADMIN_API_ENDPOINTS,
@@ -84,9 +94,9 @@ describe("documented admin CRUD endpoints", () => {
   });
 
   test("a documented date is one the system could store", () => {
-    // Storage appends "Z" to a value with no timezone, which turns a friendly
-    // date into an invalid one and refuses the write. Every documented date
-    // must therefore say its timezone and read back exactly as written.
+    // A friendly date is refused outright, and a date with no timezone is
+    // guessed at rather than refused. Every documented date must therefore say
+    // its timezone and read back exactly as written.
     const dates = ADMIN_API_ENDPOINTS.filter(
       (endpoint) => endpoint.request !== undefined,
     )
@@ -114,8 +124,10 @@ describe("documented admin CRUD endpoints", () => {
     ).listing;
 
     expect(created.bookable_days).toEqual([...VALID_DAY_NAMES]);
+    // The stored column's own default, which is what a create that says
+    // nothing about this field gets.
     expect(created.maximum_days_after).toBe(
-      listingCatalogFields.maximumDaysAfter[4],
+      listingCatalogFields.maximumDaysAfter[1].default!(),
     );
   });
 
