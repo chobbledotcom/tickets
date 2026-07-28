@@ -1,4 +1,5 @@
 import { beforeEach } from "@std/testing/bdd";
+import type { BuildSiteResult, PreparedBuildSite } from "#shared/builder.ts";
 import type {
   BuiltSite,
   BuiltSiteFormInput,
@@ -6,7 +7,25 @@ import type {
 import type { SiteAssignmentDelivery } from "#shared/payment-completion-delivery.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { required } from "#test-utils/required.ts";
+import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
+
+/** What a successful build hands back to the app. */
+export const BUILT_SITE_RESULT = {
+  dbProvider: "bunny",
+  dbToken: "database-token",
+  dbUrl: "libsql://built-site.test",
+  defaultHostname: "00001.example.test",
+  hostingId: "123",
+  hostingProvider: "bunny",
+  ok: true,
+} satisfies BuildSiteResult;
+
+/** The same site, as handed to the app to write down before it is finished. */
+export const PREPARED_BUILT_SITE = {
+  ...BUILT_SITE_RESULT,
+  scheduledTaskKey: TEST_SCHEDULED_KEY,
+} satisfies PreparedBuildSite;
 
 /** The built-sites admin routes 404 unless CAN_BUILD_SITES is on (the feature
  * is hidden otherwise), so a helper that drives those routes to make test data

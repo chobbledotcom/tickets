@@ -27,6 +27,8 @@ import {
 } from "#shared/site-assignment-paid.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  BUILT_SITE_RESULT,
+  PREPARED_BUILT_SITE,
   runSiteAssignment,
   useRenewalTier,
 } from "#test-utils/db-helpers/built-sites.ts";
@@ -183,10 +185,30 @@ describeWithEnv(
       using _build = stub(builderApi, "buildSite", () =>
         Promise.resolve({ error: "the builder said no", ok: false as const }),
       );
+      // The builder failing is logged, and that log is not what is under test.
+      using _quiet = stub(console, "error");
 
       await expect(
         applyPaidSiteAssignment(assignmentDelivery(), () => Promise.resolve()),
       ).rejects.toThrow("Could not build a site for this payment");
+    });
+
+    test("reports a freshly built site being claimed before it is reserved", async () => {
+      // The builder makes a site, but another payment claims it in the moment
+      // between building it and reserving it. There is nothing left to hand
+      // over, so this payment must say so rather than take someone else's site.
+      using _build = stub(builderApi, "buildSite", async (_input, retain) => {
+        await retain(PREPARED_BUILT_SITE);
+        await execute(
+          "UPDATE built_sites SET assignment_effect = ? WHERE assignment_effect IS NULL",
+          ["another-payment"],
+        );
+        return BUILT_SITE_RESULT;
+      });
+
+      await expect(
+        applyPaidSiteAssignment(assignmentDelivery(), () => Promise.resolve()),
+      ).rejects.toThrow("Could not reserve a site for this payment");
     });
 
     test("a site that was taken over between the payment and the work is refused", async () => {
@@ -239,6 +261,41 @@ describeWithEnv(
       await expect(
         applyPaidSiteAssignment(stored, () => Promise.resolve()),
       ).rejects.toThrow("was removed");
+    });
+
+    test("a site removed while its new dates were being pushed is reported", async () => {
+      // The site was still there when the work started and the new dates went
+      // out to it, but it was deleted before they could be written down here.
+      await insertBuiltSite(
+        "Ready",
+        "vanishing.example.com",
+        "",
+        "",
+        true,
+        "86",
+      );
+      let reserved: SiteAssignmentDelivery | null = null;
+      const secrets = stub(bunnyCdnApi, "setEdgeScriptSecret", async () => {
+        await execute("DELETE FROM built_sites WHERE id = ?", [
+          reserved?.site?.siteId ?? 0,
+        ]);
+        return { ok: true as const };
+      });
+
+      try {
+        await expect(
+          applyPaidSiteAssignment(assignmentDelivery(), (next) => {
+            reserved = next;
+            return Promise.resolve();
+          }),
+        ).rejects.toThrow("was removed");
+      } finally {
+        secrets.restore();
+      }
+
+      // The dates did reach the site, so this is the later refusal — the site
+      // went away after the push, not before the work started.
+      expect(secrets.calls.length).toBeGreaterThan(0);
     });
 
     test("the buyer's email names every site they bought", async () => {

@@ -1,32 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  type BuildSiteResult,
-  builderApi,
-  type PreparedBuildSite,
-} from "#shared/builder.ts";
+import { builderApi } from "#shared/builder.ts";
 import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
 import { builtSites } from "#shared/db/built-sites.ts";
 import { buildAssignableSite, buildRetainedSite } from "#shared/site-build.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  BUILT_SITE_RESULT,
+  PREPARED_BUILT_SITE,
+} from "#test-utils/db-helpers/built-sites.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
-
-const BUILD_RESULT = {
-  dbProvider: "bunny",
-  dbToken: "database-token",
-  dbUrl: "libsql://built-site.test",
-  defaultHostname: "00001.example.test",
-  hostingId: "123",
-  hostingProvider: "bunny",
-  ok: true,
-} satisfies BuildSiteResult;
-
-const PREPARED_SITE = {
-  ...BUILD_RESULT,
-  scheduledTaskKey: TEST_SCHEDULED_KEY,
-} satisfies PreparedBuildSite;
 
 describeWithEnv("site build", { db: true }, () => {
   test("checks builder storage before provider provisioning", async () => {
@@ -49,8 +34,8 @@ describeWithEnv("site build", { db: true }, () => {
   test("retains a local bundle before reporting success", async () => {
     const buildStub = stub(builderApi, "buildSite", async (input, retain) => {
       expect(input).toEqual({ code: "local bundle", siteName: "Local Site" });
-      await retain(PREPARED_SITE);
-      return BUILD_RESULT;
+      await retain(PREPARED_BUILT_SITE);
+      return BUILT_SITE_RESULT;
     });
     try {
       expect(
@@ -58,7 +43,7 @@ describeWithEnv("site build", { db: true }, () => {
           code: "local bundle",
           siteName: "Local Site",
         }),
-      ).toMatchObject({ result: BUILD_RESULT });
+      ).toMatchObject({ result: BUILT_SITE_RESULT });
       expect(await builtSites.getAll()).toMatchObject([
         {
           name: "Local Site",
@@ -75,9 +60,9 @@ describeWithEnv("site build", { db: true }, () => {
     let retainedAssignable: boolean | undefined;
     const buildStub = stub(builderApi, "buildSite", async (input, retain) => {
       requestedName = input.siteName;
-      await retain(PREPARED_SITE);
+      await retain(PREPARED_BUILT_SITE);
       retainedAssignable = (await builtSites.getAll())[0]!.assignable;
-      return BUILD_RESULT;
+      return BUILT_SITE_RESULT;
     });
     try {
       const site = await buildAssignableSite();
@@ -109,7 +94,7 @@ describeWithEnv("site build", { db: true }, () => {
 
   test("rejects a builder success that was not retained", async () => {
     const buildStub = stub(builderApi, "buildSite", () =>
-      Promise.resolve(BUILD_RESULT),
+      Promise.resolve(BUILT_SITE_RESULT),
     );
     try {
       await expect(buildAssignableSite()).rejects.toThrow(
