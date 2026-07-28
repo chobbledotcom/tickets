@@ -34,12 +34,16 @@ const publicListingEntries = {
 };
 
 /** Only a listing sold by the day is asked for the dates it is free, so any
- * other kind carrying them is an answer the endpoints never give. */
-const datesOnlyWhenDaily = (listing: {
-  availableDates?: unknown;
-  listingType: string;
-}): boolean =>
-  listing.availableDates === undefined || listing.listingType === "daily";
+ * other kind carrying them is an answer the endpoints never give. Written
+ * against an unknown shape so it can sit on either arm of the union below,
+ * whatever extra fields the surface adds. */
+const datesOnlyWhenDaily = <T>(listing: T): boolean => {
+  const { availableDates, listingType } = listing as {
+    availableDates?: unknown;
+    listingType?: unknown;
+  };
+  return availableDates === undefined || listingType === "daily";
+};
 
 /** A public listing, plus whatever extra the surface adds. A listing sold by
  * the day always prices its day counts, and one sold by the unit never does,
