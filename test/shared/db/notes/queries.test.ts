@@ -22,6 +22,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 /** Create a listing + attendee and return the attendee id. */
 const makeAttendee = async (name = "Note Target"): Promise<number> => {
@@ -230,8 +231,11 @@ describeWithEnv("db > notes", { db: true }, () => {
 
     // The stale-note cleanup runs on every refresh, almost always with nothing
     // to remove, so this path must not cost a round trip.
-    await deleteNotes(attendeeNotes(owner), []);
+    const { roundTrips } = await runAndCountRoundTrips(() =>
+      deleteNotes(attendeeNotes(owner), []),
+    );
 
+    expect(roundTrips).toBe(0);
     expect(await getNoteRows("attendee", [owner])).toHaveLength(1);
   });
 });
