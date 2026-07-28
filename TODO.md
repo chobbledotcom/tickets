@@ -1694,3 +1694,27 @@ Starting point: `src/ui/client/scanner.js`, the confirmation branches around its
 handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
 for how a client script is driven without a real browser.
 
+
+## Watch for ports being taken between tests
+
+*Origin: the chunk that took `scripts/stripe-mock/install.ts` to a full
+mutation score (#1966), and the flaky runs it uncovered.*
+
+The tests under `test/scripts/stripe-mock/install/` failed about one run in
+three: five failed runs out of roughly fifteen, a different test each time, and
+each one passing when run on its own.
+
+The cause was a port being taken between choosing it and using it.
+`withUnusedPort` opens a port to find a free one, closes it, and hands the
+number over. Another test starting at that moment can take the same number. The
+starter then sees something already listening and reports success, so a test
+that asked for a failure was handed somebody else's mock instead.
+
+`expectStartFails` now treats that as "ask again on a fresh port" rather than a
+pass, and gives up loudly if it keeps happening.
+
+What is left is a wider version of the same problem: any test that picks a port
+and then lets go of it before use can be gazumped. The install tests are the
+ones that noticed, because they are the ones that assert a failure. Worth
+looking at whether ports should be handed out so that no two tests in a run can
+ever receive the same one.
