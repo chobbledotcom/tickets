@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "c65356a90569f76c8d1d25325a353a82d242f54204b31a12c5f60eecd8fd9c86",
+    "d95a919baacf87025c40bcbab9cc734a2ecb16f415b71de0256f0c35de56f374",
   );
 });
 
@@ -248,6 +248,43 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
         (case_id, case_revision, claim, state, attempt_count, created_at,
          last_attempt_at, next_retry_at, last_error)
         VALUES (2, 1, 'enc:1:a:b', 'retrying', 0, 1, NULL, 1, 'enc:1:a:b')`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses an old charge whose refund time is not a time", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_charges
+        (payment_id, origin, provider_reference, refund_state,
+         provider_refunded_at, legacy_source, created_at, updated_at,
+         observed_at)
+        VALUES ('bad-refund-time', 'legacy', 'hyb:1:reference', 'unknown',
+          'banana', 'processed_payments', 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses an empty claim on a payment", async () => {
+    // An empty claim matches another empty one, so two workers could both
+    // believe they had the payment to themselves.
+    await expect(
+      getDb().execute(`INSERT INTO payment_sessions
+        (id, origin, state, revision, created_at, updated_at, result_state,
+         ticket_state, completion_state, legacy_runtime, lease_token,
+         lease_expires_at)
+        VALUES ('empty-claim', 'legacy', 'created', 1, 1, 1, 'none', 'none',
+          'none', 'enc:1:a:b', '', 9)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses an empty claim on sending a case alert", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_cases
+        (payment_id, resource, resource_index, reason, state,
+         first_observed_at, last_observed_at, consecutive_count, evidence,
+         revision, alerted_at, alerted_revision, alert_lease_token,
+         alert_lease_expires_at)
+        VALUES ('empty-alert-claim', 'enc:1:a:b', 'empty-alert-index',
+          'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1, 1, 1,
+          '', 9)`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 

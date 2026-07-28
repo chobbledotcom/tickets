@@ -58,7 +58,11 @@ export const paymentChargeTable: [name: string, table: Table] = [
         "pending_refund_key_index",
         "TEXT CHECK (pending_refund_key_index IS NULL OR length(pending_refund_key_index) > 0)",
       ],
-      ["provider_refunded_at", "TEXT"],
+      // Kept as the old record wrote it, so it must at least look like a time.
+      [
+        "provider_refunded_at",
+        "TEXT CHECK (provider_refunded_at IS NULL OR provider_refunded_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*Z')",
+      ],
       ["legacy_source", "TEXT"],
       [
         "created_at",

@@ -54,7 +54,12 @@ export const paymentSessionTable: [name: string, table: Table] = [
         "updated_at",
         "INTEGER NOT NULL CHECK (typeof(updated_at) = 'integer' AND updated_at >= created_at)",
       ],
-      ["lease_token", "TEXT"],
+      // An empty claim would match another empty one, so two workers could
+      // both think they held the payment.
+      [
+        "lease_token",
+        "TEXT CHECK (lease_token IS NULL OR length(trim(lease_token)) > 0)",
+      ],
       [
         "lease_expires_at",
         "INTEGER CHECK (lease_expires_at IS NULL OR (typeof(lease_expires_at) = 'integer' AND lease_expires_at >= 0))",

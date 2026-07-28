@@ -45,7 +45,12 @@ export const paymentCaseTable: [name: string, table: Table] = [
         "alert_sent_revision",
         "INTEGER CHECK (alert_sent_revision IS NULL OR (typeof(alert_sent_revision) = 'integer' AND alert_sent_revision >= 1))",
       ],
-      ["alert_lease_token", "TEXT"],
+      // An empty claim would match another empty one, so two workers could
+      // both send the owner the same alert.
+      [
+        "alert_lease_token",
+        "TEXT CHECK (alert_lease_token IS NULL OR length(trim(alert_lease_token)) > 0)",
+      ],
       [
         "alert_lease_expires_at",
         "INTEGER CHECK (alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= 0))",

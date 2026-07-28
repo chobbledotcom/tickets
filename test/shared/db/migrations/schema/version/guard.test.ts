@@ -102,7 +102,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-22_maintenance_completion",
         "2026-07-26_payment_records",
       ],
-      schemaHash: "ps7chc",
+      schemaHash: "t51rtt",
     });
   });
 
