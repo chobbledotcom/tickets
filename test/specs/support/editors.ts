@@ -42,9 +42,36 @@ const PRIVATE_PAGES: Record<string, string> = {
 export const privatePagePath = (page: string): string =>
   requiredWorldValue(PRIVATE_PAGES[page], `a page called "${page}"`);
 
-/** What the site links to from wherever the editor is standing. */
-export const linksOnPage = (browser: TestBrowser): string[] =>
-  browser.links.map(({ href }) => href);
+/** Everything the person is about to send has to be something they could
+ * really type or pick on the page in front of them. */
+const expectCanReallyType = (
+  browser: TestBrowser,
+  values: Record<string, string>,
+): void => {
+  for (const [box, typed] of Object.entries(values)) {
+    expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
+  }
+};
+
+/** Each admin page the editor is offered, paired with what the site answers
+ * when they follow it. Only admin links are asked about — a link to the public
+ * site or off it is nobody's to gate. */
+export const pagesOfferedTo = async (
+  browser: TestBrowser,
+): Promise<Array<{ answered: number; href: string }>> => {
+  const offered = [
+    ...new Set(
+      browser.links
+        .map(({ href }) => href)
+        .filter((href) => href.startsWith("/admin/")),
+    ),
+  ];
+  const asked = [];
+  for (const href of offered) {
+    asked.push({ answered: await browser.statusOf(href), href });
+  }
+  return asked;
+};
 
 /** The owner invites somebody to edit, and copies the link they are given.
  * The role is chosen from the roles the form itself offers, so a form that
@@ -58,16 +85,9 @@ export const ownerInvitesEditor = async (
   // Both of the owner's choices have to be ones they could really make on the
   // page, or an invite could be crafted that no owner can send.
   expect(browser.pageText).toContain(t("fields.user.editor"));
-  for (const [box, typed] of [
-    ["admin_level", "editor"],
-    ["username", who],
-  ] as const) {
-    expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
-  }
-  await browser.submitForm(
-    { admin_level: "editor", username: who },
-    t("users.invite.submit"),
-  );
+  const chosen = { admin_level: "editor", username: who };
+  expectCanReallyType(browser, chosen);
+  await browser.submitForm(chosen, t("users.invite.submit"));
   // The owner reads the link off the page and passes it on, which is the only
   // way the invited person ever hears about it.
   const link = browser.pageText.match(/\/join\/[A-Za-z0-9_-]+/);
@@ -86,9 +106,7 @@ export const editorFollowsInvite = async (
     password: CHOSEN_PASSWORD,
     password_confirm: CHOSEN_PASSWORD,
   };
-  for (const [box, typed] of Object.entries(chosen)) {
-    expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
-  }
+  expectCanReallyType(browser, chosen);
   await browser.submitForm(chosen, t("join.set_password.submit"));
   world.editorBrowser = browser;
 };
@@ -101,10 +119,9 @@ export const editorLogsIn = async (
 ): Promise<TestBrowser> => {
   const browser = new TestBrowser();
   await browser.visit("/admin/");
-  await browser.submitForm(
-    { password: CHOSEN_PASSWORD, username: who },
-    t("login.submit"),
-  );
+  const typed = { password: CHOSEN_PASSWORD, username: who };
+  expectCanReallyType(browser, typed);
+  await browser.submitForm(typed, t("login.submit"));
   world.editorBrowser = browser;
   return browser;
 };
@@ -152,11 +169,9 @@ export const editorAddsListing = async (
   const browser = editorBrowser(world);
   await browser.visit("/admin/listing/new");
   await browser.clickLink(t("listings_table.listing_type_picker_custom"));
-  expect(whyValueCannotBeSent(browser.currentHtml, "name", name)).toBeNull();
-  await browser.submitForm(
-    { max_attendees: "10", max_quantity: "1", name },
-    t("listings_table.create_listing"),
-  );
+  const typed = { max_attendees: "10", max_quantity: "1", name };
+  expectCanReallyType(browser, typed);
+  await browser.submitForm(typed, t("listings_table.create_listing"));
 };
 
 /** What the site sells under this name, or nothing when it sells no such
@@ -184,9 +199,16 @@ export const editorCraftsForwardingTo = async (
   name: string,
   address: string,
 ): Promise<void> => {
-  await savesListingForwarding(editorBrowser(world), world, name, address, {
+  const browser = editorBrowser(world);
+  await savesListingForwarding(browser, world, name, address, {
     throughTheBox: false,
   });
+  // The save itself has to have been accepted. A whole edit turned away would
+  // leave the address alone too, and prove nothing about this one field.
+  expect(browser.currentUrl).toBe(
+    `/admin/listing/${stayListing(world, name).id}/edit`,
+  );
+  expect(browser.containsText("Listing updated")).toBe(true);
 };
 
 /** The owner makes the same change the ordinary way, through the box their own

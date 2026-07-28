@@ -217,3 +217,11 @@ const expectBookingPageNaming = (shown: boolean) =>
 
 Then("the booking page named the {word}", expectBookingPageNaming(true));
 Then("the booking page never named the {word}", expectBookingPageNaming(false));
+
+Then("the organiser is told it saved", function (this: TicketsWorld): void {
+  // A save that quietly failed would leave the same bundle behind as one the
+  // site refused, so the story reads what the organiser was actually told.
+  expect(
+    requiredWorldValue(this.bundleRefusal, "what the organiser was told"),
+  ).toContain("Group updated");
+});

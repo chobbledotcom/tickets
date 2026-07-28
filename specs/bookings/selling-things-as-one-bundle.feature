@@ -13,9 +13,8 @@ Feature: An organiser sells several things as one bundle
   @surface:admin
   Rule: A bundle sets its own price for each part
     The organiser sets a price against each thing in the bundle, and that is
-    what the bundle keeps. A price left blank is not a price of zero: the
-    bundle keeps none of its own for that thing, and the thing's own price
-    stands.
+    what the bundle keeps. Leaving one blank is a real answer, not a price of
+    zero: the bundle simply keeps no price of its own for that thing.
 
     @case:bundles.pricing-each-part
     Scenario: The organiser prices the things inside a bundle
@@ -88,7 +87,8 @@ Feature: An organiser sells several things as one bundle
       And their ticket names the Tent
       And their ticket names the Breakfast
       When the organiser stops selling the Weekend as a bundle
-      Then the Weekend is no longer sold as one bundle
+      Then the organiser is told it saved
+      And the Weekend is no longer sold as one bundle
       And their ticket names the Tent
       And their ticket names the Breakfast
 
@@ -122,6 +122,7 @@ Feature: An organiser sells several things as one bundle
       And the organiser sells the Weekend as a bundle, with the Tent at 25.00 and the Breakfast left blank
       And a customer buys the Weekend
       When the organiser stops selling the Weekend as a bundle
-      Then the Weekend is no longer sold as one bundle
+      Then the organiser is told it saved
+      And the Weekend is no longer sold as one bundle
       And their ticket names the Tent
       And their ticket names the Breakfast

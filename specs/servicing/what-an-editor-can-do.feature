@@ -57,11 +57,11 @@ Feature: An owner gives someone the run of the listings, and nothing else
         | editors.refused-the-settings  | settings          |
 
     @case:editors.nothing-they-cannot-open-is-linked
-    Scenario: The editor is offered only the pages they can open
+    Scenario: Every page the editor is offered opens for them
       Given Sam is signed in as an editor
       When Sam opens the listings
       Then Sam is offered the listings and the groups
-      And Sam is offered nothing about attendees, money, people or settings
+      And every page Sam is offered is one they can open
 
     @case:editors.the-listings-show-no-money
     Scenario: The list of things for sale shows an editor no takings

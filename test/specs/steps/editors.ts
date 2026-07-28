@@ -11,11 +11,11 @@ import {
   editorLogsIn,
   editorOpensListing,
   forwardingAddress,
-  linksOnPage,
   listingSoldAsOrNull,
   OWNERS_ADDRESS,
   ownerInvitesEditor,
   ownerSetsForwardingTo,
+  pagesOfferedTo,
   privatePagePath,
   SOMEWHERE_ELSE,
   signedInEditor,
@@ -144,31 +144,25 @@ Then(
 
 Then(
   "{word} is offered the listings and the groups",
-  function (this: TicketsWorld, _who: string): void {
-    const offered = linksOnPage(editorBrowser(this));
+  async function (this: TicketsWorld, _who: string): Promise<void> {
+    const offered = (await pagesOfferedTo(editorBrowser(this))).map(
+      ({ href }) => href,
+    );
     expect(offered).toContain("/admin/listings");
     expect(offered).toContain("/admin/groups");
   },
 );
 
 Then(
-  "{word} is offered nothing about attendees, money, people or settings",
-  function (this: TicketsWorld, _who: string): void {
-    // Every page the story proves is refused must also be unlinked, or the
-    // editor is offered a door that shuts in their face. Anything *under* one
-    // of those pages counts too — a link carrying a page number or a filter is
-    // just as dead to them.
-    const offered = linksOnPage(editorBrowser(this));
-    for (const page of ["list of attendees", "money", "people", "settings"]) {
-      const shut = privatePagePath(page);
-      const deadEnds = offered.filter(
-        (href) =>
-          href === shut ||
-          href.startsWith(`${shut}/`) ||
-          href.startsWith(`${shut}?`),
-      );
-      expect(deadEnds).toEqual([]);
-    }
+  "every page {word} is offered is one they can open",
+  async function (this: TicketsWorld, _who: string): Promise<void> {
+    // Asking the site about each link is stronger than naming the pages an
+    // editor must not see: a page nobody thought of is covered too, and a link
+    // that shuts in their face fails wherever it came from.
+    const asked = await pagesOfferedTo(editorBrowser(this));
+    expect(asked.length).toBeGreaterThan(0);
+    const shutInTheirFace = asked.filter(({ answered }) => answered !== 200);
+    expect(shutInTheirFace).toEqual([]);
   },
 );
 
