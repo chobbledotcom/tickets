@@ -78,7 +78,8 @@ export default bareSchemaMigration(
     await addColumn(execute, "entity_type TEXT NOT NULL DEFAULT 'attendee'");
     await addColumn(execute, "entity_id INTEGER NOT NULL DEFAULT 0");
     await moveNotesToTargets(execute);
-    await recreateTable("system_notes"); // rebuild from SCHEMA, dropping attendee_id
-    await syncIndexes(); // idx_system_notes_entity in place of the attendee one
+    // The rebuild drops attendee_id, and takes the table's indexes from SCHEMA
+    // as it goes, so idx_system_notes_entity arrives with it.
+    await recreateTable("system_notes");
   },
 );

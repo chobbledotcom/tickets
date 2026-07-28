@@ -203,24 +203,29 @@ describeWithEnv(
       expect(await indexExists("idx_system_notes_entity")).toBe(true);
     });
 
-    test("stops when adding a column fails for any other reason", async () => {
-      await downgradeToAttendeeNotes();
-      const brokenDatabase = () => ({
-        execute: () => Promise.reject(new Error("database or disk is full")),
-      });
+    for (const failing of ["ALTER", "UPDATE"]) {
+      test(`stops when ${failing} fails for any other reason`, async () => {
+        await downgradeToAttendeeNotes();
+        // Only this one statement fails, and not with an "already so" answer,
+        // so each step's tolerance has to be about its own answer alone.
+        const database = () => ({
+          execute: (sql: string) =>
+            sql.startsWith(failing)
+              ? Promise.reject(new Error("database or disk is full"))
+              : Promise.resolve({}),
+        });
 
-      // A column that is already there is taken as done; anything else means
-      // the database could not do what was asked, and must not be swallowed.
-      await expect(
-        noteEntities(
-          buildMigrationContext({
-            getDb: brokenDatabase as unknown as MigrationContext["getDb"],
-            recreateTable,
-            syncIndexes,
-          }),
-        ).up(),
-      ).rejects.toThrow("database or disk is full");
-    });
+        await expect(
+          noteEntities(
+            buildMigrationContext({
+              getDb: database as unknown as MigrationContext["getDb"],
+              recreateTable,
+              syncIndexes,
+            }),
+          ).up(),
+        ).rejects.toThrow("database or disk is full");
+      });
+    }
 
     test("is registered under the id it declares, and says what it does", () => {
       const { description, id } = migration();
