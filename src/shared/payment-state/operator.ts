@@ -1,37 +1,55 @@
 import * as v from "valibot";
+import type { Money } from "#shared/payment-state/resources.ts";
 import {
   MoneySchema,
   ProviderChargeResourceSchema,
   ProviderSessionResourceSchema,
 } from "#shared/payment-state/resources.ts";
 
+/** Money given back fits inside the money taken, and is the same kind of money.
+ *  Shared because several written-down readings carry both figures. */
+export const refundFitsInsideCapture = (money: {
+  captured: Money;
+  refunded: Money;
+}): boolean =>
+  money.refunded.currency === money.captured.currency &&
+  money.refunded.amount <= money.captured.amount;
+
+/** Adds the money rule to any reading that carries both figures. */
+const withRefundRule = <
+  TSchema extends v.GenericSchema<{ captured: Money; refunded: Money }>,
+>(
+  schema: TSchema,
+) =>
+  v.pipe(
+    schema,
+    v.check(
+      (money) => refundFitsInsideCapture(money),
+      "Money returned must fit inside the money taken, in the same currency",
+    ),
+  );
+
 /** A reading that says which money an old payment turned out to be. Each part
  *  is checked against the others, because this reading is what an owner's
  *  choice to give an old payment a provider is written down from — and that
  *  choice moves real money. */
-const attachedReadSchema = v.pipe(
-  v.strictObject({
-    captured: MoneySchema,
-    charge: ProviderChargeResourceSchema,
-    refunded: MoneySchema,
-    session: ProviderSessionResourceSchema,
-    status: v.literal("attached"),
-  }),
-  v.check(
-    (read) => read.charge.provider === read.session.provider,
-    "Charge must come from the same provider as the checkout",
-  ),
-  v.check(
-    (read) => read.charge.parentId === read.session.id,
-    "Charge must belong to the checkout it is attached to",
-  ),
-  v.check(
-    (read) => read.refunded.currency === read.captured.currency,
-    "Money returned must be in the same currency as the money taken",
-  ),
-  v.check(
-    (read) => read.refunded.amount <= read.captured.amount,
-    "Money returned cannot be more than the money taken",
+const attachedReadSchema = withRefundRule(
+  v.pipe(
+    v.strictObject({
+      captured: MoneySchema,
+      charge: ProviderChargeResourceSchema,
+      refunded: MoneySchema,
+      session: ProviderSessionResourceSchema,
+      status: v.literal("attached"),
+    }),
+    v.check(
+      (read) => read.charge.provider === read.session.provider,
+      "Charge must come from the same provider as the checkout",
+    ),
+    v.check(
+      (read) => read.charge.parentId === read.session.id,
+      "Charge must belong to the checkout it is attached to",
+    ),
   ),
 );
 
@@ -43,11 +61,13 @@ export const LegacyProviderAssignmentReadSchema = v.variant("status", [
     status: v.literal("ambiguous"),
   }),
   v.strictObject({ status: v.literal("missing") }),
-  v.strictObject({
-    captured: MoneySchema,
-    refunded: MoneySchema,
-    status: v.literal("reviewed"),
-  }),
+  withRefundRule(
+    v.strictObject({
+      captured: MoneySchema,
+      refunded: MoneySchema,
+      status: v.literal("reviewed"),
+    }),
+  ),
 ]);
 export type LegacyProviderAssignmentRead = v.InferOutput<
   typeof LegacyProviderAssignmentReadSchema

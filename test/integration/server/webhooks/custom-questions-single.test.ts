@@ -187,13 +187,8 @@ describeWithEnv(
 
       const stringIds = await getOrCreateStringIds(["Step-free entrance"]);
 
-      // lostQ's ref carries no `s` — the corrupt shape a pre-fix checkout wrote
-      // when the string-id read raced replication and JSON.stringify dropped it.
-      // nonsenseQ's carries an `s` that is not a string id at all: the metadata
-      // is parsed but never validated, so anything can arrive there, and saving
-      // it would write an answer pointing at no stored text.
-      // The payment is already captured, so the booking must finalize (200,
-      // processed) rather than crash-loop on the unsupported undefined bind.
+      // lostQ's ref has no `s`; nonsenseQ's `s` is not a string id. The money
+      // is already taken, so the booking must still finalize.
       await expectWebhookProcessed(
         checkoutSessionEvent({
           amountTotal: 1000,
@@ -239,7 +234,7 @@ describeWithEnv(
       const log = await getAllActivityLog();
       expect(
         log.some((entry) =>
-          entry.message.includes("Text answer ref missing string id"),
+          entry.message.includes("Text answer ref has no usable string id"),
         ),
       ).toBe(true);
     });

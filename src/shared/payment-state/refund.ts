@@ -1,9 +1,17 @@
 import type {
   ChargeLeg,
+  ProviderRefundResource,
   RefundObservation,
   RefundResolution,
 } from "#shared/payment-state/resources.ts";
 import { refundMoneyMatchesCapture } from "#shared/payment-state/resources.ts";
+
+/** The provider's own refund, when it has named one. Left out entirely when it
+ *  has not, rather than carried as nothing. */
+const named = (
+  refund: ProviderRefundResource | undefined,
+): { refund: ProviderRefundResource } | Record<never, never> =>
+  refund === undefined ? {} : { refund };
 
 const observedRefund = (
   refunds: RefundObservation[],
@@ -17,7 +25,7 @@ const confirmedRefund = (
   observation: RefundObservation | undefined,
 ): RefundResolution => ({
   amount: charge.confirmedRefunded,
-  ...(observation?.refund === undefined ? {} : { refund: observation.refund }),
+  ...named(observation?.refund),
   status,
 });
 
@@ -43,9 +51,7 @@ export const resolveRefund = (charge: ChargeLeg): RefundResolution => {
   if (pendingRefund !== undefined) {
     return {
       amount: pendingRefund.amount,
-      ...(pendingRefund.refund === undefined
-        ? {}
-        : { refund: pendingRefund.refund }),
+      ...named(pendingRefund.refund),
       status: "pending",
     };
   }
@@ -59,7 +65,7 @@ export const resolveRefund = (charge: ChargeLeg): RefundResolution => {
   const failed = observedRefund(charge.refunds, "failed");
   return {
     amount: charge.confirmedRefunded,
-    ...(failed?.refund === undefined ? {} : { refund: failed.refund }),
+    ...named(failed?.refund),
     reason: failed === undefined ? "not_observed" : "provider_failed",
     status: "failed",
   };

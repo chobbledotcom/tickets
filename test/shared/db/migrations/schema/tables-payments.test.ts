@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "80e1189f9c0c94d180e172b53736287d387b0f40ed28eabb53ba33fd089bdd29",
+    "3b04e5400b7e20a5a9ea9fb7928d8c950549041b4b7b5d176f2b8c87e8930420",
   );
 });
 
@@ -324,6 +324,32 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
          consecutive_count, evidence, revision)
         VALUES ('retry-too-soon', 'enc:1:a:b', 'retry-soon-index',
           'network_error', 'retrying', 1, 100, 1, 1, 'enc:1:a:b', 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses details hidden behind an upper-case envelope", async () => {
+    // SQLite's LIKE ignores case, so "ENC:1:" once passed for encrypted while
+    // no reader would ever decrypt it. The rules use GLOB, which does not.
+    await expect(
+      getDb().execute(`INSERT INTO payment_sessions
+        (id, origin, provider, mode, account_id, expected_amount,
+         expected_currency, booking_intent, session_resource,
+         session_reference_index, state, revision, created_at, updated_at,
+         result_state, ticket_state, completion_state)
+        VALUES ('shouty', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
+          'ENC:1:Jane Smith', 'enc:1:a:b', 'shouty-index', 'pending', 1, 1, 1,
+          'none', 'none', 'none')`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a case whose lookup code is only spaces", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_cases
+        (payment_id, resource, resource_index, reason, state,
+         first_observed_at, last_observed_at, next_reconcile_at,
+         consecutive_count, evidence, revision)
+        VALUES ('spaces', 'enc:1:a:b', '   ', 'network_error', 'retrying',
+          1, 1, 1, 1, 'enc:1:a:b', 1)`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 

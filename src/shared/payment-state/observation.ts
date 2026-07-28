@@ -183,24 +183,28 @@ const foundReadSchema = v.pipe(
   ),
 );
 
-const missingReadSchema = v.strictObject({
+/** What every reading that did not find the payment carries: what was asked
+ *  for, and the proof it was ours to ask about, when there is any. */
+const unfoundReadFields = {
   ownership: v.optional(PaymentOwnershipProofSchema),
-  reason: ProviderMissingReasonSchema,
   requested: ProviderResourceSchema,
+};
+
+const missingReadSchema = v.strictObject({
+  ...unfoundReadFields,
+  reason: ProviderMissingReasonSchema,
   status: v.literal("missing"),
 });
 
 const unavailableReadSchema = v.strictObject({
-  ownership: v.optional(PaymentOwnershipProofSchema),
+  ...unfoundReadFields,
   reason: ProviderUnavailableReasonSchema,
-  requested: ProviderResourceSchema,
   status: v.literal("unavailable"),
 });
 
 const invalidReadSchema = v.strictObject({
-  ownership: v.optional(PaymentOwnershipProofSchema),
+  ...unfoundReadFields,
   reason: ProviderInvalidReasonSchema,
-  requested: ProviderResourceSchema,
   returned: v.optional(ProviderResourceSchema),
   status: v.literal("invalid"),
 });

@@ -182,7 +182,7 @@ const textRefsWithStringId = (
     } else {
       logError({
         code: ErrorCode.DATA_INVALID,
-        detail: `Text answer ref missing string id (question=${ref.q})`,
+        detail: "Text answer ref has no usable string id",
         listingId,
       });
     }

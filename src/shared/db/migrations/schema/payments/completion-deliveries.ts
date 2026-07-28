@@ -11,7 +11,7 @@ export const paymentCompletionDeliveriesTable: [name: string, table: Table] = [
       // table demands it be encrypted rather than trusting every writer to.
       [
         "data",
-        "TEXT NOT NULL CHECK (length(trim(data)) > 0 AND data LIKE 'enc:1:%')",
+        "TEXT NOT NULL CHECK (length(trim(data)) > 0 AND data GLOB 'enc:1:*')",
       ],
       [
         "completed_at",

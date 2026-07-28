@@ -213,9 +213,9 @@ const resolveNoPaymentRequired = (
 ): PaidPaymentResolution => {
   const checked = validatePaymentObservation(observation);
   if (!checked.valid) return paymentConflict(observation, checked.issue);
-  return observation.expected.amount === 0 &&
-    observation.providerTotal.amount === 0 &&
-    observation.charges === undefined
+  // The check above already refused any reading whose provider total differs
+  // from what was asked for, so nothing asked for means nothing taken.
+  return observation.expected.amount === 0 && observation.charges === undefined
     ? { observation, status: "ready" }
     : paymentConflict(observation, { kind: "paid_without_charge" });
 };

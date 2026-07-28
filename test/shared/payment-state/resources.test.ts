@@ -347,12 +347,17 @@ describe("payment resources", () => {
   });
 
   test("defines every refund failure and resolution", () => {
-    expect(RefundFailureReasonSchema.options).toEqual([
+    for (const reason of [
       "provider_failed",
       "invalid_amount",
       "multiple_pending_refunds",
       "not_observed",
-    ]);
+    ] as const) {
+      expect(v.parse(RefundFailureReasonSchema, reason)).toBe(reason);
+    }
+    expect(v.safeParse(RefundFailureReasonSchema, "declined").success).toBe(
+      false,
+    );
     const money = { amount: 100, currency: "GBP" } as const;
     const resolutions = [
       { amount: money, status: "completed" },

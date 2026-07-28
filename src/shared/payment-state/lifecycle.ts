@@ -6,7 +6,10 @@ import {
   ProviderInvalidReasonSchema,
   ProviderUnavailableReasonSchema,
 } from "#shared/payment-state/observation.ts";
-import { LegacyProviderAssignmentReadSchema } from "#shared/payment-state/operator.ts";
+import {
+  LegacyProviderAssignmentReadSchema,
+  refundFitsInsideCapture,
+} from "#shared/payment-state/operator.ts";
 import {
   MoneySchema,
   ProviderChargeResourceSchema,
@@ -171,12 +174,8 @@ const reviewedChargeSchema = v.pipe(
     refunded: MoneySchema,
   }),
   v.check(
-    (charge) => charge.refunded.currency === charge.captured.currency,
-    "Money returned must be in the same currency as the money taken",
-  ),
-  v.check(
-    (charge) => charge.refunded.amount <= charge.captured.amount,
-    "Money returned cannot be more than the money taken",
+    (charge) => refundFitsInsideCapture(charge),
+    "Money returned must fit inside the money taken, in the same currency",
   ),
 );
 

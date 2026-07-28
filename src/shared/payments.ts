@@ -128,14 +128,14 @@ export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
  * the quantity taken. The webhook re-fetches the modifier by id and re-derives
  * its amount from the current database — provider metadata amounts are never
  * trusted. */
-const ModifierRefSchema = v.object({ i: positiveInt, q: positiveInt });
+const ModifierRefSchema = v.strictObject({ i: positiveInt, q: positiveInt });
 export type ModifierRef = v.InferOutput<typeof ModifierRefSchema>;
 
 /** A text answer that still knows which stored string it points at. Booking
  *  checks every answer against this before saving it: the metadata it came from
  *  is parsed JSON that nothing has validated, so the string id can be any shape
  *  at all. */
-export const StoredTextAnswerRefSchema = v.object({
+export const StoredTextAnswerRefSchema = v.strictObject({
   q: positiveInt,
   s: positiveInt,
 });
@@ -146,7 +146,7 @@ export type StoredTextAnswerRef = v.InferOutput<
 /** A free-text answer as it arrives in checkout metadata. The string id can be
  *  missing when it was lost between the form and the callback; booking drops
  *  that one answer rather than throwing away a paid order. */
-const TextAnswerRefSchema = v.object({
+const TextAnswerRefSchema = v.strictObject({
   ...StoredTextAnswerRefSchema.entries,
   s: v.optional(positiveInt),
 });

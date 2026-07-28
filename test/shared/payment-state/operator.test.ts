@@ -22,6 +22,18 @@ describe("payment operator readings", () => {
     ).toBe(true);
   });
 
+  test("refuses a checked reading that returned more than it took", () => {
+    // The reviewed reading carries both figures just as the attached one does,
+    // so it needs the same rule about them.
+    expect(
+      v.safeParse(LegacyProviderAssignmentReadSchema, {
+        captured: { amount: 100, currency: "GBP" },
+        refunded: { amount: 101, currency: "GBP" },
+        status: "reviewed",
+      }).success,
+    ).toBe(false);
+  });
+
   for (const [name, broken] of [
     [
       "money taken by another provider",
