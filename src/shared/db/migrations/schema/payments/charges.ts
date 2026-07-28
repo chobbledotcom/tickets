@@ -49,9 +49,15 @@ export const paymentChargeTable: [name: string, table: Table] = [
         "TEXT NOT NULL DEFAULT 'none' CHECK (refund_state IN ('none', 'requested', 'pending', 'partial', 'completed', 'failed', 'unknown'))",
       ],
       ["pending_refund_id", "TEXT"],
-      ["pending_refund_index", "TEXT"],
+      [
+        "pending_refund_index",
+        "TEXT CHECK (pending_refund_index IS NULL OR length(pending_refund_index) > 0)",
+      ],
       ["pending_refund_idempotency_key", "TEXT"],
-      ["pending_refund_key_index", "TEXT"],
+      [
+        "pending_refund_key_index",
+        "TEXT CHECK (pending_refund_key_index IS NULL OR length(pending_refund_key_index) > 0)",
+      ],
       ["provider_refunded_at", "TEXT"],
       ["legacy_source", "TEXT"],
       [

@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "10f0a68a5a2b84b48116b44237cb36ff24a4ab94e7ce4257b98628745025f008",
+    "a8f66832c609c2594a3eb0fb717a58d0aec0cde6c87d44944f5016395e72fc23",
   );
 });
 
@@ -175,6 +175,33 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
          revision, alerted_at, alerted_revision)
         VALUES ('bad-alert', 'enc:1:a:b', 'bad-alert-index', 'network_error',
           'needs_action', 1, 1, 1, 'enc:1:a:b', 1, 'bad', 0)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a charge whose pending refund index is empty", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_charges
+        (payment_id, provider, resource_kind, provider_reference,
+         reference_index, captured_amount, currency, refunded_amount,
+         refund_state, pending_refund_id, pending_refund_index,
+         created_at, updated_at, observed_at)
+        VALUES ('empty-refund-index', 'stripe', 'stripe_payment_intent',
+          'enc:1:a:b', 'refund-index-charge', 100, 'GBP', 0, 'pending',
+          'enc:1:a:b', '', 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a sent alert on a case that was never alerted", async () => {
+    // Saying an alert went out for a revision nothing was alerted at can stop
+    // the owner ever being told, once the case does need them.
+    await expect(
+      getDb().execute(`INSERT INTO payment_cases
+        (payment_id, resource, resource_index, reason, state,
+         first_observed_at, last_observed_at, next_reconcile_at,
+         consecutive_count, evidence, revision,
+         alert_sent_at, alert_sent_revision)
+        VALUES ('sent-never-alerted', 'enc:1:a:b', 'sent-index',
+          'network_error', 'retrying', 1, 1, 1, 1, 'enc:1:a:b', 1, 1, 1)`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 

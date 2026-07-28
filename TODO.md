@@ -1796,3 +1796,19 @@ result may be written while a payment is still processing, what a refunding
 payment's result says — so it should be written with that code in view rather
 than guessed. Guessing too narrowly refuses writes the runtime makes on the
 happy path.
+
+**A payment still going is believed without checking it.** `foundReadResolution`
+(`src/shared/payment-state/resolve.ts`, around line 226) answers "still going"
+for any pending reading, before `validatePaymentObservation` has run. So a
+reading whose money does not add up — a total that disagrees with what was
+asked for, a charge belonging to another checkout, a refund larger than the
+money taken — is asked about again in a minute rather than put in front of the
+owner, for as long as the provider keeps saying "pending".
+
+Checking it first is the obvious answer, but it is not safe to do blind: the
+check refuses any reading whose provider total differs from the expected
+amount, and what each provider reports as the total while a checkout is still
+open is the provider readers' business. If any of them reports zero until the
+money is taken, adding the check turns every ordinary pending payment into a
+case. Settle it with the provider readers in view, and pick which parts of the
+check apply before the money has arrived.
