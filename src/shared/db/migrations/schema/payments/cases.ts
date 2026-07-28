@@ -72,6 +72,7 @@ export const paymentCaseTable: [name: string, table: Table] = [
         `INTEGER
           CHECK (resolved_at IS NULL OR (typeof(resolved_at) = 'integer' AND resolved_at >= last_observed_at))
           CHECK ((alerted_at IS NULL) = (alerted_revision IS NULL))
+          CHECK (alerted_at IS NULL OR alerted_at >= first_observed_at)
           CHECK (alerted_revision IS NULL OR alerted_revision <= revision)
           CHECK ((alert_sent_at IS NULL) = (alert_sent_revision IS NULL))
           CHECK (alert_sent_revision IS NULL OR (alerted_revision IS NOT NULL AND alert_sent_revision = alerted_revision))

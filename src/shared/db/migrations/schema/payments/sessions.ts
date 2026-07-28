@@ -66,7 +66,7 @@ export const paymentSessionTable: [name: string, table: Table] = [
       ],
       [
         "next_reconcile_at",
-        "INTEGER CHECK (next_reconcile_at IS NULL OR (typeof(next_reconcile_at) = 'integer' AND next_reconcile_at >= 0))",
+        "INTEGER CHECK (next_reconcile_at IS NULL OR (typeof(next_reconcile_at) = 'integer' AND next_reconcile_at >= created_at))",
       ],
       [
         "attendee_id",

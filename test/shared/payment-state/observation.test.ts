@@ -49,6 +49,41 @@ describe("payment observations", () => {
     expect(v.safeParse(BookingIntentSchema, "items").success).toBe(false);
   });
 
+  // Two rules the booking facts carry that a shape check alone would miss.
+  for (const [name, broken] of [
+    [
+      "paying off a balance covers more than one line",
+      {
+        balanceAttendeeId: 7,
+        items: [
+          { e: 1, p: 100, q: 1 },
+          { e: 2, p: 100, q: 1 },
+        ],
+      },
+    ],
+    ["the deposit cannot be read", { reservationAmount: "banana" }],
+  ] as const) {
+    test(`refuses booking facts where ${name}`, () => {
+      expect(
+        v.safeParse(BookingIntentSchema, {
+          ...paymentObservation().bookingIntent,
+          ...broken,
+        }).success,
+      ).toBe(false);
+    });
+  }
+
+  test("accepts a balance payment for its single line", () => {
+    expect(
+      v.safeParse(BookingIntentSchema, {
+        ...paymentObservation().bookingIntent,
+        balanceAttendeeId: 7,
+        items: [{ e: 1, p: 100, q: 1 }],
+        reservationAmount: "10%",
+      }).success,
+    ).toBe(true);
+  });
+
   test("validates complete and charge-free observations", () => {
     expect(v.parse(PaymentObservationSchema, paymentObservation()).status).toBe(
       "paid",

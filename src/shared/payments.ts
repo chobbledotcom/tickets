@@ -12,6 +12,7 @@ import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
+import { parseReservationAmount } from "#shared/reservation-amount.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 /* jscpd:ignore-end */
@@ -192,34 +193,56 @@ type CheckoutIntentBase = ContactInfo &
   };
 
 /** Canonical booking facts persisted for a payment and sent through metadata. */
-export const BookingIntentSchema = v.strictObject({
-  address: v.string(),
-  allocations: v.optional(
-    v.array(
-      v.object({
-        childId: positiveInt,
-        parentId: positiveInt,
-        qty: positiveInt,
-      }),
+export const BookingIntentSchema = v.pipe(
+  v.strictObject({
+    address: v.string(),
+    allocations: v.optional(
+      v.array(
+        v.object({
+          childId: positiveInt,
+          parentId: positiveInt,
+          qty: positiveInt,
+        }),
+      ),
     ),
+    balanceAttendeeId: v.optional(positiveInt),
+    date: v.nullable(v.string()),
+    dayCount: v.optional(positiveInt),
+    email: v.string(),
+    items: BookingItemsSchema,
+    listingAnswerIds: v.optional(v.record(v.string(), v.array(positiveInt))),
+    listingTextAnswerIds: v.optional(
+      v.record(v.string(), v.array(TextAnswerRefSchema)),
+    ),
+    modifiers: v.array(ModifierRefSchema),
+    name: v.string(),
+    phone: v.string(),
+    // A deposit that cannot be read is turned into nothing further down, which
+    // reserves a place and leaves the whole price owed. The amount is checked
+    // when the owner saves it, and that check is stricter than this one, so a
+    // real setting always gets through here.
+    reservationAmount: v.optional(
+      v.pipe(
+        v.string(),
+        v.check(
+          (raw) => parseReservationAmount(raw) !== null,
+          "Reservation amount must be a readable amount",
+        ),
+      ),
+    ),
+    siteTokenIndex: v.optional(v.string()),
+    special_instructions: v.string(),
+    thankYouUrl: v.optional(v.string()),
+  }),
+  // Paying off a balance is one made-up line holding what is still owed, and
+  // only that line is settled. A second line would be charged for and then
+  // neither booked nor given back.
+  v.check(
+    (intent) =>
+      intent.balanceAttendeeId === undefined || intent.items.length === 1,
+    "Paying off a balance must be for one line only",
   ),
-  balanceAttendeeId: v.optional(positiveInt),
-  date: v.nullable(v.string()),
-  dayCount: v.optional(positiveInt),
-  email: v.string(),
-  items: BookingItemsSchema,
-  listingAnswerIds: v.optional(v.record(v.string(), v.array(positiveInt))),
-  listingTextAnswerIds: v.optional(
-    v.record(v.string(), v.array(TextAnswerRefSchema)),
-  ),
-  modifiers: v.array(ModifierRefSchema),
-  name: v.string(),
-  phone: v.string(),
-  reservationAmount: v.optional(v.string()),
-  siteTokenIndex: v.optional(v.string()),
-  special_instructions: v.string(),
-  thankYouUrl: v.optional(v.string()),
-});
+);
 
 /** Processed booking intent extracted from payment session metadata. */
 export type BookingIntent = v.InferOutput<typeof BookingIntentSchema>;

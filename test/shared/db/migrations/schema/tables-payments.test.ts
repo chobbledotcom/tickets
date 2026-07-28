@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "53b1ad4097d4acc617421ff75ac9bdd0bc061ba352ce9b19b175983b92d8cff8",
+    "4205a46d883ac24703f8692a63bfe52f0d52abaf98045940ce76d3de06446958",
   );
 });
 
@@ -149,6 +149,32 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
          refund_state, legacy_source, created_at, updated_at, observed_at)
         VALUES ('no-source', 'legacy', NULL, NULL, 'hyb:1:reference',
           NULL, NULL, NULL, NULL, 'unknown', NULL, 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a payment booked to be looked at before it existed", async () => {
+    // The reconcile index would show a brand-new payment as already overdue,
+    // so it would be picked up again and again with no wait between.
+    await expect(
+      getDb().execute(`INSERT INTO payment_sessions
+        (id, origin, provider, mode, account_id, expected_amount,
+         expected_currency, booking_intent, session_resource,
+         session_reference_index, state, revision, created_at, updated_at,
+         next_reconcile_at, result_state, ticket_state, completion_state)
+        VALUES ('early-reconcile', 'current', 'stripe', 'test', 'acct', 100,
+          'GBP', 'enc:1:a:b', 'enc:1:a:b', 'idx', 'pending', 1, 100, 100,
+          1, 'none', 'none', 'none')`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a case alerted before the problem was first seen", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_cases
+        (payment_id, resource, resource_index, reason, state,
+         first_observed_at, last_observed_at, consecutive_count, evidence,
+         revision, alerted_at, alerted_revision)
+        VALUES ('early-alert', 'enc:1:a:b', 'early-alert-index', 'network_error',
+          'needs_action', 100, 100, 1, 'enc:1:a:b', 1, 1, 1)`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 
