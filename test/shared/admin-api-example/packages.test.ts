@@ -7,7 +7,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
-import { parseListingFields } from "#shared/listing-fields.ts";
+import { FormParams } from "#shared/form-data.ts";
+import { tryValidateTicketFields } from "#templates/fields/ticket.ts";
 import {
   PackageBookRequestSchema,
   PackageResponseSchema,
@@ -73,6 +74,10 @@ describe("documented package endpoints", () => {
     );
 
     expect(chosen.length).toBeGreaterThan(0);
+    // The endpoint refuses two entries for one add-on that disagree on price,
+    // so each add-on under each member is chosen exactly once.
+    const picks = chosen.map(({ parent, slug }) => `${parent}/${slug}`);
+    expect(new Set(picks).size).toBe(picks.length);
     for (const { parent, quantity, slug } of chosen) {
       const offered = offeredBy.get(parent);
       if (!offered) throw new Error(`The package has no member ${parent}`);
@@ -123,13 +128,23 @@ describe("documented package endpoints", () => {
     }
   });
 
-  test("the documented booking fills in the fields the package asks for", () => {
-    // The endpoint checks the booking against the package's merged contact
-    // fields, so a booking missing one of them is refused.
-    const booking = documentedBooking();
-
-    for (const field of parseListingFields(documentedPackage().fields)) {
-      expect(booking).toHaveProperty(field);
+  test("the documented booking answers the package's questions acceptably", () => {
+    // Run the example through the very checks the endpoint runs on a real
+    // booking, so a phone number, address or email the endpoint would turn
+    // away cannot be documented as one it takes.
+    const form = new FormParams();
+    for (const [field, value] of Object.entries(documentedBooking())) {
+      if (typeof value === "string") form.set(field, value);
     }
+    const refused = new Response(null, { status: 400 });
+
+    const checked = tryValidateTicketFields(
+      form,
+      documentedPackage().fields,
+      () => refused,
+      false,
+    );
+
+    expect(checked).not.toBe(refused);
   });
 });

@@ -140,6 +140,11 @@ const AtLeastOne = v.pipe(v.number(), v.integer(), v.minValue(1));
  * system sells — so only a negative one is wrong. */
 const Price = v.pipe(v.number(), v.integer(), v.minValue(0));
 
+/** A bundle lists each of its parts once: a listing can only be in a group
+ * once, and two listings cannot share a slug. */
+const oneEntryPerSlug = <T extends { slug: string }>(entries: T[]): boolean =>
+  new Set(entries.map((entry) => entry.slug)).size === entries.length;
+
 /**
  * A published add-on, as a package member's `children` carry it. It is a public
  * listing, plus the values a caller has to be able to act on: a name and slug
@@ -170,7 +175,13 @@ const PublishedChildSchema = v.intersect([
  * zero, and the slug has to be one a caller can actually ask for.
  */
 const PackageMemberSchema = v.strictObject({
-  children: v.optional(v.pipe(v.array(PublishedChildSchema), v.nonEmpty())),
+  children: v.optional(
+    v.pipe(
+      v.array(PublishedChildSchema),
+      v.nonEmpty(),
+      v.check(oneEntryPerSlug),
+    ),
+  ),
   name: NonEmpty,
   quantity: AtLeastOne,
   slug: Slug,
@@ -182,7 +193,13 @@ const packageBundleEntries = {
   // An empty list is the real "name and email only" setting.
   fields: v.string(),
   maxPurchasable: AtLeastOne,
-  members: v.optional(v.pipe(v.array(PackageMemberSchema), v.nonEmpty())),
+  members: v.optional(
+    v.pipe(
+      v.array(PackageMemberSchema),
+      v.nonEmpty(),
+      v.check(oneEntryPerSlug),
+    ),
+  ),
   name: NonEmpty,
   slug: Slug,
 };
