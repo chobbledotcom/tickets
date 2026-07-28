@@ -88,6 +88,25 @@ describe("the shapes the documentation is measured against", () => {
     refuses(PublicListingSchema, daily);
   });
 
+  test("a bundle may publish an add-on nobody can book right now", () => {
+    // The endpoint publishes every active add-on, so a sold-out one appears
+    // beside its siblings and the bundle stays on sale through them.
+    const pkg = bundle();
+    const [member] = pkg.members;
+    const [child] = member.children;
+
+    accepts(PackageResponseSchema, {
+      ...pkg,
+      members: [
+        {
+          ...member,
+          children: [{ ...child, isSoldOut: true, maxPurchasable: 0 }],
+        },
+        ...pkg.members.slice(1),
+      ],
+    });
+  });
+
   test("a bundle prices each length once", () => {
     accepts(
       PackageResponseSchema,

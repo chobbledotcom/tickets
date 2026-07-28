@@ -158,7 +158,9 @@ const PublishedChildSchema = v.intersect([
     fields: v.string(),
     listingType: NonEmpty,
     maxPrice: Price,
-    maxPurchasable: AtLeastOne,
+    // Room for none is real: a sold-out add-on is published with a capacity of
+    // zero. The add-on a booking chooses is checked for room separately.
+    maxPurchasable: v.pipe(v.number(), v.integer(), v.minValue(0)),
     name: NonEmpty,
     slug: Slug,
     unitPrice: Price,
