@@ -10,15 +10,31 @@ import {
   requirePaymentSessionClaim,
 } from "#shared/db/payments/claims.ts";
 import { createPaymentSession } from "#shared/db/payments/sessions.ts";
+import { bookingCompletion } from "#shared/payment-completion.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   PAYMENT_BOOKING_COMPLETION,
   PAYMENT_ID,
+  PAYMENT_INTENT,
   PAYMENT_TIME,
   paymentSessionInput,
   READY_RESULT,
   sessionProgress,
 } from "./fixtures.ts";
+
+/** A fresh payment, claimed, and moved to the point where the provider has
+ *  said it is paid — where the fulfilment statements are built. */
+const claimedAndProcessing = async () => {
+  await createPaymentSession(paymentSessionInput(), PAYMENT_TIME);
+  return applyPaymentSessionClaimKeepingLease(
+    await requiredClaim(),
+    sessionProgress({
+      result: READY_RESULT,
+      resultState: "succeeded",
+      state: "processing",
+    }),
+  );
+};
 
 const requiredClaim = async () => {
   const claim = await claimPaymentSession(PAYMENT_ID, 60_000);
@@ -184,16 +200,7 @@ describeWithEnv("db > payments > claims", { db: true }, () => {
   });
 
   test("keeps the aggregate open when a business guard no longer matches", async () => {
-    await createPaymentSession(paymentSessionInput(), PAYMENT_TIME);
-    const claim = await requiredClaim();
-    const processing = await applyPaymentSessionClaimKeepingLease(
-      claim,
-      sessionProgress({
-        result: READY_RESULT,
-        resultState: "succeeded",
-        state: "processing",
-      }),
-    );
+    const processing = await claimedAndProcessing();
     const statements = await paymentFulfilmentStatements(
       processing.claim,
       processing.payment,
@@ -216,5 +223,27 @@ describeWithEnv("db > payments > claims", { db: true }, () => {
       lease_token: processing.claim.leaseToken,
       ticket_tokens: null,
     });
+  });
+  test("refuses a completion built from a different order", async () => {
+    // The saved plan carries the order it was built from. If that does not
+    // match the payment, the plan belongs to something else and carrying it
+    // out would book the wrong thing for the wrong buyer.
+    const processing = await claimedAndProcessing();
+    const somebodyElse = bookingCompletion(
+      { ...PAYMENT_INTENT, name: "Another buyer" },
+      PAYMENT_BOOKING_COMPLETION.facts,
+      ["ticket-one"],
+    );
+
+    await expect(
+      paymentFulfilmentStatements(
+        processing.claim,
+        processing.payment,
+        "?",
+        [42],
+        ["mismatched-ticket"],
+        somebodyElse,
+      ),
+    ).rejects.toThrow("does not match payment");
   });
 });

@@ -4,6 +4,10 @@ import { encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  applyPaymentSessionClaimKeepingLease,
+  requirePaymentSessionClaim,
+} from "#shared/db/payments/claims.ts";
+import {
   PAYMENT_SESSION_COLUMNS,
   readPaymentSessionRow,
   type StoredPaymentSessionRow,
@@ -14,12 +18,30 @@ import {
 } from "#shared/db/payments/sessions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  PAYMENT_BOOKING_COMPLETION,
   PAYMENT_CHECKOUT_CREATE,
   PAYMENT_ID,
+  PAYMENT_INTENT,
   PAYMENT_TIME,
   paymentSessionInput,
   SESSION_RESOURCE,
+  sessionProgress,
 } from "./fixtures.ts";
+
+const OTHER_INTENT = { ...PAYMENT_INTENT, name: "Another buyer" };
+
+/** The row exactly as the database holds it, ready to be handed back to the
+ *  reader with one field swapped for something that contradicts the rest. */
+const storedRow = async (id: string): Promise<StoredPaymentSessionRow> => {
+  const result = await getDb().execute(
+    `SELECT ${PAYMENT_SESSION_COLUMNS.join(", ")}
+       FROM payment_sessions WHERE id = ?`,
+    [id],
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`Expected stored payment ${id}`);
+  return row as unknown as StoredPaymentSessionRow;
+};
 
 describeWithEnv("db > payments > stored session rows", { db: true }, () => {
   test("indexes the stable provider session identity", async () => {
@@ -129,5 +151,42 @@ describeWithEnv("db > payments > stored session rows", { db: true }, () => {
     await expect(getPaymentSessions([PAYMENT_ID])).rejects.toThrow(
       "Invalid stored provider resource",
     );
+  });
+  test("refuses a stored row whose saved plan is for a different order", async () => {
+    // The plan and the order it belongs to are stored side by side. If a
+    // repair or a bad write leaves them disagreeing, the record no longer
+    // describes one real purchase and must not be handed out as one.
+    await createPaymentSession(paymentSessionInput(), PAYMENT_TIME);
+    const claim = await requirePaymentSessionClaim(PAYMENT_ID, 60_000);
+    await applyPaymentSessionClaimKeepingLease(
+      claim,
+      sessionProgress({
+        completion: PAYMENT_BOOKING_COMPLETION,
+        completionState: "pending",
+        state: "processing",
+      }),
+    );
+    await createPaymentSession(
+      { ...paymentSessionInput("other-payment"), bookingIntent: OTHER_INTENT },
+      PAYMENT_TIME,
+    );
+    const planned = await storedRow(PAYMENT_ID);
+    const other = await storedRow("other-payment");
+
+    await expect(
+      readPaymentSessionRow({
+        ...planned,
+        booking_intent: other.booking_intent,
+      }),
+    ).rejects.toThrow("differs from booking intent");
+  });
+
+  test("refuses a stored row whose checkout is with another provider", async () => {
+    await createPaymentSession(paymentSessionInput(), PAYMENT_TIME);
+    const stored = await storedRow(PAYMENT_ID);
+
+    await expect(
+      readPaymentSessionRow({ ...stored, provider: "square" }),
+    ).rejects.toThrow("Invalid stored provider resource");
   });
 });
