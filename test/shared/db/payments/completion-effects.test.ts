@@ -1,9 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getDb } from "#shared/db/client.ts";
+import { getDb, withTransaction } from "#shared/db/client.ts";
 import { requirePaymentSessionClaim } from "#shared/db/payments/claims.ts";
-import { runPaymentCompletionDbEffect } from "#shared/db/payments/completion-effects.ts";
+import {
+  requirePaymentCompletionRecordId,
+  runPaymentCompletionDbEffect,
+} from "#shared/db/payments/completion-effects.ts";
 import { PAYMENT_ID } from "#test/shared/db/payments/fixtures.ts";
 import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -93,5 +96,31 @@ describeWithEnv("payment completion database effects", { db: true }, () => {
       ),
     ).rejects.toThrow(`Lost payment session lease for ${PAYMENT_ID}`);
     expect(await storedCounts()).toEqual({ activities: 0, receipts: 0 });
+  });
+  test("refuses to name a record for work that was never done", async () => {
+    // Asking which row an effect created only makes sense once it has run.
+    await createPendingPayment();
+
+    await expect(
+      withTransaction((transaction) =>
+        requirePaymentCompletionRecordId(transaction, PAYMENT_ID, "answers"),
+      ),
+    ).rejects.toThrow("Missing answers receipt");
+  });
+
+  test("refuses to name a record for work that created none", async () => {
+    // Some effects finish without writing a row of their own. Asking one of
+    // those which row it made has no honest answer.
+    await createPendingPayment();
+    const claim = await requirePaymentSessionClaim(PAYMENT_ID, 60_000);
+    await runPaymentCompletionDbEffect(claim, "answers", () =>
+      Promise.resolve(null),
+    );
+
+    await expect(
+      withTransaction((transaction) =>
+        requirePaymentCompletionRecordId(transaction, PAYMENT_ID, "answers"),
+      ),
+    ).rejects.toThrow("has no record");
   });
 });
