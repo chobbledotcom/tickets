@@ -164,21 +164,21 @@ describePublicApi(() => {
         durationDays: 2,
       });
       const { body } = await fetchListingBySlug(listing.slug);
-      // The schema only carries day prices on a listing sold by the day, so
-      // the parse itself is the check that they are there.
-      expect(v.parse(PublicListingSchema, body.listing).customisableDays).toBe(
-        true,
-      );
-      expect(body.listing.dayPrices).toEqual({ 1: 1000, 2: 1800 });
+      const apiListing = v.parse(PublicListingSchema, body.listing);
+      // The schema carries day prices only on the arm sold by the day, so this
+      // is what says the listing came back on that arm.
+      if (!apiListing.customisableDays) {
+        throw new Error("Expected a listing sold by the day");
+      }
+      expect(apiListing.dayPrices).toEqual({ 1: 1000, 2: 1800 });
     });
 
     test("omits day prices for a fixed-duration listing", async () => {
       const listing = await createTestListing({ name: "Fixed" });
       const { body } = await fetchListingBySlug(listing.slug);
-      expect(v.parse(PublicListingSchema, body.listing).customisableDays).toBe(
-        false,
-      );
-      expect(body.listing.dayPrices).toBeUndefined();
+      const apiListing = v.parse(PublicListingSchema, body.listing);
+      expect(apiListing.customisableDays).toBe(false);
+      expect("dayPrices" in apiListing).toBe(false);
     });
 
     test("returns 404 for inactive listing", async () => {
