@@ -3,7 +3,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
-import { MUTATION_SNAPSHOT_CHILD_ENV } from "#scripts/mutation/isolation-state.ts";
+import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
+import {
+  createRunId,
+  MUTATION_RECORD_FILE,
+  MUTATION_SNAPSHOT_CHILD_ENV,
+  markFinished,
+  newRunRecord,
+} from "#scripts/mutation/isolation-state.ts";
 import {
   captureConsole,
   captureMutationCommand,
@@ -16,7 +23,9 @@ import {
   captureSimpleSnapshotMutation,
   controlledChild,
   failRunningStatusWrite,
+  failSnapshotRead,
   failTextFileWrites,
+  failWorkRemoval,
   finishedChild,
   readOnlyRunRecord,
   recordAroundClean,
@@ -50,9 +59,69 @@ describe("running mutation inside a snapshot", () => {
       expect(record.exitCode).toBe(7);
       expect(record.args).toEqual(["src/a.ts", join(root, "test/a.test.ts")]);
       expect(typeof record.pid).toBe("number");
-      expect(
-        await pathExists(join(record.workRoot, "scripts", "mutation.ts")),
-      ).toBe(true);
+    });
+  });
+
+  test("throws away the snapshot once the run has ended", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+
+      await captureSimpleSnapshotMutation(root);
+      const record = await readOnlyRunRecord(root);
+
+      // The snapshot is a whole copy of the checkout, so it must not be left
+      // behind; the small record stays so the run is still listed.
+      expect(await pathExists(record.workRoot)).toBe(false);
+      expect(await pathExists(join(record.root, MUTATION_RECORD_FILE))).toBe(
+        true,
+      );
+    });
+  });
+
+  test("reports a snapshot it cannot throw away", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+
+      const run = await (async () => {
+        using _remove = failWorkRemoval();
+        return await captureSimpleSnapshotMutation(root);
+      })();
+
+      expect(run.errors).toEqual([
+        `Failed to remove the snapshot of ${(await readOnlyRunRecord(root)).id}: work is busy`,
+      ]);
+    });
+  });
+
+  test("says nothing when the snapshot is already gone", async () => {
+    await withTempDir(async (root) => {
+      // The child tidies its own snapshot away before the run ends.
+      await writeFakeMutationScript(
+        root,
+        "Deno.removeSync(Deno.cwd(), { recursive: true });\nDeno.exit(0);\n",
+      );
+
+      const run = await captureSimpleSnapshotMutation(root);
+
+      expect(run.errors).toEqual([]);
+      expect(await pathExists((await readOnlyRunRecord(root)).workRoot)).toBe(
+        false,
+      );
+    });
+  });
+
+  test("clears out runs that ended earlier before starting a new one", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+      const old = markFinished(newRunRecord(createRunId(), [], root), 0);
+      await writeRunRecord(old);
+      await Deno.mkdir(old.workRoot, { recursive: true });
+
+      await captureSimpleSnapshotMutation(root);
+
+      expect(await pathExists(old.root)).toBe(false);
+      // Only the run that just happened is left.
+      expect((await readOnlyRunRecord(root)).id).not.toBe(old.id);
     });
   });
 
@@ -138,14 +207,10 @@ describe("running mutation inside a snapshot", () => {
   test("keeps the original failure when the failed record cannot be rewritten", async () => {
     await withTempDir(async (root) => {
       let copyFailed = false;
-      const failSnapshotReadAfterMarkingCopyFailed = (reason: unknown) =>
-        stub(Deno, "readDir", (() => {
-          copyFailed = true;
-          throw reason;
-        }) as typeof Deno.readDir);
       const run = await (async () => {
-        using _readDir =
-          failSnapshotReadAfterMarkingCopyFailed(SNAPSHOT_FAILED);
+        using _readDir = failSnapshotRead(SNAPSHOT_FAILED, () => {
+          copyFailed = true;
+        });
         using _writeTextFile = failTextFileWrites(() => copyFailed);
 
         return await captureSimpleSnapshotMutation(root);

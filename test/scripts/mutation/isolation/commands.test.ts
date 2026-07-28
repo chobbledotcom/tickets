@@ -2,17 +2,18 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { withMutationRunLock } from "#scripts/mutation/isolation-lock.ts";
+import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   markFinished,
   markRunning,
   newRunRecord,
   runRoot,
   runStartedRecently,
-  withMutationRunLock,
-  writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import {
   captureMutationCommand,
+  LONG_AGO,
   runQuietMutationCommand,
   withTempDir,
   writeMovedRunRecord,
@@ -73,7 +74,13 @@ describe("mutation isolation commands", () => {
   test("skips active runs during cleanup", async () => {
     await withTempDir(async (root) => {
       const copying = newRunRecord("mutation-copying", [], root);
-      const staleCopying = newRunRecord("mutation-stale-copying", [], root);
+      // Old enough that the startup grace no longer covers it.
+      const staleCopying = newRunRecord(
+        "mutation-stale-copying",
+        [],
+        root,
+        LONG_AGO.toISOString(),
+      );
       const running = markRunning(
         newRunRecord("mutation-running", [], root),
         Deno.pid,
@@ -133,14 +140,9 @@ describe("mutation isolation commands", () => {
   test("cleans stale running records whose pid was reused after the grace period", async () => {
     await withTempDir(async (root) => {
       const staleReused = markRunning(
-        newRunRecord(
-          "mutation-stale-reused",
-          [],
-          root,
-          "2026-01-01T00:00:00.000Z",
-        ),
+        newRunRecord("mutation-stale-reused", [], root, LONG_AGO.toISOString()),
         Deno.pid,
-        "2026-01-01T00:00:00.000Z",
+        LONG_AGO.toISOString(),
       );
       await writeRunRecord(staleReused);
 

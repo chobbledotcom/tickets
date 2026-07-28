@@ -1586,37 +1586,6 @@ and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
 
 ---
 
-## Make `--clean` synchronize with the run lock before removing a run
-
-*Origin: reviewer suggestion on PR #1951.*
-
-`cleanableRuns` in `scripts/mutation/isolation.ts` decides a `copying` run is
-abandoned when its lock is not held, and `removeRun` then deletes
-`record.root` recursively. Neither step takes the run lock, so a run can pass
-the check while still queueing, take the lock, and start copying — and the
-clean, already committed to its decision, removes the record and the
-half-copied snapshot underneath it.
-
-PR #1951 narrowed this: the run now writes its record again once it holds the
-lock, so a clean that lands entirely *before* the lock leaves a run that is
-still findable. That is the common ordering and it is covered by
-`recordAroundClean` in `test/scripts/mutation/isolation/helpers.ts`. The
-remaining window — clean decides, run takes the lock, clean removes — is not
-closed by that write, and no write can close it: the fix has to be that the
-clean holds the run lock across both the decision and the removal.
-
-It was left out of #1951 because that PR is about test coverage of
-`isolation.ts`, and this is a behaviour change to the clean path with its own
-concurrency design to think through (a clean that blocks on every run's lock
-must not hang on a genuinely live run — the existing `runLockIsHeld` check
-would become a `tryLock`).
-
-Starting point: `cleanableRuns`, `removeRun`, and `cleanRuns` in
-`scripts/mutation/isolation.ts`, plus `withMutationRunLock` and `runLockIsHeld`
-in `scripts/mutation/isolation-state.ts`.
-
----
-
 ## Decide what happens to undated bookings when a listing starts being booked by the day
 
 *Origin: found while migrating the multi-day tests to stories (PR for batch 8).*
@@ -1737,6 +1706,91 @@ Starting point: the `describe`-less `test(...)` blocks in that file group
 naturally by the helpers they use (`expectPackageRejected`,
 `expectAddListingRejected`, `hiddenPackageWithBooking`); delete its
 `biome.json` override entry when the split lands.
+
+---
+
+## Let every mutation command leave folders it did not name alone
+
+*Origin: reviewer suggestion (Codex) on PR #1957.*
+
+`readRunRecords` in `scripts/mutation/isolation-records.ts` reads a record from
+every folder under `.mutation-runs`, whatever it is called. So `--clean all`
+deletes a stray folder that happens to hold a readable `run.json` — a copied
+backup of an old run, say — even though this runner never made it.
+
+The clear-up that runs before each mutation *is* restricted: `runsToSweep` picks
+folders by name with `isRunId` before reading anything inside them. The explicit
+list/kill/clean commands are the ones still reading everything.
+
+This is older than PR #1957 — `--clean all` has always deleted every folder with
+a readable record — and closing it means renaming about twenty fixture ids in
+`test/scripts/mutation/` to the real `mutation-<time>-<hex>` shape, which is why
+it did not ride along with that change.
+
+Starting point: filter the names in `readRunRecords` with `isRunId` the way
+`runsToSweep` does, then work through the fixture ids in
+`test/scripts/mutation/isolation/commands.test.ts`,
+`test/scripts/mutation/isolation/list-and-kill.test.ts`, and
+`test/scripts/mutation/isolation-state/records.test.ts`.
+
+## Give the stripe-mock install lock the same shape as every other file lock
+
+*Origin: noticed while unifying the locks behind `scripts/lock-file.ts`.*
+
+Every lock that is a file — the precommit gate, the browser-asset build, the
+stripe-mock start, each mutation run — now goes through `withFileLock`, which
+holds one advisory lock and checks that the lock it holds is still the file at
+its path. (The database migration lock is not one of these: it is a row in a
+table, and is named below for the pattern it shares.)
+
+`scripts/stripe-mock/install.ts` is the exception: it has a second,
+hand-rolled protocol underneath (`createNew` to claim the lock, a timestamp
+written inside it, and `removeStaleInstallLock` to break a lock whose owner
+died), guarded by a `withFileLock` on a separate guard file.
+
+It answers a question the shared lock cannot: "whoever claimed this walked away,
+so take it from them". Two other places answer that same question their own way:
+the mutation runner uses a record with a status, a pid, and a startup grace plus
+`processExists`, and the database migration lock
+(`src/shared/db/migrations/lock.ts`) writes an owner into a settings row and
+lets anyone break a claim older than `MIGRATION_LOCK_TTL_MS`. Three mechanisms
+for one job.
+
+Worth folding into one: either teach `lock-file.ts` about an owner that can go
+away, or let the install reuse the run-record shape. It stayed out of PR #1957
+because it is a whole protocol, not a shared helper, and the install path has
+its own timing tests.
+
+Starting point: `tryAcquireInstallLock`/`removeStaleInstallLock` in
+`scripts/stripe-mock/install.ts`; `acquireMigrationLock` in
+`src/shared/db/migrations/lock.ts` is the best-worked-out version of the pattern
+and the one to copy; `activeByRecord` in `scripts/mutation/isolation-cleanup.ts`
+is the third; and `test/scripts/stripe-mock/install/stale-locks.test.ts` and
+`waiting.test.ts` say what the timing tests expect.
+
+## Tell a clear-up's hold on a run apart from the run's own
+
+*Origin: reviewer suggestion (Codex) on PR #1957.*
+
+`processBelongsToRun` in `scripts/mutation/isolation-cleanup.ts` decides a run
+belongs to the process in its record when that process is alive *and* somebody
+is holding the run's lock. A clear-up deleting that run's folder holds the same
+lock, so during a deletion the two are indistinguishable.
+
+That matters in one case: the record's process id has since been given to some
+unrelated program. `--kill` then reads "alive and locked" as proof and signals a
+process that has nothing to do with us. Deleting a whole checkout copy takes
+long enough for the window to be real.
+
+It needs the lock evidence tied to the run's own child rather than to whoever
+holds the lock — the holder could write who it is, or a clear-up could hold
+something a run never holds. Either is a change to what a lock means here, which
+is why it did not ride along with PR #1957.
+
+Starting point: `processBelongsToRun` and `removeRun` in
+`scripts/mutation/isolation-cleanup.ts`, `signalRun` in
+`scripts/mutation/isolation.ts` for what acts on the answer, and
+`scripts/held-lock-process.ts` for the process that holds a lock on our behalf.
 
 ---
 

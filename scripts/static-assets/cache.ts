@@ -31,6 +31,7 @@ import { unique } from "#fp";
 import { sha256Hex } from "#scripts/checksum.ts";
 import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { readJsonOrNull } from "#scripts/read-json.ts";
 import { staticAssetOutputFiles } from "./outfiles.ts";
 
 /** How a file looked when the assets were last built: a hash of its contents,
@@ -63,16 +64,6 @@ export const STATIC_ASSET_MANIFEST_PATH = join(
   projectRoot,
   ".static-assets-cache.json",
 );
-
-/** JSON that may have been left half-written, as data or as null. */
-const parseOrNull = (text: string): unknown => {
-  try {
-    return JSON.parse(text);
-  } catch {
-    // A torn record reads as "no record", so the next run rebuilds.
-    return null;
-  }
-};
 
 /**
  * How a file looks right now, or null when it is not there.
@@ -143,17 +134,8 @@ export const lookUpTrackedFiles = async (
  * cache file must never be able to stop the tests from running. */
 export const readStaticAssetManifest = async (
   path = STATIC_ASSET_MANIFEST_PATH,
-): Promise<StaticAssetManifest | null> => {
-  let text: string;
-  try {
-    text = await Deno.readTextFile(path);
-  } catch (error) {
-    rethrowUnlessNotFound(error);
-    return null;
-  }
-  const parsed = v.safeParse(StaticAssetManifestSchema, parseOrNull(text));
-  return parsed.success ? parsed.output : null;
-};
+): Promise<StaticAssetManifest | null> =>
+  await readJsonOrNull(path, StaticAssetManifestSchema);
 
 /** What one finished build read, wrote, and started at. */
 export interface CompletedStaticAssetBuild {

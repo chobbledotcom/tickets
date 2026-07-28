@@ -1,26 +1,16 @@
-import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   createRunId,
+  isRunId,
   markFinished,
   markInterrupted,
   markRunning,
   newRunRecord,
-  readRunRecord,
-  readRunRecords,
-  runLockIsHeld,
-  runRoot,
   runStartedRecently,
   statusForExitCode,
-  withMutationRunLock,
   workRoot,
-  writeRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
-import {
-  withTempDir,
-  writeMovedRunRecord,
-} from "#test/scripts/mutation/isolation-helpers.ts";
 
 describe("mutation isolation run records", () => {
   test("creates deterministic ids and records state transitions", () => {
@@ -81,6 +71,19 @@ describe("mutation isolation run records", () => {
     ).toBe(false);
   });
 
+  test("treats a run stamped in the future as not recent", () => {
+    // A clock put back must not leave a dead run looking busy for ever.
+    const future = markRunning(
+      newRunRecord("future", [], "/repo", "2027-01-01T00:00:00.000Z"),
+      5,
+      "2027-01-01T00:00:00.000Z",
+    );
+
+    expect(
+      runStartedRecently(future, new Date("2026-07-10T12:00:00.000Z")),
+    ).toBe(false);
+  });
+
   test("counts a run stamped a moment after the epoch", () => {
     const justAfterEpoch = markRunning(
       newRunRecord("epoch", [], "/repo", "1970-01-01T00:00:00.001Z"),
@@ -101,81 +104,10 @@ describe("mutation isolation run records", () => {
     expect(createRunId()).not.toBe(id);
   });
 
-  test("writes, reads, sorts, and ignores broken records", async () => {
-    await withTempDir(async (root) => {
-      expect(await readRunRecords(root)).toEqual([]);
-
-      const older = newRunRecord("older", [], root, "2026-07-09T10:00:00.000Z");
-      const newer = newRunRecord("newer", [], root, "2026-07-09T11:00:00.000Z");
-      await writeRunRecord(older);
-      await writeRunRecord(newer);
-      await Deno.mkdir(join(root, ".mutation-runs", "broken"), {
-        recursive: true,
-      });
-      await Deno.writeTextFile(join(root, ".mutation-runs", "not-a-dir"), "");
-      await Deno.writeTextFile(
-        join(root, ".mutation-runs", "broken", "run.json"),
-        "{not-json",
-      );
-
-      const records = await readRunRecords(root);
-      expect(records.map((record) => record.id)).toEqual(["newer", "older"]);
-      expect(await readRunRecord(join(root, "missing.json"))).toBeNull();
-    });
-  });
-
-  test("writes the record so a person can read it", async () => {
-    await withTempDir(async (root) => {
-      const record = newRunRecord("readable", ["src/a.ts"], root);
-      await writeRunRecord(record);
-
-      const written = await Deno.readTextFile(
-        join(root, ".mutation-runs", "readable", "run.json"),
-      );
-
-      // Indented and one line per field, so `cat run.json` is worth doing.
-      expect(written.split("\n")[1]).toBe('  "args": [');
-      expect(written.endsWith("}\n")).toBe(true);
-    });
-  });
-
-  test("reads records from the current run directory", async () => {
-    await withTempDir(async (root) => {
-      const { id, record } = await writeMovedRunRecord(root);
-
-      expect(await readRunRecords(root)).toEqual([
-        {
-          ...record,
-          root: runRoot(id, root),
-          workRoot: workRoot(id, root),
-        },
-      ]);
-    });
-  });
-
-  test("surfaces unreadable run directories", async () => {
-    await withTempDir(async (root) => {
-      const fileRoot = join(root, "file-root");
-      await Deno.writeTextFile(fileRoot, "");
-
-      await expect(readRunRecords(fileRoot)).rejects.toThrow(
-        Deno.errors.NotADirectory,
-      );
-    });
-  });
-
-  test("reports whether a run lock is held", async () => {
-    await withTempDir(async (root) => {
-      const record = { root };
-      expect(await runLockIsHeld(record, 100)).toBe(false);
-      await withMutationRunLock(root, async () => {
-        expect(await runLockIsHeld(record, 100)).toBe(true);
-      });
-      expect(await runLockIsHeld(record, 100)).toBe(false);
-
-      const fileRoot = join(root, "file-root");
-      await Deno.writeTextFile(fileRoot, "");
-      expect(await runLockIsHeld({ root: fileRoot }, 100)).toBe(false);
-    });
+  test("knows which folder names are its own runs", () => {
+    expect(isRunId(createRunId())).toBe(true);
+    // Named by someone else, so never ours to clear away.
+    expect(isRunId("mutation-backups")).toBe(false);
+    expect(isRunId("mutation-20260709T123456Z-nothex!")).toBe(false);
   });
 });
