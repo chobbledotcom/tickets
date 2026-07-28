@@ -179,9 +179,7 @@ export const getListingsById = async (): Promise<
 
 /** Read the narrow listing option projection used by item pickers. */
 export const getAllListingOptions = (): Promise<ListingOption[]> =>
-  listingOptionProjection.queryAll(
-    `SELECT ${listingOptionProjection.columnsSql("listing")} FROM listings AS listing ORDER BY listing.id ASC`,
-  );
+  listingOptionProjection.select({ alias: "listing", order: "listing.id ASC" });
 
 /** Read and decrypt listing names without loading full records. */
 export const listingNames = envNameSource("listings", "listing");

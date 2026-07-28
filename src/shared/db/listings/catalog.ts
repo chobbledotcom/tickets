@@ -2,6 +2,7 @@
 
 import { settings } from "#shared/db/settings.ts";
 import { defineTableProjection } from "#shared/db/table.ts";
+import { equals } from "#shared/db/where-clauses.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#shared/types.ts";
 import { rawListingsTable } from "./table.ts";
@@ -40,10 +41,10 @@ const catalogListingProjection = defineTableProjection(rawListingsTable, [
 export const getListingOfferFlags = async (
   id: number,
 ): Promise<ListingOfferFlags | undefined> => {
-  const row = await listingOfferFlagsProjection.queryOne(
-    `SELECT ${listingOfferFlagsProjection.columnsSql("listing")} FROM listings AS listing WHERE listing.id = ? LIMIT 1`,
-    [id],
-  );
+  const row = await listingOfferFlagsProjection.selectOne({
+    alias: "listing",
+    where: equals("listing.id", id),
+  });
   return row ?? undefined;
 };
 
@@ -51,9 +52,10 @@ export const getListingOfferFlags = async (
 export const getListingPickerNames = async (): Promise<
   Map<number, ListingPickerRow>
 > => {
-  const rows = await listingPickerProjection.queryAll(
-    `SELECT ${listingPickerProjection.columnsSql("listing")} FROM listings AS listing ORDER BY listing.id ASC`,
-  );
+  const rows = await listingPickerProjection.select({
+    alias: "listing",
+    order: "listing.id ASC",
+  });
   return new Map(rows.map(({ id, ...listing }) => [id, listing] as const));
 };
 

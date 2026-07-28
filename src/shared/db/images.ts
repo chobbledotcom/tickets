@@ -78,9 +78,7 @@ const imageFileProjection = defineTableProjection(imagesTable, [
 ]);
 
 export const getAllImages = (): Promise<Image[]> =>
-  imageProjection.queryAll(
-    `SELECT ${imageProjection.columnsSql()} FROM images ORDER BY id DESC`,
-  );
+  imageProjection.select({ order: "id DESC" });
 
 export const getImageById = (id: number): Promise<Image | null> =>
   imagesTable.findById(id);

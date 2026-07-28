@@ -54,10 +54,8 @@ import {
 } from "#shared/db/listings/select.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
-import {
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { defineTableProjection } from "#shared/db/table.ts";
+import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
   type PackageChildEdgeBlock,
   type PackageMemberBlock,
@@ -98,10 +96,6 @@ const packageDisplayProjection = defineTableProjection(rawGroupsTable, [
   "hide_package_listings",
   "name",
 ]);
-type StoredPackageDisplay = StoredTableProjectionRow<
-  Group,
-  typeof packageDisplayProjection.columns
->;
 
 /** Execute a query and decrypt the resulting group rows */
 const queryGroups = queryAndMap<Group, Group>((row) =>
@@ -459,15 +453,16 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
-  const packageGroups = await packageDisplayProjection.readAll(
-    await rowsByIds<StoredPackageDisplay>(
-      [...new Set(groupIds)].filter((groupId) => groupId > 0),
-      (placeholders) =>
-        `SELECT ${packageDisplayProjection.columnsSql("groupRecord")}
-          FROM groups AS groupRecord
-        WHERE groupRecord.id IN (${placeholders}) AND groupRecord.is_package = 1`,
-    ),
-  );
+  const packageGroups = await packageDisplayProjection.select({
+    alias: "groupRecord",
+    where: [
+      ...inList(
+        "groupRecord.id",
+        [...new Set(groupIds)].filter((groupId) => groupId > 0),
+      ),
+      ...equals("groupRecord.is_package", 1),
+    ],
+  });
   return new Map(
     packageGroups.map((group) => [
       group.id,

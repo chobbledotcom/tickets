@@ -60,9 +60,7 @@ const sitePageNavProjection = defineTableProjection(rawSitePagesTable, [
  * and name (never content/meta). Ordered by (sort_order, id). The raw row
  * carries name and slug still sealed; the map below opens them. */
 const fetchNavRows = (): Promise<SitePageNavRow[]> =>
-  sitePageNavProjection.queryAll(
-    `SELECT ${sitePageNavProjection.columnsSql()} FROM site_pages ORDER BY sort_order ASC, id ASC`,
-  );
+  sitePageNavProjection.select({ order: "sort_order ASC, id ASC" });
 
 // Request-scoped cache over the projection: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write
