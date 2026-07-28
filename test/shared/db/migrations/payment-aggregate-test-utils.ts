@@ -1,3 +1,4 @@
+import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
 import paymentAggregateMigration from "#shared/db/migrations/2026-07-26_payment_aggregate.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
@@ -70,6 +71,32 @@ export const seedLegacyPaidAttendee = async (): Promise<void> => {
           (listing_id, attendee_id, quantity) VALUES (7, 42, 1)`,
       },
     ],
+    "write",
+  );
+};
+
+/** Comfortably more rows than the migration will copy in one go. The exact
+ *  page size is the migration's own business, so this only has to be large
+ *  enough that it cannot finish in a single request. */
+export const MORE_THAN_ONE_INVOCATION = 200;
+
+/** Seed many SumUp checkouts in a single batch — the migration only cares how
+ *  many there are, so one write beats running the real path fifty times. */
+export const seedSumupCheckouts = async (count: number): Promise<void> => {
+  const metadata = await encrypt('{"private":"metadata"}');
+  await getDb().batch(
+    Array.from({ length: count }, (_unused, index) => ({
+      args: [
+        `bulk-reference-${index}`,
+        "wk:1:bulk-key",
+        metadata,
+        `bulk-sumup-${index}`,
+        "2026-07-25T12:00:00.000Z",
+      ],
+      sql: `INSERT INTO sumup_checkouts
+        (reference_index, wrapped_key, metadata, sumup_id, created_at)
+        VALUES (?, ?, ?, ?, ?)`,
+    })),
     "write",
   );
 };

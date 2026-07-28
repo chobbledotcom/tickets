@@ -5,9 +5,19 @@ import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   insertProcessedRow,
+  MORE_THAN_ONE_INVOCATION,
   restoreLegacyPaymentSources,
   runMigration,
+  runMigrationInvocation,
+  seedSumupCheckouts,
 } from "./payment-aggregate-test-utils.ts";
+
+const copiedCount = async (): Promise<number> => {
+  const result = await getDb().execute(
+    "SELECT COUNT(*) AS count FROM payment_sessions WHERE origin = 'legacy'",
+  );
+  return Number(result.rows[0]?.count);
+};
 
 const expectCopiedAndDrained = async (sourceTable: string): Promise<void> => {
   const [sessions, source] = await getDb().batch(
@@ -101,5 +111,21 @@ describeWithEnv("payment aggregate migration resilience", { db: true }, () => {
     await runMigration();
 
     await expectCopiedAndDrained("sumup_checkouts");
+  });
+  test("asks to be called again when there are more SumUp rows than one go", async () => {
+    // The migration only gets so much time per request, so it copies a few
+    // pages and then asks to be called again rather than running over.
+    await getDb().execute("DROP TABLE processed_payments");
+    await getDb().execute("DROP TABLE checkout_stages");
+    await seedSumupCheckouts(MORE_THAN_ONE_INVOCATION);
+
+    await expect(runMigrationInvocation()).rejects.toThrow(
+      "continuing on the next request",
+    );
+    expect(await copiedCount()).toBeLessThan(MORE_THAN_ONE_INVOCATION);
+
+    // Called again as it asked, it picks up where it stopped and finishes.
+    await runMigration();
+    expect(await copiedCount()).toBe(MORE_THAN_ONE_INVOCATION);
   });
 });
