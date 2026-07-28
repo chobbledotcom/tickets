@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { execute, getDb, queryAll } from "#shared/db/client.ts";
 import noteEntities from "#shared/db/migrations/2026-07-28_note_entities.ts";
 import {
