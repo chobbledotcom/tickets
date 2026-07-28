@@ -115,7 +115,7 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     // Package overrides only apply to listings already in the group.
     await assignListingsToGroup([listing.id], group.id);
     await setGroupPackageMembers(group.id, [
-      { listingId: listing.id, packagePrice: 500, quantity: 1 },
+      { listingId: listing.id, price: 500, quantity: 1 },
     ]);
     expect((await getGroupPackagePrices(group.id)).length).toBe(1);
 
@@ -142,13 +142,13 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     const listing = await createTestListing({ name: "Package Real Member" });
     await assignListingsToGroup([listing.id], group.id);
     await setGroupPackageMembers(group.id, [
-      { listingId: listing.id, packagePrice: 500, quantity: 1 },
+      { listingId: listing.id, price: 500, quantity: 1 },
     ]);
 
     // 0 is never a listing id, so nothing in this call is valid and the
     // existing members must survive untouched.
     await setGroupPackageMembers(group.id, [
-      { listingId: 0, packagePrice: 900, quantity: 1 },
+      { listingId: 0, price: 900, quantity: 1 },
     ]);
 
     expect(await groupIdsOf(listing.id)).toEqual([group.id]);
