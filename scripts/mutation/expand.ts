@@ -8,27 +8,22 @@
  */
 
 import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
+import { statOrNull } from "#scripts/not-found.ts";
 
 /** Glob metacharacters; a path segment with none is a fixed directory name. */
 const GLOB_CHARS = /[*?{}[\]]/;
 
 /**
- * What `dir` holds, or nothing when there is no such directory — a path that
- * has since moved or gone is asked for and simply answers with nothing. Reading
- * the entries is what reaches the disk, so a missing directory shows up here
- * rather than where the reader was created.
+ * What `dir` holds, or nothing when it is not a directory at all — a path that
+ * has moved or gone is asked for in an ordinary run, and answers with nothing.
+ * Whether it is there is asked before reading, because reading is what reaches
+ * the disk: a check around opening the reader would never see the answer.
  */
 const dirEntriesOrNone = async (dir: string): Promise<Deno.DirEntry[]> => {
+  const info = await statOrNull(dir);
+  if (info === null || !info.isDirectory) return [];
   const entries: Deno.DirEntry[] = [];
-  try {
-    for await (const entry of Deno.readDir(dir)) entries.push(entry);
-  } catch (error) {
-    const gone =
-      error instanceof Deno.errors.NotFound ||
-      error instanceof Deno.errors.NotADirectory;
-    if (!gone) throw error;
-    return [];
-  }
+  for await (const entry of Deno.readDir(dir)) entries.push(entry);
   return entries;
 };
 
@@ -41,15 +36,19 @@ async function* walkFiles(dir: string): AsyncGenerator<string> {
   }
 }
 
-/** The leading, glob-free directory of `glob` — where a walk can start without
- *  scanning the whole tree. An exact path (no metacharacters) returns itself. */
+/**
+ * The leading, glob-free directory of `glob` — where a walk can start without
+ * scanning the whole tree. An exact path (no metacharacters) returns itself.
+ * Every glob reaching here is an absolute path, so there is always at least the
+ * leading separator to start from.
+ */
 const staticBase = (glob: string): string => {
   const fixed: string[] = [];
   for (const segment of normalize(glob).split(SEPARATOR)) {
     if (GLOB_CHARS.test(segment)) break;
     fixed.push(segment);
   }
-  return fixed.length > 0 ? fixed.join(SEPARATOR) : ".";
+  return fixed.join(SEPARATOR);
 };
 
 /** The files these globs name, sorted and without repeats. A glob whose

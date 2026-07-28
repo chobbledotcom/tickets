@@ -61,6 +61,17 @@ describe("the files a glob names", () => {
     });
   });
 
+  test("matches from where it is asked when the glob starts with a star", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "top.ts"));
+      await writeFile(join(dir, "nested", "deep.ts"));
+
+      const found = await expandFrom(dir, ["*.ts"]);
+
+      expect(found.map((path) => relative(dir, path))).toEqual(["top.ts"]);
+    });
+  });
+
   test("names an exact file, and skips one that is not there", async () => {
     await withTempDir(async (dir) => {
       await writeFile(join(dir, "src", "only.ts"));
