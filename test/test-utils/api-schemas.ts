@@ -5,6 +5,8 @@
  */
 
 import * as v from "valibot";
+import { IsoDateSchema } from "#shared/validation/date.ts";
+import { EmailSchema } from "#shared/validation/email.ts";
 
 /**
  * Shape of a public listing as returned by the JSON API (mirrors the production
@@ -107,4 +109,53 @@ export const AdminListingSchema = v.strictObject({
   day_prices: v.record(v.string(), v.number()),
   /** The groups the listing is in, added to every admin response. */
   group_ids: v.array(v.number()),
+});
+
+const NonEmpty = v.pipe(v.string(), v.nonEmpty());
+const Slug = v.pipe(v.string(), v.slug());
+const AtLeastOne = v.pipe(v.number(), v.integer(), v.minValue(1));
+
+/**
+ * One member of a package bundle as `GET /api/packages/:slug` returns it. The
+ * quantity is how many of that listing one bundle includes, so it is never
+ * zero, and the slug has to be one a caller can actually ask for.
+ */
+const PackageMemberSchema = v.strictObject({
+  children: v.optional(v.array(v.unknown())),
+  name: NonEmpty,
+  quantity: AtLeastOne,
+  slug: Slug,
+});
+
+/**
+ * A package bundle as `GET /api/packages/:slug` returns it. Every string a
+ * caller reads or reuses must be filled in, and a bundle nobody can buy
+ * (`maxPurchasable` of zero) is not something the documentation should show.
+ */
+export const PackageResponseSchema = v.strictObject({
+  availableDates: v.optional(v.array(v.string())),
+  dayCounts: v.optional(
+    v.array(v.strictObject({ days: AtLeastOne, priceMinor: v.number() })),
+  ),
+  description: NonEmpty,
+  fields: NonEmpty,
+  maxPurchasable: AtLeastOne,
+  members: v.optional(v.pipe(v.array(PackageMemberSchema), v.nonEmpty())),
+  name: NonEmpty,
+  priceMinor: v.optional(AtLeastOne),
+  slug: Slug,
+});
+
+/**
+ * A booking request as `POST /api/packages/:slug/book` accepts it. The email
+ * goes through the app's own email schema, so a documented example that would
+ * be turned away cannot pass.
+ */
+export const PackageBookRequestSchema = v.strictObject({
+  children: v.optional(v.array(v.unknown())),
+  date: v.optional(IsoDateSchema),
+  dayCount: v.optional(AtLeastOne),
+  email: EmailSchema,
+  name: NonEmpty,
+  quantity: AtLeastOne,
 });

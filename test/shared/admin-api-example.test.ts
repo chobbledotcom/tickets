@@ -16,8 +16,11 @@ import {
   PUBLIC_API_ENDPOINTS,
 } from "#shared/admin-api-example.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
+import { isOwnerRole } from "#shared/types.ts";
 import {
   AdminListingSchema,
+  PackageBookRequestSchema,
+  PackageResponseSchema,
   PublicListingSchema,
 } from "#test-utils/api-schemas.ts";
 
@@ -105,6 +108,59 @@ describe("endpoint docs", () => {
     )!;
     const parsed = JSON.parse(listEndpoint.response);
     expect(() => v.parse(AdminListingSchema, parsed.listings[0])).not.toThrow();
+  });
+
+  test("the documented package is one a caller could really buy", () => {
+    const endpoint = PUBLIC_API_ENDPOINTS.find(
+      (e: EndpointDoc) =>
+        e.method === "GET" && e.path === "/api/packages/:slug",
+    )!;
+
+    expect(() =>
+      v.parse(PackageResponseSchema, JSON.parse(endpoint.response).package),
+    ).not.toThrow();
+  });
+
+  test("the documented package booking is one the endpoint would accept", () => {
+    const endpoint = PUBLIC_API_ENDPOINTS.find(
+      (e: EndpointDoc) =>
+        e.method === "POST" && e.path === "/api/packages/:slug/book",
+    )!;
+
+    expect(() =>
+      v.parse(PackageBookRequestSchema, JSON.parse(endpoint.request!)),
+    ).not.toThrow();
+  });
+
+  test("each admin resource is returned under its own name", () => {
+    const singleResponses = ADMIN_API_ENDPOINTS.filter(
+      (e: EndpointDoc) => e.method === "GET" && e.path.includes(":"),
+    ).map((e: EndpointDoc) => Object.keys(JSON.parse(e.response)));
+
+    expect(singleResponses).toEqual([["listing"], ["group"], ["holiday"]]);
+  });
+
+  test("a delete answers with a plain ok", () => {
+    const deletes = ADMIN_API_ENDPOINTS.filter(
+      (e: EndpointDoc) => e.method === "DELETE",
+    );
+
+    expect(deletes.length).toBe(3);
+    for (const endpoint of deletes) {
+      expect(JSON.parse(endpoint.response)).toEqual({ status: "ok" });
+    }
+  });
+
+  test("the listing list says which admin level is reading it", () => {
+    const listEndpoint = ADMIN_API_ENDPOINTS.find(
+      (e: EndpointDoc) =>
+        e.method === "GET" && e.path === "/api/admin/listings",
+    )!;
+
+    // The example is the owner's view, which sees every listing.
+    expect(isOwnerRole(JSON.parse(listEndpoint.response).admin_level)).toBe(
+      true,
+    );
   });
 
   test("every endpoint has a description", () => {
