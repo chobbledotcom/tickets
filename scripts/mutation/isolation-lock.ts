@@ -10,7 +10,11 @@
 import { withFileLock, withFileLockOrNull } from "#scripts/lock-file.ts";
 import { statOrNull } from "#scripts/not-found.ts";
 import { denoExitCode } from "./child-process.ts";
-import { type MutationRunRecord, runLockPath } from "./isolation-state.ts";
+import {
+  copyBackLockPath,
+  type MutationRunRecord,
+  runLockPath,
+} from "./isolation-state.ts";
 
 const LOCK_HELD_EXIT_CODE = 124;
 const LOCK_FREE_EXIT_CODE = 0;
@@ -83,8 +87,27 @@ export const withRunLockOrNull = <Result>(
 ): Promise<Result | null> =>
   withFileLockOrNull(runLockPath(record), timeoutMs, run);
 
-/** Hold a run's own lock, for as long as the run needs it. */
-export const withMutationRunLock = <Result>(
-  runRootPath: string,
+/** Holds the lock named by `Key` while the body runs. */
+export type LockHolder<Key> = <Result>(
+  key: Key,
   run: () => Promise<Result>,
-): Promise<Result> => withFileLock(runLockPath({ root: runRootPath }), run);
+) => Promise<Result>;
+
+/** A lock named by where it lives: say how to find it, get its holder. */
+const lockHolder =
+  <Key>(pathOf: (key: Key) => string): LockHolder<Key> =>
+  (key, run) =>
+    withFileLock(pathOf(key), run);
+
+/** Hold a run's own lock, for as long as the run needs it. */
+export const withMutationRunLock: LockHolder<string> = lockHolder(
+  (runRootPath: string) => runLockPath({ root: runRootPath }),
+);
+
+/**
+ * Hold the checkout's copy-back lock. Every run brings its kept files back
+ * through this one lock, so two runs finishing together cannot both read the
+ * checkout, agree it is unchanged, and then write over each other.
+ */
+export const withCopyBackLock: LockHolder<string> =
+  lockHolder(copyBackLockPath);

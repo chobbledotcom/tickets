@@ -26,7 +26,7 @@ import {
   removeWorkSnapshot,
   reportRemoveFailure,
 } from "./isolation-cleanup.ts";
-import { withMutationRunLock } from "./isolation-lock.ts";
+import { withCopyBackLock, withMutationRunLock } from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
 import {
   copyMutationSnapshot,
@@ -47,9 +47,25 @@ import {
   type SnapshotArgsFn,
   selectedRuns,
 } from "./isolation-state.ts";
+import {
+  bringFilesBack,
+  type CopyBackFile,
+  readCopyBackFiles,
+} from "./snapshot-copy-back.ts";
 
 /** Runs a mutation command from its argv and returns a process exit code. */
 type MutationCommandRunner = (args: string[], root?: string) => Promise<number>;
+
+/** What a run does inside its copy of the checkout. */
+export interface SnapshotRun {
+  args: string[];
+  /** Paths, relative to the checkout, to bring back when the run finishes. */
+  copyBack?: string[];
+  /** The script the child runs, relative to the checkout. */
+  entryScript: string;
+}
+
+const MUTATION_ENTRY_SCRIPT = "scripts/mutation.ts";
 
 const signalRun = async (
   record: MutationRunRecord,
@@ -78,12 +94,14 @@ const childEnv = (
     [MUTATION_WORK_ROOT_ENV]: snapshotRoot,
   });
 
-const childArgs: SnapshotArgsFn = (root, snapshotRoot, args) => [
-  "run",
-  "-A",
-  "scripts/mutation.ts",
-  ...rewriteMutationArgs(root, snapshotRoot, args),
-];
+const childArgs =
+  (entryScript: string): SnapshotArgsFn =>
+  (root, snapshotRoot, args) => [
+    "run",
+    "-A",
+    entryScript,
+    ...rewriteMutationArgs(root, snapshotRoot, args),
+  ];
 
 const forceStopChild = (child: Deno.ChildProcess | null): never => {
   if (child) stopProcessNow(child);
@@ -106,10 +124,53 @@ const settleRecord = (
 ): MutationRunRecord =>
   interrupted ? markInterrupted(record) : markFinished(record, code);
 
-export const runMutationInSnapshot: MutationCommandRunner = async (
-  args,
+/**
+ * Bring the run's kept files back, one run at a time across the checkout. The
+ * question is asked again inside the lock: waiting for it is a moment long
+ * enough to be interrupted, and an interrupted run keeps nothing.
+ */
+const keepFiles = (
+  wasInterrupted: () => boolean,
+  root: string,
+  workRoot: string,
+  copyBack: CopyBackFile[],
+): Promise<number> =>
+  withCopyBackLock(root, () =>
+    wasInterrupted()
+      ? Promise.resolve(0)
+      : bringFilesBack(root, workRoot, copyBack),
+  );
+
+/** Record the child's result, then bring back what the run means to keep. */
+const finishChild = (
+  record: MutationRunRecord,
+  wasInterrupted: () => boolean,
+  code: number,
+  root: string,
+  copyBack: CopyBackFile[],
+): Promise<{ exitCode: number; record: MutationRunRecord }> =>
+  // All under the lock, so a clear-up elsewhere can neither take the copy
+  // before its kept files are read nor take the folder while the last record
+  // write lands in it.
+  withMutationRunLock(record.root, async () => {
+    const failedToKeep =
+      wasInterrupted() || copyBack.length === 0
+        ? 0
+        : await keepFiles(wasInterrupted, root, record.workRoot, copyBack);
+    const interrupted = wasInterrupted();
+    // A run that could not keep its files failed, whatever the child said.
+    const exitCode = interrupted ? 130 : failedToKeep || code;
+    const settled = settleRecord(record, interrupted, exitCode);
+    await writeRunRecord(settled);
+    return { exitCode, record: settled };
+  });
+
+export const runInSnapshot = async (
+  run: SnapshotRun,
   root = projectRoot,
-) => {
+): Promise<number> => {
+  const { args } = run;
+  const copyBack = await readCopyBackFiles(root, run.copyBack ?? []);
   await removeInactiveRuns(root);
   const id = createRunId();
   let record = newRunRecord(id, args, root);
@@ -140,7 +201,7 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
         return null;
       }
       const spawned = new Deno.Command(Deno.execPath(), {
-        args: childArgs(root, record.workRoot, args),
+        args: childArgs(run.entryScript)(root, record.workRoot, args),
         cwd: record.workRoot,
         env: childEnv(id, record.root, record.workRoot),
         ...INHERIT_STDIO,
@@ -154,11 +215,15 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
 
     if (child !== null) {
       const status = await child.status;
-      record = settleRecord(record, interrupted, status.code);
-      // Under the lock, so a clear-up elsewhere cannot take the folder while
-      // this last write lands in it.
-      await withMutationRunLock(record.root, () => writeRunRecord(record));
-      exitCode = interrupted ? 130 : status.code;
+      const finished = await finishChild(
+        record,
+        () => interrupted,
+        status.code,
+        root,
+        copyBack,
+      );
+      record = finished.record;
+      exitCode = finished.exitCode;
     }
   } catch (error) {
     if (child !== null) await stopProcess(child, 250);
@@ -175,6 +240,11 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
   await removeWorkSnapshot(record);
   return exitCode;
 };
+
+export const runMutationInSnapshot: MutationCommandRunner = (
+  args,
+  root = projectRoot,
+) => runInSnapshot({ args, entryScript: MUTATION_ENTRY_SCRIPT }, root);
 
 const listRuns = async (root = projectRoot): Promise<number> => {
   const records = await readRunRecords(root);

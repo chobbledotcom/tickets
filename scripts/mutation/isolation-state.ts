@@ -14,6 +14,7 @@ export const MUTATION_WORK_DIR = "work";
 export const MUTATION_RECORD_FILE = "run.json";
 const MUTATION_RUN_ID_PREFIX = "mutation-";
 export const MUTATION_RUN_LOCK_FILE = "run.lock";
+const MUTATION_COPY_BACK_LOCK_FILE = "copy-back.lock";
 export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
 export const MUTATION_RUN_ID_ENV = "TICKETS_MUTATION_RUN_ID";
 export const MUTATION_RUN_ROOT_ENV = "TICKETS_MUTATION_RUN_ROOT";
@@ -205,6 +206,10 @@ export const recordPath = runChildPath(MUTATION_RECORD_FILE);
 
 export const runLockPath = (record: Pick<MutationRunRecord, "root">): string =>
   join(record.root, MUTATION_RUN_LOCK_FILE);
+
+/** One lock for the whole checkout, shared by every run bringing files back. */
+export const copyBackLockPath = (root = projectRoot): string =>
+  join(runsRoot(root), MUTATION_COPY_BACK_LOCK_FILE);
 
 export const newRunRecord = (
   id: string,
