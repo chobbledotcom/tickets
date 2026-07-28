@@ -35,9 +35,10 @@ import {
 } from "#shared/db/client.ts";
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
-import { LISTING_COUNT_SELECT } from "#shared/db/listings/sql.ts";
+import { listingStatement } from "#shared/db/listings/select.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
+import { clauseArgs, equals, whereSql } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -184,16 +185,16 @@ const queryActivityLog = async (
   listingId: number | null,
   limit: number,
 ): Promise<ActivityLogEntry[]> => {
-  const whereClause = listingId !== null ? "WHERE listing_id = ?" : "";
-  const args = listingId !== null ? [listingId, limit] : [limit];
+  // A null listing means "every listing", which is no filter at all.
+  const parts = equals("listing_id", listingId ?? undefined);
   // Order by id DESC, not created DESC: id is AUTOINCREMENT so it is
   // co-monotonic with created (newest row = highest id) but, being the rowid,
   // it is served straight from the primary key / idx_activity_log_listing_id
   // without a sort over the unbounded log table.
   return decryptLogRows(
     await queryAll<StoredActivityLogEntry>(
-      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log ${whereClause} ORDER BY id DESC LIMIT ?`,
-      args,
+      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log${whereSql(parts)} ORDER BY id DESC LIMIT ?`,
+      [...clauseArgs(parts), limit],
     ),
   );
 };
@@ -242,10 +243,7 @@ export const getListingWithActivityLogOrNull = async (
   limit = 100,
 ): Promise<ListingWithActivityLog | null> => {
   const results = await queryBatch([
-    {
-      args: [listingId],
-      sql: `${LISTING_COUNT_SELECT} WHERE listing.id = ?`,
-    },
+    listingStatement({ where: { ids: [listingId] } }),
     {
       args: [listingId, limit],
       sql: `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE listing_id = ? ORDER BY id DESC LIMIT ?`,

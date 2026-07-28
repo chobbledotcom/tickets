@@ -47,12 +47,11 @@ import {
   PRICE_TYPE_GROUP_DAY,
   removeListingGroupPricesStatement,
 } from "#shared/db/listing-prices.ts";
+import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import {
-  decryptListingWithCount,
   type ListingProjectionRow,
-  queryListingsWithCounts,
-} from "#shared/db/listings/records.ts";
-import { listingProjectionSql } from "#shared/db/listings/sql.ts";
+  listingStatement,
+} from "#shared/db/listings/select.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import {
@@ -198,18 +197,11 @@ export const getListingsByGroupIds = async (
   if (groupIds.length === 0) return new Map();
   type GroupListingRow = ListingProjectionRow & { group_ids: string };
   type ListingGroups = { groupIds: number[]; member: ListingWithCount };
-  const rows = await queryAll<GroupListingRow>(
-    `SELECT json_group_array(groupListing.group_id) AS group_ids,
-            ${listingProjectionSql("listing")},
-            listing.booked_quantity AS attendee_count
-       FROM group_listings AS groupListing
-       JOIN listings AS listing ON listing.id = groupListing.listing_id
-      WHERE groupListing.group_id IN (${inPlaceholders(groupIds)})
-        ${activeOnly ? "AND listing.active = 1" : ""}
-      GROUP BY listing.id
-      ORDER BY listing.created DESC, listing.id DESC`,
-    [...groupIds],
-  );
+  const { sql, args } = listingStatement({
+    order: "created_desc",
+    where: { activeOnly, inGroups: [...groupIds] },
+  });
+  const rows = await queryAll<GroupListingRow>(sql, args);
   const listingsWithGroups: ListingGroups[] = await mapParallel(
     async (row: GroupListingRow): Promise<ListingGroups> => ({
       groupIds: groupIdsJson.read(
@@ -310,20 +302,6 @@ export const groupListingTypeError = (
   }
   return null;
 };
-
-/**
- * Listings that are NOT already in the given group, with attendee counts — the
- * candidates the group detail "add listings" form offers. Membership is
- * many-to-many, so a listing already in another group is still a valid
- * candidate here; only this group's current members are excluded.
- */
-export const getListingsNotInGroup = (
-  groupId: number,
-): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts(
-    "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
-    [groupId],
-  );
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
@@ -754,7 +732,9 @@ const copyPackageOverridesStatement = (
                WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ?)
       WHERE cloneMembership.listing_id = ?
         AND cloneMembership.group_id IN (
-              SELECT group_id FROM group_listings WHERE listing_id = ?)
+              SELECT groupListing.group_id
+                FROM group_listings AS groupListing
+               WHERE groupListing.listing_id = ?)
         AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
 });
 
@@ -913,7 +893,10 @@ export const setGroupListingsActive = async (
   // Unaliased `id` (not IN_GROUP_SQL's `listing.id`) — this UPDATE has no table
   // alias, so SQLite would reject `listing.id` here.
   const result = await execute(
-    "UPDATE listings SET active = ? WHERE id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
+    `UPDATE listings SET active = ? WHERE id IN (
+       SELECT groupListing.listing_id
+         FROM group_listings AS groupListing
+        WHERE groupListing.group_id = ?)`,
     [active ? 1 : 0, groupId],
   );
   return result.rowsAffected;

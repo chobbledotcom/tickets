@@ -9,12 +9,16 @@
 import { getNextBookableDate } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
-import type { Holiday, Listing, ListingWithCount } from "#shared/types.ts";
+import type {
+  Holiday,
+  ListingWithCount,
+  SortableListing,
+} from "#shared/types.ts";
 
 export type { ListingWithCount };
 
 /** Tier assignment: no-date standard=0, dated standard=1, daily=2 */
-const listingTier = (listing: Listing): number => {
+const listingTier = (listing: SortableListing): number => {
   if (listing.listing_type === "daily") return 2;
   return listing.date === "" ? 0 : 1;
 };
@@ -22,22 +26,22 @@ const listingTier = (listing: Listing): number => {
 const compareDateThenName = (
   dateA: string,
   dateB: string,
-  a: Listing,
-  b: Listing,
+  a: SortableListing,
+  b: SortableListing,
 ): number => {
   const cmp = dateA.localeCompare(dateB);
   return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
 };
 
 /** Tier 1: dated standard — sort by date ASC, then name */
-const compareDatedStandard = (a: Listing, b: Listing): number =>
+const compareDatedStandard = (a: SortableListing, b: SortableListing): number =>
   compareDateThenName(a.date, b.date, a, b);
 
 /** Tier 2: daily — sort by next bookable date ASC, then name */
 const compareDaily = (
   nextDates: Map<number, string | null>,
-  a: Listing,
-  b: Listing,
+  a: SortableListing,
+  b: SortableListing,
 ): number => {
   const dateA = nextDates.get(a.id) ?? null;
   const dateB = nextDates.get(b.id) ?? null;
@@ -52,7 +56,7 @@ const compareDaily = (
  */
 const compareListings =
   (nextDates: Map<number, string | null>) =>
-  (a: Listing, b: Listing): number => {
+  (a: SortableListing, b: SortableListing): number => {
     const tierA = listingTier(a);
     const tierB = listingTier(b);
     if (tierA !== tierB) return tierA - tierB;
@@ -62,10 +66,11 @@ const compareListings =
   };
 
 /**
- * Sort listings in unified 3-tier order.
- * Works with any Listing subtype (Listing, ListingWithCount, etc.).
+ * Sort listings in unified 3-tier order. Takes anything carrying the values the
+ * order is built from, so a narrow picker read sorts the same way a full
+ * listing record does.
  */
-export const sortListings = <T extends Listing>(
+export const sortListings = <T extends SortableListing>(
   listings: T[],
   holidays: Holiday[],
 ): T[] => {

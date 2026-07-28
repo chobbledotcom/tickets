@@ -1,10 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
-import {
-  getListingWithAttendeeRaw,
-  getListingWithAttendeesRaw,
-} from "#shared/db/listings/attendees.ts";
 import {
   getAllListingOptions,
   getListingsBySlugs,
@@ -21,122 +16,25 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
 
-describeWithEnv("db > listings", { db: true, triggers: true }, () => {
+describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
   describe("batch queries", () => {
-    test("getListingWithAttendeesRaw returns listing with attendees", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Alice",
-        "alice@example.com",
-      );
-
-      const result = await getListingWithAttendeesRaw(listing.id);
-      expect(result).not.toBeNull();
-      expect(result?.listing.id).toBe(listing.id);
-      expect(result?.listing.attendee_count).toBe(1);
-      expect(result?.attendeesRaw.length).toBe(1);
-    });
-
-    test("getListingWithAttendeesRaw returns null for non-existent listing", async () => {
-      const result = await getListingWithAttendeesRaw(999);
-      expect(result).toBeNull();
-    });
-
-    test("getListingWithAttendeeRaw returns listing with count fallback", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Bob",
-        "bob@example.com",
-      );
-
-      const result = await getListingWithAttendeeRaw(listing.id, attendee.id);
-      expect(result).not.toBeNull();
-      expect(result?.listing.id).toBe(listing.id);
-      expect(result?.attendeeRaw).not.toBeNull();
-      expect(result?.listing.attendee_count).toBe(1);
-    });
-
-    test("getListingWithAttendeeRaw returns null for non-existent listing", async () => {
-      const result = await getListingWithAttendeeRaw(999, 1);
-      expect(result).toBeNull();
-    });
-
-    // Regression: these loaders SELECT the listing row directly (not via
-    // LISTING_COUNT_SELECT), and income is now projected from the ledger rather
-    // than read off a `listings.income` column. Dropping that column without
-    // adding the projection to these queries left `income` undefined, so
-    // decryptListingWithCount's Number(undefined) produced NaN. Both must report
-    // the real ledger income.
-    test("getListingWithAttendeesRaw projects ledger income (never NaN)", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Ada",
-        "ada@example.com",
-      );
-      await postListingSale({
-        attendeeId: attendee.id,
-        gross: 2500,
-        listingId: listing.id,
-      });
-
-      const result = await getListingWithAttendeesRaw(listing.id);
-      expect(Number.isNaN(result?.listing.income)).toBe(false);
-      expect(result?.listing.income).toBe(2500);
-    });
-
-    test("getListingWithAttendeeRaw projects ledger income (never NaN)", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Grace",
-        "grace@example.com",
-      );
-      await postListingSale({
-        attendeeId: attendee.id,
-        gross: 1800,
-        listingId: listing.id,
-      });
-
-      const result = await getListingWithAttendeeRaw(listing.id, attendee.id);
-      expect(Number.isNaN(result?.listing.income)).toBe(false);
-      expect(result?.listing.income).toBe(1800);
-    });
-
     test("getListingsBySlugs returns empty array for empty slugs", async () => {
       const result = await getListingsBySlugs([]);
       expect(result).toEqual([]);
     });
 
-    test("getStoredListingsWithCountsByIds returns no listings for no ids", async () => {
-      expect(await getStoredListingsWithCountsByIds([])).toEqual([]);
+    test("getStoredListingsWithCountsByIds asks the database nothing for no ids", async () => {
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        expect(await getStoredListingsWithCountsByIds([])).toEqual([]);
+        expect(getQueryLog()).toEqual([]);
+      });
     });
 
     test("getListingsBySlugs returns listings in slug order", async () => {
@@ -213,27 +111,6 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("listingNames.byIds returns an empty map for no ids", async () => {
       const names = await listingNames.byIds([]);
-      expect(names.size).toBe(0);
-    });
-
-    test("getAttendeeNamesByIds decrypts the name for the given attendee id", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Grace Hopper",
-        "grace@example.com",
-      );
-
-      const privateKey = await getTestPrivateKey();
-      const names = await getAttendeeNamesByIds([attendee.id], privateKey);
-
-      expect(names.get(attendee.id)).toBe("Grace Hopper");
-    });
-
-    test("getAttendeeNamesByIds returns an empty map for no ids", async () => {
-      const privateKey = await getTestPrivateKey();
-      const names = await getAttendeeNamesByIds([], privateKey);
       expect(names.size).toBe(0);
     });
   });
