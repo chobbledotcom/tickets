@@ -159,13 +159,13 @@ src/shared/db/listing-parents.ts:221:52  ?? → ||   # childrenByParent.get(id):
 src/shared/db/listing-parents.ts:222:49  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
 
 # Group membership and package storage (groups.ts).
-src/shared/db/groups.ts:83:58  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
-src/shared/db/groups.ts:244:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
-src/shared/db/groups.ts:488:55  groupRecord → ""   # columnsSql only qualifies a column when the alias is truthy, so "" selects the same bare column names, which are unambiguous in this single-table query
-src/shared/db/groups.ts:230:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
-src/shared/db/groups.ts:442:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
-src/shared/db/groups.ts:687:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts:820:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
+src/shared/db/groups.ts:84:58  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
+src/shared/db/groups.ts:238:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
+src/shared/db/groups.ts:504:55  groupRecord → ""   # columnsSql only qualifies a column when the alias is truthy, so "" selects the same bare column names, which are unambiguous in this single-table query
+src/shared/db/groups.ts:224:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
+src/shared/db/groups.ts:458:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
+src/shared/db/groups.ts:703:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts:836:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
 src/features/admin/api-groups.ts:128:31  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
 src/features/admin/api-groups.ts:252:48  ?? → ||   # package rows are an array or undefined; every array, including [], is truthy
 
@@ -471,18 +471,18 @@ scripts/inline-jsquash-wasm.ts:76:38  ; → ""    # remote module remains semico
 # ignore-list checker cross-checks staleness against the full --exhaustive
 # mutant set regardless of which mode a given run used, so they stay valid
 # (not "stale") even under the default-mode precommit gate.
-src/shared/sort-listings.ts:18:48  2 → 3    # daily tier constant; only used via tierA-tierB's sign, never compared for equality
-src/shared/sort-listings.ts:19:10  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
-src/shared/sort-listings.ts:19:27   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
-src/shared/sort-listings.ts:19:32  0 → 1    # same effect as "always 1" above
-src/shared/sort-listings.ts:19:32  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
-src/shared/sort-listings.ts:59:19  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
+src/shared/sort-listings.ts:22:48  2 → 3    # daily tier constant; only used via tierA-tierB's sign, never compared for equality
+src/shared/sort-listings.ts:23:10  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
+src/shared/sort-listings.ts:23:27   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
+src/shared/sort-listings.ts:23:32  0 → 1    # same effect as "always 1" above
+src/shared/sort-listings.ts:23:32  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
+src/shared/sort-listings.ts:63:19  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
 
 # sort-listings.ts's compareDaily: nextDates.get() is typed string|null, never
 # undefined in practice because every daily listing gets an explicit entry, and
 # getNextBookableDate never returns "". Therefore `?? null` and `|| null` agree.
-src/shared/sort-listings.ts:42:36  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
-src/shared/sort-listings.ts:43:36  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts:46:36  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts:47:36  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
 
 # sort-listings.ts's compareDaily return values on the dateA===null branch:
 # confirmed by direct experiment that Array.sort's swap decision only checks
@@ -492,9 +492,9 @@ src/shared/sort-listings.ts:43:36  ?? → ||   # nextDates.get(b.id): string|nul
 # returns -1 for the reverse pairing, no input can ever make this branch's
 # non-negative return value observably differ from the intended `1` (the
 # magnitude-only `1 → 2` entries below are --exhaustive-only; see note above).
-src/shared/sort-listings.ts:45:30  1 → 0   # non-negative result; see block comment above
-src/shared/sort-listings.ts:45:30  1 → 2   # sign-preserving magnitude change; see block comment above
-src/shared/sort-listings.ts:46:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
+src/shared/sort-listings.ts:49:30  1 → 0   # non-negative result; see block comment above
+src/shared/sort-listings.ts:49:30  1 → 2   # sign-preserving magnitude change; see block comment above
+src/shared/sort-listings.ts:50:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
 
 # orphan-retention.ts's Number.parseInt(safeValue, 10) radix: safeValue is
 # gated by isOrphanRetentionValue to always be one of ORPHAN_RETENTION_OPTIONS'
@@ -800,13 +800,13 @@ scripts/pr-queue/summary.ts:297:17  ?? → ||    # hasNextPage is boolean|undefi
 
 # dates.ts — provably-equivalent survivors from the whole-file run over the
 # dates suites. Each is unobservable through every export that reaches the line.
-src/shared/dates.ts:38:24  0 → 1    # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read
-src/shared/dates.ts:203:33  1 → 0    # getBookableStartDates' customisable duration override; normalizeDurationDays clamps 0 up to 1, so 0 and 1 are the same one-day span
-src/shared/dates.ts:425:26  1 → 0    # bookedRangeLabel's fallbackDurationDays default is only observed through the `> 1` guard and the `- 1` behind it; 0 and 1 both fail the guard identically
-src/shared/dates.ts:449:19   → "mutated"    # widestDatedEntry's initial widestEnd is only compared while `widest !== null`, by which point it has been overwritten by a real end value
-src/shared/dates.ts:452:47  ?? → ||    # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
-src/shared/dates.ts:412:21  1 → 0    # bookedSpanDays' `diffDays > 1 ? diffDays : 1`: diffDays is Math.round (an integer), and at the only differing input (diffDays === 1) both comparisons yield 1
-src/shared/dates.ts:430:30  1 → 0    # bookedRangeLabel's `fallbackDurationDays > 1` guard: at the only differing input (fallback === 1) the mutant computes lastDay = addDays(date, 0) = date, and the `lastDay > date` check then produces the same single-day label the null branch does
+src/shared/dates.ts:39:24  0 → 1    # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read
+src/shared/dates.ts:204:33  1 → 0    # getBookableStartDates' customisable duration override; normalizeDurationDays clamps 0 up to 1, so 0 and 1 are the same one-day span
+src/shared/dates.ts:426:26  1 → 0    # bookedRangeLabel's fallbackDurationDays default is only observed through the `> 1` guard and the `- 1` behind it; 0 and 1 both fail the guard identically
+src/shared/dates.ts:450:19   → "mutated"    # widestDatedEntry's initial widestEnd is only compared while `widest !== null`, by which point it has been overwritten by a real end value
+src/shared/dates.ts:453:47  ?? → ||    # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
+src/shared/dates.ts:413:21  1 → 0    # bookedSpanDays' `diffDays > 1 ? diffDays : 1`: diffDays is Math.round (an integer), and at the only differing input (diffDays === 1) both comparisons yield 1
+src/shared/dates.ts:431:30  1 → 0    # bookedRangeLabel's `fallbackDurationDays > 1` guard: at the only differing input (fallback === 1) the mutant computes lastDay = addDays(date, 0) = date, and the `lastDay > date` check then produces the same single-day label the null branch does
 
 # Admin segment dispatch (admin/index.ts) — two provably-equivalent survivors
 # from the routeAdmin/adminPathSegment run over the manifest + footer suites.
@@ -835,8 +835,8 @@ scripts/unit-tests-report-imports.ts:138:23   → "mutated"   # stem()'s first r
 
 # getAttendees filter/query builder (src/shared/db/attendees/select.ts) — the
 # defaulted `kind`/`join` operands are string unions that never include "".
-src/shared/db/attendees/select.ts:289:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
-src/shared/db/attendees/select.ts:386:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+src/shared/db/attendees/select.ts:294:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts:379:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
 # i18n (shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
@@ -985,6 +985,3 @@ src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is b
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.
 scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
-
-# Month lengths: the unused slot that makes the table 1-indexed.
-src/shared/dates.ts:39:24  0 → 1   # daysInMonth is only ever called with getUTCMonth() + 1 (its single caller, addMonthsIso), so the month is always 1-12 and this index-0 placeholder is never read
