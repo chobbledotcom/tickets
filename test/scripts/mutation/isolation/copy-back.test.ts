@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
 import {
   captureConsole,
+  withoutChildCoverage,
   withTempDir,
   writeFakeScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
@@ -19,9 +20,11 @@ const runKeeper = async (
   await writeFakeScript(root, ENTRY, body);
   await Deno.writeTextFile(join(root, KEPT), "first\nsecond\n");
   return await captureConsole(() =>
-    runInSnapshot(
-      { args: [], copyBack: [KEPT], entryScript: `scripts/${ENTRY}` },
-      root,
+    withoutChildCoverage(() =>
+      runInSnapshot(
+        { args: [], copyBack: [KEPT], entryScript: `scripts/${ENTRY}` },
+        root,
+      ),
     ),
   );
 };
