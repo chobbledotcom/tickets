@@ -6,6 +6,7 @@ import {
   PaymentChargeDecisionSnapshotSchema,
   PaymentConflictSchema,
   PaymentIgnoreReasonSchema,
+  PaymentLegacyDecisionSnapshotSchema,
   PaymentOperatorDecisionSchema,
   PaymentPendingReasonSchema,
   PaymentRefundStateSchema,
@@ -159,27 +160,28 @@ describe("payment lifecycle", () => {
     refunded: { amount: 0, currency: "GBP" },
   };
 
-  test("refuses reviewed money returned beyond what was taken", () => {
-    expect(
-      v.safeParse(
-        PaymentChargeDecisionSnapshotSchema,
-        chargeSnapshot([
-          { ...reviewedCharge, refunded: { amount: 101, currency: "GBP" } },
-        ]),
-      ).success,
-    ).toBe(false);
-  });
-
-  test("refuses reviewed money returned in another currency", () => {
-    expect(
-      v.safeParse(
-        PaymentChargeDecisionSnapshotSchema,
-        chargeSnapshot([
-          { ...reviewedCharge, refunded: { amount: 0, currency: "USD" } },
-        ]),
-      ).success,
-    ).toBe(false);
-  });
+  for (const [name, broken] of [
+    [
+      "returned beyond what was taken",
+      { refunded: { amount: 101, currency: "GBP" } },
+    ],
+    [
+      "returned in another currency",
+      { refunded: { amount: 0, currency: "USD" } },
+    ],
+    // A charge row must hold at least a penny, so a review of nothing shows
+    // the worker money that could never be saved as the charge it names.
+    ["no money taken at all", { captured: { amount: 0, currency: "GBP" } }],
+  ] as const) {
+    test(`refuses reviewed money ${name}`, () => {
+      expect(
+        v.safeParse(
+          PaymentChargeDecisionSnapshotSchema,
+          chargeSnapshot([{ ...reviewedCharge, ...broken }]),
+        ).success,
+      ).toBe(false);
+    });
+  }
 
   test("refuses the same money listed twice in a review", () => {
     // Listed twice, it would be offered to the worker twice.
@@ -189,6 +191,45 @@ describe("payment lifecycle", () => {
         chargeSnapshot([reviewedCharge, reviewedCharge]),
       ).success,
     ).toBe(false);
+  });
+
+  // An old payment's review names its money as plain text, so the same two
+  // holes have to be closed there as well.
+  for (const [name, charges] of [
+    [
+      "lists the same money twice",
+      [
+        { chargeId: 1, providerReference: "ch_old" },
+        { chargeId: 1, providerReference: "ch_old" },
+      ],
+    ],
+    [
+      "names money with only spaces",
+      [{ chargeId: 1, providerReference: "   " }],
+    ],
+  ] as const) {
+    test(`refuses an old payment's review that ${name}`, () => {
+      expect(
+        v.safeParse(PaymentLegacyDecisionSnapshotSchema, {
+          charges,
+          kind: "legacy_assignment",
+          paymentId: "pay_1",
+        }).success,
+      ).toBe(false);
+    });
+  }
+
+  test("accepts an old payment's review naming distinct money", () => {
+    expect(
+      v.safeParse(PaymentLegacyDecisionSnapshotSchema, {
+        charges: [
+          { chargeId: 1, providerReference: "ch_old" },
+          { chargeId: 2, providerReference: "ch_older" },
+        ],
+        kind: "legacy_assignment",
+        paymentId: "pay_1",
+      }).success,
+    ).toBe(true);
   });
 
   test("refuses giving a payment one provider while showing another's money", () => {

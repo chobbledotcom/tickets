@@ -135,6 +135,7 @@ export const paymentSessionTable: [name: string, table: Table] = [
               AND (completion_state != 'legacy_unknown' OR state = 'completed'))
             OR
             (origin = 'current'
+              AND legacy_runtime IS NULL
               AND provider IS NOT NULL
               AND mode IS NOT NULL
               AND account_id IS NOT NULL

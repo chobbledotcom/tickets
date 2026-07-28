@@ -1953,3 +1953,48 @@ straight through, which the table now refuses.
 An empty value is already turned into nothing by the `||` on that line, so only
 real times arrive. A value that cannot be read as a time is a genuine decision:
 refusing it stops the upgrade, and dropping it loses when the money went back.
+
+---
+
+## Three payment findings that need the code around them
+
+*Origin: Codex and CodeRabbit reviews on PR #1973, which landed the payment
+record's tables and words but nothing that reads or writes them.*
+
+Each is plausible, and each needs code that is not in that slice to settle.
+
+**Booking dates are kept as any text.** `BookingIntentSchema`
+(`src/shared/payments.ts`) says a booking's date is a string, so `2026-02-30`
+or `banana` is stored and sent through payment metadata. The date is later
+handed to the booking range code, where an impossible day is either quietly
+moved to another one or throws — after the buyer has paid.
+
+`IsoDateSchema` (`src/shared/validation/date.ts`) is the obvious rule to use.
+What it needs first is a check of every place a date is put into an intent: if
+any of them writes a day in another shape, adding the rule refuses real
+payments instead of bad ones. Confirm the writers, then tighten it.
+
+**A child booking can be allocated more places than were paid for.** The same
+schema lets a child line with a quantity of one carry an allocation of two.
+The drift checks read an allocation total at or above the line quantity as
+fully folded, and `expandChildAllocations` then writes the allocation's
+quantity, so a paid order can make two tickets while charging for one. The
+metadata is signed, so this is our own code drifting rather than something a
+buyer can send.
+
+The rule to add is that each child's allocations added together do not exceed
+its own signed line quantity. Getting it right needs the fold that builds the
+allocations and the pricing that reads them in view at once, so the rule
+matches what the checkout actually intends.
+
+**A case can need the owner while its alert describes an older version.** On
+`payment_cases` a `needs_action` case may sit at revision 2 while both alert
+revisions still say 1. Codex asked for the alerted revision to equal the
+current one whenever a case needs action.
+
+That rule as written would refuse the ordinary row: a case is bumped to a new
+revision when its evidence changes, and the alert for that revision has not
+been sent yet — sending it is what the alert claim and its lease are for. The
+real invariant is that the alert catches up, which is about time passing and
+cannot be written as a rule on a single row. If the gap should be bounded, the
+alerting worker is what bounds it, so settle this with that worker in hand.

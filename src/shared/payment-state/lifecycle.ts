@@ -12,13 +12,13 @@ import {
 } from "#shared/payment-state/operator.ts";
 import {
   MoneySchema,
+  PositiveMoneySchema,
   ProviderChargeResourceSchema,
   ProviderResourceSchema,
   ResourceIdSchema,
 } from "#shared/payment-state/resources.ts";
 import { PaymentProviderSchema } from "#shared/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
-import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 const kindObject = <const Kind extends string>(kind: Kind) =>
   v.strictObject({ kind: v.literal(kind) });
@@ -145,7 +145,7 @@ const paymentAccountFields = {
 };
 
 const reviewedMoneyFields = {
-  captured: MoneySchema,
+  captured: PositiveMoneySchema,
   chargeId: integerAtLeast(1),
 };
 
@@ -167,6 +167,27 @@ export type PaymentOperatorSelection = v.InferOutput<
 const listsEachOnce = (values: (string | number)[]): boolean =>
   unique(values).length === values.length;
 
+/** The same money listed twice would be offered to the worker twice, and a
+ *  reading that showed it that way is treated as a problem elsewhere. A charge
+ *  is the same money if either its own id or the provider's name for it
+ *  repeats — how that name is read differs between a current and an old
+ *  payment, so it is given here. */
+const withNoRepeatedCharges = <
+  TSchema extends v.GenericSchema<{ charges: { chargeId: number }[] }>,
+>(
+  schema: TSchema,
+  nameOf: (charge: v.InferOutput<TSchema>["charges"][number]) => string,
+) =>
+  v.pipe(
+    schema,
+    v.check(
+      (snapshot) =>
+        listsEachOnce(snapshot.charges.map((charge) => charge.chargeId)) &&
+        listsEachOnce(snapshot.charges.map(nameOf)),
+      "Reviewed money must not list the same charge twice",
+    ),
+  );
+
 const reviewedChargeSchema = v.pipe(
   v.strictObject({
     ...reviewedMoneyFields,
@@ -181,46 +202,44 @@ const reviewedChargeSchema = v.pipe(
 
 const reviewedLegacyChargeSchema = v.strictObject({
   chargeId: integerAtLeast(1),
-  providerReference: NonEmptyTextSchema,
+  // A reference of only spaces names no money for the worker to attach.
+  providerReference: ResourceIdSchema,
 });
 
-export const PaymentChargeDecisionSnapshotSchema = v.pipe(
-  v.strictObject({
-    accountId: ResourceIdSchema,
-    charges: v.pipe(v.array(reviewedChargeSchema), v.minLength(1)),
-    kind: v.literal("charges"),
-    mode: PaymentModeSchema,
-    paymentId: ResourceIdSchema,
-    provider: PaymentProviderSchema,
-  }),
-  // The worker acts through the provider named here, so every piece of money
-  // it is shown has to be money that provider took.
-  v.check(
-    (snapshot) =>
-      snapshot.charges.every(
-        (charge) => charge.providerReference.provider === snapshot.provider,
-      ),
-    "Reviewed money must come from the provider the decision names",
+export const PaymentChargeDecisionSnapshotSchema = withNoRepeatedCharges(
+  v.pipe(
+    v.strictObject({
+      accountId: ResourceIdSchema,
+      charges: v.pipe(v.array(reviewedChargeSchema), v.minLength(1)),
+      kind: v.literal("charges"),
+      mode: PaymentModeSchema,
+      paymentId: ResourceIdSchema,
+      provider: PaymentProviderSchema,
+    }),
+    // The worker acts through the provider named here, so every piece of money
+    // it is shown has to be money that provider took.
+    v.check(
+      (snapshot) =>
+        snapshot.charges.every(
+          (charge) => charge.providerReference.provider === snapshot.provider,
+        ),
+      "Reviewed money must come from the provider the decision names",
+    ),
   ),
-  // The same money listed twice would be offered to the worker twice, and a
-  // reading that showed it that way is treated as a problem elsewhere. A
-  // charge is the same money if either its own id or the provider's repeats.
-  v.check(
-    (snapshot) =>
-      listsEachOnce(snapshot.charges.map((c) => c.chargeId)) &&
-      listsEachOnce(snapshot.charges.map((c) => c.providerReference.id)),
-    "Reviewed money must not list the same charge twice",
-  ),
+  (charge) => charge.providerReference.id,
 );
 export type PaymentChargeDecisionSnapshot = v.InferOutput<
   typeof PaymentChargeDecisionSnapshotSchema
 >;
 
-export const PaymentLegacyDecisionSnapshotSchema = v.strictObject({
-  charges: v.pipe(v.array(reviewedLegacyChargeSchema), v.minLength(1)),
-  kind: v.literal("legacy_assignment"),
-  paymentId: ResourceIdSchema,
-});
+export const PaymentLegacyDecisionSnapshotSchema = withNoRepeatedCharges(
+  v.strictObject({
+    charges: v.pipe(v.array(reviewedLegacyChargeSchema), v.minLength(1)),
+    kind: v.literal("legacy_assignment"),
+    paymentId: ResourceIdSchema,
+  }),
+  (charge) => charge.providerReference,
+);
 export type PaymentLegacyDecisionSnapshot = v.InferOutput<
   typeof PaymentLegacyDecisionSnapshotSchema
 >;

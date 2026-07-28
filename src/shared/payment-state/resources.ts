@@ -104,11 +104,13 @@ export const PositiveMoneySchema = positiveMoney(
   "A paid charge must be positive",
 );
 
-/** A refund the provider has not finished has to be for some money. A refund of
- *  nothing would be answered before the money already returned is looked at, so
- *  a charge fully given back would read as still going, for ever. */
-const PendingRefundMoneySchema = positiveMoney(
-  "A refund still going must be positive",
+/** A refund that says money moved has to have moved some. A refund of nothing
+ *  is answered before the money already returned is looked at, so a charge
+ *  fully given back would read as still going, for ever, and the provider
+ *  saying a refund finished would be thrown away. The one refund that may be
+ *  for nothing is a failed one, where no money moved at all. */
+const MovedRefundMoneySchema = positiveMoney(
+  "A refund that moved money must be positive",
 );
 
 const refundResult = <
@@ -130,9 +132,11 @@ const refundResult = <
   });
 
 const optionalRefund = v.optional(ProviderRefundResourceSchema);
-const completedRefundResult = refundResult("completed", optionalRefund, {});
+const completedRefundResult = refundResult("completed", optionalRefund, {
+  amount: MovedRefundMoneySchema,
+});
 const pendingRefundResult = refundResult("pending", optionalRefund, {
-  amount: PendingRefundMoneySchema,
+  amount: MovedRefundMoneySchema,
 });
 
 export const RefundObservationSchema = v.variant("status", [
@@ -155,7 +159,7 @@ export type RefundFailureReason = v.InferOutput<
 export const RefundResolutionSchema = v.variant("status", [
   completedRefundResult,
   pendingRefundResult,
-  refundResult("partial", optionalRefund, {}),
+  refundResult("partial", optionalRefund, { amount: MovedRefundMoneySchema }),
   refundResult("failed", optionalRefund, {
     reason: RefundFailureReasonSchema,
   }),

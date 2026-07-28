@@ -213,6 +213,25 @@ describe("payment resources", () => {
     ).toEqual(["completed", "pending", "failed"]);
   });
 
+  // A refund of nothing reads as "no refund seen", so the provider saying one
+  // finished would be thrown away and the money could go back twice. A failed
+  // refund moved no money, so nothing is the right amount there.
+  for (const [status, allowed] of [
+    ["completed", false],
+    ["partial", false],
+    ["failed", true],
+  ] as const) {
+    test(`${allowed ? "allows" : "refuses"} a ${status} refund for no money`, () => {
+      expect(
+        v.safeParse(RefundResolutionSchema, {
+          amount: { amount: 0, currency: "GBP" },
+          ...(status === "failed" ? { reason: "not_observed" } : {}),
+          status,
+        }).success,
+      ).toBe(allowed);
+    });
+  }
+
   test("allows a pending refund when the provider exposes no refund resource", () => {
     expect(
       v.safeParse(RefundObservationSchema, {

@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "d5c8025fb3e0b1bddbf93d27b940deda4dfaf34009997f02ef9d98009874afc3",
+    "53b1ad4097d4acc617421ff75ac9bdd0bc061ba352ce9b19b175983b92d8cff8",
   );
 });
 
@@ -149,6 +149,21 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
          refund_state, legacy_source, created_at, updated_at, observed_at)
         VALUES ('no-source', 'legacy', NULL, NULL, 'hyb:1:reference',
           NULL, NULL, NULL, NULL, 'unknown', NULL, 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a current payment carrying an old payment's record", async () => {
+    // legacy_runtime belongs to a copied payment. On a current one it is an
+    // encrypted blob nothing accounts for, and no code path writes it.
+    await expect(
+      getDb().execute(`INSERT INTO payment_sessions
+        (id, origin, provider, mode, account_id, expected_amount,
+         expected_currency, booking_intent, session_resource,
+         session_reference_index, state, revision, created_at, updated_at,
+         result_state, ticket_state, completion_state, legacy_runtime)
+        VALUES ('current-with-legacy', 'current', 'stripe', 'test', 'acct',
+          100, 'GBP', 'enc:1:a:b', 'enc:1:a:b', 'idx', 'pending', 1, 1, 1,
+          'none', 'none', 'none', 'enc:1:a:b')`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 
