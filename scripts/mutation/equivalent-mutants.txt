@@ -159,6 +159,9 @@ src/shared/db/listing-parents.ts:221:52  ?? → ||   # childrenByParent.get(id):
 src/shared/db/listing-parents.ts:222:49  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
 
 # Group membership and package storage (groups.ts).
+src/shared/db/groups.ts:83:58  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
+src/shared/db/groups.ts:244:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
+src/shared/db/groups.ts:488:55  groupRecord → ""   # columnsSql only qualifies a column when the alias is truthy, so "" selects the same bare column names, which are unambiguous in this single-table query
 src/shared/db/groups.ts:230:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
 src/shared/db/groups.ts:442:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
 src/shared/db/groups.ts:687:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy

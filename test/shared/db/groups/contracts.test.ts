@@ -4,6 +4,7 @@ import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import {
   computeGroupSlugIndex,
+  getAllGroupNames,
   getGroupPackagePrices,
   getListingsByGroupId,
   getListingsByGroupIds,
@@ -13,6 +14,7 @@ import {
   isHiddenPackageMember,
   listingGroups,
   packageChildEdgeConflict,
+  packageMembersError,
   setGroupListingsActive,
   setGroupPackageMembers,
   validateGroupListingType,
@@ -27,6 +29,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 const insertMinimalGroup = async (name: string) => {
   const slug = name.toLowerCase().replaceAll(" ", "-");
@@ -55,6 +58,17 @@ describeWithEnv("db > group storage contracts", { db: true }, () => {
     expect((await groups.cache.getAll()).map(({ id }) => id)).toEqual([
       group.id,
     ]);
+  });
+
+  test("a second read inside the cache window does not query again", async () => {
+    await insertMinimalGroup("Cache Window");
+    await groups.cache.getAll();
+
+    const { roundTrips } = await runAndCountRoundTrips(() =>
+      groups.cache.getAll(),
+    );
+
+    expect(roundTrips).toBe(0);
   });
 
   test("cache stats identify the group cache", () => {
@@ -184,6 +198,34 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
     });
 
     expect(await isHiddenPackageMember(member.id)).toBe(true);
+  });
+
+  test("the package error names the first listing that cannot be a member", async () => {
+    const first = await createTestListing({
+      canPayMore: true,
+      name: "First Offender",
+    });
+    const second = await createTestListing({
+      canPayMore: true,
+      name: "Second Offender",
+    });
+
+    // Both listings are refused, so the message must come from the earlier one.
+    expect(await packageMembersError([first, second], false)).toBe(
+      t("error.package_member_pay_more", { name: "First Offender" }),
+    );
+  });
+
+  test("every group name is read in one go", async () => {
+    const first = await createTestGroup({ name: "Name Map One" });
+    const second = await createTestGroup({ name: "Name Map Two" });
+
+    expect(await getAllGroupNames()).toEqual(
+      new Map([
+        [first.id, "Name Map One"],
+        [second.id, "Name Map Two"],
+      ]),
+    );
   });
 });
 
