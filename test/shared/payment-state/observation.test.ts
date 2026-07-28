@@ -21,6 +21,7 @@ import {
   foundRead,
   paymentObservation,
   refundObservation,
+  refundResource,
   sessionResource,
   validationMessage,
 } from "./fixtures.ts";
@@ -155,6 +156,28 @@ describe("payment observations", () => {
         ...foundRead(observation),
         requested: otherCheckout,
         returned: otherCheckout,
+      }),
+    ).toBe("Returned provider resource must belong to the payment observation");
+  });
+
+  test("refuses a refund that claims to hang off the checkout", () => {
+    // A refund always hangs off a charge. One naming the checkout as its parent
+    // is malformed, so it must not slip through on the not-paid-yet allowance
+    // that exists for charges the site has not recorded.
+    const observation = paymentObservation({
+      charges: undefined,
+      status: "pending",
+    });
+    const refundOnCheckout = {
+      ...refundResource,
+      parentId: sessionResource.id,
+    };
+
+    expect(
+      validationMessage(ProviderReadSchema, {
+        ...foundRead(observation),
+        requested: refundOnCheckout,
+        returned: refundOnCheckout,
       }),
     ).toBe("Returned provider resource must belong to the payment observation");
   });

@@ -3,6 +3,7 @@ import {
   type ChargeLeg,
   ChargeLegsSchema,
   MoneySchema,
+  ProviderChargeResourceSchema,
   type ProviderResource,
   ProviderResourceSchema,
   ProviderSessionResourceSchema,
@@ -143,9 +144,12 @@ const returnedResourceBelongsToObservation = (
   paymentObservationResources(observation).some((resource) =>
     sameProviderResourceAndParent(resource, returned),
   ) ||
+  // A payment that is not paid yet may not have recorded its charge, so a
+  // charge hanging off this checkout still counts as ours. Only a charge: a
+  // refund hangs off a charge, never off a checkout, so one that claims to
+  // belong to the checkout is malformed and is not ours to trust.
   (observation.status !== "paid" &&
-    "parentId" in returned &&
-    returned.provider === observation.session.provider &&
+    v.is(ProviderChargeResourceSchema, returned) &&
     returned.parentId === observation.session.id);
 
 const resourceParent = (resource: ProviderResource): string | undefined =>

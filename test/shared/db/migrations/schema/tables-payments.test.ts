@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "bfc16c65a91d230b17ee77338446b6ed6c31294f142729fc0daed9a4898efeb8",
+    "5793c6235a0d9703ca7f1c8912f1fe567c919716934e807e7effcd403119ad2a",
   );
 });
 
@@ -20,6 +20,19 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
         VALUES ('incomplete', 'current', 'created', 1, 1, 1,
           'none', 'none', 'none', NULL)`),
     ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a session with no id", async () => {
+    // SQLite lets a text primary key hold NULL, and a rule that compares
+    // against NULL passes rather than fails. Without saying so outright, a
+    // payment with no id gets in, and nothing can ever look it up again.
+    await expect(
+      getDb().execute(`INSERT INTO payment_sessions
+        (id, origin, state, revision, created_at, updated_at,
+         result_state, ticket_state, completion_state, legacy_runtime)
+        VALUES (NULL, 'legacy', 'created', 1, 1, 1,
+          'none', 'none', 'none', 'enc:1:a:b')`),
+    ).rejects.toThrow();
   });
 
   test("allows checkout creation data only on an unattached created session", async () => {
@@ -100,6 +113,42 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
         VALUES ('invented-money', 'legacy', 'stripe', 'stripe_payment_intent',
           'hyb:1:reference', 'made-up-index', 100, 'GBP', 100, 'completed',
           'processed_payments', 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a current charge with no refunded total", async () => {
+    // The rule that keeps the refunded total within the captured amount
+    // compares against NULL when the total is missing, and a comparison with
+    // NULL passes. The total has to be demanded outright.
+    await expect(
+      getDb().execute(`INSERT INTO payment_charges
+        (payment_id, provider, resource_kind, provider_reference,
+         reference_index, captured_amount, currency,
+         refund_state, created_at, updated_at, observed_at)
+        VALUES ('no-refunded-total', 'stripe', 'stripe_payment_intent',
+          'enc:1:a:b', 'no-refunded-index', 100, 'GBP', 'none', 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a current charge that names no provider", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_charges
+        (payment_id, provider, resource_kind, provider_reference,
+         reference_index, captured_amount, currency, refunded_amount,
+         refund_state, created_at, updated_at, observed_at)
+        VALUES ('no-provider', NULL, NULL, 'enc:1:a:b',
+          'no-provider-index', 100, 'GBP', 0, 'none', 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses an old charge that does not say where it came from", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_charges
+        (payment_id, origin, provider, resource_kind, provider_reference,
+         reference_index, captured_amount, currency, refunded_amount,
+         refund_state, legacy_source, created_at, updated_at, observed_at)
+        VALUES ('no-source', 'legacy', NULL, NULL, 'hyb:1:reference',
+          NULL, NULL, NULL, NULL, 'unknown', NULL, 1, 1, 1)`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 

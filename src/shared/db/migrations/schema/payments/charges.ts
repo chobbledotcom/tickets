@@ -74,8 +74,11 @@ export const paymentChargeTable: [name: string, table: Table] = [
               AND reference_index IS NOT NULL
               AND captured_amount IS NOT NULL
               AND currency IS NOT NULL
+              AND refunded_amount IS NOT NULL
               AND refunded_amount BETWEEN 0 AND captured_amount
               AND refund_state != 'unknown'
+              AND provider IS NOT NULL
+              AND resource_kind IS NOT NULL
               AND (
                 (provider = 'stripe' AND resource_kind = 'stripe_payment_intent')
                 OR (provider = 'square' AND resource_kind = 'square_payment')
@@ -104,6 +107,7 @@ export const paymentChargeTable: [name: string, table: Table] = [
               AND pending_refund_index IS NULL
               AND pending_refund_idempotency_key IS NULL
               AND pending_refund_key_index IS NULL
+              AND legacy_source IS NOT NULL
               AND legacy_source IN ('processed_payments', 'attendees.pii_blob', 'attendee_merge'))
           )
           CHECK ((pending_refund_id IS NULL) = (pending_refund_index IS NULL))

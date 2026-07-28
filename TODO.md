@@ -1718,3 +1718,64 @@ and then lets go of it before use can be gazumped. The install tests are the
 ones that noticed, because they are the ones that assert a failure. Worth
 looking at whether ports should be handed out so that no two tests in a run can
 ever receive the same one.
+
+## Payment-record findings that need the code using the record
+
+*Origin: Codex review on PR #1973, which landed the payment record's tables and
+the words for what a payment is — but nothing that reads or writes them.*
+
+Four findings from that review describe real gaps, but each one's fix is a
+choice about what the payment should *do* instead, and nothing in that change
+made the choice: the repositories, the runtime, and the copy that brings older
+payments across all arrive later. They are recorded here so the slice that
+lands each consumer settles them, rather than inheriting them silently.
+
+Three findings from the same review were fixed in that change, because they
+were wrong whatever uses them: a payment could be saved with no id, a current
+charge could be saved with no refunded total and no provider, and an old charge
+could be saved without saying where it came from. All three were rules that
+compared against a missing value, which SQLite lets through.
+
+**The same money can be attached to two payments.** A charge is unique per
+payment and reference (`idx_payment_charges_payment_reference` in
+`src/shared/db/migrations/schema/payments/charges.ts`), so the same provider
+charge on two different payment records is allowed. Either could then complete
+a booking or ask for a refund against money the other already spoke for.
+
+Making the reference unique on its own is not a straight swap: that composite
+pair is also the upsert key (`ON CONFLICT(payment_id, reference_index)` in
+`charge-upsert.ts` on the aggregate branch), so the extra rule has to be an
+additional one. It also collides with a known upgrade fault already recorded
+above — a SumUp payment known by two ids can produce two records for the same
+money — where a unique rule would turn a split record into a failed upgrade.
+Decide it with the copy code in hand, and say which of the two failures is
+preferred.
+
+**A refund the provider says is done can leave the money refundable.**
+`resolveRefund` (`src/shared/payment-state/refund.ts`, around line 52) reads a
+completed refund, then answers from the charge's confirmed refunded total
+instead. While that total still says zero — a normal delay between the two
+readings — the answer is "no refund seen", which reads as refundable, so
+another refund can be sent for money that has already gone back. The two
+readings disagreeing is not "nothing happened": it should be held as still
+going, or put in front of the owner. Which of those is right depends on what
+the refund runtime does with each answer.
+
+**A failed checkout that took money is thrown away.** `foundReadResolution`
+(`src/shared/payment-state/resolve.ts`, around line 229) answers "ignore" for
+any failed observation, including one carrying a charge with money on it. A
+buyer whose checkout failed after the money was taken then has no booking, no
+refund, and nothing raised for the owner. A failed payment holding a captured
+charge should be a conflict instead. Note the related finding above about a
+failed payment already answering "conflict" from the terminal map — settle both
+together so the buyer's cancel page and the owner's list agree.
+
+**An owner's decision can carry the wrong evidence.** In
+`src/shared/payment-state/lifecycle.ts` (around line 205) the choice made and
+the review it was made from are checked separately, so a decision can pair a
+choice about an old payment with a review of a current payment's charges, or
+the reverse. The worker acting on it then has evidence describing a different
+payment, on a path that moves money and cannot be undone. The fix is to model
+the allowed pairs as variants so an impossible pairing cannot be built at all.
+Doing that needs the decision writer and worker in view, so the variants match
+what is actually offered.

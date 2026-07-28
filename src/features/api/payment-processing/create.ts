@@ -6,6 +6,7 @@
  * quantity-0 placeholder instead of dropping a paid customer.
  */
 
+import * as v from "valibot";
 import { requiredMapValue } from "#fp";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
@@ -50,6 +51,7 @@ import type {
   TextAnswerRef,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { StoredTextAnswerRefSchema } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** The listing id + package path shared by every booking row we build from a
@@ -164,6 +166,10 @@ export type HonourResult =
  * recoverable from the metadata, so we drop that single answer and surface it
  * loudly, rather than bind an undefined id — the payment is already captured, so
  * the booking must still finalize instead of crash-looping the webhook.
+ *
+ * The check is the schema rather than a plain "is it there", because the refs
+ * come from metadata that was parsed but never validated: an id that is null, a
+ * word, or half a number would otherwise be written as a real answer.
  */
 const textRefsWithStringId = (
   refs: TextAnswerRef[],
@@ -171,8 +177,8 @@ const textRefsWithStringId = (
 ): StoredTextAnswerRef[] => {
   const resolved: StoredTextAnswerRef[] = [];
   for (const ref of refs) {
-    if (ref.s !== undefined) {
-      resolved.push({ ...ref, s: ref.s });
+    if (v.is(StoredTextAnswerRefSchema, ref)) {
+      resolved.push(ref);
     } else {
       logError({
         code: ErrorCode.DATA_INVALID,

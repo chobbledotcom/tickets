@@ -10,7 +10,9 @@ export const paymentSessionTable: [name: string, table: Table] = [
   "payment_sessions",
   {
     columns: [
-      ["id", "TEXT PRIMARY KEY CHECK (length(trim(id)) > 0)"],
+      // SQLite lets a text primary key hold NULL, so the key says NOT NULL
+      // outright rather than relying on being the key.
+      ["id", "TEXT PRIMARY KEY NOT NULL CHECK (length(trim(id)) > 0)"],
       ["origin", "TEXT NOT NULL CHECK (origin IN ('current', 'legacy'))"],
       [
         "provider",
