@@ -3,7 +3,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { addDays } from "#shared/dates.ts";
-import { createSystemNote } from "#shared/db/system-notes.ts";
+import { createSystemNote } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { createDailyListing } from "#test/integration/server/listings/_shared-setup.ts";
 import { logActivity } from "#test-utils/activity-log.ts";
@@ -102,7 +103,10 @@ describeWithEnv(
           gross: 5000,
           listingId: listing.id,
         });
-        await createSystemNote(confirmed.id, "Called ahead about access");
+        await createSystemNote(
+          attendeeNotes(confirmed.id),
+          "Called ahead about access",
+        );
         // An incomplete booking: a recognised sale that was never paid.
         const incomplete = await createPaidAttendeeWithoutLedger(
           listing.id,

@@ -32,8 +32,9 @@ import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { createSystemNote } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { createSystemNote } from "#shared/db/system-notes.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import type { BookingItem, ValidatedPaymentSession } from "#shared/payments.ts";
@@ -195,7 +196,7 @@ export const storeRefundedBooking = async (
     });
   }
   await createSystemNote(
-    attendeeId,
+    attendeeNotes(attendeeId),
     refundedNoteText(attendeeId, spec, refunded, session.paymentReference),
   );
   // Status 200: a fully-handled terminal outcome (booking kept, money returned or

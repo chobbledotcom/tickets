@@ -213,8 +213,8 @@ export const expectRefundedWithNote = async (
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
   expect(mockRefund.calls.length).toBe(1);
-  const { getNoteRows } = await import("#shared/db/system-notes.ts");
-  expect((await getNoteRows([attendeeId])).length).toBe(1);
+  const { getNoteRows } = await import("#shared/db/notes/queries.ts");
+  expect((await getNoteRows("attendee", [attendeeId])).length).toBe(1);
 };
 
 /**

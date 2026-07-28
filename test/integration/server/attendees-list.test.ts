@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEES_PAGE_SIZE } from "#shared/db/attendees/queries.ts";
-import { createSystemNote } from "#shared/db/system-notes.ts";
+import { createSystemNote } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   assertAdminHtml,
   expectHtml,
@@ -382,7 +383,10 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
         "Alice",
         "alice@example.com",
       );
-      await createSystemNote(attendee.id, "Refunded — follow up tomorrow.");
+      await createSystemNote(
+        attendeeNotes(attendee.id),
+        "Refunded — follow up tomorrow.",
+      );
 
       const response = await adminGet("/admin/attendees");
       const html = await response.text();

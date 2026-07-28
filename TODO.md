@@ -257,10 +257,14 @@ re-rendering. Migration is deliberately gradual and hardest-first.
 
 - **Slice 4 — the long tail.** Questions and `history/:hmac` remain. Groups,
   holidays, users, built sites, and attendee statuses are complete.
-- **Slice 5 — generalize `system_notes`** from attendee-only to
-  `(entity_type, entity_id)` so any entity page can carry a notes section. The
-  notes DB module currently has no `entity_type` column; this is a small
-  migration + query change that unblocks notes tabs on the other entities.
+- **Slice 5 — generalize `system_notes`: done.** A note now names the kind of
+  record it is about and which one (`entity_type`, `entity_id`), and the notes
+  module works in those terms (`src/shared/db/notes/`). What remains is per-page
+  work: add `"listing"` (or whichever record is next) to `NOTE_ENTITIES` in
+  `notes/target.ts`, give that record's delete path the notes delete statement,
+  and add the notes section to its entity page. The list drives the database
+  `CHECK`, so adding a kind ships with a small rebuild migration — as
+  `2026-06-20_free_text_questions` did for `questions.display_type`.
 
 ---
 
@@ -1800,3 +1804,31 @@ as the supervisor is up, closing the gap. That means changing what
 and thinking again about the startup grace, which exists because a process id
 can be given to somebody else after the original has gone. Start at
 `RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
+
+## Four feature modules have no test at their mirrored path
+
+*Origin: `deno task precommit:mutation` on the notes-migration branch, which
+could not start.*
+
+The mutation gate refuses to run a source that has mutants but no test at its
+mirrored path under `test/`. Four modules are in that state:
+
+- `src/features/admin/attendee-page.ts` (55 mutants)
+- `src/features/admin/attendees-list.ts` (37)
+- `src/features/admin/listing-page-data.ts` (45)
+- `src/features/api/payment-processing/store-refund.ts` (29)
+
+Nothing needs moving: no test imports any of them. They are reached only
+through the app, by integration and Cucumber journeys, so each needs a direct
+test written at `test/features/…` to match its path.
+
+This blocks the gate for *any* branch that touches one of them, however small
+the change — the notes migration only swapped an import in each. Until they
+have direct tests, a branch touching them can prove its own work with a
+targeted `deno task mutation <source> <tests>` run instead.
+
+`src/features/admin/attendee-notes.ts` was in the same state and is now fixed:
+its route suite drives real pages through the session helpers, so it moved from
+`test/integration/admin/` to `test/features/admin/`, which is where that kind
+of suite belongs (see "Let the misplaced-test list see past request helpers"
+above). The other four have no such suite to move.

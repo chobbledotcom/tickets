@@ -382,6 +382,10 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-22_maintenance_completion",
     () => import("./2026-07-22_maintenance_completion.ts"),
   ),
+  entry(
+    "2026-07-28_note_entities",
+    () => import("./2026-07-28_note_entities.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

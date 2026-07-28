@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
+import { getNoteRows, getNotesFor } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -37,8 +38,8 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     // Redirects to the return target with a SUCCESS flash naming the action.
     expectRedirectWithFlash(returnUrl, t("notes.added"), true)(response);
 
-    const notes = await getNotesForAttendee(
-      attendee.id,
+    const notes = await getNotesFor(
+      attendeeNotes(attendee.id),
       await getTestPrivateKey(),
     );
     expect(notes).toHaveLength(1);
@@ -56,7 +57,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     );
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("Enter a note");
-    expect(await getNoteRows([attendee.id])).toEqual([]);
+    expect(await getNoteRows("attendee", [attendee.id])).toEqual([]);
   });
 
   test("POST on a missing attendee is a 404", async () => {
@@ -72,7 +73,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     await adminFormPost(`/admin/attendee/${attendee.id}/note`, {
       note: "deletable note",
     });
-    const [row] = await getNoteRows([attendee.id]);
+    const [row] = await getNoteRows("attendee", [attendee.id]);
 
     const response = await adminGet(
       `/admin/attendee/${attendee.id}/note/${row!.id}/delete`,
@@ -98,7 +99,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     await adminFormPost(`/admin/attendee/${attendee.id}/note`, {
       note: "to be deleted",
     });
-    const [row] = await getNoteRows([attendee.id]);
+    const [row] = await getNoteRows("attendee", [attendee.id]);
     const returnUrl = `/admin/listing/${listing.id}`;
 
     const { response } = await adminFormPost(
@@ -107,7 +108,7 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     );
     // Redirects to the return target with a SUCCESS flash confirming deletion.
     expectRedirectWithFlash(returnUrl, t("notes.deleted"), true)(response);
-    expect(await getNoteRows([attendee.id])).toEqual([]);
+    expect(await getNoteRows("attendee", [attendee.id])).toEqual([]);
   });
 
   test("POST delete on a missing note is a 404", async () => {

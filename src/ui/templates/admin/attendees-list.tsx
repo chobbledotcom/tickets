@@ -8,7 +8,7 @@
 import { sort } from "#fp";
 import { t } from "#i18n";
 import type { AttendeeSort } from "#shared/db/attendees/queries.ts";
-import type { SystemNote } from "#shared/db/system-notes.ts";
+import type { SystemNote } from "#shared/db/notes/types.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type ListingFilter,

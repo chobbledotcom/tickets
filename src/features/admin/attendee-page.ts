@@ -45,8 +45,9 @@ import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { getNotesFor } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { isOwnerRole } from "#shared/types.ts";
@@ -201,8 +202,8 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
     attendeeBanner({
       attendee,
       isOwner: ctx.session.adminLevel === "owner",
-      notes: await getNotesForAttendee(
-        attendee.id,
+      notes: await getNotesFor(
+        attendeeNotes(attendee.id),
         await requireRequestPrivateKey(),
       ),
       statuses: await attendeeStatuses.getAll(),

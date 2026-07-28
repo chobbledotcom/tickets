@@ -4,8 +4,9 @@ import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { getNoteRows, getNotesFor } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import {
   expectAcknowledgedIgnore,
@@ -74,8 +75,8 @@ describeWithEnv(
       expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
 
       // The system note names the reason (PII-free) and links to the ledger.
-      const notes = await getNotesForAttendee(
-        attendee!.id,
+      const notes = await getNotesFor(
+        attendeeNotes(attendee!.id),
         await getTestPrivateKey(),
       );
       expect(notes).toHaveLength(1);
@@ -344,7 +345,7 @@ describeWithEnv(
           expect(refund.calls.length).toBe(1);
           const [attendee] = await getAttendeesRaw(listing.id);
           expect(attendee?.quantity).toBe(0);
-          expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+          expect(await getNoteRows("attendee", [attendee!.id])).toHaveLength(1);
           const record = await isSessionProcessed("cs_refund_retry");
           expect(record?.failure_data).not.toBe("");
         },

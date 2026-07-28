@@ -1,6 +1,6 @@
 import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
-import type { SystemNote } from "#shared/db/system-notes.ts";
+import type { SystemNote } from "#shared/db/notes/types.ts";
 import type {
   AdminSession,
   Attendee,

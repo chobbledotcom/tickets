@@ -27,8 +27,8 @@ import {
 } from "#shared/db/attendees/queries.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
+import { loadNotesForAttendees } from "#shared/db/notes/queries.ts";
 import { settings } from "#shared/db/settings.ts";
-import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
 import {
   type ListingFilter,
   listingCategory,
