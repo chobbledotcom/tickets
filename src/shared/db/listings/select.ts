@@ -18,14 +18,25 @@
  * `catalog.ts` and the group-membership picker in `groups.ts` do.
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import {
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
 } from "#shared/accounting/projection-sql.ts";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import { queryAll } from "#shared/db/client.ts";
 import { imageFilenameSubqueries } from "#shared/db/images.ts";
+import {
+  clauseArgs,
+  inList,
+  matchesNoRows,
+  orderSql,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 /** A listing's recognised income and servicing cost, projected from the ledger
  * rather than stored columns. */
@@ -89,35 +100,12 @@ const ORDER_SQL: Record<ListingOrder, string> = {
   created_desc: "listing.created DESC, listing.id DESC",
 };
 
-/** One filter clause and the args that fill its placeholders, kept together so
- * the arg order can never drift from the clause order. */
-type WhereClause = { clause: string; args: InValue[] };
-
-const whereClauses = (where: ListingWhere): WhereClause[] => {
-  const parts: WhereClause[] = [];
-  const inList = (
-    column: string,
-    values: readonly InValue[] | undefined,
-  ): void => {
-    if (values === undefined) return;
-    // An empty set matches nothing. Emit `IN (NULL)` (always NULL, so no row
-    // passes) rather than the syntactically invalid `IN ()`, so the builder
-    // still produces valid SQL even if a caller doesn't prefilter an empty list.
-    parts.push(
-      values.length === 0
-        ? { args: [], clause: `${column} IN (NULL)` }
-        : {
-            args: [...values],
-            clause: `${column} IN (${inPlaceholders(values)})`,
-          },
-    );
-  };
-  inList("listing.id", where.ids);
-  inList("listing.slug_index", where.slugIndexes);
-  inList("groupListing.group_id", where.inGroups);
-  if (where.activeOnly) parts.push({ args: [], clause: "listing.active = 1" });
-  return parts;
-};
+const whereClauses = (where: ListingWhere): WhereClause[] => [
+  ...inList("listing.id", where.ids),
+  ...inList("listing.slug_index", where.slugIndexes),
+  ...inList("groupListing.group_id", where.inGroups),
+  ...(where.activeOnly ? [{ args: [], clause: "listing.active = 1" }] : []),
+];
 
 /** Everything a caller declares to read listing records: which rows to keep and
  * in what order. */
@@ -148,16 +136,13 @@ export const listingStatement = (
   const from = byGroup
     ? "FROM group_listings AS groupListing JOIN listings AS listing ON listing.id = groupListing.listing_id"
     : "FROM listings AS listing";
-  const where =
-    parts.length === 0
-      ? ""
-      : ` WHERE ${parts.map((part) => part.clause).join(" AND ")}`;
   const groupBy = byGroup ? " GROUP BY listing.id" : "";
-  const orderBy =
-    query.order === undefined ? "" : ` ORDER BY ${ORDER_SQL[query.order]}`;
   return {
-    args: parts.flatMap((part) => part.args),
-    sql: `SELECT ${columns} ${from}${where}${groupBy}${orderBy}`,
+    args: clauseArgs(parts),
+    sql: `SELECT ${columns} ${from}${whereSql(parts)}${groupBy}${orderSql(
+      ORDER_SQL,
+      query.order,
+    )}`,
   };
 };
 
@@ -173,6 +158,8 @@ export type ListingProjectionRow = Omit<ListingWithCount, "profit">;
 export const getListingRows = (
   query: GetListingsQuery,
 ): Promise<ListingProjectionRow[]> => {
+  // A filter that asks for nothing — no ids, no slugs — needs no query at all.
+  if (matchesNoRows(whereClauses(query.where))) return Promise.resolve([]);
   const { sql, args } = listingStatement(query);
   return queryAll<ListingProjectionRow>(sql, args);
 };

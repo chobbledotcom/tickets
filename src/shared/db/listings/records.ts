@@ -68,7 +68,6 @@ export const decryptListingWithCount = async (
 export const getStoredListingsWithCountsByIds = async (
   ids: readonly number[],
 ): Promise<ListingWithCount[]> => {
-  if (ids.length === 0) return [];
   const rows = await getListingRows({ where: { ids: [...ids] } });
   return mapParallel(decryptStoredListingWithCount)(rows);
 };
