@@ -170,14 +170,25 @@ const reviewedLegacyChargeSchema = v.strictObject({
   providerReference: NonEmptyTextSchema,
 });
 
-export const PaymentChargeDecisionSnapshotSchema = v.strictObject({
-  accountId: ResourceIdSchema,
-  charges: v.pipe(v.array(reviewedChargeSchema), v.minLength(1)),
-  kind: v.literal("charges"),
-  mode: PaymentModeSchema,
-  paymentId: ResourceIdSchema,
-  provider: PaymentProviderSchema,
-});
+export const PaymentChargeDecisionSnapshotSchema = v.pipe(
+  v.strictObject({
+    accountId: ResourceIdSchema,
+    charges: v.pipe(v.array(reviewedChargeSchema), v.minLength(1)),
+    kind: v.literal("charges"),
+    mode: PaymentModeSchema,
+    paymentId: ResourceIdSchema,
+    provider: PaymentProviderSchema,
+  }),
+  // The worker acts through the provider named here, so every piece of money
+  // it is shown has to be money that provider took.
+  v.check(
+    (snapshot) =>
+      snapshot.charges.every(
+        (charge) => charge.providerReference.provider === snapshot.provider,
+      ),
+    "Reviewed money must come from the provider the decision names",
+  ),
+);
 export type PaymentChargeDecisionSnapshot = v.InferOutput<
   typeof PaymentChargeDecisionSnapshotSchema
 >;

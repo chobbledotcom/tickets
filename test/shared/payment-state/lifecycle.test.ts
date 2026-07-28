@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import {
   PaymentCaseStateSchema,
+  PaymentChargeDecisionSnapshotSchema,
   PaymentConflictSchema,
   PaymentIgnoreReasonSchema,
   PaymentOperatorDecisionSchema,
@@ -108,6 +109,33 @@ describe("payment lifecycle", () => {
       "failed",
       "unknown",
     ]);
+  });
+
+  test("refuses reviewed money taken by another provider", () => {
+    // The worker acts through the provider the decision names, so being shown
+    // another provider's money would have it act on the wrong account.
+    expect(
+      v.safeParse(PaymentChargeDecisionSnapshotSchema, {
+        accountId: "acct_1",
+        charges: [
+          {
+            captured: { amount: 100, currency: "GBP" },
+            chargeId: 1,
+            providerReference: {
+              id: "sq_1",
+              kind: "square_payment",
+              parentId: "order_1",
+              provider: "square",
+            },
+            refunded: { amount: 0, currency: "GBP" },
+          },
+        ],
+        kind: "charges",
+        mode: "test",
+        paymentId: "pay_1",
+        provider: "stripe",
+      }).success,
+    ).toBe(false);
   });
 
   test("requires a reason, actor, and current case revision for decisions", () => {

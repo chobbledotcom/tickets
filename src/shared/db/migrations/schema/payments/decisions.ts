@@ -42,7 +42,7 @@ export const paymentCaseDecisionTable: [name: string, table: Table] = [
           CHECK ((state = 'retrying') = (next_retry_at IS NOT NULL))
           CHECK ((state = 'retrying') = (last_error IS NOT NULL))
           CHECK ((attempt_count = 0) = (last_attempt_at IS NULL))
-          CHECK (state != 'retrying' OR (attempt_count >= 1 AND last_attempt_at IS NOT NULL))
+          CHECK (state NOT IN ('retrying', 'completed') OR (attempt_count >= 1 AND last_attempt_at IS NOT NULL))
           CHECK (next_retry_at IS NULL OR last_attempt_at IS NULL OR next_retry_at >= last_attempt_at)
           CHECK (decision IS NOT NULL OR state IN ('accepted', 'running', 'retrying'))`,
       ],

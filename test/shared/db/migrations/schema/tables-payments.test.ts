@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "d95a919baacf87025c40bcbab9cc734a2ecb16f415b71de0256f0c35de56f374",
+    "9c828e36fbcb548d15f8670e55685e6800e9e990707fd0ad19404ec98db2092d",
   );
 });
 
@@ -285,6 +285,32 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
         VALUES ('empty-alert-claim', 'enc:1:a:b', 'empty-alert-index',
           'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1, 1, 1,
           '', 9)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses more refund work when nothing is left to give back", async () => {
+    // Everything taken has already gone back, so asking the provider for more
+    // would either be refused or hand the money over twice.
+    await expect(
+      getDb().execute(`INSERT INTO payment_charges
+        (payment_id, provider, resource_kind, provider_reference,
+         reference_index, captured_amount, currency, refunded_amount,
+         refund_state, pending_refund_idempotency_key,
+         pending_refund_key_index, created_at, updated_at, observed_at)
+        VALUES ('nothing-left', 'stripe', 'stripe_payment_intent', 'enc:1:a:b',
+          'nothing-left-index', 100, 'GBP', 100, 'requested', 'enc:1:a:b',
+          'key-index', 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a finished decision that was never tried", async () => {
+    // It holds the one slot for this version of the problem, so a decision
+    // claiming to be done without ever running stops the work happening.
+    await expect(
+      getDb().execute(`INSERT INTO payment_case_decisions
+        (case_id, case_revision, claim, decision, state, attempt_count,
+         created_at)
+        VALUES (96, 1, 'enc:1:a:b', 'enc:1:a:b', 'completed', 0, 1)`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 

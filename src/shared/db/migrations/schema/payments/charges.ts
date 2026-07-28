@@ -100,6 +100,7 @@ export const paymentChargeTable: [name: string, table: Table] = [
                 OR (refund_state = 'failed' AND pending_refund_id IS NULL)
                 OR (refund_state IN ('none', 'partial', 'completed') AND pending_refund_id IS NULL AND pending_refund_idempotency_key IS NULL)
               )
+              AND (refund_state NOT IN ('requested', 'pending') OR refunded_amount < captured_amount)
               AND (refund_state != 'none' OR refunded_amount = 0)
               AND (refund_state != 'partial' OR (refunded_amount > 0 AND refunded_amount < captured_amount))
               AND (refund_state != 'completed' OR refunded_amount = captured_amount))
