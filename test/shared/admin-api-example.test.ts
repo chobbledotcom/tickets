@@ -239,6 +239,33 @@ describe("endpoint docs", () => {
     expect(group.slug.length).toBeGreaterThan(0);
   });
 
+  test("no documented request asks for a blank or zero value", () => {
+    // Every value in a request example is something a caller would copy, so an
+    // empty name or a zero quantity would be a request the endpoint refuses.
+    const blanks: string[] = [];
+    const check = (value: unknown, where: string): void => {
+      if (typeof value === "string" && value.length === 0) blanks.push(where);
+      if (typeof value === "number" && value <= 0) blanks.push(where);
+      if (Array.isArray(value)) {
+        value.forEach((entry, index) => check(entry, `${where}[${index}]`));
+      } else if (value !== null && typeof value === "object") {
+        for (const [key, entry] of Object.entries(value)) {
+          check(entry, `${where}.${key}`);
+        }
+      }
+    };
+
+    for (const endpoint of allEndpoints) {
+      if (!endpoint.request) continue;
+      check(
+        JSON.parse(endpoint.request),
+        `${endpoint.method} ${endpoint.path}`,
+      );
+    }
+
+    expect(blanks).toEqual([]);
+  });
+
   test("every endpoint has a description", () => {
     for (const endpoint of allEndpoints) {
       expect(endpoint.description.length).toBeGreaterThan(0);
