@@ -165,26 +165,22 @@ Then(
   },
 );
 
-/** The one bundle these stories talk about. */
 const onlyBundle = (world: TicketsWorld): string => {
   const names = [...(world.bundles?.keys() ?? [])];
   if (names.length !== 1) throw new Error("The story has no single bundle");
   return names[0] as string;
 };
 
-Then(
-  "their ticket names the {word}",
+/** What the buyer's ticket does or does not say, from one reading of it. */
+const expectTicketNaming = (shown: boolean) =>
   async function (this: TicketsWorld, thing: string): Promise<void> {
-    expect(await buyersTicket(this)).toContain(thing);
-  },
-);
+    const ticket = await buyersTicket(this);
+    if (shown) expect(ticket).toContain(thing);
+    else expect(ticket).not.toContain(thing);
+  };
 
-Then(
-  "their ticket never names the {word}",
-  async function (this: TicketsWorld, thing: string): Promise<void> {
-    expect(await buyersTicket(this)).not.toContain(thing);
-  },
-);
+Then("their ticket names the {word}", expectTicketNaming(true));
+Then("their ticket never names the {word}", expectTicketNaming(false));
 
 Then(
   "the {word} is still there",

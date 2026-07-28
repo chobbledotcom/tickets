@@ -13,6 +13,7 @@ import type { Group, GroupListing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
+  tickedCheckboxes,
   whyValueCannotBeSent,
 } from "#test/specs/support/form-controls.ts";
 import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
@@ -96,12 +97,16 @@ const choiceOnForm = (
   html: string,
   field: string,
   wanted: boolean,
-): string[] => {
-  // Read the box either way. Clearing it needs the same working box as ticking
-  // it, so a page that stopped offering it fails here rather than the story
-  // sending an empty answer nobody could have sent.
-  const value = checkboxValueOffered(html, field);
-  return wanted ? [value] : [];
+): string[] => (wanted ? [checkboxValueOffered(html, field)] : []);
+
+/** The organiser unticks a box that was ticked. Unticking only means anything
+ * if the page had it ticked, so a form that came back already clear fails here
+ * rather than the story "changing" something that was never set. */
+const boxCleared = (html: string, field: string): string[] => {
+  expect(tickedCheckboxes(html, field)).toContain(
+    checkboxValueOffered(html, field),
+  );
+  return [];
 };
 
 /** The organiser's own page for one bundle. */
@@ -145,7 +150,7 @@ export const organiserStopsBundling = async (
 ): Promise<string> => {
   const browser = await bundlePage(world, name);
   await browser.submitForm(
-    { is_package: choiceOnForm(browser.currentHtml, BUNDLE_BOX, false) },
+    { is_package: boxCleared(browser.currentHtml, BUNDLE_BOX) },
     "Save Changes",
   );
   return browser.pageText;
@@ -159,11 +164,7 @@ export const organiserRevealsParts = async (
   const browser = await bundlePage(world, name);
   await browser.submitForm(
     {
-      hide_package_listings: choiceOnForm(
-        browser.currentHtml,
-        PRIVATE_BOX,
-        false,
-      ),
+      hide_package_listings: boxCleared(browser.currentHtml, PRIVATE_BOX),
     },
     "Save Changes",
   );
