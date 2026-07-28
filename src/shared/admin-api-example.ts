@@ -28,6 +28,16 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { AdminListing } from "#shared/types.ts";
 import { type EndpointDoc, json } from "./admin-api-example/endpoint-doc.ts";
 
+/** The running totals a listing carries. Only a booking can move them, so a
+ * listing that was just created has none of each. */
+export const BOOKING_TOTAL_FIELDS = [
+  "attendee_count",
+  "cost",
+  "income",
+  "profit",
+  "tickets_count",
+];
+
 /** The example listing exactly as the admin endpoints answer with it: the
  * stored fields, plus the ids of the groups it is in. The example is in none. */
 export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
@@ -37,8 +47,8 @@ export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {
   can_pay_more: true,
-  // Written exactly as it is stored: storage refuses a date with no timezone,
-  // and answers with the full-precision form of any other.
+  // Written in the form storage reads back, so the create answer below can
+  // show the same string the caller sent.
   date: "2025-08-20T10:00:00.000Z",
   description:
     "A hands-on workshop covering watercolours and sketching techniques.",
@@ -209,13 +219,9 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       "Delete an listing (requires name confirmation)",
     ],
     example: ADMIN_API_EXAMPLE_ADMIN_LISTING,
-    freshRecord: {
-      attendee_count: 0,
-      cost: 0,
-      income: 0,
-      profit: 0,
-      tickets_count: 0,
-    },
+    freshRecord: Object.fromEntries(
+      BOOKING_TOTAL_FIELDS.map((field) => [field, 0]),
+    ),
     idParam: "listingId",
     listResponse: {
       admin_level: "owner",

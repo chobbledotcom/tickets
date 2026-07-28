@@ -4,6 +4,7 @@
  */
 
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
+import { BOOKING_TOTAL_FIELDS } from "#shared/admin-api-example.ts";
 
 /** The running totals a record only gains by being booked, all at zero on a
  * record that was just created. Absent on a resource that has none. */
@@ -11,9 +12,10 @@ export const freshTotals = (
   example: Record<string, unknown>,
 ): Record<string, number> =>
   Object.fromEntries(
-    ["attendee_count", "cost", "income", "profit", "tickets_count"]
-      .filter((field) => field in example)
-      .map((field) => [field, 0]),
+    BOOKING_TOTAL_FIELDS.filter((field) => field in example).map((field) => [
+      field,
+      0,
+    ]),
   );
 
 /** The documented endpoint for a method and path, or a loud failure naming the
