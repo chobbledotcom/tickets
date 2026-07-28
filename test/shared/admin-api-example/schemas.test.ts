@@ -104,15 +104,31 @@ describe("the shapes the documentation is measured against", () => {
     refuses(PublicListingSchema, { ...daily, dayPrices: { unknown: 1000 } });
   });
 
-  test("only a listing sold by the day offers dates", () => {
+  test("browsing never carries the dates a listing is free on", () => {
     const dates = { availableDates: ["2025-08-20"] };
 
-    accepts(PublicListingSchema, {
+    refuses(PublicListingSchema, { ...listing(), ...dates });
+    refuses(PublicListingSchema, {
       ...listing(),
       ...dates,
       listingType: "daily",
     });
-    refuses(PublicListingSchema, { ...listing(), ...dates });
+  });
+
+  test("a listing on its own page carries dates when it is sold by the day", () => {
+    const daily = { ...listing(), listingType: "daily" };
+
+    accepts(PublicListingDetailSchema, {
+      ...daily,
+      availableDates: ["2025-08-20"],
+    });
+    // Sold by the day, but the dates are missing.
+    refuses(PublicListingDetailSchema, daily);
+    // Not sold by the day, yet carrying dates.
+    refuses(PublicListingDetailSchema, {
+      ...listing(),
+      availableDates: ["2025-08-20"],
+    });
   });
 
   test("a bundle may publish an add-on nobody can book right now", () => {

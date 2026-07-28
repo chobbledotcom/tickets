@@ -5,7 +5,11 @@
  */
 
 import * as v from "valibot";
-import { CONTACT_FIELDS, DayPricesSchema } from "#shared/types.ts";
+import {
+  CONTACT_FIELDS,
+  DayPricesSchema,
+  MAX_DURATION_DAYS,
+} from "#shared/types.ts";
 import { IsoDateSchema } from "#shared/validation/date.ts";
 import { EmailSchema } from "#shared/validation/email.ts";
 
@@ -33,22 +37,33 @@ const publicListingEntries = {
   availableDates: v.optional(v.array(IsoDateSchema)),
 };
 
-/** Only a listing sold by the day is asked for the dates it is free, so any
- * other kind carrying them is an answer the endpoints never give. Written
- * against an unknown shape so it can sit on either arm of the union below,
- * whatever extra fields the surface adds. */
-const datesOnlyWhenDaily = <T>(listing: T): boolean => {
-  const { availableDates, listingType } = listing as {
-    availableDates?: unknown;
-    listingType?: unknown;
+/**
+ * Which surfaces send the dates a listing is free on. Browsing never asks for
+ * them, so no listing in a list carries them. A listing on its own page — and
+ * an add-on published under one — carries them exactly when it is sold by the
+ * day. Written against an unknown shape so the rule can sit on either arm of
+ * the union below, whatever extra fields the surface adds.
+ */
+const datesRule =
+  (surface: "never" | "whenDaily") =>
+  <T>(listing: T): boolean => {
+    const { availableDates, listingType } = listing as {
+      availableDates?: unknown;
+      listingType?: unknown;
+    };
+    const hasDates = availableDates !== undefined;
+    return surface === "never"
+      ? !hasDates
+      : hasDates === (listingType === "daily");
   };
-  return availableDates === undefined || listingType === "daily";
-};
 
 /** A public listing, plus whatever extra the surface adds. A listing sold by
  * the day always prices its day counts, and one sold by the unit never does,
  * so the two are told apart by the flag itself. */
-const publicListing = <E extends v.ObjectEntries>(extra: E) =>
+const publicListing = <E extends v.ObjectEntries>(
+  extra: E,
+  surface: "never" | "whenDaily",
+) =>
   v.union([
     v.pipe(
       v.strictObject({
@@ -56,7 +71,7 @@ const publicListing = <E extends v.ObjectEntries>(extra: E) =>
         ...extra,
         customisableDays: v.literal(false),
       }),
-      v.check(datesOnlyWhenDaily),
+      v.check(datesRule(surface)),
     ),
     v.pipe(
       v.strictObject({
@@ -67,20 +82,30 @@ const publicListing = <E extends v.ObjectEntries>(extra: E) =>
         // could never price is refused here too.
         dayPrices: DayPricesSchema,
       }),
-      v.check(datesOnlyWhenDaily),
+      v.check(datesRule(surface)),
     ),
   ]);
 
-export const PublicListingSchema = publicListing({});
+/** A listing as a browsing caller sees it: the list endpoint never asks for
+ * the dates a listing is free on. */
+export const PublicListingSchema = publicListing({}, "never");
+
+/** A listing on a page of its own, or an add-on published under one: sold by
+ * the day means the dates come with it. */
+const DatedListingSchema = publicListing({}, "whenDaily");
 
 /**
  * A listing as the API returns it on its own page, where a parent also carries
  * the add-ons a buyer must choose from. An add-on cannot itself have add-ons —
  * the app does not offer two levels of nesting — so this shape is one deep.
  */
-export const PublicListingDetailSchema = publicListing({
-  children: v.optional(v.array(PublicListingSchema)),
-});
+export const PublicListingDetailSchema = publicListing(
+  {
+    // Left out entirely when a listing has no add-ons, rather than sent empty.
+    children: v.optional(v.pipe(v.array(DatedListingSchema), v.nonEmpty())),
+  },
+  "whenDaily",
+);
 
 /**
  * Shape of a listing as returned by the admin JSON API (mirrors the production
@@ -156,6 +181,9 @@ export const AdminListingSchema = v.strictObject({
 const NonEmpty = v.pipe(v.string(), v.trim(), v.nonEmpty());
 const Slug = v.pipe(v.string(), v.slug());
 const AtLeastOne = v.pipe(v.number(), v.integer(), v.minValue(1));
+/** A number of days somebody could really book, as the stored day prices are
+ * bounded to. */
+const BookableDays = v.pipe(AtLeastOne, v.maxValue(MAX_DURATION_DAYS));
 /** A price in minor units. Zero is a real price — a free item is a thing the
  * system sells — so only a negative one is wrong. */
 const Price = v.pipe(v.number(), v.integer(), v.minValue(0));
@@ -171,7 +199,7 @@ const oneEntryPerSlug = <T extends { slug: string }>(entries: T[]): boolean =>
  * to choose it by, a price, and room to actually book it.
  */
 const PublishedChildSchema = v.intersect([
-  PublicListingSchema,
+  DatedListingSchema,
   v.object({
     // An add-on may be sold without a description, like the bundle itself.
     description: v.string(),
@@ -240,7 +268,7 @@ export const PackageResponseSchema = v.union([
     // An empty list is the endpoint's way of saying no length can be booked
     // right now, so it is a real answer rather than a missing one.
     dayCounts: v.pipe(
-      v.array(v.strictObject({ days: AtLeastOne, priceMinor: Price })),
+      v.array(v.strictObject({ days: BookableDays, priceMinor: Price })),
       // The endpoint prices each length once, so two prices for one length
       // would leave a caller unable to say what that length costs.
       v.check(
@@ -287,10 +315,11 @@ const groupEntries = {
  * member with repriced spans carries `day_prices`. */
 const AdminPackageMemberSchema = v.strictObject({
   // Present only on a member with repriced spans: the API leaves it out
-  // rather than sending an empty map.
+  // rather than sending an empty map. The spans themselves follow the shape
+  // they are stored in.
   day_prices: v.optional(
     v.pipe(
-      v.record(v.string(), v.pipe(v.number(), v.integer(), v.minValue(0))),
+      DayPricesSchema,
       v.check((spans) => Object.keys(spans).length > 0),
     ),
   ),
@@ -310,6 +339,14 @@ export const AdminGroupSchema = v.union([
   v.strictObject({
     ...groupEntries,
     is_package: v.literal(true),
-    package_members: v.array(AdminPackageMemberSchema),
+    package_members: v.pipe(
+      v.array(AdminPackageMemberSchema),
+      // One row per listing per group, so a member cannot appear twice.
+      v.check(
+        (members) =>
+          new Set(members.map(({ listing_id }) => listing_id)).size ===
+          members.length,
+      ),
+    ),
   }),
 ]);

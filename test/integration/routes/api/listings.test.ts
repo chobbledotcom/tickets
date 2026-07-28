@@ -13,7 +13,10 @@ import {
   fetchListingsList,
   fetchPublicListing,
 } from "#test/test-utils/api/helpers.ts";
-import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import {
+  PublicListingDetailSchema,
+  PublicListingSchema,
+} from "#test-utils/api-schemas.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -164,7 +167,7 @@ describePublicApi(() => {
         durationDays: 2,
       });
       const { body } = await fetchListingBySlug(listing.slug);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const apiListing = v.parse(PublicListingDetailSchema, body.listing);
       // The schema carries day prices only on the arm sold by the day, so this
       // is what says the listing came back on that arm.
       if (!apiListing.customisableDays) {
@@ -176,7 +179,7 @@ describePublicApi(() => {
     test("omits day prices for a fixed-duration listing", async () => {
       const listing = await createTestListing({ name: "Fixed" });
       const { body } = await fetchListingBySlug(listing.slug);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const apiListing = v.parse(PublicListingDetailSchema, body.listing);
       expect(apiListing.customisableDays).toBe(false);
       expect("dayPrices" in apiListing).toBe(false);
     });
@@ -201,7 +204,7 @@ describePublicApi(() => {
       const listing = await createDailyTestListing();
       const { response, body } = await fetchListingBySlug(listing.slug);
       expect(response.status).toBe(200);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const apiListing = v.parse(PublicListingDetailSchema, body.listing);
       expect(apiListing.listingType).toBe("daily");
       expect(Array.isArray(apiListing.availableDates)).toBe(true);
     });
@@ -209,14 +212,14 @@ describePublicApi(() => {
     test("does not include availableDates for standard listings", async () => {
       const listing = await createTestListing();
       const { body } = await fetchListingBySlug(listing.slug);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const apiListing = v.parse(PublicListingDetailSchema, body.listing);
       expect(apiListing.availableDates).toBeUndefined();
     });
 
     test("returns null image fields for a listing with no image", async () => {
       const listing = await createTestListing();
       const { body } = await fetchListingBySlug(listing.slug);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const apiListing = v.parse(PublicListingDetailSchema, body.listing);
       expect(apiListing.imageUrl).toBeNull();
       expect(apiListing.imageAltText).toBeNull();
     });
@@ -231,7 +234,7 @@ describePublicApi(() => {
       });
       await setImagesForItem("listing", listing.id, [image.id]);
       const { body } = await fetchListingBySlug(listing.slug);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const apiListing = v.parse(PublicListingDetailSchema, body.listing);
       expect(apiListing.imageUrl).toBe("primary.webp");
       expect(apiListing.imageAltText).toBe("A watercolour workshop");
     });
