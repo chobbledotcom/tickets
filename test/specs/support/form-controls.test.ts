@@ -5,15 +5,19 @@
  * render one shape today.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   checkboxValueOffered,
   expectCanReallySend,
+  fillInAndSend,
   optionsOffered,
   tickedCheckboxes,
   whyValueCannotBeSent,
 } from "#test/specs/support/form-controls.ts";
+
+// jscpd:ignore-end
 
 describe("what a visitor can send", () => {
   const chooser = (options: string, attributes = 'name="date"') =>
@@ -278,6 +282,43 @@ describe("the days a page has ticked", () => {
       expect(() => expectCanReallySend(form, { webhook_url: "x" })).toThrow(
         "the page has no webhook_url to fill in",
       );
+    });
+  });
+
+  describe("filling a form in and sending it", () => {
+    /** A browser stand-in: it holds the page it was served and remembers what
+     * was sent, so the helper's own two jobs can be seen separately. */
+    const pageOffering = (html: string) => {
+      const sent: Array<{ button: string; values: Record<string, string> }> =
+        [];
+      return {
+        browser: {
+          currentHtml: html,
+          submitForm: (values: Record<string, string>, button: string) => {
+            sent.push({ button, values });
+            return Promise.resolve();
+          },
+        },
+        sent,
+      };
+    };
+
+    test("sends the values, naming the button that was pressed", async () => {
+      const page = pageOffering('<input name="username" value="">');
+      // deno-lint-ignore no-explicit-any
+      await fillInAndSend(page.browser as any, { username: "sam" }, "Invite");
+      expect(page.sent).toEqual([
+        { button: "Invite", values: { username: "sam" } },
+      ]);
+    });
+
+    test("sends nothing when a value could not really be sent", async () => {
+      const page = pageOffering('<input name="username" value="" disabled>');
+      await expect(
+        // deno-lint-ignore no-explicit-any
+        fillInAndSend(page.browser as any, { username: "sam" }, "Invite"),
+      ).rejects.toThrow();
+      expect(page.sent).toEqual([]);
     });
   });
 });

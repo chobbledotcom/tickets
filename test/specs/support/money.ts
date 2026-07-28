@@ -4,17 +4,18 @@
  * the provider was asked.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import type { Stub } from "@std/testing/mock";
 import { WORLD } from "#shared/accounting/accounts.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
-import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
+import { scenarioBrowser } from "#test/specs/support/browser.ts";
+import { correctOnPage } from "#test/specs/support/corrections.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import {
   completePaidOrder,
+  refundByTyping,
   runStripeSuccess,
-  withRefundMock,
 } from "#test/specs/support/money-drivers.ts";
 import { attendeeLegsOfKind } from "#test/specs/support/money-reads.ts";
 import { visitorBooks } from "#test/specs/support/public-booking.ts";
@@ -23,6 +24,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+// jscpd:ignore-end
 
 /** The id of a listing the story put on sale, by the name it used. */
 export const listingIdFor = (world: TicketsWorld, name: string): number =>
@@ -120,16 +122,15 @@ export const askForRefund = async (
   world: TicketsWorld,
   succeeds: boolean,
 ): Promise<void> => {
-  const who = requiredWorldValue(world.attendeeName, "attendee name");
-  const browser = await adminBrowser(world);
-  await withRefundMock(succeeds, async (mockRefund: Stub) => {
-    await browser.visit(bookingPagePath(world, "refund"));
-    // The page must offer the confirm-by-typing box; the browser carries the
-    // page's own token and action, so a broken form fails here.
-    expect(browser.currentHtml).toContain('name="confirm_identifier"');
-    await browser.submitForm({ confirm_identifier: who }, "Refund Attendee");
-    world.refundCalls = () => mockRefund.calls.length;
-  });
+  await refundByTyping(
+    world,
+    {
+      buttonText: "Refund Attendee",
+      page: bookingPagePath(world, "refund"),
+      typed: requiredWorldValue(world.attendeeName, "attendee name"),
+    },
+    succeeds,
+  );
 };
 
 /** Set a listing's income through the correction form on its own edit page, and
@@ -140,13 +141,13 @@ export const correctIncomeTo = async (
   listingId: number,
   pounds: string,
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${listingId}/edit`);
-  // The page must offer the correction box; the browser posts the form's own
-  // action and token, so a broken form fails here.
-  expect(browser.currentHtml).toContain('id="income"');
-  await browser.submitForm({ income: pounds }, "Save income correction");
-  expect(browser.containsText("Listing income corrected.")).toBe(true);
+  await correctOnPage(
+    world,
+    `/admin/listing/${listingId}/edit`,
+    "income",
+    pounds,
+    "Listing income corrected.",
+  );
 };
 
 /** A member of the public books one free place through the listing's own page. */

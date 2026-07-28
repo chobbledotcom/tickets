@@ -7,6 +7,7 @@
  * quietly refused, fails the story rather than being stepped around.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import type { Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
@@ -17,6 +18,7 @@ import {
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+// jscpd:ignore-end
 
 /** Keep a listing under the name the story calls it, so later steps can find
  * it however it was set up. */
@@ -42,11 +44,16 @@ export const sellSomethingAt = async (
   world: TicketsWorld,
   name: string,
   price: string,
-  options: { keepThankYouPage?: boolean } = {},
+  options: { canPayMore?: boolean; keepThankYouPage?: boolean } = {},
 ): Promise<Listing> => {
   const listing = await createTestListing({
     maxAttendees: 50,
     name,
+    // A listing that lets a customer pay more than it asks needs a ceiling to
+    // pay up to, or there is nothing to be generous within.
+    ...(options.canPayMore
+      ? { canPayMore: true, maxPrice: minorUnits("100.00") }
+      : {}),
     // Keeping the site's own thank-you page lets a story read what the customer
     // is shown, rather than being sent off to another site.
     ...(options.keepThankYouPage ? { thankYouUrl: "" } : {}),
@@ -90,6 +97,20 @@ export const saveListingEdit = async (
   expect(browser.currentUrl.replace(/\/edit$/, "")).toBe(
     `/admin/listing/${listingId}`,
   );
+};
+
+/** The organiser ticks or unticks one box on a listing's own edit form, and
+ * saves. What each box means is the caller's business; getting the box off the
+ * served page, and sending what a real browser would send, is this helper's. */
+export const setBoxOnListing = async (
+  world: TicketsWorld,
+  name: string,
+  field: string,
+  decide: (served: string) => string[],
+): Promise<void> => {
+  await organiserSavesListing(world, name, (served) => ({
+    [field]: decide(served),
+  }));
 };
 
 /** The organiser makes a change to one of their listings — the usual way in,

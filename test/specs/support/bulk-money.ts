@@ -4,24 +4,25 @@
  * whose customers may pay more than it asks.
  */
 
-import { expect } from "@std/expect";
-import type { Stub } from "@std/testing/mock";
+// jscpd:ignore-start
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
+  refundByTyping,
   runStripeSuccess,
-  withRefundMock,
 } from "#test/specs/support/money-drivers.ts";
 import {
+  type ActOnOneThing,
   requiredWorldValue,
   type TicketsWorld,
+  theListing,
 } from "#test/specs/support/world.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+
+// jscpd:ignore-end
 
 /** The payment the provider will turn down — the middle one, so the story
  * proves the refunds after it still run. */
@@ -53,28 +54,16 @@ export const paidPlaceEach = async (
 /** The organiser refunds everyone from the listing's own refund-everyone page,
  * typing the listing name it asks for. The provider turns one payment down. */
 export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
-  const listingId = requiredWorldValue(world.listingId, "the listing");
-  const browser = await adminBrowser(world);
-  await withRefundMock(
-    (paymentId: string) => Promise.resolve(paymentId !== DECLINED_PAYMENT),
-    async (mockRefund: Stub) => {
-      await browser.visit(`/admin/listing/${listingId}/refund-all`);
-      // The page must ask for the listing's name before it will refund anyone,
-      // and it is typed in exactly as the story named it.
-      expect(browser.currentHtml).toContain('name="confirm_identifier"');
-      await browser.submitForm(
-        {
-          confirm_identifier: requiredWorldValue(
-            world.confirmName,
-            "the listing name to type",
-          ),
-        },
-        "Refund All Attendees",
-      );
-      world.bulkRefundMessage = browser.pageText;
-      world.refundCalls = () => mockRefund.calls.length;
+  const browser = await refundByTyping(
+    world,
+    {
+      buttonText: "Refund All Attendees",
+      page: `/admin/listing/${theListing(world)}/refund-all`,
+      typed: requiredWorldValue(world.confirmName, "the listing name to type"),
     },
+    (paymentId: string) => Promise.resolve(paymentId !== DECLINED_PAYMENT),
   );
+  world.bulkRefundMessage = browser.pageText;
 };
 
 /** Who got their money back, and who the provider turned down. */
@@ -96,23 +85,12 @@ export const payMoreListing = async (
   asks: string,
 ): Promise<void> => {
   await setupStripe();
-  const listing = await createTestListing({
-    canPayMore: true,
-    maxAttendees: 50,
-    maxPrice: minorUnits("100.00"),
-    name,
-    unitPrice: minorUnits(asks),
-  });
-  world.listingIds.set(name, listing.id);
-  world.listingId = listing.id;
+  await sellSomethingAt(world, name, asks, { canPayMore: true });
 };
 
 /** The customer pays the amount they chose, through the real payment return. */
-export const payYourOwnPrice = async (
-  world: TicketsWorld,
-  chosen: string,
-): Promise<void> => {
-  const listingId = requiredWorldValue(world.listingId, "the listing");
+export const payYourOwnPrice: ActOnOneThing = async (world, chosen) => {
+  const listingId = theListing(world);
   const paid = minorUnits(chosen);
   await runStripeSuccess({
     email: "generous@example.com",

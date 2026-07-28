@@ -5,6 +5,7 @@
  * listing offers move with the calendar.
  */
 
+// jscpd:ignore-start
 import { addDays } from "#shared/dates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
@@ -17,6 +18,7 @@ import {
 } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+// jscpd:ignore-end
 
 /** Somebody new each time, so two stays are never taken for one person. */
 export const guest = (order: number): { email: string; who: string } => ({

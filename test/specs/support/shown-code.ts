@@ -7,17 +7,15 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
+import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
 import {
   rememberStayListing,
   stayListing,
 } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -70,8 +68,10 @@ export const organiserShowsCode = async (
   name: string,
   wanted: CodeWanted = {},
 ): Promise<CodeOnScreen> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${stayListing(world, name).id}/qr`);
+  const browser = await openAdminPage(
+    world,
+    `/admin/listing/${stayListing(world, name).id}/qr`,
+  );
   await browser.submitForm(
     {
       ...(wanted.who === undefined ? {} : { customer_name: wanted.who }),
@@ -114,26 +114,21 @@ const withPayingStubbed = async <Answer>(
   }) => Promise<Answer>,
 ): Promise<Answer> => {
   const { stubCheckout } = await import("#test-utils/checkout.ts");
-  const { mockProviderType, withMocks } = await import("#test-utils/mocks.ts");
-  const { paymentsApi } = await import("#shared/payments.ts");
-  let answer: Answer | undefined;
-  await withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const checkout = stubCheckout();
-      try {
-        answer = await body({
-          timesReached: checkout.calls,
-          whatWasCharged: checkout.getCaptured,
-        });
-      } finally {
-        checkout.checkout.restore();
-      }
-    },
+  const { withStripeAsProvider } = await import(
+    "#test/specs/support/money-drivers.ts"
   );
+  let answer: Answer | undefined;
+  await withStripeAsProvider(async () => {
+    const checkout = stubCheckout();
+    try {
+      answer = await body({
+        timesReached: checkout.calls,
+        whatWasCharged: checkout.getCaptured,
+      });
+    } finally {
+      checkout.checkout.restore();
+    }
+  });
   if (answer === undefined) throw new Error("Nothing came of that");
   return answer;
 };
@@ -225,8 +220,7 @@ export const customerPaysMore = (
   price: number,
 ): Promise<WhatIsBeingCharged> =>
   withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
-    const browser = new TestBrowser();
-    await browser.visit(link);
+    const browser = await openAsNewcomer(link);
     expect(browser.currentHtml).toContain('name="qr_token"');
     await browser.submitForm(
       {
@@ -259,19 +253,13 @@ export const meddledWith = (link: string): string => {
 };
 
 /** The organiser takes something off sale after the codes are printed. */
-export const takeOffSale = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const takeOffSale: ActOnOneThing = async (world, name) => {
   const { listingsTable } = await import("#shared/db/listings/records.ts");
   await listingsTable.update(stayListing(world, name).id, { active: false });
 };
 
 /** Nothing at all was booked, whatever the page said. */
-export const expectNothingBooked = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const expectNothingBooked: ActOnOneThing = async (world, name) => {
   const { getAttendeesRaw } = await import(
     "#test-utils/db-helpers/attendees.ts"
   );

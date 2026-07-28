@@ -5,12 +5,13 @@
  * than being reached around.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { map } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
-import { openAdminPage } from "#test/specs/support/browser.ts";
+import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   expectCanReallySend,
@@ -22,13 +23,17 @@ import {
   stayListing,
 } from "#test/specs/support/listings.ts";
 import {
+  type ActOnOneThing,
+  type ReadAboutOneThing,
   requiredWorldValue,
+  stillThere,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
+// jscpd:ignore-end
 
 /** One thing inside a bundle, and what the bundle charges for it. */
 export interface PartOfBundle {
@@ -128,6 +133,19 @@ const bundlePage = async (
 ): Promise<TestBrowser> =>
   openAdminPage(world, `/admin/groups/${bundleNamed(world, name).id}/edit`);
 
+/** The organiser fills in the bundle's own form and saves it, and is handed
+ * back what the site told them — some of these saves are meant to be refused,
+ * so the words matter as much as the outcome. */
+const saveBundleForm = async (
+  world: TicketsWorld,
+  name: string,
+  fillsIn: (served: string) => Record<string, string | string[]>,
+): Promise<string> => {
+  const browser = await bundlePage(world, name);
+  await browser.submitForm(fillsIn(browser.currentHtml), "Save Changes");
+  return browser.pageText;
+};
+
 /** The organiser turns a group into a bundle, pricing each part, and says
  * whether what is inside stays private. */
 export const organiserSellsAsBundle = async (
@@ -136,19 +154,15 @@ export const organiserSellsAsBundle = async (
   parts: PartOfBundle[],
   keepPartsPrivate: boolean,
 ): Promise<void> => {
-  const browser = await bundlePage(world, name);
-  const page = browser.currentHtml;
-  await browser.submitForm(
-    {
+  // A save that wrote the bundle and then fell over is not an organiser
+  // building one, and everything the story checks afterwards would still pass.
+  expect(
+    await saveBundleForm(world, name, (page) => ({
       ...bundleForm(world, parts, page),
       hide_package_listings: choiceOnForm(page, PRIVATE_BOX, keepPartsPrivate),
       is_package: choiceOnForm(page, BUNDLE_BOX, true),
-    },
-    "Save Changes",
-  );
-  // A save that wrote the bundle and then fell over is not an organiser
-  // building one, and everything the story checks afterwards would still pass.
-  expect(browser.containsText(GROUP_SAVED)).toBe(true);
+    })),
+  ).toContain(GROUP_SAVED);
 };
 
 /** What the site tells an organiser when a group's own form saves, and when a
@@ -164,28 +178,18 @@ const PRIVATE_BOX = "hide_package_listings";
 export const organiserStopsBundling = async (
   world: TicketsWorld,
   name: string,
-): Promise<string> => {
-  const browser = await bundlePage(world, name);
-  await browser.submitForm(
-    { is_package: boxCleared(browser.currentHtml, BUNDLE_BOX) },
-    "Save Changes",
-  );
-  return browser.pageText;
-};
+): Promise<string> =>
+  saveBundleForm(world, name, (page) => ({
+    is_package: boxCleared(page, BUNDLE_BOX),
+  }));
 
 /** The organiser lets people see what is inside again. */
-export const organiserRevealsParts = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  const browser = await bundlePage(world, name);
-  await browser.submitForm(
-    {
-      hide_package_listings: boxCleared(browser.currentHtml, PRIVATE_BOX),
-    },
-    "Save Changes",
-  );
-  expect(browser.containsText(GROUP_SAVED)).toBe(true);
+export const organiserRevealsParts: ActOnOneThing = async (world, name) => {
+  expect(
+    await saveBundleForm(world, name, (page) => ({
+      hide_package_listings: boxCleared(page, PRIVATE_BOX),
+    })),
+  ).toContain(GROUP_SAVED);
 };
 
 /** The bundle as the site has it now, or nothing if it is gone. */
@@ -197,11 +201,9 @@ export const isStillABundle = async (
   world: TicketsWorld,
   name: string,
 ): Promise<boolean> => {
-  const found = await storedBundleOrNull(world, name);
   // A bundle that vanished is not the same as one that stopped being a bundle,
   // and answering "no" for both would hide a group the site destroyed.
-  if (!found) throw new Error(`The ${name} is gone altogether`);
-  return found.is_package;
+  return stillThere(await storedBundleOrNull(world, name), name).is_package;
 };
 
 /** What the bundle charges for one part, or nothing when the organiser set no
@@ -222,13 +224,9 @@ export const bundleChargeForOrNull = async (
 
 /** A customer buys the bundle from its own page, and keeps the ticket they end
  * up holding so the story can look at it again later. */
-export const customerBuysBundle = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const customerBuysBundle: ActOnOneThing = async (world, name) => {
   const group = bundleNamed(world, name);
-  const browser = new TestBrowser();
-  await browser.visit(`/ticket/${group.slug}`);
+  const browser = await openAsNewcomer(`/ticket/${group.slug}`);
   // The box has to be there and be able to take a one, or the bundle could not
   // be chosen in a real browser however well a crafted send goes through.
   const wanting = `package_quantity_${group.id}`;
@@ -251,8 +249,7 @@ export const customerBuysBundle = async (
 /** What the buyer's own ticket says now, read from the address they were given
  * when they bought it. */
 export const buyersTicket = async (world: TicketsWorld): Promise<string> => {
-  const browser = new TestBrowser();
-  await browser.visit(
+  const browser = await openAsNewcomer(
     requiredWorldValue(world.bundleTicketPath, "the buyer's ticket"),
   );
   return browser.pageText;
@@ -260,10 +257,10 @@ export const buyersTicket = async (world: TicketsWorld): Promise<string> => {
 
 /** The organiser deletes the bundle, confirming by typing its name. Keeps what
  * they were told, because a refusal is the point of one of these rules. */
-export const organiserDeletesBundle = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string> => {
+export const organiserDeletesBundle: ReadAboutOneThing = async (
+  world,
+  name,
+) => {
   const browser = await openAdminPage(
     world,
     `/admin/groups/${bundleNamed(world, name).id}/delete`,
@@ -282,13 +279,9 @@ export const bundleStillExists = async (
 /** A customer opens one of the bundle's parts on its own. Its page has to
  * answer, be that thing's page, and offer a way to book it — a row left in the
  * database that nobody can reach is not "for sale". */
-export const expectPartOnSaleAlone = async (
-  world: TicketsWorld,
-  part: string,
-): Promise<void> => {
+export const expectPartOnSaleAlone: ActOnOneThing = async (world, part) => {
   const listing = stayListing(world, part);
-  const browser = new TestBrowser();
-  await browser.visit(`/ticket/${listing.slug}`);
+  const browser = await openAsNewcomer(`/ticket/${listing.slug}`);
   expect(browser.pageText).toContain(part);
   const box = `quantity_${listing.id}`;
   expect(whyValueCannotBeSent(browser.currentHtml, box, "1")).toBeNull();

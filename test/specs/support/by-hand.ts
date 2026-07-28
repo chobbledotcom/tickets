@@ -4,20 +4,17 @@
  * offering the form or the download fails the story.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { openAdminPage } from "#test/specs/support/browser.ts";
-
 import { stayListing } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type { BookingChoices } from "#test/specs/support/public-booking.ts";
+import type {
+  ReadAboutOneThing,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 
-/** What the organiser types into the add-booking form. */
-export interface ByHandBooking {
-  day?: string;
-  dayCount?: number;
-  email: string;
-  places?: number;
-  who: string;
-}
+// jscpd:ignore-end
 
 /** The listing's roster — where the add form and the download both live. */
 const rosterPath = (world: TicketsWorld, name: string): string =>
@@ -28,7 +25,7 @@ const rosterPath = (world: TicketsWorld, name: string): string =>
 export const organiserAddsBooking = async (
   world: TicketsWorld,
   name: string,
-  booking: ByHandBooking,
+  booking: BookingChoices,
 ): Promise<void> => {
   const browser = await openAdminPage(world, rosterPath(world, name));
   // The form must offer a day, or the organiser could not say when the stay
@@ -53,10 +50,7 @@ export const organiserAddsBooking = async (
 /** The attendee list the organiser downloads from the listing's roster, as the
  * text of the file itself. Followed from the link on the page, so a story can
  * never read a file the organiser has no way to reach. */
-export const downloadAttendeeList = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string> => {
+export const downloadAttendeeList: ReadAboutOneThing = async (world, name) => {
   const browser = await openAdminPage(world, rosterPath(world, name));
   const download = browser.links.find(({ href }) => href.includes("/export"));
   if (!download) {

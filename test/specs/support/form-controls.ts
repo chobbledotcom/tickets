@@ -6,6 +6,16 @@
  */
 
 import { expect } from "@std/expect";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
+
+/** Why a field could not carry a value, or null when it could. Each rule below
+ * answers the same question about a different piece of the page, so they share
+ * one contract. */
+type WhyFieldCannotCarry = (
+  markup: string,
+  field: string,
+  chosen: string,
+) => string | null;
 
 /** The dropdown on the page for one field, split into the tag's attributes and
  * its options, or null when the field is not a dropdown at all (a typed-in name
@@ -67,11 +77,7 @@ const hasFlag = (tag: string, named: string): boolean =>
 /** Why a number box will not take this number, or null when it will. A box that
  * only accepts 1 to 3 cannot send 5, however happily a post carrying 5 is
  * accepted. */
-const whyNumberIsOutOfRange = (
-  box: string,
-  field: string,
-  chosen: string,
-): string | null => {
+const whyNumberIsOutOfRange: WhyFieldCannotCarry = (box, field, chosen) => {
   const number = Number(chosen);
   // An empty box, or anything that is not a number, has no range to break.
   if (chosen === "" || !Number.isFinite(number)) return null;
@@ -134,11 +140,11 @@ export const tickedCheckboxes = (html: string, field: string): string[] =>
  * usable option, a hidden box has to already hold it because the visitor cannot
  * type over one, and a number box has to accept it within its own limits.
  */
-export const whyValueCannotBeSent = (
-  html: string,
-  field: string,
-  chosen: string,
-): string | null => {
+export const whyValueCannotBeSent: WhyFieldCannotCarry = (
+  html,
+  field,
+  chosen,
+) => {
   const chooser = chooserFor(html, field);
   if (chooser) {
     if (chooser.attributes.includes("disabled")) {
@@ -159,11 +165,7 @@ export const whyValueCannotBeSent = (
 };
 
 /** Why one box on the page could not carry this value. */
-const whyBoxCannotCarry = (
-  box: string,
-  field: string,
-  chosen: string,
-): string | null => {
+const whyBoxCannotCarry: WhyFieldCannotCarry = (box, field, chosen) => {
   if (hasFlag(box, "disabled")) return `the ${field} box is switched off`;
   if (hasFlag(box, "readonly")) return `the ${field} box cannot be changed`;
   // A browser will not submit a form that leaves a required box empty, so
@@ -187,4 +189,16 @@ export const expectCanReallySend = (
   for (const [field, chosen] of Object.entries(values)) {
     expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
   }
+};
+
+/** Somebody fills a page's form in and sends it. Every value is checked against
+ * the page they were served first, so a story can never send something no real
+ * browser would have offered them. */
+export const fillInAndSend = async (
+  browser: TestBrowser,
+  values: Record<string, string>,
+  buttonText: string,
+): Promise<void> => {
+  expectCanReallySend(browser.currentHtml, values);
+  await browser.submitForm(values, buttonText);
 };

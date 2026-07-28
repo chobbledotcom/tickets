@@ -5,12 +5,14 @@
  * authorisation, because real callers would stop working that day.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { settings } from "#shared/db/settings.ts";
 
 import { stayListing } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+// jscpd:ignore-end
 
 /** What the API answered: the code it sent back, and the body it sent with it. */
 export interface ApiAnswer {

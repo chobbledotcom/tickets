@@ -6,6 +6,7 @@
  * stepped around.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -14,8 +15,15 @@ import {
   getListingWithCount,
 } from "#shared/db/listings/records.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
-import { expectCanReallySend } from "#test/specs/support/form-controls.ts";
+import {
+  openAdminPage,
+  openAsNewcomer,
+  opensPagesAs,
+} from "#test/specs/support/browser.ts";
+import {
+  expectCanReallySend,
+  fillInAndSend,
+} from "#test/specs/support/form-controls.ts";
 import {
   organiserSavesListing,
   rememberStayListing,
@@ -24,13 +32,17 @@ import {
 } from "#test/specs/support/listings.ts";
 
 import {
+  type ActOnOneThing,
+  type ChangeOneThing,
   requiredWorldValue,
+  stillThere,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
+// jscpd:ignore-end
 
 /** Where a listing forwards each booking, names and all. */
 export const OWNERS_ADDRESS = "https://owner.example/bookings";
@@ -74,18 +86,16 @@ export const pagesOfferedTo = async (
 /** The owner invites somebody to edit, and copies the link they are given.
  * The role is chosen from the roles the form itself offers, so a form that
  * stopped offering "editor" fails here. */
-export const ownerInvitesEditor = async (
-  world: TicketsWorld,
-  who: string,
-): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit("/admin/user/new");
+export const ownerInvitesEditor: ActOnOneThing = async (world, who) => {
+  const browser = await openAdminPage(world, "/admin/user/new");
   // Both of the owner's choices have to be ones they could really make on the
   // page, or an invite could be crafted that no owner can send.
   expect(browser.pageText).toContain(t("fields.user.editor"));
-  const chosen = { admin_level: "editor", username: who };
-  expectCanReallySend(browser.currentHtml, chosen);
-  await browser.submitForm(chosen, t("users.invite.submit"));
+  await fillInAndSend(
+    browser,
+    { admin_level: "editor", username: who },
+    t("users.invite.submit"),
+  );
   // The owner reads the link off the page and passes it on, which is the only
   // way the invited person ever hears about it.
   const link = browser.pageText.match(/\/join\/[A-Za-z0-9_-]+/);
@@ -98,28 +108,26 @@ export const ownerInvitesEditor = async (
 export const editorFollowsInvite = async (
   world: TicketsWorld,
 ): Promise<void> => {
-  const browser = new TestBrowser();
-  await browser.visit(requiredWorldValue(world.editorInvite, "the invite"));
-  const chosen = {
-    password: CHOSEN_PASSWORD,
-    password_confirm: CHOSEN_PASSWORD,
-  };
-  expectCanReallySend(browser.currentHtml, chosen);
-  await browser.submitForm(chosen, t("join.set_password.submit"));
+  const browser = await openAsNewcomer(
+    requiredWorldValue(world.editorInvite, "the invite"),
+  );
+  await fillInAndSend(
+    browser,
+    { password: CHOSEN_PASSWORD, password_confirm: CHOSEN_PASSWORD },
+    t("join.set_password.submit"),
+  );
   world.editorBrowser = browser;
 };
 
 /** The editor logs in the ordinary way, and stays logged in for the rest of
  * the story. */
-export const editorLogsIn = async (
-  world: TicketsWorld,
-  who: string,
-): Promise<void> => {
-  const browser = new TestBrowser();
-  await browser.visit("/admin/");
-  const typed = { password: CHOSEN_PASSWORD, username: who };
-  expectCanReallySend(browser.currentHtml, typed);
-  await browser.submitForm(typed, t("login.submit"));
+export const editorLogsIn: ActOnOneThing = async (world, who) => {
+  const browser = await openAsNewcomer("/admin/");
+  await fillInAndSend(
+    browser,
+    { password: CHOSEN_PASSWORD, username: who },
+    t("login.submit"),
+  );
   world.editorBrowser = browser;
 };
 
@@ -127,10 +135,7 @@ export const editorLogsIn = async (
  * the same person is fine; saying it of a second person is not, because only
  * one editor is ever signed in and every later step would quietly be taken by
  * the first one. */
-export const signedInEditor = async (
-  world: TicketsWorld,
-  who: string,
-): Promise<void> => {
+export const signedInEditor: ActOnOneThing = async (world, who) => {
   if (world.editorBrowser) {
     if (world.signedInEditorName !== who) {
       throw new Error(
@@ -145,19 +150,12 @@ export const signedInEditor = async (
   await editorLogsIn(world, who);
 };
 
-/** The editor opens one of their own pages. */
-const openAsEditor = async (
-  world: TicketsWorld,
-  path: string,
-): Promise<TestBrowser> => {
-  const browser = editorBrowser(world);
-  await browser.visit(path);
-  return browser;
-};
-
 /** The editor's own browser, once the story has signed them in. */
 export const editorBrowser = (world: TicketsWorld): TestBrowser =>
   requiredWorldValue(world.editorBrowser, "the editor's browser");
+
+/** The editor opens one of their own pages. */
+const openAsEditor = opensPagesAs(editorBrowser);
 
 /** Something the site already sells, kept under the name the story uses. */
 export const somethingForSale = async (
@@ -182,10 +180,7 @@ export const TAKINGS = 37.5;
 
 /** Somebody has bought this thing and paid for it, so the site has a real
  * figure to show — or to keep from an editor. */
-export const somethingSoldAndPaidFor = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const somethingSoldAndPaidFor: ActOnOneThing = async (world, name) => {
   await somethingForSale(world, name);
   const listing = stayListing(world, name);
   const buyer = await createTestAttendee(
@@ -207,17 +202,13 @@ export const somethingSoldAndPaidFor = async (
 export const ownersListingsPage = async (
   world: TicketsWorld,
 ): Promise<string> => {
-  const browser = await adminBrowser(world);
-  await browser.visit("/admin/listings");
+  const browser = await openAdminPage(world, "/admin/listings");
   return browser.pageText;
 };
 
 /** The editor starts a new listing, picks what kind it is from the kinds the
  * site offers, fills the form in and saves it. */
-export const editorAddsListing = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const editorAddsListing: ActOnOneThing = async (world, name) => {
   const browser = await openAsEditor(world, "/admin/listing/new");
   await browser.clickLink(t("listings_table.listing_type_picker_custom"));
   const typed = { max_attendees: "10", max_quantity: "1", name };
@@ -239,18 +230,17 @@ export const forwardingAddressOrNull = async (
   name: string,
 ): Promise<string | null> => {
   const found = await getListingWithCount(stayListing(world, name).id);
-  if (!found) throw new Error(`The ${name} is gone altogether`);
-  return found.webhook_url;
+  return stillThere(found, name).webhook_url;
 };
 
 /** The editor's save carries a forwarding address their form never offered.
  * That is the whole point of the attempt, so nothing is checked first — the
  * site has to be what turns it away, not the page. */
-export const editorCraftsForwardingTo = (
-  world: TicketsWorld,
-  name: string,
-  address: string,
-): Promise<void> =>
+export const editorCraftsForwardingTo: ChangeOneThing<string> = (
+  world,
+  name,
+  address,
+) =>
   // The save being accepted is what organiserSavesListing checks for us. A whole edit
   // turned away would leave the address alone too, and prove nothing about this
   // one field.
@@ -260,11 +250,11 @@ export const editorCraftsForwardingTo = (
 
 /** The owner makes the same change the ordinary way, through the box their own
  * form offers them. */
-export const ownerSetsForwardingTo = async (
-  world: TicketsWorld,
-  name: string,
-  address: string,
-): Promise<void> => {
+export const ownerSetsForwardingTo: ChangeOneThing<string> = async (
+  world,
+  name,
+  address,
+) => {
   await organiserSavesListing(world, name, (served) => {
     expectCanReallySend(served, { webhook_url: address });
     return { webhook_url: address };
@@ -272,10 +262,7 @@ export const ownerSetsForwardingTo = async (
 };
 
 /** The listing's edit form as the editor is served it. */
-export const editorOpensListing = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
+export const editorOpensListing: ActOnOneThing = async (world, name) => {
   await openAsEditor(
     world,
     `/admin/listing/${stayListing(world, name).id}/edit`,

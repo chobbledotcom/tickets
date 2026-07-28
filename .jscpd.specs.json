@@ -1,6 +1,6 @@
 {
   "threshold": 0,
-  "_comment": "The Cucumber support helpers, scanned at 28 tokens rather than the 48 the rest of test/ gets. They are production-shaped code - one named helper per thing a person does - so near-identical helpers there are the exact merge we want, and 48 is too loose to see them: the four-way copy of \"open a listing's edit form, save, check it saved\" sat at 32-37 tokens and went unnoticed across four stories. Not 19 like src/, because every spec helper deliberately shares the same (world: TicketsWorld, name: string): Promise<void> shape, and that signature alone is about 20 tokens - at 19 the run is drowned in flagged signatures and import blocks, which are house style, not duplication. The step files under test/specs/steps stay on the ordinary test/ scan rather than this one: a Given/When/Then registration is boilerplate that repeats by design, and the shared mechanism IS Cucumber's own registry, the same argument that exempts the migrations. They are still checked - at test/'s 48 tokens, as before - just not at this tighter one. src/ is scanned alongside so a helper that reimplements production logic is flagged against the source it copied - a separate run could never see that. src/ against itself is already held at 0% by .jscpd.json at the tighter 19, so nothing new is reported there.",
+  "_comment": "The Cucumber support helpers, scanned at the same 19 tokens as src/ rather than the 48 the rest of test/ gets. They are production-shaped code - one named helper per thing a person does - so near-identical helpers there are the exact merge we want, and 48 was far too loose to see them: the four-way copy of \"open a listing's edit form, save, check it saved\" sat at 32-37 tokens, and a duplicate BookingChoices/ByHandBooking interface at 25, both unnoticed across several stories. Getting to 0% at 19 took about fifty merges and needed no contortion: import blocks carry the sanctioned jscpd:ignore, the signatures every helper shares became named contracts (ActOnOneThing, ChangeOneThing, ReadAboutOneThing, CheckMoneyShown), and repeated anonymous return types became named interfaces - all of which AGENTS.md asks for anyway. The step files under test/specs/steps stay on the ordinary test/ scan: a Given/When/Then registration is boilerplate that repeats by design, and the shared mechanism IS Cucumber's own registry, the same argument that exempts the migrations. src/ is scanned alongside so a helper that reimplements production logic is flagged against the source it copied - a separate run could never see that. src/ against itself is already held at 0% by .jscpd.json, so nothing new is reported there.",
   "reporters": [
     "console",
     "json"
@@ -20,7 +20,7 @@
   "gitignore": true,
   "exitCode": 1,
   "minLines": 1,
-  "minTokens": 28,
+  "minTokens": 19,
   "path": [
     "src",
     "test/specs/support"

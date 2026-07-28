@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import type { World } from "@cucumber/cucumber";
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
 import type { Group, Listing } from "#shared/types.ts";
@@ -14,6 +15,50 @@ import type {
   OrderJourneyCtx,
 } from "#test-utils/order-journey.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+// jscpd:ignore-end
+
+/** Something a story does to one of the things the site sells, found by the
+ * name the story calls it. Most support helpers are one of these, so they share
+ * this contract rather than writing the same signature out each time. */
+export type ActOnOneThing = (
+  world: TicketsWorld,
+  name: string,
+) => Promise<void>;
+
+/** Something a story reads back about one of the things the site sells — a
+ * page's words, a downloaded file, what an organiser was told. */
+export type ReadAboutOneThing = (
+  world: TicketsWorld,
+  name: string,
+) => Promise<string>;
+
+/** The listing a money story is working on, and the booking on it. Both are
+ * set up before any step that uses them, so a story that lost one is a story
+ * that went wrong rather than one with nothing to talk about. */
+export const theListing = (world: TicketsWorld): number =>
+  requiredWorldValue(world.listingId, "the listing");
+export const theBooking = (world: TicketsWorld): number =>
+  requiredWorldValue(world.attendeeId, "the booking");
+
+/** Something a story changes about one of the things the site sells, where the
+ * change itself is a choice the person makes — a day to stop opening on, an
+ * address to forward to, whether it sells on its own. */
+export type ChangeOneThing<Choice> = (
+  world: TicketsWorld,
+  name: string,
+  choice: Choice,
+) => Promise<void>;
+
+/** The record a story just looked up, or a loud failure when the site no longer
+ * has it. A story that carried on with nothing would report the wrong thing:
+ * "it forwards nowhere" reads the same as "the listing was destroyed". */
+export const stillThere = <Found>(
+  found: Found | null | undefined,
+  name: string,
+): Found => {
+  if (!found) throw new Error(`The ${name} is gone altogether`);
+  return found;
+};
 
 export interface TicketsWorld extends World {
   apiAnswer?: ApiAnswer;

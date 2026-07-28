@@ -224,10 +224,6 @@ const appendFormValue = (
   }
 };
 
-/** Find a form whose body contains the given button text, or throw.
- * Also returns the matching button's name/value attributes when present,
- * so the caller can include them in the submission (mirrors how a real
- * browser submits a `<button name="…" value="…">` only when clicked). */
 /** The button on this form a person would press, and what pressing it sends
  * (routes that dispatch on `action` read the button's own name and value).
  * "switched off" when the only buttons with that text cannot be pressed, and
@@ -256,6 +252,10 @@ const buttonToPress = (
   return switchedOff ? "switched off" : {};
 };
 
+/** Find a form whose body contains the given button text, or throw. Also
+ * returns the matching button's name/value attributes when present, so the
+ * caller can include them in the submission (mirrors how a real browser submits
+ * a `<button name="…" value="…">` only when clicked). */
 const findFormByButton = (
   forms: FormInfo[],
   buttonText: string,

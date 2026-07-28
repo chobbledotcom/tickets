@@ -5,6 +5,7 @@
  * the story names and lets the site work that code out.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { mapNotNullish } from "#fp";
 import { execute } from "#shared/db/client.ts";
@@ -15,11 +16,13 @@ import {
   saveContactRecord,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
+import { openAdminPage } from "#test/specs/support/browser.ts";
 import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+
+// jscpd:ignore-end
 
 /** What the organiser types into the record's form. A box left out here keeps
  * whatever the page already had in it, the way it would for a person who edits
@@ -90,11 +93,7 @@ export const unreadableRecord = async (
 export const openRecord = async (
   world: TicketsWorld,
   email: string,
-): Promise<TestBrowser> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(await pagePath(email));
-  return browser;
-};
+): Promise<TestBrowser> => openAdminPage(world, await pagePath(email));
 
 /** The boxes on the page, by the words this file uses for them. */
 const BOXES = {
