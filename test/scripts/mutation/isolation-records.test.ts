@@ -15,6 +15,7 @@ import {
   workRoot,
 } from "#scripts/mutation/isolation-state.ts";
 import {
+  runIdNamed,
   withTempDir,
   writeMovedRunRecord,
 } from "#test/scripts/mutation/isolation-helpers.ts";
@@ -59,8 +60,18 @@ describe("the record a mutation run keeps on disk", () => {
     await withTempDir(async (root) => {
       expect(await readRunRecords(root)).toEqual([]);
 
-      const older = newRunRecord("older", [], root, "2026-07-09T10:00:00.000Z");
-      const newer = newRunRecord("newer", [], root, "2026-07-09T11:00:00.000Z");
+      const older = newRunRecord(
+        runIdNamed("older"),
+        [],
+        root,
+        "2026-07-09T10:00:00.000Z",
+      );
+      const newer = newRunRecord(
+        runIdNamed("newer"),
+        [],
+        root,
+        "2026-07-09T11:00:00.000Z",
+      );
       await writeRunRecord(older);
       await writeRunRecord(newer);
       await Deno.mkdir(join(root, ".mutation-runs", "broken"), {
@@ -73,8 +84,31 @@ describe("the record a mutation run keeps on disk", () => {
       );
 
       const records = await readRunRecords(root);
-      expect(records.map((record) => record.id)).toEqual(["newer", "older"]);
+      expect(records.map((record) => record.id)).toEqual([
+        runIdNamed("newer"),
+        runIdNamed("older"),
+      ]);
       expect(await readRunRecord(join(root, "missing.json"))).toBeNull();
+    });
+  });
+
+  test("leaves alone a folder this runner did not name", async () => {
+    await withTempDir(async (root) => {
+      // A perfectly readable record, in a folder no mutation run ever made —
+      // somebody's copied backup of an old one. Reading it would put it on the
+      // list, and `--clean all` would then delete somebody else's folder.
+      const ours = newRunRecord(runIdNamed("ours"), [], root);
+      await writeRunRecord(ours);
+      const strayFolder = join(root, ".mutation-runs", "mutation-backups");
+      await Deno.mkdir(strayFolder, { recursive: true });
+      await Deno.writeTextFile(
+        join(strayFolder, "run.json"),
+        JSON.stringify({ ...ours, id: "mutation-backups" }),
+      );
+
+      expect((await readRunRecords(root)).map(({ id }) => id)).toEqual([
+        runIdNamed("ours"),
+      ]);
     });
   });
 
@@ -93,11 +127,11 @@ describe("the record a mutation run keeps on disk", () => {
 
   test("writes the record so a person can read it", async () => {
     await withTempDir(async (root) => {
-      const record = newRunRecord("readable", ["src/a.ts"], root);
+      const record = newRunRecord(runIdNamed("readable"), ["src/a.ts"], root);
       await writeRunRecord(record);
 
       const written = await Deno.readTextFile(
-        join(root, ".mutation-runs", "readable", "run.json"),
+        join(root, ".mutation-runs", runIdNamed("readable"), "run.json"),
       );
 
       // Indented and one line per field, so `cat run.json` is worth doing.

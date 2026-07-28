@@ -1703,30 +1703,6 @@ naturally by the helpers they use (`expectPackageRejected`,
 
 ---
 
-## Let every mutation command leave folders it did not name alone
-
-*Origin: reviewer suggestion (Codex) on PR #1957.*
-
-`readRunRecords` in `scripts/mutation/isolation-records.ts` reads a record from
-every folder under `.mutation-runs`, whatever it is called. So `--clean all`
-deletes a stray folder that happens to hold a readable `run.json` — a copied
-backup of an old run, say — even though this runner never made it.
-
-The clear-up that runs before each mutation *is* restricted: `runsToSweep` picks
-folders by name with `isRunId` before reading anything inside them. The explicit
-list/kill/clean commands are the ones still reading everything.
-
-This is older than PR #1957 — `--clean all` has always deleted every folder with
-a readable record — and closing it means renaming about twenty fixture ids in
-`test/scripts/mutation/` to the real `mutation-<time>-<hex>` shape, which is why
-it did not ride along with that change.
-
-Starting point: filter the names in `readRunRecords` with `isRunId` the way
-`runsToSweep` does, then work through the fixture ids in
-`test/scripts/mutation/isolation/commands.test.ts`,
-`test/scripts/mutation/isolation/list-and-kill.test.ts`, and
-`test/scripts/mutation/isolation-state/records.test.ts`.
-
 ## Give the stripe-mock install lock the same shape as every other file lock
 
 *Origin: noticed while unifying the locks behind `scripts/lock-file.ts`.*
