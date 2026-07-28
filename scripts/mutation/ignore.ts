@@ -29,6 +29,10 @@ export const EQUIVALENT_MUTANTS_FILE = new URL(
   import.meta.url,
 );
 
+/** The same file, as a path from the top of the checkout. */
+export const EQUIVALENT_MUTANTS_PATH =
+  "scripts/mutation/equivalent-mutants.txt";
+
 /** Canonical key for a mutant at a project-relative path. */
 export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
   `${relPath}:${mutant.line}:${mutant.column} ${mutant.operator}→${mutant.newOperator}`;

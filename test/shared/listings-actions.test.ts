@@ -145,7 +145,7 @@ describeWithEnv("validateListingInput", { db: true }, () => {
       durationDays: 1,
     });
     await expect(validateListingInput(input)).resolves.toBe(
-      "Customisable days cannot be combined with Allow Pay More",
+      t("error.customisable_days_with_pay_more"),
     );
   });
 

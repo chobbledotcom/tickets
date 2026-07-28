@@ -311,7 +311,7 @@ const handleToggleActive = (
     // A deactivation that would orphan a child-scoped add-on is rejected with
     // the same 400 + error the HTML deactivate route gives.
     if ("error" in result) return apiErrorResponse(result.error);
-    return jsonResponse({ listing: toAdminListing(result.updated) });
+    return jsonResponse({ listing: await toApiListing(result.updated) });
   });
 
 /** Strip slug_index from listing row, producing the admin API shape */
@@ -459,6 +459,15 @@ const hydrateListingGroupIds = async (
     group_ids: listingGroups.idsFor(groupIdsByListing, row.id),
   }))(rows);
 };
+
+/** One listing as every admin endpoint answers with it: the stored fields plus
+ * the ids of the groups it is in. */
+const toApiListing = async (
+  row: ListingWithCount,
+): Promise<Record<string, unknown>> => ({
+  ...toAdminListing(row),
+  ...(await hydrateListingGroupIds([row])).get(row.id),
+});
 
 const listingApiRoutes = defineCrudApi<
   Listing,

@@ -9,10 +9,12 @@ import {
 } from "#scripts/mutation/isolation-state.ts";
 import { withTempDir as withSharedTempDir } from "#test-utils/files.ts";
 
-export const withTempDir = async (
-  run: (dir: string) => Promise<void>,
-): Promise<void> =>
-  await withSharedTempDir(run, { prefix: "mutation-isolation-" });
+export const withTempDir = <Result>(
+  run: (dir: string) => Promise<Result>,
+): Promise<Result> => withSharedTempDir(run, { prefix: "mutation-isolation-" });
+
+/** A time far enough back that the startup grace no longer covers it. */
+export const LONG_AGO = new Date("2026-01-01T00:00:00.000Z");
 
 const lineFrom = (values: unknown[]): string => values.map(String).join(" ");
 
@@ -64,10 +66,16 @@ export const writeMovedRunRecord = async (
   return { id, oldRunRoot, record };
 };
 
-export const writeFakeMutationScript = async (
+export const writeFakeScript = async (
   root: string,
+  name: string,
   body: string,
 ): Promise<void> => {
   await Deno.mkdir(join(root, "scripts"), { recursive: true });
-  await Deno.writeTextFile(join(root, "scripts", "mutation.ts"), body);
+  await Deno.writeTextFile(join(root, "scripts", name), body);
 };
+
+export const writeFakeMutationScript = (
+  root: string,
+  body: string,
+): Promise<void> => writeFakeScript(root, "mutation.ts", body);

@@ -84,6 +84,37 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(inList.group_ids).toEqual([group.id]);
     });
 
+    test("deactivating and reactivating answer with group_ids too", async () => {
+      const group = await createTestGroup({ name: "Toggle Group" });
+      const created = await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            group_ids: [group.id],
+            max_attendees: 10,
+            name: "Toggle Listing",
+          },
+          method: "POST",
+        }),
+        201,
+      );
+
+      const deactivated = await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}/deactivate`, {
+          method: "POST",
+        }),
+        200,
+      );
+      expect(deactivated.listing.group_ids).toEqual([group.id]);
+
+      const reactivated = await assertJson(
+        apiRequest(`/api/admin/listings/${created.listing.id}/reactivate`, {
+          method: "POST",
+        }),
+        200,
+      );
+      expect(reactivated.listing.group_ids).toEqual([group.id]);
+    });
+
     test("list batch-hydrates group_ids, including an empty array for ungrouped", async () => {
       const group = await createTestGroup({ name: "Batch Group" });
       const grouped = await assertJson(
