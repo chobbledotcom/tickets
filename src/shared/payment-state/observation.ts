@@ -11,10 +11,11 @@ import {
   ResourceIdSchema,
   sameProviderResource,
 } from "#shared/payment-state/resources.ts";
+import { PAYMENT_MODES } from "#shared/payment-state/words.ts";
 import { BookingIntentSchema } from "#shared/payments.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
 
-export const PaymentModeSchema = v.picklist(["test", "live"]);
+export const PaymentModeSchema = v.picklist(PAYMENT_MODES);
 export type PaymentMode = v.InferOutput<typeof PaymentModeSchema>;
 
 export const PaymentInstantSchema = v.pipe(

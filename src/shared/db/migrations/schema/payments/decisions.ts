@@ -1,53 +1,43 @@
 import type { Table } from "#shared/db/migrations/schema/types.ts";
+import { DECISION_STATES } from "#shared/payment-state/words.ts";
+import {
+  alsoAbout,
+  encryptedPaymentColumn,
+  encryptedPaymentColumnOrNull,
+  oneOf,
+  wholeNumber,
+  wholeNumberOrNull,
+} from "./columns.ts";
+
+/** What a decision may never be, whatever else is true of it. */
+const aboutTheDecision = alsoAbout([
+  `(state = 'retrying') = (next_retry_at IS NOT NULL)`,
+  `(state = 'retrying') = (last_error IS NOT NULL)`,
+  "(attempt_count = 0) = (last_attempt_at IS NULL)",
+  `state NOT IN ('retrying', 'completed') OR (attempt_count >= 1 AND last_attempt_at IS NOT NULL)`,
+  "next_retry_at IS NULL OR last_attempt_at IS NULL OR next_retry_at >= last_attempt_at",
+  `decision IS NOT NULL OR state IN ('accepted', 'running', 'retrying')`,
+]);
 
 export const paymentCaseDecisionTable: [name: string, table: Table] = [
   "payment_case_decisions",
   {
     columns: [
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-      [
-        "case_id",
-        "INTEGER NOT NULL CHECK (typeof(case_id) = 'integer' AND case_id >= 1)",
-      ],
-      [
-        "case_revision",
-        "INTEGER NOT NULL CHECK (typeof(case_revision) = 'integer' AND case_revision >= 1)",
-      ],
-      ["claim", "TEXT NOT NULL CHECK (claim GLOB 'enc:1:?*:?*')"],
-      [
-        "decision",
-        "TEXT CHECK (decision IS NULL OR decision GLOB 'enc:1:?*:?*')",
-      ],
-      [
-        "state",
-        "TEXT NOT NULL CHECK (state IN ('accepted', 'running', 'retrying', 'completed'))",
-      ],
-      [
-        "attempt_count",
-        "INTEGER NOT NULL DEFAULT 0 CHECK (typeof(attempt_count) = 'integer' AND attempt_count >= 0)",
-      ],
-      [
-        "created_at",
-        "INTEGER NOT NULL CHECK (typeof(created_at) = 'integer' AND created_at >= 0)",
-      ],
-      [
-        "last_attempt_at",
-        "INTEGER CHECK (last_attempt_at IS NULL OR (typeof(last_attempt_at) = 'integer' AND last_attempt_at >= created_at))",
-      ],
-      [
-        "next_retry_at",
-        "INTEGER CHECK (next_retry_at IS NULL OR (typeof(next_retry_at) = 'integer' AND next_retry_at >= created_at))",
-      ],
+      ["case_id", wholeNumber("case_id", 1)],
+      ["case_revision", wholeNumber("case_revision", 1)],
+      ["claim", encryptedPaymentColumn("claim")],
+      ["decision", `TEXT CHECK ${encryptedPaymentColumnOrNull("decision")}`],
+      ["state", oneOf("state", DECISION_STATES)],
+      ["attempt_count", wholeNumber("attempt_count", 0, 0)],
+      ["created_at", wholeNumber("created_at")],
+      ["last_attempt_at", wholeNumberOrNull("last_attempt_at", "created_at")],
+      ["next_retry_at", wholeNumberOrNull("next_retry_at", "created_at")],
       [
         "last_error",
-        `TEXT
-          CHECK (last_error IS NULL OR last_error GLOB 'enc:1:?*:?*')
-          CHECK ((state = 'retrying') = (next_retry_at IS NOT NULL))
-          CHECK ((state = 'retrying') = (last_error IS NOT NULL))
-          CHECK ((attempt_count = 0) = (last_attempt_at IS NULL))
-          CHECK (state NOT IN ('retrying', 'completed') OR (attempt_count >= 1 AND last_attempt_at IS NOT NULL))
-          CHECK (next_retry_at IS NULL OR last_attempt_at IS NULL OR next_retry_at >= last_attempt_at)
-          CHECK (decision IS NOT NULL OR state IN ('accepted', 'running', 'retrying'))`,
+        aboutTheDecision(
+          `TEXT\n          CHECK ${encryptedPaymentColumnOrNull("last_error")}`,
+        ),
       ],
     ],
     indexes: [

@@ -17,6 +17,12 @@ import {
   ProviderResourceSchema,
   ResourceIdSchema,
 } from "#shared/payment-state/resources.ts";
+import {
+  CASE_STATES,
+  DECISION_STATES,
+  PAYMENT_STATES,
+  REFUND_STATES,
+} from "#shared/payment-state/words.ts";
 import { PaymentProviderSchema } from "#shared/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
@@ -96,39 +102,17 @@ export const PaymentResolutionSchema = v.variant("status", [
 ]);
 export type PaymentResolution = v.InferOutput<typeof PaymentResolutionSchema>;
 
-export const PaymentSessionStateSchema = v.picklist([
-  "created",
-  "pending",
-  "ready",
-  "processing",
-  "completed",
-  "failed",
-  "refunding",
-  "fully_refunded",
-  "needs_action",
-]);
+export const PaymentSessionStateSchema = v.picklist(PAYMENT_STATES);
 export type PaymentSessionState = v.InferOutput<
   typeof PaymentSessionStateSchema
 >;
 
-export const PaymentCaseStateSchema = v.picklist([
-  "retrying",
-  "needs_action",
-  "resolved",
-]);
+export const PaymentCaseStateSchema = v.picklist(CASE_STATES);
 export type PaymentCaseState = v.InferOutput<typeof PaymentCaseStateSchema>;
 
 /** Where a refund has got to. "unknown" belongs only to money copied from an
  *  older version, whose record never said what became of its refund. */
-export const PaymentRefundStateSchema = v.picklist([
-  "none",
-  "requested",
-  "pending",
-  "partial",
-  "completed",
-  "failed",
-  "unknown",
-]);
+export const PaymentRefundStateSchema = v.picklist(REFUND_STATES);
 export type PaymentRefundState = v.InferOutput<typeof PaymentRefundStateSchema>;
 
 const decisionBase = {
@@ -302,12 +286,7 @@ export type PaymentOperatorDecision = v.InferOutput<
   typeof PaymentOperatorDecisionSchema
 >;
 
-export const PaymentDecisionStateSchema = v.picklist([
-  "accepted",
-  "running",
-  "retrying",
-  "completed",
-]);
+export const PaymentDecisionStateSchema = v.picklist(DECISION_STATES);
 export type PaymentDecisionState = v.InferOutput<
   typeof PaymentDecisionStateSchema
 >;

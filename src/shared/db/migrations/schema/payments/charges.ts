@@ -1,155 +1,144 @@
 /* jscpd:ignore-start -- imports */
-import type { Table } from "#shared/db/migrations/schema/types.ts";
 import {
+  LEGACY_SOURCES,
+  RECORD_ORIGINS,
+  REFUND_STATES,
+  RESOURCE_KINDS,
+} from "#shared/payment-state/words.ts";
+import { PaymentProviderSchema } from "#shared/types.ts";
+import {
+  allOf,
+  alsoAbout,
+  amountOrNull,
+  anyOf,
+  currencyOrNull,
   encryptedPaymentColumnOrNull,
-  MAX_PAYMENT_INTEGER,
+  legacySealed,
+  madeAndTouched,
+  oneOf,
+  oneOfOrNull,
+  ownSealed,
+  paymentRecord,
+  quoted,
+  wholeNumberOrNull,
+  words,
+  wordsOrNull,
 } from "./columns.ts";
+
 /* jscpd:ignore-end */
 
-export const paymentChargeTable: [name: string, table: Table] = [
-  "payment_charges",
-  {
-    columns: [
-      ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-      ["payment_id", "TEXT NOT NULL CHECK (length(trim(payment_id)) > 0)"],
-      [
-        "origin",
-        "TEXT NOT NULL DEFAULT 'current' CHECK (origin IN ('current', 'legacy'))",
-      ],
-      [
-        "provider",
-        "TEXT CHECK (provider IS NULL OR provider IN ('stripe', 'square', 'sumup'))",
-      ],
-      [
-        "resource_kind",
-        "TEXT CHECK (resource_kind IS NULL OR resource_kind IN ('stripe_payment_intent', 'square_payment', 'sumup_transaction'))",
-      ],
-      [
-        "provider_reference",
-        "TEXT NOT NULL CHECK (length(provider_reference) > 0)",
-      ],
-      [
-        "reference_index",
-        "TEXT CHECK (reference_index IS NULL OR length(trim(reference_index)) > 0)",
-      ],
-      [
-        "captured_amount",
-        `INTEGER CHECK (captured_amount IS NULL OR (typeof(captured_amount) = 'integer' AND captured_amount BETWEEN 1 AND ${MAX_PAYMENT_INTEGER}))`,
-      ],
-      [
-        "currency",
-        "TEXT CHECK (currency IS NULL OR currency GLOB '[A-Z][A-Z][A-Z]')",
-      ],
-      [
-        "refunded_amount",
-        "INTEGER CHECK (refunded_amount IS NULL OR (typeof(refunded_amount) = 'integer' AND refunded_amount >= 0))",
-      ],
-      [
-        "refund_state",
-        "TEXT NOT NULL DEFAULT 'none' CHECK (refund_state IN ('none', 'requested', 'pending', 'partial', 'completed', 'failed', 'unknown'))",
-      ],
-      ["pending_refund_id", "TEXT"],
-      [
-        "pending_refund_index",
-        "TEXT CHECK (pending_refund_index IS NULL OR length(trim(pending_refund_index)) > 0)",
-      ],
-      ["pending_refund_idempotency_key", "TEXT"],
-      [
-        "pending_refund_key_index",
-        "TEXT CHECK (pending_refund_key_index IS NULL OR length(trim(pending_refund_key_index)) > 0)",
-      ],
-      // A time, like every other time here, so it can be compared with them.
-      // SQLite sorts numbers before text whatever they say, so one time kept
-      // as words would always read as later than one kept as a number.
-      [
-        "provider_refunded_at",
-        "INTEGER CHECK (provider_refunded_at IS NULL OR (typeof(provider_refunded_at) = 'integer' AND provider_refunded_at >= 0))",
-      ],
-      ["legacy_source", "TEXT"],
-      [
-        "created_at",
-        "INTEGER NOT NULL CHECK (typeof(created_at) = 'integer' AND created_at >= 0)",
-      ],
-      [
-        "updated_at",
-        "INTEGER NOT NULL CHECK (typeof(updated_at) = 'integer' AND updated_at >= created_at)",
-      ],
-      [
-        "observed_at",
-        `INTEGER NOT NULL
-          CHECK (typeof(observed_at) = 'integer' AND observed_at >= 0)
-          CHECK (
-            (origin = 'current'
-              AND legacy_source IS NULL
-              AND provider_refunded_at IS NULL
-              AND provider_reference GLOB 'enc:1:?*:?*'
-              AND reference_index IS NOT NULL
-              AND captured_amount IS NOT NULL
-              AND currency IS NOT NULL
-              AND refunded_amount IS NOT NULL
-              AND refunded_amount BETWEEN 0 AND captured_amount
-              AND refund_state != 'unknown'
-              AND provider IS NOT NULL
-              AND resource_kind IS NOT NULL
-              AND (
-                (provider = 'stripe' AND resource_kind = 'stripe_payment_intent')
-                OR (provider = 'square' AND resource_kind = 'square_payment')
-                OR (provider = 'sumup' AND resource_kind = 'sumup_transaction')
-              )
-              AND (
-                (refund_state = 'requested' AND pending_refund_id IS NULL AND pending_refund_idempotency_key IS NOT NULL)
-                OR refund_state = 'pending'
-                OR (refund_state = 'failed' AND pending_refund_id IS NULL)
-                OR (refund_state IN ('none', 'partial', 'completed') AND pending_refund_id IS NULL AND pending_refund_idempotency_key IS NULL)
-              )
-              AND (refund_state NOT IN ('requested', 'pending') OR refunded_amount < captured_amount)
-              AND (refund_state != 'none' OR refunded_amount = 0)
-              AND (refund_state != 'partial' OR (refunded_amount > 0 AND refunded_amount < captured_amount))
-              AND (refund_state != 'completed' OR refunded_amount = captured_amount))
-            OR
-            (origin = 'legacy'
-              AND provider IS NULL
-              AND resource_kind IS NULL
-              AND provider_reference GLOB 'hyb:1:?*:?*:?*'
-              AND reference_index IS NULL
-              AND captured_amount IS NULL
-              AND currency IS NULL
-              AND refunded_amount IS NULL
-              AND refund_state = 'unknown'
-              AND pending_refund_id IS NULL
-              AND pending_refund_index IS NULL
-              AND pending_refund_idempotency_key IS NULL
-              AND pending_refund_key_index IS NULL
-              AND legacy_source IS NOT NULL
-              AND legacy_source IN ('processed_payments', 'attendees.pii_blob', 'attendee_merge'))
-          )
-          CHECK ((pending_refund_id IS NULL) = (pending_refund_index IS NULL))
-          CHECK ((pending_refund_idempotency_key IS NULL) = (pending_refund_key_index IS NULL))
-          CHECK (${encryptedPaymentColumnOrNull("pending_refund_id")})
-          CHECK (${encryptedPaymentColumnOrNull(
-            "pending_refund_idempotency_key",
-          )})`,
-      ],
-    ],
-    indexes: [
-      {
-        columns: ["payment_id", "reference_index"],
-        name: "idx_payment_charges_payment_reference",
-        unique: true,
-      },
-      {
-        columns: ["reference_index"],
-        name: "idx_payment_charges_reference",
-      },
-      {
-        columns: ["pending_refund_index"],
-        name: "idx_payment_charges_pending_refund",
-      },
-      {
-        columns: ["payment_id", "legacy_source"],
-        name: "idx_payment_charges_legacy_source",
-        unique: true,
-      },
-    ],
-  },
-];
+const PROVIDERS = PaymentProviderSchema.options;
+
+/** Each provider names its money its own way, so the two must agree. */
+const providerMatchesKind = anyOf(
+  PROVIDERS.map(
+    (provider, index) =>
+      `(provider = '${provider}' AND resource_kind = '${RESOURCE_KINDS[index]}')`,
+  ),
+);
+
+/** Which refund handles a charge may hold, for each place a refund has got to.
+ *  A refund the provider is still working on is left open: it may have been
+ *  started in the provider's own dashboard, so we may hold neither handle. */
+const refundHandlesMatchState = anyOf([
+  `(refund_state = 'requested' AND pending_refund_id IS NULL AND pending_refund_idempotency_key IS NOT NULL)`,
+  `refund_state = 'pending'`,
+  `(refund_state = 'failed' AND pending_refund_id IS NULL)`,
+  `(refund_state IN ('none', 'partial', 'completed') AND pending_refund_id IS NULL AND pending_refund_idempotency_key IS NULL)`,
+]);
+
+/** Money taken here, which knows everything about itself. */
+const moneyTakenHere = allOf([
+  `origin = 'current'`,
+  "legacy_source IS NULL",
+  "provider_refunded_at IS NULL",
+  ownSealed("provider_reference"),
+  "reference_index IS NOT NULL",
+  "captured_amount IS NOT NULL",
+  "currency IS NOT NULL",
+  "refunded_amount IS NOT NULL",
+  "refunded_amount BETWEEN 0 AND captured_amount",
+  `refund_state != 'unknown'`,
+  "provider IS NOT NULL",
+  "resource_kind IS NOT NULL",
+  providerMatchesKind,
+  refundHandlesMatchState,
+  `(refund_state NOT IN ('requested', 'pending') OR refunded_amount < captured_amount)`,
+  `(refund_state != 'none' OR refunded_amount = 0)`,
+  `(refund_state != 'partial' OR (refunded_amount > 0 AND refunded_amount < captured_amount))`,
+  `(refund_state != 'completed' OR refunded_amount = captured_amount)`,
+]);
+
+/** Money copied across on upgrade, which knows only that it happened. */
+const moneyCopiedAcross = allOf([
+  `origin = 'legacy'`,
+  "provider IS NULL",
+  "resource_kind IS NULL",
+  legacySealed("provider_reference"),
+  "reference_index IS NULL",
+  "captured_amount IS NULL",
+  "currency IS NULL",
+  "refunded_amount IS NULL",
+  `refund_state = 'unknown'`,
+  "pending_refund_id IS NULL",
+  "pending_refund_index IS NULL",
+  "pending_refund_idempotency_key IS NULL",
+  "pending_refund_key_index IS NULL",
+  "legacy_source IS NOT NULL",
+  `legacy_source IN (${quoted(LEGACY_SOURCES)})`,
+]);
+
+/** What a charge may never be, whatever else is true of it. */
+const aboutTheCharge = alsoAbout([
+  `typeof(observed_at) = 'integer' AND observed_at >= 0`,
+  anyOf([moneyTakenHere, moneyCopiedAcross]),
+  "(pending_refund_id IS NULL) = (pending_refund_index IS NULL)",
+  "(pending_refund_idempotency_key IS NULL) = (pending_refund_key_index IS NULL)",
+  encryptedPaymentColumnOrNull("pending_refund_id"),
+  encryptedPaymentColumnOrNull("pending_refund_idempotency_key"),
+]);
+
+export const paymentChargeTable = paymentRecord("payment_charges", {
+  columns: [
+    ["origin", oneOf("origin", RECORD_ORIGINS, "current")],
+    ["provider", oneOfOrNull("provider", PROVIDERS)],
+    ["resource_kind", oneOfOrNull("resource_kind", RESOURCE_KINDS)],
+    ["provider_reference", words("provider_reference")],
+    ["reference_index", wordsOrNull("reference_index")],
+    ["captured_amount", amountOrNull("captured_amount", 1)],
+    ["currency", currencyOrNull("currency")],
+    ["refunded_amount", wholeNumberOrNull("refunded_amount")],
+    ["refund_state", oneOf("refund_state", REFUND_STATES, "none")],
+    ["pending_refund_id", "TEXT"],
+    ["pending_refund_index", wordsOrNull("pending_refund_index")],
+    ["pending_refund_idempotency_key", "TEXT"],
+    ["pending_refund_key_index", wordsOrNull("pending_refund_key_index")],
+    // A time, like every other time here, so it can be compared with them.
+    // SQLite sorts numbers before text whatever they say, so one time kept
+    // as words would always read as later than one kept as a number.
+    ["provider_refunded_at", wholeNumberOrNull("provider_refunded_at")],
+    ["legacy_source", "TEXT"],
+    ...madeAndTouched,
+    ["observed_at", aboutTheCharge("INTEGER NOT NULL")],
+  ],
+  indexes: [
+    {
+      columns: ["payment_id", "reference_index"],
+      name: "idx_payment_charges_payment_reference",
+      unique: true,
+    },
+    {
+      columns: ["reference_index"],
+      name: "idx_payment_charges_reference",
+    },
+    {
+      columns: ["pending_refund_index"],
+      name: "idx_payment_charges_pending_refund",
+    },
+    {
+      columns: ["payment_id", "legacy_source"],
+      name: "idx_payment_charges_legacy_source",
+      unique: true,
+    },
+  ],
+});

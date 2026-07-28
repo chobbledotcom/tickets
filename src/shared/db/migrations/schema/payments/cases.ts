@@ -1,116 +1,83 @@
-import type { Table } from "#shared/db/migrations/schema/types.ts";
+import { CASE_STATES } from "#shared/payment-state/words.ts";
+import {
+  alsoAbout,
+  encryptedPaymentColumn,
+  oneOf,
+  paymentRecord,
+  wholeNumber,
+  wholeNumberOrNull,
+  words,
+  wordsOrNull,
+} from "./columns.ts";
 
-export const paymentCaseTable: [name: string, table: Table] = [
-  "payment_cases",
-  {
-    columns: [
-      ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-      ["payment_id", "TEXT NOT NULL CHECK (length(trim(payment_id)) > 0)"],
-      ["resource", "TEXT NOT NULL CHECK (resource GLOB 'enc:1:?*:?*')"],
-      [
-        "resource_index",
-        "TEXT NOT NULL CHECK (length(trim(resource_index)) > 0)",
-      ],
-      ["reason", "TEXT NOT NULL CHECK (length(trim(reason)) > 0)"],
-      [
-        "state",
-        "TEXT NOT NULL CHECK (state IN ('retrying', 'needs_action', 'resolved'))",
-      ],
-      [
-        "first_observed_at",
-        "INTEGER NOT NULL CHECK (typeof(first_observed_at) = 'integer' AND first_observed_at >= 0)",
-      ],
-      [
-        "last_observed_at",
-        "INTEGER NOT NULL CHECK (typeof(last_observed_at) = 'integer' AND last_observed_at >= first_observed_at)",
-      ],
-      [
-        "next_reconcile_at",
-        "INTEGER CHECK (next_reconcile_at IS NULL OR (typeof(next_reconcile_at) = 'integer' AND next_reconcile_at >= 0))",
-      ],
-      [
-        "consecutive_count",
-        "INTEGER NOT NULL CHECK (typeof(consecutive_count) = 'integer' AND consecutive_count >= 1)",
-      ],
-      [
-        "alerted_at",
-        "INTEGER CHECK (alerted_at IS NULL OR (typeof(alerted_at) = 'integer' AND alerted_at >= 0))",
-      ],
-      [
-        "alerted_revision",
-        "INTEGER CHECK (alerted_revision IS NULL OR (typeof(alerted_revision) = 'integer' AND alerted_revision >= 1))",
-      ],
-      [
-        "alert_sent_at",
-        "INTEGER CHECK (alert_sent_at IS NULL OR (typeof(alert_sent_at) = 'integer' AND alert_sent_at >= 0))",
-      ],
-      [
-        "alert_sent_revision",
-        "INTEGER CHECK (alert_sent_revision IS NULL OR (typeof(alert_sent_revision) = 'integer' AND alert_sent_revision >= 1))",
-      ],
-      // An empty claim would match another empty one, so two workers could
-      // both send the owner the same alert.
-      [
-        "alert_lease_token",
-        "TEXT CHECK (alert_lease_token IS NULL OR length(trim(alert_lease_token)) > 0)",
-      ],
-      [
-        "alert_lease_expires_at",
-        "INTEGER CHECK (alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= 0))",
-      ],
-      ["evidence", "TEXT NOT NULL CHECK (evidence GLOB 'enc:1:?*:?*')"],
-      [
-        "evidence_redacted_at",
-        "INTEGER CHECK (evidence_redacted_at IS NULL OR (state = 'resolved' AND typeof(evidence_redacted_at) = 'integer' AND evidence_redacted_at >= resolved_at))",
-      ],
-      [
-        "revision",
-        "INTEGER NOT NULL DEFAULT 1 CHECK (typeof(revision) = 'integer' AND revision >= 1)",
-      ],
-      [
-        "resolved_at",
-        `INTEGER
-          CHECK (resolved_at IS NULL OR (typeof(resolved_at) = 'integer' AND resolved_at >= last_observed_at))
-          CHECK ((alerted_at IS NULL) = (alerted_revision IS NULL))
-          CHECK (alerted_at IS NULL OR alerted_at >= first_observed_at)
-          CHECK (alerted_revision IS NULL OR alerted_revision <= revision)
-          CHECK ((alert_sent_at IS NULL) = (alert_sent_revision IS NULL))
-          CHECK (alert_sent_revision IS NULL OR (alerted_revision IS NOT NULL AND alert_sent_revision = alerted_revision))
-          CHECK (alert_sent_at IS NULL OR (alerted_at IS NOT NULL AND alert_sent_at >= alerted_at))
-          CHECK ((alert_lease_token IS NULL) = (alert_lease_expires_at IS NULL))
-          CHECK (alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= first_observed_at))
-          CHECK (alert_lease_token IS NULL OR (state = 'needs_action' AND alert_sent_revision IS NULL))
-          CHECK (
+/** What a case may never be, whatever else is true of it. */
+const aboutTheCase = alsoAbout([
+  `resolved_at IS NULL OR (typeof(resolved_at) = 'integer' AND resolved_at >= last_observed_at)`,
+  "(alerted_at IS NULL) = (alerted_revision IS NULL)",
+  "alerted_at IS NULL OR alerted_at >= first_observed_at",
+  "alerted_revision IS NULL OR alerted_revision <= revision",
+  "(alert_sent_at IS NULL) = (alert_sent_revision IS NULL)",
+  "alert_sent_revision IS NULL OR (alerted_revision IS NOT NULL AND alert_sent_revision = alerted_revision)",
+  "alert_sent_at IS NULL OR (alerted_at IS NOT NULL AND alert_sent_at >= alerted_at)",
+  "(alert_lease_token IS NULL) = (alert_lease_expires_at IS NULL)",
+  `alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= first_observed_at)`,
+  `alert_lease_token IS NULL OR (state = 'needs_action' AND alert_sent_revision IS NULL)`,
+  `
             (state = 'retrying' AND next_reconcile_at IS NOT NULL AND next_reconcile_at >= last_observed_at AND resolved_at IS NULL AND alerted_at IS NULL)
             OR (state = 'needs_action' AND next_reconcile_at IS NULL AND resolved_at IS NULL AND alerted_at IS NOT NULL)
             OR (state = 'resolved' AND next_reconcile_at IS NULL AND resolved_at IS NOT NULL)
-          )`,
+          `,
+]);
+
+export const paymentCaseTable = paymentRecord("payment_cases", {
+  columns: [
+    ["resource", encryptedPaymentColumn("resource")],
+    ["resource_index", words("resource_index")],
+    ["reason", words("reason")],
+    ["state", oneOf("state", CASE_STATES)],
+    ["first_observed_at", wholeNumber("first_observed_at")],
+    ["last_observed_at", wholeNumber("last_observed_at", "first_observed_at")],
+    ["next_reconcile_at", wholeNumberOrNull("next_reconcile_at")],
+    ["consecutive_count", wholeNumber("consecutive_count", 1)],
+    ["alerted_at", wholeNumberOrNull("alerted_at")],
+    ["alerted_revision", wholeNumberOrNull("alerted_revision", 1)],
+    ["alert_sent_at", wholeNumberOrNull("alert_sent_at")],
+    ["alert_sent_revision", wholeNumberOrNull("alert_sent_revision", 1)],
+    // An empty claim would match another empty one, so two workers could
+    // both send the owner the same alert.
+    ["alert_lease_token", wordsOrNull("alert_lease_token")],
+    ["alert_lease_expires_at", wholeNumberOrNull("alert_lease_expires_at")],
+    ["evidence", encryptedPaymentColumn("evidence")],
+    [
+      "evidence_redacted_at",
+      "INTEGER CHECK (evidence_redacted_at IS NULL OR (state = 'resolved' AND typeof(evidence_redacted_at) = 'integer' AND evidence_redacted_at >= resolved_at))",
+    ],
+    ["revision", wholeNumber("revision", 1, 1)],
+    ["resolved_at", aboutTheCase("INTEGER")],
+  ],
+  indexes: [
+    {
+      columns: ["payment_id", "resource_index"],
+      name: "idx_payment_cases_payment_resource",
+      unique: true,
+    },
+    {
+      columns: ["state", "next_reconcile_at", "id"],
+      name: "idx_payment_cases_reconcile",
+    },
+    {
+      columns: [
+        "state",
+        "alert_sent_revision",
+        "alert_lease_expires_at",
+        "alerted_at",
+        "id",
       ],
-    ],
-    indexes: [
-      {
-        columns: ["payment_id", "resource_index"],
-        name: "idx_payment_cases_payment_resource",
-        unique: true,
-      },
-      {
-        columns: ["state", "next_reconcile_at", "id"],
-        name: "idx_payment_cases_reconcile",
-      },
-      {
-        columns: [
-          "state",
-          "alert_sent_revision",
-          "alert_lease_expires_at",
-          "alerted_at",
-          "id",
-        ],
-        name: "idx_payment_cases_alert",
-      },
-      {
-        columns: ["evidence_redacted_at", "id"],
-        name: "idx_payment_cases_redaction",
-      },
-    ],
-  },
-];
+      name: "idx_payment_cases_alert",
+    },
+    {
+      columns: ["evidence_redacted_at", "id"],
+      name: "idx_payment_cases_redaction",
+    },
+  ],
+});

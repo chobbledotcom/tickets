@@ -1,10 +1,105 @@
 /* jscpd:ignore-start -- imports */
 import type { Table } from "#shared/db/migrations/schema/types.ts";
 import {
+  COMPLETION_STATES,
+  PAYMENT_MODES,
+  PAYMENT_STATES,
+  RECORD_ORIGINS,
+  RESULT_STATES,
+  SETTLED_STATES,
+  TICKET_STATES,
+} from "#shared/payment-state/words.ts";
+import { PaymentProviderSchema } from "#shared/types.ts";
+import {
+  allOf,
+  alsoAbout,
+  amountOrNull,
+  anyOf,
+  currencyOrNull,
   encryptedPaymentColumnOrNull,
-  MAX_PAYMENT_INTEGER,
+  keyWords,
+  madeAndTouched,
+  oneOf,
+  oneOfOrNull,
+  quoted,
+  wholeNumber,
+  wholeNumberOrNull,
+  wordsOrNull,
 } from "./columns.ts";
+
 /* jscpd:ignore-end */
+
+const HIDDEN_COLUMNS = [
+  "session_resource",
+  "booking_intent",
+  "checkout_create",
+  "result",
+  "ticket_tokens",
+  "completion",
+  "legacy_runtime",
+];
+
+/** A payment made here, which knows who took the money and what was asked. */
+const paymentMadeHere = allOf([
+  `origin = 'current'`,
+  "legacy_runtime IS NULL",
+  "provider IS NOT NULL",
+  "mode IS NOT NULL",
+  "account_id IS NOT NULL",
+  "expected_amount IS NOT NULL",
+  "expected_currency IS NOT NULL",
+  "booking_intent IS NOT NULL",
+  `(checkout_create IS NULL OR (session_resource IS NULL AND state = 'created'))`,
+  `(session_resource IS NOT NULL OR state IN ('created', 'failed'))`,
+  `((result_state = 'none') = (result IS NULL))`,
+  `((ticket_state = 'ready') = (ticket_tokens IS NOT NULL))`,
+  `((completion_state = 'none') = (completion IS NULL))`,
+  `(completion_state != 'pending' OR next_reconcile_at IS NOT NULL)`,
+  `completion_state != 'legacy_unknown'`,
+]);
+
+/** A payment copied across on upgrade, which knows far less about itself. */
+const paymentCopiedAcross = allOf([
+  `origin = 'legacy'`,
+  "legacy_runtime IS NOT NULL",
+  "booking_intent IS NULL",
+  "checkout_create IS NULL",
+  "session_resource IS NULL",
+  "session_reference_index IS NULL",
+  anyOf([
+    `(result_state = 'none' AND result IS NULL)`,
+    `(result_state = 'succeeded' AND result IS NULL AND state = 'completed')`,
+    `(result_state = 'failed' AND result IS NOT NULL AND state = 'failed')`,
+  ]),
+  `((ticket_state = 'ready') = (ticket_tokens IS NOT NULL))`,
+  `(completion_state IN ('none', 'legacy_unknown'))`,
+  "completion IS NULL",
+  `(completion_state != 'legacy_unknown' OR state = 'completed')`,
+]);
+
+/** When the buyer's details may be cleared: the payment is over, nobody holds
+ *  it, nothing is due to look at it again, and no ticket still needs them. */
+const readyToBeCleared = allOf([
+  `typeof(redacted_at) = 'integer' AND redacted_at >= updated_at`,
+  "lease_token IS NULL",
+  "next_reconcile_at IS NULL",
+  `ticket_state != 'ready'`,
+  anyOf([
+    `(origin = 'current' AND ${anyOf([
+      `state = 'failed'`,
+      `(state IN ('completed', 'fully_refunded') AND completion_state = 'completed')`,
+    ])})`,
+    `(origin = 'legacy' AND state IN (${quoted(SETTLED_STATES)}))`,
+  ]),
+]);
+
+/** What a payment may never be, whatever else is true of it. */
+const aboutThePayment = alsoAbout([
+  "(lease_token IS NULL) = (lease_expires_at IS NULL)",
+  "(session_resource IS NULL) = (session_reference_index IS NULL)",
+  ...HIDDEN_COLUMNS.map(encryptedPaymentColumnOrNull),
+  anyOf([paymentCopiedAcross, paymentMadeHere]),
+]);
 
 export const paymentSessionTable: [name: string, table: Table] = [
   "payment_sessions",
@@ -12,145 +107,43 @@ export const paymentSessionTable: [name: string, table: Table] = [
     columns: [
       // SQLite lets a text primary key hold NULL, so the key says NOT NULL
       // outright rather than relying on being the key.
-      ["id", "TEXT PRIMARY KEY NOT NULL CHECK (length(trim(id)) > 0)"],
-      ["origin", "TEXT NOT NULL CHECK (origin IN ('current', 'legacy'))"],
-      [
-        "provider",
-        "TEXT CHECK (provider IS NULL OR provider IN ('stripe', 'square', 'sumup'))",
-      ],
-      ["mode", "TEXT CHECK (mode IS NULL OR mode IN ('test', 'live'))"],
-      [
-        "account_id",
-        "TEXT CHECK (account_id IS NULL OR length(trim(account_id)) > 0)",
-      ],
+      ["id", keyWords("id")],
+      ["origin", oneOf("origin", RECORD_ORIGINS)],
+      ["provider", oneOfOrNull("provider", PaymentProviderSchema.options)],
+      ["mode", oneOfOrNull("mode", PAYMENT_MODES)],
+      ["account_id", wordsOrNull("account_id")],
       ["session_resource", "TEXT"],
-      [
-        "session_reference_index",
-        "TEXT CHECK (session_reference_index IS NULL OR length(trim(session_reference_index)) > 0)",
-      ],
-      [
-        "expected_amount",
-        `INTEGER CHECK (expected_amount IS NULL OR (typeof(expected_amount) = 'integer' AND expected_amount BETWEEN 0 AND ${MAX_PAYMENT_INTEGER}))`,
-      ],
-      [
-        "expected_currency",
-        "TEXT CHECK (expected_currency IS NULL OR expected_currency GLOB '[A-Z][A-Z][A-Z]')",
-      ],
+      ["session_reference_index", wordsOrNull("session_reference_index")],
+      ["expected_amount", amountOrNull("expected_amount", 0)],
+      ["expected_currency", currencyOrNull("expected_currency")],
       ["booking_intent", "TEXT"],
       ["checkout_create", "TEXT"],
-      [
-        "state",
-        "TEXT NOT NULL CHECK (state IN ('created', 'pending', 'ready', 'processing', 'completed', 'failed', 'refunding', 'fully_refunded', 'needs_action'))",
-      ],
-      [
-        "revision",
-        "INTEGER NOT NULL DEFAULT 1 CHECK (typeof(revision) = 'integer' AND revision >= 1)",
-      ],
-      [
-        "created_at",
-        "INTEGER NOT NULL CHECK (typeof(created_at) = 'integer' AND created_at >= 0)",
-      ],
-      [
-        "updated_at",
-        "INTEGER NOT NULL CHECK (typeof(updated_at) = 'integer' AND updated_at >= created_at)",
-      ],
+      ["state", oneOf("state", PAYMENT_STATES)],
+      ["revision", wholeNumber("revision", 1, 1)],
+      ...madeAndTouched,
       // An empty claim would match another empty one, so two workers could
       // both think they held the payment.
-      [
-        "lease_token",
-        "TEXT CHECK (lease_token IS NULL OR length(trim(lease_token)) > 0)",
-      ],
-      [
-        "lease_expires_at",
-        "INTEGER CHECK (lease_expires_at IS NULL OR (typeof(lease_expires_at) = 'integer' AND lease_expires_at >= created_at))",
-      ],
+      ["lease_token", wordsOrNull("lease_token")],
+      ["lease_expires_at", wholeNumberOrNull("lease_expires_at", "created_at")],
       [
         "next_reconcile_at",
-        "INTEGER CHECK (next_reconcile_at IS NULL OR (typeof(next_reconcile_at) = 'integer' AND next_reconcile_at >= created_at))",
+        wholeNumberOrNull("next_reconcile_at", "created_at"),
       ],
-      [
-        "attendee_id",
-        "INTEGER CHECK (attendee_id IS NULL OR (typeof(attendee_id) = 'integer' AND attendee_id >= 1))",
-      ],
-      [
-        "result_state",
-        "TEXT NOT NULL DEFAULT 'none' CHECK (result_state IN ('none', 'succeeded', 'failed'))",
-      ],
+      ["attendee_id", wholeNumberOrNull("attendee_id", 1)],
+      ["result_state", oneOf("result_state", RESULT_STATES, "none")],
       ["result", "TEXT"],
-      [
-        "ticket_state",
-        "TEXT NOT NULL DEFAULT 'none' CHECK (ticket_state IN ('none', 'ready', 'consumed'))",
-      ],
+      ["ticket_state", oneOf("ticket_state", TICKET_STATES, "none")],
       ["ticket_tokens", "TEXT"],
       [
         "completion_state",
-        "TEXT NOT NULL DEFAULT 'none' CHECK (completion_state IN ('none', 'pending', 'completed', 'legacy_unknown'))",
+        oneOf("completion_state", COMPLETION_STATES, "none"),
       ],
       ["completion", "TEXT"],
       [
         "redacted_at",
-        `INTEGER
-          CHECK (redacted_at IS NULL OR (
-            typeof(redacted_at) = 'integer' AND redacted_at >= updated_at
-            AND lease_token IS NULL AND next_reconcile_at IS NULL
-            AND ticket_state != 'ready'
-            AND (
-              (origin = 'current' AND (
-                state = 'failed'
-                OR (state IN ('completed', 'fully_refunded')
-                  AND completion_state = 'completed')
-              ))
-              OR
-              (origin = 'legacy' AND state IN ('completed', 'failed', 'fully_refunded'))
-            )
-          ))`,
+        `INTEGER CHECK (redacted_at IS NULL OR ${readyToBeCleared})`,
       ],
-      [
-        "legacy_runtime",
-        `TEXT
-          CHECK ((lease_token IS NULL) = (lease_expires_at IS NULL))
-          CHECK ((session_resource IS NULL) = (session_reference_index IS NULL))
-          CHECK (${encryptedPaymentColumnOrNull("session_resource")})
-          CHECK (${encryptedPaymentColumnOrNull("booking_intent")})
-          CHECK (${encryptedPaymentColumnOrNull("checkout_create")})
-          CHECK (${encryptedPaymentColumnOrNull("result")})
-          CHECK (${encryptedPaymentColumnOrNull("ticket_tokens")})
-          CHECK (${encryptedPaymentColumnOrNull("completion")})
-          CHECK (${encryptedPaymentColumnOrNull("legacy_runtime")})
-          CHECK (
-            (origin = 'legacy'
-              AND legacy_runtime IS NOT NULL
-              AND booking_intent IS NULL
-              AND checkout_create IS NULL
-              AND session_resource IS NULL
-              AND session_reference_index IS NULL
-              AND (
-                (result_state = 'none' AND result IS NULL)
-                OR (result_state = 'succeeded' AND result IS NULL AND state = 'completed')
-                OR (result_state = 'failed' AND result IS NOT NULL AND state = 'failed')
-              )
-              AND ((ticket_state = 'ready') = (ticket_tokens IS NOT NULL))
-              AND (completion_state IN ('none', 'legacy_unknown'))
-              AND completion IS NULL
-              AND (completion_state != 'legacy_unknown' OR state = 'completed'))
-            OR
-            (origin = 'current'
-              AND legacy_runtime IS NULL
-              AND provider IS NOT NULL
-              AND mode IS NOT NULL
-              AND account_id IS NOT NULL
-              AND expected_amount IS NOT NULL
-              AND expected_currency IS NOT NULL
-              AND booking_intent IS NOT NULL
-              AND (checkout_create IS NULL OR (session_resource IS NULL AND state = 'created'))
-              AND (session_resource IS NOT NULL OR state IN ('created', 'failed'))
-              AND ((result_state = 'none') = (result IS NULL))
-              AND ((ticket_state = 'ready') = (ticket_tokens IS NOT NULL))
-              AND ((completion_state = 'none') = (completion IS NULL))
-              AND (completion_state != 'pending' OR next_reconcile_at IS NOT NULL)
-              AND completion_state != 'legacy_unknown')
-          )`,
-      ],
+      ["legacy_runtime", aboutThePayment("TEXT")],
     ],
     indexes: [
       {
