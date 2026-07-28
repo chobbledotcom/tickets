@@ -273,21 +273,16 @@ const crudDocs = (c: {
 }): EndpointDoc[] => {
   const base = `/api/admin/${c.plural}`;
   const byId = `${base}/:${c.idParam}`;
-  const one = json({ [c.singular]: c.example });
-  // An update answers with the stored record as it now reads, so the response
-  // is the example with the update applied — never the record as it was.
-  const updated = json({
-    [c.singular]: { ...(c.example as object), ...(c.updateBody as object) },
-  });
-  // A create answers with the record as just stored: what the caller sent, on
-  // top of the defaults, with nothing yet booked against it.
-  const created = json({
-    [c.singular]: {
-      ...(c.example as object),
-      ...(c.createBody as object),
-      ...(c.freshRecord ?? {}),
-    },
-  });
+  /** The stored record as an endpoint answers with it: the example with the
+   * given changes laid over it. */
+  const answerWith = (...changes: unknown[]): string =>
+    json({ [c.singular]: Object.assign({}, c.example, ...changes) });
+  const one = answerWith();
+  // An update answers with the record as it now reads, and a create with the
+  // record as just stored: what the caller sent, over the defaults, with
+  // nothing yet booked against it.
+  const updated = answerWith(c.updateBody);
+  const created = answerWith(c.createBody, c.freshRecord ?? {});
   const [list, get, create, update, del] = c.desc;
   return [
     {
