@@ -1,9 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  queueBulkRefundPayments,
   requireBulkRefundAction,
   resolveQueuedBulkRefundPayments,
 } from "#shared/db/payments/bulk-refunds.ts";
+import {
+  getSubrequestUsage,
+  runWithSubrequestBudget,
+} from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { storedStripePayment } from "#test-utils/stripe/provider-fixtures.ts";
 
@@ -26,5 +31,15 @@ describeWithEnv("db > payments > bulk refunds", { db: true }, () => {
     expect(() =>
       resolveQueuedBulkRefundPayments([storedStripePayment({ session: null })]),
     ).toThrow("has no provider session");
+  });
+  test("asks the database nothing when no payments were named", async () => {
+    // Queueing an empty selection must not open a write, so an owner who
+    // picks nothing does not spend one of the request's database calls.
+    const used = await runWithSubrequestBudget(async () => {
+      await queueBulkRefundPayments([]);
+      return getSubrequestUsage().database;
+    });
+
+    expect(used).toBe(0);
   });
 });
