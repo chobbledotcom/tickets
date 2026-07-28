@@ -19,9 +19,6 @@ export type NoteEntity = v.InferOutput<typeof NoteEntitySchema>;
 
 export const NOTE_ENTITIES = NoteEntitySchema.options;
 
-export const isNoteEntity = (value: string): value is NoteEntity =>
-  v.is(NoteEntitySchema, value);
-
 /** One record a note is about: its kind, and which one of that kind. */
 export interface NoteTarget {
   entity: NoteEntity;
@@ -29,16 +26,12 @@ export interface NoteTarget {
 }
 
 /** Build "a note about this kind of thing" once, then name records with it. */
-export const notesAbout =
+const notesAbout =
   (entity: NoteEntity) =>
   (id: number): NoteTarget => ({ entity, id });
 
 /** The record kind notes started with, and still the only one that has them. */
 export const attendeeNotes = notesAbout("attendee");
-
-/** Do these two targets name the same record? */
-export const isSameTarget = (left: NoteTarget, right: NoteTarget): boolean =>
-  left.entity === right.entity && left.id === right.id;
 
 /** Group notes by which record they are about — for a batch about one kind of
  *  record, where the id alone tells them apart. Input order is kept per group. */

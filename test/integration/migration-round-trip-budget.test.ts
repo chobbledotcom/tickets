@@ -119,7 +119,7 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
       }
     }
     expect(finished).toBe(true);
-    expect(continuations).toBe(4);
+    expect(continuations).toBe(5);
 
     const result = await getDb().execute({
       args: pendingIds,

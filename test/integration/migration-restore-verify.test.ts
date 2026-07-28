@@ -69,8 +69,11 @@ describeWithEnv(
       // absent-table checks cannot be rebuilt by a restore case. enabled_features
       // now owns the triggers that keep saved feature data and visibility in step.
       // The built-site marker drop is also removal-only. The activity backfill
-      // completion migration is data-only and covered by its direct tests.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 22);
+      // completion migration is data-only and covered by its direct tests. The
+      // note-entities migration rebuilds system_notes around its new
+      // entity_type/entity_id pair, owning no additive objects to drop and
+      // restore; it has its own migration test.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 23);
     });
 
     test("restores triggers attached to a dropped table", async () => {

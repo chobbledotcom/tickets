@@ -3,10 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   attendeeNotes,
   groupNotesByTargetId,
-  isNoteEntity,
-  isSameTarget,
   NOTE_ENTITIES,
-  notesAbout,
   targetsSelectedBy,
   targetsWhere,
   targetWhere,
@@ -17,22 +14,10 @@ describe("what a note is about", () => {
     expect(attendeeNotes(7)).toEqual({ entity: "attendee", id: 7 });
   });
 
-  test("every listed kind can name a record", () => {
-    expect(NOTE_ENTITIES).toContain("attendee");
-    for (const entity of NOTE_ENTITIES) {
-      expect(notesAbout(entity)(3)).toEqual({ entity, id: 3 });
-    }
-  });
-
-  test("accepts only the kinds on the list", () => {
-    expect(isNoteEntity("attendee")).toBe(true);
-    expect(isNoteEntity("listing")).toBe(false);
-    expect(isNoteEntity("")).toBe(false);
-  });
-
-  test("two targets match only when both kind and id match", () => {
-    expect(isSameTarget(attendeeNotes(1), attendeeNotes(1))).toBe(true);
-    expect(isSameTarget(attendeeNotes(1), attendeeNotes(2))).toBe(false);
+  test("lists the kinds of record a note can be about", () => {
+    // The database CHECK is built from this list, so it is also what a stored
+    // note is allowed to say.
+    expect([...NOTE_ENTITIES]).toEqual(["attendee"]);
   });
 
   test("asks for one record by both of its parts", () => {
