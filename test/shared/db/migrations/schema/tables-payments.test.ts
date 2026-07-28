@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "4205a46d883ac24703f8692a63bfe52f0d52abaf98045940ce76d3de06446958",
+    "d14a79c4072d2ac3f8603c1a41944b98bf172a114d53ad7890c569205d43d0c2",
   );
 });
 
@@ -164,6 +164,23 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
         VALUES ('early-reconcile', 'current', 'stripe', 'test', 'acct', 100,
           'GBP', 'enc:1:a:b', 'enc:1:a:b', 'idx', 'pending', 1, 100, 100,
           1, 'none', 'none', 'none')`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a worker's claim that had already run out when it was made", async () => {
+    // A claim that expires before the payment even existed is spent on
+    // arrival, so a second worker can take the payment while the first still
+    // believes it holds it.
+    await expect(
+      getDb().execute(`INSERT INTO payment_sessions
+        (id, origin, provider, mode, account_id, expected_amount,
+         expected_currency, booking_intent, session_resource,
+         session_reference_index, state, revision, created_at, updated_at,
+         lease_token, lease_expires_at, result_state, ticket_state,
+         completion_state)
+        VALUES ('stale-claim', 'current', 'stripe', 'test', 'acct', 100,
+          'GBP', 'enc:1:a:b', 'enc:1:a:b', 'idx', 'pending', 1, 100, 100,
+          'worker-1', 1, 'none', 'none', 'none')`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 

@@ -62,7 +62,7 @@ export const paymentSessionTable: [name: string, table: Table] = [
       ],
       [
         "lease_expires_at",
-        "INTEGER CHECK (lease_expires_at IS NULL OR (typeof(lease_expires_at) = 'integer' AND lease_expires_at >= 0))",
+        "INTEGER CHECK (lease_expires_at IS NULL OR (typeof(lease_expires_at) = 'integer' AND lease_expires_at >= created_at))",
       ],
       [
         "next_reconcile_at",
