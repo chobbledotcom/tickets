@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { addDays, formatDateRangeLabel } from "#shared/dates.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
+import { stayListing } from "#test/specs/support/listings.ts";
 import {
   daysOfferedFor,
   expectRefusedForWantOfRoom,
@@ -16,7 +17,6 @@ import {
   guest,
   newestStayOn,
   openStayListing,
-  stayListing,
   staysOn,
 } from "#test/specs/support/stays.ts";
 import {

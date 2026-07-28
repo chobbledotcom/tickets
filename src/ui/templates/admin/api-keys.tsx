@@ -6,7 +6,7 @@
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { apiKeyForm } from "#routes/admin/api-keys.ts";
-import type { EndpointDoc } from "#shared/admin-api-example.ts";
+import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";

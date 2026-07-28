@@ -696,6 +696,31 @@ errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
 until a real collect-all site (e.g. the multi-item-checkout "no shared date"
 diagnostic above) makes it pay for itself.
 
+## Deferred Codex suggestions from PR #1975 (API documentation examples)
+
+*Origin: Codex review of PR #1975, which made the API documentation examples
+checkable and fixed eighteen real inaccuracies in them. Both items below are
+valid and were deliberately left out: they guard mistakes nobody has made yet,
+and each costs more machinery than the defect it would catch.*
+
+- **Validate admin request fields against their production constraints.**
+  `test/shared/admin-api-example/helpers.ts`'s `isBlank` judges a documented
+  request value by its sign and whether it is zero. A positive *fractional*
+  value (Codex's example: `duration_days: 1.5` in the listing create body)
+  therefore passes, while `API_BODY_FIELD_RULES` requires a safe integer and
+  the real endpoint answers 400. Fixing it properly means running each request
+  example through the endpoint's own field rules rather than a hand-written
+  check. Starting point: `API_BODY_FIELD_RULES` in `src/features/admin/api.ts`.
+
+- **Derive the documented create slug from what a create really does.**
+  `crudDocs` in `src/shared/admin-api-example.ts` builds the create response
+  from the example record, so it keeps `summer-workshop`; the listing and group
+  POST converters call `generateUniqueSlug`, which emits a random five-character
+  slug. The documented create response therefore cannot result from its own
+  request. Left alone because the honest fix — showing `a7f3k` — makes the page
+  harder for a person to read, which is a documentation judgement rather than a
+  correctness one. Starting point: `generateUniqueSlug` in `src/shared/slug.ts`.
+
 ## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
 
 *Origin: CodeRabbit review of PR #1772, which only `git mv`s the servicing
@@ -1636,6 +1661,52 @@ Starting point: `src/ui/client/scanner.js`, the confirmation branches around its
 handling of `wrong_listing` and `verify_id`, and `test/ui/client/order.test.ts`
 for how a client script is driven without a real browser.
 
+---
+
+## Prove a bundle's blank price really charges the thing's own price
+
+*Origin: reviewer suggestion (Codex) on PR #1968.*
+
+The story `bookings.selling-things-as-one-bundle` proves the *saving* half of
+the blank-price rule: leaving a part's price empty on the bundle form stores no
+price of its own for that part. It does not prove the *charging* half — that the
+customer is then asked for that thing's own price rather than nothing.
+
+Its rule is worded to say only what it proves. Closing the gap needs a paid
+bundle taken all the way through a payment provider, which is what the money
+stories already set up (`test/specs/support/money-drivers.ts`), so the natural
+home is a scenario there rather than another one here. A bundle mixing an
+overridden part with a blank one, bought and paid for, should be charged the
+override plus the blank part's own price.
+
+Starting point: `packageMemberMaps` in `src/shared/db/groups.ts` for what counts
+as an override, and `test/integration/server/cart-packages.test.ts` for how a
+priced bundle reaches checkout today.
+
+---
+
+## Split the package group test file
+
+*Origin: reviewer suggestion (Codex) on PR #1968.*
+
+`test/integration/server/group-packages.test.ts` is about 940 lines, well over
+the ~400 the repository aims for, and it is on the `biome.json` grandfathered
+list. PR #1968 removed two journeys from it but did not split it.
+
+It divides cleanly along the concerns already grouped inside it: what may and
+may not join a package, price and quantity parsing, per-day overrides, the
+share/QR affordances a hidden member must not show, and the sold-hidden-package
+guard on delete and un-package. Splitting it into a `group-packages/` folder
+along those lines also lets mutation runs target one narrow file per source
+rather than the whole suite.
+
+Starting point: the `describe`-less `test(...)` blocks in that file group
+naturally by the helpers they use (`expectPackageRejected`,
+`expectAddListingRejected`, `hiddenPackageWithBooking`); delete its
+`biome.json` override entry when the split lands.
+
+---
+
 ## Let every mutation command leave folders it did not name alone
 
 *Origin: reviewer suggestion (Codex) on PR #1957.*
@@ -1719,6 +1790,8 @@ Starting point: `processBelongsToRun` and `removeRun` in
 `scripts/mutation/isolation.ts` for what acts on the answer, and
 `scripts/held-lock-process.ts` for the process that holds a lock on our behalf.
 
+---
+
 ## Watch for ports being taken between tests
 
 *Origin: the chunk that took `scripts/stripe-mock/install.ts` to a full
@@ -1742,6 +1815,18 @@ and then lets go of it before use can be gazumped. The install tests are the
 ones that noticed, because they are the ones that assert a failure. Worth
 looking at whether ports should be handed out so that no two tests in a run can
 ever receive the same one.
+
+It has since been seen once more, in `test/scripts/stripe-mock/lifecycle.test.ts`
+("stops trying once the mock has been started as many times as asked", on CI for
+PR #1968), with a second symptom worth knowing about. That test counts how many
+times the fake mock was started and expects one start per try asked for. A try
+whose freshly picked port already has something listening on it is abandoned
+*before* the mock is started, so the count comes up short and the test fails —
+even though the starter did try the number of times it was asked to. Handing out
+ports so no two tests can receive the same one would fix this too; short of that,
+the count is the wrong thing to measure.
+
+---
 
 ## The gap between a mutation child ending and its supervisor taking the lock
 

@@ -3,6 +3,9 @@
 // paths the migrated Edit and Overview tabs render. Kept in the mutation gate's
 // changed set alongside the entity-page migration so the whole-file mutants in
 // those modules are exercised by their real covering tests.
+//
+// Sits beside the story `@story:bookings.selling-things-as-one-bundle`: these
+// own the branch cover, and the invariants that have no journey behind them.
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -877,44 +880,6 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     expect(html).toContain("isn't currently bookable");
   });
 
-  test("deleting a sold hidden package is blocked until the operator un-hides it", async () => {
-    // Booking rows keep the package_group_id; a stale id yields no package
-    // display, so the ticket would fall back to the member's own card and
-    // reveal the concealed name. Deletion is rejected while hidden…
-    const { group, memberListing, token } = await hiddenPackageWithBooking(
-      "Sold Kit",
-      "sold-kit",
-    );
-    const blocked = await adminFormPost(`/admin/groups/${group.id}/delete`, {
-      confirm_identifier: "Sold Kit",
-    });
-    expect(blocked.response.status).toBe(302);
-    expect(await groups.table.findById(group.id)).not.toBeNull();
-    // The block surfaces the un-hide-first guidance rather than deleting.
-    expect(blocked.response.headers.get("location")).toContain("flash=");
-
-    // …and the sold ticket keeps concealing the member behind the package name.
-    const { handleRequest } = await import("#routes");
-    const { mockRequest } = await import("#test-utils/mocks.ts");
-    const kept = await (await handleRequest(mockRequest(`/t/${token}`))).text();
-    expect(kept).not.toContain("Sold Kit Member");
-
-    // Clearing the hide flag is the explicit reveal; deletion then un-groups.
-    await groups.table.update(group.id, { hidePackageListings: false });
-    const { response } = await adminFormPost(
-      `/admin/groups/${group.id}/delete`,
-      { confirm_identifier: "Sold Kit" },
-    );
-    expect(response.status).toBe(302);
-    expect(await groups.table.findById(group.id)).toBeNull();
-
-    // The member listing survives, un-grouped, and the sold ticket renders as
-    // the member's own card now that the package no longer resolves.
-    expect(await loadListing(memberListing.id)).not.toBeNull();
-    const body = await (await handleRequest(mockRequest(`/t/${token}`))).text();
-    expect(body).toContain("Sold Kit Member");
-  });
-
   test("un-packaging a sold hidden package is rejected", async () => {
     // Clearing is_package would stop the stored package_group_id resolving,
     // taking the same name-revealing fall-back path deletion is blocked from.
@@ -942,23 +907,6 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
     );
     expect(response.status).toBe(302);
     expect(await groups.table.findById(group.id)).toBeNull();
-  });
-
-  test("allows un-packaging a NON-hidden package even with sold tickets", async () => {
-    // A visible package never concealed its members, so un-packaging it can't
-    // reveal anything — the guard only fires for hidden packages.
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "Open Kit",
-      slug: "open-kit",
-    });
-    const only = await member(group, "Open Member");
-    await sellPackageTicket(only.id, group.id);
-    const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
-      ...editFields("Open Kit", "open-kit"),
-    });
-    expect(response.status).toBe(302);
-    expect((await groups.table.findById(group.id))!.is_package).toBe(false);
   });
 
   test("the groups API blocks deleting a sold hidden package until un-hidden", async () => {

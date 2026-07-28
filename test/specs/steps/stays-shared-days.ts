@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { stayListing } from "#test/specs/support/listings.ts";
 import {
   visitorBooks,
   visitorTriesToBook,
@@ -11,7 +12,6 @@ import {
   dayFromToday,
   guest,
   openStayListing,
-  stayListing,
   staysOn,
 } from "#test/specs/support/stays.ts";
 import {

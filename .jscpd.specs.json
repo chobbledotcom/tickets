@@ -1,0 +1,28 @@
+{
+  "threshold": 0,
+  "_comment": "The Cucumber support helpers, scanned at the same 19 tokens as src/ rather than the 48 the rest of test/ gets. They are production-shaped code - one named helper per thing a person does - so two helpers that nearly match are a merge to make, and the tighter net is what finds them. The step files under test/specs/steps stay on the ordinary test/ scan: a Given/When/Then registration repeats by design, and the shared mechanism IS Cucumber's own registry, the same argument that exempts the migrations. src/ is scanned alongside so a helper that reimplements production logic is flagged against the source it copied - a separate run could never see that. src/ against itself is already held at 0% by .jscpd.json, so nothing new is reported there.",
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": ".jscpd-report-specs",
+  "ignore": [
+    "**/node_modules/**",
+    "**/fp.ts",
+    "**/db/migrations/2*.ts",
+    "**/db/migrations/schema/columns.ts"
+  ],
+  "format": [
+    "typescript",
+    "tsx"
+  ],
+  "absolute": false,
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 1,
+  "minTokens": 19,
+  "path": [
+    "src",
+    "test/specs/support"
+  ]
+}

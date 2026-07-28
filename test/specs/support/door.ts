@@ -7,15 +7,24 @@
  * than being stepped around.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
-import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  rememberStayListing,
+  stayListing,
+} from "#test/specs/support/listings.ts";
+import type {
+  ActOnOneThing,
+  ReadAboutOneThing,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+// jscpd:ignore-end
 
 /** What the site says about one person at the door. */
 export interface DoorAnswer {
@@ -54,10 +63,7 @@ export const personWithTicket = async (
 };
 
 /** Another listing running its own door, with nobody booked on it yet. */
-export const otherListing = async (
-  world: TicketsWorld,
-  listing: string,
-): Promise<void> => {
+export const otherListing: ActOnOneThing = async (world, listing) => {
   rememberStayListing(
     world,
     listing,
@@ -101,11 +107,8 @@ const codeOnPage = (browser: TestBrowser): string => {
 const openDoor = async (
   world: TicketsWorld,
   listing: string,
-): Promise<TestBrowser> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(listingPath(world, listing, "scanner"));
-  return browser;
-};
+): Promise<TestBrowser> =>
+  openAdminPage(world, listingPath(world, listing, "scanner"));
 
 /** The organiser holds a ticket up to a listing's door and is told what to do
  * with the person in front of them. Letting someone in who belongs to another
@@ -176,11 +179,10 @@ const readOf = (row: string, what: string): string => {
 };
 
 /** What the listing's own record of the day says happened. */
-export const dayLog = async (
-  world: TicketsWorld,
-  listing: string,
-): Promise<string> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(listingPath(world, listing, "activity"));
+export const dayLog: ReadAboutOneThing = async (world, listing) => {
+  const browser = await openAdminPage(
+    world,
+    listingPath(world, listing, "activity"),
+  );
   return browser.pageText;
 };

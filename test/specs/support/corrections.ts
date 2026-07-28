@@ -4,10 +4,11 @@
  * offering a correction fails the story rather than being worked around.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { WRITEOFF } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
+import { submitRenderedAdminForm } from "#test/specs/support/browser.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { worldBalance } from "#test/specs/support/money-reads.ts";
 import {
@@ -16,6 +17,7 @@ import {
 } from "#test/specs/support/world.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
+// jscpd:ignore-end
 
 /** What the site holds and what it has parked, before a correction is made, so
  * a story can prove a correction moved one and not the other. */
@@ -57,12 +59,12 @@ export const correctOnPage = async (
   amount: string,
   told: string,
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(page);
-  // The page must offer the correction box itself; the browser posts the
-  // form's own action and token, so a broken form fails here.
-  expect(browser.currentHtml).toContain(`id="${field}"`);
-  await browser.submitForm({ [field]: amount }, "Save income correction");
+  const browser = await submitRenderedAdminForm(
+    world,
+    page,
+    "Save income correction",
+    { [field]: amount },
+  );
   expect(browser.containsText(told)).toBe(true);
 };
 
@@ -73,15 +75,10 @@ export const addBalanceEntry = async (
   entryType: string,
   amount: string,
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/ledger/attendee/${attendeeId}/add`);
-  expect(browser.currentHtml).toContain('name="entry_type"');
-  await browser.submitForm(
-    {
-      amount,
-      entry_type: entryType,
-      occurred_at: "2026-06-22T12:00",
-    },
+  await submitRenderedAdminForm(
+    world,
+    `/admin/ledger/attendee/${attendeeId}/add`,
     "Add money change",
+    { amount, entry_type: entryType, occurred_at: "2026-06-22T12:00" },
   );
 };
