@@ -280,6 +280,7 @@
   "fields.validation.duration_whole": "Booking Duration (days) must be a whole number",
   "fields.validation.duration_min": "Booking Duration (days) must be at least 1",
   "fields.validation.duration_max": "Booking Duration (days) must be at most {max}",
+  "error.customisable_days_with_pay_more": "Customisable days cannot be combined with Allow Pay More. Customisable days sets a price for each day count, and Allow Pay More lets the visitor choose the price, so only one of them can decide what to charge. Turn one of them off.",
   "error.slug_in_use": "Slug is already in use by another listing",
   "error.name_in_use": "Name is already in use by another listing or group",
   "success.listing_created": "Listing created",

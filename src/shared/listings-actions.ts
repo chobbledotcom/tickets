@@ -177,7 +177,7 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
 const validateCustomisableDays = (input: ListingInput): string | null => {
   if (!input.customisableDays) return null;
   if (input.canPayMore) {
-    return "Customisable days cannot be combined with Allow Pay More";
+    return t("error.customisable_days_with_pay_more");
   }
   // The priced day counts within range are exactly what availableDayCounts
   // derives, so reuse the normalized day-price fields rather than recomputing

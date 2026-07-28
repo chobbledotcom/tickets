@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import {
   computeGroupSlugIndex,
@@ -132,17 +133,13 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
     });
     expect(
       await validateGroupListingType(customGroup.id, "standard", false),
-    ).toBe(
-      "This group already contains listings with customisable days — all listings in a group must match",
-    );
+    ).toBe(t("error.group_customisable_days_expected"));
 
     const fixedGroup = await createTestGroup({ name: "Fixed Group" });
     await createTestListing({ groupId: fixedGroup.id, name: "Fixed Member" });
     expect(
       await validateGroupListingType(fixedGroup.id, "standard", true),
-    ).toBe(
-      "This group already contains listings without customisable days — all listings in a group must match",
-    );
+    ).toBe(t("error.group_customisable_days_unexpected"));
   });
 
   test("matching customisable-day settings are accepted", async () => {
