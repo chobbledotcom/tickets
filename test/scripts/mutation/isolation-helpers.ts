@@ -79,21 +79,3 @@ export const writeFakeMutationScript = (
   root: string,
   body: string,
 ): Promise<void> => writeFakeScript(root, "mutation.ts", body);
-
-/**
- * Run `body` with coverage collection kept out of the child's environment. A
- * child that records coverage names files inside the copy, which is deleted
- * when the run ends, and the coverage report cannot then read them back.
- */
-export const withoutChildCoverage = async <Result>(
-  body: () => Promise<Result>,
-): Promise<Result> => {
-  const dir = Deno.env.get("DENO_COVERAGE_DIR");
-  if (dir === undefined) return await body();
-  Deno.env.delete("DENO_COVERAGE_DIR");
-  try {
-    return await body();
-  } finally {
-    Deno.env.set("DENO_COVERAGE_DIR", dir);
-  }
-};

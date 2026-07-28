@@ -4,7 +4,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
 import {
   captureConsole,
-  withoutChildCoverage,
   withTempDir,
   writeFakeScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
@@ -16,15 +15,16 @@ const KEPT = "scripts/kept.txt";
 const runKeeper = async (
   root: string,
   body: string,
+  code = 0,
 ): Promise<{ errors: string[]; logs: string[]; result: number }> => {
-  await writeFakeScript(root, ENTRY, body);
+  // Ending with an exit keeps the child from writing coverage for files that
+  // are deleted with the copy, which the coverage report cannot then read.
+  await writeFakeScript(root, ENTRY, `${body}Deno.exit(${code});\n`);
   await Deno.writeTextFile(join(root, KEPT), "first\nsecond\n");
   return await captureConsole(() =>
-    withoutChildCoverage(() =>
-      runInSnapshot(
-        { args: [], copyBack: [KEPT], entryScript: `scripts/${ENTRY}` },
-        root,
-      ),
+    runInSnapshot(
+      { args: [], copyBack: [KEPT], entryScript: `scripts/${ENTRY}` },
+      root,
     ),
   );
 };
@@ -44,7 +44,7 @@ describe("keeping a snapshot run's file edits", () => {
 
   test("keeps the edit even when the run itself reports a failure", async () => {
     await withTempDir(async (root) => {
-      const run = await runKeeper(root, `${REWRITE_KEPT}Deno.exit(3);\n`);
+      const run = await runKeeper(root, REWRITE_KEPT, 3);
 
       expect(run.result).toBe(3);
       expect(await Deno.readTextFile(join(root, KEPT))).toBe("first\n");
