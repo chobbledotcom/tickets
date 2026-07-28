@@ -9,7 +9,7 @@
  * range (the {@link emptyRange} default) selects the whole ledger ("forever").
  */
 
-import type { InValue } from "@libsql/client";
+import type { WhereClause } from "#shared/db/where-clauses.ts";
 
 /** A bounded window over `occurred_at`: `startMs` ≤ occurred_at < `endMs`. A
  *  null bound is open on that side; both null is "forever". */
@@ -24,32 +24,18 @@ export type LedgerRange = {
 export const emptyRange: LedgerRange = { endMs: null, startMs: null };
 
 /**
- * The bare `occurred_at` predicate for a range (no leading `WHERE`/`AND`), with
- * its bound args. Returns an empty clause for an unbounded range so callers can
- * compose it with {@link andPrefixed} / {@link wherePrefixed} without emitting a
- * dangling connector.
+ * The `occurred_at` bounds of a range as filter clauses — one per bound that is
+ * set, none for an unbounded range. Compose them with the other clauses of a
+ * ledger read and let `whereSql` build the tail.
  */
 export const occurredAtRange = (
   range: LedgerRange,
   column = "occurred_at",
-): { clause: string; args: InValue[] } => {
-  const parts: string[] = [];
-  const args: InValue[] = [];
-  if (range.startMs !== null) {
-    parts.push(`${column} >= ?`);
-    args.push(range.startMs);
-  }
-  if (range.endMs !== null) {
-    parts.push(`${column} < ?`);
-    args.push(range.endMs);
-  }
-  return { args, clause: parts.join(" AND ") };
-};
-
-/** Prefix a non-empty clause with ` AND `, else the empty string. */
-export const andPrefixed = (clause: string): string =>
-  clause ? ` AND ${clause}` : "";
-
-/** Prefix a non-empty clause with ` WHERE `, else the empty string. */
-export const wherePrefixed = (clause: string): string =>
-  clause ? ` WHERE ${clause}` : "";
+): WhereClause[] => [
+  ...(range.startMs === null
+    ? []
+    : [{ args: [range.startMs], clause: `${column} >= ?` }]),
+  ...(range.endMs === null
+    ? []
+    : [{ args: [range.endMs], clause: `${column} < ?` }]),
+];

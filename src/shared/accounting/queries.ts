@@ -29,12 +29,7 @@ import {
   LEG_COLUMNS,
   signedSumCase,
 } from "#shared/accounting/projection-sql.ts";
-import {
-  andPrefixed,
-  type LedgerRange,
-  occurredAtRange,
-  wherePrefixed,
-} from "#shared/accounting/range.ts";
+import { type LedgerRange, occurredAtRange } from "#shared/accounting/range.ts";
 import {
   fromDb,
   selectByEventGroup,
@@ -48,6 +43,12 @@ import {
   rowExists,
   type TxScope,
 } from "#shared/db/client.ts";
+import {
+  clauseArgs,
+  matchesNoRows,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
 /** A parameterised "this leg's <role> side IS the account" match — two bound `?`
@@ -110,21 +111,25 @@ const VISIBLE_TRANSFER_SCOPE =
  *  so both types are included so service-cost legs appear in the listing view. */
 const listingLegScope = (
   listingIds: readonly number[] | null,
-): { clause: string; args: InValue[] } =>
-  listingIds === null
-    ? { args: [], clause: "" }
-    : listingIds.length === 0
-      ? { args: [], clause: " AND 0" }
-      : {
-          args: Array(4)
-            .fill(listingIds.map((id) => String(id)))
-            .flat(),
-          clause:
-            ` AND (dest_type = '${REVENUE}' AND dest_id IN (${inPlaceholders(listingIds)})` +
-            ` OR source_type = '${REVENUE}' AND source_id IN (${inPlaceholders(listingIds)})` +
-            ` OR source_type = '${COST}' AND source_id IN (${inPlaceholders(listingIds)})` +
-            ` OR dest_type = '${COST}' AND dest_id IN (${inPlaceholders(listingIds)}))`,
-        };
+): WhereClause[] => {
+  if (listingIds === null) return [];
+  // Asking for no listings can match no leg, so the read is skipped entirely.
+  if (listingIds.length === 0) {
+    return [{ args: [], clause: "0", matchesNothing: true }];
+  }
+  return [
+    {
+      args: Array(4)
+        .fill(listingIds.map((id) => String(id)))
+        .flat(),
+      clause:
+        `(dest_type = '${REVENUE}' AND dest_id IN (${inPlaceholders(listingIds)})` +
+        ` OR source_type = '${REVENUE}' AND source_id IN (${inPlaceholders(listingIds)})` +
+        ` OR source_type = '${COST}' AND source_id IN (${inPlaceholders(listingIds)})` +
+        ` OR dest_type = '${COST}' AND dest_id IN (${inPlaceholders(listingIds)}))`,
+    },
+  ];
+};
 
 /**
  * The visible transfer list for the operator ledger: newest first, capped at
@@ -138,13 +143,16 @@ export const visibleTransfers = (
   listingIds: readonly number[] | null,
   limit: number,
 ): Promise<Transfer[]> => {
-  const r = occurredAtRange(range);
-  const listing = listingLegScope(listingIds);
+  const parts: WhereClause[] = [
+    { args: [], clause: VISIBLE_TRANSFER_SCOPE },
+    ...occurredAtRange(range),
+    ...listingLegScope(listingIds),
+  ];
+  if (matchesNoRows(parts)) return Promise.resolve([]);
   return selectTransfers(
     fromDb,
-    ` WHERE ${VISIBLE_TRANSFER_SCOPE}${andPrefixed(r.clause)}${listing.clause}` +
-      " ORDER BY occurred_at DESC, id DESC LIMIT ?",
-    [...r.args, ...listing.args, limit],
+    `${whereSql(parts)} ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+    [...clauseArgs(parts), limit],
   );
 };
 
@@ -202,7 +210,7 @@ type LedgerTotalsRow = {
 export const ledgerTotals = async (
   range: LedgerRange,
 ): Promise<LedgerTotals> => {
-  const r = occurredAtRange(range);
+  const parts = occurredAtRange(range);
   // An ungrouped aggregate always yields exactly one row.
   const row = await requireOne<LedgerTotalsRow>(
     `SELECT
@@ -215,8 +223,8 @@ export const ledgerTotals = async (
        ${signedSumCase(`source_type = '${ATTENDEE}'`, `dest_type = '${ATTENDEE}'`)} AS due,
        COALESCE(SUM(CASE WHEN kind = '${KIND.refundCash}' THEN amount ELSE 0 END), 0) AS refunded,
        ${signedSumCase(`dest_type = '${FEE_INCOME}'`, `source_type = '${FEE_INCOME}'`)} AS fees
-     FROM transfers${wherePrefixed(r.clause)}`,
-    r.args,
+     FROM transfers${whereSql(parts)}`,
+    clauseArgs(parts),
   );
   return {
     due: Number(row.due),

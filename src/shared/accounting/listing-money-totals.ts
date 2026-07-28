@@ -6,12 +6,9 @@ import {
   MANUAL_LISTING_INCOME,
 } from "#shared/accounting/manual-entries.ts";
 /* jscpd:ignore-end */
-import {
-  andPrefixed,
-  type LedgerRange,
-  occurredAtRange,
-} from "#shared/accounting/range.ts";
+import { type LedgerRange, occurredAtRange } from "#shared/accounting/range.ts";
 import { requireOne } from "#shared/db/client.ts";
+import { clauseArgs, whereSql } from "#shared/db/where-clauses.ts";
 
 export type ListingMoneyTotals = {
   externalCosts: number;
@@ -65,7 +62,7 @@ export const listingMoneyTotals = async (
   const revenueDebit = `transfer.source_type = '${REVENUE}' AND transfer.source_id IN (${selectedIds})`;
   const costDebit = `transfer.source_type = '${COST}' AND transfer.source_id IN (${selectedIds})`;
   const costCredit = `transfer.dest_type = '${COST}' AND transfer.dest_id IN (${selectedIds})`;
-  const r = occurredAtRange(range, "transfer.occurred_at");
+  const rangeParts = occurredAtRange(range, "transfer.occurred_at");
   // An aggregate without GROUP BY always returns one row; COALESCE supplies
   // zeroes when no transfers match, so the result cannot be null.
   const row = await requireOne<ListingMoneyTotalsRow>(
@@ -95,10 +92,14 @@ export const listingMoneyTotals = async (
        COALESCE(SUM(CASE WHEN ${revenueCredit} THEN transfer.amount ELSE 0 END
                   - CASE WHEN ${revenueDebit} THEN transfer.amount ELSE 0 END), 0) AS net_balance
       FROM transfers AS transfer
-     WHERE (${revenueCredit} OR ${revenueDebit} OR ${costDebit} OR ${costCredit})${andPrefixed(
-       r.clause,
-     )}`,
-    [...listingIds.map(String), ...r.args],
+     ${whereSql([
+       {
+         args: [],
+         clause: `(${revenueCredit} OR ${revenueDebit} OR ${costDebit} OR ${costCredit})`,
+       },
+       ...rangeParts,
+     ])}`,
+    [...listingIds.map(String), ...clauseArgs(rangeParts)],
   );
   const grossSales = Number(row.gross_sales);
   const externalIncome = Number(row.external_income);

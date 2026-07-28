@@ -44,6 +44,20 @@ export const inList = (
   ];
 };
 
+/**
+ * Keep rows whose `column` equals `value` — no clause at all when the caller
+ * passed nothing to match on. Absence means "don't filter on this", so this
+ * cannot express a match against SQL NULL; a read that needs one writes its own
+ * `IS NULL` clause.
+ */
+export const equals = (
+  column: string,
+  value: InValue | undefined,
+): WhereClause[] =>
+  value === undefined || value === null
+    ? []
+    : [{ args: [value], clause: `${column} = ?` }];
+
 /** Whether these clauses can never match a row, so the query is not worth
  * running. A filter asking for none of something — no ids, no keys — is the
  * ordinary way this happens. */

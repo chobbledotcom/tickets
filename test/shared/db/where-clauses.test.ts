@@ -10,6 +10,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   clauseArgs,
+  equals,
   inList,
   matchesNoRows,
   orderSql,
@@ -37,6 +38,28 @@ describe("inList", () => {
   test("an empty set becomes a clause no row can pass", () => {
     expect(inList("thing.id", [])).toEqual([
       { args: [], clause: "thing.id IN (NULL)", matchesNothing: true },
+    ]);
+  });
+});
+
+describe("equals", () => {
+  test("matches a column against a value", () => {
+    expect(equals("thing.id", 7)).toEqual([
+      { args: [7], clause: "thing.id = ?" },
+    ]);
+  });
+
+  test("adds no clause when there is nothing to match on", () => {
+    expect(equals("thing.id", undefined)).toEqual([]);
+    expect(equals("thing.id", null)).toEqual([]);
+  });
+
+  test("matches falsy values rather than treating them as absent", () => {
+    expect(equals("thing.active", 0)).toEqual([
+      { args: [0], clause: "thing.active = ?" },
+    ]);
+    expect(equals("thing.name", "")).toEqual([
+      { args: [""], clause: "thing.name = ?" },
     ]);
   });
 });

@@ -1,58 +1,48 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  andPrefixed,
-  emptyRange,
-  occurredAtRange,
-  wherePrefixed,
-} from "#shared/accounting/range.ts";
+import { emptyRange, occurredAtRange } from "#shared/accounting/range.ts";
+import { clauseArgs, whereSql } from "#shared/db/where-clauses.ts";
 
 describe("accounting > range", () => {
   describe("occurredAtRange", () => {
-    test("the empty range yields no clause and no args", () => {
-      expect(occurredAtRange(emptyRange)).toEqual({ args: [], clause: "" });
+    test("the empty range constrains nothing", () => {
+      expect(occurredAtRange(emptyRange)).toEqual([]);
     });
 
     test("a lower bound alone is an inclusive >= predicate", () => {
-      expect(occurredAtRange({ endMs: null, startMs: 100 })).toEqual({
-        args: [100],
-        clause: "occurred_at >= ?",
-      });
+      expect(occurredAtRange({ endMs: null, startMs: 100 })).toEqual([
+        { args: [100], clause: "occurred_at >= ?" },
+      ]);
     });
 
     test("an upper bound alone is an exclusive < predicate", () => {
-      expect(occurredAtRange({ endMs: 200, startMs: null })).toEqual({
-        args: [200],
-        clause: "occurred_at < ?",
-      });
+      expect(occurredAtRange({ endMs: 200, startMs: null })).toEqual([
+        { args: [200], clause: "occurred_at < ?" },
+      ]);
     });
 
-    test("both bounds AND together, lower first, in arg order", () => {
-      expect(occurredAtRange({ endMs: 200, startMs: 100 })).toEqual({
-        args: [100, 200],
-        clause: "occurred_at >= ? AND occurred_at < ?",
-      });
+    test("both bounds are separate clauses, lower first", () => {
+      expect(occurredAtRange({ endMs: 200, startMs: 100 })).toEqual([
+        { args: [100], clause: "occurred_at >= ?" },
+        { args: [200], clause: "occurred_at < ?" },
+      ]);
     });
 
     test("qualifies an explicitly named timestamp column", () => {
       expect(
         occurredAtRange({ endMs: 200, startMs: 100 }, "transfer.occurred_at"),
-      ).toEqual({
-        args: [100, 200],
-        clause: "transfer.occurred_at >= ? AND transfer.occurred_at < ?",
-      });
-    });
-  });
-
-  describe("clause prefixing", () => {
-    test("andPrefixed wraps a non-empty clause, passes through empty", () => {
-      expect(andPrefixed("a = 1")).toBe(" AND a = 1");
-      expect(andPrefixed("")).toBe("");
+      ).toEqual([
+        { args: [100], clause: "transfer.occurred_at >= ?" },
+        { args: [200], clause: "transfer.occurred_at < ?" },
+      ]);
     });
 
-    test("wherePrefixed wraps a non-empty clause, passes through empty", () => {
-      expect(wherePrefixed("a = 1")).toBe(" WHERE a = 1");
-      expect(wherePrefixed("")).toBe("");
+    test("builds the query tail with the args in clause order", () => {
+      const parts = occurredAtRange({ endMs: 200, startMs: 100 });
+      expect(whereSql(parts)).toBe(
+        " WHERE occurred_at >= ? AND occurred_at < ?",
+      );
+      expect(clauseArgs(parts)).toEqual([100, 200]);
     });
   });
 });

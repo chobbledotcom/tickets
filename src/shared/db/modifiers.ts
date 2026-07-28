@@ -36,6 +36,12 @@ import {
   queryAndMap,
 } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
+import {
+  clauseArgs,
+  equals,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 import type {
   CalcKind,
   ModifierDirection,
@@ -126,12 +132,16 @@ const mapModifierRow = async (row: Modifier): Promise<Modifier> => ({
  * ledger-projected total_revenue every loader selects. */
 const queryModifiers = queryAndMap<Modifier, Modifier>(mapModifierRow);
 
-const modifierSelect = (where = ""): string =>
-  `SELECT ${MODIFIER_COLUMNS}, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers${where}`;
+const modifierSelect = (parts: WhereClause[] = []): string =>
+  `SELECT ${MODIFIER_COLUMNS}, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers${whereSql(parts)}`;
+
+/** Read the modifiers the clauses select, decrypted, oldest first. */
+const queryModifiersWhere = (parts: WhereClause[]): Promise<Modifier[]> =>
+  queryModifiers(`${modifierSelect(parts)} ORDER BY id ASC`, clauseArgs(parts));
 
 /** Get all modifiers, decrypted, ordered by id. */
 export const getAllModifiers = (): Promise<Modifier[]> =>
-  queryModifiers(`${modifierSelect()} ORDER BY id ASC`);
+  queryModifiersWhere([]);
 
 /** Read and decrypt names only for the requested modifier ids. */
 export const getModifierNamesByIds = envNameSource(
@@ -141,14 +151,18 @@ export const getModifierNamesByIds = envNameSource(
 
 /** Get the active modifiers, decrypted, ordered by id. */
 export const getActiveModifiers = (): Promise<Modifier[]> =>
-  queryModifiers(`${modifierSelect(" WHERE active = 1")} ORDER BY id ASC`);
+  queryModifiersWhere(equals("active", 1));
 
 /** Get a single modifier by id, decrypted, with its ledger-projected
  * total_revenue — the single-row read the admin edit/recalculate pages use, so
  * they see the projected figure rather than the dropped column (the bare
  * `modifiersTable.findById` returns only the stored {@link ModifierRow}). */
 export const getModifier = async (id: number): Promise<Modifier | null> => {
-  const row = await queryOne<Modifier>(modifierSelect(" WHERE id = ?"), [id]);
+  const parts = equals("id", id);
+  const row = await queryOne<Modifier>(
+    modifierSelect(parts),
+    clauseArgs(parts),
+  );
   return row ? mapModifierRow(row) : null;
 };
 
