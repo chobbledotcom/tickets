@@ -96,6 +96,25 @@ describe("the shapes the documentation is measured against", () => {
     refuses(PublicListingSchema, { ...daily, dayPrices: { 1: 10.5 } });
   });
 
+  test("a day price is for a real number of days", () => {
+    const daily = { ...listing(), customisableDays: true };
+
+    refuses(PublicListingSchema, { ...daily, dayPrices: { 0: 1000 } });
+    refuses(PublicListingSchema, { ...daily, dayPrices: { "1.5": 1000 } });
+    refuses(PublicListingSchema, { ...daily, dayPrices: { unknown: 1000 } });
+  });
+
+  test("only a listing sold by the day offers dates", () => {
+    const dates = { availableDates: ["2025-08-20"] };
+
+    accepts(PublicListingSchema, {
+      ...listing(),
+      ...dates,
+      listingType: "daily",
+    });
+    refuses(PublicListingSchema, { ...listing(), ...dates });
+  });
+
   test("a bundle may publish an add-on nobody can book right now", () => {
     // The endpoint publishes every active add-on, so a sold-out one appears
     // beside its siblings and the bundle stays on sale through them.

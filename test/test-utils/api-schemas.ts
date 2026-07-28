@@ -5,7 +5,7 @@
  */
 
 import * as v from "valibot";
-import { CONTACT_FIELDS } from "#shared/types.ts";
+import { CONTACT_FIELDS, DayPricesSchema } from "#shared/types.ts";
 import { IsoDateSchema } from "#shared/validation/date.ts";
 import { EmailSchema } from "#shared/validation/email.ts";
 
@@ -33,25 +33,38 @@ const publicListingEntries = {
   availableDates: v.optional(v.array(IsoDateSchema)),
 };
 
+/** Only a listing sold by the day is asked for the dates it is free, so any
+ * other kind carrying them is an answer the endpoints never give. */
+const datesOnlyWhenDaily = (listing: {
+  availableDates?: unknown;
+  listingType: string;
+}): boolean =>
+  listing.availableDates === undefined || listing.listingType === "daily";
+
 /** A public listing, plus whatever extra the surface adds. A listing sold by
  * the day always prices its day counts, and one sold by the unit never does,
  * so the two are told apart by the flag itself. */
 const publicListing = <E extends v.ObjectEntries>(extra: E) =>
   v.union([
-    v.strictObject({
-      ...publicListingEntries,
-      ...extra,
-      customisableDays: v.literal(false),
-    }),
-    v.strictObject({
-      ...publicListingEntries,
-      ...extra,
-      customisableDays: v.literal(true),
-      dayPrices: v.record(
-        v.string(),
-        v.pipe(v.number(), v.integer(), v.minValue(0)),
-      ),
-    }),
+    v.pipe(
+      v.strictObject({
+        ...publicListingEntries,
+        ...extra,
+        customisableDays: v.literal(false),
+      }),
+      v.check(datesOnlyWhenDaily),
+    ),
+    v.pipe(
+      v.strictObject({
+        ...publicListingEntries,
+        ...extra,
+        customisableDays: v.literal(true),
+        // The same shape the prices are stored in, so a day count the system
+        // could never price is refused here too.
+        dayPrices: DayPricesSchema,
+      }),
+      v.check(datesOnlyWhenDaily),
+    ),
   ]);
 
 export const PublicListingSchema = publicListing({});
@@ -156,7 +169,8 @@ const oneEntryPerSlug = <T extends { slug: string }>(entries: T[]): boolean =>
 const PublishedChildSchema = v.intersect([
   PublicListingSchema,
   v.object({
-    description: NonEmpty,
+    // An add-on may be sold without a description, like the bundle itself.
+    description: v.string(),
     // An empty list is the real "name and email only" setting.
     fields: v.string(),
     listingType: NonEmpty,
