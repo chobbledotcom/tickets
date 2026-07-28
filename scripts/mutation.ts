@@ -20,12 +20,12 @@
 import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
 import { DEFAULT_TIMEOUT, parseArgs } from "./mutation/args.ts";
 import { runIsolatedMutationCommand } from "./mutation/isolation.ts";
+import { withMutationRunLock } from "./mutation/isolation-lock.ts";
 import {
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
   MUTATION_WORK_ROOT_ENV,
-  withMutationRunLock,
 } from "./mutation/isolation-state.ts";
 
 const USAGE = `Usage:

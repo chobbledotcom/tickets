@@ -5,3 +5,42 @@
 export const rethrowUnlessNotFound = (error: unknown): void => {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 };
+
+/**
+ * Answer `null` when the thing simply is not there. Any other failure means
+ * the disk could not be read at all, which throws rather than reading as
+ * "nothing here".
+ */
+export const nullIfNotFound = <Found>(
+  work: Promise<Found>,
+): Promise<Found | null> =>
+  work.catch((error: unknown) => {
+    rethrowUnlessNotFound(error);
+    return null;
+  });
+
+/** What one of Deno's look-at-a-path calls says, or `null` when nothing is there. */
+const infoOrNull =
+  (look: "lstat" | "stat") =>
+  (path: string): Promise<Deno.FileInfo | null> =>
+    nullIfNotFound(Deno[look](path));
+
+export const statOrNull: (path: string) => Promise<Deno.FileInfo | null> =
+  infoOrNull("stat");
+
+/** As `statOrNull`, but tells you about a link rather than what it points at. */
+export const lstatOrNull: (path: string) => Promise<Deno.FileInfo | null> =
+  infoOrNull("lstat");
+
+/**
+ * A number from a path's details — its size, when it changed — or `null` when
+ * there is nothing there, or the filesystem does not keep that number.
+ */
+export const statNumberOrNull =
+  (
+    pick: (info: Deno.FileInfo) => number | null | undefined,
+  ): ((path: string) => Promise<number | null>) =>
+  async (path: string): Promise<number | null> => {
+    const info = await statOrNull(path);
+    return info === null ? null : (pick(info) ?? null);
+  };
