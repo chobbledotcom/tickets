@@ -7,10 +7,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import {
-  ADMIN_API_ENDPOINTS,
-  type EndpointDoc,
-} from "#shared/admin-api-example.ts";
+import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
+import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { isOwnerRole } from "#shared/types.ts";

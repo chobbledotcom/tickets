@@ -3,7 +3,7 @@
  * strings, so every check starts by finding an endpoint and reading a body.
  */
 
-import type { EndpointDoc } from "#shared/admin-api-example.ts";
+import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 
 /** The running totals a record only gains by being booked, all at zero on a
  * record that was just created. Absent on a resource that has none. */

@@ -73,6 +73,14 @@ export const API_EXAMPLE_PUBLIC_LISTING: PublicListing = toPublicListing(
   undefined,
 );
 
+/** The bundle both package examples describe: browsing lists it, and the
+ * package endpoint documents the same one in full. */
+export const API_EXAMPLE_PACKAGE = {
+  description: "Two nights' camping with firepit hire",
+  name: "Camping Weekend",
+  slug: "camping-weekend",
+};
+
 /** Example list response JSON */
 export const API_LIST_EXAMPLE_JSON: string = JSON.stringify(
   {
@@ -80,12 +88,7 @@ export const API_LIST_EXAMPLE_JSON: string = JSON.stringify(
     // Packages are listed alongside, so a bundle stays discoverable even when
     // its member listings are not shown on their own.
     packages: [
-      {
-        description: "Two nights' camping with firepit hire",
-        name: "Camping Weekend",
-        slug: "camping-weekend",
-        url: "/ticket/camping-weekend",
-      },
+      { ...API_EXAMPLE_PACKAGE, url: `/ticket/${API_EXAMPLE_PACKAGE.slug}` },
     ],
   },
   null,

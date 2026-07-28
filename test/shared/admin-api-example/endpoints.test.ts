@@ -7,11 +7,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { adminApiRoutes } from "#routes/admin/api.ts";
 import { apiRoutes } from "#routes/api/index.ts";
-import {
-  ADMIN_API_ENDPOINTS,
-  type EndpointDoc,
-  PUBLIC_API_ENDPOINTS,
-} from "#shared/admin-api-example.ts";
+import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
+import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
+import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import { PublicListingSchema } from "#test-utils/api-schemas.ts";
 import { documented, isBlank, jsonLeaves } from "./helpers.ts";
 
@@ -44,6 +42,12 @@ describe("every documented endpoint", () => {
     ).not.toThrow();
   });
 
+  /** The bundle the package endpoint documents in full. */
+  const documentedPackageSlug = (): string =>
+    JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "GET", "/api/packages/:slug").response,
+    ).package.slug;
+
   test("the listing list also shows the packages on sale", () => {
     // A caller browsing what is for sale gets bundles as well as listings, so
     // an example showing only listings hides half the answer.
@@ -54,6 +58,8 @@ describe("every documented endpoint", () => {
     expect(Object.keys(parsed).toSorted()).toEqual(["listings", "packages"]);
     for (const bundle of parsed.packages) {
       expect(bundle.url).toBe(`/ticket/${bundle.slug}`);
+      // Browsing and the package endpoint must describe the same bundle.
+      expect(bundle.slug).toBe(documentedPackageSlug());
     }
   });
 

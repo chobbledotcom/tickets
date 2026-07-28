@@ -6,7 +6,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example.ts";
+import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
+import { parseListingFields } from "#shared/listing-fields.ts";
 import {
   PackageBookRequestSchema,
   PackageResponseSchema,
@@ -60,11 +61,6 @@ describe("documented package endpoints", () => {
   });
 
   test("the documented booking chooses add-ons the package really offers", () => {
-    // The endpoint checks every selection against the parent's real children,
-    // and the fold wants each member's add-ons to add up to how many of that
-    // member the order books — so a selection under a member the package does
-    // not have, for something it does not publish, or in a number nobody could
-    // book, would all be refused.
     const pkg = documentedPackage();
     const booking = documentedBooking();
     const chosen = booking.children as Selection[];
@@ -116,6 +112,7 @@ describe("documented package endpoints", () => {
     // A package with no dates ignores one, so offering it in the example
     // documents a choice that does nothing.
     expect("date" in booking).toBe("availableDates" in pkg);
+    expect("dayCount" in booking).toBe("dayCounts" in pkg);
     if (pkg.availableDates) {
       expect(pkg.availableDates).toContain(booking.date);
     }
@@ -131,7 +128,7 @@ describe("documented package endpoints", () => {
     // fields, so a booking missing one of them is refused.
     const booking = documentedBooking();
 
-    for (const field of documentedPackage().fields.split(",")) {
+    for (const field of parseListingFields(documentedPackage().fields)) {
       expect(booking).toHaveProperty(field);
     }
   });

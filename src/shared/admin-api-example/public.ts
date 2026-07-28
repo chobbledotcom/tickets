@@ -9,6 +9,7 @@ import { PackageChildrenSchema } from "#routes/api/request-schemas.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_PAID_EXAMPLE_JSON,
+  API_EXAMPLE_PACKAGE,
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
 } from "#shared/api-example.ts";
@@ -84,7 +85,7 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
     path: "/api/packages/:slug",
     response: json({
       package: {
-        description: "Two nights' camping with firepit hire",
+        ...API_EXAMPLE_PACKAGE,
         fields: "email,phone",
         maxPurchasable: 5,
         members: [
@@ -97,9 +98,7 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
           },
           { name: "Firepit", quantity: 1, slug: "firepit" },
         ],
-        name: "Camping Weekend",
         priceMinor: 5500,
-        slug: "camping-weekend",
       },
     }),
   },
