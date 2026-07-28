@@ -247,9 +247,9 @@ test/test-utils/csrf.ts:236:20  ?? → ||  # quantity id capture: string|undefin
 test/test-utils/test-browser.ts:80:73  ?? → ||   # find(): LinkMatch|undefined; a found object is truthy
 test/test-utils/test-browser.ts:100:26  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
 test/test-utils/test-browser.ts:150:19  ?? → ||  # submitted option tags are non-empty strings when present, otherwise undefined
-test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
-test/test-utils/test-browser.ts:357:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
-test/test-utils/test-browser.ts:422:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input
+test/test-utils/test-browser.ts:249:45  ?? → ||  # button value fallback is "", so empty value and absent value agree
+test/test-utils/test-browser.ts:382:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
+test/test-utils/test-browser.ts:460:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input
 src/ui/templates/admin/listing-defaults.tsx:105:17  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
 src/ui/templates/admin/listing-defaults.tsx:128:38  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
 src/shared/booking/build-tree.ts:130:48  ?? → ||    # childrenByParentId?.get(): readonly TicketListing[]|undefined — an array is always truthy, so ?? and || coincide
@@ -354,7 +354,7 @@ src/shared/db/listing-prices.ts:201:45  ?? → ||    # foldGroupDayRows result.g
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
-src/features/admin/attendee-page.ts:265:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
+src/features/admin/attendee-page.ts:266:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts:89:51  ?? → ||    # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts:109:20  ?? → ||    # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/import.ts:182:33  ?? → ||    # membershipSpec quantity comes from the PositiveInt schema (at least 1) or is undefined, so it is never 0
