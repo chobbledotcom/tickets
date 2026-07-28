@@ -1,15 +1,9 @@
 /** Cache-aware listing records, CRUD, and basic reads. */
 
 /* jscpd:ignore-start */
-import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import {
-  executeBatch,
-  inPlaceholders,
-  queryAll,
-  queryOnePrimary,
-} from "#shared/db/client.ts";
+import { executeBatch, queryOnePrimary } from "#shared/db/client.ts";
 import { cachedEntityTable } from "#shared/db/common-schema.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
 import {
@@ -18,7 +12,7 @@ import {
   syncListingPrices,
 } from "#shared/db/listing-prices.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema/listing-aggregates.ts";
-import { envNameSource, rowsByIds } from "#shared/db/query.ts";
+import { envNameSource } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
@@ -29,16 +23,20 @@ import type {
   Listing,
   ListingWithCount,
 } from "#shared/types.ts";
-import { LISTING_COUNT_SELECT } from "./sql.ts";
+import {
+  getListingRows,
+  type ListingProjectionRow,
+  type ListingWhere,
+  listingStatement,
+} from "./select.ts";
 import {
   computeSlugIndex,
   type ListingOption,
   listingOptionProjection,
   rawListingsTable,
 } from "./table.ts";
-/* jscpd:ignore-end */
 
-export type ListingProjectionRow = Omit<ListingWithCount, "profit">;
+/* jscpd:ignore-end */
 
 const decryptStoredListingWithCount = async (
   row: ListingProjectionRow,
@@ -70,11 +68,8 @@ export const decryptListingWithCount = async (
 export const getStoredListingsWithCountsByIds = async (
   ids: readonly number[],
 ): Promise<ListingWithCount[]> => {
-  const rows = await rowsByIds<ListingProjectionRow>(
-    [...ids],
-    (placeholders) =>
-      `${LISTING_COUNT_SELECT} WHERE listing.id IN (${placeholders})`,
-  );
+  if (ids.length === 0) return [];
+  const rows = await getListingRows({ where: { ids: [...ids] } });
   return mapParallel(decryptStoredListingWithCount)(rows);
 };
 
@@ -84,15 +79,12 @@ export const getStoredListingWithCount = async (
 ): Promise<ListingWithCount | null> =>
   (await getStoredListingsWithCountsByIds([id]))[0] ?? null;
 
-/** Query projected listings in newest-first order. */
-export const queryListingsWithCounts = async (
-  whereClause = "",
-  args: InValue[] = [],
+/** Read listing records in newest-first order, with inherited defaults overlaid
+ * — the shared tail of every listing-record read. */
+export const getListingsWithCounts = async (
+  where: ListingWhere,
 ): Promise<ListingWithCount[]> => {
-  const rows = await queryAll<ListingProjectionRow>(
-    `${LISTING_COUNT_SELECT} ${whereClause} ORDER BY listing.created DESC, listing.id DESC`,
-    args,
-  );
+  const rows = await getListingRows({ order: "created_desc", where });
   return mapParallel(decryptListingWithCount)(rows);
 };
 
@@ -105,17 +97,10 @@ const listingsEntity = cachedEntityTable<
   "listings",
   rawListingsTable,
   {
-    fetchAll: () => queryListingsWithCounts(),
-    fetchByIds: (ids) =>
-      queryListingsWithCounts(
-        `WHERE listing.id IN (${inPlaceholders(ids)})`,
-        ids,
-      ),
+    fetchAll: () => getListingsWithCounts({}),
+    fetchByIds: (ids) => getListingsWithCounts({ ids: [...ids] }),
     fetchByKeys: (slugIndexes) =>
-      queryListingsWithCounts(
-        `WHERE listing.slug_index IN (${inPlaceholders(slugIndexes)})`,
-        slugIndexes,
-      ),
+      getListingsWithCounts({ slugIndexes: [...slugIndexes] }),
     idOf: (listing) => listing.id,
     keyOf: (listing) => listing.slug_index,
     ttlMs: LISTINGS_CACHE_TTL_MS,
@@ -230,10 +215,8 @@ export const getListingWithCount = (
 export const getListingWithCountPrimary = async (
   id: number,
 ): Promise<ListingWithCount | null> => {
-  const row = await queryOnePrimary<ListingProjectionRow>(
-    `${LISTING_COUNT_SELECT} WHERE listing.id = ?`,
-    [id],
-  );
+  const { sql, args } = listingStatement({ where: { ids: [id] } });
+  const row = await queryOnePrimary<ListingProjectionRow>(sql, args);
   return row === null ? null : decryptListingWithCount(row);
 };
 

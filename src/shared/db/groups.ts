@@ -49,10 +49,12 @@ import {
 } from "#shared/db/listing-prices.ts";
 import {
   decryptListingWithCount,
-  type ListingProjectionRow,
-  queryListingsWithCounts,
+  getListingsWithCounts,
 } from "#shared/db/listings/records.ts";
-import { listingProjectionSql } from "#shared/db/listings/sql.ts";
+import {
+  type ListingProjectionRow,
+  listingStatement,
+} from "#shared/db/listings/select.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import {
@@ -198,18 +200,11 @@ export const getListingsByGroupIds = async (
   if (groupIds.length === 0) return new Map();
   type GroupListingRow = ListingProjectionRow & { group_ids: string };
   type ListingGroups = { groupIds: number[]; member: ListingWithCount };
-  const rows = await queryAll<GroupListingRow>(
-    `SELECT json_group_array(groupListing.group_id) AS group_ids,
-            ${listingProjectionSql("listing")},
-            listing.booked_quantity AS attendee_count
-       FROM group_listings AS groupListing
-       JOIN listings AS listing ON listing.id = groupListing.listing_id
-      WHERE groupListing.group_id IN (${inPlaceholders(groupIds)})
-        ${activeOnly ? "AND listing.active = 1" : ""}
-      GROUP BY listing.id
-      ORDER BY listing.created DESC, listing.id DESC`,
-    [...groupIds],
-  );
+  const { sql, args } = listingStatement({
+    order: "created_desc",
+    where: { activeOnly, inGroups: [...groupIds] },
+  });
+  const rows = await queryAll<GroupListingRow>(sql, args);
   const listingsWithGroups: ListingGroups[] = await mapParallel(
     async (row: GroupListingRow): Promise<ListingGroups> => ({
       groupIds: groupIdsJson.read(
@@ -320,10 +315,7 @@ export const groupListingTypeError = (
 export const getListingsNotInGroup = (
   groupId: number,
 ): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts(
-    "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
-    [groupId],
-  );
+  getListingsWithCounts({ notInGroup: groupId });
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
