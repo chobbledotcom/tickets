@@ -47,10 +47,13 @@ describe("API example", () => {
     expect(parsed.listings[0].name).toBe(API_EXAMPLE_LISTING.name);
   });
 
-  test("single listing example JSON includes availableDates", () => {
+  test("the single listing example is the listing itself", () => {
     const parsed = JSON.parse(API_SINGLE_EXAMPLE_JSON);
+
     expect(parsed.listing.name).toBe(API_EXAMPLE_LISTING.name);
-    expect(Array.isArray(parsed.listing.availableDates)).toBe(true);
+    // Dates to choose between belong to a listing sold by the day; this one is
+    // standard, so the endpoint sends none.
+    expect("availableDates" in parsed.listing).toBe(false);
   });
 
   test("availability example JSON is valid", () => {
