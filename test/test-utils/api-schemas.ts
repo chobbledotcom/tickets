@@ -5,6 +5,7 @@
  */
 
 import * as v from "valibot";
+import { CONTACT_FIELDS } from "#shared/types.ts";
 import { IsoDateSchema } from "#shared/validation/date.ts";
 import { EmailSchema } from "#shared/validation/email.ts";
 
@@ -114,6 +115,9 @@ export const AdminListingSchema = v.strictObject({
 const NonEmpty = v.pipe(v.string(), v.trim(), v.nonEmpty());
 const Slug = v.pipe(v.string(), v.slug());
 const AtLeastOne = v.pipe(v.number(), v.integer(), v.minValue(1));
+/** A price in minor units. Zero is a real price — a free item is a thing the
+ * system sells — so only a negative one is wrong. */
+const Price = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 /**
  * One member of a package bundle as `GET /api/packages/:slug` returns it. The
@@ -121,7 +125,7 @@ const AtLeastOne = v.pipe(v.number(), v.integer(), v.minValue(1));
  * zero, and the slug has to be one a caller can actually ask for.
  */
 const PackageMemberSchema = v.strictObject({
-  children: v.optional(v.array(v.unknown())),
+  children: v.optional(v.pipe(v.array(PublicListingSchema), v.nonEmpty())),
   name: NonEmpty,
   quantity: AtLeastOne,
   slug: Slug,
@@ -147,11 +151,11 @@ const packageBundleEntries = {
  * caller unable to say what the bundle costs.
  */
 export const PackageResponseSchema = v.union([
-  v.strictObject({ ...packageBundleEntries, priceMinor: AtLeastOne }),
+  v.strictObject({ ...packageBundleEntries, priceMinor: Price }),
   v.strictObject({
     ...packageBundleEntries,
     dayCounts: v.pipe(
-      v.array(v.strictObject({ days: AtLeastOne, priceMinor: AtLeastOne })),
+      v.array(v.strictObject({ days: AtLeastOne, priceMinor: Price })),
       v.nonEmpty(),
     ),
   }),
@@ -169,4 +173,28 @@ export const PackageBookRequestSchema = v.strictObject({
   email: EmailSchema,
   name: NonEmpty,
   quantity: AtLeastOne,
+  // The contact fields a package can ask for beyond the always-required name
+  // and email. Which of them a booking must fill in is checked against the
+  // package's own `fields` list, not here.
+  ...v.entriesFromList(
+    CONTACT_FIELDS.filter((field) => field !== "email"),
+    v.optional(NonEmpty),
+  ),
+});
+
+/**
+ * A group as the admin API returns it: every stored field except the internal
+ * lookup index, which is what `Omit<Group, "slug_index">` gives a caller.
+ */
+export const AdminGroupSchema = v.strictObject({
+  description: v.string(),
+  ...v.entriesFromList(
+    ["hidden", "hide_package_listings", "is_package"],
+    v.boolean(),
+  ),
+  id: AtLeastOne,
+  max_attendees: AtLeastOne,
+  name: NonEmpty,
+  slug: Slug,
+  terms_and_conditions: v.string(),
 });

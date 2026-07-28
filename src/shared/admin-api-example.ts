@@ -28,6 +28,7 @@ import { PackageChildrenSchema } from "#routes/api/request-schemas.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_FREE_EXAMPLE_JSON,
+  API_BOOK_PAID_EXAMPLE_JSON,
   API_EXAMPLE_LISTING,
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
@@ -80,7 +81,9 @@ const ADMIN_API_DELETE_BODY = {
 const ADMIN_API_EXAMPLE_GROUP = {
   description: "Workshops running through the summer.",
   hidden: false,
+  hide_package_listings: false,
   id: 3,
+  is_package: false,
   max_attendees: 50,
   name: "Summer Series",
   slug: "summer-series",
@@ -143,9 +146,6 @@ export type EndpointDoc = {
 
 const json = (data: unknown): string => JSON.stringify(data, null, 2);
 
-/** The package-book example's `children`, parsed through the LIVE request
- * schema ({@link PackageChildrenSchema}) — a drifted example is a build-time
- * parse error, so the docs can never show a body the endpoint rejects. */
 /** The add-on offered under the example package's "Tent Pitch" member. A member
  * that offers a child is published with it, so the booking example can choose
  * it by slug. */
@@ -170,6 +170,9 @@ const PACKAGE_EXAMPLE_CHILD = {
   unitPrice: 1200,
 } satisfies PublicListing;
 
+/** The package-book example's `children`, parsed through the LIVE request
+ * schema ({@link PackageChildrenSchema}) — a drifted example is a build-time
+ * parse error, so the docs can never show a body the endpoint rejects. */
 const PACKAGE_BOOK_CHILDREN_EXAMPLE = v.parse(PackageChildrenSchema, [
   { parent: "tent-pitch", quantity: 1, slug: "extra-bedding" },
 ]);
@@ -241,9 +244,12 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
       date: "2025-08-20",
       email: "alice@example.com",
       name: "Alice Smith",
+      // The package asks for email and phone, so a booking must give both.
+      phone: "+447700900123",
       quantity: 1,
     }),
-    response: API_BOOK_FREE_EXAMPLE_JSON,
+    // The bundle costs money, so booking it answers with somewhere to pay.
+    response: API_BOOK_PAID_EXAMPLE_JSON,
   },
 ];
 
@@ -265,6 +271,11 @@ const crudDocs = (c: {
   const base = `/api/admin/${c.plural}`;
   const byId = `${base}/:${c.idParam}`;
   const one = json({ [c.singular]: c.example });
+  // An update answers with the stored record as it now reads, so the response
+  // is the example with the update applied — never the record as it was.
+  const updated = json({
+    [c.singular]: { ...(c.example as object), ...(c.updateBody as object) },
+  });
   const [list, get, create, update, del] = c.desc;
   return [
     {
@@ -286,7 +297,7 @@ const crudDocs = (c: {
       method: "PUT",
       path: byId,
       request: json(c.updateBody),
-      response: one,
+      response: updated,
     },
     {
       description: del,

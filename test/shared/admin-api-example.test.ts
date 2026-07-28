@@ -19,6 +19,7 @@ import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { isOwnerRole } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
+  AdminGroupSchema,
   AdminListingSchema,
   PackageBookRequestSchema,
   PackageResponseSchema,
@@ -213,6 +214,30 @@ describe("endpoint docs", () => {
     }
   });
 
+  test("the documented booking fills in the fields the package asks for", () => {
+    // The endpoint checks the booking against the package's merged contact
+    // fields, so a booking missing one of them is refused.
+    const pkg = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "GET", "/api/packages/:slug").response,
+    ).package;
+    const booking = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "POST", "/api/packages/:slug/book")
+        .request!,
+    );
+
+    for (const field of pkg.fields.split(",")) {
+      expect(booking).toHaveProperty(field);
+    }
+  });
+
+  test("an update answers with the record as it now reads", () => {
+    for (const { example, update, updateResponse } of documentedResources()) {
+      // Every field the update asked to change comes back changed, and the
+      // rest of the record is unchanged.
+      expect(updateResponse).toEqual({ ...example, ...update });
+    }
+  });
+
   test("each admin resource is returned under its own name", () => {
     const singleResponses = ADMIN_API_ENDPOINTS.filter(
       (e: EndpointDoc) => e.method === "GET" && e.path.includes(":"),
@@ -251,6 +276,7 @@ describe("endpoint docs", () => {
     del: { confirm_identifier: string };
     example: { id: number; name: string };
     update: Record<string, unknown>;
+    updateResponse: Record<string, unknown>;
   }[] =>
     ["listings", "groups", "holidays"].map((plural) => {
       const singular = plural.slice(0, -1);
@@ -266,6 +292,9 @@ describe("endpoint docs", () => {
           singular
         ],
         update: JSON.parse(forPath("PUT", `/:${singular}Id`).request!),
+        updateResponse: JSON.parse(forPath("PUT", `/:${singular}Id`).response)[
+          singular
+        ],
       };
     });
 
@@ -318,14 +347,13 @@ describe("endpoint docs", () => {
     expect(holiday.end_date >= holiday.start_date).toBe(true);
   });
 
-  test("the documented group has room for more than nobody", () => {
+  test("the documented group shows every field a group carries", () => {
     const group = JSON.parse(
       documented(ADMIN_API_ENDPOINTS, "GET", "/api/admin/groups/:groupId")
         .response,
     ).group;
 
-    expect(isBlank(group.max_attendees, "max_attendees")).toBe(false);
-    expect(isBlank(group.slug)).toBe(false);
+    expect(() => v.parse(AdminGroupSchema, group)).not.toThrow();
   });
 
   test("no documented request asks for a blank or zero value", () => {
