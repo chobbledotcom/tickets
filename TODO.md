@@ -785,10 +785,10 @@ and profile the top entry.
 *Origin: review of PR #1796 (the `[object Object]` error-box fix). Flagged by
 CodeRabbit while that PR hardened the questions template's mutation coverage.*
 
-`test/ui/templates/admin/questions.test.ts` is ~876 lines — over the ~400-line
+`test/ui/templates/admin/questions.test.ts` is ~862 lines — over the ~400-line
 target for test files (it was already ~795 before #1796 added the hardening
-assertions; it stays under Biome's 1,000-line hard limit, so it is not
-grandfathered and CI passes). Smaller, focused test files also let mutation
+assertions; it stays under Biome's 1,000-line hard limit, so CI passes).
+Smaller, focused test files also let mutation
 runs map `questions.tsx` to a narrower suite.
 
 Split it into focused sibling suites sharing one fixtures helper, roughly:
@@ -1376,7 +1376,7 @@ requires mirror-located direct tests). Two of the moved files are over the
   `deno task test:files test/features/admin/auth/*.ts` after the split to
   confirm coverage stays at 100%.
 
-- **`test/ui/templates/checkin.test.ts` (533 lines).** Was
+- **`test/ui/templates/checkin.test.ts` (523 lines).** Was
   `test/lib/server-checkin.test.ts` (499 lines on `main`) — the move grew it
   slightly via the row-scoped assertion rewrite in `64475d4f`. Covers GET/POST
   `/checkin/:tokens` rendering, column visibility, check-in/out flows,
@@ -1388,7 +1388,7 @@ requires mirror-located direct tests). Two of the moved files are over the
   duplicating it across the split files.
 
 Both files are well under the Biome hard 1,000-line ceiling
-(`noExcessiveLinesPerFile`), so neither is in the `biome.json` override list.
+(`noExcessiveLinesPerFile`), so CI passes on both today.
 Splitting them now was deliberately deferred because doing it inside the
 cold-start PR would balloon the diff with unrelated mechanical test moves and
 re-conflict with the import-only changes that are the actual subject of the

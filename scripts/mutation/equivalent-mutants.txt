@@ -114,9 +114,9 @@ src/fp.ts:455:49  ?? → ||   # items?.length is undefined or a non-negative int
 # undefined, paired null checks already reject both nullish values, optional
 # conditions/dependencies are objects or arrays, and non-generated primary keys
 # are overwritten from the input-column fold in either initial-row branch.
-src/shared/db/table.ts:508:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
-src/shared/db/table.ts:548:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:720:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:521:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
+src/shared/db/table.ts:561:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:733:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
@@ -248,8 +248,8 @@ test/test-utils/test-browser.ts:80:73  ?? → ||   # find(): LinkMatch|undefined
 test/test-utils/test-browser.ts:100:26  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
 test/test-utils/test-browser.ts:150:19  ?? → ||  # submitted option tags are non-empty strings when present, otherwise undefined
 test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
-test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
-test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
+test/test-utils/test-browser.ts:357:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
+test/test-utils/test-browser.ts:422:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input
 src/ui/templates/admin/listing-defaults.tsx:105:17  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
 src/ui/templates/admin/listing-defaults.tsx:128:38  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
 src/shared/booking/build-tree.ts:130:48  ?? → ||    # childrenByParentId?.get(): readonly TicketListing[]|undefined — an array is always truthy, so ?? and || coincide
@@ -270,8 +270,8 @@ src/shared/booking/capacity-tree.ts:38:45  ?? → ||    # groupIdsByListingId.ge
 
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
-src/shared/db/attendees/capacity/groups.ts:134:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
-src/shared/db/attendees/capacity/groups.ts:145:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
+src/shared/db/attendees/capacity/groups.ts:135:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
+src/shared/db/attendees/capacity/groups.ts:146:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
 
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts:196:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
@@ -450,8 +450,8 @@ src/features/admin/questions.ts:146:7  answerText → ""    # answerTextForm con
 # operand exists to coerce.
 # The generated WASM modules terminate every statement with punctuation, so
 # joining their source lines with "" or ";" parses and behaves identically.
-scripts/inline-jsquash-wasm.ts:54:21  ; → ""    # inline module remains semicolon/brace delimited
-scripts/inline-jsquash-wasm.ts:76:38  ; → ""    # remote module remains semicolon/brace delimited
+scripts/inline-jsquash-wasm.ts:53:21  ; → ""    # inline module remains semicolon/brace delimited
+scripts/inline-jsquash-wasm.ts:75:38  ; → ""    # remote module remains semicolon/brace delimited
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
@@ -884,7 +884,7 @@ src/shared/runtime.ts:68:18  ?? → ||   # os is string|undefined and falls back
 src/shared/runtime.ts:70:43  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts:71:38  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
 src/shared/square.ts:312:21  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
-src/shared/square.ts:783:37  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
+src/shared/square.ts:795:37  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
 src/ui/client/dom.ts:13:19  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only
@@ -972,14 +972,14 @@ scripts/mutation/summary.ts:65:69  ?? → ||   # Object.groupBy gives each statu
 scripts/mutation/summary.ts:92:33  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
 
 # Lock file: the handle exists only to carry the advisory lock.
-scripts/lock-file.ts:4:41  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
+scripts/lock-file.ts:16:41  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
 
 # Process helpers: the timer handle before the timer exists.
 scripts/process.ts:60:17  0 → 1   # the promise body runs straight away and overwrites this handle, so its starting value is never the one cleared
 scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it and replacing it store the same timer id
 
 # Isolated mutation runs: the exit code before any path has set one.
-scripts/mutation/isolation.ts:197:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
+scripts/mutation/isolation.ts:127:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
 src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
 
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
