@@ -42,7 +42,7 @@ const jsonLeaves = (value: unknown, where: string): [string, unknown][] => {
 
 /** An empty string, or a count of none — neither is worth documenting. */
 const isBlank = (value: unknown): boolean =>
-  (typeof value === "string" && value.length === 0) ||
+  (typeof value === "string" && value.trim().length === 0) ||
   (typeof value === "number" && value <= 0);
 
 describe("admin API example", () => {
@@ -219,8 +219,8 @@ describe("endpoint docs", () => {
 
   test("every documented example is a real, named, stored record", () => {
     for (const { example } of documentedResources()) {
-      expect(example.name.length).toBeGreaterThan(0);
-      expect(example.id).toBeGreaterThan(0);
+      expect(isBlank(example.name)).toBe(false);
+      expect(isBlank(example.id)).toBe(false);
     }
   });
 
@@ -228,9 +228,13 @@ describe("endpoint docs", () => {
     // A field set to the value the record already has teaches nothing, so
     // every field in an update example must differ from the example record.
     for (const { example, update } of documentedResources()) {
+      // The two bodies are parsed separately, so compare by value rather than
+      // by identity: two equal arrays are not the same object.
       const unchanged = Object.entries(update)
         .filter(
-          ([key, value]) => value === (example as Record<string, unknown>)[key],
+          ([key, value]) =>
+            JSON.stringify(value) ===
+            JSON.stringify((example as Record<string, unknown>)[key]),
         )
         .map(([key]) => key);
 
@@ -261,8 +265,8 @@ describe("endpoint docs", () => {
       )!.response,
     ).group;
 
-    expect(group.max_attendees).toBeGreaterThan(0);
-    expect(group.slug.length).toBeGreaterThan(0);
+    expect(isBlank(group.max_attendees)).toBe(false);
+    expect(isBlank(group.slug)).toBe(false);
   });
 
   test("no documented request asks for a blank or zero value", () => {

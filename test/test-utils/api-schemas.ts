@@ -111,7 +111,7 @@ export const AdminListingSchema = v.strictObject({
   group_ids: v.array(v.number()),
 });
 
-const NonEmpty = v.pipe(v.string(), v.nonEmpty());
+const NonEmpty = v.pipe(v.string(), v.trim(), v.nonEmpty());
 const Slug = v.pipe(v.string(), v.slug());
 const AtLeastOne = v.pipe(v.number(), v.integer(), v.minValue(1));
 
@@ -133,7 +133,7 @@ const PackageMemberSchema = v.strictObject({
  * (`maxPurchasable` of zero) is not something the documentation should show.
  */
 export const PackageResponseSchema = v.strictObject({
-  availableDates: v.optional(v.array(v.string())),
+  availableDates: v.optional(v.array(IsoDateSchema)),
   dayCounts: v.optional(
     v.array(v.strictObject({ days: AtLeastOne, priceMinor: v.number() })),
   ),
