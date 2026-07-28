@@ -45,18 +45,23 @@ export const targetWhere = ({ entity, id }: NoteTarget): SqlStatement => ({
   sql: "entity_type = ? AND entity_id = ?",
 });
 
-/** Ask for several records of one kind at once. An empty list asks for nothing,
- *  which is what `0 = 1` says: no row can answer it. */
+/**
+ * Ask for several records of one kind at once. There must be at least one: a
+ * caller with nothing to ask about has no question for the database, and asking
+ * anyway would build SQL no database accepts.
+ */
 export const targetsWhere = (
   entity: NoteEntity,
   ids: number[],
-): SqlStatement =>
-  ids.length === 0
-    ? { args: [], sql: "0 = 1" }
-    : {
-        args: [entity, ...ids],
-        sql: `entity_type = ? AND entity_id IN (${inPlaceholders(ids)})`,
-      };
+): SqlStatement => {
+  if (ids.length === 0) {
+    throw new Error(`Asked for the notes of no ${entity} records`);
+  }
+  return {
+    args: [entity, ...ids],
+    sql: `entity_type = ? AND entity_id IN (${inPlaceholders(ids)})`,
+  };
+};
 
 /** Ask for the notes of one kind of record, chosen by a subquery of ids. */
 export const targetsSelectedBy = (

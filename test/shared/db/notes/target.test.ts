@@ -34,10 +34,12 @@ describe("what a note is about", () => {
     });
   });
 
-  test("asks for nothing when given no ids", () => {
-    // `0 = 1` is false for every row, so an empty list selects no notes rather
-    // than every note of that kind.
-    expect(targetsWhere("attendee", [])).toEqual({ args: [], sql: "0 = 1" });
+  test("refuses to ask about no records at all", () => {
+    // Building `IN ()` would be SQL no database accepts, and a caller with
+    // nothing to ask about should not have reached here.
+    expect(() => targetsWhere("attendee", [])).toThrow(
+      "Asked for the notes of no attendee records",
+    );
   });
 
   test("keeps the subquery's own arguments after the kind", () => {

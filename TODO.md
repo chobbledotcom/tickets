@@ -257,10 +257,14 @@ re-rendering. Migration is deliberately gradual and hardest-first.
 
 - **Slice 4 — the long tail.** Questions and `history/:hmac` remain. Groups,
   holidays, users, built sites, and attendee statuses are complete.
-- **Slice 5 — generalize `system_notes`** from attendee-only to
-  `(entity_type, entity_id)` so any entity page can carry a notes section. The
-  notes DB module currently has no `entity_type` column; this is a small
-  migration + query change that unblocks notes tabs on the other entities.
+- **Slice 5 — generalize `system_notes`: done.** A note now names the kind of
+  record it is about and which one (`entity_type`, `entity_id`), and the notes
+  module works in those terms (`src/shared/db/notes/`). What remains is per-page
+  work: add `"listing"` (or whichever record is next) to `NOTE_ENTITIES` in
+  `notes/target.ts`, give that record's delete path the notes delete statement,
+  and add the notes section to its entity page. The list drives the database
+  `CHECK`, so adding a kind ships with a small rebuild migration — as
+  `2026-06-20_free_text_questions` did for `questions.display_type`.
 
 ---
 

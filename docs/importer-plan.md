@@ -1429,10 +1429,12 @@ Implementation notes:
     raw-deletes the source attendee and never touches `system_notes`, so the
     imported audit trail (stored as a `system_notes` owner note) would be left
     orphaned on the deleted source id. The merge must **repoint the source's
-    `system_notes` rows to the target** (`UPDATE system_notes SET attendee_id =
-    targetId WHERE attendee_id = sourceId`, in the same transaction — the
-    `booking_imports` remap's sibling), with a test that a merged imported source's
-    audit note survives on the target.
+    `system_notes` rows to the target** (`UPDATE system_notes SET entity_id =
+    targetId WHERE entity_type = 'attendee' AND entity_id = sourceId`, in the same
+    transaction — the `booking_imports` remap's sibling), with a test that a merged
+    imported source's audit note survives on the target. A note names the kind of
+    record it is about and which one, so both parts are matched; see
+    `src/shared/db/notes/target.ts`.
 - The `attendee_answers` XOR/validation triggers will `ABORT` a malformed answer
   row (e.g. both `answer_id` and `string_id` set). The importer only ever writes
   the text-answer shape (`answer_id` NULL, `question_id` + `string_id` set), so a

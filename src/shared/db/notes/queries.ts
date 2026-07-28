@@ -67,6 +67,8 @@ export const getNoteRows = (
   entity: NoteEntity,
   ids: number[],
 ): Promise<SystemNoteRow[]> =>
+  // Nothing to ask about is answered here rather than by the database: an empty
+  // list would otherwise cost a round trip to be told what we already know.
   ids.length === 0
     ? Promise.resolve([])
     : noteRowsWhere(targetsWhere(entity, ids));
