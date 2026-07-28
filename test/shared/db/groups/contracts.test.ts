@@ -142,6 +142,19 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
     ).toBe(t("error.group_customisable_days_unexpected"));
   });
 
+  test("a type mismatch names the type already in the group", async () => {
+    const group = await createTestGroup({ name: "Daily Type Group" });
+    await createTestListing({
+      groupId: group.id,
+      listingType: "daily",
+      name: "Daily Type Member",
+    });
+
+    expect(await validateGroupListingType(group.id, "standard", false)).toBe(
+      t("error.group_listing_type_mismatch", { type: "daily" }),
+    );
+  });
+
   test("matching customisable-day settings are accepted", async () => {
     const group = await createTestGroup({ name: "Matching Custom Group" });
     await createTestListing({
