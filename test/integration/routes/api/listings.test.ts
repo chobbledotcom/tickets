@@ -200,6 +200,16 @@ describePublicApi(() => {
       expect(apiListing.name).toBe("Hidden Listing");
     });
 
+    test("a listing sold by the day is read as its own page's shape", async () => {
+      // The helper every caller reaches for reads the answer by the detail
+      // shape, so a listing carrying dates does not throw on the way out.
+      const listing = await createDailyTestListing();
+
+      const { apiListing } = await fetchPublicListing(listing.slug);
+
+      expect(apiListing.listingType).toBe("daily");
+    });
+
     test("includes availableDates for daily listings", async () => {
       const listing = await createDailyTestListing();
       const { response, body } = await fetchListingBySlug(listing.slug);

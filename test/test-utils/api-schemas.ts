@@ -235,7 +235,8 @@ const PackageMemberSchema = v.strictObject({
 });
 
 const packageBundleEntries = {
-  availableDates: v.optional(v.array(IsoDateSchema)),
+  // Left out entirely when a bundle has no dates, rather than sent empty.
+  availableDates: v.optional(v.pipe(v.array(IsoDateSchema), v.nonEmpty())),
   // A bundle may be sold without a description; the operator chooses.
   description: v.string(),
   // An empty list is the real "name and email only" setting.
