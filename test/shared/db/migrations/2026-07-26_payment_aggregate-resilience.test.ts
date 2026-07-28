@@ -9,6 +9,7 @@ import {
   restoreLegacyPaymentSources,
   runMigration,
   runMigrationInvocation,
+  seedLegacyPaidAttendees,
   seedSumupCheckouts,
 } from "./payment-aggregate-test-utils.ts";
 
@@ -112,20 +113,30 @@ describeWithEnv("payment aggregate migration resilience", { db: true }, () => {
 
     await expectCopiedAndDrained("sumup_checkouts");
   });
-  test("asks to be called again when there are more SumUp rows than one go", async () => {
-    // The migration only gets so much time per request, so it copies a few
-    // pages and then asks to be called again rather than running over.
-    await getDb().execute("DROP TABLE processed_payments");
-    await getDb().execute("DROP TABLE checkout_stages");
-    await seedSumupCheckouts(MORE_THAN_ONE_INVOCATION);
+  /** A site with more old records than one request can copy must stop partway
+   *  and ask to be called again, then carry on from where it stopped. */
+  const expectPausesThenFinishes = async (
+    seed: (count: number) => Promise<void>,
+  ): Promise<void> => {
+    await seed(MORE_THAN_ONE_INVOCATION);
 
     await expect(runMigrationInvocation()).rejects.toThrow(
       "continuing on the next request",
     );
     expect(await copiedCount()).toBeLessThan(MORE_THAN_ONE_INVOCATION);
 
-    // Called again as it asked, it picks up where it stopped and finishes.
     await runMigration();
     expect(await copiedCount()).toBe(MORE_THAN_ONE_INVOCATION);
+  };
+
+  test("pauses partway through a long list of SumUp checkouts", async () => {
+    await getDb().execute("DROP TABLE processed_payments");
+    await getDb().execute("DROP TABLE checkout_stages");
+
+    await expectPausesThenFinishes(seedSumupCheckouts);
+  });
+
+  test("pauses partway through a long list of older paid attendees", async () => {
+    await expectPausesThenFinishes(seedLegacyPaidAttendees);
   });
 });

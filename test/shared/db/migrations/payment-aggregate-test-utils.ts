@@ -1,4 +1,5 @@
 import { encrypt } from "#shared/crypto/encryption.ts";
+import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { getDb } from "#shared/db/client.ts";
 import paymentAggregateMigration from "#shared/db/migrations/2026-07-26_payment_aggregate.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
@@ -7,6 +8,7 @@ import {
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
 import { additive } from "#shared/db/migrations/verify.ts";
+import { settings } from "#shared/db/settings.ts";
 import { createLegacyPaymentTables } from "#test-utils/legacy-payment-tables.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -97,6 +99,45 @@ export const seedSumupCheckouts = async (count: number): Promise<void> => {
         (reference_index, wrapped_key, metadata, sumup_id, created_at)
         VALUES (?, ?, ?, ?, ?)`,
     })),
+    "write",
+  );
+};
+
+/** Seed many old attendee-only payments in a single batch. Each needs the
+ *  encrypted details and a payment leg for the migration to notice it. */
+export const seedLegacyPaidAttendees = async (count: number): Promise<void> => {
+  const piiBlob = await encryptPiiBlob(
+    buildPiiBlob({
+      address: "",
+      email: "bulk@example.com",
+      lat: "",
+      lng: "",
+      name: "Bulk attendee",
+      payment_id: "pi_bulk",
+      phone: "",
+      special_instructions: "",
+      ticket_token: "bulk-ticket",
+    }),
+    settings.publicKey,
+  );
+  await getDb().batch(
+    Array.from({ length: count }, (_unused, index) => index + 1).flatMap(
+      (id) => [
+        {
+          args: [id, "2026-07-25T09:00:00.000Z", piiBlob, `bulk-index-${id}`],
+          sql: `INSERT INTO attendees (id, created, pii_blob, ticket_token_index)
+            VALUES (?, ?, ?, ?)`,
+        },
+        {
+          args: [String(id), `bulk-payment-leg-${id}`],
+          sql: `INSERT INTO transfers
+            (source_type, source_id, dest_type, dest_id, amount, occurred_at,
+             recorded_at, reference, event_group, kind)
+            VALUES ('external', 'world', 'attendee', ?, 1000, 1, 1, ?,
+              'legacy-order', 'payment')`,
+        },
+      ],
+    ),
     "write",
   );
 };
