@@ -88,6 +88,14 @@ describe("the shapes the documentation is measured against", () => {
     refuses(PublicListingSchema, daily);
   });
 
+  test("a day's price is money, in whole pennies", () => {
+    const daily = { ...listing(), customisableDays: true };
+
+    accepts(PublicListingSchema, { ...daily, dayPrices: { 1: 1000 } });
+    refuses(PublicListingSchema, { ...daily, dayPrices: { 1: -1 } });
+    refuses(PublicListingSchema, { ...daily, dayPrices: { 1: 10.5 } });
+  });
+
   test("a bundle may publish an add-on nobody can book right now", () => {
     // The endpoint publishes every active add-on, so a sold-out one appears
     // beside its siblings and the bundle stays on sale through them.

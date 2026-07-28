@@ -47,7 +47,10 @@ const publicListing = <E extends v.ObjectEntries>(extra: E) =>
       ...publicListingEntries,
       ...extra,
       customisableDays: v.literal(true),
-      dayPrices: v.record(v.string(), v.number()),
+      dayPrices: v.record(
+        v.string(),
+        v.pipe(v.number(), v.integer(), v.minValue(0)),
+      ),
     }),
   ]);
 
