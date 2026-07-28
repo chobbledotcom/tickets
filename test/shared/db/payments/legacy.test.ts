@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   LegacyCheckoutStageSchema,
   type LegacyPaymentRows,
@@ -10,6 +11,12 @@ import {
   legacySessionFields,
   mergeLegacyPaymentRows,
 } from "#shared/db/payments/legacy.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+
+// Grouping old payment rows hashes the checkout reference, which needs a key.
+// Setting one here keeps this file runnable on its own rather than depending on
+// whichever other file in its isolate happened to set one up first.
+setupTestEncryptionKey();
 
 const TIME = "2026-07-25T10:00:00.000Z";
 const TICKETS = "enc:1:tickets";
@@ -315,4 +322,24 @@ test("keeps failed completion explicitly empty", async () => {
     sumupCheckouts: [],
   });
   expect(legacySessionFields(group).completionState).toBe("none");
+});
+
+test("folds a SumUp checkout filed under its own session onto one payment", async () => {
+  // The checkout can be found two ways at once: by the reference kept on the
+  // staged checkout, and by the session id SumUp gave it. Both point at the
+  // same payment, so it stays one payment rather than becoming two.
+  const group = await onlyGroup({
+    checkoutStages: [stage({ paymentSessionId: "session-one" })],
+    processedPayments: [],
+    sumupCheckouts: [
+      sumup({
+        referenceIndex: await hmacHash("session-one"),
+        sumupId: "session-one",
+      }),
+    ],
+  });
+
+  expect(group.key).toBe("session:session-one");
+  expect(group.runtime.checkoutStage).not.toBeNull();
+  expect(group.runtime.sumupCheckout).not.toBeNull();
 });
