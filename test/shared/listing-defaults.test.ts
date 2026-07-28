@@ -37,6 +37,25 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     expect(resolveListingDefaults(listing, fullDefaults, true)).toBe(listing);
   });
 
+  test("a narrow row inherits only the fields it selected", () => {
+    // A read that selects some columns must come back with those columns'
+    // effective values, and must not gain the ones it never asked for.
+    const narrow = {
+      bookable_days: ["Sunday"],
+      id: 1,
+      use_defaults: true,
+    };
+
+    const resolved = resolveListingDefaults(narrow, fullDefaults, true);
+
+    expect(resolved.bookable_days).toEqual(["Monday", "Wednesday"]);
+    expect(Object.keys(resolved).toSorted()).toEqual([
+      "bookable_days",
+      "id",
+      "use_defaults",
+    ]);
+  });
+
   test("overlays every set default when use_defaults is on", () => {
     const listing = testListing({
       bookable_days: ["Sunday"],

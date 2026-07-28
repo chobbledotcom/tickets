@@ -29,8 +29,12 @@ describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
       expect(result).toEqual([]);
     });
 
-    test("getStoredListingsWithCountsByIds returns no listings for no ids", async () => {
-      expect(await getStoredListingsWithCountsByIds([])).toEqual([]);
+    test("getStoredListingsWithCountsByIds asks the database nothing for no ids", async () => {
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        expect(await getStoredListingsWithCountsByIds([])).toEqual([]);
+        expect(getQueryLog()).toEqual([]);
+      });
     });
 
     test("getListingsBySlugs returns listings in slug order", async () => {

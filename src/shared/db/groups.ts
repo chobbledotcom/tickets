@@ -54,11 +54,13 @@ import {
 } from "#shared/db/listings/select.ts";
 import { rawListingsTable } from "#shared/db/listings/table.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
+import { settings } from "#shared/db/settings.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import {
   defineTableProjection,
   type StoredTableProjectionRow,
 } from "#shared/db/table.ts";
+import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import {
   type PackageChildEdgeBlock,
   type PackageMemberBlock,
@@ -309,7 +311,10 @@ export const groupListingTypeError = (
  * name it, and show whether it is active. The form shows nothing else, so this
  * read skips the whole listing record — no money, day-price or image
  * subqueries, and no encrypted columns beyond the name. */
-export type GroupListingCandidate = SortableListing & { active: boolean };
+export type GroupListingCandidate = SortableListing & {
+  active: boolean;
+  use_defaults: boolean;
+};
 
 const candidateProjection = defineTableProjection(rawListingsTable, [
   "id",
@@ -321,6 +326,10 @@ const candidateProjection = defineTableProjection(rawListingsTable, [
   "duration_days",
   "minimum_days_before",
   "maximum_days_after",
+  // The picker sorts daily listings by their next bookable date, which reads
+  // the three availability fields above — all of them inheritable, so the row
+  // carries the inheritance flag and the defaults are overlaid before sorting.
+  "use_defaults",
 ]);
 
 /**
@@ -329,17 +338,27 @@ const candidateProjection = defineTableProjection(rawListingsTable, [
  * already in another group is still a valid candidate here; only this group's
  * current members are excluded.
  */
-export const getListingsNotInGroup = (
+export const getListingsNotInGroup = async (
   groupId: number,
-): Promise<GroupListingCandidate[]> =>
-  candidateProjection.queryAll(
+): Promise<GroupListingCandidate[]> => {
+  const rows = await candidateProjection.queryAll(
     `SELECT ${candidateProjection.columnsSql("listing")}
        FROM listings AS listing
       WHERE listing.id NOT IN (
-        SELECT listing_id FROM group_listings WHERE group_id = ?)
+        SELECT groupListing.listing_id
+          FROM group_listings AS groupListing
+         WHERE groupListing.group_id = ?)
       ORDER BY listing.created DESC, listing.id DESC`,
     [groupId],
   );
+  return rows.map((row) =>
+    resolveListingDefaults(
+      row,
+      settings.listingDefaults,
+      settings.features.logistics,
+    ),
+  );
+};
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
@@ -770,7 +789,9 @@ const copyPackageOverridesStatement = (
                WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ?)
       WHERE cloneMembership.listing_id = ?
         AND cloneMembership.group_id IN (
-              SELECT group_id FROM group_listings WHERE listing_id = ?)
+              SELECT groupListing.group_id
+                FROM group_listings AS groupListing
+               WHERE groupListing.listing_id = ?)
         AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
 });
 
@@ -929,7 +950,10 @@ export const setGroupListingsActive = async (
   // Unaliased `id` (not IN_GROUP_SQL's `listing.id`) — this UPDATE has no table
   // alias, so SQLite would reject `listing.id` here.
   const result = await execute(
-    "UPDATE listings SET active = ? WHERE id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
+    `UPDATE listings SET active = ? WHERE id IN (
+       SELECT groupListing.listing_id
+         FROM group_listings AS groupListing
+        WHERE groupListing.group_id = ?)`,
     [active ? 1 : 0, groupId],
   );
   return result.rowsAffected;

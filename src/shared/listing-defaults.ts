@@ -43,6 +43,16 @@ export type ListingDefaultKind = "bool" | "number" | "url" | "days";
 /** What {@link resolveListingDefaults} knows beyond the listing being resolved. */
 export type ResolveContext = { hasLogistics: boolean };
 
+/**
+ * A row the overlay can resolve: it must carry the inheritance flag, and it
+ * inherits whichever defaultable fields it actually selected. A narrow read
+ * that selects only some of them gets only those overlaid — see
+ * {@link resolveListingDefaults}. A row selecting a field whose
+ * {@link ListingDefaultField.appliesTo} gate reads another field must select
+ * that field too, or the gate reads `undefined` and the default stays off.
+ */
+export type ResolvableListing = Partial<Listing> & { use_defaults: boolean };
+
 export type ListingDefaultField = {
   /** Key in {@link ListingDefaults}. */
   key: keyof ListingDefaults;
@@ -55,7 +65,7 @@ export type ListingDefaultField = {
    * break, so {@link resolveListingDefaults} stays a plain fold with no
    * special-cased branches. Absent ⇒ the default always applies.
    */
-  appliesTo?: (listing: Listing, ctx: ResolveContext) => boolean;
+  appliesTo?: (listing: ResolvableListing, ctx: ResolveContext) => boolean;
 };
 
 /**
@@ -138,8 +148,11 @@ export const listingDefaultFormClasses = (defaults: ListingDefaults): string =>
  * the listing; otherwise return it unchanged. The per-field gates keep the
  * overlay from producing a listing the save path would reject — see
  * {@link LISTING_DEFAULT_FIELDS}.
+ *
+ * A field the row did not select cannot be inherited, so a narrow read gets the
+ * effective values of exactly the fields it asked for.
  */
-export const resolveListingDefaults = <T extends Listing>(
+export const resolveListingDefaults = <T extends ResolvableListing>(
   listing: T,
   defaults: ListingDefaults,
   hasLogistics: boolean,
@@ -148,6 +161,7 @@ export const resolveListingDefaults = <T extends Listing>(
   const ctx: ResolveContext = { hasLogistics };
   const overlay: Partial<Record<keyof Listing, unknown>> = {};
   for (const { key, field, appliesTo } of setListingDefaultFields(defaults)) {
+    if (!(field in listing)) continue;
     if (!appliesTo || appliesTo(listing, ctx)) overlay[field] = defaults[key];
   }
   return { ...listing, ...overlay };

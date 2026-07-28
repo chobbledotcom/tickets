@@ -1,21 +1,13 @@
 /**
- * Declarative reads for full listing records.
+ * Declarative reads for full listing records: a caller says WHICH listings it
+ * wants — {@link ListingWhere} — and this builds the SQL. Each present filter
+ * adds one clause carrying its own bound args, so the two can never drift.
  *
- * Every full-record listing read used to go through one raw-SQL door:
- * `queryListingsWithCounts(whereClause, args)` took a hand-written `WHERE …`
- * string and a matching arg list, so each caller wrote its own SQL fragment and
- * had to keep the clause order and the arg order in step by eye. Several callers
- * pasted the base SELECT together with their own tail.
- *
- * This module lets a caller say WHICH listings it wants — {@link ListingWhere} —
- * and in what order, and builds the SQL once. Each present filter field adds one
- * clause that carries its own bound args, so the two can never drift apart.
- *
- * The projections stay whole here on purpose: every caller of these reads builds
- * a `ListingWithCount`, which needs the money, day-price and image values. A
- * read that does NOT need them should not ask for a listing record at all — it
- * should select its own narrow column list with `defineTableProjection`, the way
- * `catalog.ts` and the group-membership picker in `groups.ts` do.
+ * The projections stay whole on purpose: every caller here builds a
+ * `ListingWithCount`, which needs the money, day-price and image values. A read
+ * that does not need them should select its own narrow column list with
+ * `defineTableProjection` instead, as `catalog.ts` and the group-membership
+ * picker in `groups.ts` do.
  */
 
 /* jscpd:ignore-start */

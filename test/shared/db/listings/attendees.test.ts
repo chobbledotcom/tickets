@@ -67,12 +67,8 @@ describeWithEnv(
       expect(result).toBeNull();
     });
 
-    // Regression: these loaders SELECT the listing row directly (not via
-    // LISTING_COUNT_SELECT), and income is now projected from the ledger rather
-    // than read off a `listings.income` column. Dropping that column without
-    // adding the projection to these queries left `income` undefined, so
-    // decryptListingWithCount's Number(undefined) produced NaN. Both must report
-    // the real ledger income.
+    // Income is projected from the ledger, not stored, so a loader that skips
+    // the projection reports NaN rather than a number.
     test("getListingWithAttendeesRaw projects ledger income (never NaN)", async () => {
       const listing = await createTestListing({
         maxAttendees: 50,
