@@ -92,12 +92,13 @@ export const getNoteRowsForListing = (
     }),
   );
 
-/** All of one record's notes, opened up, oldest first. */
+/** All of one record's notes, opened up, oldest first. One record is a list of
+ *  one, so it is asked for the same way several are. */
 export const getNotesFor = async (
   target: NoteTarget,
   privateKey: CryptoKey,
 ): Promise<SystemNote[]> =>
-  openNotes(await noteRowsWhere(targetWhere(target)), privateKey);
+  openNotes(await getNoteRows(target.entity, [target.id]), privateKey);
 
 /** A "load the notes for <selector>" reader: takes the selector value and a way
  *  to get the owner private key, and answers with opened-up notes. */

@@ -1,10 +1,10 @@
 /**
  * What a note is about.
  *
- * A note used to belong to an attendee and nothing else. It now names the kind
- * of thing it is about and which one, so any record the operator can open can
- * carry notes. This module is pure: it says what a target is and how to ask for
- * one in SQL, and never touches the database itself.
+ * A note names the kind of record it is about and which one of that kind, so
+ * any record the operator can open can carry notes. This module is pure: it
+ * says what a target is and how to ask for one in SQL, and never touches the
+ * database itself.
  */
 
 import * as v from "valibot";
@@ -30,7 +30,7 @@ const notesAbout =
   (entity: NoteEntity) =>
   (id: number): NoteTarget => ({ entity, id });
 
-/** The record kind notes started with, and still the only one that has them. */
+/** Notes about one attendee. */
 export const attendeeNotes = notesAbout("attendee");
 
 /** Group notes by which record they are about — for a batch about one kind of
