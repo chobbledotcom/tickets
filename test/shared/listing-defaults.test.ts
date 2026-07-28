@@ -56,6 +56,18 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     ]);
   });
 
+  test("refuses to judge a rule on values the row did not select", () => {
+    // hidden's rule reads months_per_unit, so a row carrying one without the
+    // other cannot be resolved — that is a bug in the read, not a default-off.
+    expect(() =>
+      resolveListingDefaults(
+        { hidden: false, id: 1, use_defaults: true },
+        fullDefaults,
+        true,
+      ),
+    ).toThrow("months_per_unit");
+  });
+
   test("overlays every set default when use_defaults is on", () => {
     const listing = testListing({
       bookable_days: ["Sunday"],

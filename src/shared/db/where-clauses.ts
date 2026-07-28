@@ -46,17 +46,26 @@ export const inList = (
 
 /**
  * Keep rows whose `column` equals `value` — no clause at all when the caller
- * passed nothing to match on. Absence means "don't filter on this", so this
- * cannot express a match against SQL NULL; a read that needs one writes its own
- * `IS NULL` clause.
+ * passed nothing to match on.
+ *
+ * Only `undefined` means "don't filter on this". SQL NULL is a value, not an
+ * absence, and `column = NULL` is never true, so passing it would quietly widen
+ * a read to every row. The type rules it out and the guard catches a caller who
+ * gets there past the types; a read that wants NULL writes its own `IS NULL`.
  */
 export const equals = (
   column: string,
-  value: InValue | undefined,
-): WhereClause[] =>
-  value === undefined || value === null
+  value: Exclude<InValue, null> | undefined,
+): WhereClause[] => {
+  if (value === null) {
+    throw new Error(
+      `Cannot filter ${column} against NULL: pass undefined for "no filter", or write an IS NULL clause`,
+    );
+  }
+  return value === undefined
     ? []
     : [{ args: [value], clause: `${column} = ?` }];
+};
 
 /** Whether these clauses can never match a row, so the query is not worth
  * running. A filter asking for none of something — no ids, no keys — is the

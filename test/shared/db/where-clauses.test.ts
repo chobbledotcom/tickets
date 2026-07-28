@@ -51,7 +51,13 @@ describe("equals", () => {
 
   test("adds no clause when there is nothing to match on", () => {
     expect(equals("thing.id", undefined)).toEqual([]);
-    expect(equals("thing.id", null)).toEqual([]);
+  });
+
+  test("refuses to match against NULL rather than widening the read", () => {
+    // The type rules this out; the guard catches a caller who gets past it.
+    expect(() =>
+      equals("thing.deleted_at", null as unknown as undefined),
+    ).toThrow("Cannot filter thing.deleted_at against NULL");
   });
 
   test("matches falsy values rather than treating them as absent", () => {

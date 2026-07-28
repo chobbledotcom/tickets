@@ -185,7 +185,8 @@ const queryActivityLog = async (
   listingId: number | null,
   limit: number,
 ): Promise<ActivityLogEntry[]> => {
-  const parts = equals("listing_id", listingId);
+  // A null listing means "every listing", which is no filter at all.
+  const parts = equals("listing_id", listingId ?? undefined);
   // Order by id DESC, not created DESC: id is AUTOINCREMENT so it is
   // co-monotonic with created (newest row = highest id) but, being the rowid,
   // it is served straight from the primary key / idx_activity_log_listing_id

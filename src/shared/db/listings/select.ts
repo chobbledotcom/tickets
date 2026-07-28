@@ -85,10 +85,12 @@ export type ListingWhere = {
 };
 
 /** How the rows come back. A named order so callers can't hand-roll a stray
- * `ORDER BY`. */
+ * `ORDER BY`. Exported because a narrow listing read — one that selects its own
+ * columns rather than the whole record — still wants to come back in the same
+ * order as the full reads. */
 export type ListingOrder = "created_desc";
 
-const ORDER_SQL: Record<ListingOrder, string> = {
+export const LISTING_ORDER_SQL: Record<ListingOrder, string> = {
   created_desc: "listing.created DESC, listing.id DESC",
 };
 
@@ -108,16 +110,12 @@ export type GetListingsQuery = {
   order?: ListingOrder;
 };
 
-/**
- * A `queryBatch` statement (SQL + bound args) for a listing read: the single
- * place a declared query becomes runnable SQL. {@link getListingRows} runs it;
- * the activity-log reader embeds it in a batch, and the read-your-own-write
- * reader runs it against the primary.
- */
-export const listingStatement = (
+/** Assemble the SQL from an already-built clause list, so a caller that has to
+ * inspect the clauses first does not build them twice. */
+const statementFor = (
   query: GetListingsQuery,
+  parts: WhereClause[],
 ): { sql: string; args: InValue[] } => {
-  const parts = whereClauses(query.where);
   const byGroup = query.where.inGroups !== undefined;
   const columns = byGroup
     ? `json_group_array(groupListing.group_id) AS group_ids, ${listingColumns()}`
@@ -132,11 +130,22 @@ export const listingStatement = (
   return {
     args: clauseArgs(parts),
     sql: `SELECT ${columns} ${from}${whereSql(parts)}${groupBy}${orderSql(
-      ORDER_SQL,
+      LISTING_ORDER_SQL,
       query.order,
     )}`,
   };
 };
+
+/**
+ * A `queryBatch` statement (SQL + bound args) for a listing read: the single
+ * place a declared query becomes runnable SQL. {@link getListingRows} runs it;
+ * the activity-log reader embeds it in a batch, and the read-your-own-write
+ * reader runs it against the primary.
+ */
+export const listingStatement = (
+  query: GetListingsQuery,
+): { sql: string; args: InValue[] } =>
+  statementFor(query, whereClauses(query.where));
 
 /** The raw shape a listing read returns: the stored columns plus the projected
  * values, before decryption and before any inherited defaults are overlaid. */
@@ -150,8 +159,9 @@ export type ListingProjectionRow = Omit<ListingWithCount, "profit">;
 export const getListingRows = (
   query: GetListingsQuery,
 ): Promise<ListingProjectionRow[]> => {
+  const parts = whereClauses(query.where);
   // A filter that asks for nothing — no ids, no slugs — needs no query at all.
-  if (matchesNoRows(whereClauses(query.where))) return Promise.resolve([]);
-  const { sql, args } = listingStatement(query);
+  if (matchesNoRows(parts)) return Promise.resolve([]);
+  const { sql, args } = statementFor(query, parts);
   return queryAll<ListingProjectionRow>(sql, args);
 };
