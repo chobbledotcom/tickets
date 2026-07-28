@@ -11,6 +11,8 @@ import {
   ADMIN_API_ENDPOINTS,
   type EndpointDoc,
 } from "#shared/admin-api-example.ts";
+import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { isOwnerRole } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
@@ -73,6 +75,20 @@ describe("documented admin CRUD endpoints", () => {
         expect(createResponse[field]).toBe(value);
       }
     }
+  });
+
+  test("a created listing keeps the settings it is given by default", () => {
+    // The create body says nothing about these, so the answer must show what
+    // the stored defaults give it — not what the example record happens to
+    // hold. Both are read from the column definitions themselves.
+    const created = JSON.parse(
+      documented(ADMIN_API_ENDPOINTS, "POST", "/api/admin/listings").response,
+    ).listing;
+
+    expect(created.bookable_days).toEqual([...VALID_DAY_NAMES]);
+    expect(created.maximum_days_after).toBe(
+      listingCatalogFields.maximumDaysAfter[4],
+    );
   });
 
   test("an update answers with the record as it now reads", () => {

@@ -60,35 +60,44 @@ describe("documented package endpoints", () => {
   });
 
   test("the documented booking chooses add-ons the package really offers", () => {
-    // The endpoint checks each selection against the parent's real children,
+    // The endpoint checks every selection against the parent's real children,
     // and the fold wants each member's add-ons to add up to how many of that
-    // member the order books — so a booking that asks for the wrong number, or
-    // for something the package does not publish, would be refused.
+    // member the order books — so a selection under a member the package does
+    // not have, for something it does not publish, or in a number nobody could
+    // book, would all be refused.
     const pkg = documentedPackage();
     const booking = documentedBooking();
     const chosen = booking.children as Selection[];
+    const members = pkg.members as PackageMember[];
+    const offeredBy = new Map(
+      members.map((member) => [
+        member.slug,
+        new Map((member.children ?? []).map((child) => [child.slug, child])),
+      ]),
+    );
 
     expect(chosen.length).toBeGreaterThan(0);
-    for (const member of pkg.members as PackageMember[]) {
-      const offered = new Map(
-        (member.children ?? []).map((child) => [child.slug, child]),
-      );
-      const forMember = chosen.filter(({ parent }) => parent === member.slug);
-      if (offered.size === 0) {
-        expect(forMember).toEqual([]);
-        continue;
-      }
+    for (const { parent, quantity, slug } of chosen) {
+      const offered = offeredBy.get(parent);
+      if (!offered) throw new Error(`The package has no member ${parent}`);
+      const child = offered.get(slug);
+      if (!child) throw new Error(`The package has no ${slug} under ${parent}`);
 
-      for (const { quantity, slug } of forMember) {
-        const child = offered.get(slug);
-        if (!child) {
-          throw new Error(`The package has no ${slug} under ${member.slug}`);
-        }
-        expect(quantity).toBeLessThanOrEqual(child.maxPurchasable);
-      }
+      expect(Number.isSafeInteger(quantity)).toBe(true);
+      expect(quantity).toBeGreaterThan(0);
+      expect(quantity).toBeLessThanOrEqual(child.maxPurchasable);
+    }
 
-      const picked = forMember.reduce((sum, one) => sum + one.quantity, 0);
-      expect(picked).toBe(member.quantity * booking.quantity);
+    for (const member of members) {
+      const picked = chosen
+        .filter(({ parent }) => parent === member.slug)
+        .reduce((sum, one) => sum + one.quantity, 0);
+      // A member that publishes nothing to choose has nothing chosen for it.
+      const wanted = offeredBy.get(member.slug)?.size
+        ? member.quantity * booking.quantity
+        : 0;
+
+      expect(picked).toBe(wanted);
     }
   });
 

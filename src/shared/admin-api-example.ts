@@ -32,6 +32,7 @@ import {
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
 } from "#shared/api-example.ts";
+import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { AdminListing } from "#shared/types.ts";
 
@@ -143,6 +144,9 @@ export type EndpointDoc = {
   request?: string;
   response: string;
 };
+
+/** The booking window a listing gets when its create body says nothing. */
+const LISTING_DEFAULT_DAYS_AFTER = listingCatalogFields.maximumDaysAfter[4];
 
 const json = (data: unknown): string => JSON.stringify(data, null, 2);
 
@@ -348,11 +352,11 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       admin_level: "owner",
       listings: [ADMIN_API_EXAMPLE_ADMIN_LISTING],
     },
-    // What a listing gets when the create body does not say (see
-    // listingCatalogFields): bookable every day, and a wide booking window.
+    // What a listing gets when the create body does not say. Both come from
+    // the stored column defaults, so the documentation cannot drift from them.
     newRecordDefaults: {
       bookable_days: [...VALID_DAY_NAMES],
-      maximum_days_after: 90,
+      maximum_days_after: LISTING_DEFAULT_DAYS_AFTER,
     },
     plural: "listings",
     singular: "listing",
