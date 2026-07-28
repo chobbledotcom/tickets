@@ -105,4 +105,6 @@ export const AdminListingSchema = v.strictObject({
   bookable_days: v.array(v.string()),
   closes_at: v.nullable(v.string()),
   day_prices: v.record(v.string(), v.number()),
+  /** The groups the listing is in, added to every admin response. */
+  group_ids: v.array(v.number()),
 });

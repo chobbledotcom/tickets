@@ -63,6 +63,10 @@ describe("admin API example", () => {
 
     expect(toAdminListing(API_EXAMPLE_LISTING)).toEqual(expected);
   });
+
+  test("the documented example says which groups the listing is in", () => {
+    expect(ADMIN_API_EXAMPLE_ADMIN_LISTING.group_ids).toEqual([]);
+  });
 });
 
 describe("endpoint docs", () => {
@@ -94,7 +98,7 @@ describe("endpoint docs", () => {
     ).not.toThrow();
   });
 
-  test("admin listing list response uses AdminListing shape", () => {
+  test("the admin listing list also shows the groups a listing is in", () => {
     const listEndpoint = ADMIN_API_ENDPOINTS.find(
       (e: EndpointDoc) =>
         e.method === "GET" && e.path === "/api/admin/listings",
