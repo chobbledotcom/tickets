@@ -124,24 +124,41 @@ describe("Cucumber evidence schema", () => {
     ).toBe(false);
     // A story says where it was authored, so anything quoting it can link to
     // the Feature without guessing the path.
+    const storyCapture = requireValue(
+      manifest.captures[0],
+      "Manifest capture is missing",
+    );
     for (const uri of [
       undefined,
       "payments/customer-payment.feature",
       "specs/x.md",
+      "specs/../secrets.feature",
     ]) {
       expect(
         v.safeParse(EvidenceManifestSchema, {
           ...manifest,
           captures: [
-            {
-              ...manifest.captures[0],
-              story: { ...manifest.captures[0].story, uri },
-            },
+            { ...storyCapture, story: { ...storyCapture.story, uri } },
           ],
         }).success,
         String(uri),
       ).toBe(false);
     }
+    // A valid filename is not required to be ASCII.
+    expect(
+      v.safeParse(EvidenceManifestSchema, {
+        ...manifest,
+        captures: [
+          {
+            ...storyCapture,
+            story: {
+              ...storyCapture.story,
+              uri: "specs/payments/capacité aux portes.feature",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(true);
 
     const capture = requireValue(
       manifest.captures[0],
