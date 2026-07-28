@@ -54,6 +54,13 @@ export const optionsOffered = (html: string, field: string): string[] => {
 const attribute = (tag: string, named: string): string | null =>
   tag.match(new RegExp(`${named}="([^"]*)"`))?.[1] ?? null;
 
+/** Whether a control carries a bare on/off attribute of its own, like
+ * `required` or `disabled`. Quoted values are dropped first and the name has to
+ * stand alone, so a box called `not_required`, an `aria-required="false"`, or a
+ * hint that happens to say "required" is not mistaken for the real thing. */
+const hasFlag = (tag: string, named: string): boolean =>
+  new RegExp(`\\s${named}(?=[\\s/>])`).test(tag.replace(/="[^"]*"/g, ""));
+
 /** Why a number box will not take this number, or null when it will. A box that
  * only accepts 1 to 3 cannot send 5, however happily a post carrying 5 is
  * accepted. */
@@ -154,11 +161,11 @@ const whyBoxCannotCarry = (
   field: string,
   chosen: string,
 ): string | null => {
-  if (box.includes("disabled")) return `the ${field} box is switched off`;
-  if (box.includes("readonly")) return `the ${field} box cannot be changed`;
+  if (hasFlag(box, "disabled")) return `the ${field} box is switched off`;
+  if (hasFlag(box, "readonly")) return `the ${field} box cannot be changed`;
   // A browser will not submit a form that leaves a required box empty, so
   // "send nothing here" is only a real answer when the box is optional.
-  if (chosen === "" && box.includes("required")) {
+  if (chosen === "" && hasFlag(box, "required")) {
     return `the ${field} box must be filled in`;
   }
   if (box.includes('type="hidden"') && !box.includes(`value="${chosen}"`)) {

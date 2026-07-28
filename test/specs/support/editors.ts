@@ -8,6 +8,7 @@
 
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { toMinorUnits } from "#shared/currency.ts";
 import {
   getAllListings,
   getListingWithCount,
@@ -20,7 +21,9 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** Where a listing forwards each booking, names and all. */
@@ -116,27 +119,24 @@ export const editorFollowsInvite = async (
 export const editorLogsIn = async (
   world: TicketsWorld,
   who: string,
-): Promise<TestBrowser> => {
+): Promise<void> => {
   const browser = new TestBrowser();
   await browser.visit("/admin/");
   const typed = { password: CHOSEN_PASSWORD, username: who };
   expectCanReallyType(browser, typed);
   await browser.submitForm(typed, t("login.submit"));
   world.editorBrowser = browser;
-  return browser;
 };
 
 /** Somebody who is already an editor and already logged in. */
 export const signedInEditor = async (
   world: TicketsWorld,
   who: string,
-): Promise<TestBrowser> => {
-  if (!world.editorBrowser) {
-    await ownerInvitesEditor(world, who);
-    await editorFollowsInvite(world);
-    await editorLogsIn(world, who);
-  }
-  return requiredWorldValue(world.editorBrowser, "the editor's browser");
+): Promise<void> => {
+  if (world.editorBrowser) return;
+  await ownerInvitesEditor(world, who);
+  await editorFollowsInvite(world);
+  await editorLogsIn(world, who);
 };
 
 /** The editor's own browser, once the story has signed them in. */
@@ -158,6 +158,42 @@ export const somethingForSale = async (
       webhookUrl: options.forwardingTo,
     }),
   );
+};
+
+/** What one sale of this thing brought in, in pounds and pence. A round figure
+ * nothing else on the page would show by accident. */
+export const TAKINGS = 37.5;
+
+/** Somebody has bought this thing and paid for it, so the site has a real
+ * figure to show — or to keep from an editor. */
+export const somethingSoldAndPaidFor = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<void> => {
+  await somethingForSale(world, name);
+  const listing = stayListing(world, name);
+  const buyer = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    "Buyer",
+    "buyer@example.com",
+  );
+  await postListingSale({
+    attendeeId: buyer.id,
+    gross: toMinorUnits(TAKINGS),
+    listingId: listing.id,
+  });
+};
+
+/** What the owner sees on the same list of things for sale. Reading it proves
+ * the figure is really there to leak before the story says the editor is not
+ * shown it. */
+export const ownersListingsPage = async (
+  world: TicketsWorld,
+): Promise<string> => {
+  const browser = await adminBrowser(world);
+  await browser.visit("/admin/listings");
+  return browser.pageText;
 };
 
 /** The editor starts a new listing, picks what kind it is from the kinds the

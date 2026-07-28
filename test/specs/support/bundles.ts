@@ -137,7 +137,13 @@ export const organiserSellsAsBundle = async (
     },
     "Save Changes",
   );
+  // A save that wrote the bundle and then fell over is not an organiser
+  // building one, and everything the story checks afterwards would still pass.
+  expect(browser.containsText(GROUP_SAVED)).toBe(true);
 };
+
+/** What the site tells an organiser when a group's own form saves. */
+export const GROUP_SAVED = "Group updated";
 
 const BUNDLE_BOX = "is_package";
 const PRIVATE_BOX = "hide_package_listings";

@@ -66,7 +66,7 @@ Feature: An owner gives someone the run of the listings, and nothing else
     @case:editors.the-listings-show-no-money
     Scenario: The list of things for sale shows an editor no takings
       Given Sam is signed in as an editor
-      And the site sells a Pottery
+      And somebody has bought and paid for a Pottery
       When Sam opens the listings
       Then Sam is shown no takings for Pottery
 

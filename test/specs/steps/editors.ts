@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import {
   editorAddsListing,
   editorBrowser,
@@ -15,11 +16,14 @@ import {
   OWNERS_ADDRESS,
   ownerInvitesEditor,
   ownerSetsForwardingTo,
+  ownersListingsPage,
   pagesOfferedTo,
   privatePagePath,
   SOMEWHERE_ELSE,
   signedInEditor,
   somethingForSale,
+  somethingSoldAndPaidFor,
+  TAKINGS,
 } from "#test/specs/support/editors.ts";
 import {
   requiredWorldValue,
@@ -57,9 +61,9 @@ Given(
 );
 
 Given(
-  "the site sells a {word}",
+  "somebody has bought and paid for a {word}",
   function (this: TicketsWorld, name: string): Promise<void> {
-    return somethingForSale(this, name);
+    return somethingSoldAndPaidFor(this, name);
   },
 );
 
@@ -168,10 +172,22 @@ Then(
 
 Then(
   "{word} is shown no takings for {word}",
-  function (this: TicketsWorld, _who: string, name: string): void {
+  async function (
+    this: TicketsWorld,
+    _who: string,
+    name: string,
+  ): Promise<void> {
+    const takings = formatCurrency(toMinorUnits(TAKINGS));
+    // The owner's own copy of this page carries the figure, so the editor's
+    // copy not carrying it means something. Without this, the check would pass
+    // just as happily against a sale that never happened.
+    expect(await ownersListingsPage(this)).toContain(takings);
+
     const shown = editorBrowser(this).pageText;
     expect(shown).toContain(name);
-    for (const money of ["Revenue", "Profit"]) {
+    // Not the column headings, and not the figure itself — a takings column
+    // renamed or left unlabelled would still be money on their screen.
+    for (const money of ["Revenue", "Profit", takings]) {
       expect(shown).not.toContain(money);
     }
   },

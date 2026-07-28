@@ -159,6 +159,17 @@ describe("a box that cannot be changed or cannot hold the number", () => {
     expect(whyValueCannotBeSent(lengthBox(""), "duration_days", "")).toBeNull();
   });
 
+  test("does not read a word inside a value as an on/off attribute", () => {
+    // "required" and "disabled" appear here only inside quoted values, which
+    // say nothing about whether the box itself carries either.
+    const box =
+      '<input type="number" name="duration_days" aria-required="false" ' +
+      'placeholder="disabled if not required">';
+
+    expect(whyValueCannotBeSent(box, "duration_days", "")).toBeNull();
+    expect(whyValueCannotBeSent(box, "duration_days", "2")).toBeNull();
+  });
+
   test("refuses a number above what the box takes", () => {
     expect(
       whyValueCannotBeSent(lengthBox('min="1" max="3"'), "duration_days", "5"),

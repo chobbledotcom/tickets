@@ -10,6 +10,7 @@ import {
   buyersTicket,
   customerBuysBundle,
   expectPartOnSaleAlone,
+  GROUP_SAVED,
   isStillABundle,
   organiserDeletesBundle,
   organiserRevealsParts,
@@ -223,5 +224,5 @@ Then("the organiser is told it saved", function (this: TicketsWorld): void {
   // site refused, so the story reads what the organiser was actually told.
   expect(
     requiredWorldValue(this.bundleRefusal, "what the organiser was told"),
-  ).toContain("Group updated");
+  ).toContain(GROUP_SAVED);
 });
