@@ -48,15 +48,29 @@ Examples:
 /** Glob metacharacters; a path segment with none is a fixed directory name. */
 const GLOB_CHARS = /[*?{}[\]]/;
 
+/**
+ * What `dir` holds, or nothing when there is no such directory — a path that
+ * has since moved or gone is asked for and simply answers with nothing. Reading
+ * the entries is what reaches the disk, so a missing directory shows up here
+ * rather than where the reader was created.
+ */
+const dirEntriesOrNone = async (dir: string): Promise<Deno.DirEntry[]> => {
+  const entries: Deno.DirEntry[] = [];
+  try {
+    for await (const entry of Deno.readDir(dir)) entries.push(entry);
+  } catch (error) {
+    const gone =
+      error instanceof Deno.errors.NotFound ||
+      error instanceof Deno.errors.NotADirectory;
+    if (!gone) throw error;
+    return [];
+  }
+  return entries;
+};
+
 /** Every file under `dir`, recursively; a missing directory yields nothing. */
 async function* walkFiles(dir: string): AsyncGenerator<string> {
-  let entries: AsyncIterable<Deno.DirEntry>;
-  try {
-    entries = Deno.readDir(dir);
-  } catch {
-    return;
-  }
-  for await (const entry of entries) {
+  for (const entry of await dirEntriesOrNone(dir)) {
     const path = join(dir, entry.name);
     if (entry.isDirectory) yield* walkFiles(path);
     else if (entry.isFile) yield path;
