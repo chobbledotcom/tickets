@@ -22,17 +22,22 @@ describe("payment operator readings", () => {
     ).toBe(true);
   });
 
-  test("refuses a checked reading that returned more than it took", () => {
-    // The reviewed reading carries both figures just as the attached one does,
-    // so it needs the same rule about them.
-    expect(
-      v.safeParse(LegacyProviderAssignmentReadSchema, {
-        captured: { amount: 100, currency: "GBP" },
-        refunded: { amount: 101, currency: "GBP" },
-        status: "reviewed",
-      }).success,
-    ).toBe(false);
-  });
+  // The reviewed reading carries both figures just as the attached one does,
+  // so it needs the same rules about them.
+  for (const [name, money] of [
+    ["returned more than it took", { captured: 100, refunded: 101 }],
+    ["took no money at all", { captured: 0, refunded: 0 }],
+  ] as const) {
+    test(`refuses a checked reading that ${name}`, () => {
+      expect(
+        v.safeParse(LegacyProviderAssignmentReadSchema, {
+          captured: { amount: money.captured, currency: "GBP" },
+          refunded: { amount: money.refunded, currency: "GBP" },
+          status: "reviewed",
+        }).success,
+      ).toBe(false);
+    });
+  }
 
   for (const [name, broken] of [
     [
@@ -57,6 +62,9 @@ describe("payment operator readings", () => {
       "more money returned than was taken",
       { refunded: { amount: 101, currency: "GBP" } },
     ],
+    // A charge row must hold at least a penny, so a reading of nothing is
+    // evidence that could never be saved as the charge it describes.
+    ["no money taken at all", { captured: { amount: 0, currency: "GBP" } }],
   ] as const) {
     test(`refuses a reading with ${name}`, () => {
       expect(

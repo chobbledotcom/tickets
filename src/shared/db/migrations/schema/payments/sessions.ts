@@ -26,7 +26,7 @@ export const paymentSessionTable: [name: string, table: Table] = [
       ["session_resource", "TEXT"],
       [
         "session_reference_index",
-        "TEXT CHECK (session_reference_index IS NULL OR length(session_reference_index) > 0)",
+        "TEXT CHECK (session_reference_index IS NULL OR length(trim(session_reference_index)) > 0)",
       ],
       [
         "expected_amount",

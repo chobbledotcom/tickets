@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "3b04e5400b7e20a5a9ea9fb7928d8c950549041b4b7b5d176f2b8c87e8930420",
+    "d5c8025fb3e0b1bddbf93d27b940deda4dfaf34009997f02ef9d98009874afc3",
   );
 });
 
@@ -152,20 +152,26 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
     ).rejects.toThrow("CHECK constraint failed");
   });
 
-  test("refuses a session whose provider reference index is empty", async () => {
-    // The index is how a provider's checkout is found again. An empty one is
-    // stored and looks attached, but can never match the real derived index.
-    await expect(
-      getDb().execute(`INSERT INTO payment_sessions
+  // Spaces count as blank. A guard that only refuses "" still lets "   "
+  // through, and that is stored, looks attached, and can never match the real
+  // derived index.
+  for (const [name, blank] of [
+    ["empty", ""],
+    ["only spaces", "   "],
+  ] as const) {
+    test(`refuses a session whose provider reference index is ${name}`, async () => {
+      await expect(
+        getDb().execute(`INSERT INTO payment_sessions
         (id, origin, provider, mode, account_id, expected_amount,
          expected_currency, booking_intent, session_resource,
          session_reference_index, state, revision, created_at, updated_at,
          result_state, ticket_state, completion_state)
-        VALUES ('empty-index', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
-          'enc:1:a:b', 'enc:1:a:b', '', 'pending', 1, 1, 1,
+        VALUES ('blank-index', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
+          'enc:1:a:b', 'enc:1:a:b', '${blank}', 'pending', 1, 1, 1,
           'none', 'none', 'none')`),
-    ).rejects.toThrow("CHECK constraint failed");
-  });
+      ).rejects.toThrow("CHECK constraint failed");
+    });
+  }
 
   test("refuses case alert bookkeeping that is not a real time or revision", async () => {
     await expect(
@@ -178,18 +184,26 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
     ).rejects.toThrow("CHECK constraint failed");
   });
 
-  test("refuses a charge whose pending refund index is empty", async () => {
-    await expect(
-      getDb().execute(`INSERT INTO payment_charges
+  // The charge's own index is blank in the second case, so a paid charge that
+  // a provider callback could never find again is refused too.
+  for (const [name, chargeIndex, refundIndex] of [
+    ["pending refund index is empty", "refund-index-charge", ""],
+    ["pending refund index is only spaces", "refund-index-charge", "   "],
+    ["own reference index is only spaces", "   ", "enc-refund-index"],
+  ] as const) {
+    test(`refuses a charge whose ${name}`, async () => {
+      await expect(
+        getDb().execute(`INSERT INTO payment_charges
         (payment_id, provider, resource_kind, provider_reference,
          reference_index, captured_amount, currency, refunded_amount,
          refund_state, pending_refund_id, pending_refund_index,
          created_at, updated_at, observed_at)
-        VALUES ('empty-refund-index', 'stripe', 'stripe_payment_intent',
-          'enc:1:a:b', 'refund-index-charge', 100, 'GBP', 0, 'pending',
-          'enc:1:a:b', '', 1, 1, 1)`),
-    ).rejects.toThrow("CHECK constraint failed");
-  });
+        VALUES ('blank-refund-index', 'stripe', 'stripe_payment_intent',
+          'enc:1:a:b', '${chargeIndex}', 100, 'GBP', 0, 'pending',
+          'enc:1:a:b', '${refundIndex}', 1, 1, 1)`),
+      ).rejects.toThrow("CHECK constraint failed");
+    });
+  }
 
   test("refuses a sent alert on a case that was never alerted", async () => {
     // Saying an alert went out for a revision nothing was alerted at can stop

@@ -100,7 +100,9 @@ const positiveMoney = (message: string) =>
     v.check((money) => money.amount > 0, message),
   );
 
-const PositiveMoneySchema = positiveMoney("A paid charge must be positive");
+export const PositiveMoneySchema = positiveMoney(
+  "A paid charge must be positive",
+);
 
 /** A refund the provider has not finished has to be for some money. A refund of
  *  nothing would be answered before the money already returned is looked at, so

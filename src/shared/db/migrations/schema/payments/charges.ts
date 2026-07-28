@@ -30,7 +30,7 @@ export const paymentChargeTable: [name: string, table: Table] = [
       ],
       [
         "reference_index",
-        "TEXT CHECK (reference_index IS NULL OR length(reference_index) > 0)",
+        "TEXT CHECK (reference_index IS NULL OR length(trim(reference_index)) > 0)",
       ],
       [
         "captured_amount",
@@ -51,12 +51,12 @@ export const paymentChargeTable: [name: string, table: Table] = [
       ["pending_refund_id", "TEXT"],
       [
         "pending_refund_index",
-        "TEXT CHECK (pending_refund_index IS NULL OR length(pending_refund_index) > 0)",
+        "TEXT CHECK (pending_refund_index IS NULL OR length(trim(pending_refund_index)) > 0)",
       ],
       ["pending_refund_idempotency_key", "TEXT"],
       [
         "pending_refund_key_index",
-        "TEXT CHECK (pending_refund_key_index IS NULL OR length(pending_refund_key_index) > 0)",
+        "TEXT CHECK (pending_refund_key_index IS NULL OR length(trim(pending_refund_key_index)) > 0)",
       ],
       // A time, like every other time here, so it can be compared with them.
       // SQLite sorts numbers before text whatever they say, so one time kept

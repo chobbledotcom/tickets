@@ -2,6 +2,7 @@ import * as v from "valibot";
 import type { Money } from "#shared/payment-state/resources.ts";
 import {
   MoneySchema,
+  PositiveMoneySchema,
   ProviderChargeResourceSchema,
   ProviderSessionResourceSchema,
 } from "#shared/payment-state/resources.ts";
@@ -36,7 +37,7 @@ const withRefundRule = <
 const attachedReadSchema = withRefundRule(
   v.pipe(
     v.strictObject({
-      captured: MoneySchema,
+      captured: PositiveMoneySchema,
       charge: ProviderChargeResourceSchema,
       refunded: MoneySchema,
       session: ProviderSessionResourceSchema,
@@ -63,7 +64,7 @@ export const LegacyProviderAssignmentReadSchema = v.variant("status", [
   v.strictObject({ status: v.literal("missing") }),
   withRefundRule(
     v.strictObject({
-      captured: MoneySchema,
+      captured: PositiveMoneySchema,
       refunded: MoneySchema,
       status: v.literal("reviewed"),
     }),
