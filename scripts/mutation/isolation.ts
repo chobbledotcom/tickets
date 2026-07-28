@@ -26,7 +26,7 @@ import {
   removeWorkSnapshot,
   reportRemoveFailure,
 } from "./isolation-cleanup.ts";
-import { withMutationRunLock } from "./isolation-lock.ts";
+import { withCopyBackLock, withMutationRunLock } from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
 import {
   copyMutationSnapshot,
@@ -139,7 +139,9 @@ const finishChild = (
     const failedToKeep =
       interrupted || copyBack.length === 0
         ? 0
-        : await bringFilesBack(root, record.workRoot, copyBack);
+        : await withCopyBackLock(root, () =>
+            bringFilesBack(root, record.workRoot, copyBack),
+          );
     // A run that could not keep its files failed, whatever the child said.
     const exitCode = interrupted ? 130 : failedToKeep || code;
     const settled = settleRecord(record, interrupted, exitCode);

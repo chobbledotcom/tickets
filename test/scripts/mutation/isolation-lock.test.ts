@@ -4,10 +4,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
   runLockIsHeld,
+  withCopyBackLock,
   withMutationRunLock,
   withRunLockOrNull,
 } from "#scripts/mutation/isolation-lock.ts";
-import { MUTATION_RUN_LOCK_FILE } from "#scripts/mutation/isolation-state.ts";
+import {
+  copyBackLockPath,
+  MUTATION_RUN_LOCK_FILE,
+} from "#scripts/mutation/isolation-state.ts";
 import { withTempDir } from "#test/scripts/mutation/isolation-helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
 
@@ -201,6 +205,38 @@ describe("the lock that keeps two runs out of one folder", () => {
       });
 
       await expect(runLockIsHeld(record)).rejects.toThrow("Could not tell");
+    });
+  });
+});
+
+describe("the lock that keeps two runs out of one copy-back", () => {
+  test("keeps a second run out until the first has brought its files back", async () => {
+    await withTempDir(async (root) => {
+      const order: string[] = [];
+      const firstInside = Promise.withResolvers<void>();
+      const releaseFirst = Promise.withResolvers<void>();
+
+      const first = withCopyBackLock(root, async () => {
+        order.push("first in");
+        firstInside.resolve();
+        await releaseFirst.promise;
+        order.push("first out");
+      });
+      await firstInside.promise;
+
+      const second = withCopyBackLock(root, () => {
+        order.push("second in");
+        return Promise.resolve();
+      });
+      await pause(LONG_ENOUGH_TO_BE_LET_IN_MS);
+
+      expect(order).toEqual(["first in"]);
+
+      releaseFirst.resolve();
+      await Promise.all([first, second]);
+
+      expect(order).toEqual(["first in", "first out", "second in"]);
+      expect(await pathExists(copyBackLockPath(root))).toBe(true);
     });
   });
 });

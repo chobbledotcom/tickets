@@ -1738,3 +1738,26 @@ and then lets go of it before use can be gazumped. The install tests are the
 ones that noticed, because they are the ones that assert a failure. Worth
 looking at whether ports should be handed out so that no two tests in a run can
 ever receive the same one.
+
+## The gap between a mutation child ending and its supervisor taking the lock
+
+*Raised by Codex on [PR #1976](https://github.com/chobbledotcom/tickets/pull/1976),
+about `scripts/mutation/isolation.ts` and `scripts/mutation/isolation-cleanup.ts`.*
+
+A run's copy is protected by its lock, held by the child while it works and by
+the supervisor afterwards. Between the child ending and the supervisor taking
+the lock, nobody holds it. A mutation command starting in that moment sees a
+record that says "running" with a process that has gone, and — once the run is
+older than the startup grace — may delete the run's folder.
+
+Today that costs a run its copy-back: the read fails, the run is reported as
+failed, and the work has to be run again. It is loud, not silent, and it needs
+a second mutation command to start inside a window of a few milliseconds.
+
+The fix is to stop judging a run's liveness by the child alone. If the record
+also carried the supervisor's process id, a run would count as live for as long
+as the supervisor is up, closing the gap. That means changing what
+`runProcessIsUp` and `activeByRecord` in `isolation-cleanup.ts` consider alive,
+and thinking again about the startup grace, which exists because a process id
+can be given to somebody else after the original has gone. Start at
+`RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
