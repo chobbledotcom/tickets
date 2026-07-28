@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { sumOf } from "#fp";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
@@ -166,9 +167,18 @@ export const providerRefundResources = (
     ),
   );
 
+/** Money on its way back that the provider has not finished sending. A refund
+ *  it has finished is already counted in the returned total, so only the ones
+ *  still going are added on top. */
+const refundMoneyStillGoing = (charge: ChargeLeg): number =>
+  sumOf((refund: RefundObservation) => refund.amount.amount)(
+    charge.refunds.filter((refund) => refund.status === "pending"),
+  );
+
 export const refundMoneyMatchesCapture = (charge: ChargeLeg): boolean =>
   charge.confirmedRefunded.currency === charge.captured.currency &&
-  charge.confirmedRefunded.amount <= charge.captured.amount &&
+  charge.confirmedRefunded.amount + refundMoneyStillGoing(charge) <=
+    charge.captured.amount &&
   charge.refunds.every(
     (refund) =>
       refund.amount.currency === charge.captured.currency &&

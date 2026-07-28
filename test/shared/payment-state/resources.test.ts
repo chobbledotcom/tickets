@@ -259,6 +259,40 @@ describe("payment resources", () => {
     ).toEqual([refundResource]);
   });
 
+  test("counts a refund still going on top of the money already returned", () => {
+    // A refund the provider has not finished is money on its way out, on top
+    // of what has already gone back. Checked one at a time, £80 returned and
+    // £50 on its way both fit inside £100 — together they do not.
+    expect(
+      refundMoneyMatchesCapture(
+        chargeLeg({
+          confirmedRefunded: { amount: 80, currency: "GBP" },
+          refunds: [
+            refundObservation({
+              amount: { amount: 50, currency: "GBP" },
+              status: "pending",
+            }),
+          ],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  test("does not count a finished refund twice", () => {
+    // A refund the provider has finished is already inside the returned
+    // total, so it must not be added again.
+    expect(
+      refundMoneyMatchesCapture(
+        chargeLeg({
+          confirmedRefunded: { amount: 100, currency: "GBP" },
+          refunds: [
+            refundObservation({ amount: { amount: 100, currency: "GBP" } }),
+          ],
+        }),
+      ),
+    ).toBe(true);
+  });
+
   test("checks every refund amount and currency against its capture", () => {
     expect(refundMoneyMatchesCapture(chargeLeg())).toBe(true);
     expect(

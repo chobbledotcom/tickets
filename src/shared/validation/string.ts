@@ -15,7 +15,6 @@ export const NonEmptyStringSchema = v.pipe(
   v.brand("NonEmptyString"),
 );
 export const OptionalStringSchema = v.optional(v.string());
-export const UrlSchema = v.pipe(v.string(), v.url());
 
 export type NonEmptyString = v.InferOutput<typeof NonEmptyStringSchema>;
 type NonEmptyLiteral<T extends string> = T extends "" ? never : T;

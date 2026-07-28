@@ -31,8 +31,14 @@ describe("refund resolver", () => {
   });
 
   test("rejects more than one pending refund", () => {
-    const first = refundObservation({ status: "pending" });
+    // Amounts that fit inside the money taken, so this reaches the rule about
+    // two refunds at once rather than the one about the money not adding up.
+    const first = refundObservation({
+      amount: { amount: 10, currency: "GBP" },
+      status: "pending",
+    });
     const second = refundObservation({
+      amount: { amount: 10, currency: "GBP" },
       refund: { ...refundResource, id: "re_2" },
       status: "pending",
     });
