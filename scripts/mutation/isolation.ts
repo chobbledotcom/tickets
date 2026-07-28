@@ -125,24 +125,27 @@ const settleRecord = (
   interrupted ? markInterrupted(record) : markFinished(record, code);
 
 /** Record the child's result, then bring back what the run means to keep. */
-const finishChild = async (
+const finishChild = (
   record: MutationRunRecord,
   interrupted: boolean,
   code: number,
   root: string,
   copyBack: CopyBackFile[],
-): Promise<{ exitCode: number; record: MutationRunRecord }> => {
-  const settled = settleRecord(record, interrupted, code);
-  // Under the lock, so a clear-up elsewhere cannot take the folder while this
-  // last write lands in it.
-  await withMutationRunLock(settled.root, () => writeRunRecord(settled));
-  if (interrupted) return { exitCode: 130, record: settled };
-  const failedToKeep =
-    copyBack.length === 0
-      ? 0
-      : await bringFilesBack(root, settled.workRoot, copyBack);
-  return { exitCode: failedToKeep || code, record: settled };
-};
+): Promise<{ exitCode: number; record: MutationRunRecord }> =>
+  // All under the lock, so a clear-up elsewhere can neither take the copy
+  // before its kept files are read nor take the folder while the last record
+  // write lands in it.
+  withMutationRunLock(record.root, async () => {
+    const failedToKeep =
+      interrupted || copyBack.length === 0
+        ? 0
+        : await bringFilesBack(root, record.workRoot, copyBack);
+    // A run that could not keep its files failed, whatever the child said.
+    const exitCode = interrupted ? 130 : failedToKeep || code;
+    const settled = settleRecord(record, interrupted, exitCode);
+    await writeRunRecord(settled);
+    return { exitCode, record: settled };
+  });
 
 export const runInSnapshot = async (
   run: SnapshotRun,

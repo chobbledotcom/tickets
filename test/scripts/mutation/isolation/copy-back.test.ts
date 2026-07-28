@@ -7,6 +7,7 @@ import {
   withTempDir,
   writeFakeScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
+import { readOnlyRunRecord } from "./helpers.ts";
 
 const ENTRY = "keeper.ts";
 const KEPT = "scripts/kept.txt";
@@ -66,6 +67,10 @@ ${REWRITE_KEPT}`;
       expect(await Deno.readTextFile(join(root, KEPT))).toBe(
         "changed by hand\n",
       );
+      // The child exited cleanly, but the run did not do what it was for.
+      const record = await readOnlyRunRecord(root);
+      expect(record.status).toBe("failed");
+      expect(record.exitCode).toBe(1);
     });
   });
 
