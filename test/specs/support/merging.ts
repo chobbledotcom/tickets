@@ -23,12 +23,6 @@ import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
-/** GET the merge preview for `targetId` loaded with `sourceToken`, returning the
- *  `merge_version` the apply POST must echo back AND the name of the conflicting
- *  booking's decision field (`booking_<listingId>:<startAt>`) scraped from the
- *  rendered form, so the test answers the exact conflict the operator is shown
- *  rather than guessing the key. Uses the stable owner cookie — the preview
- *  decrypts the source's PII, needing the session's private key. */
 /** What the merge page shows before anything is merged: the page itself, the
  * version it was built from, and the booking field it offers a choice about. */
 interface MergePreview {
@@ -37,6 +31,12 @@ interface MergePreview {
   version: string;
 }
 
+/** GET the merge preview for `targetId` loaded with `sourceToken`, returning the
+ *  `merge_version` the apply POST must echo back AND the name of the conflicting
+ *  booking's decision field (`booking_<listingId>:<startAt>`) scraped from the
+ *  rendered form, so the test answers the exact conflict the operator is shown
+ *  rather than guessing the key. Uses the stable owner cookie — the preview
+ *  decrypts the source's PII, needing the session's private key. */
 const mergePreview = async (
   targetId: number,
   sourceToken: string,

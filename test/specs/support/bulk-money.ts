@@ -13,7 +13,7 @@ import {
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
 import {
-  type ActOnOneThing,
+  type ActOnSomeMoney,
   requiredWorldValue,
   type TicketsWorld,
   theListing,
@@ -89,7 +89,7 @@ export const payMoreListing = async (
 };
 
 /** The customer pays the amount they chose, through the real payment return. */
-export const payYourOwnPrice: ActOnOneThing = async (world, chosen) => {
+export const payYourOwnPrice: ActOnSomeMoney = async (world, chosen) => {
   const listingId = theListing(world);
   const paid = minorUnits(chosen);
   await runStripeSuccess({

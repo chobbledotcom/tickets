@@ -1,6 +1,6 @@
 {
   "threshold": 0,
-  "_comment": "0% duplication threshold for test/. Only test/specs/support is carved out, because .jscpd.specs.json scans it at a tighter 28 tokens alongside src/. Everything else under test/ - including test/specs/steps and test/test-utils - is scanned here, so no test tree is left outside every run.",
+  "_comment": "0% duplication threshold for test/. Only test/specs/support is carved out, because .jscpd.specs.json scans it at the tighter 19 tokens alongside src/. Everything else under test/ - including test/specs/steps and test/test-utils - is scanned here, so no test tree is left outside every run.",
   "reporters": [
     "console",
     "json"

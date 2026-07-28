@@ -16,6 +16,7 @@ import {
 } from "#shared/db/listings/records.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
+  type OpensAPage,
   openAdminPage,
   openAsNewcomer,
   opensPagesAs,
@@ -32,6 +33,7 @@ import {
 } from "#test/specs/support/listings.ts";
 
 import {
+  type ActOnOnePerson,
   type ActOnOneThing,
   type ChangeOneThing,
   requiredWorldValue,
@@ -86,7 +88,7 @@ export const pagesOfferedTo = async (
 /** The owner invites somebody to edit, and copies the link they are given.
  * The role is chosen from the roles the form itself offers, so a form that
  * stopped offering "editor" fails here. */
-export const ownerInvitesEditor: ActOnOneThing = async (world, who) => {
+export const ownerInvitesEditor: ActOnOnePerson = async (world, who) => {
   const browser = await openAdminPage(world, "/admin/user/new");
   // Both of the owner's choices have to be ones they could really make on the
   // page, or an invite could be crafted that no owner can send.
@@ -121,7 +123,7 @@ export const editorFollowsInvite = async (
 
 /** The editor logs in the ordinary way, and stays logged in for the rest of
  * the story. */
-export const editorLogsIn: ActOnOneThing = async (world, who) => {
+export const editorLogsIn: ActOnOnePerson = async (world, who) => {
   const browser = await openAsNewcomer("/admin/");
   await fillInAndSend(
     browser,
@@ -135,7 +137,7 @@ export const editorLogsIn: ActOnOneThing = async (world, who) => {
  * the same person is fine; saying it of a second person is not, because only
  * one editor is ever signed in and every later step would quietly be taken by
  * the first one. */
-export const signedInEditor: ActOnOneThing = async (world, who) => {
+export const signedInEditor: ActOnOnePerson = async (world, who) => {
   if (world.editorBrowser) {
     if (world.signedInEditorName !== who) {
       throw new Error(
@@ -155,7 +157,7 @@ export const editorBrowser = (world: TicketsWorld): TestBrowser =>
   requiredWorldValue(world.editorBrowser, "the editor's browser");
 
 /** The editor opens one of their own pages. */
-const openAsEditor = opensPagesAs(editorBrowser);
+const openAsEditor: OpensAPage = opensPagesAs(editorBrowser);
 
 /** Something the site already sells, kept under the name the story uses. */
 export const somethingForSale = async (
@@ -231,6 +233,24 @@ export const forwardingAddressOrNull = async (
 ): Promise<string | null> => {
   const found = await getListingWithCount(stayListing(world, name).id);
   return stillThere(found, name).webhook_url;
+};
+
+/** The editor renames something the site already sells, through the listing's
+ * own form. Changing a listing is their job, so this one goes through the box
+ * the page offers them rather than being crafted. */
+export const editorRenames: ChangeOneThing<string> = async (
+  world,
+  from,
+  to,
+) => {
+  await saveListingEdit(
+    editorBrowser(world),
+    stayListing(world, from).id,
+    (served) => {
+      expectCanReallySend(served, { name: to });
+      return { name: to };
+    },
+  );
 };
 
 /** The editor's save carries a forwarding address their form never offered.

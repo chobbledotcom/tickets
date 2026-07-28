@@ -17,12 +17,21 @@ import type {
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
-/** Something a story does to one of the things the site sells, found by the
- * name the story calls it. Most support helpers are one of these, so they share
- * this contract rather than writing the same signature out each time. */
+/** Something a story does, told which one to do it to. The three below differ
+ * only in what that second word means — the name of a thing for sale, a
+ * person, or an amount of money — and saying which keeps an exported helper
+ * from calling a person's name a listing's. */
 export type ActOnOneThing = (
   world: TicketsWorld,
   name: string,
+) => Promise<void>;
+export type ActOnOnePerson = (
+  world: TicketsWorld,
+  who: string,
+) => Promise<void>;
+export type ActOnSomeMoney = (
+  world: TicketsWorld,
+  amount: string,
 ) => Promise<void>;
 
 /** Something a story reads back about one of the things the site sells — a

@@ -38,6 +38,14 @@ Feature: An owner gives someone the run of the listings, and nothing else
       Then Pottery is one of the things the site sells
       And Sam is left on Pottery, with the site saying it saved
 
+    @case:editors.changing-a-listing
+    Scenario: The editor changes something the site already sells
+      Given Sam is signed in as an editor
+      And the site sells a Pottery
+      When Sam renames the Pottery to Ceramics
+      Then Ceramics is one of the things the site sells
+      And the site sells nothing called Pottery
+
   @rule:servicing.an-editor-is-never-shown-peoples-details-or-money
   Rule: An editor is never shown people's details or money
     Everything about who has booked, what has been earned, and how the site is

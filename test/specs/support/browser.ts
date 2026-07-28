@@ -33,12 +33,21 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
+/** Opening any page as one particular person, and being handed the browser
+ * they are looking at it through. */
+export type OpensAPage = (
+  world: TicketsWorld,
+  path: string,
+) => Promise<TestBrowser>;
+
 /** Opening a page as one particular person. Give it whose browser to use and
  * it hands back a way to open any page as them, so "the organiser opens X" and
  * "the editor opens X" are the same thing with a different person in it. */
 export const opensPagesAs =
-  (whoseBrowser: (world: TicketsWorld) => TestBrowser | Promise<TestBrowser>) =>
-  async (world: TicketsWorld, path: string): Promise<TestBrowser> => {
+  (
+    whoseBrowser: (world: TicketsWorld) => TestBrowser | Promise<TestBrowser>,
+  ): OpensAPage =>
+  async (world, path) => {
     const browser = await whoseBrowser(world);
     await browser.visit(path);
     return browser;
@@ -46,7 +55,7 @@ export const opensPagesAs =
 
 /** The organiser opens one of their own pages, signing in first if they are not
  * already. Every admin page a story reads starts here. */
-export const openAdminPage = opensPagesAs(adminBrowser);
+export const openAdminPage: OpensAPage = opensPagesAs(adminBrowser);
 
 export const submitRenderedAdminForm = async (
   world: TicketsWorld,

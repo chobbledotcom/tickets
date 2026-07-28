@@ -11,6 +11,7 @@ import {
   editorFollowsInvite,
   editorLogsIn,
   editorOpensListing,
+  editorRenames,
   forwardingAddressOrNull,
   listingSoldAsOrNull,
   OWNERS_ADDRESS,
@@ -78,6 +79,32 @@ When(
   "{word} adds a listing called {word}",
   function (this: TicketsWorld, _who: string, name: string): Promise<void> {
     return editorAddsListing(this, name);
+  },
+);
+
+Given(
+  "the site sells a {word}",
+  function (this: TicketsWorld, name: string): Promise<void> {
+    return somethingForSale(this, name);
+  },
+);
+
+When(
+  "{word} renames the {word} to {word}",
+  function (
+    this: TicketsWorld,
+    _who: string,
+    from: string,
+    to: string,
+  ): Promise<void> {
+    return editorRenames(this, from, to);
+  },
+);
+
+Then(
+  "the site sells nothing called {word}",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    expect(await listingSoldAsOrNull(name)).toBeNull();
   },
 );
 

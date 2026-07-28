@@ -9,7 +9,7 @@ import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
-  type ActOnOneThing,
+  type ActOnSomeMoney,
   type TicketsWorld,
   theBooking,
   theListing,
@@ -36,7 +36,7 @@ export const unpaidPlace = async (
 };
 
 /** Part of what they owe, paid now. */
-export const payDeposit: ActOnOneThing = async (world, amount) => {
+export const payDeposit: ActOnSomeMoney = async (world, amount) => {
   await postListingSale({
     amountPaid: minorUnits(amount),
     attendeeId: theBooking(world),
@@ -47,7 +47,7 @@ export const payDeposit: ActOnOneThing = async (world, amount) => {
 };
 
 /** The organiser settles what is left, the way the site settles it. */
-export const settleTheRest: ActOnOneThing = async (world, amount) => {
+export const settleTheRest: ActOnSomeMoney = async (world, amount) => {
   const result = await settleAttendeeBalance(
     theBooking(world),
     minorUnits(amount),
