@@ -985,3 +985,6 @@ src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is b
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.
 scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
+
+# Month lengths: the unused slot that makes the table 1-indexed.
+src/shared/dates.ts:39:24  0 → 1   # daysInMonth is only ever called with getUTCMonth() + 1 (its single caller, addMonthsIso), so the month is always 1-12 and this index-0 placeholder is never read
