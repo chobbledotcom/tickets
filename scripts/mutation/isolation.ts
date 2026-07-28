@@ -47,9 +47,25 @@ import {
   type SnapshotArgsFn,
   selectedRuns,
 } from "./isolation-state.ts";
+import {
+  type CopyBackFile,
+  copyBackFiles,
+  readCopyBackFiles,
+} from "./snapshot-copy-back.ts";
 
 /** Runs a mutation command from its argv and returns a process exit code. */
 type MutationCommandRunner = (args: string[], root?: string) => Promise<number>;
+
+/** What a run does inside its copy of the checkout. */
+export interface SnapshotRun {
+  args: string[];
+  /** Paths, relative to the checkout, to bring back when the run finishes. */
+  copyBack?: string[];
+  /** The script the child runs, relative to the checkout. */
+  entryScript: string;
+}
+
+const MUTATION_ENTRY_SCRIPT = "scripts/mutation.ts";
 
 const signalRun = async (
   record: MutationRunRecord,
@@ -78,12 +94,14 @@ const childEnv = (
     [MUTATION_WORK_ROOT_ENV]: snapshotRoot,
   });
 
-const childArgs: SnapshotArgsFn = (root, snapshotRoot, args) => [
-  "run",
-  "-A",
-  "scripts/mutation.ts",
-  ...rewriteMutationArgs(root, snapshotRoot, args),
-];
+const childArgs =
+  (entryScript: string): SnapshotArgsFn =>
+  (root, snapshotRoot, args) => [
+    "run",
+    "-A",
+    entryScript,
+    ...rewriteMutationArgs(root, snapshotRoot, args),
+  ];
 
 const forceStopChild = (child: Deno.ChildProcess | null): never => {
   if (child) stopProcessNow(child);
@@ -106,10 +124,52 @@ const settleRecord = (
 ): MutationRunRecord =>
   interrupted ? markInterrupted(record) : markFinished(record, code);
 
-export const runMutationInSnapshot: MutationCommandRunner = async (
-  args,
+/**
+ * Bring the run's kept files back out of its copy. A file someone else edited
+ * meanwhile fails the run rather than overwriting their work.
+ */
+const bringFilesBack = async (
+  root: string,
+  workRoot: string,
+  files: CopyBackFile[],
+): Promise<number> => {
+  try {
+    for (const file of await copyBackFiles(root, workRoot, files)) {
+      console.log(`Updated ${file}`);
+    }
+    return 0;
+  } catch (error) {
+    console.error(errorMessage(error));
+    return 1;
+  }
+};
+
+/** Record the child's result, then bring back what the run means to keep. */
+const finishChild = async (
+  record: MutationRunRecord,
+  interrupted: boolean,
+  code: number,
+  root: string,
+  copyBack: CopyBackFile[],
+): Promise<{ exitCode: number; record: MutationRunRecord }> => {
+  const settled = settleRecord(record, interrupted, code);
+  // Under the lock, so a clear-up elsewhere cannot take the folder while this
+  // last write lands in it.
+  await withMutationRunLock(settled.root, () => writeRunRecord(settled));
+  if (interrupted) return { exitCode: 130, record: settled };
+  const failedToKeep =
+    copyBack.length === 0
+      ? 0
+      : await bringFilesBack(root, settled.workRoot, copyBack);
+  return { exitCode: failedToKeep || code, record: settled };
+};
+
+export const runInSnapshot = async (
+  run: SnapshotRun,
   root = projectRoot,
-) => {
+): Promise<number> => {
+  const { args } = run;
+  const copyBack = await readCopyBackFiles(root, run.copyBack ?? []);
   await removeInactiveRuns(root);
   const id = createRunId();
   let record = newRunRecord(id, args, root);
@@ -140,7 +200,7 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
         return null;
       }
       const spawned = new Deno.Command(Deno.execPath(), {
-        args: childArgs(root, record.workRoot, args),
+        args: childArgs(run.entryScript)(root, record.workRoot, args),
         cwd: record.workRoot,
         env: childEnv(id, record.root, record.workRoot),
         ...INHERIT_STDIO,
@@ -154,11 +214,15 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
 
     if (child !== null) {
       const status = await child.status;
-      record = settleRecord(record, interrupted, status.code);
-      // Under the lock, so a clear-up elsewhere cannot take the folder while
-      // this last write lands in it.
-      await withMutationRunLock(record.root, () => writeRunRecord(record));
-      exitCode = interrupted ? 130 : status.code;
+      const finished = await finishChild(
+        record,
+        interrupted,
+        status.code,
+        root,
+        copyBack,
+      );
+      record = finished.record;
+      exitCode = finished.exitCode;
     }
   } catch (error) {
     if (child !== null) await stopProcess(child, 250);
@@ -175,6 +239,11 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
   await removeWorkSnapshot(record);
   return exitCode;
 };
+
+export const runMutationInSnapshot: MutationCommandRunner = (
+  args,
+  root = projectRoot,
+) => runInSnapshot({ args, entryScript: MUTATION_ENTRY_SCRIPT }, root);
 
 const listRuns = async (root = projectRoot): Promise<number> => {
   const records = await readRunRecords(root);

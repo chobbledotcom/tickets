@@ -975,7 +975,11 @@ counts that lint failure as killed before tests run. Use
 `deno task mutation:audit-equivalents` to check the whole equivalent list with
 lint and type-check only; pass `--write` to remove entries those static gates
 now kill. The audit never runs tests and refuses to rewrite stale or malformed
-entries.
+entries. Like `deno task mutation`, it works in a copy of the checkout under
+`.mutation-runs/`, so the live source files are never left mutated and a commit
+made while it runs cannot pick up a mutant. With `--write`, the pruned
+`equivalent-mutants.txt` is copied back when the run ends — unless that file was
+edited meanwhile, which fails the run instead of overwriting the edit.
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap
 **static gates**, ordered cheapest-first: a per-file Biome **lint** and then a
