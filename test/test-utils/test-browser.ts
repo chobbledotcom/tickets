@@ -224,10 +224,38 @@ const appendFormValue = (
   }
 };
 
-/** Find a form whose body contains the given button text, or throw.
- * Also returns the matching button's name/value attributes when present,
- * so the caller can include them in the submission (mirrors how a real
- * browser submits a `<button name="…" value="…">` only when clicked). */
+/** The button on this form a person would press, and what pressing it sends
+ * (routes that dispatch on `action` read the button's own name and value).
+ * "switched off" when the only buttons with that text cannot be pressed, and
+ * nothing when the form has no button with that text at all — plenty of forms
+ * are found by their body text instead. */
+const buttonToPress = (
+  body: string,
+  lower: string,
+):
+  | { buttonName?: string | undefined; buttonValue?: string }
+  | "switched off" => {
+  const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
+  let switchedOff = false;
+  for (const m of regexCollect(buttonRe, body, (x) => x)) {
+    if (!stripTags(m[2]!).toLowerCase().trim().includes(lower)) continue;
+    const attrs = m[1]!;
+    if (isDisabled(attrs)) {
+      switchedOff = true;
+      continue;
+    }
+    return {
+      buttonName: attrs.match(/name="([^"]+)"/)?.[1],
+      buttonValue: attrValue(attrs, "value") ?? "",
+    };
+  }
+  return switchedOff ? "switched off" : {};
+};
+
+/** Find a form whose body contains the given button text, or throw. Also
+ * returns the matching button's name/value attributes when present, so the
+ * caller can include them in the submission (mirrors how a real browser submits
+ * a `<button name="…" value="…">` only when clicked). */
 const findFormByButton = (
   forms: FormInfo[],
   buttonText: string,
@@ -238,26 +266,23 @@ const findFormByButton = (
   buttonValue?: string | undefined;
 } => {
   const lower = buttonText.toLowerCase();
+  let switchedOff = false;
   for (const f of forms) {
     if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
-    // Try to find the specific button with this text and extract its
-    // name/value attributes (used by routes that dispatch on `action`).
-    const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
-    for (const m of regexCollect(buttonRe, f.body, (x) => x)) {
-      const btnText = stripTags(m[2]!).toLowerCase().trim();
-      if (btnText.includes(lower)) {
-        const attrs = m[1]!;
-        if (isDisabled(attrs)) continue;
-        const nameMatch = attrs.match(/name="([^"]+)"/);
-        return {
-          action: f.action,
-          body: f.body,
-          buttonName: nameMatch?.[1],
-          buttonValue: attrValue(attrs, "value") ?? "",
-        };
-      }
+    const pressed = buttonToPress(f.body, lower);
+    // A switched-off button here does not settle it: a later form may carry a
+    // usable button with the same words, and a real person could press that
+    // one. Only give up once every form has been looked at.
+    if (pressed === "switched off") {
+      switchedOff = true;
+      continue;
     }
-    return { action: f.action, body: f.body };
+    return { action: f.action, body: f.body, ...pressed };
+  }
+  // Nothing usable anywhere, and at least one button was switched off.
+  // Submitting anyway would let a test do something nobody could do.
+  if (switchedOff) {
+    throw new Error(`The "${buttonText}" button is switched off`);
   }
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(
@@ -387,6 +412,19 @@ export class TestBrowser {
    */
   async visit(path: string): Promise<void> {
     await this.request(path);
+  }
+
+  /**
+   * Ask for a page and return only what the site answered. Nothing is followed
+   * and no page state changes, so a caller can tell "you may not" apart from
+   * "there is no such page" without ending up somewhere else.
+   */
+  async statusOf(path: string): Promise<number> {
+    const response = await this.send(
+      this.buildRequest(toPath(path)),
+      `GET ${path}`,
+    );
+    return response.status;
   }
 
   /**

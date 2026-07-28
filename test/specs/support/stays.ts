@@ -5,17 +5,20 @@
  * listing offers move with the calendar.
  */
 
-import { expect } from "@std/expect";
+// jscpd:ignore-start
 import { addDays } from "#shared/dates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls.ts";
 import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+  organiserSavesListing,
+  rememberStayListing,
+  stayListing,
+} from "#test/specs/support/listings.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+// jscpd:ignore-end
 
 /** Somebody new each time, so two stays are never taken for one person. */
 export const guest = (order: number): { email: string; who: string } => ({
@@ -93,23 +96,6 @@ export const openStayListing = async (
   return rememberStayListing(world, name, listing);
 };
 
-/** Keep a listing under the name the story calls it, so later steps can find
- * it however it was set up. */
-export const rememberStayListing = (
-  world: TicketsWorld,
-  name: string,
-  listing: Listing,
-): Listing => {
-  world.listingIds.set(name, listing.id);
-  world.stayListings ??= new Map();
-  world.stayListings.set(name, listing);
-  return listing;
-};
-
-/** The listing a story set up under this name. */
-export const stayListing = (world: TicketsWorld, name: string): Listing =>
-  requiredWorldValue(world.stayListings?.get(name), `${name} stay listing`);
-
 /** Change how many days each new stay covers, through the listing's own edit
  * form — so a page that stops offering the field fails the story. The organiser
  * is told it saved, because a refused save redirects just the same. */
@@ -119,15 +105,13 @@ export const changeStayLength = async (
   days: number,
 ): Promise<string> => {
   const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
   const length = String(days);
-  // The organiser has to be able to send this length: a box that is missing,
-  // disabled, or fixed at another value would mean they cannot make the change
-  // at all, however happily the form post is accepted.
-  expect(
-    whyValueCannotBeSent(browser.currentHtml, "duration_days", length),
-  ).toBeNull();
-  await browser.submitForm({ duration_days: length }, "Save Changes");
-  expect(browser.containsText("Listing updated")).toBe(true);
+  await organiserSavesListing(world, name, (served) => {
+    // The organiser has to be able to send this length: a box that is missing,
+    // disabled, or fixed at another value would mean they cannot make the
+    // change at all, however happily the form post is accepted.
+    expectCanReallySend(served, { duration_days: length });
+    return { duration_days: length };
+  });
   return browser.pageText;
 };

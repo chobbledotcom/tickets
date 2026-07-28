@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import { PublicListingDetailSchema } from "#test-utils/api-schemas.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { jsonRequest } from "#test-utils/mocks.ts";
@@ -64,7 +64,10 @@ export const fetchListingBySlug = async (
 export const fetchPublicListing = async (slug: string) => {
   const { response, body } = await fetchListingBySlug(slug);
   expect(response.status).toBe(200);
-  return { apiListing: v.parse(PublicListingSchema, body.listing), response };
+  return {
+    apiListing: v.parse(PublicListingDetailSchema, body.listing),
+    response,
+  };
 };
 
 /** Book an listing by slug with given body fields */
