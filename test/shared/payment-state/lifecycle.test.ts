@@ -138,6 +138,92 @@ describe("payment lifecycle", () => {
     ).toBe(false);
   });
 
+  const chargeSnapshot = (charges: unknown[]) => ({
+    accountId: "acct_1",
+    charges,
+    kind: "charges",
+    mode: "test",
+    paymentId: "pay_1",
+    provider: "stripe",
+  });
+
+  const reviewedCharge = {
+    captured: { amount: 100, currency: "GBP" },
+    chargeId: 1,
+    providerReference: {
+      id: "pi_1",
+      kind: "stripe_payment_intent",
+      parentId: "cs_1",
+      provider: "stripe",
+    },
+    refunded: { amount: 0, currency: "GBP" },
+  };
+
+  test("refuses reviewed money returned beyond what was taken", () => {
+    expect(
+      v.safeParse(
+        PaymentChargeDecisionSnapshotSchema,
+        chargeSnapshot([
+          { ...reviewedCharge, refunded: { amount: 101, currency: "GBP" } },
+        ]),
+      ).success,
+    ).toBe(false);
+  });
+
+  test("refuses reviewed money returned in another currency", () => {
+    expect(
+      v.safeParse(
+        PaymentChargeDecisionSnapshotSchema,
+        chargeSnapshot([
+          { ...reviewedCharge, refunded: { amount: 0, currency: "USD" } },
+        ]),
+      ).success,
+    ).toBe(false);
+  });
+
+  test("refuses the same money listed twice in a review", () => {
+    // Listed twice, it would be offered to the worker twice.
+    expect(
+      v.safeParse(
+        PaymentChargeDecisionSnapshotSchema,
+        chargeSnapshot([reviewedCharge, reviewedCharge]),
+      ).success,
+    ).toBe(false);
+  });
+
+  test("refuses giving a payment one provider while showing another's money", () => {
+    // The owner is saying which provider took this old payment, so being shown
+    // a different provider's checkout would attach the wrong money.
+    expect(
+      v.safeParse(PaymentOperatorDecisionSchema, {
+        accountId: "acct_1",
+        actorId: 1,
+        caseRevision: 1,
+        decidedAt: 1,
+        kind: "assign_provider",
+        mode: "test",
+        provider: "square",
+        read: {
+          captured: { amount: 100, currency: "GBP" },
+          charge: {
+            id: "pi_1",
+            kind: "stripe_payment_intent",
+            parentId: "cs_1",
+            provider: "stripe",
+          },
+          refunded: { amount: 0, currency: "GBP" },
+          session: {
+            id: "cs_1",
+            kind: "stripe_checkout_session",
+            provider: "stripe",
+          },
+          status: "attached",
+        },
+        reason: "It was Stripe",
+      }).success,
+    ).toBe(false);
+  });
+
   test("requires a reason, actor, and current case revision for decisions", () => {
     const base = {
       actorId: 1,

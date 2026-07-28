@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { unique } from "#fp";
 import {
   PaymentModeSchema,
   PaymentObservationSchema,
@@ -159,11 +160,25 @@ export type PaymentOperatorSelection = v.InferOutput<
   typeof PaymentOperatorSelectionSchema
 >;
 
-const reviewedChargeSchema = v.strictObject({
-  ...reviewedMoneyFields,
-  providerReference: ProviderChargeResourceSchema,
-  refunded: MoneySchema,
-});
+/** Nothing in the list turns up more than once. */
+const listsEachOnce = (values: (string | number)[]): boolean =>
+  unique(values).length === values.length;
+
+const reviewedChargeSchema = v.pipe(
+  v.strictObject({
+    ...reviewedMoneyFields,
+    providerReference: ProviderChargeResourceSchema,
+    refunded: MoneySchema,
+  }),
+  v.check(
+    (charge) => charge.refunded.currency === charge.captured.currency,
+    "Money returned must be in the same currency as the money taken",
+  ),
+  v.check(
+    (charge) => charge.refunded.amount <= charge.captured.amount,
+    "Money returned cannot be more than the money taken",
+  ),
+);
 
 const reviewedLegacyChargeSchema = v.strictObject({
   chargeId: integerAtLeast(1),
@@ -187,6 +202,15 @@ export const PaymentChargeDecisionSnapshotSchema = v.pipe(
         (charge) => charge.providerReference.provider === snapshot.provider,
       ),
     "Reviewed money must come from the provider the decision names",
+  ),
+  // The same money listed twice would be offered to the worker twice, and a
+  // reading that showed it that way is treated as a problem elsewhere. A
+  // charge is the same money if either its own id or the provider's repeats.
+  v.check(
+    (snapshot) =>
+      listsEachOnce(snapshot.charges.map((c) => c.chargeId)) &&
+      listsEachOnce(snapshot.charges.map((c) => c.providerReference.id)),
+    "Reviewed money must not list the same charge twice",
   ),
 );
 export type PaymentChargeDecisionSnapshot = v.InferOutput<
@@ -238,12 +262,23 @@ export const PaymentOperatorDecisionSchema = v.variant("kind", [
     kind: v.literal("confirm_fully_refunded"),
   }),
   v.strictObject({ ...decisionBase, kind: v.literal("keep_legacy_payment") }),
-  v.strictObject({
-    ...decisionBase,
-    ...paymentAccountFields,
-    kind: v.literal("assign_provider"),
-    read: v.nullable(LegacyProviderAssignmentReadSchema),
-  }),
+  v.pipe(
+    v.strictObject({
+      ...decisionBase,
+      ...paymentAccountFields,
+      kind: v.literal("assign_provider"),
+      read: v.nullable(LegacyProviderAssignmentReadSchema),
+    }),
+    // The owner is saying which provider took this old payment, so the money
+    // shown to them has to be that provider's money.
+    v.check(
+      (decision) =>
+        decision.read === null ||
+        decision.read.status !== "attached" ||
+        decision.read.session.provider === decision.provider,
+      "The money shown must come from the provider being given to the payment",
+    ),
+  ),
 ]);
 export type PaymentOperatorDecision = v.InferOutput<
   typeof PaymentOperatorDecisionSchema

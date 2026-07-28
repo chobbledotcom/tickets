@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "9c828e36fbcb548d15f8670e55685e6800e9e990707fd0ad19404ec98db2092d",
+    "d16442b443b59e90e591b61920d0f542310055505abc8c991c6fbb08e7ce2f3f",
   );
 });
 
@@ -311,6 +311,19 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
         (case_id, case_revision, claim, decision, state, attempt_count,
          created_at)
         VALUES (96, 1, 'enc:1:a:b', 'enc:1:a:b', 'completed', 0, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a case booked to retry before its newest reading", async () => {
+    // Booking the next look before the last one makes it due at once, which
+    // turns waiting between tries into asking the provider on a loop.
+    await expect(
+      getDb().execute(`INSERT INTO payment_cases
+        (payment_id, resource, resource_index, reason, state,
+         first_observed_at, last_observed_at, next_reconcile_at,
+         consecutive_count, evidence, revision)
+        VALUES ('retry-too-soon', 'enc:1:a:b', 'retry-soon-index',
+          'network_error', 'retrying', 1, 100, 1, 1, 'enc:1:a:b', 1)`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 
