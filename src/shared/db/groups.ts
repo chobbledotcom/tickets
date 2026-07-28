@@ -12,6 +12,7 @@ import {
   mapParallel,
   requiredMapValue,
 } from "#fp";
+import { t } from "#i18n";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type GroupInput,
@@ -293,15 +294,19 @@ export const groupListingTypeError = (
   const siblings = allSiblings.filter((e) => e.id !== excludeListingId);
   const typeMismatch = siblings.find((e) => e.listing_type !== listingType);
   if (typeMismatch) {
-    return `This group already contains ${typeMismatch.listing_type} listings — all listings in a group must be the same type`;
+    return t("error.group_listing_type_mismatch", {
+      type: typeMismatch.listing_type,
+    });
   }
   const customisableMismatch = siblings.find(
     (e) => e.customisable_days !== customisableDays,
   );
   if (customisableMismatch) {
-    return customisableMismatch.customisable_days
-      ? "This group already contains listings with customisable days — all listings in a group must match"
-      : "This group already contains listings without customisable days — all listings in a group must match";
+    return t(
+      customisableMismatch.customisable_days
+        ? "error.group_customisable_days_expected"
+        : "error.group_customisable_days_unexpected",
+    );
   }
   return null;
 };

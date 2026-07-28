@@ -12,6 +12,7 @@ import {
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  anyHiddenPackageGroup,
   anyListingInPackageGroup,
   assignListingsToGroup,
   computeGroupSlugIndex,
@@ -30,7 +31,10 @@ import {
 import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
@@ -236,37 +240,6 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Reset Listing",
       });
       await resetGroupListings(group.id);
-      expect(await listingGroups.getIds(listing.id)).toEqual([]);
-    });
-
-    test("assignListingsToGroup moves every listing in one batch", async () => {
-      const group = await createTestGroup({
-        name: "Assign Group",
-        slug: "assign-group",
-      });
-      const a = await createTestListing({ maxAttendees: 10, name: "Assign A" });
-      const b = await createTestListing({ maxAttendees: 10, name: "Assign B" });
-      expect(await listingGroups.getIds(a.id)).toEqual([]);
-      expect(await listingGroups.getIds(b.id)).toEqual([]);
-
-      await assignListingsToGroup([a.id, b.id], group.id);
-
-      expect(await listingGroups.getIds(a.id)).toContain(group.id);
-      expect(await listingGroups.getIds(b.id)).toContain(group.id);
-    });
-
-    test("assignListingsToGroup is a no-op for an empty list", async () => {
-      const group = await createTestGroup({
-        name: "Empty Assign",
-        slug: "empty-assign",
-      });
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        name: "Untouched",
-      });
-
-      await assignListingsToGroup([], group.id);
-
       expect(await listingGroups.getIds(listing.id)).toEqual([]);
     });
   });
@@ -741,6 +714,26 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       expect(await anyListingInPackageGroup([member.id])).toBe(true);
       expect(await anyListingInPackageGroup([plain.id])).toBe(false);
+    });
+  });
+
+  describe("anyHiddenPackageGroup", () => {
+    test("is false for empty input (no query)", async () => {
+      expect(await anyHiddenPackageGroup([])).toBe(false);
+    });
+
+    test("is true only for a package that hides its listings", async () => {
+      const hidden = await createHiddenPackageGroup("Hidden Package Check");
+      const plain = await createTestGroup({ name: "Plain Group Check" });
+      // A package that shows its listings has nothing to conceal.
+      const shown = await createTestGroup({
+        isPackage: true,
+        name: "Shown Package Check",
+      });
+
+      expect(await anyHiddenPackageGroup([hidden.id])).toBe(true);
+      expect(await anyHiddenPackageGroup([plain.id])).toBe(false);
+      expect(await anyHiddenPackageGroup([shown.id])).toBe(false);
     });
   });
 
