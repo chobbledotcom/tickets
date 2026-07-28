@@ -2524,3 +2524,22 @@ Both look safe to delete, which would also remove the last uncovered lines in
 the file. They sit on the path that claims a payment for a decision, so the
 call belongs to whoever owns that code rather than to a coverage pass. If they
 are kept, they need recording as deliberately unreachable instead.
+
+**The same shape repeats when the decision is run.** Running a claimed
+decision (`runClaimedDecision` in `src/shared/payment-runtime/operator.ts`)
+switches on the choice the owner made, and several arms then re-check
+something the offer step already settled:
+
+- "Payment ... is not current" guards refunding and confirming a refund. Both
+  are only ever offered for a current payment — the choices for an old payment
+  are a different list entirely — and a payment only ever moves from old to
+  current, never back.
+- "Stored payment evidence no longer proves this booking" guards completing a
+  booking, which is only offered when that evidence already proves it, and a
+  decision whose facts change before it runs is sent back for review first.
+
+So most of the uncovered lines in `operator.ts` are the same re-checks, one
+step later. Worth deciding as a group rather than one at a time: either they
+go, or they are recorded as deliberately unreachable. Each needs its own read
+before removal — this note is where that reading starts, not a substitute for
+it.
