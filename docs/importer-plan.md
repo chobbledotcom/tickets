@@ -313,8 +313,9 @@ Attendee notes / legacy metadata storage:
 
 - The original plan added a per-attendee encrypted `notes` column as the single
   home for `Customer Notes`, `Operator Notes`, payment metadata, etc. The notes
-  rework has since **landed**: main added a per-attendee **`system_notes`** table
-  (`src/shared/db/system-notes.ts`) — owner-public-key-encrypted `owner` notes
+  rework has since **landed**: main added a **`system_notes`** table, whose rows
+  name the kind of record they are about and which one
+  (`src/shared/db/notes/queries.ts`) — owner-public-key-encrypted `owner` notes
   (`createOwnerNote`) plus DB-key `system` notes — alongside per-contact
   `/admin/history/:hmac` records. **Do not** add a competing per-attendee `notes`
   column; `system_notes` is the home.
