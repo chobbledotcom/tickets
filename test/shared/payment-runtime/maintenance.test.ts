@@ -3,6 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { getDb } from "#shared/db/client.ts";
+import { ADMIN_BULK_REFUND_REASON } from "#shared/db/payments/bulk-refunds.ts";
+import { getOpenPaymentCases } from "#shared/db/payments/cases.ts";
 import { getPaymentCaseDecisions } from "#shared/db/payments/decisions.ts";
 import type { DuePaymentSession } from "#shared/db/payments/due.ts";
 import { createPaymentSession } from "#shared/db/payments/sessions.ts";
@@ -212,6 +214,29 @@ describeWithEnv("payment reconciliation maintenance", { db: true }, () => {
         losingActions,
       ),
     ).rejects.toThrow("lost its payment aggregate");
+  });
+
+  test("puts a queued bulk refund in front of the owner when it needs them", async () => {
+    // The refund came back needing a decision, so it is written down as
+    // waiting for the owner rather than quietly left in the queue.
+    const { payment } = await createRefundablePayment();
+    const { actions } = fakeActions();
+
+    await processDuePaymentSession(
+      { ...duePayment("refunding"), bulkRefund: true, id: payment.id },
+      {
+        ...actions,
+        reconcile: () =>
+          Promise.resolve({
+            payment: { ...payment, state: "needs_action" as const },
+            status: "conflict" as const,
+          }),
+      },
+    );
+
+    expect(await getOpenPaymentCases()).toMatchObject([
+      { paymentId: payment.id, reason: ADMIN_BULK_REFUND_REASON },
+    ]);
   });
 
   test("resumes created checkout input through the create runtime", async () => {

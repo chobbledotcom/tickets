@@ -75,6 +75,20 @@ describeWithEnv("replaying what an old payment ended as", { db: true }, () => {
     ).toMatchObject({ ticketTokens: [] });
   });
 
+  test("hands back no tickets when what was kept unlocks to nothing", async () => {
+    // An empty run of tickets was still written down and locked away. It
+    // unlocks to nothing, which means the booking has no tickets.
+    const payment = dealtWith({
+      attendeeId: 42,
+      listingId: 7,
+      ticketTokens: await encrypt(""),
+    });
+
+    expect(await legacyPaymentResult(payment)).toMatchObject({
+      ticketTokens: [],
+    });
+  });
+
   test("falls back to the tickets held with the half-finished checkout", async () => {
     // The tickets were written against the checkout before the booking row
     // caught up, so that is where the replay has to read them from.
