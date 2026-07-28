@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { adminQuestionsPage } from "#templates/admin/questions.tsx";
+import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testAnswer, testQuestion } from "#test-utils/factories.ts";
-import { resetFeaturePageTest } from "../feature-page-test.ts";
 import { setupQuestionPageTest } from "./fixtures.ts";
 
 describe("adminQuestionsPage", () => {

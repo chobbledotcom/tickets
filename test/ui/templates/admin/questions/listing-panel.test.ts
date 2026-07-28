@@ -5,13 +5,13 @@ import {
   overviewStatsFromAttendees,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
+import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import {
   singleAnswerSizeQuestionData,
   testAnswer,
   testListingWithCount,
   testQuestion,
 } from "#test-utils/factories.ts";
-import { resetFeaturePageTest } from "../feature-page-test.ts";
 import { setupQuestionPageTest } from "./fixtures.ts";
 
 describe("adminListingQuestionsPage", () => {

@@ -1,9 +1,9 @@
+import { setupFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import {
   smallLargeAnswers,
   testListingWithCount,
   testQuestion,
 } from "#test-utils/factories.ts";
-import { setupFeaturePageTest } from "../feature-page-test.ts";
 
 export const TEST_LISTINGS = [
   testListingWithCount({ id: 1, name: "Spring Gig" }),

@@ -4,9 +4,9 @@ import {
   adminAnswerEditPage,
   adminAnswerRecalculatePage,
 } from "#templates/admin/questions.tsx";
+import { resetFeaturePageTest } from "#test/ui/templates/admin/feature-page-test.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testAnswer, testQuestion } from "#test-utils/factories.ts";
-import { resetFeaturePageTest } from "../feature-page-test.ts";
 import { setupQuestionPageTest, tShirtQuestion } from "./fixtures.ts";
 
 describe("adminAnswerEditPage", () => {
