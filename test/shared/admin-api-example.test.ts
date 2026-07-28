@@ -25,6 +25,20 @@ import {
   PublicListingSchema,
 } from "#test-utils/api-schemas.ts";
 
+/** The documented endpoint for a method and path, or a loud failure naming the
+ * one that has gone missing — the drift this file exists to catch. */
+const documented = (
+  endpoints: EndpointDoc[],
+  method: string,
+  path: string,
+): EndpointDoc => {
+  const found = endpoints.find(
+    (endpoint) => endpoint.method === method && endpoint.path === path,
+  );
+  if (!found) throw new Error(`No documented endpoint for ${method} ${path}`);
+  return found;
+};
+
 /** Every value inside a JSON body, each paired with where it sits. */
 const jsonLeaves = (value: unknown, where: string): [string, unknown][] => {
   if (Array.isArray(value)) {
@@ -40,10 +54,25 @@ const jsonLeaves = (value: unknown, where: string): [string, unknown][] => {
   return [[where, value]];
 };
 
-/** An empty string, or a count of none — neither is worth documenting. */
-const isBlank = (value: unknown): boolean =>
-  (typeof value === "string" && value.trim().length === 0) ||
-  (typeof value === "number" && value <= 0);
+/** Fields that say how many of something, where zero means nothing to book. A
+ * price is deliberately not one of these: a free item is a real thing to show. */
+const COUNT_FIELDS = [
+  "quantity",
+  "max_attendees",
+  "max_quantity",
+  "maxPurchasable",
+  "dayCount",
+  "days",
+  "id",
+];
+
+/** A value not worth documenting: blank text, a negative number, or a count of
+ * none. `field` is the name the value was found under. */
+const isBlank = (value: unknown, field = ""): boolean => {
+  if (typeof value === "string") return value.trim().length === 0;
+  if (typeof value !== "number") return false;
+  return value < 0 || (value === 0 && COUNT_FIELDS.includes(field));
+};
 
 describe("admin API example", () => {
   test("the documented example has every admin listing field", () => {
@@ -111,9 +140,11 @@ describe("endpoint docs", () => {
   });
 
   test("public listing list response uses PublicListing shape", () => {
-    const listEndpoint = PUBLIC_API_ENDPOINTS.find(
-      (e: EndpointDoc) => e.method === "GET" && e.path === "/api/listings",
-    )!;
+    const listEndpoint = documented(
+      PUBLIC_API_ENDPOINTS,
+      "GET",
+      "/api/listings",
+    );
     const parsed = JSON.parse(listEndpoint.response);
     // strictObject validates both the keys and the field types of the
     // documented example — a stronger check than the previous key-set compare.
@@ -123,19 +154,21 @@ describe("endpoint docs", () => {
   });
 
   test("the admin listing list also shows the groups a listing is in", () => {
-    const listEndpoint = ADMIN_API_ENDPOINTS.find(
-      (e: EndpointDoc) =>
-        e.method === "GET" && e.path === "/api/admin/listings",
-    )!;
+    const listEndpoint = documented(
+      ADMIN_API_ENDPOINTS,
+      "GET",
+      "/api/admin/listings",
+    );
     const parsed = JSON.parse(listEndpoint.response);
     expect(() => v.parse(AdminListingSchema, parsed.listings[0])).not.toThrow();
   });
 
   test("the documented package is one a caller could really buy", () => {
-    const endpoint = PUBLIC_API_ENDPOINTS.find(
-      (e: EndpointDoc) =>
-        e.method === "GET" && e.path === "/api/packages/:slug",
-    )!;
+    const endpoint = documented(
+      PUBLIC_API_ENDPOINTS,
+      "GET",
+      "/api/packages/:slug",
+    );
 
     expect(() =>
       v.parse(PackageResponseSchema, JSON.parse(endpoint.response).package),
@@ -143,10 +176,11 @@ describe("endpoint docs", () => {
   });
 
   test("the documented package booking is one the endpoint would accept", () => {
-    const endpoint = PUBLIC_API_ENDPOINTS.find(
-      (e: EndpointDoc) =>
-        e.method === "POST" && e.path === "/api/packages/:slug/book",
-    )!;
+    const endpoint = documented(
+      PUBLIC_API_ENDPOINTS,
+      "POST",
+      "/api/packages/:slug/book",
+    );
 
     expect(() =>
       v.parse(PackageBookRequestSchema, JSON.parse(endpoint.request!)),
@@ -173,10 +207,11 @@ describe("endpoint docs", () => {
   });
 
   test("the listing list says which admin level is reading it", () => {
-    const listEndpoint = ADMIN_API_ENDPOINTS.find(
-      (e: EndpointDoc) =>
-        e.method === "GET" && e.path === "/api/admin/listings",
-    )!;
+    const listEndpoint = documented(
+      ADMIN_API_ENDPOINTS,
+      "GET",
+      "/api/admin/listings",
+    );
 
     // The example is the owner's view, which sees every listing.
     expect(isOwnerRole(JSON.parse(listEndpoint.response).admin_level)).toBe(
@@ -192,16 +227,15 @@ describe("endpoint docs", () => {
     update: Record<string, unknown>;
   }[] =>
     ["listings", "groups", "holidays"].map((plural) => {
-      const forPath = (method: string, suffix: string) =>
-        ADMIN_API_ENDPOINTS.find(
-          (e: EndpointDoc) =>
-            e.method === method && e.path === `/api/admin/${plural}${suffix}`,
-        )!;
       const singular = plural.slice(0, -1);
+      const forPath = (method: string, suffix: string) =>
+        documented(
+          ADMIN_API_ENDPOINTS,
+          method,
+          `/api/admin/${plural}${suffix}`,
+        );
       return {
-        del: JSON.parse(
-          forPath("DELETE", "/:id".replace("id", `${singular}Id`)).request!,
-        ),
+        del: JSON.parse(forPath("DELETE", `/:${singular}Id`).request!),
         example: JSON.parse(forPath("GET", `/:${singular}Id`).response)[
           singular
         ],
@@ -220,7 +254,10 @@ describe("endpoint docs", () => {
   test("every documented example is a real, named, stored record", () => {
     for (const { example } of documentedResources()) {
       expect(isBlank(example.name)).toBe(false);
-      expect(isBlank(example.id)).toBe(false);
+      // An id addresses a stored row and goes straight into a URL, so a
+      // fractional one could never name the documented record.
+      expect(Number.isSafeInteger(example.id)).toBe(true);
+      expect(example.id).toBeGreaterThan(0);
     }
   });
 
@@ -245,10 +282,8 @@ describe("endpoint docs", () => {
 
   test("the documented holiday runs from its start to its end", () => {
     const holiday = JSON.parse(
-      ADMIN_API_ENDPOINTS.find(
-        (e: EndpointDoc) =>
-          e.method === "GET" && e.path === "/api/admin/holidays/:holidayId",
-      )!.response,
+      documented(ADMIN_API_ENDPOINTS, "GET", "/api/admin/holidays/:holidayId")
+        .response,
     ).holiday;
 
     expect(isIsoDate(holiday.start_date)).toBe(true);
@@ -259,13 +294,11 @@ describe("endpoint docs", () => {
 
   test("the documented group has room for more than nobody", () => {
     const group = JSON.parse(
-      ADMIN_API_ENDPOINTS.find(
-        (e: EndpointDoc) =>
-          e.method === "GET" && e.path === "/api/admin/groups/:groupId",
-      )!.response,
+      documented(ADMIN_API_ENDPOINTS, "GET", "/api/admin/groups/:groupId")
+        .response,
     ).group;
 
-    expect(isBlank(group.max_attendees)).toBe(false);
+    expect(isBlank(group.max_attendees, "max_attendees")).toBe(false);
     expect(isBlank(group.slug)).toBe(false);
   });
 
@@ -280,7 +313,7 @@ describe("endpoint docs", () => {
           `${endpoint.method} ${endpoint.path}`,
         ),
       )
-      .filter(([, value]) => isBlank(value))
+      .filter(([where, value]) => isBlank(value, where.split(".").pop() ?? ""))
       .map(([where]) => where);
 
     expect(blanks).toEqual([]);
@@ -293,6 +326,12 @@ describe("endpoint docs", () => {
         expect(body).toContain("\n  ");
       }
     }
+  });
+
+  test("a missing endpoint is named, not stumbled over", () => {
+    expect(() =>
+      documented(ADMIN_API_ENDPOINTS, "GET", "/api/nowhere"),
+    ).toThrow("No documented endpoint for GET /api/nowhere");
   });
 
   test("every endpoint has a description", () => {

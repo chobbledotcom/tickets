@@ -127,24 +127,35 @@ const PackageMemberSchema = v.strictObject({
   slug: Slug,
 });
 
-/**
- * A package bundle as `GET /api/packages/:slug` returns it. Every string a
- * caller reads or reuses must be filled in, and a bundle nobody can buy
- * (`maxPurchasable` of zero) is not something the documentation should show.
- */
-export const PackageResponseSchema = v.strictObject({
+const packageBundleEntries = {
   availableDates: v.optional(v.array(IsoDateSchema)),
-  dayCounts: v.optional(
-    v.array(v.strictObject({ days: AtLeastOne, priceMinor: v.number() })),
-  ),
   description: NonEmpty,
   fields: NonEmpty,
   maxPurchasable: AtLeastOne,
   members: v.optional(v.pipe(v.array(PackageMemberSchema), v.nonEmpty())),
   name: NonEmpty,
-  priceMinor: v.optional(AtLeastOne),
   slug: Slug,
-});
+};
+
+/**
+ * A package bundle as `GET /api/packages/:slug` returns it. Every string a
+ * caller reads or reuses must be filled in, and a bundle nobody can buy
+ * (`maxPurchasable` of zero) is not something the documentation should show.
+ *
+ * A bundle carries exactly one way of pricing it — one price, or a price per
+ * number of days — so a response showing both, or neither, would leave a
+ * caller unable to say what the bundle costs.
+ */
+export const PackageResponseSchema = v.union([
+  v.strictObject({ ...packageBundleEntries, priceMinor: AtLeastOne }),
+  v.strictObject({
+    ...packageBundleEntries,
+    dayCounts: v.pipe(
+      v.array(v.strictObject({ days: AtLeastOne, priceMinor: AtLeastOne })),
+      v.nonEmpty(),
+    ),
+  }),
+]);
 
 /**
  * A booking request as `POST /api/packages/:slug/book` accepts it. The email
