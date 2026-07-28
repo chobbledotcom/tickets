@@ -25,6 +25,26 @@ import {
   PublicListingSchema,
 } from "#test-utils/api-schemas.ts";
 
+/** Every value inside a JSON body, each paired with where it sits. */
+const jsonLeaves = (value: unknown, where: string): [string, unknown][] => {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry, index) =>
+      jsonLeaves(entry, `${where}[${index}]`),
+    );
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).flatMap(([key, entry]) =>
+      jsonLeaves(entry, `${where}.${key}`),
+    );
+  }
+  return [[where, value]];
+};
+
+/** An empty string, or a count of none — neither is worth documenting. */
+const isBlank = (value: unknown): boolean =>
+  (typeof value === "string" && value.length === 0) ||
+  (typeof value === "number" && value <= 0);
+
 describe("admin API example", () => {
   test("the documented example has every admin listing field", () => {
     expect(() =>
@@ -248,26 +268,16 @@ describe("endpoint docs", () => {
   test("no documented request asks for a blank or zero value", () => {
     // Every value in a request example is something a caller would copy, so an
     // empty name or a zero quantity would be a request the endpoint refuses.
-    const blanks: string[] = [];
-    const check = (value: unknown, where: string): void => {
-      if (typeof value === "string" && value.length === 0) blanks.push(where);
-      if (typeof value === "number" && value <= 0) blanks.push(where);
-      if (Array.isArray(value)) {
-        value.forEach((entry, index) => check(entry, `${where}[${index}]`));
-      } else if (value !== null && typeof value === "object") {
-        for (const [key, entry] of Object.entries(value)) {
-          check(entry, `${where}.${key}`);
-        }
-      }
-    };
-
-    for (const endpoint of allEndpoints) {
-      if (!endpoint.request) continue;
-      check(
-        JSON.parse(endpoint.request),
-        `${endpoint.method} ${endpoint.path}`,
-      );
-    }
+    const blanks = allEndpoints
+      .filter((endpoint: EndpointDoc) => endpoint.request !== undefined)
+      .flatMap((endpoint: EndpointDoc) =>
+        jsonLeaves(
+          JSON.parse(endpoint.request!),
+          `${endpoint.method} ${endpoint.path}`,
+        ),
+      )
+      .filter(([, value]) => isBlank(value))
+      .map(([where]) => where);
 
     expect(blanks).toEqual([]);
   });
