@@ -29,6 +29,12 @@ import {
   defineTableProjection,
   writeTableRow,
 } from "#shared/db/table.ts";
+import {
+  clauseArgs,
+  equals,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -84,12 +90,11 @@ const SITE_PAGE_COLUMNS =
 /** Load one full page (fully decrypted) — for the public/admin single-page
  * views. Null when absent. */
 const querySitePage = async (
-  where: string,
-  arg: number | string,
+  where: WhereClause[],
 ): Promise<SitePage | null> => {
   const row = await queryOne<SitePage>(
-    `SELECT ${SITE_PAGE_COLUMNS} FROM site_pages WHERE ${where} LIMIT 1`,
-    [arg],
+    `SELECT ${SITE_PAGE_COLUMNS} FROM site_pages${whereSql(where)} LIMIT 1`,
+    clauseArgs(where),
   );
   return row ? rawSitePagesTable.fromDb(row) : null;
 };
@@ -97,11 +102,11 @@ const querySitePage = async (
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
 export const getSitePageBySlugIndex = (
   slugIndex: string,
-): Promise<SitePage | null> => querySitePage("slug_index = ?", slugIndex);
+): Promise<SitePage | null> => querySitePage(equals("slug_index", slugIndex));
 
 /** One full page by id (the admin edit read). */
 export const getSitePageById = (id: number): Promise<SitePage | null> =>
-  querySitePage("id = ?", id);
+  querySitePage(equals("id", id));
 
 /** A create/update provides every editable column; the blind index is computed
  * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move

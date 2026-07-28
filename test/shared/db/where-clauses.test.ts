@@ -14,6 +14,7 @@ import {
   inList,
   matchesNoRows,
   orderSql,
+  rowsUnlessEmpty,
   whereSql,
 } from "#shared/db/where-clauses.ts";
 
@@ -83,6 +84,24 @@ describe("matchesNoRows", () => {
 
   test("is false with no clauses at all", () => {
     expect(matchesNoRows([])).toBe(false);
+  });
+});
+
+describe("rowsUnlessEmpty", () => {
+  test("runs the read when the clauses can match", async () => {
+    expect(
+      await rowsUnlessEmpty(inList("a.id", [1]), () => Promise.resolve([7])),
+    ).toEqual([7]);
+  });
+
+  test("answers without running the read when they cannot", async () => {
+    let ran = false;
+    const rows = await rowsUnlessEmpty(inList("a.id", []), () => {
+      ran = true;
+      return Promise.resolve([7]);
+    });
+    expect(rows).toEqual([]);
+    expect(ran).toBe(false);
   });
 });
 

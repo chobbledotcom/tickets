@@ -28,7 +28,7 @@ import {
 import { queryAndMap } from "#shared/db/query.ts";
 import {
   clauseArgs,
-  matchesNoRows,
+  rowsUnlessEmpty,
   type WhereClause,
   whereSql,
 } from "#shared/db/where-clauses.ts";
@@ -227,10 +227,6 @@ export interface TableProjection<Row, Columns extends ProjectionColumns<Row>> {
   readonly columns: Columns;
   columnsSql: (alias?: string) => string;
   queryAll: TableProjectionQuery<SelectedTableProjectionRow<Row, Columns>[]>;
-  queryOne: TableProjectionQuery<SelectedTableProjectionRow<
-    Row,
-    Columns
-  > | null>;
   read: (
     row: StoredTableProjectionRow<Row, Columns>,
     rowId?: unknown,
@@ -326,6 +322,15 @@ export const defineTableProjection = <
     };
   };
 
+  /** The stored rows a declared read selects, before the read transforms. */
+  const storedRowsFor = (
+    query: ProjectionSelect,
+  ): Promise<StoredTableProjectionRow<Row, Columns>[]> =>
+    rowsUnlessEmpty(query.where ?? [], () => {
+      const { sql, args } = statementFor(query);
+      return queryAll<StoredTableProjectionRow<Row, Columns>>(sql, args);
+    });
+
   return {
     columns,
     columnsSql,
@@ -333,31 +338,13 @@ export const defineTableProjection = <
       readAll(
         await queryAll<StoredTableProjectionRow<Row, Columns>>(sql, args),
       ),
-    queryOne: async (sql, args) => {
-      const row = await queryOne<StoredTableProjectionRow<Row, Columns>>(
-        sql,
-        args,
-      );
-      return row === null ? null : read(row);
-    },
     read,
     readAll,
-    select: async (query = {}) => {
-      // A filter asking for none of something needs no query at all.
-      if (matchesNoRows(query.where ?? [])) return [];
-      const { sql, args } = statementFor(query);
-      return readAll(
-        await queryAll<StoredTableProjectionRow<Row, Columns>>(sql, args),
-      );
-    },
+    select: async (query = {}) => readAll(await storedRowsFor(query)),
     selectOne: async (query = {}) => {
-      if (matchesNoRows(query.where ?? [])) return null;
-      const { sql, args } = statementFor({ ...query, limit: 1 });
-      const row = await queryOne<StoredTableProjectionRow<Row, Columns>>(
-        sql,
-        args,
-      );
-      return row === null ? null : read(row);
+      // One row is a read capped at one — the same path, not a second one.
+      const row = (await storedRowsFor({ ...query, limit: 1 }))[0];
+      return row === undefined ? null : read(row);
     },
   };
 };

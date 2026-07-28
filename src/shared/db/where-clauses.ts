@@ -73,6 +73,17 @@ export const equals = (
 export const matchesNoRows = (parts: readonly WhereClause[]): boolean =>
   parts.some((part) => part.matchesNothing);
 
+/**
+ * Run a read unless its clauses can match no row, in which case the answer is
+ * already known and nothing is asked of the database. Every declared reader
+ * goes through here, so "asking for none of something" costs no round trip
+ * wherever it happens.
+ */
+export const rowsUnlessEmpty = <Row>(
+  where: readonly WhereClause[],
+  run: () => Promise<Row[]>,
+): Promise<Row[]> => (matchesNoRows(where) ? Promise.resolve([]) : run());
+
 /** The ` WHERE …` tail for a set of clauses, or nothing when there are none. */
 export const whereSql = (parts: readonly WhereClause[]): string =>
   parts.length === 0

@@ -21,8 +21,8 @@ import { imageFilenameSubqueries } from "#shared/db/images.ts";
 import {
   clauseArgs,
   inList,
-  matchesNoRows,
   orderSql,
+  rowsUnlessEmpty,
   type WhereClause,
   whereSql,
 } from "#shared/db/where-clauses.ts";
@@ -160,8 +160,8 @@ export const getListingRows = (
   query: GetListingsQuery,
 ): Promise<ListingProjectionRow[]> => {
   const parts = whereClauses(query.where);
-  // A filter that asks for nothing — no ids, no slugs — needs no query at all.
-  if (matchesNoRows(parts)) return Promise.resolve([]);
-  const { sql, args } = statementFor(query, parts);
-  return queryAll<ListingProjectionRow>(sql, args);
+  return rowsUnlessEmpty(parts, () => {
+    const { sql, args } = statementFor(query, parts);
+    return queryAll<ListingProjectionRow>(sql, args);
+  });
 };
