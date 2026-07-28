@@ -10,6 +10,7 @@ import * as v from "valibot";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import {
   AdminGroupSchema,
+  PackageBookRequestSchema,
   PackageResponseSchema,
   PublicListingDetailSchema,
   PublicListingSchema,
@@ -177,6 +178,33 @@ describe("the shapes the documentation is measured against", () => {
       AdminGroupSchema,
       packageGroup({ ...pricedMember, day_prices: {} }),
     );
+  });
+
+  test("a bundle asks its questions the one way the endpoint merges them", () => {
+    const pkg = bundle();
+
+    // Out of the order the merge emits, and a name it does not know.
+    refuses(PackageResponseSchema, { ...pkg, fields: "phone,email" });
+    refuses(PackageResponseSchema, { ...pkg, fields: "bogus" });
+  });
+
+  test("a bundle offers each of its dates once", () => {
+    refuses(PackageResponseSchema, {
+      ...bundle(),
+      availableDates: ["2025-08-20", "2025-08-20"],
+    });
+  });
+
+  test("a booking may leave the number of bundles to the endpoint", () => {
+    const booking = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "POST", "/api/packages/:slug/book")
+        .request!,
+    );
+    const { quantity: _ordered, ...unstated } = booking;
+
+    // Saying nothing means one bundle, and a digit string spells a number.
+    accepts(PackageBookRequestSchema, unstated);
+    accepts(PackageBookRequestSchema, { ...booking, quantity: "2" });
   });
 
   test("a bundle names each of its parts once", () => {

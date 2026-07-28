@@ -5,6 +5,8 @@
  */
 
 import * as v from "valibot";
+import { ApiQuantitySchema } from "#routes/api/request-schemas.ts";
+import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
   CONTACT_FIELDS,
   DayPricesSchema,
@@ -234,13 +236,28 @@ const PackageMemberSchema = v.strictObject({
   slug: Slug,
 });
 
+/** The questions a bundle asks, as the endpoint merges them: known names only,
+ * always in the same order. Reading it back through the merge is how we know
+ * this is a list it could have produced. */
+const MergedContactFields = v.pipe(
+  v.string(),
+  v.check((fields) => mergeListingFields([fields]) === fields),
+);
+
 const packageBundleEntries = {
-  // Left out entirely when a bundle has no dates, rather than sent empty.
-  availableDates: v.optional(v.pipe(v.array(IsoDateSchema), v.nonEmpty())),
+  // Left out entirely when a bundle has no dates, rather than sent empty, and
+  // each date is offered once.
+  availableDates: v.optional(
+    v.pipe(
+      v.array(IsoDateSchema),
+      v.nonEmpty(),
+      v.check((dates) => new Set(dates).size === dates.length),
+    ),
+  ),
   // A bundle may be sold without a description; the operator chooses.
   description: v.string(),
   // An empty list is the real "name and email only" setting.
-  fields: v.string(),
+  fields: MergedContactFields,
   maxPurchasable: AtLeastOne,
   members: v.optional(
     v.pipe(
@@ -291,7 +308,9 @@ export const PackageBookRequestSchema = v.strictObject({
   dayCount: v.optional(AtLeastOne),
   email: EmailSchema,
   name: NonEmpty,
-  quantity: AtLeastOne,
+  // The endpoint takes one bundle when a booking says nothing, and reads a
+  // digit string as the number it spells.
+  quantity: v.optional(ApiQuantitySchema),
   // The contact fields a package can ask for beyond the always-required name
   // and email. Which of them a booking must fill in is checked against the
   // package's own `fields` list, not here.
