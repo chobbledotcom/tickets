@@ -4,9 +4,8 @@
  * Every full-record listing read used to go through one raw-SQL door:
  * `queryListingsWithCounts(whereClause, args)` took a hand-written `WHERE …`
  * string and a matching arg list, so each caller wrote its own SQL fragment and
- * had to keep the clause order and the arg order in step by eye. `groups.ts`
- * passed a `NOT IN (SELECT …)` subquery as a string; two other callers pasted
- * the base SELECT together with their own tail.
+ * had to keep the clause order and the arg order in step by eye. Several callers
+ * pasted the base SELECT together with their own tail.
  *
  * This module lets a caller say WHICH listings it wants — {@link ListingWhere} —
  * and in what order, and builds the SQL once. Each present filter field adds one
@@ -45,7 +44,7 @@ const listingDayPriceProjection = (idExpression: string): string =>
         AND listingPrice.price_type = 'day_count'), '{}') AS day_prices`;
 
 /** A complete stored listing row plus its ledger, day-price, and image values. */
-export const listingProjectionSql = (alias: string): string => {
+const listingProjectionSql = (alias: string): string => {
   const idExpression = `${alias}.id`;
   return `${alias}.*,
        ${listingMoneyProjections(idExpression)},
@@ -71,9 +70,6 @@ export type ListingWhere = {
   /** Listings by the blind index of their slug. A single slug is a
    * one-element array. */
   slugIndexes?: string[];
-  /** Listings that are NOT already members of this group — the candidates a
-   * group's "add listings" form offers. */
-  notInGroup?: number;
   /** Listings that ARE members of any of these groups. This one also changes
    * the shape of the read: it joins through `group_listings`, groups the rows
    * by listing (a listing may be in several of the requested groups), and
@@ -119,13 +115,6 @@ const whereClauses = (where: ListingWhere): WhereClause[] => {
   inList("listing.id", where.ids);
   inList("listing.slug_index", where.slugIndexes);
   inList("groupListing.group_id", where.inGroups);
-  if (where.notInGroup !== undefined) {
-    parts.push({
-      args: [where.notInGroup],
-      clause:
-        "listing.id NOT IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
-    });
-  }
   if (where.activeOnly) parts.push({ args: [], clause: "listing.active = 1" });
   return parts;
 };

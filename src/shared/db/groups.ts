@@ -47,14 +47,12 @@ import {
   PRICE_TYPE_GROUP_DAY,
   removeListingGroupPricesStatement,
 } from "#shared/db/listing-prices.ts";
-import {
-  decryptListingWithCount,
-  getListingsWithCounts,
-} from "#shared/db/listings/records.ts";
+import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import {
   type ListingProjectionRow,
   listingStatement,
 } from "#shared/db/listings/select.ts";
+import { rawListingsTable } from "#shared/db/listings/table.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import {
@@ -73,6 +71,7 @@ import type {
   GroupListing,
   ListingType,
   ListingWithCount,
+  SortableListing,
 } from "#shared/types.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
@@ -306,16 +305,41 @@ export const groupListingTypeError = (
   return null;
 };
 
+/** A candidate listing for a group's "add listings" form: enough to sort it,
+ * name it, and show whether it is active. The form shows nothing else, so this
+ * read skips the whole listing record — no money, day-price or image
+ * subqueries, and no encrypted columns beyond the name. */
+export type GroupListingCandidate = SortableListing & { active: boolean };
+
+const candidateProjection = defineTableProjection(rawListingsTable, [
+  "id",
+  "name",
+  "active",
+  "date",
+  "listing_type",
+  "bookable_days",
+  "duration_days",
+  "minimum_days_before",
+  "maximum_days_after",
+]);
+
 /**
- * Listings that are NOT already in the given group, with attendee counts — the
- * candidates the group detail "add listings" form offers. Membership is
- * many-to-many, so a listing already in another group is still a valid
- * candidate here; only this group's current members are excluded.
+ * Listings that are NOT already in the given group — the candidates the group
+ * detail "add listings" form offers. Membership is many-to-many, so a listing
+ * already in another group is still a valid candidate here; only this group's
+ * current members are excluded.
  */
 export const getListingsNotInGroup = (
   groupId: number,
-): Promise<ListingWithCount[]> =>
-  getListingsWithCounts({ notInGroup: groupId });
+): Promise<GroupListingCandidate[]> =>
+  candidateProjection.queryAll(
+    `SELECT ${candidateProjection.columnsSql("listing")}
+       FROM listings AS listing
+      WHERE listing.id NOT IN (
+        SELECT listing_id FROM group_listings WHERE group_id = ?)
+      ORDER BY listing.created DESC, listing.id DESC`,
+    [groupId],
+  );
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */

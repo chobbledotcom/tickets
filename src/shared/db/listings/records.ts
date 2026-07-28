@@ -80,8 +80,8 @@ export const getStoredListingWithCount = async (
   (await getStoredListingsWithCountsByIds([id]))[0] ?? null;
 
 /** Read listing records in newest-first order, with inherited defaults overlaid
- * — the shared tail of every listing-record read. */
-export const getListingsWithCounts = async (
+ * — the shared tail of the cache's three fetches. */
+const getListingsWithCounts = async (
   where: ListingWhere,
 ): Promise<ListingWithCount[]> => {
   const rows = await getListingRows({ order: "created_desc", where });
