@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import {
   builtSites,
@@ -179,6 +180,10 @@ describeWithEnv(
       // Nothing is waiting in the pool and the builder cannot make one, so the
       // buyer has paid for a site that cannot be given to them. Saying so is
       // the only honest answer.
+      using _build = stub(builderApi, "buildSite", () =>
+        Promise.resolve({ error: "the builder said no", ok: false as const }),
+      );
+
       await expect(
         applyPaidSiteAssignment(assignmentDelivery(), () => Promise.resolve()),
       ).rejects.toThrow("Could not build a site for this payment");
