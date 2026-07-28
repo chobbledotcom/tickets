@@ -29,12 +29,27 @@ export const paymentCaseTable: [name: string, table: Table] = [
         "consecutive_count",
         "INTEGER NOT NULL CHECK (typeof(consecutive_count) = 'integer' AND consecutive_count >= 1)",
       ],
-      ["alerted_at", "INTEGER"],
-      ["alerted_revision", "INTEGER"],
-      ["alert_sent_at", "INTEGER"],
-      ["alert_sent_revision", "INTEGER"],
+      [
+        "alerted_at",
+        "INTEGER CHECK (alerted_at IS NULL OR (typeof(alerted_at) = 'integer' AND alerted_at >= 0))",
+      ],
+      [
+        "alerted_revision",
+        "INTEGER CHECK (alerted_revision IS NULL OR (typeof(alerted_revision) = 'integer' AND alerted_revision >= 1))",
+      ],
+      [
+        "alert_sent_at",
+        "INTEGER CHECK (alert_sent_at IS NULL OR (typeof(alert_sent_at) = 'integer' AND alert_sent_at >= 0))",
+      ],
+      [
+        "alert_sent_revision",
+        "INTEGER CHECK (alert_sent_revision IS NULL OR (typeof(alert_sent_revision) = 'integer' AND alert_sent_revision >= 1))",
+      ],
       ["alert_lease_token", "TEXT"],
-      ["alert_lease_expires_at", "INTEGER"],
+      [
+        "alert_lease_expires_at",
+        "INTEGER CHECK (alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= 0))",
+      ],
       ["evidence", "TEXT NOT NULL CHECK (evidence LIKE 'enc:1:%')"],
       [
         "evidence_redacted_at",

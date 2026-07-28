@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "5793c6235a0d9703ca7f1c8912f1fe567c919716934e807e7effcd403119ad2a",
+    "10f0a68a5a2b84b48116b44237cb36ff24a4ab94e7ce4257b98628745025f008",
   );
 });
 
@@ -149,6 +149,32 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
          refund_state, legacy_source, created_at, updated_at, observed_at)
         VALUES ('no-source', 'legacy', NULL, NULL, 'hyb:1:reference',
           NULL, NULL, NULL, NULL, 'unknown', NULL, 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a session whose provider reference index is empty", async () => {
+    // The index is how a provider's checkout is found again. An empty one is
+    // stored and looks attached, but can never match the real derived index.
+    await expect(
+      getDb().execute(`INSERT INTO payment_sessions
+        (id, origin, provider, mode, account_id, expected_amount,
+         expected_currency, booking_intent, session_resource,
+         session_reference_index, state, revision, created_at, updated_at,
+         result_state, ticket_state, completion_state)
+        VALUES ('empty-index', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
+          'enc:1:a:b', 'enc:1:a:b', '', 'pending', 1, 1, 1,
+          'none', 'none', 'none')`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses case alert bookkeeping that is not a real time or revision", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_cases
+        (payment_id, resource, resource_index, reason, state,
+         first_observed_at, last_observed_at, consecutive_count, evidence,
+         revision, alerted_at, alerted_revision)
+        VALUES ('bad-alert', 'enc:1:a:b', 'bad-alert-index', 'network_error',
+          'needs_action', 1, 1, 1, 'enc:1:a:b', 1, 'bad', 0)`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 

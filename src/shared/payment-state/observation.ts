@@ -150,6 +150,7 @@ const returnedResourceBelongsToObservation = (
   // belong to the checkout is malformed and is not ours to trust.
   (observation.status !== "paid" &&
     v.is(ProviderChargeResourceSchema, returned) &&
+    returned.provider === observation.session.provider &&
     returned.parentId === observation.session.id);
 
 const resourceParent = (resource: ProviderResource): string | undefined =>

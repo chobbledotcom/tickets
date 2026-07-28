@@ -1779,3 +1779,20 @@ payment, on a path that moves money and cannot be undone. The fix is to model
 the allowed pairs as variants so an impossible pairing cannot be built at all.
 Doing that needs the decision writer and worker in view, so the variants match
 what is actually offered.
+
+**A current payment's result can disagree with where it is.** On
+`payment_sessions` (`src/shared/db/migrations/schema/payments/sessions.ts`) the
+old-payment half of the rule ties each result to the state it can exist in —
+a succeeded result only on a completed payment, a failed result only on a
+failed one. The current-payment half only ties whether there *is* a result to
+whether the result state is "none". So a payment still being created can be
+stored as having succeeded, and a completed one as having failed. Someone
+reading where the payment is and someone reading how it turned out then get
+opposite answers about whether the booking ran.
+
+The fix is to name the allowed pairs the way the old-payment half already
+does. Which pairs those are is the runtime's own state machine — whether a
+result may be written while a payment is still processing, what a refunding
+payment's result says — so it should be written with that code in view rather
+than guessed. Guessing too narrowly refuses writes the runtime makes on the
+happy path.

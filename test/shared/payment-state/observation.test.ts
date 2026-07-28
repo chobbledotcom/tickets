@@ -182,6 +182,28 @@ describe("payment observations", () => {
     ).toBe("Returned provider resource must belong to the payment observation");
   });
 
+  test("refuses an unrecorded charge from a different provider", () => {
+    // Two providers can hand out the same id, so a charge only belongs to this
+    // checkout when the provider matches as well as the parent.
+    const observation = paymentObservation({
+      charges: undefined,
+      status: "pending",
+    });
+    const otherProvider = {
+      ...chargeResource,
+      kind: "square_payment" as const,
+      provider: "square" as const,
+    };
+
+    expect(
+      validationMessage(ProviderReadSchema, {
+        ...foundRead(observation),
+        requested: otherProvider,
+        returned: otherProvider,
+      }),
+    ).toBe("Returned provider resource must belong to the payment observation");
+  });
+
   test("refuses an unrecorded charge once the payment is paid", () => {
     // Once the money is in, the charges are known. A charge that is not among
     // them is not this payment's, even if it names this checkout as its parent.

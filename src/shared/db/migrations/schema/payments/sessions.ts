@@ -24,7 +24,10 @@ export const paymentSessionTable: [name: string, table: Table] = [
         "TEXT CHECK (account_id IS NULL OR length(trim(account_id)) > 0)",
       ],
       ["session_resource", "TEXT"],
-      ["session_reference_index", "TEXT"],
+      [
+        "session_reference_index",
+        "TEXT CHECK (session_reference_index IS NULL OR length(session_reference_index) > 0)",
+      ],
       [
         "expected_amount",
         `INTEGER CHECK (expected_amount IS NULL OR (typeof(expected_amount) = 'integer' AND expected_amount BETWEEN 0 AND ${MAX_PAYMENT_INTEGER}))`,
