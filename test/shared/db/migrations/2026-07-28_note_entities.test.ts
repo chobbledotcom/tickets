@@ -2,10 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, getDb, queryAll } from "#shared/db/client.ts";
 import noteEntities from "#shared/db/migrations/2026-07-28_note_entities.ts";
+import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   recreateTable,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
+import type { Migration } from "#shared/db/migrations/types.ts";
 import { columnNames } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
@@ -27,8 +29,25 @@ const downgradeToAttendeeNotes = async (): Promise<void> => {
   );
 };
 
-const runMigration = (): Promise<void> =>
-  noteEntities(buildMigrationContext({ recreateTable, syncIndexes })).up();
+const migration = (): Migration =>
+  noteEntities(buildMigrationContext({ recreateTable, syncIndexes }));
+
+const runMigration = (): Promise<void> => migration().up();
+
+/** Stop partway: the columns are added, but the rebuild never happened. */
+const addColumnsWithoutRebuilding = async (
+  ...columns: string[]
+): Promise<void> => {
+  for (const column of columns) {
+    await execute(
+      `ALTER TABLE system_notes ADD COLUMN ${column} ${
+        column === "entity_type"
+          ? "TEXT NOT NULL DEFAULT 'attendee'"
+          : "INTEGER NOT NULL DEFAULT 0"
+      }`,
+    );
+  }
+};
 
 type StoredNote = {
   entity_id: number;
@@ -98,6 +117,58 @@ describeWithEnv(
           type: "system",
         },
       ]);
+    });
+
+    test("carries on from a run that stopped after the first column", async () => {
+      await downgradeToAttendeeNotes();
+      await execute(
+        "INSERT INTO system_notes (attendee_id, type, note) VALUES (?, ?, ?)",
+        [5, "system", "half-migrated"],
+      );
+      await addColumnsWithoutRebuilding("entity_type");
+
+      await runMigration();
+
+      expect(await storedNotes()).toEqual([
+        {
+          entity_id: 5,
+          entity_type: "attendee",
+          id: 1,
+          note: "half-migrated",
+          type: "system",
+        },
+      ]);
+    });
+
+    test("carries on from a run that stopped after both columns", async () => {
+      await downgradeToAttendeeNotes();
+      await execute(
+        "INSERT INTO system_notes (attendee_id, type, note) VALUES (?, ?, ?)",
+        [6, "owner", "columns already there"],
+      );
+      await addColumnsWithoutRebuilding("entity_type", "entity_id");
+
+      await runMigration();
+
+      expect(await storedNotes()).toEqual([
+        {
+          entity_id: 6,
+          entity_type: "attendee",
+          id: 1,
+          note: "columns already there",
+          type: "owner",
+        },
+      ]);
+    });
+
+    test("is registered under the id it declares, and says what it does", () => {
+      const { description, id } = migration();
+
+      // The id is what the applied-marker is written under: a mismatch with the
+      // registry would run the migration again on every boot.
+      expect(MIGRATION_IDS).toContain(id);
+      expect(description).toContain("entity_type");
+      expect(description).toContain("entity_id");
     });
 
     test("refuses a note about a kind of record it does not know", async () => {
