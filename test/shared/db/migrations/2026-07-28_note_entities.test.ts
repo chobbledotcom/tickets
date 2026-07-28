@@ -177,6 +177,32 @@ describeWithEnv(
       expect(await indexExists("idx_system_notes_entity")).toBe(true);
     });
 
+    test("finishes when the work is done but the schema read is behind", async () => {
+      await downgradeToAttendeeNotes();
+      // What a finished table answers to each step, when the read that chose
+      // to run them was a moment out of date.
+      const finishedDatabase = () => ({
+        execute: (sql: string) =>
+          Promise.reject(
+            new Error(
+              sql.startsWith("ALTER")
+                ? "duplicate column name: entity_type"
+                : "no such column: attendee_id",
+            ),
+          ),
+      });
+
+      await noteEntities(
+        buildMigrationContext({
+          getDb: finishedDatabase as unknown as MigrationContext["getDb"],
+          recreateTable,
+          syncIndexes,
+        }),
+      ).up();
+
+      expect(await indexExists("idx_system_notes_entity")).toBe(true);
+    });
+
     test("stops when adding a column fails for any other reason", async () => {
       await downgradeToAttendeeNotes();
       const brokenDatabase = () => ({
