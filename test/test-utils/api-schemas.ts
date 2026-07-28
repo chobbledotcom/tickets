@@ -190,7 +190,8 @@ const PackageMemberSchema = v.strictObject({
 
 const packageBundleEntries = {
   availableDates: v.optional(v.array(IsoDateSchema)),
-  description: NonEmpty,
+  // A bundle may be sold without a description; the operator chooses.
+  description: v.string(),
   // An empty list is the real "name and email only" setting.
   fields: v.string(),
   maxPurchasable: AtLeastOne,
@@ -218,9 +219,10 @@ export const PackageResponseSchema = v.union([
   v.strictObject({ ...packageBundleEntries, priceMinor: Price }),
   v.strictObject({
     ...packageBundleEntries,
+    // An empty list is the endpoint's way of saying no length can be booked
+    // right now, so it is a real answer rather than a missing one.
     dayCounts: v.pipe(
       v.array(v.strictObject({ days: AtLeastOne, priceMinor: Price })),
-      v.nonEmpty(),
       // The endpoint prices each length once, so two prices for one length
       // would leave a caller unable to say what that length costs.
       v.check(

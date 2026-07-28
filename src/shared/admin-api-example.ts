@@ -137,7 +137,8 @@ const ADMIN_API_HOLIDAY_DELETE_BODY = {
 } satisfies DeleteHolidayBody;
 
 /** The booking window a listing gets when its create body says nothing. */
-const LISTING_DEFAULT_DAYS_AFTER = listingCatalogFields.maximumDaysAfter[4];
+const LISTING_DEFAULT_DAYS_AFTER =
+  listingCatalogFields.maximumDaysAfter[1].default!();
 
 /** The five standard admin-CRUD doc entries for a resource. Descriptions are
  *  passed in (they carry per-resource wording — "an listing", the holiday

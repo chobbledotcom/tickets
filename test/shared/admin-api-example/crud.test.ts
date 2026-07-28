@@ -7,6 +7,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { compact } from "#fp";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
@@ -96,13 +97,13 @@ describe("documented admin CRUD endpoints", () => {
   test("a documented date is one the system could store", () => {
     // A friendly date is refused outright, and a date with no timezone is
     // guessed at rather than refused. Every documented date must therefore say
-    // its timezone and read back exactly as written.
-    const dates = ADMIN_API_ENDPOINTS.filter(
-      (endpoint) => endpoint.request !== undefined,
+    // its timezone and read back exactly as written — in an answer as much as
+    // in a request, since an answer shows what the system stored.
+    const dates = ADMIN_API_ENDPOINTS.flatMap((endpoint) =>
+      compact([endpoint.request, endpoint.response]).flatMap((body) =>
+        jsonLeaves(JSON.parse(body), endpoint.path),
+      ),
     )
-      .flatMap((endpoint) =>
-        jsonLeaves(JSON.parse(endpoint.request!), endpoint.path),
-      )
       .filter(({ field }) => field === "date")
       .map(({ value }) => String(value));
 

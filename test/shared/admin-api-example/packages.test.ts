@@ -8,6 +8,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { parseNonNegativeMinorUnits } from "#shared/validation/money.ts";
 import { tryValidateTicketFields } from "#templates/fields/ticket.ts";
 import {
   PackageBookRequestSchema,
@@ -91,8 +92,11 @@ describe("documented package endpoints", () => {
     // documents a choice that does nothing.
     if (pick.customPrice === undefined) return;
     expect(child.canPayMore).toBe(true);
-    expect(pick.customPrice).toBeGreaterThanOrEqual(child.unitPrice);
-    expect(pick.customPrice).toBeLessThanOrEqual(child.maxPrice);
+    // A sent price is in pounds and the published ones are in pennies, so the
+    // comparison has to go through the same reading the endpoint gives it.
+    const inPennies = parseNonNegativeMinorUnits(String(pick.customPrice));
+    expect(inPennies).toBeGreaterThanOrEqual(child.unitPrice);
+    expect(inPennies).toBeLessThanOrEqual(child.maxPrice);
   };
 
   test("the documented booking chooses add-ons the package really offers", () => {
