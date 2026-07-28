@@ -11,12 +11,8 @@ import {
 
 /** What a decision may never be, whatever else is true of it. */
 const aboutTheDecision = alsoAbout([
-  `(state = 'retrying') = (next_retry_at IS NOT NULL)`,
-  `(state = 'retrying') = (last_error IS NOT NULL)`,
   "(attempt_count = 0) = (last_attempt_at IS NULL)",
-  `state NOT IN ('retrying', 'completed') OR (attempt_count >= 1 AND last_attempt_at IS NOT NULL)`,
   "next_retry_at IS NULL OR last_attempt_at IS NULL OR next_retry_at >= last_attempt_at",
-  `decision IS NOT NULL OR state IN ('accepted', 'running', 'retrying')`,
 ]);
 
 export const paymentCaseDecisionTable: [name: string, table: Table] = [

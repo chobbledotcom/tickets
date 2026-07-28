@@ -6,22 +6,18 @@ import {
   PAYMENT_STATES,
   RECORD_ORIGINS,
   RESULT_STATES,
-  SETTLED_STATES,
   TICKET_STATES,
 } from "#shared/payment-state/words.ts";
 import { PaymentProviderSchema } from "#shared/types.ts";
 import {
-  allOf,
   alsoAbout,
   amountOrNull,
-  anyOf,
   currencyOrNull,
   encryptedPaymentColumnOrNull,
   keyWords,
   madeAndTouched,
   oneOf,
   oneOfOrNull,
-  quoted,
   wholeNumber,
   wholeNumberOrNull,
   wordsOrNull,
@@ -39,66 +35,11 @@ const HIDDEN_COLUMNS = [
   "legacy_runtime",
 ];
 
-/** A payment made here, which knows who took the money and what was asked. */
-const paymentMadeHere = allOf([
-  `origin = 'current'`,
-  "legacy_runtime IS NULL",
-  "provider IS NOT NULL",
-  "mode IS NOT NULL",
-  "account_id IS NOT NULL",
-  "expected_amount IS NOT NULL",
-  "expected_currency IS NOT NULL",
-  "booking_intent IS NOT NULL",
-  `(checkout_create IS NULL OR (session_resource IS NULL AND state = 'created'))`,
-  `(session_resource IS NOT NULL OR state IN ('created', 'failed'))`,
-  `((result_state = 'none') = (result IS NULL))`,
-  `((ticket_state = 'ready') = (ticket_tokens IS NOT NULL))`,
-  `((completion_state = 'none') = (completion IS NULL))`,
-  `(completion_state != 'pending' OR next_reconcile_at IS NOT NULL)`,
-  `completion_state != 'legacy_unknown'`,
-]);
-
-/** A payment copied across on upgrade, which knows far less about itself. */
-const paymentCopiedAcross = allOf([
-  `origin = 'legacy'`,
-  "legacy_runtime IS NOT NULL",
-  "booking_intent IS NULL",
-  "checkout_create IS NULL",
-  "session_resource IS NULL",
-  "session_reference_index IS NULL",
-  anyOf([
-    `(result_state = 'none' AND result IS NULL)`,
-    `(result_state = 'succeeded' AND result IS NULL AND state = 'completed')`,
-    `(result_state = 'failed' AND result IS NOT NULL AND state = 'failed')`,
-  ]),
-  `((ticket_state = 'ready') = (ticket_tokens IS NOT NULL))`,
-  `(completion_state IN ('none', 'legacy_unknown'))`,
-  "completion IS NULL",
-  `(completion_state != 'legacy_unknown' OR state = 'completed')`,
-]);
-
-/** When the buyer's details may be cleared: the payment is over, nobody holds
- *  it, nothing is due to look at it again, and no ticket still needs them. */
-const readyToBeCleared = allOf([
-  `typeof(redacted_at) = 'integer' AND redacted_at >= updated_at`,
-  "lease_token IS NULL",
-  "next_reconcile_at IS NULL",
-  `ticket_state != 'ready'`,
-  anyOf([
-    `(origin = 'current' AND ${anyOf([
-      `state = 'failed'`,
-      `(state IN ('completed', 'fully_refunded') AND completion_state = 'completed')`,
-    ])})`,
-    `(origin = 'legacy' AND state IN (${quoted(SETTLED_STATES)}))`,
-  ]),
-]);
-
 /** What a payment may never be, whatever else is true of it. */
 const aboutThePayment = alsoAbout([
   "(lease_token IS NULL) = (lease_expires_at IS NULL)",
   "(session_resource IS NULL) = (session_reference_index IS NULL)",
   ...HIDDEN_COLUMNS.map(encryptedPaymentColumnOrNull),
-  anyOf([paymentCopiedAcross, paymentMadeHere]),
 ]);
 
 export const paymentSessionTable: [name: string, table: Table] = [
@@ -139,10 +80,7 @@ export const paymentSessionTable: [name: string, table: Table] = [
         oneOf("completion_state", COMPLETION_STATES, "none"),
       ],
       ["completion", "TEXT"],
-      [
-        "redacted_at",
-        `INTEGER CHECK (redacted_at IS NULL OR ${readyToBeCleared})`,
-      ],
+      ["redacted_at", wholeNumberOrNull("redacted_at", "updated_at")],
       ["legacy_runtime", aboutThePayment("TEXT")],
     ],
     indexes: [

@@ -2,17 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectAccepted, expectRefused } from "./refuses.ts";
+import { expectRefused } from "./refuses.ts";
 
 describeWithEnv("db > payment session rules", { db: true }, () => {
-  test("requires complete ownership and money on current sessions", async () => {
-    await expectRefused(`INSERT INTO payment_sessions
-      (id, origin, state, revision, created_at, updated_at,
-       result_state, ticket_state, completion_state, legacy_runtime)
-      VALUES ('incomplete', 'current', 'created', 1, 1, 1,
-        'none', 'none', 'none', NULL)`);
-  });
-
   test("refuses a session with no id", async () => {
     // SQLite lets a text primary key hold NULL, and a rule that compares
     // against NULL passes rather than fails. Without saying so outright, a
@@ -24,22 +16,6 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
         VALUES (NULL, 'legacy', 'created', 1, 1, 1,
           'none', 'none', 'none', 'enc:1:a:b')`),
     ).rejects.toThrow();
-  });
-
-  test("allows checkout creation data only on an unattached created session", async () => {
-    // What the provider was asked to create is kept only while the checkout
-    // has not been made yet. Once the payment moves on, that request is
-    // history and must not still be sitting on the row.
-    await expectAccepted(`INSERT INTO payment_sessions
-      (id, origin, provider, mode, account_id, expected_amount,
-       expected_currency, booking_intent, checkout_create, state, revision,
-       created_at, updated_at, result_state, ticket_state, completion_state)
-      VALUES ('creating', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
-        'enc:1:a:b', 'enc:1:a:b', 'created', 1, 1, 1, 'none', 'none', 'none')`);
-
-    await expectRefused(
-      "UPDATE payment_sessions SET state = 'pending' WHERE id = 'creating'",
-    );
   });
 
   test("refuses a payment booked to be looked at before it existed", async () => {
@@ -68,19 +44,6 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
       VALUES ('stale-claim', 'current', 'stripe', 'test', 'acct', 100,
         'GBP', 'enc:1:a:b', 'enc:1:a:b', 'idx', 'pending', 1, 100, 100,
         'worker-1', 1, 'none', 'none', 'none')`);
-  });
-
-  test("refuses a current payment carrying an old payment's record", async () => {
-    // legacy_runtime belongs to a copied payment. On a current one it is an
-    // encrypted blob nothing accounts for, and no code path writes it.
-    await expectRefused(`INSERT INTO payment_sessions
-      (id, origin, provider, mode, account_id, expected_amount,
-       expected_currency, booking_intent, session_resource,
-       session_reference_index, state, revision, created_at, updated_at,
-       result_state, ticket_state, completion_state, legacy_runtime)
-      VALUES ('current-with-legacy', 'current', 'stripe', 'test', 'acct',
-        100, 'GBP', 'enc:1:a:b', 'enc:1:a:b', 'idx', 'pending', 1, 1, 1,
-        'none', 'none', 'none', 'enc:1:a:b')`);
   });
 
   test("refuses an empty claim on a payment", async () => {

@@ -20,13 +20,8 @@ const column = (type: string, rule: string): string =>
 const withDefault = (type: string, fallback: string | number | undefined) =>
   `${type}${fallback === undefined ? "" : ` DEFAULT ${fallback}`}`;
 
-/** Joins rules that must all hold, or of which one must. */
-export const allOf = (rules: string[]): string => `(${rules.join(" AND ")})`;
+/** Joins rules of which one must hold. */
 export const anyOf = (rules: string[]): string => `(${rules.join(" OR ")})`;
-
-/** Writes a list of words the way SQL wants to read them. */
-export const quoted = (words: readonly string[]): string =>
-  words.map((word) => `'${word}'`).join(", ");
 
 /**
  * The smallest a number may be: a fixed floor, or the name of another column
@@ -82,10 +77,16 @@ const sealed = (name: string, prefix: string, parts: number): string =>
   `${name} GLOB '${prefix}${":?*".repeat(parts)}'`;
 
 /** Hidden with this site's own key: a starting block, then the hidden text. */
-export const ownSealed = (name: string): string => sealed(name, "enc:1", 2);
+const ownSealed = (name: string): string => sealed(name, "enc:1", 2);
 
 /** Carried over from an older version, which also wraps up the key it used. */
-export const legacySealed = (name: string): string => sealed(name, "hyb:1", 3);
+const legacySealed = (name: string): string => sealed(name, "hyb:1", 3);
+
+/** A provider's own name for something, hidden either with this site's key or
+ *  in the older wrapped form a copied record uses. Which one it is depends on
+ *  where the record came from; that it is one of them never does. */
+export const sealedEitherWay = (name: string): string =>
+  `TEXT NOT NULL CHECK (${saysSomething(name)} AND ${anyOf([ownSealed(name), legacySealed(name)])})`;
 
 export const encryptedPaymentColumn = (name: string): string =>
   column("TEXT NOT NULL", ownSealed(name));
@@ -94,7 +95,7 @@ export const encryptedPaymentColumnOrNull = (name: string): string =>
   `(${orMissing(name, ownSealed(name))})`;
 
 const oneOfWords = (name: string, allowed: readonly string[]): string =>
-  `${name} IN (${quoted(allowed)})`;
+  `${name} IN (${allowed.map((word) => `'${word}'`).join(", ")})`;
 
 /** One of a fixed set of words, and nothing else. */
 export const oneOf = (

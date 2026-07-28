@@ -1,6 +1,4 @@
-import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectAccepted, expectRefused } from "./refuses.ts";
 
@@ -29,68 +27,33 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
         'old-index', 100, 'GBP', 0, 'none', 1, 1, 1)`);
   });
 
-  test("permits only quarantined unknown-money legacy charges", async () => {
-    await expectAccepted(`INSERT INTO payment_charges
-      (payment_id, origin, provider, resource_kind, provider_reference,
-       reference_index, captured_amount, currency, refunded_amount,
-       refund_state, provider_refunded_at, legacy_source,
-       created_at, updated_at, observed_at)
-      VALUES ('legacy-payment', 'legacy', NULL, NULL, 'hyb:1:key:iv:text',
-        NULL, NULL, NULL, NULL, 'unknown', 1750000000000,
-        'processed_payments', 1, 1, 1)`);
-    const stored = await getDb().execute(`SELECT provider, resource_kind,
-      reference_index, captured_amount, currency, refunded_amount, refund_state
-      FROM payment_charges WHERE payment_id = 'legacy-payment'`);
-    expect(stored.rows).toEqual([
-      {
-        captured_amount: null,
-        currency: null,
-        provider: null,
-        reference_index: null,
-        refund_state: "unknown",
-        refunded_amount: null,
-        resource_kind: null,
-      },
-    ]);
-
+  test("refuses an old charge refunded before the money was seen", async () => {
+    // A copied charge is seen at the moment the payment was processed, and a
+    // refund can only come after that.
     await expectRefused(`INSERT INTO payment_charges
-      (payment_id, origin, provider, resource_kind, provider_reference,
-       reference_index, captured_amount, currency, refunded_amount,
-       refund_state, legacy_source, created_at, updated_at, observed_at)
-      VALUES ('invented-money', 'legacy', 'stripe', 'stripe_payment_intent',
-        'hyb:1:key:iv:text', 'made-up-index', 100, 'GBP', 100, 'completed',
-        'processed_payments', 1, 1, 1)`);
+      (payment_id, origin, provider_reference, refund_state,
+       provider_refunded_at, legacy_source, created_at, updated_at,
+       observed_at)
+      VALUES ('refund-before-charge', 'legacy', 'hyb:1:k:i:c', 'unknown',
+        1, 'processed_payments', 1, 1, 100)`);
   });
 
-  test("refuses a current charge with no refunded total", async () => {
-    // The rule that keeps the refunded total within the captured amount
-    // compares against NULL when the total is missing, and a comparison with
-    // NULL passes. The total has to be demanded outright.
-    await expectRefused(`INSERT INTO payment_charges
-      (payment_id, provider, resource_kind, provider_reference,
-       reference_index, captured_amount, currency,
-       refund_state, created_at, updated_at, observed_at)
-      VALUES ('no-refunded-total', 'stripe', 'stripe_payment_intent',
-        'enc:1:a:b', 'no-refunded-index', 100, 'GBP', 'none', 1, 1, 1)`);
-  });
-
-  test("refuses a current charge that names no provider", async () => {
-    await expectRefused(`INSERT INTO payment_charges
-      (payment_id, provider, resource_kind, provider_reference,
-       reference_index, captured_amount, currency, refunded_amount,
-       refund_state, created_at, updated_at, observed_at)
-      VALUES ('no-provider', NULL, NULL, 'enc:1:a:b',
-        'no-provider-index', 100, 'GBP', 0, 'none', 1, 1, 1)`);
-  });
-
-  test("refuses an old charge that does not say where it came from", async () => {
-    await expectRefused(`INSERT INTO payment_charges
-      (payment_id, origin, provider, resource_kind, provider_reference,
-       reference_index, captured_amount, currency, refunded_amount,
-       refund_state, legacy_source, created_at, updated_at, observed_at)
-      VALUES ('no-source', 'legacy', NULL, NULL, 'hyb:1:key:iv:text',
-        NULL, NULL, NULL, NULL, 'unknown', NULL, 1, 1, 1)`);
-  });
+  // A provider's own name for money is hidden either with this site's key or
+  // in the older wrapped form. Which one depends on where the charge came
+  // from; that it is one of them does not.
+  for (const [name, reference] of [
+    ["in plain words", "pi_12345"],
+    ["behind an envelope with nothing in it", "enc:1:pi_12345"],
+    ["behind a half-written older envelope", "hyb:1:key:iv"],
+  ] as const) {
+    test(`refuses a charge naming its money ${name}`, async () => {
+      await expectRefused(`INSERT INTO payment_charges
+        (payment_id, origin, provider_reference, refund_state,
+         legacy_source, created_at, updated_at, observed_at)
+        VALUES ('bare-reference', 'legacy', '${reference}', 'unknown',
+          'processed_payments', 1, 1, 1)`);
+    });
+  }
 
   test("refuses an old charge whose refund time is not a time", async () => {
     await expectRefused(`INSERT INTO payment_charges
@@ -99,19 +62,6 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
        observed_at)
       VALUES ('bad-refund-time', 'legacy', 'hyb:1:key:iv:text', 'unknown',
         'banana', 'processed_payments', 1, 1, 1)`);
-  });
-
-  test("refuses more refund work when nothing is left to give back", async () => {
-    // Everything taken has already gone back, so asking the provider for more
-    // would either be refused or hand the money over twice.
-    await expectRefused(`INSERT INTO payment_charges
-      (payment_id, provider, resource_kind, provider_reference,
-       reference_index, captured_amount, currency, refunded_amount,
-       refund_state, pending_refund_idempotency_key,
-       pending_refund_key_index, created_at, updated_at, observed_at)
-      VALUES ('nothing-left', 'stripe', 'stripe_payment_intent', 'enc:1:a:b',
-        'nothing-left-index', 100, 'GBP', 100, 'requested', 'enc:1:a:b',
-        'key-index', 1, 1, 1)`);
   });
 
   // The charge's own index is blank in the third case, so a paid charge that

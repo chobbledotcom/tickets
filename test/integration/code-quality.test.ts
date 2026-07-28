@@ -103,6 +103,7 @@ const LIBRARY_PATHS = [
   "shared/payment-state/lifecycle.ts",
   "shared/payment-state/observation.ts",
   "shared/payment-state/operator.ts",
+  "shared/payment-state/record.ts",
   "shared/payment-state/refund.ts",
   "shared/payment-state/resolve.ts",
   "shared/payment-state/resources.ts",

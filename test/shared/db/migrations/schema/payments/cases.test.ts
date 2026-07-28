@@ -70,17 +70,6 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
         'worker-1', 1)`);
   });
 
-  test("refuses a case booked to retry before its newest reading", async () => {
-    // Booking the next look before the last one makes it due at once, which
-    // turns waiting between tries into asking the provider on a loop.
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, next_reconcile_at,
-       consecutive_count, evidence, revision)
-      VALUES ('retry-too-soon', 'enc:1:a:b', 'retry-soon-index',
-        'network_error', 'retrying', 1, 100, 1, 1, 'enc:1:a:b', 1)`);
-  });
-
   test("refuses a case whose lookup code is only spaces", async () => {
     await expectRefused(`INSERT INTO payment_cases
       (payment_id, resource, resource_index, reason, state,
@@ -88,14 +77,5 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
        consecutive_count, evidence, revision)
       VALUES ('spaces', 'enc:1:a:b', '   ', 'network_error', 'retrying',
         1, 1, 1, 1, 'enc:1:a:b', 1)`);
-  });
-
-  test("requires retrying cases to have a next reconcile time", async () => {
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, next_reconcile_at,
-       consecutive_count, evidence, revision)
-      VALUES ('payment', 'enc:1:a:b', 'index', 'network_error',
-        'retrying', 1, 1, NULL, 1, 'enc:1:a:b', 1)`);
   });
 });

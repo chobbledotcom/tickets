@@ -1998,3 +1998,68 @@ been sent yet — sending it is what the alert claim and its lease are for. The
 real invariant is that the alert catches up, which is about time passing and
 cannot be written as a rule on a single row. If the gap should be bounded, the
 alerting worker is what bounds it, so settle this with that worker in hand.
+
+---
+
+## Rules the payment tables no longer keep, for the record layer to keep instead
+
+*Origin: a look back over PR #1973, where six rounds of review were spent
+almost entirely on the table rules themselves rather than on code using them.*
+
+The six payment tables carried 104 rules; every other table in the site carries
+eight between them. SQLite cannot change a rule once rows exist — the table has
+to be rebuilt — so each of those was close to permanent, and the ones describing
+how a payment *behaves* are the ones most likely to need changing as the runtime
+is written.
+
+So the tables now keep only what is true of a value whatever the code does:
+its type, whether it may be missing, the words it may hold, that it is properly
+hidden, that two columns travel together, that a time is not before the moment
+it is measured from, and that money given back never exceeds money taken.
+
+The rules describing how a payment *behaves* moved to
+`src/shared/payment-state/record.ts`, as plain functions over plain data that
+answer with the one thing wrong or nothing at all. They are tested there without
+a database. **What is left to do is wire them in**: the record layer must run
+them on the way in and refuse the write loudly when they answer, which is the
+job of the slice that lands the repositories.
+
+The rules that moved are listed below so that wiring can be checked against
+them.
+
+**A charge is either money taken here or money copied across, never a mix.**
+Removed from `payment_charges`. A current charge must name its provider and the
+kind of thing the money is, carry a lookup code, an amount, a currency and a
+refunded total, and must not carry an old record's refund time or source. A
+copied charge must carry none of those, must say its refund state is "unknown",
+and must say which old table it came from.
+
+**Which refund handles a charge may hold, for each place a refund has got to.**
+Removed from `payment_charges`. A requested refund holds an idempotency key and
+no refund id; a failed one holds no id; a settled one holds neither. A refund
+still going may hold neither, because it may have been started in the provider's
+own dashboard. Also removed: that a requested or pending refund cannot already
+claim the whole capture, and that "none", "partial" and "completed" each agree
+with the refunded total.
+
+**A payment is either made here or copied across, never a mix.** Removed from
+`payment_sessions`, and the same shape as the charge rule above: a current
+payment knows its provider, mode, account, what was asked for and what was being
+bought; a copied one knows almost none of that and carries the old record whole.
+
+**When a buyer's details may be cleared.** Removed from `payment_sessions`. The
+payment must be over, nobody may hold it, nothing may be due to look at it
+again, and no ticket may still need them. The table still refuses a clearing
+time earlier than the last change.
+
+**Which state a case may be in, and what each state allows.** Removed from
+`payment_cases`. A retrying case has a next look booked and nobody told; one
+needing the owner has no next look and has been told; a settled one has neither
+and a settled time. Also removed: that a claim on sending an alert can only
+exist while the case still needs the owner.
+
+**Which state a decision may be in, and what each state allows.** Removed from
+`payment_case_decisions`. Waiting to be retried means a next try is booked and
+the last error is kept; a decision that has run at all has an attempt time; one
+that has finished has been tried; a decision with no answer yet has not
+finished.

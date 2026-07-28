@@ -21,12 +21,6 @@ const aboutTheCase = alsoAbout([
   "alert_sent_at IS NULL OR (alerted_at IS NOT NULL AND alert_sent_at >= alerted_at)",
   "(alert_lease_token IS NULL) = (alert_lease_expires_at IS NULL)",
   `alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= first_observed_at)`,
-  `alert_lease_token IS NULL OR (state = 'needs_action' AND alert_sent_revision IS NULL)`,
-  `
-            (state = 'retrying' AND next_reconcile_at IS NOT NULL AND next_reconcile_at >= last_observed_at AND resolved_at IS NULL AND alerted_at IS NULL)
-            OR (state = 'needs_action' AND next_reconcile_at IS NULL AND resolved_at IS NULL AND alerted_at IS NOT NULL)
-            OR (state = 'resolved' AND next_reconcile_at IS NULL AND resolved_at IS NOT NULL)
-          `,
 ]);
 
 export const paymentCaseTable = paymentRecord("payment_cases", {
@@ -50,7 +44,7 @@ export const paymentCaseTable = paymentRecord("payment_cases", {
     ["evidence", encryptedPaymentColumn("evidence")],
     [
       "evidence_redacted_at",
-      "INTEGER CHECK (evidence_redacted_at IS NULL OR (state = 'resolved' AND typeof(evidence_redacted_at) = 'integer' AND evidence_redacted_at >= resolved_at))",
+      wholeNumberOrNull("evidence_redacted_at", "resolved_at"),
     ],
     ["revision", wholeNumber("revision", 1, 1)],
     ["resolved_at", aboutTheCase("INTEGER")],
