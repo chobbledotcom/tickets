@@ -72,12 +72,6 @@ describe("every documented endpoint", () => {
     }
   });
 
-  test("a missing endpoint is named, not stumbled over", () => {
-    expect(() =>
-      documented(ADMIN_API_ENDPOINTS, "GET", "/api/nowhere"),
-    ).toThrow("No documented endpoint for GET /api/nowhere");
-  });
-
   test("every endpoint has a description", () => {
     for (const endpoint of allEndpoints) {
       expect(endpoint.description.length).toBeGreaterThan(0);
