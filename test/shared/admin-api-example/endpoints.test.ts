@@ -39,11 +39,46 @@ describe("every documented endpoint", () => {
       "/api/listings",
     );
     const parsed = JSON.parse(listEndpoint.response);
-    // strictObject validates both the keys and the field types of the
-    // documented example — a stronger check than the previous key-set compare.
     expect(() =>
       v.parse(PublicListingSchema, parsed.listings[0]),
     ).not.toThrow();
+  });
+
+  test("the listing list also shows the packages on sale", () => {
+    // A caller browsing what is for sale gets bundles as well as listings, so
+    // an example showing only listings hides half the answer.
+    const parsed = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "GET", "/api/listings").response,
+    );
+
+    expect(Object.keys(parsed).toSorted()).toEqual(["listings", "packages"]);
+    for (const bundle of parsed.packages) {
+      expect(bundle.url).toBe(`/ticket/${bundle.slug}`);
+    }
+  });
+
+  test("only a listing sold by the day offers dates to choose", () => {
+    const listing = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "GET", "/api/listings/:slug").response,
+    ).listing;
+
+    // The endpoint adds the dates only for a daily listing, so a standard one
+    // showing them documents an answer it never gives.
+    expect("availableDates" in listing).toBe(listing.listingType === "daily");
+  });
+
+  test("toggling a listing answers with the state it was moved to", () => {
+    const stateAfter = (action: string) =>
+      JSON.parse(
+        documented(
+          ADMIN_API_ENDPOINTS,
+          "POST",
+          `/api/admin/listings/:listingId/${action}`,
+        ).response,
+      ).listing.active;
+
+    expect(stateAfter("deactivate")).toBe(false);
+    expect(stateAfter("reactivate")).toBe(true);
   });
 
   test("no documented request asks for a blank or zero value", () => {

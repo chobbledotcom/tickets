@@ -120,11 +120,6 @@ const AtLeastOne = v.pipe(v.number(), v.integer(), v.minValue(1));
 const Price = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 /**
- * One member of a package bundle as `GET /api/packages/:slug` returns it. The
- * quantity is how many of that listing one bundle includes, so it is never
- * zero, and the slug has to be one a caller can actually ask for.
- */
-/**
  * A published add-on, as a package member's `children` carry it. It is a public
  * listing, plus the values a caller has to be able to act on: a name and slug
  * to choose it by, a price, and room to actually book it.
@@ -148,6 +143,11 @@ const PublishedChildSchema = v.intersect([
   }),
 ]);
 
+/**
+ * One member of a package bundle as `GET /api/packages/:slug` returns it. The
+ * quantity is how many of that listing one bundle includes, so it is never
+ * zero, and the slug has to be one a caller can actually ask for.
+ */
 const PackageMemberSchema = v.strictObject({
   children: v.optional(v.pipe(v.array(PublishedChildSchema), v.nonEmpty())),
   name: NonEmpty,

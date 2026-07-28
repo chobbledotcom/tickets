@@ -113,6 +113,9 @@ describe("documented package endpoints", () => {
     const pkg = documentedPackage();
     const booking = documentedBooking();
 
+    // A package with no dates ignores one, so offering it in the example
+    // documents a choice that does nothing.
+    expect("date" in booking).toBe("availableDates" in pkg);
     if (pkg.availableDates) {
       expect(pkg.availableDates).toContain(booking.date);
     }

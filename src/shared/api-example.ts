@@ -75,7 +75,19 @@ export const API_EXAMPLE_PUBLIC_LISTING: PublicListing = toPublicListing(
 
 /** Example list response JSON */
 export const API_LIST_EXAMPLE_JSON: string = JSON.stringify(
-  { listings: [API_EXAMPLE_PUBLIC_LISTING] },
+  {
+    listings: [API_EXAMPLE_PUBLIC_LISTING],
+    // Packages are listed alongside, so a bundle stays discoverable even when
+    // its member listings are not shown on their own.
+    packages: [
+      {
+        description: "Two nights' camping with firepit hire",
+        name: "Camping Weekend",
+        slug: "camping-weekend",
+        url: "/ticket/camping-weekend",
+      },
+    ],
+  },
   null,
   2,
 );
@@ -83,10 +95,7 @@ export const API_LIST_EXAMPLE_JSON: string = JSON.stringify(
 /** Example single-listing response JSON */
 export const API_SINGLE_EXAMPLE_JSON: string = JSON.stringify(
   {
-    listing: {
-      ...API_EXAMPLE_PUBLIC_LISTING,
-      availableDates: ["2025-08-20", "2025-08-21"],
-    },
+    listing: API_EXAMPLE_PUBLIC_LISTING,
   },
   null,
   2,
