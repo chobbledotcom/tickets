@@ -1817,3 +1817,13 @@ and then lets go of it before use can be gazumped. The install tests are the
 ones that noticed, because they are the ones that assert a failure. Worth
 looking at whether ports should be handed out so that no two tests in a run can
 ever receive the same one.
+
+It has since been seen once more, in `test/scripts/stripe-mock/lifecycle.test.ts`
+("stops trying once the mock has been started as many times as asked", on CI for
+PR #1968), with a second symptom worth knowing about. That test counts how many
+times the fake mock was started and expects one start per try asked for. A try
+whose freshly picked port already has something listening on it is abandoned
+*before* the mock is started, so the count comes up short and the test fails —
+even though the starter did try the number of times it was asked to. Handing out
+ports so no two tests can receive the same one would fix this too; short of that,
+the count is the wrong thing to measure.
