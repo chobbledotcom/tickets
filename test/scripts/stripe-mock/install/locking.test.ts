@@ -4,8 +4,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import {
   createFakeArchive,
-  expectStartFails,
-  expectStripeMockFails,
   wait,
   waitForFile,
   waitForNoInstallTempDir,
@@ -17,6 +15,10 @@ import {
   withSecondLockRefreshHeld,
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
+import {
+  expectStartFails,
+  expectStripeMockFails,
+} from "#test/test-utils/stripe-mock/ports.ts";
 import { tempDir } from "#test-utils/files.ts";
 import {
   expectDownloadWithLockCleanup,
