@@ -13,6 +13,7 @@ import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
 /* jscpd:ignore-end */
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
@@ -100,7 +101,7 @@ export type ModifierSpec = {
  * parses the array form (a single line is an array of one), so only
  * {@link BookingItemsSchema} and the {@link BookingItem} type are exported. */
 /** A positive integer (≥ 1): a listing id or a group id. */
-const positiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
+const positiveInt = integerAtLeast(1);
 
 const BookingItemSchema = v.pipe(
   v.object({
@@ -127,9 +128,19 @@ export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
  * the quantity taken. The webhook re-fetches the modifier by id and re-derives
  * its amount from the current database — provider metadata amounts are never
  * trusted. */
-export type ModifierRef = { i: number; q: number };
+const ModifierRefSchema = v.object({ i: positiveInt, q: positiveInt });
+export type ModifierRef = v.InferOutput<typeof ModifierRefSchema>;
 
-export type TextAnswerRef = { q: number; s: number };
+/** A free-text answer as it arrives in checkout metadata. The string id can be
+ *  missing when it was lost between the form and the callback; booking drops
+ *  that one answer rather than throwing away a paid order. */
+const TextAnswerRefSchema = v.object({
+  q: positiveInt,
+  s: v.optional(positiveInt),
+});
+export type TextAnswerRef = v.InferOutput<typeof TextAnswerRefSchema>;
+/** A text answer that still knows which stored string it points at. */
+export type StoredTextAnswerRef = TextAnswerRef & { s: number };
 
 /** Per-listing answer references carried through a checkout, shared by the
  * booking and checkout intents. */
@@ -170,16 +181,38 @@ type CheckoutIntentBase = ContactInfo &
     dayCount?: number | undefined;
   };
 
-/** Processed booking intent extracted from payment session metadata */
-export type BookingIntent = CheckoutIntentBase & {
-  items: BookingItem[];
-  /** Modifier references applied to this checkout, re-derived in the webhook.
-   * Always present (an empty array when none applied), parsed from metadata. */
-  modifiers: ModifierRef[];
-  /** HMAC index of the site renewal token. The plain token never reaches the
-   * payment provider, so a compromised provider cannot use it at /renew. */
-  siteTokenIndex?: string | undefined;
-};
+/** Canonical booking facts persisted for a payment and sent through metadata. */
+export const BookingIntentSchema = v.strictObject({
+  address: v.string(),
+  allocations: v.optional(
+    v.array(
+      v.object({
+        childId: positiveInt,
+        parentId: positiveInt,
+        qty: positiveInt,
+      }),
+    ),
+  ),
+  balanceAttendeeId: v.optional(positiveInt),
+  date: v.nullable(v.string()),
+  dayCount: v.optional(positiveInt),
+  email: v.string(),
+  items: BookingItemsSchema,
+  listingAnswerIds: v.optional(v.record(v.string(), v.array(positiveInt))),
+  listingTextAnswerIds: v.optional(
+    v.record(v.string(), v.array(TextAnswerRefSchema)),
+  ),
+  modifiers: v.array(ModifierRefSchema),
+  name: v.string(),
+  phone: v.string(),
+  reservationAmount: v.optional(v.string()),
+  siteTokenIndex: v.optional(v.string()),
+  special_instructions: v.string(),
+  thankYouUrl: v.optional(v.string()),
+});
+
+/** Processed booking intent extracted from payment session metadata. */
+export type BookingIntent = v.InferOutput<typeof BookingIntentSchema>;
 
 /** Registration intent for checkout (one or more listings) */
 export type CheckoutIntent = CheckoutIntentBase & {

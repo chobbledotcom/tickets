@@ -99,6 +99,17 @@ const LIBRARY_PATHS = [
   "shared/site-pages/core.ts",
   "shared/db/site-pages.ts",
   "shared/db/site-page-items.ts",
+  // The payment record is being wired in the same way: the words for what a
+  // payment is — its resources, what the provider says about it, where it is
+  // in its life, and what a refund did — land before the repositories, the
+  // runtime, and the copy that brings older payments across. Each module
+  // loses its exemption as the slice that consumes it lands.
+  "shared/payment-state/lifecycle.ts",
+  "shared/payment-state/observation.ts",
+  "shared/payment-state/operator.ts",
+  "shared/payment-state/refund.ts",
+  "shared/payment-state/resolve.ts",
+  "shared/payment-state/resources.ts",
 ];
 
 /** Index modules that only re-export from sub-modules */

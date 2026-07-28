@@ -46,6 +46,7 @@ import type {
   BookingItem,
   CheckoutIntent,
   ModifierSpec,
+  StoredTextAnswerRef,
   TextAnswerRef,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
@@ -167,11 +168,11 @@ export type HonourResult =
 const textRefsWithStringId = (
   refs: TextAnswerRef[],
   listingId: number,
-): TextAnswerRef[] => {
-  const resolved: TextAnswerRef[] = [];
+): StoredTextAnswerRef[] => {
+  const resolved: StoredTextAnswerRef[] = [];
   for (const ref of refs) {
-    if (Number.isInteger(ref.s)) {
-      resolved.push(ref);
+    if (ref.s !== undefined) {
+      resolved.push({ ...ref, s: ref.s });
     } else {
       logError({
         code: ErrorCode.DATA_INVALID,

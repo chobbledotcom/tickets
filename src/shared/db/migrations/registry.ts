@@ -382,6 +382,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-22_maintenance_completion",
     () => import("./2026-07-22_maintenance_completion.ts"),
   ),
+  // The tables one payment record lives in, before anything writes to them.
+  entry(
+    "2026-07-26_payment_records",
+    () => import("./2026-07-26_payment_records.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

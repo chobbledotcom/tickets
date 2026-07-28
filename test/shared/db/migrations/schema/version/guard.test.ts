@@ -100,8 +100,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-19_maintenance_checkpoint",
         "2026-07-21_activity_backfill_complete",
         "2026-07-22_maintenance_completion",
+        "2026-07-26_payment_records",
       ],
-      schemaHash: "qxxe41",
+      schemaHash: "1tnnwlp",
     });
   });
 
@@ -115,7 +116,7 @@ describe("db > migrations > schema change guard", () => {
     }).toEqual({
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
-      latestUpdate: "Keep completed maintenance work dormant.",
+      latestUpdate: "Add the tables one payment record lives in.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });
