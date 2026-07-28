@@ -187,6 +187,32 @@ describe("endpoint docs", () => {
     ).not.toThrow();
   });
 
+  test("the documented booking chooses add-ons the package really offers", () => {
+    // The endpoint checks each selection against the parent's real children, so
+    // a booking naming a child the package does not publish would be refused.
+    const pkg = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "GET", "/api/packages/:slug").response,
+    ).package;
+    const offered = new Map<string, string[]>(
+      pkg.members.map(
+        (member: { slug: string; children?: { slug: string }[] }) => [
+          member.slug,
+          (member.children ?? []).map((child) => child.slug),
+        ],
+      ),
+    );
+
+    const chosen = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "POST", "/api/packages/:slug/book")
+        .request!,
+    ).children as { parent: string; slug: string }[];
+
+    expect(chosen.length).toBeGreaterThan(0);
+    for (const { parent, slug } of chosen) {
+      expect(offered.get(parent) ?? []).toContain(slug);
+    }
+  });
+
   test("each admin resource is returned under its own name", () => {
     const singleResponses = ADMIN_API_ENDPOINTS.filter(
       (e: EndpointDoc) => e.method === "GET" && e.path.includes(":"),

@@ -23,6 +23,7 @@ import type {
   DeleteHolidayBody,
   UpdateHolidayBody,
 } from "#routes/admin/api-holidays.ts";
+import type { PublicListing } from "#routes/api/public-listing.ts";
 import { PackageChildrenSchema } from "#routes/api/request-schemas.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
@@ -145,6 +146,30 @@ const json = (data: unknown): string => JSON.stringify(data, null, 2);
 /** The package-book example's `children`, parsed through the LIVE request
  * schema ({@link PackageChildrenSchema}) — a drifted example is a build-time
  * parse error, so the docs can never show a body the endpoint rejects. */
+/** The add-on offered under the example package's "Tent Pitch" member. A member
+ * that offers a child is published with it, so the booking example can choose
+ * it by slug. */
+const PACKAGE_EXAMPLE_CHILD = {
+  canPayMore: false,
+  customisableDays: false,
+  date: null,
+  description: "A duvet and pillows for the tent.",
+  fields: "email",
+  imageAltText: null,
+  imageUrl: null,
+  isClosed: false,
+  isSoldOut: false,
+  listingType: "standard",
+  location: null,
+  maxPrice: 1200,
+  maxPurchasable: 5,
+  name: "Extra Bedding",
+  nonTransferable: false,
+  purchaseOnly: false,
+  slug: "extra-bedding",
+  unitPrice: 1200,
+} satisfies PublicListing;
+
 const PACKAGE_BOOK_CHILDREN_EXAMPLE = v.parse(PackageChildrenSchema, [
   { parent: "tent-pitch", quantity: 1, slug: "extra-bedding" },
 ]);
@@ -191,7 +216,13 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
         fields: "email,phone",
         maxPurchasable: 5,
         members: [
-          { name: "Tent Pitch", quantity: 1, slug: "tent-pitch" },
+          {
+            // The add-on the booking example below chooses for this member.
+            children: [PACKAGE_EXAMPLE_CHILD],
+            name: "Tent Pitch",
+            quantity: 1,
+            slug: "tent-pitch",
+          },
           { name: "Firepit", quantity: 1, slug: "firepit" },
         ],
         name: "Camping Weekend",
