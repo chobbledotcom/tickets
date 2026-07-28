@@ -160,6 +160,21 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     expect(await taskNamed("payment_case_alerts").check.enabled()).toBe(false);
   });
 
+  test("the payment alert task fetches its work and finds nothing to say", async () => {
+    // Nothing hands this task its work — it fetches it itself on every run,
+    // which is the only way the scheduled alert ever happens.
+    let followUps = 0;
+
+    await taskNamed("payment_case_alerts").run(
+      maintenanceContext(
+        { database: 20, external: 10, total: 30 },
+        { requestFollowUp: () => followUps++ },
+      ),
+    );
+
+    expect(followUps).toBe(0);
+  });
+
   test("a completed activity checkpoint completes without scanning", async () => {
     let completed = 0;
 

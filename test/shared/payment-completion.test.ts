@@ -8,12 +8,15 @@ import {
   type PaymentCompletionEffect,
   PaymentCompletionSchema,
   PlaceholderRefundEffectSchema,
+  paymentCompletionResult,
   placeholderRefundCompletion,
 } from "#shared/payment-completion.ts";
 import {
+  PAYMENT_COMPLETED_BOOKING,
   PAYMENT_INTENT,
   PAYMENT_PLACEHOLDER_RESULT,
 } from "#test/shared/db/payments/fixtures.ts";
+import { storedStripePayment } from "#test-utils/stripe/provider-fixtures.ts";
 
 const expectPendingEffects = (
   completion: PaymentCompletion,
@@ -75,4 +78,23 @@ test("rejects a balance completion for registration input", () => {
       [],
     ),
   ).toThrow("flow must match");
+});
+
+test("refuses to rebuild an answer for a payment with no plan written down", () => {
+  expect(() =>
+    paymentCompletionResult(storedStripePayment({ completion: null })),
+  ).toThrow("has no completion plan");
+});
+
+test("refuses to rebuild a booking answer with nobody to give it to", () => {
+  // The plan says a booking was made, but the payment names no one it was
+  // made for, so there is no answer to give back.
+  expect(() =>
+    paymentCompletionResult(
+      storedStripePayment({
+        attendeeId: null,
+        completion: PAYMENT_COMPLETED_BOOKING,
+      }),
+    ),
+  ).toThrow("has no completion attendee");
 });
