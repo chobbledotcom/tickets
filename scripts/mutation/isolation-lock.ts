@@ -87,18 +87,27 @@ export const withRunLockOrNull = <Result>(
 ): Promise<Result | null> =>
   withFileLockOrNull(runLockPath(record), timeoutMs, run);
 
-/** Hold a run's own lock, for as long as the run needs it. */
-export const withMutationRunLock = <Result>(
-  runRootPath: string,
+/** Holds the lock named by `Key` while the body runs. */
+export type LockHolder<Key> = <Result>(
+  key: Key,
   run: () => Promise<Result>,
-): Promise<Result> => withFileLock(runLockPath({ root: runRootPath }), run);
+) => Promise<Result>;
+
+/** A lock named by where it lives: say how to find it, get its holder. */
+const lockHolder =
+  <Key>(pathOf: (key: Key) => string): LockHolder<Key> =>
+  (key, run) =>
+    withFileLock(pathOf(key), run);
+
+/** Hold a run's own lock, for as long as the run needs it. */
+export const withMutationRunLock: LockHolder<string> = lockHolder(
+  (runRootPath: string) => runLockPath({ root: runRootPath }),
+);
 
 /**
  * Hold the checkout's copy-back lock. Every run brings its kept files back
  * through this one lock, so two runs finishing together cannot both read the
  * checkout, agree it is unchanged, and then write over each other.
  */
-export const withCopyBackLock = <Result>(
-  root: string,
-  run: () => Promise<Result>,
-): Promise<Result> => withFileLock(copyBackLockPath(root), run);
+export const withCopyBackLock: LockHolder<string> =
+  lockHolder(copyBackLockPath);
