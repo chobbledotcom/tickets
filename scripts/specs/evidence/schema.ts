@@ -69,6 +69,17 @@ const NamedEvidenceItemSchema = v.strictObject({
   ...EvidenceItemSchema.entries,
 });
 
+/** Where the story lives, so a reader of the manifest can open it. */
+const FeatureUriSchema = v.pipe(
+  TrimmedNonEmptyTextSchema,
+  v.regex(/^specs\/[\w./-]+\.feature$/, "Invalid Feature uri"),
+);
+
+const EvidenceStorySchema = v.strictObject({
+  uri: FeatureUriSchema,
+  ...NamedEvidenceItemSchema.entries,
+});
+
 const EvidenceViewportSchema = v.strictObject({
   deviceScaleFactor: v.pipe(v.number(), v.minValue(1)),
   height: PositiveIntegerSchema,
@@ -118,7 +129,7 @@ const EvidenceCaptureSchema = v.strictObject({
     ),
     v.minLength(1),
   ),
-  story: NamedEvidenceItemSchema,
+  story: EvidenceStorySchema,
 });
 
 const EvidenceCapturesSchema = v.pipe(
@@ -143,7 +154,7 @@ export const EvidenceManifestSchema = v.strictObject({
     repository: v.literal(EVIDENCE_REPOSITORY),
   }),
   captures: EvidenceCapturesSchema,
-  schemaVersion: v.literal(1),
+  schemaVersion: v.literal(2),
 });
 
 export type EvidenceManifest = v.InferOutput<typeof EvidenceManifestSchema>;

@@ -102,17 +102,18 @@ describe("Cucumber evidence schema", () => {
             description: "Customers can pay.",
             id: "payments.story",
             name: "Customer payment",
+            uri: "specs/payments/customer-payment.feature",
           },
         },
       ],
-      schemaVersion: 1,
+      schemaVersion: 2,
     };
 
     expect(v.parse(EvidenceManifestSchema, manifest)).toEqual(manifest);
     expect(
       v.safeParse(EvidenceManifestSchema, {
         ...manifest,
-        schemaVersion: 2,
+        schemaVersion: 3,
       }).success,
     ).toBe(false);
     expect(
@@ -121,6 +122,22 @@ describe("Cucumber evidence schema", () => {
         app: { ...manifest.app, commit: "short" },
       }).success,
     ).toBe(false);
+    // A story says where it was authored, so anything quoting it can link to
+    // the Feature without guessing the path.
+    for (const uri of [undefined, "payments/customer-payment.feature", "specs/x.md"]) {
+      expect(
+        v.safeParse(EvidenceManifestSchema, {
+          ...manifest,
+          captures: [
+            {
+              ...manifest.captures[0],
+              story: { ...manifest.captures[0].story, uri },
+            },
+          ],
+        }).success,
+        String(uri),
+      ).toBe(false);
+    }
 
     const capture = requireValue(
       manifest.captures[0],
