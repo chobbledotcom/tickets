@@ -22,6 +22,13 @@ import { EmailSchema } from "#shared/validation/email.ts";
  * fails the parse. JSON object keys are strings, so `dayPrices` is keyed by
  * string here. `entriesFromList` groups same-typed fields to keep it compact.
  */
+/** The dates something is free on, as every surface builds them: a calendar
+ * walked once, so no date is offered twice. */
+const OfferedDates = v.pipe(
+  v.array(IsoDateSchema),
+  v.check((dates) => new Set(dates).size === dates.length),
+);
+
 const publicListingEntries = {
   ...v.entriesFromList(
     ["description", "fields", "listingType", "name", "slug"],
@@ -36,7 +43,7 @@ const publicListingEntries = {
     ["date", "imageAltText", "imageUrl", "location"],
     v.nullable(v.string()),
   ),
-  availableDates: v.optional(v.array(IsoDateSchema)),
+  availableDates: v.optional(OfferedDates),
 };
 
 /**
@@ -245,15 +252,8 @@ const MergedContactFields = v.pipe(
 );
 
 const packageBundleEntries = {
-  // Left out entirely when a bundle has no dates, rather than sent empty, and
-  // each date is offered once.
-  availableDates: v.optional(
-    v.pipe(
-      v.array(IsoDateSchema),
-      v.nonEmpty(),
-      v.check((dates) => new Set(dates).size === dates.length),
-    ),
-  ),
+  // Left out entirely when a bundle has no dates, rather than sent empty.
+  availableDates: v.optional(v.pipe(OfferedDates, v.nonEmpty())),
   // A bundle may be sold without a description; the operator chooses.
   description: v.string(),
   // An empty list is the real "name and email only" setting.
@@ -305,7 +305,8 @@ export const PackageResponseSchema = v.union([
 export const PackageBookRequestSchema = v.strictObject({
   children: v.optional(v.array(v.unknown())),
   date: v.optional(IsoDateSchema),
-  dayCount: v.optional(AtLeastOne),
+  // Spelled as a number or as the digits of one, like the bundle count.
+  dayCount: v.optional(ApiQuantitySchema),
   email: EmailSchema,
   name: NonEmpty,
   // The endpoint takes one bundle when a booking says nothing, and reads a

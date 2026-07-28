@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { ApiQuantitySchema } from "#routes/api/request-schemas.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { parseNonNegativeMinorUnits } from "#shared/validation/money.ts";
@@ -161,9 +162,11 @@ describe("documented package endpoints", () => {
       expect(pkg.availableDates).toContain(booking.date);
     }
     if (pkg.dayCounts) {
+      // A length may be spelled as digits, so read it the way the endpoint
+      // does before looking for it among the lengths on offer.
       expect(
         (pkg.dayCounts as { days: number }[]).map(({ days }) => days),
-      ).toContain(booking.dayCount);
+      ).toContain(v.parse(ApiQuantitySchema, booking.dayCount));
     }
   });
 

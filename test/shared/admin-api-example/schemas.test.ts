@@ -168,6 +168,36 @@ describe("the shapes the documentation is measured against", () => {
     );
   });
 
+  test("a package group names each of its members once", () => {
+    const second = { ...pricedMember, listing_id: 8 };
+
+    accepts(AdminGroupSchema, {
+      ...packageGroup(pricedMember),
+      package_members: [pricedMember, second],
+    });
+    refuses(AdminGroupSchema, {
+      ...packageGroup(pricedMember),
+      package_members: [pricedMember, { ...pricedMember, quantity: 2 }],
+    });
+  });
+
+  test("a listing on its own page offers each of its dates once", () => {
+    refuses(PublicListingDetailSchema, {
+      ...listing(),
+      availableDates: ["2025-08-20", "2025-08-20"],
+      listingType: "daily",
+    });
+  });
+
+  test("a booking may spell its length of stay in digits", () => {
+    const booking = JSON.parse(
+      documented(PUBLIC_API_ENDPOINTS, "POST", "/api/packages/:slug/book")
+        .request!,
+    );
+
+    accepts(PackageBookRequestSchema, { ...booking, dayCount: "2" });
+  });
+
   test("a member with no repriced spans leaves them out", () => {
     accepts(AdminGroupSchema, packageGroup(pricedMember));
     accepts(
