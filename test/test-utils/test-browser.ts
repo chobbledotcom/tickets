@@ -228,6 +228,34 @@ const appendFormValue = (
  * Also returns the matching button's name/value attributes when present,
  * so the caller can include them in the submission (mirrors how a real
  * browser submits a `<button name="…" value="…">` only when clicked). */
+/** The button on this form a person would press, and what pressing it sends
+ * (routes that dispatch on `action` read the button's own name and value).
+ * "switched off" when the only buttons with that text cannot be pressed, and
+ * nothing when the form has no button with that text at all — plenty of forms
+ * are found by their body text instead. */
+const buttonToPress = (
+  body: string,
+  lower: string,
+):
+  | { buttonName?: string | undefined; buttonValue?: string }
+  | "switched off" => {
+  const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
+  let switchedOff = false;
+  for (const m of regexCollect(buttonRe, body, (x) => x)) {
+    if (!stripTags(m[2]!).toLowerCase().trim().includes(lower)) continue;
+    const attrs = m[1]!;
+    if (isDisabled(attrs)) {
+      switchedOff = true;
+      continue;
+    }
+    return {
+      buttonName: attrs.match(/name="([^"]+)"/)?.[1],
+      buttonValue: attrValue(attrs, "value") ?? "",
+    };
+  }
+  return switchedOff ? "switched off" : {};
+};
+
 const findFormByButton = (
   forms: FormInfo[],
   buttonText: string,
@@ -240,24 +268,13 @@ const findFormByButton = (
   const lower = buttonText.toLowerCase();
   for (const f of forms) {
     if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
-    // Try to find the specific button with this text and extract its
-    // name/value attributes (used by routes that dispatch on `action`).
-    const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
-    for (const m of regexCollect(buttonRe, f.body, (x) => x)) {
-      const btnText = stripTags(m[2]!).toLowerCase().trim();
-      if (btnText.includes(lower)) {
-        const attrs = m[1]!;
-        if (isDisabled(attrs)) continue;
-        const nameMatch = attrs.match(/name="([^"]+)"/);
-        return {
-          action: f.action,
-          body: f.body,
-          buttonName: nameMatch?.[1],
-          buttonValue: attrValue(attrs, "value") ?? "",
-        };
-      }
+    const pressed = buttonToPress(f.body, lower);
+    // Every button with this text is switched off. Submitting the form anyway
+    // would let a test do something nobody could do on the page.
+    if (pressed === "switched off") {
+      throw new Error(`The "${buttonText}" button is switched off`);
     }
-    return { action: f.action, body: f.body };
+    return { action: f.action, body: f.body, ...pressed };
   }
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(

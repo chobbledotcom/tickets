@@ -10,6 +10,7 @@ import {
   buyersTicket,
   customerBuysBundle,
   expectPartOnSaleAlone,
+  GROUP_DELETED,
   GROUP_SAVED,
   isStillABundle,
   organiserDeletesBundle,
@@ -197,6 +198,11 @@ Then(
 Then(
   "the {word} is gone",
   async function (this: TicketsWorld, bundle: string): Promise<void> {
+    // Told it went, as well as finding it gone: a delete that removed the
+    // bundle and then fell over is not an organiser deleting one.
+    expect(
+      requiredWorldValue(this.bundleRefusal, "what the organiser was told"),
+    ).toContain(GROUP_DELETED);
     expect(await bundleStillExists(this, bundle)).toBe(false);
   },
 );

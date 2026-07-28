@@ -541,8 +541,8 @@ describe("TestBrowser forms", () => {
     return { browser, getParams: () => new URLSearchParams(posted) };
   };
 
-  it("skips disabled matching buttons and submits the form without button data", async () => {
-    const { browser, getParams } = setupFormSubmit();
+  it("refuses to press a button the page has switched off", async () => {
+    const { browser } = setupFormSubmit();
     browser.currentHtml = `
       <form action="/disabled-button">
         <input name="title" value="Draft">
@@ -550,11 +550,11 @@ describe("TestBrowser forms", () => {
       </form>
     `;
 
-    await browser.submitForm({}, "Publish");
-
-    const params = getParams();
-    expect(params.get("title")).toBe("Draft");
-    expect(params.has("action")).toBe(false);
+    // Naming a button means pressing it. Submitting the form without its data
+    // instead would let a test do something nobody looking at the page could.
+    await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+      'The "Publish" button is switched off',
+    );
   });
 
   it("selects a form by body text even when no button text matches", async () => {
@@ -596,6 +596,21 @@ describe("TestBrowser forms", () => {
     const params = getParams();
     expect(params.get("title")).toBe("Draft");
     expect(params.has("undefined")).toBe(false);
+  });
+
+  it("presses a usable button when a switched-off one shares its text", async () => {
+    const browser = new TestBrowser();
+    useHandler(browser, () => new Response("saved"));
+    browser.currentHtml = `
+      <form action="/only">
+        <button disabled>Save</button>
+        <button name="action" value="now">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Save");
+
+    expect(browser.currentHtml).toBe("saved");
   });
 
   it("throws with available form actions when no button matches", async () => {

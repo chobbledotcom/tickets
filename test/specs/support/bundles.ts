@@ -142,8 +142,10 @@ export const organiserSellsAsBundle = async (
   expect(browser.containsText(GROUP_SAVED)).toBe(true);
 };
 
-/** What the site tells an organiser when a group's own form saves. */
+/** What the site tells an organiser when a group's own form saves, and when a
+ * group is deleted. */
 export const GROUP_SAVED = "Group updated";
+export const GROUP_DELETED = "Group deleted";
 
 const BUNDLE_BOX = "is_package";
 const PRIVATE_BOX = "hide_package_listings";
@@ -174,6 +176,7 @@ export const organiserRevealsParts = async (
     },
     "Save Changes",
   );
+  expect(browser.containsText(GROUP_SAVED)).toBe(true);
 };
 
 /** The bundle as the site has it now, or nothing if it is gone. */
