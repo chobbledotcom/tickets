@@ -10,13 +10,17 @@ import { map } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
+import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
+  expectCanReallySend,
   tickedCheckboxes,
   whyValueCannotBeSent,
 } from "#test/specs/support/form-controls.ts";
-import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
+import {
+  rememberStayListing,
+  stayListing,
+} from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -78,17 +82,20 @@ const bundleForm = (
   world: TicketsWorld,
   parts: PartOfBundle[],
   html: string,
-): Record<string, string> =>
-  Object.fromEntries(
+): Record<string, string> => {
+  const filledIn = Object.fromEntries(
     map((part: PartOfBundle) => {
       const box = `package_price_${stayListing(world, part.name).id}`;
-      const typed =
-        part.bundlePrice === undefined ? "" : part.bundlePrice.toFixed(2);
       expect(html).toContain(`name="${box}"`);
-      expect(whyValueCannotBeSent(html, box, typed)).toBeNull();
-      return [box, typed] as const;
+      return [
+        box,
+        part.bundlePrice === undefined ? "" : part.bundlePrice.toFixed(2),
+      ] as const;
     })(parts),
   );
+  expectCanReallySend(html, filledIn);
+  return filledIn;
+};
 
 /** One of the organiser's own choices on the bundle form, ticked or cleared.
  * The box has to be there and be usable, so a page that stopped offering it
@@ -113,11 +120,8 @@ const boxCleared = (html: string, field: string): string[] => {
 const bundlePage = async (
   world: TicketsWorld,
   name: string,
-): Promise<TestBrowser> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/groups/${bundleNamed(world, name).id}/edit`);
-  return browser;
-};
+): Promise<TestBrowser> =>
+  openAdminPage(world, `/admin/groups/${bundleNamed(world, name).id}/edit`);
 
 /** The organiser turns a group into a bundle, pricing each part, and says
  * whether what is inside stays private. */
@@ -224,13 +228,14 @@ export const customerBuysBundle = async (
   // be chosen in a real browser however well a crafted send goes through.
   const wanting = `package_quantity_${group.id}`;
   expect(browser.currentHtml).toContain(`name="${wanting}"`);
-  expect(whyValueCannotBeSent(browser.currentHtml, wanting, "1")).toBeNull();
   world.bundleBookingPage = browser.pageText;
-  const whoTheyAre = { email: "buyer@example.com", name: "Buyer" };
-  for (const [box, typed] of Object.entries(whoTheyAre)) {
-    expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
-  }
-  await browser.submitForm({ ...whoTheyAre, [wanting]: "1" }, "Continue");
+  const filledIn = {
+    email: "buyer@example.com",
+    name: "Buyer",
+    [wanting]: "1",
+  };
+  expectCanReallySend(browser.currentHtml, filledIn);
+  await browser.submitForm(filledIn, "Continue");
   // Buying leaves them on a page carrying the link to their ticket, which is
   // the only way they can ever reach it again.
   const toTicket = browser.links.find(({ href }) => href.startsWith("/t/"));
@@ -254,8 +259,10 @@ export const organiserDeletesBundle = async (
   world: TicketsWorld,
   name: string,
 ): Promise<string> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/groups/${bundleNamed(world, name).id}/delete`);
+  const browser = await openAdminPage(
+    world,
+    `/admin/groups/${bundleNamed(world, name).id}/delete`,
+  );
   const typed = "confirm_identifier";
   expect(whyValueCannotBeSent(browser.currentHtml, typed, name)).toBeNull();
   await browser.submitForm({ [typed]: name }, "Delete Group");

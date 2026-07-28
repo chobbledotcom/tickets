@@ -9,12 +9,16 @@ const FIELD = "bookable_alone";
 
 import { expect } from "@std/expect";
 import { groups } from "#shared/db/groups.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   tickedCheckboxes,
 } from "#test/specs/support/form-controls.ts";
-import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
+import {
+  organiserSavesListing,
+  rememberStayListing,
+  stayListing,
+} from "#test/specs/support/listings.ts";
+
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -74,20 +78,22 @@ export const expectCustomerCanOpen = async (
   world: TicketsWorld,
   name: string,
 ): Promise<void> => {
-  expect(await ticketPageStatus(stayListing(world, name).slug)).toBe(200);
+  await expectTicketPageAnswers(200)(world, name);
   const browser = new TestBrowser();
   await browser.visit(bookingLinkFor(world, name));
   expect(browser.pageText).toContain(name);
 };
 
+/** What the site answers when a customer asks for this thing's own page. */
+const expectTicketPageAnswers =
+  (answer: number) =>
+  async (world: TicketsWorld, name: string): Promise<void> => {
+    expect(await ticketPageStatus(stayListing(world, name).slug)).toBe(answer);
+  };
+
 /** There is no page for this thing at all — the site's way of saying it is only
  * ever sold with something else. */
-export const expectCustomerCannotOpen = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  expect(await ticketPageStatus(stayListing(world, name).slug)).toBe(404);
-};
+export const expectCustomerCannotOpen = expectTicketPageAnswers(404);
 
 /** The organiser turns selling-on-its-own on or off, by ticking or unticking
  * the box on the listing's own edit form. The box has to be there and be
@@ -98,21 +104,16 @@ export const sellOnItsOwn = async (
   name: string,
   onItsOwn: boolean,
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
-  // Send whatever the page's own box sends, rather than a value this file
-  // believes in: a box rewritten to carry something else must fail the story.
-  const ticked = checkboxValueOffered(browser.currentHtml, FIELD);
-  expect(tickedCheckboxes(browser.currentHtml, FIELD)).toEqual(
-    onItsOwn ? [] : [ticked],
-  );
-  // Unticking a box sends nothing at all for it, which is what a real browser
-  // does.
-  await browser.submitForm(
-    { [FIELD]: onItsOwn ? [ticked] : [] },
-    "Save Changes",
-  );
-  expect(browser.containsText("Listing updated")).toBe(true);
+  await organiserSavesListing(world, name, (served) => {
+    // Send whatever the page's own box sends, rather than a value this file
+    // believes in: a box rewritten to carry something else must fail the
+    // story.
+    const ticked = checkboxValueOffered(served, FIELD);
+    expect(tickedCheckboxes(served, FIELD)).toEqual(onItsOwn ? [] : [ticked]);
+    // Unticking a box sends nothing at all for it, which is what a real
+    // browser does.
+    return { [FIELD]: onItsOwn ? [ticked] : [] };
+  });
 };
 
 /** Whether the Chair's own booking page still offers the Cover with it. */

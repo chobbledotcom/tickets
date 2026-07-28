@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import type { Stub } from "@std/testing/mock";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
+import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   runStripeSuccess,
@@ -34,13 +35,7 @@ export const paidPlaceEach = async (
   people: string[],
 ): Promise<void> => {
   await setupStripe();
-  const listing = await createTestListing({
-    maxAttendees: 50,
-    name,
-    unitPrice: minorUnits(price),
-  });
-  world.listingIds.set(name, listing.id);
-  world.listingId = listing.id;
+  const listing = await sellSomethingAt(world, name, price);
   world.confirmName = name;
   world.attendeeIds = [];
   for (const [index, who] of people.entries()) {

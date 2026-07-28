@@ -7,7 +7,8 @@
 
 import { expect } from "@std/expect";
 import { settings } from "#shared/db/settings.ts";
-import { stayListing } from "#test/specs/support/stays.ts";
+
+import { stayListing } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 

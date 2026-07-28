@@ -15,8 +15,14 @@ import {
 } from "#shared/db/listings/records.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
-import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls.ts";
+import {
+  organiserSavesListing,
+  rememberStayListing,
+  saveListingEdit,
+  stayListing,
+} from "#test/specs/support/listings.ts";
+
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -44,17 +50,6 @@ const PRIVATE_PAGES: Record<string, string> = {
 
 export const privatePagePath = (page: string): string =>
   requiredWorldValue(PRIVATE_PAGES[page], `a page called "${page}"`);
-
-/** Everything the person is about to send has to be something they could
- * really type or pick on the page in front of them. */
-const expectCanReallyType = (
-  browser: TestBrowser,
-  values: Record<string, string>,
-): void => {
-  for (const [box, typed] of Object.entries(values)) {
-    expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
-  }
-};
 
 /** Each admin page the editor is offered, paired with what the site answers
  * when they follow it. Only admin links are asked about — a link to the public
@@ -89,7 +84,7 @@ export const ownerInvitesEditor = async (
   // page, or an invite could be crafted that no owner can send.
   expect(browser.pageText).toContain(t("fields.user.editor"));
   const chosen = { admin_level: "editor", username: who };
-  expectCanReallyType(browser, chosen);
+  expectCanReallySend(browser.currentHtml, chosen);
   await browser.submitForm(chosen, t("users.invite.submit"));
   // The owner reads the link off the page and passes it on, which is the only
   // way the invited person ever hears about it.
@@ -109,7 +104,7 @@ export const editorFollowsInvite = async (
     password: CHOSEN_PASSWORD,
     password_confirm: CHOSEN_PASSWORD,
   };
-  expectCanReallyType(browser, chosen);
+  expectCanReallySend(browser.currentHtml, chosen);
   await browser.submitForm(chosen, t("join.set_password.submit"));
   world.editorBrowser = browser;
 };
@@ -123,20 +118,41 @@ export const editorLogsIn = async (
   const browser = new TestBrowser();
   await browser.visit("/admin/");
   const typed = { password: CHOSEN_PASSWORD, username: who };
-  expectCanReallyType(browser, typed);
+  expectCanReallySend(browser.currentHtml, typed);
   await browser.submitForm(typed, t("login.submit"));
   world.editorBrowser = browser;
 };
 
-/** Somebody who is already an editor and already logged in. */
+/** Somebody who is already an editor and already logged in. Saying it twice of
+ * the same person is fine; saying it of a second person is not, because only
+ * one editor is ever signed in and every later step would quietly be taken by
+ * the first one. */
 export const signedInEditor = async (
   world: TicketsWorld,
   who: string,
 ): Promise<void> => {
-  if (world.editorBrowser) return;
+  if (world.editorBrowser) {
+    if (world.signedInEditorName !== who) {
+      throw new Error(
+        `${world.signedInEditorName} is already the signed-in editor, so ${who} cannot be as well`,
+      );
+    }
+    return;
+  }
+  world.signedInEditorName = who;
   await ownerInvitesEditor(world, who);
   await editorFollowsInvite(world);
   await editorLogsIn(world, who);
+};
+
+/** The editor opens one of their own pages. */
+const openAsEditor = async (
+  world: TicketsWorld,
+  path: string,
+): Promise<TestBrowser> => {
+  const browser = editorBrowser(world);
+  await browser.visit(path);
+  return browser;
 };
 
 /** The editor's own browser, once the story has signed them in. */
@@ -202,11 +218,10 @@ export const editorAddsListing = async (
   world: TicketsWorld,
   name: string,
 ): Promise<void> => {
-  const browser = editorBrowser(world);
-  await browser.visit("/admin/listing/new");
+  const browser = await openAsEditor(world, "/admin/listing/new");
   await browser.clickLink(t("listings_table.listing_type_picker_custom"));
   const typed = { max_attendees: "10", max_quantity: "1", name };
-  expectCanReallyType(browser, typed);
+  expectCanReallySend(browser.currentHtml, typed);
   await browser.submitForm(typed, t("listings_table.create_listing"));
 };
 
@@ -217,8 +232,9 @@ export const listingSoldAsOrNull = async (
 ): Promise<ListingWithCount | null> =>
   (await getAllListings()).find((listing) => listing.name === name) ?? null;
 
-/** Where a listing forwards its bookings now. */
-export const forwardingAddress = async (
+/** Where a listing forwards its bookings now, or nothing when it forwards them
+ * nowhere. */
+export const forwardingAddressOrNull = async (
   world: TicketsWorld,
   name: string,
 ): Promise<string | null> => {
@@ -230,22 +246,17 @@ export const forwardingAddress = async (
 /** The editor's save carries a forwarding address their form never offered.
  * That is the whole point of the attempt, so nothing is checked first — the
  * site has to be what turns it away, not the page. */
-export const editorCraftsForwardingTo = async (
+export const editorCraftsForwardingTo = (
   world: TicketsWorld,
   name: string,
   address: string,
-): Promise<void> => {
-  const browser = editorBrowser(world);
-  await savesListingForwarding(browser, world, name, address, {
-    throughTheBox: false,
-  });
-  // The save itself has to have been accepted. A whole edit turned away would
-  // leave the address alone too, and prove nothing about this one field.
-  expect(browser.currentUrl).toBe(
-    `/admin/listing/${stayListing(world, name).id}/edit`,
-  );
-  expect(browser.containsText("Listing updated")).toBe(true);
-};
+): Promise<void> =>
+  // The save being accepted is what organiserSavesListing checks for us. A whole edit
+  // turned away would leave the address alone too, and prove nothing about this
+  // one field.
+  saveListingEdit(editorBrowser(world), stayListing(world, name).id, () => ({
+    webhook_url: address,
+  }));
 
 /** The owner makes the same change the ordinary way, through the box their own
  * form offers them. */
@@ -254,31 +265,10 @@ export const ownerSetsForwardingTo = async (
   name: string,
   address: string,
 ): Promise<void> => {
-  await savesListingForwarding(
-    await adminBrowser(world),
-    world,
-    name,
-    address,
-    {
-      throughTheBox: true,
-    },
-  );
-};
-
-const savesListingForwarding = async (
-  browser: TestBrowser,
-  world: TicketsWorld,
-  name: string,
-  address: string,
-  how: { throughTheBox: boolean },
-): Promise<void> => {
-  await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
-  if (how.throughTheBox) {
-    expect(
-      whyValueCannotBeSent(browser.currentHtml, "webhook_url", address),
-    ).toBeNull();
-  }
-  await browser.submitForm({ webhook_url: address }, "Save Changes");
+  await organiserSavesListing(world, name, (served) => {
+    expectCanReallySend(served, { webhook_url: address });
+    return { webhook_url: address };
+  });
 };
 
 /** The listing's edit form as the editor is served it. */
@@ -286,6 +276,8 @@ export const editorOpensListing = async (
   world: TicketsWorld,
   name: string,
 ): Promise<void> => {
-  const browser = editorBrowser(world);
-  await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
+  await openAsEditor(
+    world,
+    `/admin/listing/${stayListing(world, name).id}/edit`,
+  );
 };

@@ -10,6 +10,7 @@ import { WORLD } from "#shared/accounting/accounts.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
+import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import {
   completePaidOrder,
   runStripeSuccess,
@@ -21,7 +22,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** The id of a listing the story put on sale, by the name it used. */
@@ -41,19 +41,8 @@ export const sellPlacesAt = async (
   world: TicketsWorld,
   name: string,
   pounds: string,
-): Promise<Listing> => {
-  const listing = await createTestListing({
-    maxAttendees: 50,
-    name,
-    // Keep the site's own thank-you page, so a story can read what the customer
-    // is shown rather than being sent off to another site.
-    thankYouUrl: "",
-    unitPrice: minorUnits(pounds),
-  });
-  world.listingIds.set(name, listing.id);
-  world.listingId = listing.id;
-  return listing;
-};
+): Promise<Listing> =>
+  sellSomethingAt(world, name, pounds, { keepThankYouPage: true });
 
 /** One customer pays in full for one place, through the real payment return. */
 export const buyOnePlace = async (

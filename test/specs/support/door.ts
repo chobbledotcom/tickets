@@ -7,15 +7,20 @@
  * than being stepped around.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
+import {
+  rememberStayListing,
+  stayListing,
+} from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund } from "#test-utils/ledger.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+// jscpd:ignore-end
 
 /** What the site says about one person at the door. */
 export interface DoorAnswer {

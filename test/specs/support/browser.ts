@@ -22,14 +22,24 @@ export const adminBrowser = async (
   return browser;
 };
 
+/** The organiser opens one of their own pages, signing in first if they are not
+ * already. Every admin page a story reads starts here. */
+export const openAdminPage = async (
+  world: TicketsWorld,
+  path: string,
+): Promise<TestBrowser> => {
+  const browser = await adminBrowser(world);
+  await browser.visit(path);
+  return browser;
+};
+
 export const submitRenderedAdminForm = async (
   world: TicketsWorld,
   path: string,
   buttonText: string,
   values: Record<string, string> = {},
 ): Promise<TestBrowser> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(path);
+  const browser = await openAdminPage(world, path);
   await browser.submitForm(values, buttonText);
   return browser;
 };

@@ -97,7 +97,7 @@ Given(
 When(
   "the organiser stops selling the {word} as a bundle",
   async function (this: TicketsWorld, bundle: string): Promise<void> {
-    this.bundleRefusal = await organiserStopsBundling(this, bundle);
+    this.bundleOutcome = await organiserStopsBundling(this, bundle);
   },
 );
 
@@ -111,7 +111,7 @@ When(
 When(
   "the organiser tries to delete the {word}",
   async function (this: TicketsWorld, bundle: string): Promise<void> {
-    this.bundleRefusal = await organiserDeletesBundle(this, bundle);
+    this.bundleOutcome = await organiserDeletesBundle(this, bundle);
   },
 );
 
@@ -121,7 +121,7 @@ Then(
     // The site's own words, so a refusal that stopped explaining itself — or
     // stopped happening at all — fails here rather than passing quietly.
     expect(
-      requiredWorldValue(this.bundleRefusal, "what the organiser was told"),
+      requiredWorldValue(this.bundleOutcome, "what the organiser was told"),
     ).toContain(t("error.sold_hidden_package"));
   },
 );
@@ -201,7 +201,7 @@ Then(
     // Told it went, as well as finding it gone: a delete that removed the
     // bundle and then fell over is not an organiser deleting one.
     expect(
-      requiredWorldValue(this.bundleRefusal, "what the organiser was told"),
+      requiredWorldValue(this.bundleOutcome, "what the organiser was told"),
     ).toContain(GROUP_DELETED);
     expect(await bundleStillExists(this, bundle)).toBe(false);
   },
@@ -229,6 +229,6 @@ Then("the organiser is told it saved", function (this: TicketsWorld): void {
   // A save that quietly failed would leave the same bundle behind as one the
   // site refused, so the story reads what the organiser was actually told.
   expect(
-    requiredWorldValue(this.bundleRefusal, "what the organiser was told"),
+    requiredWorldValue(this.bundleOutcome, "what the organiser was told"),
   ).toContain(GROUP_SAVED);
 });

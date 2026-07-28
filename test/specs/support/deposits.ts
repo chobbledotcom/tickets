@@ -5,13 +5,13 @@
 
 import { expect } from "@std/expect";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** A place taken but not paid for, so the whole price is owed. */
@@ -20,13 +20,7 @@ export const unpaidPlace = async (
   name: string,
   price: string,
 ): Promise<void> => {
-  const listing = await createTestListing({
-    maxAttendees: 50,
-    name,
-    unitPrice: minorUnits(price),
-  });
-  world.listingIds.set(name, listing.id);
-  world.listingId = listing.id;
+  const listing = await sellSomethingAt(world, name, price);
   const attendee = await createTestAttendee(
     listing.id,
     listing.slug,

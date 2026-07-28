@@ -11,7 +11,7 @@ import {
   editorFollowsInvite,
   editorLogsIn,
   editorOpensListing,
-  forwardingAddress,
+  forwardingAddressOrNull,
   listingSoldAsOrNull,
   OWNERS_ADDRESS,
   ownerInvitesEditor,
@@ -129,7 +129,7 @@ When(
     _who: string,
     page: string,
   ): Promise<void> {
-    this.editorRefusal = await editorBrowser(this).statusOf(
+    this.editorAnswer = await editorBrowser(this).statusOf(
       privatePagePath(page),
     );
   },
@@ -141,7 +141,7 @@ Then(
     // Refused outright, not merely sent somewhere friendlier: a redirect would
     // leave the page reachable by anyone who followed it back.
     expect(
-      requiredWorldValue(this.editorRefusal, "what the site answered"),
+      requiredWorldValue(this.editorAnswer, "what the site answered"),
     ).toBe(403);
   },
 );
@@ -234,13 +234,13 @@ When(
 Then(
   "{word} still forwards its bookings to the owner's address",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await forwardingAddress(this, name)).toBe(OWNERS_ADDRESS);
+    expect(await forwardingAddressOrNull(this, name)).toBe(OWNERS_ADDRESS);
   },
 );
 
 Then(
   "{word} forwards its bookings somewhere else",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    expect(await forwardingAddress(this, name)).toBe(SOMEWHERE_ELSE);
+    expect(await forwardingAddressOrNull(this, name)).toBe(SOMEWHERE_ELSE);
   },
 );

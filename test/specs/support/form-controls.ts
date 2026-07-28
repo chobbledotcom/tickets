@@ -1,8 +1,11 @@
 /**
  * Reading a served page's own form controls, and deciding whether a visitor
- * could really send a value through one. Pure: markup in, answers out — no
- * browser, so the rules can be checked directly.
+ * could really send a value through one. The deciding is pure — markup in,
+ * answers out, no browser — so the rules can be checked directly. The one
+ * `expect` helper at the foot sits on top of that, for the stories.
  */
+
+import { expect } from "@std/expect";
 
 /** The dropdown on the page for one field, split into the tag's attributes and
  * its options, or null when the field is not a dropdown at all (a typed-in name
@@ -172,4 +175,16 @@ const whyBoxCannotCarry = (
     return `the ${field} box is fixed at something other than "${chosen}"`;
   }
   return whyNumberIsOutOfRange(box, field, chosen);
+};
+
+/** Everything somebody is about to send has to be something they could really
+ * type or pick on the page in front of them, so a story cannot post a value no
+ * real browser would have offered. */
+export const expectCanReallySend = (
+  html: string,
+  values: Record<string, string>,
+): void => {
+  for (const [field, chosen] of Object.entries(values)) {
+    expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
+  }
 };

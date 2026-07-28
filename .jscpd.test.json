@@ -1,6 +1,6 @@
 {
   "threshold": 0,
-  "_comment": "0% duplication threshold for test/",
+  "_comment": "0% duplication threshold for test/. The Cucumber files under test/specs and the shared helpers under test/test-utils are scanned by .jscpd.specs.json instead, at the tighter src/ threshold and alongside src/ itself, so they are ignored here rather than counted twice.",
   "reporters": [
     "console",
     "json"
@@ -9,7 +9,9 @@
   "ignore": [
     "**/node_modules/**",
     "**/package-lock.json",
-    "**/deno.lock"
+    "**/deno.lock",
+    "**/test/specs/**",
+    "**/test/test-utils/**"
   ],
   "format": [
     "typescript",

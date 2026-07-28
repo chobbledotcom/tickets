@@ -28,8 +28,8 @@ export interface TicketsWorld extends World {
   bookingWasTaken?: boolean;
   bulkRefundMessage?: string;
   bundleBookingPage?: string;
+  bundleOutcome?: string;
   bundleParts?: ThingForSale[];
-  bundleRefusal?: string;
   bundles?: Map<string, Group>;
   bundleTicketPath?: string;
   cashBefore?: number;
@@ -44,9 +44,9 @@ export interface TicketsWorld extends World {
   doorTickets?: Map<string, string>;
   duplicateId?: number;
   duplicateToken?: string;
+  editorAnswer?: number;
   editorBrowser?: TestBrowser;
   editorInvite?: string;
-  editorRefusal?: number;
   evidenceValues: Map<string, string>;
   firstBody?: string;
   firstDay?: string;
@@ -77,6 +77,7 @@ export interface TicketsWorld extends World {
   sharedDayLimit?: number;
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;
+  signedInEditorName?: string;
   stayListings?: Map<string, Listing>;
   stayStartsOn?: string;
   testBrowser?: TestBrowser;

@@ -5,15 +5,21 @@
  * always using a code the site itself would hand out.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
+import {
+  rememberStayListing,
+  stayListing,
+} from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
+
+// jscpd:ignore-end
 
 /** What the organiser types on the page that makes the code. A box left out is
  * left as the page had it, the way it would be for a person who fills in one

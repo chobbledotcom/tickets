@@ -5,8 +5,9 @@
  */
 
 import { expect } from "@std/expect";
-import { adminBrowser } from "#test/specs/support/browser.ts";
-import { stayListing } from "#test/specs/support/stays.ts";
+import { openAdminPage } from "#test/specs/support/browser.ts";
+
+import { stayListing } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 /** What the organiser types into the add-booking form. */
@@ -29,8 +30,7 @@ export const organiserAddsBooking = async (
   name: string,
   booking: ByHandBooking,
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(rosterPath(world, name));
+  const browser = await openAdminPage(world, rosterPath(world, name));
   // The form must offer a day, or the organiser could not say when the stay
   // starts and the booking would silently land on the wrong days.
   if (booking.day !== undefined) {
@@ -57,8 +57,7 @@ export const downloadAttendeeList = async (
   world: TicketsWorld,
   name: string,
 ): Promise<string> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(rosterPath(world, name));
+  const browser = await openAdminPage(world, rosterPath(world, name));
   const download = browser.links.find(({ href }) => href.includes("/export"));
   if (!download) {
     throw new Error(`The ${name} roster offers no attendee list to download`);

@@ -1,0 +1,28 @@
+{
+  "threshold": 0,
+  "_comment": "The Cucumber support helpers, scanned at 28 tokens rather than the 48 the rest of test/ gets. They are production-shaped code - one named helper per thing a person does - so near-identical helpers there are the exact merge we want, and 48 is too loose to see them: the four-way copy of \"open a listing's edit form, save, check it saved\" sat at 32-37 tokens and went unnoticed across four stories. Not 19 like src/, because every spec helper deliberately shares the same (world: TicketsWorld, name: string): Promise<void> shape, and that signature alone is about 20 tokens - at 19 the run is drowned in flagged signatures and import blocks, which are house style, not duplication. The step files under test/specs/steps are left out: a Given/When/Then registration is boilerplate that repeats by design, and the shared mechanism IS Cucumber's own registry, the same argument that exempts the migrations. src/ is scanned alongside so a helper that reimplements production logic is flagged against the source it copied - a separate run could never see that. src/ against itself is already held at 0% by .jscpd.json at the tighter 19, so nothing new is reported there.",
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": ".jscpd-report-specs",
+  "ignore": [
+    "**/node_modules/**",
+    "**/fp.ts",
+    "**/db/migrations/2*.ts",
+    "**/db/migrations/schema/columns.ts"
+  ],
+  "format": [
+    "typescript",
+    "tsx"
+  ],
+  "absolute": false,
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 1,
+  "minTokens": 28,
+  "path": [
+    "src",
+    "test/specs/support"
+  ]
+}

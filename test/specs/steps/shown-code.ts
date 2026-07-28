@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
+import { stayListing } from "#test/specs/support/listings.ts";
 import {
   customerPaysMore,
   customerScans,
@@ -13,7 +14,6 @@ import {
   somethingForSale,
   takeOffSale,
 } from "#test/specs/support/shown-code.ts";
-import { stayListing } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
