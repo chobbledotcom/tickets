@@ -3,7 +3,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { getNoteRows } from "#shared/db/system-notes.ts";
+import { getNoteRows } from "#shared/db/notes/queries.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -157,7 +157,7 @@ export const expectStoredRefundRecord = async (
 ): Promise<void> => {
   const [attendee] = await getAttendeesRaw(listingId);
   expect(attendee?.quantity).toBe(0);
-  expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+  expect(await getNoteRows("attendee", [attendee!.id])).toHaveLength(1);
 };
 
 export const expectStoredRefund = async (listingId: number): Promise<void> => {

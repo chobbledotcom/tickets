@@ -284,12 +284,12 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const { getAttendeesRaw } = await import(
           "#shared/db/attendees/queries.ts"
         );
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        const { getNoteRows } = await import("#shared/db/notes/queries.ts");
         const ghost = (await getAttendeesRaw(listing.id)).find(
           (a) => a.quantity === 0,
         );
         expect(ghost).toBeDefined();
-        expect(await getNoteRows([ghost!.id])).toHaveLength(1);
+        expect(await getNoteRows("attendee", [ghost!.id])).toHaveLength(1);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

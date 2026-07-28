@@ -13,10 +13,8 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import {
-  groupNotesByAttendee,
-  type SystemNote,
-} from "#shared/db/system-notes.ts";
+import { groupNotesByTargetId } from "#shared/db/notes/target.ts";
+import type { SystemNote } from "#shared/db/notes/types.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
@@ -47,7 +45,7 @@ const attendeeUrl = (attendeeId: number): string =>
 
 /** The are-you-sure delete page for one note, returning to `returnUrl`. */
 const deleteNoteUrl = (note: SystemNote, returnUrl: string): string =>
-  `/admin/attendee/${note.attendee_id}/note/${note.id}/delete?return_url=${encodeURIComponent(
+  `/admin/attendee/${note.entity_id}/note/${note.id}/delete?return_url=${encodeURIComponent(
     returnUrl,
   )}`;
 
@@ -116,7 +114,7 @@ const NoteBox = ({ note, isOwner }: NoteViewProps): JSX.Element => {
         <a
           aria-label={t("notes.delete")}
           class="system-note-dismiss"
-          href={deleteNoteUrl(note, attendeeUrl(note.attendee_id))}
+          href={deleteNoteUrl(note, attendeeUrl(note.entity_id))}
           title={t("notes.delete")}
         >
           ×
@@ -180,7 +178,7 @@ export const AttendeeNotesSummary = ({
   isOwner,
 }: NotesViewProps & { names: Map<number, string> }): JSX.Element | null => {
   if (notes.length === 0) return null;
-  const grouped = groupNotesByAttendee(notes);
+  const grouped = groupNotesByTargetId(notes);
   return (
     <details class="system-note-alert attendee-notes-summary">
       <summary>{t("notes.summary", { count: grouped.size })}</summary>
@@ -254,7 +252,7 @@ export const adminDeleteNotePage = ({
   error,
 }: { note: SystemNote } & NotePageProps): string =>
   ConfirmPage({
-    action: `/admin/attendee/${note.attendee_id}/note/${note.id}/delete`,
+    action: `/admin/attendee/${note.entity_id}/note/${note.id}/delete`,
     active: { section: "/admin/attendees" },
     buttonText: t("notes.delete_submit"),
     children: (

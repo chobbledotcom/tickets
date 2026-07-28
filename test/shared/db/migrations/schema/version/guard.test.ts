@@ -100,8 +100,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-19_maintenance_checkpoint",
         "2026-07-21_activity_backfill_complete",
         "2026-07-22_maintenance_completion",
+        "2026-07-28_note_entities",
       ],
-      schemaHash: "qxxe41",
+      schemaHash: "w6e6g0",
     });
   });
 

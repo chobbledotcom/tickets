@@ -131,8 +131,8 @@ describeWithEnv(
         listing1.id,
         listing2.id,
       );
-      const { getNoteRows } = await import("#shared/db/system-notes.ts");
-      expect((await getNoteRows([attendee.id])).length).toBe(1);
+      const { getNoteRows } = await import("#shared/db/notes/queries.ts");
+      expect((await getNoteRows("attendee", [attendee.id])).length).toBe(1);
       await expectSessionFailed("cs_multi_mismatch");
 
       // Verify refund was attempted exactly once

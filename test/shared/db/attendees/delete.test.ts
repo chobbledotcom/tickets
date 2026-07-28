@@ -9,11 +9,12 @@ import {
 } from "#shared/db/listings/records.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
+import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -224,12 +225,15 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       "Noted Attendee",
       "noted@example.com",
     );
-    await createSystemNote(attendee.id, "a note that should be purged");
-    expect(await getNoteRows([attendee.id])).toHaveLength(1);
+    await createSystemNote(
+      attendeeNotes(attendee.id),
+      "a note that should be purged",
+    );
+    expect(await getNoteRows("attendee", [attendee.id])).toHaveLength(1);
 
     await deleteAttendee(attendee.id);
 
-    expect(await getNoteRows([attendee.id])).toEqual([]);
+    expect(await getNoteRows("attendee", [attendee.id])).toEqual([]);
   });
 
   test("succeeds when the attendee has no modifier usage", async () => {

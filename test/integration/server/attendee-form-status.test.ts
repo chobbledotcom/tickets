@@ -393,8 +393,12 @@ describeWithEnv(
           "Noted",
           "noted@example.com",
         );
-        const { createOwnerNote } = await import("#shared/db/system-notes.ts");
-        await createOwnerNote(attendee.id, "Allergic to peanuts");
+        const { createOwnerNote } = await import("#shared/db/notes/queries.ts");
+        const { attendeeNotes } = await import("#shared/db/notes/target.ts");
+        await createOwnerNote(
+          attendeeNotes(attendee.id),
+          "Allergic to peanuts",
+        );
         const html = await (
           await adminGet(`/admin/attendees/${attendee.id}/activity`)
         ).text();

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { SystemNote } from "#shared/db/system-notes.ts";
+import type { SystemNote } from "#shared/db/notes/types.ts";
 import {
   attendeeBanner,
   ContactHistory,
@@ -24,8 +24,9 @@ const attendeeStatus = (
 });
 
 const OWNER_NOTE: SystemNote = {
-  attendee_id: 1,
   created: "2026-07-11T10:00:00.000Z",
+  entity_id: 1,
+  entity_type: "attendee",
   id: 1,
   note: "Bring identification",
   type: "owner",
