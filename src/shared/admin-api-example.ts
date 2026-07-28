@@ -27,12 +27,12 @@ import type { PublicListing } from "#routes/api/public-listing.ts";
 import { PackageChildrenSchema } from "#routes/api/request-schemas.ts";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
-  API_BOOK_FREE_EXAMPLE_JSON,
   API_BOOK_PAID_EXAMPLE_JSON,
   API_EXAMPLE_LISTING,
   API_LIST_EXAMPLE_JSON,
   API_SINGLE_EXAMPLE_JSON,
 } from "#shared/api-example.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { AdminListing } from "#shared/types.ts";
 
 /** The example listing exactly as the admin endpoints answer with it: the
@@ -206,7 +206,8 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
       name: "Alice Smith",
       quantity: 2,
     }),
-    response: API_BOOK_FREE_EXAMPLE_JSON,
+    // The listing has a price, so booking it answers with somewhere to pay.
+    response: API_BOOK_PAID_EXAMPLE_JSON,
   },
   {
     description:
@@ -270,6 +271,9 @@ const crudDocs = (c: {
   /** Fields a brand-new record always has, whatever the caller sent — the
    * running totals that only bookings can move. */
   freshRecord?: Record<string, number>;
+  /** What the stored defaults give a new record where the create body is
+   * silent, for fields whose default differs from the example record. */
+  newRecordDefaults?: Record<string, unknown>;
 }): EndpointDoc[] => {
   const base = `/api/admin/${c.plural}`;
   const byId = `${base}/:${c.idParam}`;
@@ -282,7 +286,11 @@ const crudDocs = (c: {
   // record as just stored: what the caller sent, over the defaults, with
   // nothing yet booked against it.
   const updated = answerWith(c.updateBody);
-  const created = answerWith(c.createBody, c.freshRecord ?? {});
+  const created = answerWith(
+    c.newRecordDefaults ?? {},
+    c.createBody,
+    c.freshRecord ?? {},
+  );
   const [list, get, create, update, del] = c.desc;
   return [
     {
@@ -339,6 +347,12 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     listResponse: {
       admin_level: "owner",
       listings: [ADMIN_API_EXAMPLE_ADMIN_LISTING],
+    },
+    // What a listing gets when the create body does not say (see
+    // listingCatalogFields): bookable every day, and a wide booking window.
+    newRecordDefaults: {
+      bookable_days: [...VALID_DAY_NAMES],
+      maximum_days_after: 90,
     },
     plural: "listings",
     singular: "listing",

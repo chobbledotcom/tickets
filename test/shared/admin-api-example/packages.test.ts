@@ -16,9 +16,13 @@ import { documented } from "./helpers.ts";
 describe("documented package endpoints", () => {
   /** One member of the documented package, with any add-ons it publishes. */
   type PackageMember = {
+    quantity: number;
     slug: string;
     children?: { maxPurchasable: number; slug: string }[];
   };
+
+  /** One add-on the documented booking chooses, under its member. */
+  type Selection = { parent: string; quantity: number; slug: string };
 
   const documentedPackage = () =>
     JSON.parse(
@@ -56,32 +60,42 @@ describe("documented package endpoints", () => {
   });
 
   test("the documented booking chooses add-ons the package really offers", () => {
-    // The endpoint checks each selection against the parent's real children, so
-    // a booking naming a child the package does not publish, or asking for more
-    // than that child can supply, would be refused.
-    type Child = { maxPurchasable: number; slug: string };
-    const members = documentedPackage().members as PackageMember[];
-    const offered = new Map<string, Map<string, Child>>(
-      members.map((member) => [
-        member.slug,
-        new Map<string, Child>(
-          (member.children ?? []).map((child) => [child.slug, child]),
-        ),
-      ]),
-    );
-
-    const chosen = documentedBooking().children as {
-      parent: string;
-      quantity: number;
-      slug: string;
-    }[];
+    // The endpoint checks each selection against the parent's real children,
+    // and the fold wants each member's add-ons to add up to how many of that
+    // member the order books — so a booking that asks for the wrong number, or
+    // for something the package does not publish, would be refused.
+    const pkg = documentedPackage();
+    const booking = documentedBooking();
+    const chosen = booking.children as Selection[];
 
     expect(chosen.length).toBeGreaterThan(0);
-    for (const { parent, quantity, slug } of chosen) {
-      const child = offered.get(parent)?.get(slug);
-      if (!child) throw new Error(`The package has no ${slug} under ${parent}`);
-      expect(quantity).toBeLessThanOrEqual(child.maxPurchasable);
+    for (const member of pkg.members as PackageMember[]) {
+      const offered = new Map(
+        (member.children ?? []).map((child) => [child.slug, child]),
+      );
+      const forMember = chosen.filter(({ parent }) => parent === member.slug);
+      if (offered.size === 0) {
+        expect(forMember).toEqual([]);
+        continue;
+      }
+
+      for (const { quantity, slug } of forMember) {
+        const child = offered.get(slug);
+        if (!child) {
+          throw new Error(`The package has no ${slug} under ${member.slug}`);
+        }
+        expect(quantity).toBeLessThanOrEqual(child.maxPurchasable);
+      }
+
+      const picked = forMember.reduce((sum, one) => sum + one.quantity, 0);
+      expect(picked).toBe(member.quantity * booking.quantity);
     }
+  });
+
+  test("the documented booking orders no more bundles than are for sale", () => {
+    expect(documentedBooking().quantity).toBeLessThanOrEqual(
+      documentedPackage().maxPurchasable,
+    );
   });
 
   test("the documented booking picks a date and length the package offers", () => {

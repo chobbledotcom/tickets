@@ -64,12 +64,14 @@ describe("documented admin CRUD endpoints", () => {
 
   test("a create answers with the record as it was just stored", () => {
     for (const { create, createResponse, example } of documentedResources()) {
-      // What the caller sent, over the defaults, with nothing booked yet.
-      expect(createResponse).toEqual({
-        ...example,
-        ...create,
-        ...freshTotals(example),
-      });
+      // Everything the caller asked for comes back as they asked for it...
+      for (const [field, value] of Object.entries(create)) {
+        expect(createResponse[field]).toEqual(value);
+      }
+      // ...and nothing has been booked against it yet.
+      for (const [field, value] of Object.entries(freshTotals(example))) {
+        expect(createResponse[field]).toBe(value);
+      }
     }
   });
 

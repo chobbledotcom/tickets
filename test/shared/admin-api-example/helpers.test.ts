@@ -40,8 +40,15 @@ describe("reading a documented body", () => {
     expect(
       jsonLeaves({ members: [{ name: "Tent Pitch", quantity: 1 }] }, "GET /x"),
     ).toEqual([
-      ["GET /x.members[0].name", "Tent Pitch"],
-      ["GET /x.members[0].quantity", 1],
+      { field: "name", value: "Tent Pitch", where: "GET /x.members[0].name" },
+      { field: "quantity", value: 1, where: "GET /x.members[0].quantity" },
+    ]);
+  });
+
+  test("a value in a list keeps the name of the field holding it", () => {
+    // group_ids: [0] must be judged as an id, not as "group_ids[0]".
+    expect(jsonLeaves({ group_ids: [7] }, "POST /x")).toEqual([
+      { field: "group_ids", value: 7, where: "POST /x.group_ids[0]" },
     ]);
   });
 

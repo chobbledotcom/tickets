@@ -133,7 +133,12 @@ const PublishedChildSchema = v.intersect([
   PublicListingSchema,
   v.object({
     description: NonEmpty,
-    fields: NonEmpty,
+    // An empty list is the real "name and email only" setting.
+    fields: v.string(),
+    // A closed or sold-out add-on cannot be chosen, so publishing one under a
+    // member would document a booking the endpoint refuses.
+    isClosed: v.literal(false),
+    isSoldOut: v.literal(false),
     listingType: NonEmpty,
     maxPrice: Price,
     maxPurchasable: AtLeastOne,
@@ -153,7 +158,8 @@ const PackageMemberSchema = v.strictObject({
 const packageBundleEntries = {
   availableDates: v.optional(v.array(IsoDateSchema)),
   description: NonEmpty,
-  fields: NonEmpty,
+  // An empty list is the real "name and email only" setting.
+  fields: v.string(),
   maxPurchasable: AtLeastOne,
   members: v.optional(v.pipe(v.array(PackageMemberSchema), v.nonEmpty())),
   name: NonEmpty,
@@ -201,20 +207,28 @@ export const PackageBookRequestSchema = v.strictObject({
   ),
 });
 
-/**
- * A group as the admin API returns it: every stored field except the internal
- * lookup index, which is what `Omit<Group, "slug_index">` gives a caller.
- */
-export const AdminGroupSchema = v.strictObject({
+const groupEntries = {
   description: v.string(),
-  ...v.entriesFromList(
-    ["hidden", "hide_package_listings", "is_package"],
-    v.boolean(),
-  ),
+  ...v.entriesFromList(["hidden", "hide_package_listings"], v.boolean()),
   id: AtLeastOne,
   // Zero is a real setting here: a group with no cap of its own.
   max_attendees: v.pipe(v.number(), v.integer(), v.minValue(0)),
   name: NonEmpty,
   slug: Slug,
   terms_and_conditions: v.string(),
-});
+};
+
+/**
+ * A group as the admin API returns it. A package group also carries the
+ * members it prices, which the API adds to every package response — an empty
+ * list when no member has an override — so the two shapes are told apart by
+ * the flag itself.
+ */
+export const AdminGroupSchema = v.union([
+  v.strictObject({ ...groupEntries, is_package: v.literal(false) }),
+  v.strictObject({
+    ...groupEntries,
+    is_package: v.literal(true),
+    package_members: v.array(v.unknown()),
+  }),
+]);

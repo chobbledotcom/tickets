@@ -30,28 +30,36 @@ export const documented = (
   return found;
 };
 
-/** Every value inside a JSON body, each paired with where it sits. */
+/** One value found inside a JSON body: where it sits, what it is, and the
+ * field it belongs to. A value inside a list keeps its field's name, so a zero
+ * among `group_ids` is still judged as an id. */
+export type JsonLeaf = { field: string; value: unknown; where: string };
+
+/** Every value inside a JSON body. */
 export const jsonLeaves = (
   value: unknown,
   where: string,
-): [string, unknown][] => {
+  field = "",
+): JsonLeaf[] => {
   if (Array.isArray(value)) {
     return value.flatMap((entry, index) =>
-      jsonLeaves(entry, `${where}[${index}]`),
+      jsonLeaves(entry, `${where}[${index}]`, field),
     );
   }
   if (value !== null && typeof value === "object") {
     return Object.entries(value).flatMap(([key, entry]) =>
-      jsonLeaves(entry, `${where}.${key}`),
+      jsonLeaves(entry, `${where}.${key}`, key),
     );
   }
-  return [[where, value]];
+  return [{ field, value, where }];
 };
 
 /** Fields that say how many of something, where zero means nothing to book. Two
  * kinds of field are deliberately left out: a price, because free is a real
  * price, and a capacity, because zero there means "no cap of its own". */
 const COUNT_FIELDS = [
+  "group_ids",
+  "child_listing_ids",
   "quantity",
   "max_quantity",
   "maxPurchasable",

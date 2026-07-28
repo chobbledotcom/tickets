@@ -57,8 +57,8 @@ describe("every documented endpoint", () => {
           `${endpoint.method} ${endpoint.path}`,
         ),
       )
-      .filter(([where, value]) => isBlank(value, where.split(".").pop() ?? ""))
-      .map(([where]) => where);
+      .filter(({ field, value }) => isBlank(value, field))
+      .map(({ where }) => where);
 
     expect(blanks).toEqual([]);
   });
