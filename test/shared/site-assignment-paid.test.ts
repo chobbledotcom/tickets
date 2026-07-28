@@ -175,6 +175,15 @@ describeWithEnv(
       ).rejects.toThrow("Paid site assignment is not available");
     });
 
+    test("reports having no site to hand over and none it can build", async () => {
+      // Nothing is waiting in the pool and the builder cannot make one, so the
+      // buyer has paid for a site that cannot be given to them. Saying so is
+      // the only honest answer.
+      await expect(
+        applyPaidSiteAssignment(assignmentDelivery(), () => Promise.resolve()),
+      ).rejects.toThrow("Could not build a site for this payment");
+    });
+
     test("a site that was taken over between the payment and the work is refused", async () => {
       await insertBuiltSite("Ready", "taken.example.com", "", "", true, "81");
       using _secrets = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
