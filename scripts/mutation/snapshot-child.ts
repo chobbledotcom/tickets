@@ -5,6 +5,8 @@
  * so a script can tell whether it is the outer command or the copy's worker.
  */
 
+import { resolve } from "@std/path";
+import { projectRoot } from "#scripts/project-root.ts";
 import { withMutationRunLock } from "./isolation-lock.ts";
 import {
   MUTATION_RUN_ID_ENV,
@@ -34,7 +36,15 @@ const runValue = (name: string): string => {
 const runRootFromEnv = (): string => {
   runValue(MUTATION_RUN_ID_ENV);
   const runRoot = runValue(MUTATION_RUN_ROOT_ENV);
-  runValue(MUTATION_WORK_ROOT_ENV);
+  const workRoot = resolve(runValue(MUTATION_WORK_ROOT_ENV));
+  // The copy it says it is in must be the one it is running from. Anything
+  // else means these values belong to another run, and the work would land in
+  // whatever checkout this script was started from — the live one, most likely.
+  if (workRoot !== resolve(projectRoot)) {
+    throw new Error(
+      `A snapshot child says it works in ${workRoot}, but it is running in ${resolve(projectRoot)}.`,
+    );
+  }
   return runRoot;
 };
 
