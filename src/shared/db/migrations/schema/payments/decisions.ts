@@ -13,8 +13,11 @@ export const paymentCaseDecisionTable: [name: string, table: Table] = [
         "case_revision",
         "INTEGER NOT NULL CHECK (typeof(case_revision) = 'integer' AND case_revision >= 1)",
       ],
-      ["claim", "TEXT NOT NULL CHECK (claim GLOB 'enc:1:*')"],
-      ["decision", "TEXT CHECK (decision IS NULL OR decision GLOB 'enc:1:*')"],
+      ["claim", "TEXT NOT NULL CHECK (claim GLOB 'enc:1:?*:?*')"],
+      [
+        "decision",
+        "TEXT CHECK (decision IS NULL OR decision GLOB 'enc:1:?*:?*')",
+      ],
       [
         "state",
         "TEXT NOT NULL CHECK (state IN ('accepted', 'running', 'retrying', 'completed'))",
@@ -38,7 +41,7 @@ export const paymentCaseDecisionTable: [name: string, table: Table] = [
       [
         "last_error",
         `TEXT
-          CHECK (last_error IS NULL OR last_error GLOB 'enc:1:*')
+          CHECK (last_error IS NULL OR last_error GLOB 'enc:1:?*:?*')
           CHECK ((state = 'retrying') = (next_retry_at IS NOT NULL))
           CHECK ((state = 'retrying') = (last_error IS NOT NULL))
           CHECK ((attempt_count = 0) = (last_attempt_at IS NULL))

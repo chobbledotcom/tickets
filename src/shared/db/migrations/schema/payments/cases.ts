@@ -6,7 +6,7 @@ export const paymentCaseTable: [name: string, table: Table] = [
     columns: [
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
       ["payment_id", "TEXT NOT NULL CHECK (length(trim(payment_id)) > 0)"],
-      ["resource", "TEXT NOT NULL CHECK (resource GLOB 'enc:1:*')"],
+      ["resource", "TEXT NOT NULL CHECK (resource GLOB 'enc:1:?*:?*')"],
       [
         "resource_index",
         "TEXT NOT NULL CHECK (length(trim(resource_index)) > 0)",
@@ -58,7 +58,7 @@ export const paymentCaseTable: [name: string, table: Table] = [
         "alert_lease_expires_at",
         "INTEGER CHECK (alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= 0))",
       ],
-      ["evidence", "TEXT NOT NULL CHECK (evidence GLOB 'enc:1:*')"],
+      ["evidence", "TEXT NOT NULL CHECK (evidence GLOB 'enc:1:?*:?*')"],
       [
         "evidence_redacted_at",
         "INTEGER CHECK (evidence_redacted_at IS NULL OR (state = 'resolved' AND typeof(evidence_redacted_at) = 'integer' AND evidence_redacted_at >= resolved_at))",
@@ -78,7 +78,7 @@ export const paymentCaseTable: [name: string, table: Table] = [
           CHECK (alert_sent_revision IS NULL OR (alerted_revision IS NOT NULL AND alert_sent_revision = alerted_revision))
           CHECK (alert_sent_at IS NULL OR (alerted_at IS NOT NULL AND alert_sent_at >= alerted_at))
           CHECK ((alert_lease_token IS NULL) = (alert_lease_expires_at IS NULL))
-          CHECK (alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= 0))
+          CHECK (alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= first_observed_at))
           CHECK (alert_lease_token IS NULL OR (state = 'needs_action' AND alert_sent_revision IS NULL))
           CHECK (
             (state = 'retrying' AND next_reconcile_at IS NOT NULL AND next_reconcile_at >= last_observed_at AND resolved_at IS NULL AND alerted_at IS NULL)

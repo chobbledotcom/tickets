@@ -82,7 +82,7 @@ export const paymentChargeTable: [name: string, table: Table] = [
             (origin = 'current'
               AND legacy_source IS NULL
               AND provider_refunded_at IS NULL
-              AND provider_reference GLOB 'enc:1:*'
+              AND provider_reference GLOB 'enc:1:?*:?*'
               AND reference_index IS NOT NULL
               AND captured_amount IS NOT NULL
               AND currency IS NOT NULL
@@ -110,7 +110,7 @@ export const paymentChargeTable: [name: string, table: Table] = [
             (origin = 'legacy'
               AND provider IS NULL
               AND resource_kind IS NULL
-              AND provider_reference GLOB 'hyb:1:*'
+              AND provider_reference GLOB 'hyb:1:?*:?*:?*'
               AND reference_index IS NULL
               AND captured_amount IS NULL
               AND currency IS NULL
