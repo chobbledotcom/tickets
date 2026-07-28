@@ -7,6 +7,7 @@
  */
 
 import { join } from "@std/path";
+import { errorMessage } from "#shared/error-message.ts";
 
 /** One file to bring back, and what it held when the run started. */
 export interface CopyBackFile {
@@ -27,26 +28,41 @@ export const readCopyBackFiles = (
   );
 
 /**
- * Copy each changed file out of the snapshot, and return the ones that moved.
- * A file someone else edited during the run is left alone: the run's version
- * was built from the older text, so writing it would undo their edit.
+ * Copy one file out of the snapshot, and say whether it moved. A file someone
+ * else edited during the run stops the copy: the run's version was built from
+ * the older text, so writing it would undo their edit.
  */
-export const copyBackFiles = async (
+const copyOneBack = async (
+  root: string,
+  workRoot: string,
+  { before, file }: CopyBackFile,
+): Promise<boolean> => {
+  if ((await Deno.readTextFile(join(root, file))) !== before) {
+    throw new Error(
+      `${file} changed while the isolated run was going, so its result was left behind. Re-run it on an unchanged checkout.`,
+    );
+  }
+  const after = await Deno.readTextFile(join(workRoot, file));
+  if (after === before) return false;
+  await Deno.writeTextFile(join(root, file), after);
+  return true;
+};
+
+/** Bring every kept file back, and report a failure as an exit code. */
+export const bringFilesBack = async (
   root: string,
   workRoot: string,
   files: CopyBackFile[],
-): Promise<string[]> => {
-  const copied: string[] = [];
-  for (const { before, file } of files) {
-    if ((await Deno.readTextFile(join(root, file))) !== before) {
-      throw new Error(
-        `${file} changed while the isolated run was going, so its result was left behind. Re-run it on an unchanged checkout.`,
-      );
+): Promise<number> => {
+  try {
+    for (const entry of files) {
+      if (await copyOneBack(root, workRoot, entry)) {
+        console.log(`Updated ${entry.file}`);
+      }
     }
-    const after = await Deno.readTextFile(join(workRoot, file));
-    if (after === before) continue;
-    await Deno.writeTextFile(join(root, file), after);
-    copied.push(file);
+    return 0;
+  } catch (error) {
+    console.error(errorMessage(error));
+    return 1;
   }
-  return copied;
 };

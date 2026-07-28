@@ -48,8 +48,8 @@ import {
   selectedRuns,
 } from "./isolation-state.ts";
 import {
+  bringFilesBack,
   type CopyBackFile,
-  copyBackFiles,
   readCopyBackFiles,
 } from "./snapshot-copy-back.ts";
 
@@ -123,26 +123,6 @@ const settleRecord = (
   code: number,
 ): MutationRunRecord =>
   interrupted ? markInterrupted(record) : markFinished(record, code);
-
-/**
- * Bring the run's kept files back out of its copy. A file someone else edited
- * meanwhile fails the run rather than overwriting their work.
- */
-const bringFilesBack = async (
-  root: string,
-  workRoot: string,
-  files: CopyBackFile[],
-): Promise<number> => {
-  try {
-    for (const file of await copyBackFiles(root, workRoot, files)) {
-      console.log(`Updated ${file}`);
-    }
-    return 0;
-  } catch (error) {
-    console.error(errorMessage(error));
-    return 1;
-  }
-};
 
 /** Record the child's result, then bring back what the run means to keep. */
 const finishChild = async (
