@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import {
   applyChargeRefund,
   getPaymentCharges,
@@ -168,5 +169,29 @@ describeWithEnv("db > payments > reconciliation", { db: true }, () => {
         refundState: "partial",
       },
     ]);
+  });
+  test("refuses to write the payment down when the lease has moved on", async () => {
+    // Two workers can reach a payment at once. The one holding an out-of-date
+    // lease must not write its reading over the other's, so the whole write is
+    // refused rather than quietly landing on top.
+    const payment = await pendingRefundPayment();
+    const stale = await requirePaymentSessionClaim(PAYMENT_ID, 60_000);
+    await getDb().execute(
+      "UPDATE payment_sessions SET lease_expires_at = 0 WHERE id = ?",
+      [PAYMENT_ID],
+    );
+    await requirePaymentSessionClaim(PAYMENT_ID, 60_000);
+
+    await expect(
+      storePaymentReconciliation(
+        stale,
+        payment,
+        foundRead(chargeLeg()),
+        READY_RESULT,
+        sessionProgress({ state: "processing" }),
+        false,
+        PAYMENT_TIME + 2,
+      ),
+    ).rejects.toThrow(`Lost payment session lease for ${PAYMENT_ID}`);
   });
 });

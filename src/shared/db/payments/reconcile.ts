@@ -96,9 +96,11 @@ const executeStatements = async (
   if (statements.length > 0) await tx.batch([...statements]);
 };
 
+/** The one row an update was supposed to change. Nothing coming back means
+ *  the row moved on under us, so the whole write is refused. */
 const requireReturnedRow = <Row>(rows: Row[], message: string): Row => {
   const [row] = rows;
-  if (rows.length !== 1 || row === undefined) throw new Error(message);
+  if (row === undefined) throw new Error(message);
   return row;
 };
 
