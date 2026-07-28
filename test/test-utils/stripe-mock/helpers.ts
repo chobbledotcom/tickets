@@ -2,10 +2,7 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
-import {
-  STRIPE_MOCK_FAILED_TO_START,
-  startStripeMock,
-} from "#scripts/stripe-mock.ts";
+import type { startStripeMock } from "#scripts/stripe-mock.ts";
 import { withTempDir } from "#test-utils/files.ts";
 import { wait } from "#test-utils/mocks.ts";
 
@@ -25,54 +22,6 @@ const makeSignal = (): { done: () => void; wait: Promise<void> } => {
 export const testEnv = (values: Record<string, string | undefined>) => ({
   get: (key: string) => values[key],
 });
-
-const withPort = async (
-  keepOpen: boolean,
-  body: (port: number) => Promise<void> | void,
-): Promise<void> => {
-  const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
-  const { port } = listener.addr as Deno.NetAddr;
-  if (!keepOpen) listener.close();
-  try {
-    await body(port);
-  } finally {
-    if (keepOpen) listener.close();
-  }
-};
-
-export const withUnusedPort = (body: (port: number) => Promise<void> | void) =>
-  withPort(false, body);
-
-export const withHeldPort = (body: (port: number) => Promise<void>) =>
-  withPort(true, body);
-
-const openPort = (port: number): Promise<Deno.Conn> =>
-  Deno.connect({ hostname: "127.0.0.1", port });
-
-export const expectPortOpen = async (port: number): Promise<void> => {
-  const conn = await openPort(port);
-  conn.close();
-};
-
-export const expectPortAvailable = (port: number): void => {
-  const listener = Deno.listen({ hostname: "127.0.0.1", port });
-  listener.close();
-};
-
-export const expectStartFails = async (
-  options: StartOptions,
-  message?: string,
-): Promise<void> =>
-  withUnusedPort(async (port) => {
-    const started = startStripeMock({ ...options, port });
-    if (message) await expect(started).rejects.toThrow(message);
-    else await expect(started).rejects.toThrow();
-  });
-
-export const expectStripeMockFails = (
-  options: StartOptions,
-  message = STRIPE_MOCK_FAILED_TO_START,
-): Promise<void> => expectStartFails(options, message);
 
 export const withTempStripeMockPaths = async (
   body: (paths: TestStripeMockPaths) => Promise<void>,

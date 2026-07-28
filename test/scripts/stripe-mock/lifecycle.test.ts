@@ -7,16 +7,18 @@ import {
 } from "#scripts/stripe-mock.ts";
 import type { StartOptions } from "#test/test-utils/stripe-mock/helpers.ts";
 import {
+  testEnv,
+  withFakeCurl,
+  withTempStripeMockPaths,
+  writeFailingMock,
+} from "#test/test-utils/stripe-mock/helpers.ts";
+import {
   expectPortAvailable,
   expectPortOpen,
   expectStripeMockFails,
-  testEnv,
-  withFakeCurl,
   withHeldPort,
-  withTempStripeMockPaths,
   withUnusedPort,
-  writeFailingMock,
-} from "#test/test-utils/stripe-mock/helpers.ts";
+} from "#test/test-utils/stripe-mock/ports.ts";
 import { pathExists } from "#test-utils/files.ts";
 import {
   freePort,
