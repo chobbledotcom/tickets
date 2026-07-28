@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { After, Before, type ITestCaseHookParameter } from "@cucumber/cucumber";
 import {
   captureScenarioEvidence,
@@ -12,6 +13,8 @@ import {
   cleanupWorld,
   type TicketsWorld,
 } from "./world.ts";
+
+// jscpd:ignore-end
 
 Before(async function (this: TicketsWorld): Promise<void> {
   this.cleanup = [];

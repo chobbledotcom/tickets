@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import {
   attendeeAccount,
@@ -14,6 +15,12 @@ import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { allBalances } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { adminGet } from "#test-utils/session.ts";
+// jscpd:ignore-end
+
+/** Something a story checks about one record's money, by that record's id and a
+ * figure in the smallest unit of currency. Most checks here are one of these,
+ * so they share this contract rather than repeating the signature. */
+export type CheckMoneyShown = (id: number, minor: number) => Promise<void>;
 
 // -- Ledger-truth helpers ------------------------------------------------- //
 
@@ -63,10 +70,10 @@ export const adminPageHtml = async (path: string): Promise<string> => {
  * the raw signed balance, so a refund's `revenue→attendee` debit DOES reduce it
  * (and it can go negative once a write-off and a refund both apply).
  */
-export const assertStatementBalance = async (
-  listingId: number,
-  minor: number,
-): Promise<void> => {
+export const assertStatementBalance: CheckMoneyShown = async (
+  listingId,
+  minor,
+) => {
   const statement = await adminPageHtml(`/admin/ledger/revenue/${listingId}`);
   expect(statement).toContain(
     `Income balance: ${formatSignedCurrency(minor, false)}`,
@@ -81,19 +88,19 @@ export const assertStatementBalance = async (
  * while a manual write-off does. The two surfaces therefore agree only when no
  * refund has touched the account.
  */
-export const assertEditPageIncome = async (
-  listingId: number,
-  minor: number,
-): Promise<void> => {
+export const assertEditPageIncome: CheckMoneyShown = async (
+  listingId,
+  minor,
+) => {
   const edit = await adminPageHtml(`/admin/listing/${listingId}/edit`);
   expect(edit).toContain(`value="${formatCurrency(minor)}"`);
 };
 
 /** With no refund applied, both income surfaces agree on the same figure. */
-export const assertRenderedIncome = async (
-  listingId: number,
-  minor: number,
-): Promise<void> => {
+export const assertRenderedIncome: CheckMoneyShown = async (
+  listingId,
+  minor,
+) => {
   await assertStatementBalance(listingId, minor);
   await assertEditPageIncome(listingId, minor);
 };
@@ -103,10 +110,10 @@ export const assertRenderedIncome = async (
  * statement (`Amount still owed: £X`, where owed = −running) and admin page
  * (`Balance outstanding:` label followed by the formatted figure).
  */
-export const assertRenderedOwed = async (
-  attendeeId: number,
-  minor: number,
-): Promise<void> => {
+export const assertRenderedOwed: CheckMoneyShown = async (
+  attendeeId,
+  minor,
+) => {
   const formatted = formatCurrency(minor);
   const balancePage = await adminPageHtml(
     `/admin/attendees/${attendeeId}/ledger`,
@@ -119,10 +126,10 @@ export const assertRenderedOwed = async (
  * Assert a modifier's revenue, on BOTH the modifier edit page (a disabled
  * `value="£X"` input) and the modifier list (a Revenue cell of the same figure).
  */
-export const assertRenderedModifierRevenue = async (
-  modifierId: number,
-  minor: number,
-): Promise<void> => {
+export const assertRenderedModifierRevenue: CheckMoneyShown = async (
+  modifierId,
+  minor,
+) => {
   const formatted = formatCurrency(minor);
   const edit = await adminPageHtml(`/admin/modifiers/${modifierId}/edit`);
   expect(edit).toContain(`value="${formatted}"`);

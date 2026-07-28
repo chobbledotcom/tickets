@@ -5,14 +5,19 @@
  * render one shape today.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   checkboxValueOffered,
+  expectCanReallySend,
+  fillInAndSend,
   optionsOffered,
   tickedCheckboxes,
   whyValueCannotBeSent,
 } from "#test/specs/support/form-controls.ts";
+
+// jscpd:ignore-end
 
 describe("what a visitor can send", () => {
   const chooser = (options: string, attributes = 'name="date"') =>
@@ -149,6 +154,27 @@ describe("a box that cannot be changed or cannot hold the number", () => {
     ).toBe("the duration_days box cannot be changed");
   });
 
+  test("refuses leaving a box empty when the page insists on it", () => {
+    expect(
+      whyValueCannotBeSent(lengthBox("required"), "duration_days", ""),
+    ).toBe("the duration_days box must be filled in");
+  });
+
+  test("allows leaving an optional box empty", () => {
+    expect(whyValueCannotBeSent(lengthBox(""), "duration_days", "")).toBeNull();
+  });
+
+  test("does not read a word inside a value as an on/off attribute", () => {
+    // "required" and "disabled" appear here only inside quoted values, which
+    // say nothing about whether the box itself carries either.
+    const box =
+      '<input type="number" name="duration_days" aria-required="false" ' +
+      'placeholder="disabled if not required">';
+
+    expect(whyValueCannotBeSent(box, "duration_days", "")).toBeNull();
+    expect(whyValueCannotBeSent(box, "duration_days", "2")).toBeNull();
+  });
+
   test("refuses a number above what the box takes", () => {
     expect(
       whyValueCannotBeSent(lengthBox('min="1" max="3"'), "duration_days", "5"),
@@ -234,6 +260,65 @@ describe("the days a page has ticked", () => {
       expect(() =>
         checkboxValueOffered("<p>nothing</p>", "bookable_alone"),
       ).toThrow("The page offers no bookable_alone box to tick");
+    });
+  });
+
+  describe("checking a whole form's worth of values at once", () => {
+    const form =
+      '<input name="username" value="">' +
+      '<input name="max_attendees" type="number" min="1" max="10">';
+
+    test("passes when every value could really be sent", () => {
+      expectCanReallySend(form, { max_attendees: "5", username: "sam" });
+    });
+
+    test("names the first box that could not carry its value", () => {
+      expect(() =>
+        expectCanReallySend(form, { max_attendees: "50", username: "sam" }),
+      ).toThrow("the max_attendees box takes nothing above 10");
+    });
+
+    test("fails on a box the page never offered", () => {
+      expect(() => expectCanReallySend(form, { webhook_url: "x" })).toThrow(
+        "the page has no webhook_url to fill in",
+      );
+    });
+  });
+
+  describe("filling a form in and sending it", () => {
+    /** A browser stand-in: it holds the page it was served and remembers what
+     * was sent, so the helper's own two jobs can be seen separately. */
+    const pageOffering = (html: string) => {
+      const sent: Array<{ button: string; values: Record<string, string> }> =
+        [];
+      return {
+        browser: {
+          currentHtml: html,
+          submitForm: (values: Record<string, string>, button: string) => {
+            sent.push({ button, values });
+            return Promise.resolve();
+          },
+        },
+        sent,
+      };
+    };
+
+    test("sends the values, naming the button that was pressed", async () => {
+      const page = pageOffering('<input name="username" value="">');
+      // deno-lint-ignore no-explicit-any
+      await fillInAndSend(page.browser as any, { username: "sam" }, "Invite");
+      expect(page.sent).toEqual([
+        { button: "Invite", values: { username: "sam" } },
+      ]);
+    });
+
+    test("sends nothing when a value could not really be sent", async () => {
+      const page = pageOffering('<input name="username" value="" disabled>');
+      await expect(
+        // deno-lint-ignore no-explicit-any
+        fillInAndSend(page.browser as any, { username: "sam" }, "Invite"),
+      ).rejects.toThrow();
+      expect(page.sent).toEqual([]);
     });
   });
 });

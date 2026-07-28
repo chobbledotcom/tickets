@@ -2,7 +2,9 @@
   "name": "tickets",
   "version": "1.0.0",
   "exports": "./src/index.ts",
-  "workspace": ["e2e-payments"],
+  "workspace": [
+    "e2e-payments"
+  ],
   "tasks": {
     "start": "deno task build:static && deno run --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
@@ -22,7 +24,7 @@
     "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli e2e-payments",
     "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli e2e-payments",
     "typecheck": "deno check src test cli scripts && deno check --config=e2e-payments/deno.json e2e-payments/src",
-    "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss",
+    "cpd": "deno run -A scripts/cpd.ts --config .jscpd.json && deno run -A scripts/cpd.ts --config .jscpd.test.json && deno run -A scripts/cpd.ts --config .jscpd.specs.json && deno run -A scripts/cpd.ts --config .jscpd.css.json src/ui/static/style.scss",
     "check:copy": "deno run --allow-read=src/locales scripts/check-copy.ts",
     "precommit": "deno run -A scripts/precommit.ts",
     "precommit:mutation": "deno run -A scripts/precommit-mutation.ts",

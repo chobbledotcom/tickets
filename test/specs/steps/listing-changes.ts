@@ -7,6 +7,7 @@ import {
   stopOpeningOn,
   weekdayOf,
 } from "#test/specs/support/listing-changes.ts";
+import { stayListing } from "#test/specs/support/listings.ts";
 import {
   daysOfferedFor,
   expectRefusedForWantOfRoom,
@@ -16,7 +17,6 @@ import {
   dayFromToday,
   guest,
   openStayListing,
-  stayListing,
   staysOn,
 } from "#test/specs/support/stays.ts";
 import {
