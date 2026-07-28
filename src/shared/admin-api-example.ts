@@ -33,9 +33,11 @@ import {
 } from "#shared/api-example.ts";
 import type { AdminListing } from "#shared/types.ts";
 
-/** The example AdminListing, produced by toAdminListing */
-export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing =
-  toAdminListing(API_EXAMPLE_LISTING);
+/** The example listing exactly as the admin endpoints answer with it: the
+ * stored fields, plus the ids of the groups it is in. The example is in none. */
+export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
+  group_ids: number[];
+} = { ...toAdminListing(API_EXAMPLE_LISTING), group_ids: [] };
 
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {

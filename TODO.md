@@ -819,16 +819,6 @@ they were left out of that PR's scope.
   from "draft empty". Not a dedup regression: the ordering is byte-identical to
   before the PR.
 
-- **Tautological admin-API example test**
-  (`test/shared/admin-api-example.test.ts`: `toAdminListing output matches the
-  documented example`). `ADMIN_API_EXAMPLE_ADMIN_LISTING` is defined as
-  `toAdminListing(API_EXAMPLE_LISTING)` and the test compares
-  `toAdminListing(API_EXAMPLE_LISTING)` against it — both sides derive from the
-  same call, so the assertion cannot catch a `toAdminListing` shape regression.
-  Fix: author an independent `AdminListing` fixture (or assert against an
-  admin-listing schema). Pre-existing — the base had the same tautology via the
-  now-removed `ADMIN_API_EXAMPLE_LISTING` alias.
-
 - **Bulk-group-duplicate form loses inputs on a failed POST**
   (`src/ui/templates/admin/bulk-actions.tsx` `adminDuplicateGroupPage`). On a
   validation error the form re-renders with defaults (`${group.name} (copy)`,
