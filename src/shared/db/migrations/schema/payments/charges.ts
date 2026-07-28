@@ -58,10 +58,12 @@ export const paymentChargeTable: [name: string, table: Table] = [
         "pending_refund_key_index",
         "TEXT CHECK (pending_refund_key_index IS NULL OR length(pending_refund_key_index) > 0)",
       ],
-      // Kept as the old record wrote it, so it must at least look like a time.
+      // A time, like every other time here, so it can be compared with them.
+      // SQLite sorts numbers before text whatever they say, so one time kept
+      // as words would always read as later than one kept as a number.
       [
         "provider_refunded_at",
-        "TEXT CHECK (provider_refunded_at IS NULL OR provider_refunded_at GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*Z')",
+        "INTEGER CHECK (provider_refunded_at IS NULL OR (typeof(provider_refunded_at) = 'integer' AND provider_refunded_at >= 0))",
       ],
       ["legacy_source", "TEXT"],
       [

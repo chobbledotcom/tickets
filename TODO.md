@@ -1855,3 +1855,16 @@ as the supervisor is up, closing the gap. That means changing what
 and thinking again about the startup grace, which exists because a process id
 can be given to somebody else after the original has gone. Start at
 `RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
+
+**The copy has to turn an old refund time into a number.** `payment_charges`
+keeps `provider_refunded_at` as a number, like every other time in these
+tables. The old table it comes from
+(`processed_payments.provider_refunded_at`) keeps it as words, so the copy has
+to read it as a time before storing it — `Date.parse(...)`, exactly as the line
+above it in `legacyChargeStatement` (`src/shared/db/payments/legacy-copy.ts`,
+around line 265) already does for `observedAt`. Today it passes the words
+straight through, which the table now refuses.
+
+An empty value is already turned into nothing by the `||` on that line, so only
+real times arrive. A value that cannot be read as a time is a genuine decision:
+refusing it stops the upgrade, and dropping it loses when the money went back.

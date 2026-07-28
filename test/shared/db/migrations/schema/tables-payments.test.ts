@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "d16442b443b59e90e591b61920d0f542310055505abc8c991c6fbb08e7ce2f3f",
+    "80e1189f9c0c94d180e172b53736287d387b0f40ed28eabb53ba33fd089bdd29",
   );
 });
 
@@ -88,7 +88,7 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
        refund_state, provider_refunded_at, legacy_source,
        created_at, updated_at, observed_at)
       VALUES ('legacy-payment', 'legacy', NULL, NULL, 'hyb:1:reference',
-        NULL, NULL, NULL, NULL, 'unknown', '2026-07-25T10:00:00.000Z',
+        NULL, NULL, NULL, NULL, 'unknown', 1750000000000,
         'processed_payments', 1, 1, 1)`);
     const stored = await getDb().execute(`SELECT provider, resource_kind,
       reference_index, captured_amount, currency, refunded_amount, refund_state
