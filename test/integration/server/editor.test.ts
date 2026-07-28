@@ -378,7 +378,10 @@ describeWithEnv("server (editor role)", { db: true }, () => {
   });
 
   describe("role-aware rendering", () => {
-    test("listings table hides money columns, links to edit, no CSV export", async () => {
+    // The money columns an editor must never see are proved by the story
+    // `@story:servicing.what-an-editor-can-do`; this keeps the link shape and
+    // the absent CSV export, which are not part of that journey.
+    test("listings table links to edit and offers no CSV export", async () => {
       const { cookie } = await createTestEditorSession();
       const listing = await createTestListing();
       const html = await (await getAs("/admin/listings", cookie)).text();
@@ -386,8 +389,6 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       expect(html).toContain(`href="/admin/listing/${listing.id}/edit"`);
       expect(html).not.toContain(`href="/admin/listing/${listing.id}"`);
       expect(html).not.toContain("/admin/listings/csv");
-      expect(html).not.toContain("Revenue");
-      expect(html).not.toContain("Profit");
     });
 
     test("listing edit page hides the income/ledger sections", async () => {
@@ -474,47 +475,6 @@ describeWithEnv("server (editor role)", { db: true }, () => {
   });
 
   describe("PII safety: webhooks, previews, footer, guide", () => {
-    test("editors cannot set or change a listing's webhook URL", async () => {
-      const { cookie } = await createTestEditorSession();
-      const listing = await createTestListing({
-        webhookUrl: "https://original.example/hook",
-      });
-
-      // The edit form hides the webhook field from editors…
-      const editHtml = await (
-        await getAs(`/admin/listing/${listing.id}/edit`, cookie)
-      ).text();
-      expect(editHtml).not.toContain('name="webhook_url"');
-
-      // …and a crafted webhook_url in an editor edit is ignored server-side.
-      const editBody = {
-        ...buildCreateListingForm(testListingInput()),
-        slug: listing.slug,
-        webhook_url: "https://attacker.example/steal",
-      };
-      const editorResp = await postMultipartAs(
-        `/admin/listing/${listing.id}/edit`,
-        cookie,
-        editBody,
-      );
-      expect(editorResp.status).toBe(302);
-      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
-        "https://original.example/hook",
-      );
-
-      // The same body as the owner DOES change it — proving the guard is what
-      // blocks the editor, not some unrelated validation failure.
-      const { cookie: ownerCookie } = await getTestSession();
-      await postMultipartAs(
-        `/admin/listing/${listing.id}/edit`,
-        ownerCookie,
-        editBody,
-      );
-      expect((await getListingWithCount(listing.id))!.webhook_url).toBe(
-        "https://attacker.example/steal",
-      );
-    });
-
     test("an editor edit can't bake an inherited webhook default into the row", async () => {
       // The owner sets a webhook *default*; this listing inherits it live, but
       // keeps its own stored webhook underneath.
@@ -661,6 +621,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
   });
 
   describe("login, invite, activation, status", () => {
+    // The journey is told by `@story:servicing.what-an-editor-can-do`; this
+    // stays because it is the only cover of the keyless login branch, which a
+    // Cucumber run does not count towards.
     test("an editor logs in to a keyless session and lands on listings", async () => {
       await createTestEditorSession({
         password: "editorlogin123",

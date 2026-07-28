@@ -221,6 +221,38 @@ describe("TestBrowser navigation", () => {
     expect(browser.redirectedTo).toBe(OFF_SITE);
   });
 
+  it("reports a refusal without going anywhere", async () => {
+    const browser = new TestBrowser();
+    useHandler(browser, (request) =>
+      new URL(request.url).pathname === "/secret"
+        ? new Response("no", { status: 403 })
+        : new Response("arrived"),
+    );
+    await browser.visit("/home");
+
+    const answered = await browser.statusOf("/secret");
+
+    // The refusal is reported, and the browser is still where it was — a story
+    // asking whether a page is theirs must not be moved onto it.
+    expect(answered).toBe(403);
+    expect(browser.currentUrl).toBe("/home");
+    expect(browser.currentHtml).toBe("arrived");
+  });
+
+  it("does not follow a redirect when only reading what a page answered", async () => {
+    const browser = new TestBrowser();
+    useHandler(browser, (request) =>
+      new URL(request.url).pathname === "/moved"
+        ? new Response(null, {
+            headers: { location: "/elsewhere" },
+            status: 302,
+          })
+        : new Response("elsewhere"),
+    );
+
+    expect(await browser.statusOf("/moved")).toBe(302);
+  });
+
   it("forgets an earlier redirect target once a request does not redirect", async () => {
     const browser = browserSentOffSite();
 

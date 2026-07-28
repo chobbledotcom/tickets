@@ -390,6 +390,19 @@ export class TestBrowser {
   }
 
   /**
+   * Ask for a page and return only what the site answered. Nothing is followed
+   * and no page state changes, so a caller can tell "you may not" apart from
+   * "there is no such page" without ending up somewhere else.
+   */
+  async statusOf(path: string): Promise<number> {
+    const response = await this.send(
+      this.buildRequest(toPath(path)),
+      `GET ${path}`,
+    );
+    return response.status;
+  }
+
+  /**
    * Click a link by its visible text.
    * Searches the current page HTML for an <a> tag whose text contains the given string.
    * Throws if no matching link is found.

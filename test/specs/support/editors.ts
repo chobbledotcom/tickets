@@ -1,0 +1,193 @@
+/**
+ * An editor: somebody the owner lets write listings, and nothing else. Every
+ * step here goes through the pages a real person would use — the owner's invite
+ * form, the link it hands over, the login form, and the editor's own listing
+ * pages — so a page that stopped working fails the story rather than being
+ * stepped around.
+ */
+
+import { expect } from "@std/expect";
+import { t } from "#i18n";
+import {
+  getAllListings,
+  getListingWithCount,
+} from "#shared/db/listings/records.ts";
+import { adminBrowser } from "#test/specs/support/browser.ts";
+import {
+  optionsOffered,
+  whyValueCannotBeSent,
+} from "#test/specs/support/form-controls.ts";
+import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
+
+/** Where a listing forwards each booking, names and all. */
+export const OWNERS_ADDRESS = "https://owner.example/bookings";
+export const SOMEWHERE_ELSE = "https://elsewhere.example/bookings";
+
+/** The password an invited person chooses for themselves. */
+const CHOSEN_PASSWORD = "a-good-long-password";
+
+/** The pages the story talks about, by the words it uses for them. Each is a
+ * page an editor must never open. */
+const PRIVATE_PAGES: Record<string, string> = {
+  "list of attendees": "/admin/attendees",
+  money: "/admin/ledger",
+  people: "/admin/users",
+  settings: "/admin/settings",
+};
+
+export const privatePagePath = (page: string): string =>
+  requiredWorldValue(PRIVATE_PAGES[page], `a page called "${page}"`);
+
+/** What the site links to from wherever the editor is standing. */
+export const linksOnPage = (browser: TestBrowser): string[] =>
+  browser.links.map(({ href }) => href);
+
+/** The owner invites somebody to edit, and copies the link they are given.
+ * The role is chosen from the roles the form itself offers, so a form that
+ * stopped offering "editor" fails here. */
+export const ownerInvitesEditor = async (
+  world: TicketsWorld,
+  who: string,
+): Promise<void> => {
+  const browser = await adminBrowser(world);
+  await browser.visit("/admin/user/new");
+  expect(optionsOffered(browser.currentHtml, "admin_level")).toContain(
+    "editor",
+  );
+  expect(browser.pageText).toContain(t("fields.user.editor"));
+  expect(whyValueCannotBeSent(browser.currentHtml, "username", who)).toBeNull();
+  await browser.submitForm(
+    { admin_level: "editor", username: who },
+    t("users.invite.submit"),
+  );
+  // The owner reads the link off the page and passes it on, which is the only
+  // way the invited person ever hears about it.
+  const link = browser.pageText.match(/\/join\/[A-Za-z0-9_-]+/);
+  if (!link) throw new Error(`The owner was given no link to send ${who}`);
+  world.editorInvite = link[0];
+};
+
+/** The invited person opens their link, chooses a password, and is now an
+ * editor with an account of their own. */
+export const editorFollowsInvite = async (
+  world: TicketsWorld,
+): Promise<void> => {
+  const browser = new TestBrowser();
+  await browser.visit(requiredWorldValue(world.editorInvite, "the invite"));
+  await browser.submitForm(
+    { password: CHOSEN_PASSWORD, password_confirm: CHOSEN_PASSWORD },
+    t("join.set_password.submit"),
+  );
+  world.editorBrowser = browser;
+};
+
+/** The editor logs in the ordinary way, and stays logged in for the rest of
+ * the story. */
+export const editorLogsIn = async (
+  world: TicketsWorld,
+  who: string,
+): Promise<TestBrowser> => {
+  const browser = new TestBrowser();
+  await browser.visit("/admin/");
+  await browser.submitForm(
+    { password: CHOSEN_PASSWORD, username: who },
+    t("login.submit"),
+  );
+  world.editorBrowser = browser;
+  return browser;
+};
+
+/** Somebody who is already an editor and already logged in. */
+export const signedInEditor = async (
+  world: TicketsWorld,
+  who: string,
+): Promise<TestBrowser> => {
+  if (!world.editorBrowser) {
+    await ownerInvitesEditor(world, who);
+    await editorFollowsInvite(world);
+    await editorLogsIn(world, who);
+  }
+  return requiredWorldValue(world.editorBrowser, "the editor's browser");
+};
+
+/** The editor's own browser, once the story has signed them in. */
+export const editorBrowser = (world: TicketsWorld): TestBrowser =>
+  requiredWorldValue(world.editorBrowser, "the editor's browser");
+
+/** Something the site already sells, kept under the name the story uses. */
+export const somethingForSale = async (
+  world: TicketsWorld,
+  name: string,
+  options: { forwardingTo?: string } = {},
+): Promise<void> => {
+  rememberStayListing(
+    world,
+    name,
+    await createTestListing({
+      maxAttendees: 10,
+      name,
+      webhookUrl: options.forwardingTo,
+    }),
+  );
+};
+
+/** The editor starts a new listing, picks what kind it is from the kinds the
+ * site offers, fills the form in and saves it. */
+export const editorAddsListing = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<void> => {
+  const browser = editorBrowser(world);
+  await browser.visit("/admin/listing/new");
+  await browser.clickLink(t("listings_table.listing_type_picker_custom"));
+  expect(whyValueCannotBeSent(browser.currentHtml, "name", name)).toBeNull();
+  await browser.submitForm(
+    { max_attendees: "10", max_quantity: "1", name },
+    t("listings_table.create_listing"),
+  );
+};
+
+/** What the site sells under this name, or nothing when it sells no such
+ * thing. */
+export const listingSoldAsOrNull = async (name: string) =>
+  (await getAllListings()).find((listing) => listing.name === name) ?? null;
+
+/** Where a listing forwards its bookings now. */
+export const forwardingAddress = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<string | null> => {
+  const found = await getListingWithCount(stayListing(world, name).id);
+  if (!found) throw new Error(`The ${name} is gone altogether`);
+  return found.webhook_url;
+};
+
+/** Somebody saves a listing's edit form, sending a forwarding address with it.
+ * The address is sent whether or not the form offered a box for it, which is
+ * the whole point: the site must decide, not the form. */
+export const savesListingForwardingTo = async (
+  browser: TestBrowser,
+  world: TicketsWorld,
+  name: string,
+  address: string,
+): Promise<void> => {
+  const listing = stayListing(world, name);
+  await browser.visit(`/admin/listing/${listing.id}/edit`);
+  await browser.submitForm({ webhook_url: address }, "Save Changes");
+};
+
+/** The listing's edit form as the editor is served it. */
+export const editorOpensListing = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<string> => {
+  const browser = editorBrowser(world);
+  await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
+  return browser.currentHtml;
+};

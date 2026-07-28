@@ -45,6 +45,7 @@ describe("Cucumber story catalog", () => {
       "payments.repeated-money-actions",
       "payments.what-a-paid-booking-earned",
       "servicing.hold-and-cost",
+      "servicing.what-an-editor-can-do",
     ]);
   });
 

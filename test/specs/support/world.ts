@@ -44,6 +44,9 @@ export interface TicketsWorld extends World {
   doorTickets?: Map<string, string>;
   duplicateId?: number;
   duplicateToken?: string;
+  editorBrowser?: TestBrowser;
+  editorInvite?: string;
+  editorRefusal?: number;
   evidenceValues: Map<string, string>;
   firstBody?: string;
   firstDay?: string;
