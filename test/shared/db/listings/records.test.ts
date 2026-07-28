@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
 import {
   getAllListingOptions,
   getListingsBySlugs,
@@ -17,15 +16,13 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 
-describeWithEnv("db > listings", { db: true, triggers: true }, () => {
+describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
   describe("batch queries", () => {
     test("getListingsBySlugs returns empty array for empty slugs", async () => {
       const result = await getListingsBySlugs([]);
@@ -110,27 +107,6 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("listingNames.byIds returns an empty map for no ids", async () => {
       const names = await listingNames.byIds([]);
-      expect(names.size).toBe(0);
-    });
-
-    test("getAttendeeNamesByIds decrypts the name for the given attendee id", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Grace Hopper",
-        "grace@example.com",
-      );
-
-      const privateKey = await getTestPrivateKey();
-      const names = await getAttendeeNamesByIds([attendee.id], privateKey);
-
-      expect(names.get(attendee.id)).toBe("Grace Hopper");
-    });
-
-    test("getAttendeeNamesByIds returns an empty map for no ids", async () => {
-      const privateKey = await getTestPrivateKey();
-      const names = await getAttendeeNamesByIds([], privateKey);
       expect(names.size).toBe(0);
     });
   });
