@@ -8,33 +8,10 @@
  */
 
 import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
-import { statOrNull } from "#scripts/not-found.ts";
+import { walkFiles } from "#scripts/walk-files.ts";
 
 /** Glob metacharacters; a path segment with none is a fixed directory name. */
 const GLOB_CHARS = /[*?{}[\]]/;
-
-/**
- * What `dir` holds, or nothing when it is not a directory at all — a path that
- * has moved or gone is asked for in an ordinary run, and answers with nothing.
- * Whether it is there is asked before reading, because reading is what reaches
- * the disk: a check around opening the reader would never see the answer.
- */
-const dirEntriesOrNone = async (dir: string): Promise<Deno.DirEntry[]> => {
-  const info = await statOrNull(dir);
-  if (info === null || !info.isDirectory) return [];
-  const entries: Deno.DirEntry[] = [];
-  for await (const entry of Deno.readDir(dir)) entries.push(entry);
-  return entries;
-};
-
-/** Every file under `dir`, recursively; a missing directory yields nothing. */
-async function* walkFiles(dir: string): AsyncGenerator<string> {
-  for (const entry of await dirEntriesOrNone(dir)) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory) yield* walkFiles(path);
-    else if (entry.isFile) yield path;
-  }
-}
 
 /**
  * The leading, glob-free directory of `glob` — where a walk can start without
