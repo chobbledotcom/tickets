@@ -2496,3 +2496,31 @@ buyer's confirmation can still carry it as the reply-to, even though the guard
 is meant to refuse mail once the email settings have changed. Messages aimed at
 the business address should record that, and the address should be checked
 against the current setting before sending.
+
+## The owner-decision guards that nothing can reach
+
+Preparing an owner's decision has two refusals the tests never reach, and
+working out why is the same story as the rest of this branch: they are
+guarded a few lines earlier by something that has already made them
+impossible.
+
+`preparePaymentDecision` (`src/shared/payment-runtime/operator-claim.ts`)
+first refuses any choice that is not on offer for that payment, and only then
+builds the written-down review. So by the time the review is built, the choice
+and the payment already agree.
+
+**"Legacy payment ... has no assigned account"** (around line 55) is in the
+branch that builds a *money* review for an *old* payment. The only choices
+offered for an old payment are "say which provider took it" and "keep it as it
+is" — both of which build a different kind of review. A money review for an old
+payment cannot be asked for.
+
+**"Payment ... has no reviewed charges"** (around line 23) needs a current
+payment with no current charges. Refunding and confirming a refund are only
+offered when there are current charges, and completing a booking is only
+offered when the stored evidence proves it — which itself requires a charge.
+
+Both look safe to delete, which would also remove the last uncovered lines in
+the file. They sit on the path that claims a payment for a decision, so the
+call belongs to whoever owns that code rather than to a coverage pass. If they
+are kept, they need recording as deliberately unreachable instead.
