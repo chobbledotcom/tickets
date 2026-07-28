@@ -7,7 +7,10 @@ import {
   recreateTable,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
-import type { Migration } from "#shared/db/migrations/types.ts";
+import type {
+  Migration,
+  MigrationContext,
+} from "#shared/db/migrations/types.ts";
 import { columnNames } from "#test/test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
@@ -172,6 +175,25 @@ describeWithEnv(
       await runMigration();
 
       expect(await indexExists("idx_system_notes_entity")).toBe(true);
+    });
+
+    test("stops when adding a column fails for any other reason", async () => {
+      await downgradeToAttendeeNotes();
+      const brokenDatabase = () => ({
+        execute: () => Promise.reject(new Error("database or disk is full")),
+      });
+
+      // A column that is already there is taken as done; anything else means
+      // the database could not do what was asked, and must not be swallowed.
+      await expect(
+        noteEntities(
+          buildMigrationContext({
+            getDb: brokenDatabase as unknown as MigrationContext["getDb"],
+            recreateTable,
+            syncIndexes,
+          }),
+        ).up(),
+      ).rejects.toThrow("database or disk is full");
     });
 
     test("is registered under the id it declares, and says what it does", () => {
