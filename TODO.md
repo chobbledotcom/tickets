@@ -692,6 +692,31 @@ errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
 until a real collect-all site (e.g. the multi-item-checkout "no shared date"
 diagnostic above) makes it pay for itself.
 
+## Deferred Codex suggestions from PR #1975 (API documentation examples)
+
+*Origin: Codex review of PR #1975, which made the API documentation examples
+checkable and fixed eighteen real inaccuracies in them. Both items below are
+valid and were deliberately left out: they guard mistakes nobody has made yet,
+and each costs more machinery than the defect it would catch.*
+
+- **Validate admin request fields against their production constraints.**
+  `test/shared/admin-api-example/helpers.ts`'s `isBlank` judges a documented
+  request value by its sign and whether it is zero. A positive *fractional*
+  value (Codex's example: `duration_days: 1.5` in the listing create body)
+  therefore passes, while `API_BODY_FIELD_RULES` requires a safe integer and
+  the real endpoint answers 400. Fixing it properly means running each request
+  example through the endpoint's own field rules rather than a hand-written
+  check. Starting point: `API_BODY_FIELD_RULES` in `src/features/admin/api.ts`.
+
+- **Derive the documented create slug from what a create really does.**
+  `crudDocs` in `src/shared/admin-api-example.ts` builds the create response
+  from the example record, so it keeps `summer-workshop`; the listing and group
+  POST converters call `generateUniqueSlug`, which emits a random five-character
+  slug. The documented create response therefore cannot result from its own
+  request. Left alone because the honest fix — showing `a7f3k` — makes the page
+  harder for a person to read, which is a documentation judgement rather than a
+  correctness one. Starting point: `generateUniqueSlug` in `src/shared/slug.ts`.
+
 ## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
 
 *Origin: CodeRabbit review of PR #1772, which only `git mv`s the servicing

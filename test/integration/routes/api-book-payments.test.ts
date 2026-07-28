@@ -9,7 +9,7 @@ import {
   fetchListingBySlug,
   withCheckoutStub,
 } from "#test/test-utils/api/helpers.ts";
-import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import { PublicListingDetailSchema } from "#test-utils/api-schemas.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import {
   createDailyTestListing,
@@ -99,7 +99,7 @@ describePublicApi(() => {
       // Get available dates
       const { body: detail } = await fetchListingBySlug(listing.slug);
       const dates =
-        v.parse(PublicListingSchema, detail.listing).availableDates ?? [];
+        v.parse(PublicListingDetailSchema, detail.listing).availableDates ?? [];
       expect(dates.length).toBeGreaterThan(0);
 
       const { response, body } = await bookListing(listing.slug, {

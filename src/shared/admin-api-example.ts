@@ -6,7 +6,6 @@
  * output, so a shape change will break the test and force an update.
  */
 
-import * as v from "valibot";
 import {
   type CreateListingBody,
   type DeleteListingBody,
@@ -23,15 +22,21 @@ import type {
   DeleteHolidayBody,
   UpdateHolidayBody,
 } from "#routes/admin/api-holidays.ts";
-import { PackageChildrenSchema } from "#routes/api/request-schemas.ts";
-import {
-  API_AVAILABILITY_EXAMPLE_JSON,
-  API_BOOK_FREE_EXAMPLE_JSON,
-  API_EXAMPLE_LISTING,
-  API_LIST_EXAMPLE_JSON,
-  API_SINGLE_EXAMPLE_JSON,
-} from "#shared/api-example.ts";
+import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
+import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { AdminListing } from "#shared/types.ts";
+import { type EndpointDoc, json } from "./admin-api-example/endpoint-doc.ts";
+
+/** The running totals a listing carries. Only a booking can move them, so a
+ * listing that was just created has none of each. */
+export const BOOKING_TOTAL_FIELDS = [
+  "attendee_count",
+  "cost",
+  "income",
+  "profit",
+  "tickets_count",
+];
 
 /** The example listing exactly as the admin endpoints answer with it: the
  * stored fields, plus the ids of the groups it is in. The example is in none. */
@@ -42,7 +47,9 @@ export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {
   can_pay_more: true,
-  date: "Sat 20 Aug 2025, 10:00 AM",
+  // Written in the form storage reads back, so the create answer below can
+  // show the same string the caller sent.
+  date: "2025-08-20T10:00:00.000Z",
   description:
     "A hands-on workshop covering watercolours and sketching techniques.",
   fields: "email",
@@ -79,7 +86,9 @@ const ADMIN_API_DELETE_BODY = {
 const ADMIN_API_EXAMPLE_GROUP = {
   description: "Workshops running through the summer.",
   hidden: false,
+  hide_package_listings: false,
   id: 3,
+  is_package: false,
   max_attendees: 50,
   name: "Summer Series",
   slug: "summer-series",
@@ -127,94 +136,9 @@ const ADMIN_API_HOLIDAY_DELETE_BODY = {
   confirm_identifier: "Christmas",
 } satisfies DeleteHolidayBody;
 
-// =============================================================================
-// Endpoint documentation entries
-// =============================================================================
-
-/** A documented API endpoint with example request and response */
-export type EndpointDoc = {
-  method: string;
-  path: string;
-  description: string;
-  request?: string;
-  response: string;
-};
-
-const json = (data: unknown): string => JSON.stringify(data, null, 2);
-
-/** The package-book example's `children`, parsed through the LIVE request
- * schema ({@link PackageChildrenSchema}) — a drifted example is a build-time
- * parse error, so the docs can never show a body the endpoint rejects. */
-const PACKAGE_BOOK_CHILDREN_EXAMPLE = v.parse(PackageChildrenSchema, [
-  { parent: "tent-pitch", quantity: 1, slug: "extra-bedding" },
-]);
-
-export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
-  {
-    description: "List all active, non-hidden listings",
-    method: "GET",
-    path: "/api/listings",
-    response: API_LIST_EXAMPLE_JSON,
-  },
-  {
-    description: "Get a single listing by slug",
-    method: "GET",
-    path: "/api/listings/:slug",
-    response: API_SINGLE_EXAMPLE_JSON,
-  },
-  {
-    description:
-      "Check if spots are available (optional query: quantity, date)",
-    method: "GET",
-    path: "/api/listings/:slug/availability",
-    response: API_AVAILABILITY_EXAMPLE_JSON,
-  },
-  {
-    description: "Create a booking",
-    method: "POST",
-    path: "/api/listings/:slug/book",
-    request: json({
-      email: "alice@example.com",
-      name: "Alice Smith",
-      quantity: 2,
-    }),
-    response: API_BOOK_FREE_EXAMPLE_JSON,
-  },
-  {
-    description:
-      "Get a package bundle by slug: its whole-bundle price (per day count for customisable-days bundles), capacity, dates, and members with their required children",
-    method: "GET",
-    path: "/api/packages/:slug",
-    response: json({
-      package: {
-        description: "Two nights' camping with firepit hire",
-        fields: "email,phone",
-        maxPurchasable: 5,
-        members: [
-          { name: "Tent Pitch", quantity: 1, slug: "tent-pitch" },
-          { name: "Firepit", quantity: 1, slug: "firepit" },
-        ],
-        name: "Camping Weekend",
-        priceMinor: 5500,
-        slug: "camping-weekend",
-      },
-    }),
-  },
-  {
-    description:
-      "Book whole package bundles (optional: date for dated bundles, dayCount for customisable ones, children choosing each parent member's add-ons)",
-    method: "POST",
-    path: "/api/packages/:slug/book",
-    request: json({
-      children: PACKAGE_BOOK_CHILDREN_EXAMPLE,
-      date: "2025-08-20",
-      email: "alice@example.com",
-      name: "Alice Smith",
-      quantity: 1,
-    }),
-    response: API_BOOK_FREE_EXAMPLE_JSON,
-  },
-];
+/** The booking window a listing gets when its create body says nothing. */
+const LISTING_DEFAULT_DAYS_AFTER =
+  listingCatalogFields.maximumDaysAfter[1].default!();
 
 /** The five standard admin-CRUD doc entries for a resource. Descriptions are
  *  passed in (they carry per-resource wording — "an listing", the holiday
@@ -230,10 +154,27 @@ const crudDocs = (c: {
   updateBody: unknown;
   deleteBody: unknown;
   desc: [string, string, string, string, string];
+  /** Fields a brand-new record always has, whatever the caller sent — the
+   * running totals that only bookings can move. */
+  freshRecord?: Record<string, number>;
+  /** What the stored defaults give a new record where the create body is
+   * silent, for fields whose default differs from the example record. */
+  newRecordDefaults?: Record<string, unknown>;
 }): EndpointDoc[] => {
   const base = `/api/admin/${c.plural}`;
   const byId = `${base}/:${c.idParam}`;
-  const one = json({ [c.singular]: c.example });
+  const answerWith = (...changes: unknown[]): string =>
+    json({ [c.singular]: Object.assign({}, c.example, ...changes) });
+  const one = answerWith();
+  // An update answers with the record as it now reads, and a create with the
+  // record as just stored: what the caller sent, over the defaults, with
+  // nothing yet booked against it.
+  const updated = answerWith(c.updateBody);
+  const created = answerWith(
+    c.newRecordDefaults ?? {},
+    c.createBody,
+    c.freshRecord ?? {},
+  );
   const [list, get, create, update, del] = c.desc;
   return [
     {
@@ -248,14 +189,14 @@ const crudDocs = (c: {
       method: "POST",
       path: base,
       request: json(c.createBody),
-      response: one,
+      response: created,
     },
     {
       description: update,
       method: "PUT",
       path: byId,
       request: json(c.updateBody),
-      response: one,
+      response: updated,
     },
     {
       description: del,
@@ -279,10 +220,19 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       "Delete an listing (requires name confirmation)",
     ],
     example: ADMIN_API_EXAMPLE_ADMIN_LISTING,
+    freshRecord: Object.fromEntries(
+      BOOKING_TOTAL_FIELDS.map((field) => [field, 0]),
+    ),
     idParam: "listingId",
     listResponse: {
       admin_level: "owner",
       listings: [ADMIN_API_EXAMPLE_ADMIN_LISTING],
+    },
+    // What a listing gets when the create body does not say. Both come from
+    // the stored column defaults, so the documentation cannot drift from them.
+    newRecordDefaults: {
+      bookable_days: [...VALID_DAY_NAMES],
+      maximum_days_after: LISTING_DEFAULT_DAYS_AFTER,
     },
     plural: "listings",
     singular: "listing",
@@ -292,13 +242,17 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     description: "Deactivate an listing",
     method: "POST",
     path: "/api/admin/listings/:listingId/deactivate",
-    response: json({ listing: ADMIN_API_EXAMPLE_ADMIN_LISTING }),
+    response: json({
+      listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: false },
+    }),
   },
   {
     description: "Reactivate a deactivated listing",
     method: "POST",
     path: "/api/admin/listings/:listingId/reactivate",
-    response: json({ listing: ADMIN_API_EXAMPLE_ADMIN_LISTING }),
+    response: json({
+      listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: true },
+    }),
   },
   ...crudDocs({
     createBody: ADMIN_API_GROUP_CREATE_BODY,
