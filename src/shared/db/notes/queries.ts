@@ -13,7 +13,7 @@ import {
   type SqlStatement,
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
-import { openNotes, sealNote } from "./sealing.ts";
+import { openNote, openNotes, sealNote } from "./sealing.ts";
 import {
   type NoteEntity,
   type NoteTarget,
@@ -145,9 +145,7 @@ export const getNote = async (
     [noteId, ...args],
   );
   const row = rows[0];
-  if (!row) return null;
-  const [note] = await openNotes([row], privateKey);
-  return note ?? null;
+  return row ? openNote(row, privateKey) : null;
 };
 
 /** Delete one note, tied to its record so a stray id can't reach another's. */

@@ -37,7 +37,15 @@ export const sealNote = (
  * would not open either and the page never renders — so a placeholder would
  * hide a whole-system failure behind a branch nothing can reach. Let it throw.
  */
-const openNote = (
+export const openNote = async (
+  row: SystemNoteRow,
+  privateKey: CryptoKey,
+): Promise<SystemNote> => ({
+  ...row,
+  note: await openText(row, privateKey),
+});
+
+const openText = (
   row: SystemNoteRow,
   privateKey: CryptoKey,
 ): Promise<string> =>
@@ -50,9 +58,4 @@ export const openNotes = (
   rows: SystemNoteRow[],
   privateKey: CryptoKey,
 ): Promise<SystemNote[]> =>
-  Promise.all(
-    rows.map(async (row) => ({
-      ...row,
-      note: await openNote(row, privateKey),
-    })),
-  );
+  Promise.all(rows.map((row) => openNote(row, privateKey)));
