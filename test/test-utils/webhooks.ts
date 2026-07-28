@@ -3,6 +3,7 @@ import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { ProviderMetadataSchema } from "#shared/payment-helpers.ts";
 import { foundProviderPayment } from "#shared/payment-runtime/provider-read.ts";
+import { ObservedPaymentStatusSchema } from "#shared/payment-state/observation.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { Attendee } from "#shared/types.ts";
@@ -60,9 +61,14 @@ export const checkoutSessionEvent = (opts: {
             },
           },
         ];
-  const paymentStatus =
+  const asked =
     opts.paymentStatus ??
     (opts.amountTotal === 0 ? "no_payment_required" : "paid");
+  // A status the system does not know reads as "not paid yet", which is how a
+  // test can hand the webhook a status Stripe would never send.
+  const paymentStatus = v.is(ObservedPaymentStatusSchema, asked)
+    ? asked
+    : "pending";
   return {
     notice: {
       eventId: opts.eventId,
@@ -76,11 +82,7 @@ export const checkoutSessionEvent = (opts: {
         requested,
         session,
         { amount: opts.amountTotal, currency: "GBP" },
-        paymentStatus === "paid" || paymentStatus === "no_payment_required"
-          ? paymentStatus
-          : paymentStatus === "failed"
-            ? "failed"
-            : "pending",
+        paymentStatus,
         {
           ...(charges === undefined ? {} : { charges }),
           createdAt: new Date(
@@ -175,14 +177,12 @@ export const expectWebhookProcessed = async (
  * quantity-0 placeholder, the system note, and the terminal payment aggregate).
  */
 export const expectWebhookKeptAndRefunded = async (
-  event: Parameters<typeof stubWebhookVerify>[0],
+  event: ProviderNoticeFixture,
   refundId = "re_test",
   signature?: string,
 ) => {
   const mockVerify = await stubWebhookVerify(event);
-  const paid =
-    event !== null && "paidAmount" in event ? event.paidAmount : undefined;
-  const mockRefund = stubRefundPayment(refundId, paid);
+  const mockRefund = stubRefundPayment(refundId, event.paidAmount);
   await postWebhookAndAssert(
     () => {
       mockVerify.restore();
@@ -309,7 +309,7 @@ export const expectRefundedWithNote = async (
  */
 export const expectRefundNote = async (
   listingId: number,
-  contains: string | string[],
+  contains: string,
 ): Promise<void> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const { getNotesForAttendee } = await import("#shared/db/system-notes.ts");
@@ -320,9 +320,7 @@ export const expectRefundNote = async (
   const kept = required(attendee, "a kept booking");
   const notes = await getNotesForAttendee(kept.id, await getTestPrivateKey());
   const text = notes.map((note) => note.note).join("\n");
-  for (const substring of Array.isArray(contains) ? contains : [contains]) {
-    expect(text).toContain(substring);
-  }
+  expect(text).toContain(contains);
 };
 
 /**
@@ -439,12 +437,15 @@ const stubSessionLookup = (
       value: stripePaymentIntent({
         amount: session.amountTotal,
         amount_received: session.amountTotal,
-        id: session.paymentIntent ?? "pi_test",
+        id: required(session.paymentIntent, "the checkout's payment"),
         latest_charge: stripeCharge({
           amount: session.amountTotal,
           amount_captured: session.amountTotal,
           amount_refunded: 0,
-          payment_intent: session.paymentIntent ?? "pi_test",
+          payment_intent: required(
+            session.paymentIntent,
+            "the checkout's payment",
+          ),
         }),
       }),
     } as unknown as Awaited<ReturnType<typeof stripeApi.lookupPaymentIntent>>),
