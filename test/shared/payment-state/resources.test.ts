@@ -259,6 +259,19 @@ describe("payment resources", () => {
     ).toEqual([refundResource]);
   });
 
+  test("refuses a refund still going that is for no money", () => {
+    // A refund of nothing is answered before the money already returned is
+    // looked at, so a charge fully given back would read as still going and
+    // never settle.
+    expect(
+      v.safeParse(RefundObservationSchema, {
+        amount: { amount: 0, currency: "GBP" },
+        refund: refundResource,
+        status: "pending",
+      }).success,
+    ).toBe(false);
+  });
+
   test("counts a refund still going on top of the money already returned", () => {
     // A refund the provider has not finished is money on its way out, on top
     // of what has already gone back. Checked one at a time, £80 returned and

@@ -92,6 +92,23 @@ export const sameProviderResource = (
   left.kind === right.kind &&
   left.id === right.id;
 
+/** Money that has to be some actual money. Nothing was never taken, and
+ *  nothing is never on its way back. */
+const positiveMoney = (message: string) =>
+  v.pipe(
+    MoneySchema,
+    v.check((money) => money.amount > 0, message),
+  );
+
+const PositiveMoneySchema = positiveMoney("A paid charge must be positive");
+
+/** A refund the provider has not finished has to be for some money. A refund of
+ *  nothing would be answered before the money already returned is looked at, so
+ *  a charge fully given back would read as still going, for ever. */
+const PendingRefundMoneySchema = positiveMoney(
+  "A refund still going must be positive",
+);
+
 const refundResult = <
   const TStatus extends string,
   const TRefund extends v.GenericSchema,
@@ -99,18 +116,22 @@ const refundResult = <
 >(
   status: TStatus,
   refund: TRefund,
+  // An amount given here replaces the default, for the states that demand more
+  // of it than simply not being negative.
   fields: TFields,
 ) =>
   v.strictObject({
-    ...fields,
     amount: MoneySchema,
+    ...fields,
     refund,
     status: v.literal(status),
   });
 
 const optionalRefund = v.optional(ProviderRefundResourceSchema);
 const completedRefundResult = refundResult("completed", optionalRefund, {});
-const pendingRefundResult = refundResult("pending", optionalRefund, {});
+const pendingRefundResult = refundResult("pending", optionalRefund, {
+  amount: PendingRefundMoneySchema,
+});
 
 export const RefundObservationSchema = v.variant("status", [
   completedRefundResult,
@@ -138,11 +159,6 @@ export const RefundResolutionSchema = v.variant("status", [
   }),
 ]);
 export type RefundResolution = v.InferOutput<typeof RefundResolutionSchema>;
-
-const PositiveMoneySchema = v.pipe(
-  MoneySchema,
-  v.check((money) => money.amount > 0, "A paid charge must be positive"),
-);
 
 export const ChargeLegSchema = v.strictObject({
   captured: PositiveMoneySchema,
