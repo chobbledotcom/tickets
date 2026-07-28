@@ -2543,3 +2543,30 @@ step later. Worth deciding as a group rather than one at a time: either they
 go, or they are recorded as deliberately unreachable. Each needs its own read
 before removal — this note is where that reading starts, not a substitute for
 it.
+
+## The charge review index that cannot be missing
+
+`currentSnapshotCondition` in `src/shared/db/payments/decision-claim.ts`
+builds one review index per charge, then looks each one up by position and
+raises `Payment charge ... has no review index` if it is not there:
+
+```ts
+const indexes = await paymentDecisionChargeIndexes(snapshot);
+const charges = snapshot.charges.map((charge, index) => {
+  const referenceIndex = indexes[index];
+  if (referenceIndex === undefined) { throw ... }
+```
+
+It cannot be missing. `paymentDecisionChargeIndexes` maps straight over
+`snapshot.charges`, so the two lists are the same length by construction —
+the refusal is guarding against the list it just built being the wrong size.
+
+Fixing it needs a small change across two files rather than a test, because
+the lookup is what convinces the type checker the value is there. The tidy
+shape is for `paymentDecisionChargeIndexes` to hand back each charge
+together with its index, so nothing is looked up by position at all. Its
+other caller is `decision-attempts.ts:129`, which wants the plain list, so
+that one needs looking at in the same change.
+
+Left for its own change: it touches a shared helper on the path that claims
+an owner decision, and this pass was closing gaps one file at a time.
