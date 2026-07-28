@@ -91,9 +91,7 @@ describe("documented package endpoints", () => {
       // Every member of the package is in the map, having been read from it.
       const offers = offeredBy.get(member.slug)!;
       // A member that publishes nothing to choose has nothing chosen for it.
-      const wanted = offers.size
-        ? member.quantity * booking.quantity
-        : 0;
+      const wanted = offers.size ? member.quantity * booking.quantity : 0;
 
       expect(picked).toBe(wanted);
     }
