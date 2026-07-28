@@ -28,6 +28,30 @@ describe("admin API example", () => {
     ).not.toThrow();
   });
 
+  test("an internal field leaking into a response is refused", () => {
+    expect(() =>
+      v.parse(AdminListingSchema, {
+        ...ADMIN_API_EXAMPLE_ADMIN_LISTING,
+        slug_index: "leaked",
+      }),
+    ).toThrow();
+  });
+
+  test("a missing field is refused", () => {
+    const { name: _, ...withoutName } = ADMIN_API_EXAMPLE_ADMIN_LISTING;
+
+    expect(() => v.parse(AdminListingSchema, withoutName)).toThrow();
+  });
+
+  test("a field of the wrong type is refused", () => {
+    expect(() =>
+      v.parse(AdminListingSchema, {
+        ...ADMIN_API_EXAMPLE_ADMIN_LISTING,
+        id: "1",
+      }),
+    ).toThrow();
+  });
+
   test("the conversion drops the internal slug index", () => {
     expect(toAdminListing(API_EXAMPLE_LISTING)).not.toHaveProperty(
       "slug_index",
