@@ -8,7 +8,8 @@
  */
 
 import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
-import { walkFiles } from "#scripts/walk-files.ts";
+import { statOrNull } from "#scripts/not-found.ts";
+import { collectFiles } from "#scripts/walk-files.ts";
 
 /** Glob metacharacters; a path segment with none is a fixed directory name. */
 const GLOB_CHARS = /[*?{}[\]]/;
@@ -28,25 +29,38 @@ const staticBase = (glob: string): string => {
   return fixed.join(SEPARATOR);
 };
 
-/** The files these globs name, sorted and without repeats. A glob whose
- *  directory is not there names no files rather than failing. */
-export const expand = async (globs: string[]): Promise<string[]> => {
-  const cwd = Deno.cwd();
+/** Every file a glob names below `basePath` — or the path itself, when the
+ *  glob named an exact file rather than somewhere to look. */
+const matchesUnder = (
+  base: Deno.FileInfo,
+  basePath: string,
+  matches: (path: string) => boolean,
+): Promise<string[]> =>
+  base.isDirectory
+    ? collectFiles(basePath, matches)
+    : Promise.resolve(matches(basePath) ? [basePath] : []);
+
+/**
+ * The files these globs name, sorted and without repeats. A glob whose
+ * directory is not there names no files rather than failing: the changed set a
+ * run is given is a branch's committed diff, which still names test files that
+ * have since moved.
+ */
+export const expand = async (
+  globs: string[],
+  from: string = Deno.cwd(),
+): Promise<string[]> => {
   const paths = new Set<string>();
   for (const glob of globs) {
-    const absGlob = join(cwd, glob);
+    const absGlob = join(from, glob);
     const pattern = globToRegExp(absGlob, { extended: true, globstar: true });
-    const base = staticBase(absGlob);
-    try {
-      if ((await Deno.stat(base)).isFile) {
-        if (pattern.test(base)) paths.add(base);
-        continue;
-      }
-    } catch {
-      // base doesn't exist; the walk below simply yields nothing
-    }
-    for await (const path of walkFiles(base)) {
-      if (pattern.test(path)) paths.add(path);
+    const basePath = staticBase(absGlob);
+    const base = await statOrNull(basePath);
+    if (base === null) continue;
+    for (const path of await matchesUnder(base, basePath, (candidate) =>
+      pattern.test(candidate),
+    )) {
+      paths.add(path);
     }
   }
   return [...paths].sort();

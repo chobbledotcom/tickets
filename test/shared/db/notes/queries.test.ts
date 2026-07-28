@@ -5,7 +5,7 @@ import { queryOne } from "#shared/db/client.ts";
 import {
   createOwnerNote,
   createSystemNote,
-  deleteNote,
+  deleteNotes,
   getNote,
   getNoteRows,
   getNoteRowsForListing,
@@ -215,12 +215,23 @@ describeWithEnv("db > notes", { db: true }, () => {
     const [otherRow] = await getNoteRows("attendee", [other]);
 
     // A wrong attendee id must not delete another attendee's note.
-    await deleteNote(attendeeNotes(other), ownerRow!.id);
+    await deleteNotes(attendeeNotes(other), [ownerRow!.id]);
     expect(await getNoteRows("attendee", [owner])).toHaveLength(1);
 
-    await deleteNote(attendeeNotes(owner), ownerRow!.id);
+    await deleteNotes(attendeeNotes(owner), [ownerRow!.id]);
     expect(await getNoteRows("attendee", [owner])).toEqual([]);
     // The other attendee's note is untouched.
     expect((await getNoteRows("attendee", [other]))[0]?.id).toBe(otherRow!.id);
+  });
+
+  test("deletes nothing, and asks the database nothing, for an empty list", async () => {
+    const owner = await makeAttendee("Nothing To Delete");
+    await createSystemNote(attendeeNotes(owner), "kept");
+
+    // The stale-note cleanup runs on every refresh, almost always with nothing
+    // to remove, so this path must not cost a round trip.
+    await deleteNotes(attendeeNotes(owner), []);
+
+    expect(await getNoteRows("attendee", [owner])).toHaveLength(1);
   });
 });

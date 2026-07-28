@@ -8,6 +8,7 @@
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   execute,
+  executeBatch,
   insert,
   queryAll,
   type SqlStatement,
@@ -151,16 +152,22 @@ export const getNote = async (
   return row ? openNote(row, privateKey) : null;
 };
 
-/** Delete one note, tied to its record so a stray id can't reach another's. */
-export const deleteNote = (
+/**
+ * Delete notes, tied to their record so a stray id can't reach another's. They
+ * go in one batch: several stale notes cost one round trip, not one each.
+ */
+export const deleteNotes = (
   target: NoteTarget,
-  noteId: number,
-): Promise<unknown> => {
+  noteIds: number[],
+): Promise<void> => {
+  if (noteIds.length === 0) return Promise.resolve();
   const { args, sql } = targetWhere(target);
-  return execute(`DELETE FROM system_notes WHERE id = ? AND ${sql}`, [
-    noteId,
-    ...args,
-  ]);
+  return executeBatch(
+    noteIds.map((noteId) => ({
+      args: [noteId, ...args],
+      sql: `DELETE FROM system_notes WHERE id = ? AND ${sql}`,
+    })),
+  );
 };
 
 /** Delete the notes of records chosen by a subquery — for a delete path that

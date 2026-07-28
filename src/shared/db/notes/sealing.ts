@@ -17,7 +17,7 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
 
-export type SealedNote = OwnerKeyEncrypted | EnvKeyEncrypted;
+type SealedNote = OwnerKeyEncrypted | EnvKeyEncrypted;
 
 /** How each kind of note is sealed. A new kind is a new entry here, and the
  *  compiler asks for it everywhere the kinds are handled. */

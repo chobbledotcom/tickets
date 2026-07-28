@@ -24,7 +24,7 @@ import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne } from "#shared/db/client.ts";
 import {
   createSystemNote,
-  deleteNote,
+  deleteNotes,
   getNotesFor,
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
@@ -169,11 +169,14 @@ const cleanupStaleManualRefundNote = async (
   privateKey: CryptoKey,
 ): Promise<void> => {
   const notes = await getNotesFor(attendeeNotes(attendeeId), privateKey);
-  for (const note of notes) {
-    if (note.type === "system" && note.note.includes("could NOT be refunded")) {
-      await deleteNote(attendeeNotes(attendeeId), note.id);
-    }
-  }
+  const stale = notes.filter(
+    (note) =>
+      note.type === "system" && note.note.includes("could NOT be refunded"),
+  );
+  await deleteNotes(
+    attendeeNotes(attendeeId),
+    stale.map((note) => note.id),
+  );
 };
 
 /** Load the attendee, listing, and payment references for a refresh. Returns

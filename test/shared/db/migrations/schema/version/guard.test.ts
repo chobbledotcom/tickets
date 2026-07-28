@@ -116,7 +116,7 @@ describe("db > migrations > schema change guard", () => {
     }).toEqual({
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
-      latestUpdate: "Keep completed maintenance work dormant.",
+      latestUpdate: "Let a note be about any record, not only an attendee.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

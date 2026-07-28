@@ -26,7 +26,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import {
   createOwnerNote,
-  deleteNote,
+  deleteNotes,
   getNote,
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
@@ -163,7 +163,7 @@ const handleDeleteNoteGet: TypedRouteHandler<"GET /admin/attendee/:attendeeId/no
 /** POST /admin/attendee/:attendeeId/note/:noteId/delete — delete the note. */
 const handleDeleteNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/note/:noteId/delete"> =
   noteHandlers.post(async (note, _session, form, _request, { attendeeId }) => {
-    await deleteNote(attendeeNotes(attendeeId), note.id);
+    await deleteNotes(attendeeNotes(attendeeId), [note.id]);
     return redirect(
       returnTarget(attendeeId, form.getString("return_url")),
       t("notes.deleted"),

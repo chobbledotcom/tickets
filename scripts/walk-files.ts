@@ -1,17 +1,13 @@
 import { join } from "@std/path";
-import { statOrNull } from "./not-found.ts";
 
 /**
- * What `directory` holds, or nothing when it is not a directory at all — a path
- * that has moved or gone answers with nothing rather than failing. Whether it
- * is there is asked before reading, because reading is what reaches the disk: a
- * check around opening the reader would never see the answer.
+ * What `directory` holds, as a list. A directory that is not there fails here,
+ * loudly: a caller asking to walk somewhere that has gone is asking about a
+ * root it believes in, and answering "nothing" would read as "nothing to do".
  */
 export const directoryEntries = async (
   directory: string,
 ): Promise<Deno.DirEntry[]> => {
-  const info = await statOrNull(directory);
-  if (info === null || !info.isDirectory) return [];
   const entries: Deno.DirEntry[] = [];
   for await (const entry of Deno.readDir(directory)) entries.push(entry);
   return entries;

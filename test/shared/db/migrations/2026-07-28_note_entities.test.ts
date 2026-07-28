@@ -161,6 +161,19 @@ describeWithEnv(
       ]);
     });
 
+    test("puts the index back when a run died right after the rebuild", async () => {
+      await downgradeToAttendeeNotes();
+      await runMigration();
+      // The state a run that stopped between the rebuild and the index leaves:
+      // the columns are moved, but nothing indexes them.
+      await execute("DROP INDEX idx_system_notes_entity");
+      expect(await indexExists("idx_system_notes_entity")).toBe(false);
+
+      await runMigration();
+
+      expect(await indexExists("idx_system_notes_entity")).toBe(true);
+    });
+
     test("is registered under the id it declares, and says what it does", () => {
       const { description, id } = migration();
 

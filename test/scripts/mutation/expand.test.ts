@@ -4,17 +4,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { expand } from "#scripts/mutation/expand.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
-/** Globs are matched against the working directory, so a test that names files
- *  in a temporary folder has to ask from there. */
-const expandFrom = async (dir: string, globs: string[]): Promise<string[]> => {
-  const cwd = Deno.cwd();
-  Deno.chdir(dir);
-  try {
-    return await expand(globs);
-  } finally {
-    Deno.chdir(cwd);
-  }
-};
+/** Globs are matched from a starting folder, so a test names its own without
+ *  touching the working directory this whole process shares. */
+const expandFrom = (dir: string, globs: string[]): Promise<string[]> =>
+  expand(globs, dir);
 
 const writeFile = async (
   path: string,
