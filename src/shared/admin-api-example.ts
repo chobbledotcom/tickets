@@ -267,6 +267,9 @@ const crudDocs = (c: {
   updateBody: unknown;
   deleteBody: unknown;
   desc: [string, string, string, string, string];
+  /** Fields a brand-new record always has, whatever the caller sent — the
+   * running totals that only bookings can move. */
+  freshRecord?: Record<string, number>;
 }): EndpointDoc[] => {
   const base = `/api/admin/${c.plural}`;
   const byId = `${base}/:${c.idParam}`;
@@ -275,6 +278,15 @@ const crudDocs = (c: {
   // is the example with the update applied — never the record as it was.
   const updated = json({
     [c.singular]: { ...(c.example as object), ...(c.updateBody as object) },
+  });
+  // A create answers with the record as just stored: what the caller sent, on
+  // top of the defaults, with nothing yet booked against it.
+  const created = json({
+    [c.singular]: {
+      ...(c.example as object),
+      ...(c.createBody as object),
+      ...(c.freshRecord ?? {}),
+    },
   });
   const [list, get, create, update, del] = c.desc;
   return [
@@ -290,7 +302,7 @@ const crudDocs = (c: {
       method: "POST",
       path: base,
       request: json(c.createBody),
-      response: one,
+      response: created,
     },
     {
       description: update,
@@ -321,6 +333,13 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
       "Delete an listing (requires name confirmation)",
     ],
     example: ADMIN_API_EXAMPLE_ADMIN_LISTING,
+    freshRecord: {
+      attendee_count: 0,
+      cost: 0,
+      income: 0,
+      profit: 0,
+      tickets_count: 0,
+    },
     idParam: "listingId",
     listResponse: {
       admin_level: "owner",

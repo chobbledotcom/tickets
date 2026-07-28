@@ -212,7 +212,8 @@ export const AdminGroupSchema = v.strictObject({
     v.boolean(),
   ),
   id: AtLeastOne,
-  max_attendees: AtLeastOne,
+  // Zero is a real setting here: a group with no cap of its own.
+  max_attendees: v.pipe(v.number(), v.integer(), v.minValue(0)),
   name: NonEmpty,
   slug: Slug,
   terms_and_conditions: v.string(),
