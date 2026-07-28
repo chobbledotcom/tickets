@@ -124,7 +124,11 @@ describe("Cucumber evidence schema", () => {
     ).toBe(false);
     // A story says where it was authored, so anything quoting it can link to
     // the Feature without guessing the path.
-    for (const uri of [undefined, "payments/customer-payment.feature", "specs/x.md"]) {
+    for (const uri of [
+      undefined,
+      "payments/customer-payment.feature",
+      "specs/x.md",
+    ]) {
       expect(
         v.safeParse(EvidenceManifestSchema, {
           ...manifest,
