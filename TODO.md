@@ -508,25 +508,6 @@ what it did and why, and grep `\.toContain(` under `test/` for the call sites.
 
 ---
 
-## Code-quality detector & test-strengthening follow-ups (from PR #1729)
-
-*Origin: CodeRabbit review of PR #1729, deferred as out of scope for that
-complexity-only refactor (which had to preserve behavior). All of these are
-pre-existing behaviors carried over unchanged from `main`, not regressions.*
-
-### 1. `skipTemplateSubstitution` should skip comment contents
-
-`test/scripts/code-quality/detectors.ts` — the template-substitution scanner tracks
-brace depth but does not skip comments, so a `}` inside a comment inside a
-`${...}` prematurely closes the substitution; a later nested backtick can then
-end the outer template early and leak commas into `parseArgList`. Repro shape:
-`` `${/* } */ `x,y`}` ``.
-
-Fix direction: within the depth loop, skip line/block comments (a `skipComment`
-helper) before the brace-depth checks, and add a direct regression test for the
-comment-with-`}`-then-nested-template case asserting `parseArgList` doesn't
-misinterpret the comma.
-
 ## Restrictions audit — "why can't I combine X with Y?" follow-ups
 
 *Origin: an audit of every place the app refuses a combination a user might
@@ -558,15 +539,13 @@ bug (harmless today because of the multiplier workaround).*
   answers UI, `src/ui/templates/admin/questions.tsx`) — "only answer-triggered
   modifiers appear here; create one on the Modifiers page."
 
-- **Group-homogeneity messages are hardcoded English and terse.**
-  `groupListingTypeError` (`src/shared/db/groups.ts`) returns raw strings ("This
-  group already contains … listings — all listings in a group must be the same
-  type"), so they bypass the `I18N_REPLACEMENTS` rebranding pass and never say
-  *why*. Fix: move them into `src/locales/en/*.json`, add the reason (the group
-  shows one shared date/day-count selector, so members must match), and ideally
-  grey out incompatible listings in the add-listings picker rather than erroring
-  on save. Same treatment for the hardcoded "Customisable days cannot be combined
-  with Allow Pay More" in `src/shared/listings-actions.ts`.
+- **Incompatible listings are offered by the add-listings picker.** The
+  group-homogeneity messages now live in the catalog and say why (`error.group_*`
+  in `src/locales/en/groups.json`), but the operator still only learns of a clash
+  when the save is refused. Better: grey out the listings that cannot join this
+  group in the add-listings picker, so the clash is visible before saving. The
+  rule to render from is `groupListingTypeError` (`src/shared/db/groups.ts`) —
+  same type, and same customisable-days setting, as the members already there.
 
 - **Two save-time either/ors would be clearer as disabled controls.**
   (a) customisable-days vs Allow Pay More (`validateCustomisableDays`,
@@ -806,10 +785,10 @@ and profile the top entry.
 *Origin: review of PR #1796 (the `[object Object]` error-box fix). Flagged by
 CodeRabbit while that PR hardened the questions template's mutation coverage.*
 
-`test/ui/templates/admin/questions.test.ts` is ~876 lines — over the ~400-line
+`test/ui/templates/admin/questions.test.ts` is ~862 lines — over the ~400-line
 target for test files (it was already ~795 before #1796 added the hardening
-assertions; it stays under Biome's 1,000-line hard limit, so it is not
-grandfathered and CI passes). Smaller, focused test files also let mutation
+assertions; it stays under Biome's 1,000-line hard limit, so CI passes).
+Smaller, focused test files also let mutation
 runs map `questions.tsx` to a narrower suite.
 
 Split it into focused sibling suites sharing one fixtures helper, roughly:
@@ -839,16 +818,6 @@ they were left out of that PR's scope.
   it needs a deliberate decision — likely a "draft consumed" marker distinct
   from "draft empty". Not a dedup regression: the ordering is byte-identical to
   before the PR.
-
-- **Tautological admin-API example test**
-  (`test/shared/admin-api-example.test.ts`: `toAdminListing output matches the
-  documented example`). `ADMIN_API_EXAMPLE_ADMIN_LISTING` is defined as
-  `toAdminListing(API_EXAMPLE_LISTING)` and the test compares
-  `toAdminListing(API_EXAMPLE_LISTING)` against it — both sides derive from the
-  same call, so the assertion cannot catch a `toAdminListing` shape regression.
-  Fix: author an independent `AdminListing` fixture (or assert against an
-  admin-listing schema). Pre-existing — the base had the same tautology via the
-  now-removed `ADMIN_API_EXAMPLE_LISTING` alias.
 
 - **Bulk-group-duplicate form loses inputs on a failed POST**
   (`src/ui/templates/admin/bulk-actions.tsx` `adminDuplicateGroupPage`). On a
@@ -1407,7 +1376,7 @@ requires mirror-located direct tests). Two of the moved files are over the
   `deno task test:files test/features/admin/auth/*.ts` after the split to
   confirm coverage stays at 100%.
 
-- **`test/ui/templates/checkin.test.ts` (533 lines).** Was
+- **`test/ui/templates/checkin.test.ts` (523 lines).** Was
   `test/lib/server-checkin.test.ts` (499 lines on `main`) — the move grew it
   slightly via the row-scoped assertion rewrite in `64475d4f`. Covers GET/POST
   `/checkin/:tokens` rendering, column visibility, check-in/out flows,
@@ -1419,7 +1388,7 @@ requires mirror-located direct tests). Two of the moved files are over the
   duplicating it across the split files.
 
 Both files are well under the Biome hard 1,000-line ceiling
-(`noExcessiveLinesPerFile`), so neither is in the `biome.json` override list.
+(`noExcessiveLinesPerFile`), so CI passes on both today.
 Splitting them now was deliberately deferred because doing it inside the
 cold-start PR would balloon the diff with unrelated mechanical test moves and
 re-conflict with the import-only changes that are the actual subject of the
@@ -1827,3 +1796,28 @@ whose freshly picked port already has something listening on it is abandoned
 even though the starter did try the number of times it was asked to. Handing out
 ports so no two tests can receive the same one would fix this too; short of that,
 the count is the wrong thing to measure.
+
+---
+
+## The gap between a mutation child ending and its supervisor taking the lock
+
+*Raised by Codex on [PR #1976](https://github.com/chobbledotcom/tickets/pull/1976),
+about `scripts/mutation/isolation.ts` and `scripts/mutation/isolation-cleanup.ts`.*
+
+A run's copy is protected by its lock, held by the child while it works and by
+the supervisor afterwards. Between the child ending and the supervisor taking
+the lock, nobody holds it. A mutation command starting in that moment sees a
+record that says "running" with a process that has gone, and — once the run is
+older than the startup grace — may delete the run's folder.
+
+Today that costs a run its copy-back: the read fails, the run is reported as
+failed, and the work has to be run again. It is loud, not silent, and it needs
+a second mutation command to start inside a window of a few milliseconds.
+
+The fix is to stop judging a run's liveness by the child alone. If the record
+also carried the supervisor's process id, a run would count as live for as long
+as the supervisor is up, closing the gap. That means changing what
+`runProcessIsUp` and `activeByRecord` in `isolation-cleanup.ts` consider alive,
+and thinking again about the startup grace, which exists because a process id
+can be given to somebody else after the original has gone. Start at
+`RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.

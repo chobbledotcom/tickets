@@ -66,10 +66,16 @@ export const writeMovedRunRecord = async (
   return { id, oldRunRoot, record };
 };
 
-export const writeFakeMutationScript = async (
+export const writeFakeScript = async (
   root: string,
+  name: string,
   body: string,
 ): Promise<void> => {
   await Deno.mkdir(join(root, "scripts"), { recursive: true });
-  await Deno.writeTextFile(join(root, "scripts", "mutation.ts"), body);
+  await Deno.writeTextFile(join(root, "scripts", name), body);
 };
+
+export const writeFakeMutationScript = (
+  root: string,
+  body: string,
+): Promise<void> => writeFakeScript(root, "mutation.ts", body);

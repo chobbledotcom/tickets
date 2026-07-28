@@ -1,7 +1,7 @@
 /**
- * Tests that the admin API examples match the real toAdminListing() output.
- * If the shape changes, this test fails and forces an update to
- * src/shared/admin-api-example.ts (and thus the API docs page).
+ * The admin API docs page publishes an example listing. These tests check it
+ * against a hand-written shape, so a change to the real conversion cannot
+ * quietly take the documented example with it.
  */
 
 import { expect } from "@std/expect";
@@ -16,19 +16,56 @@ import {
   PUBLIC_API_ENDPOINTS,
 } from "#shared/admin-api-example.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
-import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import {
+  AdminListingSchema,
+  PublicListingSchema,
+} from "#test-utils/api-schemas.ts";
 
 describe("admin API example", () => {
-  test("toAdminListing output matches the documented example", () => {
-    const result = toAdminListing(API_EXAMPLE_LISTING);
-    expect(result).toEqual(ADMIN_API_EXAMPLE_ADMIN_LISTING);
+  test("the documented example has every admin listing field", () => {
+    expect(() =>
+      v.parse(AdminListingSchema, ADMIN_API_EXAMPLE_ADMIN_LISTING),
+    ).not.toThrow();
   });
 
-  test("example has all AdminListing keys", () => {
-    const result = toAdminListing(API_EXAMPLE_LISTING);
-    const resultKeys = Object.keys(result).sort();
-    const exampleKeys = Object.keys(ADMIN_API_EXAMPLE_ADMIN_LISTING).sort();
-    expect(exampleKeys).toEqual(resultKeys);
+  test("an internal field leaking into a response is refused", () => {
+    expect(() =>
+      v.parse(AdminListingSchema, {
+        ...ADMIN_API_EXAMPLE_ADMIN_LISTING,
+        slug_index: "leaked",
+      }),
+    ).toThrow();
+  });
+
+  test("a missing field is refused", () => {
+    const { name: _, ...withoutName } = ADMIN_API_EXAMPLE_ADMIN_LISTING;
+
+    expect(() => v.parse(AdminListingSchema, withoutName)).toThrow();
+  });
+
+  test("a field of the wrong type is refused", () => {
+    expect(() =>
+      v.parse(AdminListingSchema, {
+        ...ADMIN_API_EXAMPLE_ADMIN_LISTING,
+        id: "1",
+      }),
+    ).toThrow();
+  });
+
+  test("the conversion drops the internal slug index", () => {
+    expect(toAdminListing(API_EXAMPLE_LISTING)).not.toHaveProperty(
+      "slug_index",
+    );
+  });
+
+  test("the conversion keeps every other listing field as it was", () => {
+    const { slug_index: _, ...expected } = API_EXAMPLE_LISTING;
+
+    expect(toAdminListing(API_EXAMPLE_LISTING)).toEqual(expected);
+  });
+
+  test("the documented example says which groups the listing is in", () => {
+    expect(ADMIN_API_EXAMPLE_ADMIN_LISTING.group_ids).toEqual([]);
   });
 });
 
@@ -61,16 +98,13 @@ describe("endpoint docs", () => {
     ).not.toThrow();
   });
 
-  test("admin listing list response uses AdminListing shape", () => {
+  test("the admin listing list also shows the groups a listing is in", () => {
     const listEndpoint = ADMIN_API_ENDPOINTS.find(
       (e: EndpointDoc) =>
         e.method === "GET" && e.path === "/api/admin/listings",
     )!;
     const parsed = JSON.parse(listEndpoint.response);
-    const realAdminListing = toAdminListing(API_EXAMPLE_LISTING);
-    const realKeys = Object.keys(realAdminListing).sort();
-    const exampleKeys = Object.keys(parsed.listings[0]).sort();
-    expect(exampleKeys).toEqual(realKeys);
+    expect(() => v.parse(AdminListingSchema, parsed.listings[0])).not.toThrow();
   });
 
   test("every endpoint has a description", () => {
