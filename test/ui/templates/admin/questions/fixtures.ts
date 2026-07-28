@@ -18,4 +18,5 @@ export const tShirtQuestion = testQuestion({
   text: "T-shirt size?",
 });
 
-export const setupQuestionPageTest = setupFeaturePageTest("questions");
+export const setupQuestionPageTest: () => Promise<void> =
+  setupFeaturePageTest("questions");
