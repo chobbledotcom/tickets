@@ -557,6 +557,29 @@ describe("TestBrowser forms", () => {
     );
   });
 
+  it("presses a usable button in a later form, not the switched-off one", async () => {
+    const browser = new TestBrowser();
+    let postedPath = "";
+    useHandler(browser, (request) => {
+      postedPath = new URL(request.url).pathname;
+      return new Response("saved");
+    });
+    // A person reading this page can press the second Publish, so naming it
+    // must reach that one rather than stopping at the switched-off first.
+    browser.currentHtml = `
+      <form action="/draft">
+        <button name="action" value="publish" disabled>Publish</button>
+      </form>
+      <form action="/ready">
+        <button name="action" value="publish">Publish</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Publish");
+
+    expect(postedPath).toBe("/ready");
+  });
+
   it("selects a form by body text even when no button text matches", async () => {
     const browser = new TestBrowser();
     let postedPath = "";

@@ -97,14 +97,19 @@ const bundleForm = (
   return filledIn;
 };
 
-/** One of the organiser's own choices on the bundle form, ticked or cleared.
- * The box has to be there and be usable, so a page that stopped offering it
- * fails the story rather than the choice being forced through underneath. */
+/** One of the organiser's own choices on the bundle form, ticked or left clear.
+ * The box has to be there, be usable, and start clear: a page that came back
+ * already ticked would let the story report that the organiser turned something
+ * on when a real click would have turned it off. */
 const choiceOnForm = (
   html: string,
   field: string,
   wanted: boolean,
-): string[] => (wanted ? [checkboxValueOffered(html, field)] : []);
+): string[] => {
+  const value = checkboxValueOffered(html, field);
+  expect(tickedCheckboxes(html, field)).not.toContain(value);
+  return wanted ? [value] : [];
+};
 
 /** The organiser unticks a box that was ticked. Unticking only means anything
  * if the page had it ticked, so a form that came back already clear fails here

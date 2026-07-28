@@ -266,15 +266,23 @@ const findFormByButton = (
   buttonValue?: string | undefined;
 } => {
   const lower = buttonText.toLowerCase();
+  let switchedOff = false;
   for (const f of forms) {
     if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
     const pressed = buttonToPress(f.body, lower);
-    // Every button with this text is switched off. Submitting the form anyway
-    // would let a test do something nobody could do on the page.
+    // A switched-off button here does not settle it: a later form may carry a
+    // usable button with the same words, and a real person could press that
+    // one. Only give up once every form has been looked at.
     if (pressed === "switched off") {
-      throw new Error(`The "${buttonText}" button is switched off`);
+      switchedOff = true;
+      continue;
     }
     return { action: f.action, body: f.body, ...pressed };
+  }
+  // Nothing usable anywhere, and at least one button was switched off.
+  // Submitting anyway would let a test do something nobody could do.
+  if (switchedOff) {
+    throw new Error(`The "${buttonText}" button is switched off`);
   }
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(
