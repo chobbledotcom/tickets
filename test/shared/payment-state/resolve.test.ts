@@ -10,6 +10,7 @@ import {
   chargeLeg,
   chargeResource,
   foundRead,
+  noPaymentRequiredObservation,
   paymentObservation,
   refundObservation,
   refundResource,
@@ -127,12 +128,7 @@ describe("payment resolver", () => {
   });
 
   test("accepts a completed zero-value checkout without a charge", () => {
-    const observation = paymentObservation({
-      charges: undefined,
-      expected: { amount: 0, currency: "GBP" },
-      providerTotal: { amount: 0, currency: "GBP" },
-      status: "no_payment_required",
-    });
+    const observation = noPaymentRequiredObservation();
 
     expect(resolvePayment(foundRead(observation))).toEqual({
       observation,

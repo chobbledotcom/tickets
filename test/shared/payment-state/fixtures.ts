@@ -98,6 +98,16 @@ export const paymentObservation = (
   ...values,
 });
 
+/** A checkout that needed no money: nothing asked for, nothing taken, and no
+ *  charges to go with it. */
+export const noPaymentRequiredObservation = (): PaymentObservation =>
+  paymentObservation({
+    charges: undefined,
+    expected: { amount: 0, currency: "GBP" },
+    providerTotal: { amount: 0, currency: "GBP" },
+    status: "no_payment_required",
+  });
+
 export const foundRead = (
   observation: PaymentObservation = paymentObservation(),
 ): Extract<ProviderRead, { status: "found" }> => ({

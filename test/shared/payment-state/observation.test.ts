@@ -19,6 +19,7 @@ import {
   chargeLeg,
   chargeResource,
   foundRead,
+  noPaymentRequiredObservation,
   paymentObservation,
   refundObservation,
   refundResource,
@@ -200,6 +201,21 @@ describe("payment observations", () => {
         ...foundRead(observation),
         requested: otherProvider,
         returned: otherProvider,
+      }),
+    ).toBe("Returned provider resource must belong to the payment observation");
+  });
+
+  test("refuses an unrecorded charge on a payment that needed no money", () => {
+    // The allowance exists because a checkout still going may have made a
+    // charge since the last reading. A payment that needed no money is
+    // finished and has no charges, so one turning up contradicts it.
+    const observation = noPaymentRequiredObservation();
+
+    expect(
+      validationMessage(ProviderReadSchema, {
+        ...foundRead(observation),
+        requested: chargeResource,
+        returned: chargeResource,
       }),
     ).toBe("Returned provider resource must belong to the payment observation");
   });

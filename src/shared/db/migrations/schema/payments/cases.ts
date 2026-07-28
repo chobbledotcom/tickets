@@ -67,6 +67,7 @@ export const paymentCaseTable: [name: string, table: Table] = [
           CHECK (alerted_revision IS NULL OR alerted_revision <= revision)
           CHECK ((alert_sent_at IS NULL) = (alert_sent_revision IS NULL))
           CHECK (alert_sent_revision IS NULL OR (alerted_revision IS NOT NULL AND alert_sent_revision = alerted_revision))
+          CHECK (alert_sent_at IS NULL OR (alerted_at IS NOT NULL AND alert_sent_at >= alerted_at))
           CHECK ((alert_lease_token IS NULL) = (alert_lease_expires_at IS NULL))
           CHECK (alert_lease_expires_at IS NULL OR (typeof(alert_lease_expires_at) = 'integer' AND alert_lease_expires_at >= 0))
           CHECK (alert_lease_token IS NULL OR (state = 'needs_action' AND alert_sent_revision IS NULL))

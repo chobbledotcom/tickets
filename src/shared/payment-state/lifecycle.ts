@@ -114,6 +114,8 @@ export const PaymentCaseStateSchema = v.picklist([
 ]);
 export type PaymentCaseState = v.InferOutput<typeof PaymentCaseStateSchema>;
 
+/** Where a refund has got to. "unknown" belongs only to money copied from an
+ *  older version, whose record never said what became of its refund. */
 export const PaymentRefundStateSchema = v.picklist([
   "none",
   "requested",
@@ -121,6 +123,7 @@ export const PaymentRefundStateSchema = v.picklist([
   "partial",
   "completed",
   "failed",
+  "unknown",
 ]);
 export type PaymentRefundState = v.InferOutput<typeof PaymentRefundStateSchema>;
 

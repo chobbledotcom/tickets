@@ -7,7 +7,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
   expect(await jsonHash(paymentTables)).toBe(
-    "a8f66832c609c2594a3eb0fb717a58d0aec0cde6c87d44944f5016395e72fc23",
+    "c65356a90569f76c8d1d25325a353a82d242f54204b31a12c5f60eecd8fd9c86",
   );
 });
 
@@ -202,6 +202,52 @@ describeWithEnv("db > payment aggregate constraints", { db: true }, () => {
          alert_sent_at, alert_sent_revision)
         VALUES ('sent-never-alerted', 'enc:1:a:b', 'sent-index',
           'network_error', 'retrying', 1, 1, 1, 1, 'enc:1:a:b', 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a message to send that is not encrypted", async () => {
+    // This is the one column holding the buyer's name, email, phone and
+    // address. Every other encrypted column says so in its own rule; this one
+    // has to as well, or a future writer can store it in the clear.
+    await expect(
+      getDb().execute(`INSERT INTO payment_completion_deliveries
+        (payment_id, delivery_key, data)
+        VALUES ('plain-message', 'registration_email', 'Dear Buyer')`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses an alert sent before it was decided on", async () => {
+    // The sent version is what stops that version going out again, so a sent
+    // time earlier than the alert itself can silence the real message.
+    await expect(
+      getDb().execute(`INSERT INTO payment_cases
+        (payment_id, resource, resource_index, reason, state,
+         first_observed_at, last_observed_at, consecutive_count, evidence,
+         revision, alerted_at, alerted_revision, alert_sent_at,
+         alert_sent_revision)
+        VALUES ('sent-early', 'enc:1:a:b', 'sent-early-index',
+          'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1,
+          100, 1, 1, 1)`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a retry booked before the attempt it follows", async () => {
+    // Booking the next try before the last attempt makes it due immediately,
+    // which turns waiting between tries into asking the provider on a loop.
+    await expect(
+      getDb().execute(`INSERT INTO payment_case_decisions
+        (case_id, case_revision, claim, state, attempt_count, created_at,
+         last_attempt_at, next_retry_at, last_error)
+        VALUES (1, 1, 'enc:1:a:b', 'retrying', 1, 0, 100, 1, 'enc:1:a:b')`),
+    ).rejects.toThrow("CHECK constraint failed");
+  });
+
+  test("refuses a decision waiting to be retried that was never tried", async () => {
+    await expect(
+      getDb().execute(`INSERT INTO payment_case_decisions
+        (case_id, case_revision, claim, state, attempt_count, created_at,
+         last_attempt_at, next_retry_at, last_error)
+        VALUES (2, 1, 'enc:1:a:b', 'retrying', 0, 1, NULL, 1, 'enc:1:a:b')`),
     ).rejects.toThrow("CHECK constraint failed");
   });
 

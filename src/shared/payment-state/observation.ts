@@ -144,11 +144,13 @@ const returnedResourceBelongsToObservation = (
   paymentObservationResources(observation).some((resource) =>
     sameProviderResourceAndParent(resource, returned),
   ) ||
-  // A payment that is not paid yet may not have recorded its charge, so a
-  // charge hanging off this checkout still counts as ours. Only a charge: a
-  // refund hangs off a charge, never off a checkout, so one that claims to
-  // belong to the checkout is malformed and is not ours to trust.
-  (observation.status !== "paid" &&
+  // A checkout still going may have made a charge since the last reading, so
+  // one hanging off it still counts as ours. Only while it is still going: a
+  // finished payment knows its charges, and one that needed no money has none,
+  // so a charge turning up there contradicts the reading rather than adding to
+  // it. Only a charge, too — a refund hangs off a charge, never off a
+  // checkout, so one claiming otherwise is malformed.
+  (observation.status === "pending" &&
     v.is(ProviderChargeResourceSchema, returned) &&
     returned.provider === observation.session.provider &&
     returned.parentId === observation.session.id);

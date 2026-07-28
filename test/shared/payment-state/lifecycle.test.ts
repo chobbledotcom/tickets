@@ -95,6 +95,10 @@ describe("payment lifecycle", () => {
       "needs_action",
       "resolved",
     ]);
+    // "unknown" is what a charge copied from an older version carries: the old
+    // record never said what happened to its refund. The table demands it for
+    // those rows, so the words for a refund state have to include it or a
+    // copied charge could not be read back at all.
     expect(PaymentRefundStateSchema.options).toEqual([
       "none",
       "requested",
@@ -102,6 +106,7 @@ describe("payment lifecycle", () => {
       "partial",
       "completed",
       "failed",
+      "unknown",
     ]);
   });
 
