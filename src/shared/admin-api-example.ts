@@ -28,9 +28,6 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { AdminListing } from "#shared/types.ts";
 import { type EndpointDoc, json } from "./admin-api-example/endpoint-doc.ts";
 
-export type { EndpointDoc } from "./admin-api-example/endpoint-doc.ts";
-export { PUBLIC_API_ENDPOINTS } from "./admin-api-example/public.ts";
-
 /** The example listing exactly as the admin endpoints answer with it: the
  * stored fields, plus the ids of the groups it is in. The example is in none. */
 export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
@@ -40,8 +37,9 @@ export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {
   can_pay_more: true,
-  // Stored dates carry their timezone: one without is refused on the way in.
-  date: "2025-08-20T10:00:00Z",
+  // Written exactly as it is stored: storage refuses a date with no timezone,
+  // and answers with the full-precision form of any other.
+  date: "2025-08-20T10:00:00.000Z",
   description:
     "A hands-on workshop covering watercolours and sketching techniques.",
   fields: "email",
@@ -154,8 +152,6 @@ const crudDocs = (c: {
 }): EndpointDoc[] => {
   const base = `/api/admin/${c.plural}`;
   const byId = `${base}/:${c.idParam}`;
-  /** The stored record as an endpoint answers with it: the example with the
-   * given changes laid over it. */
   const answerWith = (...changes: unknown[]): string =>
     json({ [c.singular]: Object.assign({}, c.example, ...changes) });
   const one = answerWith();

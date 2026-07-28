@@ -16,38 +16,49 @@ import { EmailSchema } from "#shared/validation/email.ts";
  * fails the parse. JSON object keys are strings, so `dayPrices` is keyed by
  * string here. `entriesFromList` groups same-typed fields to keep it compact.
  */
-export const PublicListingSchema = v.strictObject({
+const publicListingEntries = {
   ...v.entriesFromList(
     ["description", "fields", "listingType", "name", "slug"],
     v.string(),
   ),
   ...v.entriesFromList(["maxPrice", "maxPurchasable", "unitPrice"], v.number()),
   ...v.entriesFromList(
-    [
-      "canPayMore",
-      "customisableDays",
-      "isClosed",
-      "isSoldOut",
-      "nonTransferable",
-      "purchaseOnly",
-    ],
+    ["canPayMore", "isClosed", "isSoldOut", "nonTransferable", "purchaseOnly"],
     v.boolean(),
   ),
   ...v.entriesFromList(
     ["date", "imageAltText", "imageUrl", "location"],
     v.nullable(v.string()),
   ),
-  availableDates: v.optional(v.array(v.string())),
-  dayPrices: v.optional(v.record(v.string(), v.number())),
-});
+  availableDates: v.optional(v.array(IsoDateSchema)),
+};
+
+/** A public listing, plus whatever extra the surface adds. A listing sold by
+ * the day always prices its day counts, and one sold by the unit never does,
+ * so the two are told apart by the flag itself. */
+const publicListing = <E extends v.ObjectEntries>(extra: E) =>
+  v.union([
+    v.strictObject({
+      ...publicListingEntries,
+      ...extra,
+      customisableDays: v.literal(false),
+    }),
+    v.strictObject({
+      ...publicListingEntries,
+      ...extra,
+      customisableDays: v.literal(true),
+      dayPrices: v.record(v.string(), v.number()),
+    }),
+  ]);
+
+export const PublicListingSchema = publicListing({});
 
 /**
  * A listing as the API returns it on its own page, where a parent also carries
  * the add-ons a buyer must choose from. An add-on cannot itself have add-ons —
  * the app does not offer two levels of nesting — so this shape is one deep.
  */
-export const PublicListingDetailSchema = v.strictObject({
-  ...PublicListingSchema.entries,
+export const PublicListingDetailSchema = publicListing({
   children: v.optional(v.array(PublicListingSchema)),
 });
 
@@ -228,6 +239,17 @@ const groupEntries = {
   terms_and_conditions: v.string(),
 };
 
+/** One priced member of a package group, as the admin API hydrates it. Only a
+ * member with repriced spans carries `day_prices`. */
+const AdminPackageMemberSchema = v.strictObject({
+  day_prices: v.optional(
+    v.record(v.string(), v.pipe(v.number(), v.integer(), v.minValue(0))),
+  ),
+  listing_id: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  price: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  quantity: v.pipe(v.number(), v.integer(), v.minValue(1)),
+});
+
 /**
  * A group as the admin API returns it. A package group also carries the
  * members it prices, which the API adds to every package response — an empty
@@ -239,6 +261,6 @@ export const AdminGroupSchema = v.union([
   v.strictObject({
     ...groupEntries,
     is_package: v.literal(true),
-    package_members: v.array(v.unknown()),
+    package_members: v.array(AdminPackageMemberSchema),
   }),
 ]);

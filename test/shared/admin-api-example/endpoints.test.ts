@@ -59,6 +59,7 @@ describe("every documented endpoint", () => {
     );
 
     expect(Object.keys(parsed).toSorted()).toEqual(["listings", "packages"]);
+    expect(parsed.packages.length).toBeGreaterThan(0);
     for (const bundle of parsed.packages) {
       expect(bundle.url).toBe(`/ticket/${bundle.slug}`);
       // Browsing and the package endpoint must describe the same bundle.

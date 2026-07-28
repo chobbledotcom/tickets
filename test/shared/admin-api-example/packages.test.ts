@@ -88,8 +88,10 @@ describe("documented package endpoints", () => {
       const picked = chosen
         .filter(({ parent }) => parent === member.slug)
         .reduce((sum, one) => sum + one.quantity, 0);
+      // Every member of the package is in the map, having been read from it.
+      const offers = offeredBy.get(member.slug)!;
       // A member that publishes nothing to choose has nothing chosen for it.
-      const wanted = offeredBy.get(member.slug)?.size
+      const wanted = offers.size
         ? member.quantity * booking.quantity
         : 0;
 

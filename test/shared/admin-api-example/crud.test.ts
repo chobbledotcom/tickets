@@ -23,6 +23,10 @@ import { documented, freshTotals, isBlank, jsonLeaves } from "./helpers.ts";
  * normalizer, which refuses one that does not). */
 const TZ_SUFFIX = /(?:Z|[+-]\d{2}:\d{2})$/i;
 
+/** A stored datetime is what the system reads back, so a documented one must
+ * already be in that form: real, and unchanged by being stored. */
+const asStored = (date: string): string => new Date(date).toISOString();
+
 describe("documented admin CRUD endpoints", () => {
   test("the admin listing list also shows the groups a listing is in", () => {
     const listEndpoint = documented(
@@ -82,7 +86,7 @@ describe("documented admin CRUD endpoints", () => {
   test("a documented date is one the system could store", () => {
     // Storage appends "Z" to a value with no timezone, which turns a friendly
     // date into an invalid one and refuses the write. Every documented date
-    // must therefore say its timezone and parse.
+    // must therefore say its timezone and read back exactly as written.
     const dates = ADMIN_API_ENDPOINTS.filter(
       (endpoint) => endpoint.request !== undefined,
     )
@@ -95,7 +99,9 @@ describe("documented admin CRUD endpoints", () => {
     expect(dates.length).toBeGreaterThan(0);
     for (const date of dates) {
       expect(TZ_SUFFIX.test(date)).toBe(true);
-      expect(Number.isNaN(new Date(date).getTime())).toBe(false);
+      // A day past the end of its month is rewritten rather than refused, and
+      // a friendly date does not survive at all, so both fail this.
+      expect(asStored(date)).toBe(date);
     }
   });
 
