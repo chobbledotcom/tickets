@@ -8,14 +8,25 @@
 import { expect } from "@std/expect";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+
 // jscpd:ignore-end
 
+/** The fields the group edit form always submits, whatever else a test adds. */
+interface GroupEditFields {
+  description: string;
+  max_attendees: string;
+  name: string;
+  slug: string;
+  terms_and_conditions: string;
+}
+
 /** Base fields the group edit form always submits. */
-export const editFields = (name: string, slug: string) => ({
+export const editFields = (name: string, slug: string): GroupEditFields => ({
   description: "",
   max_attendees: "0",
   name,
@@ -23,12 +34,16 @@ export const editFields = (name: string, slug: string) => ({
   terms_and_conditions: "",
 });
 
+/** A listing the tests made, as its own record. */
+type TestListing = Awaited<ReturnType<typeof createTestListing>>;
+
 /** Create a listing that belongs to `group`. */
 export const member = (
   group: { id: number },
   name: string,
   extra: Record<string, unknown> = {},
-) => createTestListing({ groupId: group.id, name, ...extra });
+): Promise<TestListing> =>
+  createTestListing({ groupId: group.id, name, ...extra });
 
 /** Stamp one sold ticket against `groupId` (as a package checkout would). */
 export const sellPackageTicket = async (
@@ -46,14 +61,23 @@ export const sellPackageTicket = async (
 
 /** Load a listing by id (used to assert a member survives its deleted
  * package). */
-export const loadListing = async (id: number) => {
+export const loadListing = async (
+  id: number,
+): Promise<ListingWithCount | null> => {
   const m = await import("#shared/db/listings/records.ts");
   return m.getListingWithCount(id);
 };
 
 /** A HIDDEN package, its sole member, and one sold ticket stamped with the
  * group id — the state whose deletion must un-group rather than destroy. */
-export const hiddenPackageWithBooking = async (name: string, slug: string) => {
+export const hiddenPackageWithBooking = async (
+  name: string,
+  slug: string,
+): Promise<{
+  group: Awaited<ReturnType<typeof createTestGroup>>;
+  memberListing: TestListing;
+  token: string;
+}> => {
   const group = await createTestGroup({ isPackage: true, name, slug });
   await groups.table.update(group.id, { hidePackageListings: true });
   const memberListing = await member(group, `${name} Member`);
@@ -120,7 +144,7 @@ export const expectAddListingRejected = async (
 /** A hidden package with one member listing, returning the member. */
 export const hiddenPackageMember = async (
   name: string,
-): Promise<Awaited<ReturnType<typeof createTestListing>>> => {
+): Promise<TestListing> => {
   const group = await createTestGroup({ isPackage: true, name });
   await groups.table.update(group.id, { hidePackageListings: true });
   return member(group, `${name} member`);

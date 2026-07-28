@@ -74,12 +74,15 @@ describe("the record a mutation run keeps on disk", () => {
       );
       await writeRunRecord(older);
       await writeRunRecord(newer);
-      await Deno.mkdir(join(root, ".mutation-runs", "broken"), {
+      // Named the way a real run is, so the half-written record inside it is
+      // actually read and turned down — a fixture called "broken" would be
+      // skipped on its name alone and never reach that decision.
+      await Deno.mkdir(join(root, ".mutation-runs", runIdNamed("broken")), {
         recursive: true,
       });
       await Deno.writeTextFile(join(root, ".mutation-runs", "not-a-dir"), "");
       await Deno.writeTextFile(
-        join(root, ".mutation-runs", "broken", "run.json"),
+        join(root, ".mutation-runs", runIdNamed("broken"), "run.json"),
         "{not-json",
       );
 
@@ -114,7 +117,7 @@ describe("the record a mutation run keeps on disk", () => {
 
   test("ignores a record that is whole but missing its fields", async () => {
     await withTempDir(async (root) => {
-      const folder = join(root, ".mutation-runs", "half");
+      const folder = join(root, ".mutation-runs", runIdNamed("half"));
       await Deno.mkdir(folder, { recursive: true });
       // Valid JSON, but nothing a reader can use — sorting on its createdAt
       // would have thrown.
