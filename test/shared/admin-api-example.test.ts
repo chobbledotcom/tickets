@@ -17,6 +17,7 @@ import {
 } from "#shared/admin-api-example.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { isOwnerRole } from "#shared/types.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 import {
   AdminListingSchema,
   PackageBookRequestSchema,
@@ -161,6 +162,81 @@ describe("endpoint docs", () => {
     expect(isOwnerRole(JSON.parse(listEndpoint.response).admin_level)).toBe(
       true,
     );
+  });
+
+  /** The example a resource's endpoints show, paired with the delete body a
+   * caller would have to send for it. */
+  const documentedResources = (): {
+    del: { confirm_identifier: string };
+    example: { id: number; name: string };
+    update: Record<string, unknown>;
+  }[] =>
+    ["listings", "groups", "holidays"].map((plural) => {
+      const forPath = (method: string, suffix: string) =>
+        ADMIN_API_ENDPOINTS.find(
+          (e: EndpointDoc) =>
+            e.method === method && e.path === `/api/admin/${plural}${suffix}`,
+        )!;
+      const singular = plural.slice(0, -1);
+      return {
+        del: JSON.parse(
+          forPath("DELETE", "/:id".replace("id", `${singular}Id`)).request!,
+        ),
+        example: JSON.parse(forPath("GET", `/:${singular}Id`).response)[
+          singular
+        ],
+        update: JSON.parse(forPath("PUT", `/:${singular}Id`).request!),
+      };
+    });
+
+  test("a delete example confirms the exact name of the thing it deletes", () => {
+    // The real endpoints refuse a delete whose confirm_identifier is not the
+    // stored name, so a documented pair that disagreed would be rejected.
+    for (const { del, example } of documentedResources()) {
+      expect(del.confirm_identifier).toBe(example.name);
+    }
+  });
+
+  test("every documented example is a real, named, stored record", () => {
+    for (const { example } of documentedResources()) {
+      expect(example.name.length).toBeGreaterThan(0);
+      expect(example.id).toBeGreaterThan(0);
+    }
+  });
+
+  test("an update example actually changes something", () => {
+    for (const { example, update } of documentedResources()) {
+      const changed = Object.entries(update).filter(
+        ([key, value]) => value !== (example as Record<string, unknown>)[key],
+      );
+      expect(changed.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("the documented holiday runs from its start to its end", () => {
+    const holiday = JSON.parse(
+      ADMIN_API_ENDPOINTS.find(
+        (e: EndpointDoc) =>
+          e.method === "GET" && e.path === "/api/admin/holidays/:holidayId",
+      )!.response,
+    ).holiday;
+
+    expect(isIsoDate(holiday.start_date)).toBe(true);
+    expect(isIsoDate(holiday.end_date)).toBe(true);
+    // A holiday that ended before it began could never be saved.
+    expect(holiday.end_date >= holiday.start_date).toBe(true);
+  });
+
+  test("the documented group has room for more than nobody", () => {
+    const group = JSON.parse(
+      ADMIN_API_ENDPOINTS.find(
+        (e: EndpointDoc) =>
+          e.method === "GET" && e.path === "/api/admin/groups/:groupId",
+      )!.response,
+    ).group;
+
+    expect(group.max_attendees).toBeGreaterThan(0);
+    expect(group.slug.length).toBeGreaterThan(0);
   });
 
   test("every endpoint has a description", () => {
