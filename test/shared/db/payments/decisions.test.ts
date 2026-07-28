@@ -363,4 +363,23 @@ describeWithEnv("db > payment case decisions", { db: true }, () => {
       { caseState: "needs_action", decisionState: "retrying" },
     ]);
   });
+  test("reads back a decision the owner accepted but has not settled yet", async () => {
+    // The record allows an accepted decision to carry no worked-out decision
+    // yet, so reading one back must hand over nothing rather than trying to
+    // unseal a value that is not there.
+    const paymentCase = await paymentCaseFor();
+    const accepted = await acceptPaymentDecision(
+      paymentCase.id,
+      claim(paymentCase.revision),
+      decision(paymentCase.revision),
+    );
+    await getDb().execute(
+      "UPDATE payment_case_decisions SET decision = NULL WHERE id = ?",
+      [accepted.id],
+    );
+
+    const [stored] = await getPaymentCaseDecisions(paymentCase.id);
+    expect(stored?.decision).toBeNull();
+    expect(stored?.claim).toEqual(accepted.claim);
+  });
 });
