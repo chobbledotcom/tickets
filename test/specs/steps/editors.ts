@@ -3,10 +3,10 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
   editorAddsListing,
   editorBrowser,
+  editorCraftsForwardingTo,
   editorFollowsInvite,
   editorLogsIn,
   editorOpensListing,
@@ -15,9 +15,9 @@ import {
   listingSoldAsOrNull,
   OWNERS_ADDRESS,
   ownerInvitesEditor,
+  ownerSetsForwardingTo,
   privatePagePath,
   SOMEWHERE_ELSE,
-  savesListingForwardingTo,
   signedInEditor,
   somethingForSale,
 } from "#test/specs/support/editors.ts";
@@ -155,10 +155,19 @@ Then(
   "{word} is offered nothing about attendees, money, people or settings",
   function (this: TicketsWorld, _who: string): void {
     // Every page the story proves is refused must also be unlinked, or the
-    // editor is offered a door that shuts in their face.
+    // editor is offered a door that shuts in their face. Anything *under* one
+    // of those pages counts too — a link carrying a page number or a filter is
+    // just as dead to them.
     const offered = linksOnPage(editorBrowser(this));
     for (const page of ["list of attendees", "money", "people", "settings"]) {
-      expect(offered).not.toContain(privatePagePath(page));
+      const shut = privatePagePath(page);
+      const deadEnds = offered.filter(
+        (href) =>
+          href === shut ||
+          href.startsWith(`${shut}/`) ||
+          href.startsWith(`${shut}?`),
+      );
+      expect(deadEnds).toEqual([]);
     }
   },
 );
@@ -188,33 +197,27 @@ When(
 Then(
   "{word} is not asked where bookings are forwarded",
   function (this: TicketsWorld, _who: string): void {
-    expect(editorBrowser(this).currentHtml).not.toContain('name="webhook_url"');
+    // No box for it, and no sight of it either — showing the address as plain
+    // text would tell them just as much as a box would.
+    const served = editorBrowser(this).currentHtml;
+    expect(served).not.toContain('name="webhook_url"');
+    expect(served).not.toContain(OWNERS_ADDRESS);
   },
 );
 
 When(
   "{word} saves {word} with somewhere else to forward bookings to",
   function (this: TicketsWorld, _who: string, name: string): Promise<void> {
-    return savesListingForwardingTo(
-      editorBrowser(this),
-      this,
-      name,
-      SOMEWHERE_ELSE,
-    );
+    return editorCraftsForwardingTo(this, name, SOMEWHERE_ELSE);
   },
 );
 
 When(
   "the owner saves {word} with somewhere else to forward bookings to",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    // The owner sending exactly what the editor sent is what proves the editor
-    // was stopped by the rule, and not by some unrelated refusal.
-    await savesListingForwardingTo(
-      await adminBrowser(this),
-      this,
-      name,
-      SOMEWHERE_ELSE,
-    );
+    // The owner making the same change through their own box is what proves the
+    // editor was stopped by the rule, and not by some unrelated refusal.
+    await ownerSetsForwardingTo(this, name, SOMEWHERE_ELSE);
   },
 );
 

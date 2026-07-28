@@ -145,8 +145,22 @@ export const whyValueCannotBeSent = (
   }
   const box = boxFor(html, field);
   if (!box) return `the page has no ${field} to fill in`;
+  return whyBoxCannotCarry(box, field, chosen);
+};
+
+/** Why one box on the page could not carry this value. */
+const whyBoxCannotCarry = (
+  box: string,
+  field: string,
+  chosen: string,
+): string | null => {
   if (box.includes("disabled")) return `the ${field} box is switched off`;
   if (box.includes("readonly")) return `the ${field} box cannot be changed`;
+  // A browser will not submit a form that leaves a required box empty, so
+  // "send nothing here" is only a real answer when the box is optional.
+  if (chosen === "" && box.includes("required")) {
+    return `the ${field} box must be filled in`;
+  }
   if (box.includes('type="hidden"') && !box.includes(`value="${chosen}"`)) {
     return `the ${field} box is fixed at something other than "${chosen}"`;
   }

@@ -149,6 +149,16 @@ describe("a box that cannot be changed or cannot hold the number", () => {
     ).toBe("the duration_days box cannot be changed");
   });
 
+  test("refuses leaving a box empty when the page insists on it", () => {
+    expect(
+      whyValueCannotBeSent(lengthBox("required"), "duration_days", ""),
+    ).toBe("the duration_days box must be filled in");
+  });
+
+  test("allows leaving an optional box empty", () => {
+    expect(whyValueCannotBeSent(lengthBox(""), "duration_days", "")).toBeNull();
+  });
+
   test("refuses a number above what the box takes", () => {
     expect(
       whyValueCannotBeSent(lengthBox('min="1" max="3"'), "duration_days", "5"),

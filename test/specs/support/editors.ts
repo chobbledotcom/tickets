@@ -12,11 +12,9 @@ import {
   getAllListings,
   getListingWithCount,
 } from "#shared/db/listings/records.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import {
-  optionsOffered,
-  whyValueCannotBeSent,
-} from "#test/specs/support/form-controls.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
 import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
@@ -57,11 +55,15 @@ export const ownerInvitesEditor = async (
 ): Promise<void> => {
   const browser = await adminBrowser(world);
   await browser.visit("/admin/user/new");
-  expect(optionsOffered(browser.currentHtml, "admin_level")).toContain(
-    "editor",
-  );
+  // Both of the owner's choices have to be ones they could really make on the
+  // page, or an invite could be crafted that no owner can send.
   expect(browser.pageText).toContain(t("fields.user.editor"));
-  expect(whyValueCannotBeSent(browser.currentHtml, "username", who)).toBeNull();
+  for (const [box, typed] of [
+    ["admin_level", "editor"],
+    ["username", who],
+  ] as const) {
+    expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
+  }
   await browser.submitForm(
     { admin_level: "editor", username: who },
     t("users.invite.submit"),
@@ -80,10 +82,14 @@ export const editorFollowsInvite = async (
 ): Promise<void> => {
   const browser = new TestBrowser();
   await browser.visit(requiredWorldValue(world.editorInvite, "the invite"));
-  await browser.submitForm(
-    { password: CHOSEN_PASSWORD, password_confirm: CHOSEN_PASSWORD },
-    t("join.set_password.submit"),
-  );
+  const chosen = {
+    password: CHOSEN_PASSWORD,
+    password_confirm: CHOSEN_PASSWORD,
+  };
+  for (const [box, typed] of Object.entries(chosen)) {
+    expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
+  }
+  await browser.submitForm(chosen, t("join.set_password.submit"));
   world.editorBrowser = browser;
 };
 
@@ -155,7 +161,9 @@ export const editorAddsListing = async (
 
 /** What the site sells under this name, or nothing when it sells no such
  * thing. */
-export const listingSoldAsOrNull = async (name: string) =>
+export const listingSoldAsOrNull = async (
+  name: string,
+): Promise<ListingWithCount | null> =>
   (await getAllListings()).find((listing) => listing.name === name) ?? null;
 
 /** Where a listing forwards its bookings now. */
@@ -168,17 +176,50 @@ export const forwardingAddress = async (
   return found.webhook_url;
 };
 
-/** Somebody saves a listing's edit form, sending a forwarding address with it.
- * The address is sent whether or not the form offered a box for it, which is
- * the whole point: the site must decide, not the form. */
-export const savesListingForwardingTo = async (
-  browser: TestBrowser,
+/** The editor's save carries a forwarding address their form never offered.
+ * That is the whole point of the attempt, so nothing is checked first — the
+ * site has to be what turns it away, not the page. */
+export const editorCraftsForwardingTo = async (
   world: TicketsWorld,
   name: string,
   address: string,
 ): Promise<void> => {
-  const listing = stayListing(world, name);
-  await browser.visit(`/admin/listing/${listing.id}/edit`);
+  await savesListingForwarding(editorBrowser(world), world, name, address, {
+    throughTheBox: false,
+  });
+};
+
+/** The owner makes the same change the ordinary way, through the box their own
+ * form offers them. */
+export const ownerSetsForwardingTo = async (
+  world: TicketsWorld,
+  name: string,
+  address: string,
+): Promise<void> => {
+  await savesListingForwarding(
+    await adminBrowser(world),
+    world,
+    name,
+    address,
+    {
+      throughTheBox: true,
+    },
+  );
+};
+
+const savesListingForwarding = async (
+  browser: TestBrowser,
+  world: TicketsWorld,
+  name: string,
+  address: string,
+  how: { throughTheBox: boolean },
+): Promise<void> => {
+  await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
+  if (how.throughTheBox) {
+    expect(
+      whyValueCannotBeSent(browser.currentHtml, "webhook_url", address),
+    ).toBeNull();
+  }
   await browser.submitForm({ webhook_url: address }, "Save Changes");
 };
 
@@ -186,8 +227,7 @@ export const savesListingForwardingTo = async (
 export const editorOpensListing = async (
   world: TicketsWorld,
   name: string,
-): Promise<string> => {
+): Promise<void> => {
   const browser = editorBrowser(world);
   await browser.visit(`/admin/listing/${stayListing(world, name).id}/edit`);
-  return browser.currentHtml;
 };
