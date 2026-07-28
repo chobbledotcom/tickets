@@ -7,13 +7,13 @@ import { expect } from "@std/expect";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import {
   createFakeArchive,
-  expectStripeMockFails,
   makeExecutable,
   type TestStripeMockPaths,
   wait,
   withFakeCurl,
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
+import { expectStripeMockFails } from "#test/test-utils/stripe-mock/ports.ts";
 
 const oldDate = (): Date => new Date(Date.now() - 1_000);
 

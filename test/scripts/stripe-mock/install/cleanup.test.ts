@@ -4,13 +4,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import {
   createFakeArchive,
-  expectStartFails,
   withFakeCurl,
   withInstallLockRemoveFailure,
   withLockReadFailure,
   withSecondLockRefreshHeld,
   withTempStripeMockPaths,
 } from "#test/test-utils/stripe-mock/helpers.ts";
+import { expectStartFails } from "#test/test-utils/stripe-mock/ports.ts";
 import { expectDownloadWithLockCleanup } from "./lock-fixture.ts";
 
 describe("cleaning up after an install", () => {

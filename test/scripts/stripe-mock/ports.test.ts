@@ -8,18 +8,20 @@ import {
 } from "#scripts/stripe-mock.ts";
 import { stripeMock } from "#shared/stripe/mock.ts";
 import {
-  expectPortAvailable,
-  expectPortOpen,
-  expectStripeMockFails,
   keepPortOpenCommand,
   testEnv,
-  withHeldPort,
   withTempStripeMockPaths,
-  withUnusedPort,
   writeFailingMock,
   writePortThief,
   writeTermIgnoringMock,
 } from "#test/test-utils/stripe-mock/helpers.ts";
+import {
+  expectPortAvailable,
+  expectPortOpen,
+  expectStripeMockFails,
+  withHeldPort,
+  withUnusedPort,
+} from "#test/test-utils/stripe-mock/ports.ts";
 
 describe("stripe-mock ports and environment", () => {
   test("uses the default port when the env var is absent", () => {
