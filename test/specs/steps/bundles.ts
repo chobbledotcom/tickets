@@ -166,9 +166,13 @@ Then(
 );
 
 const onlyBundle = (world: TicketsWorld): string => {
-  const names = [...(world.bundles?.keys() ?? [])];
-  if (names.length !== 1) throw new Error("The story has no single bundle");
-  return names[0] as string;
+  const [name, ...rest] = requiredWorldValue(
+    world.bundles,
+    "the story's bundles",
+  ).keys();
+  if (!name || rest.length > 0)
+    throw new Error("The story has no single bundle");
+  return name;
 };
 
 /** What the buyer's ticket does or does not say, from one reading of it. */
@@ -203,11 +207,13 @@ Then(
   },
 );
 
-Then(
-  "the booking page never named the {word}",
+/** What the page they bought from did or did not say. */
+const expectBookingPageNaming = (shown: boolean) =>
   function (this: TicketsWorld, thing: string): void {
-    expect(
-      requiredWorldValue(this.bundleBookingPage, "the booking page"),
-    ).not.toContain(thing);
-  },
-);
+    const page = requiredWorldValue(this.bundleBookingPage, "the booking page");
+    if (shown) expect(page).toContain(thing);
+    else expect(page).not.toContain(thing);
+  };
+
+Then("the booking page named the {word}", expectBookingPageNaming(true));
+Then("the booking page never named the {word}", expectBookingPageNaming(false));

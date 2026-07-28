@@ -36,7 +36,8 @@ Feature: An organiser sells several things as one bundle
       Given a Weekend group holding a Tent at 40.00 and a Breakfast at 10.00
       And the organiser sells the Weekend as a private bundle
       When a customer buys the Weekend
-      Then the booking page never named the Tent
+      Then the booking page named the Weekend
+      And the booking page never named the Tent
       And the booking page never named the Breakfast
       And their ticket names the Weekend
       And their ticket never names the Tent
@@ -84,6 +85,8 @@ Feature: An organiser sells several things as one bundle
       And the organiser is told to make its contents public first
       When the organiser lets people see what is inside the Weekend
       Then the Weekend is still sold as one bundle
+      And their ticket names the Tent
+      And their ticket names the Breakfast
       When the organiser stops selling the Weekend as a bundle
       Then the Weekend is no longer sold as one bundle
       And their ticket names the Tent
@@ -98,6 +101,8 @@ Feature: An organiser sells several things as one bundle
       And the organiser is told to make its contents public first
       When the organiser lets people see what is inside the Weekend
       Then the Weekend is still sold as one bundle
+      And their ticket names the Tent
+      And their ticket names the Breakfast
       When the organiser tries to delete the Weekend
       Then the Weekend is gone
       And the Tent is still for sale on its own

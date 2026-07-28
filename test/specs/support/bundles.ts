@@ -217,14 +217,11 @@ export const customerBuysBundle = async (
   expect(browser.currentHtml).toContain(`name="${wanting}"`);
   expect(whyValueCannotBeSent(browser.currentHtml, wanting, "1")).toBeNull();
   world.bundleBookingPage = browser.pageText;
-  await browser.submitForm(
-    {
-      email: "buyer@example.com",
-      name: "Buyer",
-      [wanting]: "1",
-    },
-    "Continue",
-  );
+  const whoTheyAre = { email: "buyer@example.com", name: "Buyer" };
+  for (const [box, typed] of Object.entries(whoTheyAre)) {
+    expect(whyValueCannotBeSent(browser.currentHtml, box, typed)).toBeNull();
+  }
+  await browser.submitForm({ ...whoTheyAre, [wanting]: "1" }, "Continue");
   // Buying leaves them on a page carrying the link to their ticket, which is
   // the only way they can ever reach it again.
   const toTicket = browser.links.find(({ href }) => href.startsWith("/t/"));
