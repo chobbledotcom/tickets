@@ -9,6 +9,7 @@ import { projectRoot } from "#scripts/project-root.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
 /* jscpd:ignore-end */
 import {
+  isRunId,
   MUTATION_RECORD_FILE,
   type MutationRunRecord,
   MutationRunRecordSchema,
@@ -57,7 +58,8 @@ export const recordInRunDirectory = (
   workRoot: workRoot(id, root),
 });
 
-/** Every run folder, whether or not it still holds a readable record. */
+/** Every folder under .mutation-runs, ours or not. Callers that go on to act on
+ * a folder pick out the ones this runner named with `isRunId` first. */
 export const runDirectoryNames = async (
   root = projectRoot,
 ): Promise<string[]> => {
@@ -72,11 +74,17 @@ export const runDirectoryNames = async (
   return names;
 };
 
+/**
+ * The runs this runner made, newest first. Folders it did not name are left out
+ * before anything inside them is read, so a stray folder that happens to hold a
+ * readable record — somebody's copied backup of an old run, say — is never
+ * listed, killed or deleted by `--clean all`.
+ */
 export const readRunRecords = async (
   root = projectRoot,
 ): Promise<MutationRunRecord[]> => {
   const records: MutationRunRecord[] = [];
-  for (const name of await runDirectoryNames(root)) {
+  for (const name of (await runDirectoryNames(root)).filter(isRunId)) {
     const record = await readRunRecord(recordPath(name, root));
     if (record) records.push(recordInRunDirectory(record, name, root));
   }

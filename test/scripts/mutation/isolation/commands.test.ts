@@ -13,7 +13,11 @@ import {
 } from "#scripts/mutation/isolation-state.ts";
 import {
   captureMutationCommand,
+  finishedRun,
   LONG_AGO,
+  runIdNamed,
+  runningRun,
+  runningWithoutPid,
   runQuietMutationCommand,
   withTempDir,
   writeMovedRunRecord,
@@ -27,7 +31,7 @@ const cleanPassedRunWithRemoveError = async (
   clean: Awaited<ReturnType<typeof captureMutationCommand>>;
   passed: ReturnType<typeof markFinished>;
 }> => {
-  const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
+  const passed = markFinished(newRunRecord(runIdNamed("passed"), [], root), 0);
   await writeRunRecord(passed);
 
   const remove = Deno.remove;
@@ -37,7 +41,7 @@ const cleanPassedRunWithRemoveError = async (
   }) as typeof Deno.remove);
 
   const clean = await captureMutationCommand(
-    ["--clean", "mutation-passed"],
+    ["--clean", runIdNamed("passed")],
     root,
   );
   return { clean, passed };
@@ -50,7 +54,7 @@ const expectCleanPassedRunRemovalFailure = async (
   const { clean, passed } = await cleanPassedRunWithRemoveError(root, error);
 
   expect(clean).toEqual({
-    errors: ["Failed to remove mutation-passed: permission denied"],
+    errors: [`Failed to remove ${runIdNamed("passed")}: permission denied`],
     logs: [],
     result: 1,
   });
@@ -73,31 +77,25 @@ describe("mutation isolation commands", () => {
 
   test("skips active runs during cleanup", async () => {
     await withTempDir(async (root) => {
-      const copying = newRunRecord("mutation-copying", [], root);
+      const copying = newRunRecord(runIdNamed("copying"), [], root);
       // Old enough that the startup grace no longer covers it.
       const staleCopying = newRunRecord(
-        "mutation-stale-copying",
+        runIdNamed("stale-copying"),
         [],
         root,
         LONG_AGO.toISOString(),
       );
       const running = markRunning(
-        newRunRecord("mutation-running", [], root),
+        newRunRecord(runIdNamed("running"), [], root),
         Deno.pid,
       );
       const starting = markRunning(
-        newRunRecord("mutation-starting", [], root),
+        newRunRecord(runIdNamed("starting"), [], root),
         Deno.pid,
       );
-      const stale = markRunning(
-        newRunRecord("mutation-stale", [], root),
-        99_999_999,
-      );
-      const noPid = {
-        ...newRunRecord("mutation-nopid", [], root),
-        status: "running" as const,
-      };
-      const passed = markFinished(newRunRecord("mutation-passed", [], root), 0);
+      const stale = runningRun("stale", root, 99_999_999);
+      const noPid = runningWithoutPid("nopid", root);
+      const passed = finishedRun("passed", root);
       for (const record of [
         copying,
         staleCopying,
@@ -111,13 +109,16 @@ describe("mutation isolation commands", () => {
       }
 
       expect(
-        await runQuietMutationCommand(["--clean", "mutation-starting"], root),
+        await runQuietMutationCommand(
+          ["--clean", runIdNamed("starting")],
+          root,
+        ),
       ).toBe(1);
       await withMutationRunLock(copying.root, async () => {
         await withMutationRunLock(running.root, async () => {
           expect(
             await runQuietMutationCommand(
-              ["--clean", "mutation-running"],
+              ["--clean", runIdNamed("running")],
               root,
             ),
           ).toBe(1);
@@ -140,7 +141,12 @@ describe("mutation isolation commands", () => {
   test("cleans stale running records whose pid was reused after the grace period", async () => {
     await withTempDir(async (root) => {
       const staleReused = markRunning(
-        newRunRecord("mutation-stale-reused", [], root, LONG_AGO.toISOString()),
+        newRunRecord(
+          runIdNamed("stale-reused"),
+          [],
+          root,
+          LONG_AGO.toISOString(),
+        ),
         Deno.pid,
         LONG_AGO.toISOString(),
       );
@@ -150,7 +156,7 @@ describe("mutation isolation commands", () => {
 
       expect(
         await runQuietMutationCommand(
-          ["--clean", "mutation-stale-reused"],
+          ["--clean", runIdNamed("stale-reused")],
           root,
         ),
       ).toBe(0);
@@ -176,7 +182,7 @@ describe("mutation isolation commands", () => {
 
       expect(clean).toEqual({
         errors: [],
-        logs: ["Removed mutation-passed."],
+        logs: [`Removed ${runIdNamed("passed")}.`],
         result: 0,
       });
     });

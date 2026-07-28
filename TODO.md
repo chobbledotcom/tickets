@@ -1681,52 +1681,6 @@ priced bundle reaches checkout today.
 
 ---
 
-## Split the package group test file
-
-*Origin: reviewer suggestion (Codex) on PR #1968.*
-
-`test/integration/server/group-packages.test.ts` is about 940 lines, well over
-the ~400 the repository aims for, and it is on the `biome.json` grandfathered
-list. PR #1968 removed two journeys from it but did not split it.
-
-It divides cleanly along the concerns already grouped inside it: what may and
-may not join a package, price and quantity parsing, per-day overrides, the
-share/QR affordances a hidden member must not show, and the sold-hidden-package
-guard on delete and un-package. Splitting it into a `group-packages/` folder
-along those lines also lets mutation runs target one narrow file per source
-rather than the whole suite.
-
-Starting point: the `describe`-less `test(...)` blocks in that file group
-naturally by the helpers they use (`expectPackageRejected`,
-`expectAddListingRejected`, `hiddenPackageWithBooking`); delete its
-`biome.json` override entry when the split lands.
-
----
-
-## Let every mutation command leave folders it did not name alone
-
-*Origin: reviewer suggestion (Codex) on PR #1957.*
-
-`readRunRecords` in `scripts/mutation/isolation-records.ts` reads a record from
-every folder under `.mutation-runs`, whatever it is called. So `--clean all`
-deletes a stray folder that happens to hold a readable `run.json` — a copied
-backup of an old run, say — even though this runner never made it.
-
-The clear-up that runs before each mutation *is* restricted: `runsToSweep` picks
-folders by name with `isRunId` before reading anything inside them. The explicit
-list/kill/clean commands are the ones still reading everything.
-
-This is older than PR #1957 — `--clean all` has always deleted every folder with
-a readable record — and closing it means renaming about twenty fixture ids in
-`test/scripts/mutation/` to the real `mutation-<time>-<hex>` shape, which is why
-it did not ride along with that change.
-
-Starting point: filter the names in `readRunRecords` with `isRunId` the way
-`runsToSweep` does, then work through the fixture ids in
-`test/scripts/mutation/isolation/commands.test.ts`,
-`test/scripts/mutation/isolation/list-and-kill.test.ts`, and
-`test/scripts/mutation/isolation-state/records.test.ts`.
-
 ## Give the stripe-mock install lock the same shape as every other file lock
 
 *Origin: noticed while unifying the locks behind `scripts/lock-file.ts`.*
