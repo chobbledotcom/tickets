@@ -1,8 +1,6 @@
 /**
  * An import runs the same listing and group validators the admin forms do, so
- * the route must load their message catalogs. Without that, a refused import
- * throws a missing-translation error and the operator gets a server error
- * instead of the reason their file was rejected.
+ * the route must load their message catalogs or a refusal becomes a 500.
  */
 
 import { expect } from "@std/expect";
@@ -16,7 +14,6 @@ import { mockMultipartRequest } from "#test-utils/mocks.ts";
 import { loginAsAdmin } from "#test-utils/session.ts";
 
 describeWithEnv("catalog import refusal messages", { db: true }, () => {
-  /** Import one catalog blob and report the flash message it redirected with. */
   const importAndReadFlash = async (payload: unknown): Promise<string> => {
     const { cookie, csrfToken } = await loginAsAdmin();
     const response = await handleRequest(
