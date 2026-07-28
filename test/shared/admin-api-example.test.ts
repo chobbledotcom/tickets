@@ -204,12 +204,18 @@ describe("endpoint docs", () => {
     }
   });
 
-  test("an update example actually changes something", () => {
+  test("an update example only names fields it changes", () => {
+    // A field set to the value the record already has teaches nothing, so
+    // every field in an update example must differ from the example record.
     for (const { example, update } of documentedResources()) {
-      const changed = Object.entries(update).filter(
-        ([key, value]) => value !== (example as Record<string, unknown>)[key],
-      );
-      expect(changed.length).toBeGreaterThan(0);
+      const unchanged = Object.entries(update)
+        .filter(
+          ([key, value]) => value === (example as Record<string, unknown>)[key],
+        )
+        .map(([key]) => key);
+
+      expect(unchanged).toEqual([]);
+      expect(Object.keys(update).length).toBeGreaterThan(0);
     }
   });
 
@@ -264,6 +270,15 @@ describe("endpoint docs", () => {
     }
 
     expect(blanks).toEqual([]);
+  });
+
+  test("documented JSON is indented so it can be read", () => {
+    for (const endpoint of allEndpoints) {
+      for (const body of [endpoint.request, endpoint.response]) {
+        if (body === undefined) continue;
+        expect(body).toContain("\n  ");
+      }
+    }
   });
 
   test("every endpoint has a description", () => {
