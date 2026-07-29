@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import {
   ADDRESS_ON_OWNERS_HOST,
+  anEmailWasSent,
   COULD_NOT_CHECK,
   contactPageAnswers,
   messageSent,
@@ -90,14 +91,14 @@ Then(
   function (this: TicketsWorld): void {
     // The exact address, not merely "not the claimed one" — a message with no
     // reply address at all would satisfy that and leave the owner stuck.
-    expect(messageSent(this)?.reply_to).toBe(CONTACT_OWNER_EMAIL);
+    expect(messageSent(this).reply_to).toBe(CONTACT_OWNER_EMAIL);
   },
 );
 
 Then(
   "the owner is warned the sender may be pretending",
   function (this: TicketsWorld): void {
-    expect(messageSent(this)?.html).toContain(SPOOF_WARNING);
+    expect(messageSent(this).html).toContain(SPOOF_WARNING);
   },
 );
 
@@ -126,11 +127,11 @@ Then(
 );
 
 Then("the message reaches the owner", function (this: TicketsWorld): void {
-  expect(messageSent(this)?.to).toEqual([CONTACT_OWNER_EMAIL]);
+  expect(messageSent(this).to).toEqual([CONTACT_OWNER_EMAIL]);
 });
 
 Then("nothing reaches the owner", function (this: TicketsWorld): void {
-  expect(messageSent(this)).toBeNull();
+  expect(anEmailWasSent(this)).toBe(false);
 });
 
 Then(
@@ -145,6 +146,6 @@ Then(
 Then(
   "a reply to it would go to {string}",
   function (this: TicketsWorld, address: string): void {
-    expect(messageSent(this)?.reply_to).toBe(address);
+    expect(messageSent(this).reply_to).toBe(address);
   },
 );

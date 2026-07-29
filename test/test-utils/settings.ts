@@ -198,6 +198,10 @@ export const enablePublicApi = async (): Promise<void> => {
 };
 
 /** Turn the Site feature on for the current test DB. */
+export const enablePublicSite = async (): Promise<void> => {
+  await enableFeature("site");
+};
+
 /** The address the site both sends from and delivers contact messages to. */
 export const CONTACT_OWNER_EMAIL = "owner@example.com";
 
@@ -210,10 +214,6 @@ export const activateContactForm = async (): Promise<void> => {
   await settings.update.contactFormEnabled(true);
   await settings.update.email.provider("resend");
   await settings.update.email.apiKey("re_test_key");
-};
-
-export const enablePublicSite = async (): Promise<void> => {
-  await enableFeature("site");
 };
 
 export const stubWebhookVerify = async (listingData: {

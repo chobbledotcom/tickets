@@ -147,10 +147,23 @@ export const spamCheckWasAsked = (world: TicketsWorld): boolean =>
     ({ url }) => url.includes("api.botpoison.com"),
   );
 
-/** The email the site sent, or nothing when it sent none. */
-export const messageSent = (world: TicketsWorld): SentMessage | null => {
+/** Whether the site sent an email at all. Kept apart from reading the message
+ * itself, so "nothing reached the owner" cannot be satisfied by a send whose
+ * contents the story merely failed to read. */
+export const anEmailWasSent = (world: TicketsWorld): boolean =>
+  requiredWorldValue(world.messagesOut, "the outgoing watch").emailCall() !==
+  undefined;
+
+/** The message the site sent. A send with nothing readable in it is a broken
+ * watch rather than an answer, so it fails loudly instead of reading as
+ * "nothing was sent". */
+export const messageSent = (world: TicketsWorld): SentMessage => {
   const watching = requiredWorldValue(world.messagesOut, "the outgoing watch");
-  return (watching.emailCall()?.body ?? null) as SentMessage | null;
+  const sent = watching.emailCall();
+  if (!sent) throw new Error("The site sent no email to read");
+  if (!sent.body)
+    throw new Error("The site sent an email with no message in it");
+  return sent.body as SentMessage;
 };
 
 /** The parts of a sent message a story reads: who it went to, where a reply
