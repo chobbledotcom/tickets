@@ -5,7 +5,7 @@ import {
   PaymentChargeDecisionSnapshotSchema,
   PaymentLegacyDecisionSnapshotSchema,
   PaymentOperatorDecisionSchema,
-} from "#shared/payment-state/lifecycle.ts";
+} from "#shared/payment-state/decision.ts";
 
 describe("what an owner's decision may be", () => {
   test("refuses reviewed money taken by another provider", () => {

@@ -3,7 +3,7 @@
  *  whatever the code does; these change as the runtime is written. */
 
 /* jscpd:ignore-start -- imports */
-import type { PaymentDecisionState } from "#shared/payment-state/lifecycle.ts";
+import type { PaymentDecisionState } from "#shared/payment-state/decision.ts";
 import type { Fault } from "#shared/payment-state/record/fault.ts";
 import {
   absent,
