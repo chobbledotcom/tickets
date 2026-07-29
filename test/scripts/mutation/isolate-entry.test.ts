@@ -2,11 +2,9 @@ import { basename } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  entryImport,
+  entryCountFor,
   MAX_FILES_PER_ENTRY,
   planIsolateEntries,
-  shardForEntries,
-  splitByIsolateSharing,
 } from "#scripts/mutation/isolate-entry.ts";
 import { GROUPS_DIR } from "#scripts/test-groups.ts";
 
@@ -29,61 +27,13 @@ const withFiles = async (
   return { paths, root };
 };
 
-describe("shardForEntries", () => {
-  test("keeps every path, in order, across shards", () => {
-    const paths = Array.from({ length: 5 }, (_, i) => `f${i}.ts`);
-    expect(shardForEntries(paths, 2)).toEqual([
-      ["f0.ts", "f1.ts"],
-      ["f2.ts", "f3.ts"],
-      ["f4.ts"],
-    ]);
+describe("entryCountFor", () => {
+  test("keeps one entry while the files fit in one isolate", () => {
+    expect(entryCountFor(MAX_FILES_PER_ENTRY)).toBe(1);
   });
 
-  test("caps a shard at MAX_FILES_PER_ENTRY by default", () => {
-    const paths = Array.from(
-      { length: MAX_FILES_PER_ENTRY + 1 },
-      (_, i) => `f${i}.ts`,
-    );
-    const shards = shardForEntries(paths);
-    expect(shards.map((shard) => shard.length)).toEqual([
-      MAX_FILES_PER_ENTRY,
-      1,
-    ]);
-  });
-
-  test("returns no shards for no paths", () => {
-    expect(shardForEntries([])).toEqual([]);
-  });
-});
-
-describe("entryImport", () => {
-  test("climbs out of the entries directory to a project-relative path", () => {
-    expect(entryImport("/repo", "/repo/test/a.test.ts")).toBe(
-      "../test/a.test.ts",
-    );
-  });
-
-  test("treats a relative member as already project-relative", () => {
-    expect(entryImport("/repo", "test/a.test.ts")).toBe("../test/a.test.ts");
-  });
-});
-
-describe("splitByIsolateSharing", () => {
-  test("sends a file with a global hook to its own isolate", () => {
-    expect(
-      splitByIsolateSharing([
-        { path: "a.test.ts", source: groupable },
-        { path: "b.test.ts", source: globalHook },
-      ]),
-    ).toEqual({ shareable: ["a.test.ts"], solo: ["b.test.ts"] });
-  });
-
-  test("honours the run-alone marker", () => {
-    expect(
-      splitByIsolateSharing([
-        { path: "a.test.ts", source: "// test-groups: run-alone\n" },
-      ]),
-    ).toEqual({ shareable: [], solo: ["a.test.ts"] });
+  test("adds an entry as soon as they do not fit", () => {
+    expect(entryCountFor(MAX_FILES_PER_ENTRY + 1)).toBe(2);
   });
 });
 
@@ -168,35 +118,47 @@ describe("planIsolateEntries", () => {
     const imported = imports.flatMap((body) =>
       [...body.matchAll(/import "\.\.\/(.+)";/g)].map((match) => match[1]),
     );
-    expect(imported).toEqual(paths.map((path) => basename(path)));
+    // Membership, not order: the files are dealt across entries, and what
+    // matters is that each one is run exactly once.
+    expect(imported.sort()).toEqual(paths.map((path) => basename(path)).sort());
 
     await plan.cleanup();
     await Deno.remove(root, { recursive: true });
   });
 
-  test("cleanup tolerates an entry that is already gone", async () => {
+  /** Plan two shareable files, disturb the first entry, then clean up —
+   *  returning the error cleanup threw, or null when it succeeded. */
+  const cleanupErrorAfter = async (
+    disturb: (entry: string) => Promise<void>,
+  ): Promise<unknown> => {
     const { paths, root } = await withFiles({
       "a.test.ts": groupable,
       "b.test.ts": groupable,
     });
     const plan = await planIsolateEntries(paths, root);
-    await Deno.remove(plan.runArgs[0]!);
-    await plan.cleanup();
-    await Deno.remove(root, { recursive: true });
+    await disturb(plan.runArgs[0]!);
+    try {
+      await plan.cleanup();
+      return null;
+    } catch (error) {
+      return error;
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  };
+
+  test("cleanup tolerates an entry that is already gone", async () => {
+    expect(await cleanupErrorAfter((entry) => Deno.remove(entry))).toBeNull();
   });
 
   test("cleanup surfaces a failure that is not a missing entry", async () => {
-    const { paths, root } = await withFiles({
-      "a.test.ts": groupable,
-      "b.test.ts": groupable,
-    });
-    const plan = await planIsolateEntries(paths, root);
     // A directory in place of the entry file fails removal for a different
     // reason, so cleanup must not swallow it.
-    await Deno.remove(plan.runArgs[0]!);
-    await Deno.mkdir(plan.runArgs[0]!);
-    await Deno.writeTextFile(`${plan.runArgs[0]!}/held.txt`, "x");
-    await expect(plan.cleanup()).rejects.toThrow();
-    await Deno.remove(root, { recursive: true });
+    const error = await cleanupErrorAfter(async (entry) => {
+      await Deno.remove(entry);
+      await Deno.mkdir(entry);
+      await Deno.writeTextFile(`${entry}/held.txt`, "x");
+    });
+    expect(error).toBeInstanceOf(Error);
   });
 });
