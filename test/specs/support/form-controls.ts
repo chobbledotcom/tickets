@@ -6,6 +6,7 @@
  */
 
 import { expect } from "@std/expect";
+import { t } from "#i18n";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** Why a field could not carry a value, or null when it could. Each rule below
@@ -201,4 +202,19 @@ export const fillInAndSend = async (
 ): Promise<void> => {
   expectCanReallySend(browser.currentHtml, values);
   await browser.submitForm(values, buttonText);
+};
+
+/** Somebody takes a thing down from its own admin page, typing its name to
+ * confirm. Every way in is followed rather than built: the delete link lives
+ * behind the page's Actions tab, so a thing whose page stopped offering either
+ * one is a thing nobody could take down, and the story fails with them. */
+export const takeDownFromActions = async (
+  browser: TestBrowser,
+  typed: string,
+  labelled: { deleteLink: string; submit: string },
+): Promise<string> => {
+  await browser.clickLink(t("entity.tab.actions"));
+  await browser.clickLink(labelled.deleteLink);
+  await fillInAndSend(browser, { confirm_identifier: typed }, labelled.submit);
+  return browser.pageText;
 };
