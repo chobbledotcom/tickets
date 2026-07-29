@@ -8,7 +8,10 @@
 import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
-import { openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  openAdminPage,
+  takesDownFromList,
+} from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   type ActOnOneThing,
@@ -23,6 +26,9 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** The owner's own page listing the keys they have handed out. */
 const KEYS_PAGE = "/admin/api-keys";
+
+/** A link into one key from the owner's own list. */
+const KEY_LINK = /^\/admin\/api-keys\/\d+$/;
 
 /** What another system asks the site for. Reading back what is on sale is the
  * plainest thing a key is for, and needs nothing set up beyond a listing. */
@@ -45,10 +51,15 @@ export const ownerMakesKey: ActOnOneThing = async (world, name) => {
   const browser = await openKeysPage(world);
   await fillInAndSend(browser, { name }, t("api_keys.create_submit"));
   world.apiKeyShownOnce = browser.pageText;
-  const shown = browser.pageText.match(/\b[A-Za-z0-9_-]{32,}\b/);
+  // The code block the page hands the key back in. Taking the first long word
+  // on the page instead would pick up any other token rendered above it, and
+  // the story would carry on with something that is not a key at all.
+  const shown = browser.currentHtml.match(
+    /<pre><code>([A-Za-z0-9_-]+)<\/code><\/pre>/,
+  );
   if (!shown) throw new Error(`The owner was shown no ${name} key to copy`);
   world.apiKeys ??= new Map();
-  world.apiKeys.set(name, shown[0]);
+  world.apiKeys.set(name, shown[1]!);
 };
 
 /** The key the story handed to one system. */
@@ -58,21 +69,27 @@ export const keyNamed = (world: TicketsWorld, name: string): string =>
 /** The owner's keys page as words on a screen, or as the whole response the
  * site sent. A key hidden in a link or an attribute is still a key anybody
  * reading the response can use, so "it is not shown" has to mean all of it. */
+type ReadKeysPage = (world: TicketsWorld) => Promise<string>;
+
 const readsKeysPage =
   (whichPart: (browser: TestBrowser) => string) =>
   async (world: TicketsWorld): Promise<string> =>
     whichPart(await openKeysPage(world));
 
-export const keysPageText = readsKeysPage((browser) => browser.pageText);
+export const keysPageText: ReadKeysPage = readsKeysPage(
+  (browser) => browser.pageText,
+);
+export const keysPageResponse: ReadKeysPage = readsKeysPage(
+  (browser) => browser.currentHtml,
+);
 
 /** The names the owner's list offers, each one a link into that key. Reading
  * the links rather than the words means a name only mentioned in passing does
  * not count as a key the owner has. */
 export const keysNamedOnList = async (world: TicketsWorld): Promise<string[]> =>
   (await openKeysPage(world)).links
-    .filter(({ href }) => /^\/admin\/api-keys\/\d+$/.test(href))
+    .filter(({ href }) => KEY_LINK.test(href))
     .map(({ text }) => text);
-export const keysPageResponse = readsKeysPage((browser) => browser.currentHtml);
 
 /** What the site answers something carrying a key and nothing else — no
  * session, no cookie. Every request another system makes goes through here. */
@@ -115,38 +132,41 @@ const OWNER_PAGES: Record<string, string> = {
   settings: "/admin/settings",
 };
 
-export const ownerPagePath = (page: string): string =>
+const ownerPagePath = (page: string): string =>
   requiredWorldValue(OWNER_PAGES[page], `a page called "${page}"`);
 
-/** What the site answers a key asking for one of the owner's own pages. */
-export const askedForOwnerPage = async (
-  carrying: string,
-  page: string,
-): Promise<number> => (await askedAsKey(carrying, ownerPagePath(page))).status;
+/** What the site answers a key at one of the owner's own pages. Reading a page
+ * and sending its form are different doors, and a key that could not open the
+ * first but could push through the second would be worse — that is where
+ * settings are changed and more keys are made — so the story tries both. */
+type AsksForOwnerPage = (carrying: string, page: string) => Promise<number>;
+
+const asksForOwnerPage =
+  (sending: RequestInit): AsksForOwnerPage =>
+  async (carrying, page) =>
+    (await askedAsKey(carrying, ownerPagePath(page), sending)).status;
+
+export const askedForOwnerPage: AsksForOwnerPage = asksForOwnerPage({});
+export const askedToSendOwnerForm: AsksForOwnerPage = asksForOwnerPage({
+  body: new URLSearchParams({ name: "Sneaked in" }),
+  method: "POST",
+});
 
 /** The owner takes a key back, typing the name the page asks for. Keeps what
  * they were told, because typing it wrongly is meant to change nothing. */
-export const ownerTakesBackKey = async (
-  world: TicketsWorld,
-  name: string,
-  typed: string,
-): Promise<string> => {
-  const browser = await openKeysPage(world);
-  // The key the owner asked for, by the name they gave it — followed from the
-  // list, so a key they cannot reach from their own page cannot be taken back
-  // by the story either, and a list of several takes back the right one.
-  const toKey = browser.links.find(
-    ({ href, text }) => /^\/admin\/api-keys\/\d+$/.test(href) && text === name,
-  );
-  if (!toKey) throw new Error(`The keys page offers no way into ${name}`);
-  await browser.visit(`${toKey.href}/delete`);
-  await fillInAndSend(
-    browser,
-    { confirm_identifier: typed },
-    t("api_keys.delete_submit"),
-  );
-  return browser.pageText;
-};
+export const ownerTakesBackKey = takesDownFromList(
+  // The key the owner asked for, by the name they gave it, so a list of
+  // several takes back the right one.
+  async (world, name) =>
+    (await openKeysPage(world)).links.find(
+      ({ href, text }) => KEY_LINK.test(href) && text === name,
+    )?.href ?? null,
+  {
+    deleteLinkKey: "api_keys.delete_submit",
+    missing: (name) => `The keys page offers no way into ${name}`,
+    submitKey: "api_keys.delete_submit",
+  },
+);
 
 /** The story's own listing, so "it was told about the Pottery" means the site
  * really named it rather than answering with anything at all. */

@@ -8,6 +8,7 @@ import {
   ownerTakesPageDown,
   ownerWritesPage,
   ownerWritesPages,
+  pageIsOfferedAMoveUp,
   pagesInOrder,
   visitorReading,
   whatOwnerWasTold,
@@ -112,14 +113,12 @@ Then(
   },
 );
 
-/** Moving a page up, said once at the start and again to show the top is the
- * top. Both wordings do the same thing. */
-const movesUp = function (this: TicketsWorld, name: string): Promise<void> {
-  return ownerMovesPageUp(this, name);
-};
-
-When("the owner moves {word} up", movesUp);
-When("the owner moves {word} up again", movesUp);
+When(
+  "the owner moves {word} up",
+  function (this: TicketsWorld, name: string): Promise<void> {
+    return ownerMovesPageUp(this, name);
+  },
+);
 
 Then(
   "the pages are offered in the order {word}, {word} and {word}",
@@ -135,7 +134,35 @@ Then(
 
 When(
   "the owner takes down the page called {word}",
-  function (this: TicketsWorld, name: string): Promise<void> {
-    return ownerTakesPageDown(this, name);
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    const told = await ownerTakesPageDown(this, name, name);
+    expect(told).toContain(t("site.pages.deleted"));
+  },
+);
+
+When(
+  "the owner tries to take down {word} by typing {word}",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    typed: string,
+  ): Promise<void> {
+    this.sitePageTold = await ownerTakesPageDown(this, name, typed);
+  },
+);
+
+Then(
+  "the owner is told the page name does not match",
+  function (this: TicketsWorld): void {
+    expect(whatOwnerWasTold(this)).toContain("does not match");
+  },
+);
+
+Then(
+  "{word} is already at the top",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    // No arrow at all is how the site says "no further" — there is no request
+    // that could wrap the page round to the bottom.
+    expect(await pageIsOfferedAMoveUp(this, name)).toBe(false);
   },
 );

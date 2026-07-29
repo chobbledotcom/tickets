@@ -55,8 +55,7 @@ Feature: An owner writes the pages people read
       Given the owner has written pages called Directions, Parking and Opening
       When the owner moves Parking up
       Then the pages are offered in the order Parking, Directions and Opening
-      When the owner moves Parking up again
-      Then the pages are offered in the order Parking, Directions and Opening
+      Then Parking is already at the top
 
   @rule:servicing.a-page-can-be-taken-down
   Rule: A page can be taken down
@@ -69,3 +68,10 @@ Feature: An owner writes the pages people read
       Given the owner has written a page called Directions at "how-to-find-us"
       When the owner takes down the page called Directions
       Then reading "how-to-find-us" leads nowhere
+
+    @case:site-pages.wrong-name-changes-nothing
+    Scenario: The owner types the wrong name
+      Given the owner has written a page called Directions at "how-to-find-us"
+      When the owner tries to take down Directions by typing Parking
+      Then the owner is told the page name does not match
+      And a visitor reading "how-to-find-us" is shown Directions

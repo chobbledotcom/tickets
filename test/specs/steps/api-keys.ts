@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import {
   askedForOwnerPage,
+  askedToSendOwnerForm,
   askedWhatIsSold,
   expectToldAbout,
   keyAddsSomethingForSale,
@@ -123,8 +124,21 @@ When(
 const theAnswer = (world: TicketsWorld) =>
   requiredWorldValue(world.apiKeyAnswer, "what the site answered");
 
-/** Being told about something, whether the story asked just now or earlier. */
-const expectToldAboutThing = async function (
+Then(
+  "{word} is told about the {word}",
+  function (this: TicketsWorld, _who: string, name: string): void {
+    // The answer to the request the story just made, not a fresh one — a
+    // second ask would hide a first that failed.
+    const { answered, said } = theAnswer(this);
+    expect(answered).toBe(200);
+    expectToldAbout(said, name);
+  },
+);
+
+/** A fresh ask, for the stories where being told about something is the
+ * set-up or the proof that a key still works afterwards, rather than the
+ * request under test. */
+const asksAndIsTold = async function (
   this: TicketsWorld,
   who: string,
   name: string,
@@ -134,7 +148,8 @@ const expectToldAboutThing = async function (
   expectToldAbout(said, name);
 };
 
-Then("{word} is told about the {word}", expectToldAboutThing);
+Given("{word} can read the {word}", asksAndIsTold);
+Then("{word} can still read the {word}", asksAndIsTold);
 
 Then(
   "the request is refused as unauthorised",
@@ -182,6 +197,20 @@ When(
     page: string,
   ): Promise<void> {
     this.apiKeyPageAnswer = await askedForOwnerPage(keyNamed(this, who), page);
+  },
+);
+
+When(
+  "{word} tries to send the owner's {string} form",
+  async function (
+    this: TicketsWorld,
+    who: string,
+    page: string,
+  ): Promise<void> {
+    this.apiKeyPageAnswer = await askedToSendOwnerForm(
+      keyNamed(this, who),
+      page,
+    );
   },
 );
 

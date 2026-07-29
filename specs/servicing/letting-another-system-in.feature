@@ -44,7 +44,7 @@ Feature: An owner lets another system work on their behalf
       And the owner has a key called Shopfront
       When Shopfront puts a Kiln on sale
       Then the site sells the Kiln
-      And Shopfront is told about the Kiln
+      And Shopfront can still read the Kiln
 
     Scenario Outline: A request the site cannot place is refused
       Given the site sells a Pottery
@@ -62,6 +62,12 @@ Feature: An owner lets another system work on their behalf
     the pages an owner reads and clicks stay shut to it — including the page
     where keys themselves are made. Otherwise a key that leaked would hand over
     the whole site, not just the part it was meant for.
+
+    @case:api-keys.pages-shut-to-sending
+    Scenario: A key cannot send an owner's own form
+      Given the owner has a key called Shopfront
+      When Shopfront tries to send the owner's "keys" form
+      Then Shopfront is not let in
 
     Scenario Outline: A key is turned away from an owner's own pages
       Given the owner has a key called Shopfront
@@ -84,7 +90,7 @@ Feature: An owner lets another system work on their behalf
     Scenario: The owner takes a key back
       Given the site sells a Pottery
       And the owner has a key called Shopfront
-      And Shopfront is told about the Pottery
+      And Shopfront can read the Pottery
       When the owner takes back the key called Shopfront
       Then the list of keys is empty
       And Shopfront is refused as unauthorised
@@ -97,7 +103,7 @@ Feature: An owner lets another system work on their behalf
       When the owner takes back the key called Backroom
       Then the list of keys names Shopfront and nothing else
       And Backroom is refused as unauthorised
-      And Shopfront is told about the Pottery
+      And Shopfront can still read the Pottery
 
     @case:api-keys.wrong-name-changes-nothing
     Scenario: The owner types the wrong name
@@ -106,4 +112,4 @@ Feature: An owner lets another system work on their behalf
       When the owner tries to take back Shopfront by typing Shopfont
       Then the owner is told the name does not match
       And the list of keys names Shopfront
-      And Shopfront is told about the Pottery
+      And Shopfront can still read the Pottery

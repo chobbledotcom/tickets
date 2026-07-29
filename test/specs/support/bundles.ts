@@ -24,6 +24,7 @@ import {
 } from "#test/specs/support/listings.ts";
 import {
   type ActOnOneThing,
+  asksIfThereIs,
   type ReadAboutOneThing,
   requiredWorldValue,
   stillThere,
@@ -271,10 +272,7 @@ export const organiserDeletesBundle: ReadAboutOneThing = async (
   return browser.pageText;
 };
 
-export const bundleStillExists = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<boolean> => (await storedBundleOrNull(world, name)) !== null;
+export const bundleStillExists = asksIfThereIs(storedBundleOrNull);
 
 /** A customer opens one of the bundle's parts on its own. Its page has to
  * answer, be that thing's page, and offer a way to book it — a row left in the

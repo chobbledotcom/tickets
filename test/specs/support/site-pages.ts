@@ -4,13 +4,17 @@
  */
 
 // jscpd:ignore-start
-import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { sitePages } from "#shared/db/site-pages.ts";
-import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
+import {
+  openAdminPage,
+  openAsNewcomer,
+  takesDownFromList,
+} from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   type ActOnOneThing,
+  asksIfThereIs,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -77,17 +81,14 @@ const pageNamed = async (name: string) => {
   return found;
 };
 
-/** An admin page about one of the site's pages, with that page's id to hand.
- * Looking the page up first means a story can never act on one the site does
- * not have. */
-const openAbout = async (
+/** The owner's own list, open, with one page's id to hand. Looking the page up
+ * first means a story can never act on one the site does not have. */
+const openList = async (
   world: TicketsWorld,
   name: string,
-  where: string | ((id: number) => string),
 ): Promise<{ browser: TestBrowser; id: number }> => {
   const { id } = await pageNamed(name);
-  const path = typeof where === "string" ? where : where(id);
-  return { browser: await openAdminPage(world, path), id };
+  return { browser: await openAdminPage(world, PAGES_LIST), id };
 };
 
 /** What the owner's own list offers for one page, or nothing when it offers
@@ -102,7 +103,7 @@ const offeredForPage =
     name: string,
     ...extra: Extra
   ): Promise<string | null> => {
-    const { browser, id } = await openAbout(world, name, PAGES_LIST);
+    const { browser, id } = await openList(world, name);
     return look(browser, id, ...extra);
   };
 
@@ -145,22 +146,20 @@ export const ownerMovesPageUp: ActOnOneThing = async (world, name) => {
   if (arrow) await adminFormPost(arrow, {});
 };
 
-/** The owner takes a page down, typing its name to confirm. */
-export const ownerTakesPageDown: ActOnOneThing = async (world, name) => {
-  const toPage = await linkIntoPage(world, name);
-  if (!toPage) throw new Error(`The list offers no way into ${name}`);
-  const browser = await openAdminPage(world, toPage);
-  // The delete link lives behind the page's own Actions tab, which is where an
-  // owner would find it.
-  await browser.clickLink("Actions");
-  await browser.clickLink(t("site.pages.delete_title"));
-  await fillInAndSend(
-    browser,
-    { confirm_identifier: name },
-    t("site.pages.delete_submit"),
-  );
-  expect(browser.containsText(t("site.pages.deleted"))).toBe(true);
-};
+/** Whether the owner's list offers to move one page up at all. A page already
+ * at the top has no up arrow, which is how the site says "no further" — so
+ * there is no request to send rather than one that quietly does nothing. */
+export const pageIsOfferedAMoveUp = asksIfThereIs((world, name) =>
+  moveArrowFor(world, name, "up"),
+);
+
+/** The owner takes a page down, typing a name to confirm. Keeps what they were
+ * told, because typing it wrongly is meant to change nothing. */
+export const ownerTakesPageDown = takesDownFromList(linkIntoPage, {
+  deleteLinkKey: "site.pages.delete_title",
+  missing: (name) => `The list offers no way into ${name}`,
+  submitKey: "site.pages.delete_submit",
+});
 
 /** What the owner was told the last time they wrote a page. */
 export const whatOwnerWasTold = (world: TicketsWorld): string =>
