@@ -38,6 +38,14 @@ Feature: An owner lets another system work on their behalf
       When Shopfront asks the site what it sells
       Then Shopfront is told about the Pottery
 
+    @case:api-keys.a-key-can-change-things-too
+    Scenario: Another system puts something new on sale
+      Given the site sells a Pottery
+      And the owner has a key called Shopfront
+      When Shopfront puts a Kiln on sale
+      Then the site sells the Kiln
+      And Shopfront is told about the Kiln
+
     Scenario Outline: A request the site cannot place is refused
       Given the site sells a Pottery
       When something asks the site what it sells, <carrying>

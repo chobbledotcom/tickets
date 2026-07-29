@@ -90,19 +90,36 @@ const openAbout = async (
   return { browser: await openAdminPage(world, path), id };
 };
 
-/** One page's own address on the owner's list, or nothing when the list does
- * not offer it. Everything an owner does to a page is reached this way, so a
- * page they could not get to from their own list cannot be acted on here
- * either — and a missing move arrow means the page is already at the end. */
-const offeredOnTheList = async (
-  world: TicketsWorld,
-  name: string,
-  ending: string,
-): Promise<string | null> => {
-  const { browser, id } = await openAbout(world, name, PAGES_LIST);
-  const path = `${PAGES_LIST}/${id}${ending}`;
-  return browser.currentHtml.includes(path) ? path : null;
-};
+/** What the owner's own list offers for one page, or nothing when it offers
+ * none. Everything they do to a page is found here first, so a page missing
+ * from their list cannot be acted on by the story either. */
+const offeredForPage =
+  <Extra extends unknown[]>(
+    look: (browser: TestBrowser, id: number, ...extra: Extra) => string | null,
+  ) =>
+  async (
+    world: TicketsWorld,
+    name: string,
+    ...extra: Extra
+  ): Promise<string | null> => {
+    const { browser, id } = await openAbout(world, name, PAGES_LIST);
+    return look(browser, id, ...extra);
+  };
+
+/** The link into one page from the owner's own list. A link, not any mention of
+ * the path: a page whose row still has its reorder form but has lost its way in
+ * is a page the owner cannot reach. */
+const linkIntoPage = offeredForPage((browser, id) => {
+  const into = new RegExp(`^${PAGES_LIST}/${id}(/edit)?$`);
+  return browser.links.find(({ href }) => into.test(href))?.href ?? null;
+});
+
+/** One page's own move arrow on the owner's list. Its absence is how the site
+ * says a page is already at the end, rather than failing. */
+const moveArrowFor = offeredForPage((browser, id, direction: string) => {
+  const arrow = `${PAGES_LIST}/${id}/move-${direction}`;
+  return browser.currentHtml.includes(arrow) ? arrow : null;
+});
 
 /** The names of the site's pages in the order the owner is offered them, read
  * off their own list. Reading the stored rows instead would pass even if the
@@ -124,13 +141,13 @@ export const pagesInOrder = async (world: TicketsWorld): Promise<string[]> => {
  * offers this page's arrow before pressing it. A page already at the top has no
  * up arrow at all, which is how the site says "no further". */
 export const ownerMovesPageUp: ActOnOneThing = async (world, name) => {
-  const arrow = await offeredOnTheList(world, name, "/move-up");
+  const arrow = await moveArrowFor(world, name, "up");
   if (arrow) await adminFormPost(arrow, {});
 };
 
 /** The owner takes a page down, typing its name to confirm. */
 export const ownerTakesPageDown: ActOnOneThing = async (world, name) => {
-  const toPage = await offeredOnTheList(world, name, "");
+  const toPage = await linkIntoPage(world, name);
   if (!toPage) throw new Error(`The list offers no way into ${name}`);
   const browser = await openAdminPage(world, toPage);
   // The delete link lives behind the page's own Actions tab, which is where an

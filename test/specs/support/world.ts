@@ -77,6 +77,7 @@ export interface TicketsWorld extends World {
   apiKeyShownOnce?: string;
   apiKeys?: Map<string, string>;
   apiKeyTakeBack?: string;
+  apiKeyWrite?: number;
   apiListing?: string;
   apiRoomAnswer?: boolean;
   attendeeId?: number;

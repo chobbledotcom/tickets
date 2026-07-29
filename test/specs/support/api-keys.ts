@@ -18,10 +18,11 @@ import {
 import { mockRequest } from "#test-utils/mocks.ts";
 import { requestAsApiKey } from "#test-utils/session.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+
 // jscpd:ignore-end
 
 /** The owner's own page listing the keys they have handed out. */
-export const KEYS_PAGE = "/admin/api-keys";
+const KEYS_PAGE = "/admin/api-keys";
 
 /** What another system asks the site for. Reading back what is on sale is the
  * plainest thing a key is for, and needs nothing set up beyond a listing. */
@@ -65,6 +66,14 @@ const readsKeysPage =
 export const keysPageText = readsKeysPage((browser) => browser.pageText);
 export const keysPageResponse = readsKeysPage((browser) => browser.currentHtml);
 
+/** What the site answers something carrying a key and nothing else — no
+ * session, no cookie. Every request another system makes goes through here. */
+const askedAsKey = (
+  carrying: string,
+  path: string,
+  sending: RequestInit = {},
+): Promise<Response> => handleRequest(requestAsApiKey(path, carrying, sending));
+
 /** What the site answers a caller asking what it sells, and what it said. */
 export const askedWhatIsSold = async (
   carrying: string | null,
@@ -76,6 +85,21 @@ export const askedWhatIsSold = async (
   );
   return { answered: response.status, said: await response.text() };
 };
+
+/** Another system puts something new on sale, carrying only its key. A write
+ * is a different path from a read — it is the one that could start demanding a
+ * cookie nobody holding a key has — so the story sends one. */
+export const keyAddsSomethingForSale = async (
+  carrying: string,
+  name: string,
+): Promise<number> =>
+  (
+    await askedAsKey(carrying, WHAT_THE_SITE_SELLS, {
+      body: JSON.stringify({ max_attendees: 10, name }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    })
+  ).status;
 
 /** A page the owner reads and clicks, by the word the story uses for it. */
 const OWNER_PAGES: Record<string, string> = {
@@ -90,12 +114,7 @@ export const ownerPagePath = (page: string): string =>
 export const askedForOwnerPage = async (
   carrying: string,
   page: string,
-): Promise<number> => {
-  const response = await handleRequest(
-    requestAsApiKey(ownerPagePath(page), carrying),
-  );
-  return response.status;
-};
+): Promise<number> => (await askedAsKey(carrying, ownerPagePath(page))).status;
 
 /** The owner takes a key back, typing the name the page asks for. Keeps what
  * they were told, because typing it wrongly is meant to change nothing. */

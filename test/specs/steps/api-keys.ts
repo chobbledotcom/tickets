@@ -7,6 +7,7 @@ import {
   askedForOwnerPage,
   askedWhatIsSold,
   expectToldAbout,
+  keyAddsSomethingForSale,
   keyNamed,
   keysPageResponse,
   keysPageText,
@@ -14,6 +15,7 @@ import {
   ownerOpensKeys,
   ownerTakesBackKey,
 } from "#test/specs/support/api-keys.ts";
+import { listingSoldAsOrNull } from "#test/specs/support/editors.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -136,6 +138,29 @@ Then(
   async function (this: TicketsWorld, who: string): Promise<void> {
     const { answered } = await asked(this, keyNamed(this, who));
     expect(answered).toBe(401);
+  },
+);
+
+When(
+  "{word} puts a {word} on sale",
+  async function (
+    this: TicketsWorld,
+    who: string,
+    name: string,
+  ): Promise<void> {
+    // Writing is a different path from reading, and the one that could start
+    // asking for a cookie nobody holding a key has.
+    this.apiKeyWrite = await keyAddsSomethingForSale(keyNamed(this, who), name);
+  },
+);
+
+Then(
+  "the site sells the {word}",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    expect(
+      requiredWorldValue(this.apiKeyWrite, "what the site answered"),
+    ).toBeLessThan(300);
+    expect(await listingSoldAsOrNull(name)).not.toBeNull();
   },
 );
 
