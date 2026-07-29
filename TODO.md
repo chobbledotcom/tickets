@@ -1435,6 +1435,37 @@ stands, so the split can be a pure move.
 
 ---
 
+## Remaining mutation gaps in `listing-page-data.ts`
+
+*Origin: writing direct tests for the four feature modules that had none.*
+
+`test/features/admin/listing-page-data/` now exists and takes the file from
+0 to 77.8% (35 of 45). The gate wants 100% for a changed file, so a branch
+touching this module still has work to do. Each survivor needs a fixture the
+current suite does not build:
+
+- **`100:53` `hiddenMemberIds.size > 0`** — a listing that really is a hidden
+  member of a package.
+- **`165:72` / `165:73` (the `!!d` date filter)** and the dates list around it —
+  a *daily* listing with attendees booked on real, differing dates.
+- **`181:26` / `181:29` / `181:33`** (`questions.length > 0 ? … : undefined`) — a
+  listing with questions AND attendees who answered them. Note a question alone
+  is not enough: the overview panel renders answer counts, so a question with no
+  answers shows nothing to assert on. That is what defeated the first attempt.
+- **`189:20` / `190:7`** (`notes.length === 0 ? new Map() : …`) — a listing
+  carrying system notes written by a named attendee.
+- **`229:38`** (`canViewLedger ? { ledgerHref } : {}`) — survives even with an
+  exact-href assertion for both roles, so `isOwner` appears to gate the rendered
+  link independently of `ledgerHref`. Worth reading
+  `ListingOverviewPanel` before writing another test.
+- **`282:61`** (`?? []` on the child-listing names) — a parent listing with
+  children.
+
+Starting point: `test/features/admin/listing-page-data/loaders.test.ts`, and
+the daily/package fixtures in `test/test-utils/db-helpers/`.
+
+---
+
 ## One unclosed mutant in `store-refund.ts` (the overbook flag)
 
 *Origin: writing direct tests for the four feature modules that had none.*
@@ -1742,58 +1773,25 @@ and thinking again about the startup grace, which exists because a process id
 can be given to somebody else after the original has gone. Start at
 `RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
 
-## Four feature modules have no test at their mirrored path
+## Four feature modules had no test at their mirrored path — now they do
 
 *Origin: `deno task precommit:mutation` on the notes-migration branch, which
-could not start.*
+could not start. Closed by the direct-test pass that followed.*
 
-The mutation gate refuses to run a source that has mutants but no test at its
-mirrored path under `test/`. Four modules are in that state:
+All four now have a direct test at their mirrored path, so the gate no longer
+refuses to start on a branch that touches them:
 
-- `src/features/admin/attendee-page.ts` (55 mutants)
-- `src/features/admin/attendees-list.ts` (37)
-- `src/features/admin/listing-page-data.ts` (45)
-- `src/features/api/payment-processing/store-refund.ts` (29)
+- `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (98.1%, one recorded equivalent)
+- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list.test.ts` (100%)
+- `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (77.8%)
+- `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (96.6%)
 
-Nothing needs moving: no test imports any of them. They are reached only
-through the app, by integration and Cucumber journeys, so each needs a direct
-test written at `test/features/…` to match its path.
+The gate demands 100% for a *changed* file, so the last two are not finished:
+see "Remaining mutation gaps in `listing-page-data.ts`" and "One unclosed mutant
+in `store-refund.ts`" above for exactly what each remaining survivor needs.
 
-This blocks the gate for *any* branch that touches one of them, however small
-the change — the notes migration only swapped an import in each. Until they
-have direct tests, a branch touching them can prove its own work with a
-targeted `deno task mutation <source> <tests>` run instead.
-
-`src/features/admin/attendee-notes.ts` was in the same state and is now fixed:
-its route suite drives real pages through the session helpers, so it moved from
-`test/integration/admin/` to `test/features/admin/`, which is where that kind
-of suite belongs (see "Let the misplaced-test list see past request helpers"
-above). The other four have no such suite to move.
-
----
-
-## An answer filed under a listing nobody booked
-
-*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
-
-Free-text answers travel through checkout filed under the listing they belong
-to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
-`src/shared/booking-intent.ts` checks that the key is written the way a listing
-id is written, so a key of any other shape stops the booking rather than losing
-the answers under it after the buyer has paid.
-
-What it cannot check is whether that listing was one of the ones actually
-bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
-and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
-looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
-answers. The buyer answered a question and the answer quietly goes nowhere.
-
-The schema is the wrong place for the check: it validates one booking's metadata
-on its own, and the listings that were bought are decided later, once the items
-have been priced and loaded. The natural home is next to
-`saveSessionAnswers`, which already has both the answer map and the booked
-listings — compare the two sets and raise any key that matches no booked
-listing, the same way an unreadable booking is raised.
-
-Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
-where the shape rule is covered and the "names a booked listing" rule is not.
+`src/features/admin/attendee-notes.ts` was in the same state and was fixed
+earlier: its route suite drives real pages through the session helpers, so it
+moved from `test/integration/admin/` to `test/features/admin/`, which is where
+that kind of suite belongs (see "Let the misplaced-test list see past request
+helpers" above).

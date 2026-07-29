@@ -13,8 +13,8 @@ import {
   specForFailure,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
-import type { BookingItem } from "#shared/booking/signed-metadata.ts";
 import { processBooking } from "#shared/booking.ts";
+import type { BookingItem } from "#shared/booking-intent.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";

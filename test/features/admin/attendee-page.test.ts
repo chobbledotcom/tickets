@@ -7,7 +7,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeePage } from "#routes/admin/attendee-page.ts";
-import type { AuthSession } from "#shared/types.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { setBookingLineQuantity } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

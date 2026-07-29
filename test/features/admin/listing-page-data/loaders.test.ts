@@ -14,7 +14,7 @@ import {
   loadListingOverviewPanel,
   loadListingRosterPanel,
 } from "#routes/admin/listing-page-data.ts";
-import type { AuthSession } from "#shared/types.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -96,7 +96,8 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
   });
 
   describe("the roster panel", () => {
-    test("lists an attendee who booked", async () => {
+    /** One booked listing, rendered through the roster tab's query. */
+    const rosterFor = async (query = ""): Promise<string> => {
       const listing = await createTestListing({});
       await createTestAttendee(
         listing.id,
@@ -104,32 +105,22 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
         "Ada Lovelace",
         "ada@example.com",
       );
-      const html = await withTestSession(async () =>
-        String(
-          await loadListingRosterPanel(await loaded(listing.id), ctxWith()),
-        ),
-      );
-      expect(html).toContain("Ada Lovelace");
-    });
-
-    test("drops attendees booked on another day when a day is chosen", async () => {
-      const listing = await createTestListing({});
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Ada Lovelace",
-        "ada@example.com",
-      );
-      const html = await withTestSession(async () =>
+      return await withTestSession(async () =>
         String(
           await loadListingRosterPanel(
             await loaded(listing.id),
-            ctxWith("date=2026-08-03"),
+            ctxWith(query),
           ),
         ),
       );
-      // A non-daily listing ignores the date, so she is still there.
-      expect(html).toContain("Ada Lovelace");
+    };
+
+    test("lists an attendee who booked", async () => {
+      expect(await rosterFor()).toContain("Ada Lovelace");
+    });
+
+    test("ignores a chosen day on a listing not booked by the day", async () => {
+      expect(await rosterFor("date=2026-08-03")).toContain("Ada Lovelace");
     });
   });
 

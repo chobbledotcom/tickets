@@ -12,7 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttendee,
-  createTestAttendeeDirect,
+  seedFillerAttendees,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -25,7 +25,9 @@ const authed = async (path: string): Promise<Request> =>
 // server sets it up per request.
 const listPage = async (query = ""): Promise<Response> => {
   const request = await authed(`/admin/attendees${query}`);
-  return await withTestSession(() => handleAttendeesListGet(request));
+  return await withTestSession(
+    async () => await handleAttendeesListGet(request, {}),
+  );
 };
 
 const listHtml = async (query = ""): Promise<string> =>
@@ -33,8 +35,8 @@ const listHtml = async (query = ""): Promise<string> =>
 
 const csvBody = async (query = ""): Promise<string> => {
   const request = await authed(`/admin/attendees/csv${query}`);
-  const response = await withTestSession(() =>
-    handleAttendeesCsvExport(request),
+  const response = await withTestSession(
+    async () => await handleAttendeesCsvExport(request, {}),
   );
   return await response.text();
 };
@@ -56,6 +58,7 @@ describeWithEnv("the attendees browser", { db: true }, () => {
     test("a request with no session is turned away", async () => {
       const response = await handleAttendeesListGet(
         mockRequest("/admin/attendees"),
+        {},
       );
       expect(response.status).not.toBe(200);
     });
@@ -63,6 +66,7 @@ describeWithEnv("the attendees browser", { db: true }, () => {
     test("the export is turned away too", async () => {
       const response = await handleAttendeesCsvExport(
         mockRequest("/admin/attendees/csv"),
+        {},
       );
       expect(response.status).not.toBe(200);
     });
@@ -138,8 +142,8 @@ describeWithEnv("the attendees browser", { db: true }, () => {
     test("is offered as a file to download", async () => {
       await twoBookedListings();
       const request = await authed("/admin/attendees/csv");
-      const response = await withTestSession(() =>
-        handleAttendeesCsvExport(request),
+      const response = await withTestSession(
+        async () => await handleAttendeesCsvExport(request, {}),
       );
       expect(response.headers.get("content-disposition")).toContain(
         "attendees.csv",
@@ -162,37 +166,6 @@ describeWithEnv("the attendees browser", { db: true }, () => {
   });
 
   describe("the CSV export across more than one page of attendees", () => {
-    /** Clone one attendee's rows in a single batch, rather than booking each. */
-    const seedFillerAttendees = async (
-      listingId: number,
-      count: number,
-    ): Promise<void> => {
-      const { getDb } = await import("#shared/db/client.ts");
-      const { attendee } = await createTestAttendeeDirect(
-        listingId,
-        "Filler",
-        "filler@example.com",
-      );
-      const clones = [];
-      for (let index = 1; index < count; index++) {
-        clones.push(
-          {
-            args: [`filler-token-${index}`, attendee.id],
-            sql: `INSERT INTO attendees (created, kind, checked_in, ticket_token_index, pii_blob, status_id)
-                  SELECT created, kind, checked_in, ?, pii_blob, status_id
-                  FROM attendees WHERE id = ?`,
-          },
-          {
-            args: [attendee.id],
-            sql: `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in)
-                  SELECT listing_id, last_insert_rowid(), start_at, end_at, quantity, checked_in
-                  FROM listing_attendees WHERE attendee_id = ?`,
-          },
-        );
-      }
-      await getDb().batch(clones, "write");
-    };
-
     test("keeps reading pages until it has every booking", async () => {
       const { ATTENDEES_PAGE_SIZE } = await import(
         "#shared/db/attendees/queries.ts"
