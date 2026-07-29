@@ -97,20 +97,10 @@ export const classifySession = async (
     : { agreed: evaluation.total, verdict: "mismatch" };
 };
 
-/**
- * Classify a paid session and, when it is provably ours, pull out its booking
- * intent in one step. Returns `null` for an "ignore" verdict — a session with
- * no valid price proof (a foreign, replayed, or corrupt session) that we must
- * not process or refund — and for a session whose proof is valid but whose
- * booking will not read back.
- *
- * The two nulls mean very different things, so only one of them is quiet. A
- * session with no valid proof may not be ours at all, and is left alone
- * without comment. A session WITH a valid proof is provably ours and its buyer
- * has been charged, so a booking nothing can read is a real fault: it is
- * raised for the owner before we hand back the same null, because asking the
- * provider again would only bring back the same unreadable booking.
- */
+/** The booking a paid session carries, or null when we cannot act on it.
+ *  Both nulls stop the session, but only one is quiet: a proof that does not
+ *  verify may not be ours, while one that does means the buyer was charged,
+ *  so a booking nothing can read is raised for the owner. */
 export const classifySessionIntent = async (
   session: ValidatedPaymentSession,
 ): Promise<{ verdict: SignedVerdict; intent: BookingIntent } | null> => {
