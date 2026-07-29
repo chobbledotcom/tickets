@@ -24,6 +24,7 @@ import {
 } from "#test/specs/support/listings.ts";
 import {
   type ActOnOneThing,
+  type AsksAboutOneThing,
   asksIfThereIs,
   type ReadAboutOneThing,
   requiredWorldValue,
@@ -272,7 +273,8 @@ export const organiserDeletesBundle: ReadAboutOneThing = async (
   return browser.pageText;
 };
 
-export const bundleStillExists = asksIfThereIs(storedBundleOrNull);
+export const bundleStillExists: AsksAboutOneThing =
+  asksIfThereIs(storedBundleOrNull);
 
 /** A customer opens one of the bundle's parts on its own. Its page has to
  * answer, be that thing's page, and offer a way to book it — a row left in the

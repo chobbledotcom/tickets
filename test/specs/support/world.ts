@@ -71,9 +71,16 @@ export const stillThere = <Found>(
 
 /** Turns "the thing, or nothing" into a plain yes or no, so a story can ask
  * whether the site still offers something without repeating the lookup. */
+export type AsksAboutOneThing = (
+  world: TicketsWorld,
+  name: string,
+) => Promise<boolean>;
+
 export const asksIfThereIs =
-  <Found>(look: (world: TicketsWorld, name: string) => Promise<Found | null>) =>
-  async (world: TicketsWorld, name: string): Promise<boolean> =>
+  <Found>(
+    look: (world: TicketsWorld, name: string) => Promise<Found | null>,
+  ): AsksAboutOneThing =>
+  async (world, name) =>
     (await look(world, name)) !== null;
 
 export interface TicketsWorld extends World {

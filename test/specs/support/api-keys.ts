@@ -10,6 +10,7 @@ import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
   openAdminPage,
+  type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
@@ -154,7 +155,7 @@ export const askedToSendOwnerForm: AsksForOwnerPage = asksForOwnerPage({
 
 /** The owner takes a key back, typing the name the page asks for. Keeps what
  * they were told, because typing it wrongly is meant to change nothing. */
-export const ownerTakesBackKey = takesDownFromList(
+export const ownerTakesBackKey: TakesOneThingDown = takesDownFromList(
   // The key the owner asked for, by the name they gave it, so a list of
   // several takes back the right one.
   async (world, name) =>

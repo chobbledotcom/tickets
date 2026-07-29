@@ -9,11 +9,13 @@ import { sitePages } from "#shared/db/site-pages.ts";
 import {
   openAdminPage,
   openAsNewcomer,
+  type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   type ActOnOneThing,
+  type AsksAboutOneThing,
   asksIfThereIs,
   requiredWorldValue,
   type TicketsWorld,
@@ -149,17 +151,20 @@ export const ownerMovesPageUp: ActOnOneThing = async (world, name) => {
 /** Whether the owner's list offers to move one page up at all. A page already
  * at the top has no up arrow, which is how the site says "no further" — so
  * there is no request to send rather than one that quietly does nothing. */
-export const pageIsOfferedAMoveUp = asksIfThereIs((world, name) =>
-  moveArrowFor(world, name, "up"),
+export const pageIsOfferedAMoveUp: AsksAboutOneThing = asksIfThereIs(
+  (world, name) => moveArrowFor(world, name, "up"),
 );
 
 /** The owner takes a page down, typing a name to confirm. Keeps what they were
  * told, because typing it wrongly is meant to change nothing. */
-export const ownerTakesPageDown = takesDownFromList(linkIntoPage, {
-  deleteLinkKey: "site.pages.delete_title",
-  missing: (name) => `The list offers no way into ${name}`,
-  submitKey: "site.pages.delete_submit",
-});
+export const ownerTakesPageDown: TakesOneThingDown = takesDownFromList(
+  linkIntoPage,
+  {
+    deleteLinkKey: "site.pages.delete_title",
+    missing: (name) => `The list offers no way into ${name}`,
+    submitKey: "site.pages.delete_submit",
+  },
+);
 
 /** What the owner was told the last time they wrote a page. */
 export const whatOwnerWasTold = (world: TicketsWorld): string =>
