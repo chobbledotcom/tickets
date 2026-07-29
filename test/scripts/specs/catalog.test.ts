@@ -47,6 +47,7 @@ describe("Cucumber story catalog", () => {
       "servicing.hearing-from-a-visitor",
       "servicing.hold-and-cost",
       "servicing.letting-another-system-in",
+      "servicing.setting-a-site-up",
       "servicing.what-an-editor-can-do",
       "servicing.writing-the-pages-people-read",
     ]);

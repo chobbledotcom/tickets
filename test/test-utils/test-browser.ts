@@ -409,9 +409,12 @@ export class TestBrowser {
   /**
    * Visit a page by path (GET request).
    * Follows redirects and updates currentHtml/currentUrl.
+   * Answers with the status of the page landed on, so a caller wanting both
+   * the answer and the words gets them from the one visit.
    */
-  async visit(path: string): Promise<void> {
-    await this.request(path);
+  async visit(path: string): Promise<number> {
+    const response = await this.request(path);
+    return response.status;
   }
 
   /**

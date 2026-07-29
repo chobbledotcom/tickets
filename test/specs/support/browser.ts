@@ -37,6 +37,17 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
+/** What somebody who was never signed in is shown at an address, and how the
+ * site answered. Both come from the one visit, so they always describe the page
+ * the visitor really ended on rather than two separate answers. */
+export const newcomerReading = async (
+  path: string,
+): Promise<{ answered: number; said: string }> => {
+  const browser = new TestBrowser();
+  const answered = await browser.visit(path);
+  return { answered, said: browser.pageText };
+};
+
 /** Opening the page one named thing is sold from, as somebody never signed in.
  * Where that page lives is the only part that differs between the things that
  * have one, so it is the only part passed. */

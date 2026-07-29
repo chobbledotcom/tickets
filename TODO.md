@@ -1736,6 +1736,46 @@ its route suite drives real pages through the session helpers, so it moved from
 of suite belongs (see "Let the misplaced-test list see past request helpers"
 above). The other four have no such suite to move.
 
+## Two people setting a site up at the same moment can both succeed
+
+Raised on #1988 by both automated reviewers, and confirmed against the code.
+It is a production bug, not a test gap, and it is deliberately left out of that
+pull request because that branch changes no production code and this sits in
+the most security-critical path we have.
+
+**What happens.** `handleSetupPost` (`src/features/setup.ts`) asks
+`isSetupComplete()` and then calls `settings.setup.complete`. Nothing holds
+between the asking and the doing, so two requests that arrive together can both
+be told the site is empty. `completeSetup`
+(`src/shared/db/settings/setup.ts`) then runs its batch twice.
+
+The unique index on `username_index` saves us only when both people pick the
+*same* name. Two different names both insert, and the second batch's
+`settingUpsert` calls overwrite `PUBLIC_KEY` and `WRAPPED_PRIVATE_KEY` with a
+second keypair. The first owner is left holding a wrapped data key for a data
+key the site no longer uses — they can sign in and read nothing.
+
+**Why it is not simply "add a guard".** The batch cannot decide anything
+mid-flight, so making the owner insert conditional still leaves the four
+setting upserts landing unconditionally. Whatever fixes it has to make the
+whole ceremony refuse to run twice — an interactive transaction that re-reads
+`setup_complete` inside the write lock, or a single conditional write that
+every other statement hangs off. That is a design decision in the code that
+holds everybody's encryption keys, so it wants its own change and its own
+review, not a corner of a test PR.
+
+**Where to start.** `completeSetup` in `src/shared/db/settings/setup.ts` —
+`withTransaction` from `src/shared/db/client.ts` is the tool, and the header
+comment on the current batch explains why it is a plain batch today (all values
+are computed up front). The guard in `handleSetupPost` at
+`src/features/setup.ts:114` stays useful as the cheap first check.
+
+**Proving it.** A story cannot show this today: Cucumber awaits each step, so
+the two posts never overlap. #1988 covers the neighbouring case it *can* reach
+honestly — a person who had the setup page open before somebody else finished,
+sending their stale form afterwards. A real test for this one needs both posts
+started together behind a barrier, and it should be written with the fix.
+
 ---
 
 ## An answer filed under a listing nobody booked
