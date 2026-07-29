@@ -327,10 +327,7 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
  * filter that also needs the listings table, because it asks about the listing
  * rather than the booking.
  */
-export const attendeeFrom = (
-  join: AttendeeJoin,
-  where: AttendeeWhere,
-): string =>
+const attendeeFrom = (join: AttendeeJoin, where: AttendeeWhere): string =>
   `attendees AS attendee ${join === "left" ? "LEFT JOIN" : "JOIN"}` +
   " listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id" +
   (where.dailyRange === undefined

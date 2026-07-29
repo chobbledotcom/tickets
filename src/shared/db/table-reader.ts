@@ -18,7 +18,7 @@ import {
   type ColumnNames,
   chooseColumns,
 } from "#shared/db/chosen-columns.ts";
-import type { Table } from "#shared/db/table.ts";
+import type { Table, TableSchema } from "#shared/db/table.ts";
 import { equals, inList, type WhereClause } from "#shared/db/where-clauses.ts";
 
 /**
@@ -43,13 +43,29 @@ export type RowOptions = {
   limit?: number;
 };
 
-/** Turn a filter written as a row into the shared clause vocabulary. */
-const filterClauses = <Row>(filter: RowFilter<Row>): WhereClause[] =>
-  Object.entries(filter).flatMap(([column, value]) =>
-    Array.isArray(value)
+/**
+ * Turn a filter written as a row into the shared clause vocabulary.
+ *
+ * A column stored in a different form from the value the caller holds — an
+ * encrypted one — cannot be compared against that value: the database would
+ * match plaintext against ciphertext and quietly find nothing. That is refused
+ * rather than answered wrongly. Such a value is found by the column that
+ * carries its one-way code, which is stored as it is written.
+ */
+const filterClauses = <Row>(
+  table: { name: string; schema: TableSchema<Row> },
+  filter: RowFilter<Row>,
+): WhereClause[] =>
+  Object.entries(filter).flatMap(([column, value]) => {
+    if (table.schema[column as keyof Row]?.write !== undefined) {
+      throw new Error(
+        `Cannot filter ${table.name} by ${column}: it is stored in a different form from the value you have. Filter on the column holding its one-way code instead.`,
+      );
+    }
+    return Array.isArray(value)
       ? inList(column, value as readonly InValue[])
-      : equals(column, value as Exclude<InValue, null>),
-  );
+      : equals(column, value as Exclude<InValue, null>);
+  });
 
 /**
  * Reading some rows of one table, or one of them. The filter covers the whole
@@ -75,13 +91,14 @@ export type TableReader<Row> = Rows<Row> & {
   ) => Rows<Row, Pick<Row, Columns[number]>>;
 };
 
-const rowsOf = <Row, Columns extends ColumnNames<Row>>(
+const rowsOf = <Row, Input, Columns extends ColumnNames<Row>>(
+  table: Table<Row, Input>,
   chosen: ChosenColumns<Row, Columns>,
 ): Rows<Row, Pick<Row, Columns[number]>> => ({
   many: (filter = {}, options = {}) =>
-    chosen.select({ ...options, where: filterClauses(filter) }),
+    chosen.select({ ...options, where: filterClauses(table, filter) }),
   one: (filter = {}, options = {}) =>
-    chosen.selectOne({ ...options, where: filterClauses(filter) }),
+    chosen.selectOne({ ...options, where: filterClauses(table, filter) }),
 });
 
 /**
@@ -91,10 +108,22 @@ const rowsOf = <Row, Columns extends ColumnNames<Row>>(
 export const readerFor = <Row, Input>(
   table: Table<Row, Input>,
 ): TableReader<Row> => {
+  // A whole-row read can only promise the whole row when the row IS its stored
+  // columns. A table that works some of its values out from other tables has
+  // more in its row than it stores, so those reads must name their columns.
+  const workedOut = Object.keys(table.schema).filter(
+    (column) => table.schema[column as keyof Row]?.projected,
+  );
+  if (workedOut.length > 0) {
+    throw new Error(
+      `${table.name} has values that are not stored columns (${workedOut.join(", ")}), so a whole-row read cannot return them. Choose the columns you want with chooseColumns instead.`,
+    );
+  }
+
   const pick = <const Columns extends ColumnNames<Row>>(
     columns: Columns,
   ): Rows<Row, Pick<Row, Columns[number]>> =>
-    rowsOf(chooseColumns(table, columns));
+    rowsOf(table, chooseColumns(table, columns));
   // A table's declared columns are exactly the keys of its row, and a table
   // with no columns cannot be declared — so this is the whole row.
   const whole = pick(table.columns as unknown as ColumnNames<Row>) as Rows<

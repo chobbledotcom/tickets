@@ -2,12 +2,9 @@
  * One shape for a read, and the two things you can do with it: turn it into a
  * statement, or run it.
  *
- * Every read in this codebase is the same sentence — these columns, from here,
- * keeping these rows, in this order, at most this many. Each reader used to
- * write that sentence out itself, gluing `SELECT`, `FROM`, the WHERE tail and
- * the ORDER BY together by hand, and each one separately remembered to skip the
- * database when its filter could match no row. That is the handwriting this
- * module removes: a reader describes the sentence and this assembles it.
+ * A read is one sentence — these columns, from here, keeping these rows, in
+ * this order, at most this many. A reader says the sentence; this assembles it,
+ * and skips the database when the filter cannot match a row.
  *
  * A read that joins or carries a subquery says so in its `from` — it is still
  * one sentence, just a longer one.
