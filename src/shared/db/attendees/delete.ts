@@ -9,6 +9,7 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
+import { noteDeleteStatement } from "#shared/db/notes/queries.ts";
 import { paymentSessionAttendeeChangeStatement } from "#shared/db/payments/attendee.ts";
 import { requireNoPendingAttendeePaymentCompletion } from "#shared/db/payments/completion-fence.ts";
 
@@ -58,7 +59,6 @@ const restoreListingContributions = (
 const DEPENDENT_ROW_TARGETS = [
   { field: "attendee_id", table: "attendee_answers" },
   { field: "attendee_id", table: "listing_attendees" },
-  { field: "attendee_id", table: "system_notes" },
   { field: "servicing_attendee_id", table: "service_costs" },
 ] as const;
 
@@ -70,13 +70,17 @@ const dependentDeleteStatement = (
   sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
 });
 
-/** Build the common dependent-row deletes for one or many attendee ids. */
+/** Build the common dependent-row deletes for one or many attendee ids. Notes
+ *  are asked for by the notes module: a note names the kind of record it is
+ *  about, so it is not found by an attendee column like the others. */
 export const attendeeDependentDeleteStatements = (
   attendeeIds: SqlStatement,
-): SqlStatement[] =>
-  DEPENDENT_ROW_TARGETS.map((target) =>
+): SqlStatement[] => [
+  ...DEPENDENT_ROW_TARGETS.map((target) =>
     dependentDeleteStatement(target, attendeeIds),
-  );
+  ),
+  noteDeleteStatement("attendee", attendeeIds),
+];
 
 /** Delete an attendee and all dependent data tied to the attendee record. */
 const purgeAttendee = (
