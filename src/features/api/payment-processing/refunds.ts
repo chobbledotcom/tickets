@@ -20,8 +20,10 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
-import { getActivePaymentProvider } from "#shared/payments.ts";
+import {
+  getActivePaymentProvider,
+  type ValidatedPaymentSession,
+} from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 
 /** User-facing message when the listing price changed between checkout and payment */

@@ -8,10 +8,10 @@ import {
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
 import type {
-  BookingIntent,
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { queryBatchPrimary, resultRows } from "#shared/db/client.ts";

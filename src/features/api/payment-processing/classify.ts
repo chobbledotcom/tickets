@@ -7,11 +7,11 @@
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type {
-  BookingIntent,
   SessionValidation,
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
@@ -31,6 +31,9 @@ export const paymentSessionErrorLogger =
 
 /** Log a payment session error with redirect context prefix */
 const logRedirectError = paymentSessionErrorLogger("redirect");
+
+/** Raise a checkout we can prove is ours but whose booking will not read. */
+const logUnreadableBooking = paymentSessionErrorLogger("booking");
 
 /** Split the `total.sig` price proof into a non-negative integer total and a
  * non-empty signature, or null when the field is absent or malformed. */
@@ -98,16 +101,29 @@ export const classifySession = async (
  * Classify a paid session and, when it is provably ours, pull out its booking
  * intent in one step. Returns `null` for an "ignore" verdict — a session with
  * no valid price proof (a foreign, replayed, or corrupt session) that we must
- * not process or refund. Otherwise returns the signed verdict and the booking
- * intent: a valid proof means the metadata is byte-for-byte what we signed, so
- * `extractIntent` always parses.
+ * not process or refund — and for a session whose proof is valid but whose
+ * booking will not read back.
+ *
+ * The two nulls mean very different things, so only one of them is quiet. A
+ * session with no valid proof may not be ours at all, and is left alone
+ * without comment. A session WITH a valid proof is provably ours and its buyer
+ * has been charged, so a booking nothing can read is a real fault: it is
+ * raised for the owner before we hand back the same null, because asking the
+ * provider again would only bring back the same unreadable booking.
  */
 export const classifySessionIntent = async (
   session: ValidatedPaymentSession,
 ): Promise<{ verdict: SignedVerdict; intent: BookingIntent } | null> => {
   const verdict = await classifySession(session);
   if (verdict.verdict === "ignore") return null;
-  return { intent: extractIntent(session)!, verdict };
+  const intent = extractIntent(session);
+  if (intent === null) {
+    logUnreadableBooking(
+      `Signed session's booking could not be read (session=${session.id})`,
+    );
+    return null;
+  }
+  return { intent, verdict };
 };
 
 export const validatePaidSession = async (

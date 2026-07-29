@@ -8,6 +8,7 @@
 
 /* jscpd:ignore-start */
 import * as v from "valibot";
+import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -72,74 +73,6 @@ export type ModifierSpec = {
   quantity: number;
 };
 
-/**
- * Compact booking item stored in session metadata (serialized/deserialized as
- * JSON): listing id (`e`), quantity (`q`), line total in minor units (`p`).
- *
- * A top-level line also carries its edge provenance so the webhook can
- * reconstruct the line's canonical booking-tree `nodeKey` and re-check it still
- * resolves: `k` is the edge kind (`"p"` package member, `"g"` group member — see
- * signed-metadata.ts) and `r` the group id it hangs off. Both are absent on a
- * standalone line.
- */
-/** One signed booking line, schema-first: `e` listing id, `q` quantity, `p`
- * signed line total in minor units, and the optional edge tag (`k` code + `r`
- * group id) the webhook's nodeKey revalidation reconstructs. The writer
- * (signedEdgeFor) and every reader parse against THIS schema, so a drifted or
- * tampered blob is a loud parse failure — never a silently-wrong nodeKey.
- *
- * `p` is an integer: it is `unitPrice * quantity`, both integer minor units, so
- * a fractional value is corruption. `q` is a non-negative integer — a signed
- * line may deliberately carry quantity 0 (an admin no-quantity sentinel or a
- * refunded/deleted-listing placeholder), which downstream preserves rather than
- * coercing to 1 and the success page then rejects as having no live ticket; see
- * extractIntent. The edge tag is a pair — `k` and `r` are both present (a
- * package/group member) or both absent (a standalone line); a half-present tag
- * would let the reader fall back to a standalone nodeKey instead of failing
- * loud, so the schema rejects it. This schema is internal: production always
- * parses the array form (a single line is an array of one), so only
- * {@link BookingItemsSchema} and the {@link BookingItem} type are exported. */
-/** A positive integer (≥ 1): a listing id or a group id. */
-const positiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
-
-const BookingItemSchema = v.pipe(
-  v.object({
-    e: positiveInt,
-    k: v.optional(v.union([v.literal("p"), v.literal("g")])),
-    p: v.pipe(v.number(), v.integer()),
-    q: v.pipe(v.number(), v.integer(), v.minValue(0)),
-    r: v.optional(positiveInt),
-  }),
-  v.check(
-    (item) => (item.k === undefined) === (item.r === undefined),
-    "edge tag k and r must both be present or both absent",
-  ),
-);
-
-export const BookingItemsSchema = v.pipe(
-  v.array(BookingItemSchema),
-  v.minLength(1),
-);
-
-export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
-
-/** Compact modifier reference stored in session metadata: the modifier id and
- * the quantity taken. The webhook re-fetches the modifier by id and re-derives
- * its amount from the current database — provider metadata amounts are never
- * trusted. */
-export type ModifierRef = { i: number; q: number };
-
-export type TextAnswerRef = { q: number; s: number };
-
-/** Per-listing answer references carried through a checkout, shared by the
- * booking and checkout intents. */
-export type ListingAnswerRefs = {
-  /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
-  listingAnswerIds?: Record<string, number[]> | undefined;
-  /** Per-listing free-text string refs: maps listingId → question/string ids. */
-  listingTextAnswerIds?: Record<string, TextAnswerRef[]> | undefined;
-};
-
 /** Fields shared between BookingIntent and CheckoutIntent that carry
  * deposit, redirect, and child-allocation metadata through the checkout. */
 type CheckoutMetaFields = {
@@ -169,17 +102,6 @@ type CheckoutIntentBase = ContactInfo &
      * the checkout). Absent when no selected listing is customisable. */
     dayCount?: number | undefined;
   };
-
-/** Processed booking intent extracted from payment session metadata */
-export type BookingIntent = CheckoutIntentBase & {
-  items: BookingItem[];
-  /** Modifier references applied to this checkout, re-derived in the webhook.
-   * Always present (an empty array when none applied), parsed from metadata. */
-  modifiers: ModifierRef[];
-  /** HMAC index of the site renewal token. The plain token never reaches the
-   * payment provider, so a compromised provider cannot use it at /renew. */
-  siteTokenIndex?: string | undefined;
-};
 
 /** Registration intent for checkout (one or more listings) */
 export type CheckoutIntent = CheckoutIntentBase & {
