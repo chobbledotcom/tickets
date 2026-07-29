@@ -70,6 +70,7 @@ import {
   clearSetupCompleteCache,
   completeSetup,
   isSetupComplete,
+  SetupAlreadyCompleteError,
 } from "#shared/db/settings/setup.ts";
 import {
   clearTestOverrides,
@@ -112,6 +113,7 @@ export {
   CONFIG_KEYS,
   EMAIL_BODY_KEYS,
   getCurrentSettingsVersion,
+  SetupAlreadyCompleteError,
   SNAPSHOT_KEYS,
 };
 
