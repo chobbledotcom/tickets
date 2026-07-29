@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start -- imports */
 import type { PaymentSessionState } from "#shared/payment-state/lifecycle.ts";
+import type { PaymentMode } from "#shared/payment-state/observation.ts";
 import type { Fault } from "#shared/payment-state/record/fault.ts";
 import {
   absent,
@@ -11,13 +12,14 @@ import {
   firstFault,
   present,
 } from "#shared/payment-state/record/fault.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** A stored payment, in the shape the tables hold it. */
 export type StoredPayment = {
   origin: "current" | "legacy";
-  provider: string | null;
-  mode: string | null;
+  provider: PaymentProviderType | null;
+  mode: PaymentMode | null;
   accountId: string | null;
   expectedAmount: number | null;
   expectedCurrency: string | null;

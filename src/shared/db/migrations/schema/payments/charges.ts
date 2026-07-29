@@ -69,7 +69,10 @@ export const paymentChargeTable = paymentRecord("payment_charges", {
       "provider_refunded_at",
       wholeNumberOrNull("provider_refunded_at", "observed_at"),
     ],
-    ["legacy_source", "TEXT"],
+    // Only one charge may be copied from a given old table per payment, so a
+    // blank name here would be a second, distinct "nowhere" that the unique
+    // index happily accepts.
+    ["legacy_source", wordsOrNull("legacy_source")],
     ...madeAndTouched,
     ["observed_at", aboutTheCharge("INTEGER NOT NULL")],
   ],

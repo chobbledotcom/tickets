@@ -89,6 +89,17 @@ describe("what an owner's decision may be", () => {
     ).toBe(false);
   });
 
+  test("refuses two rows in a review naming the provider's same money", () => {
+    // Different rows, one payment at the provider: the second row would let
+    // the same money be acted on twice under another name.
+    expect(
+      v.safeParse(
+        PaymentChargeDecisionSnapshotSchema,
+        chargeSnapshot([reviewedCharge, { ...reviewedCharge, chargeId: 2 }]),
+      ).success,
+    ).toBe(false);
+  });
+
   // An old payment's review names its money as plain text, so the same two
   // holes have to be closed there as well.
   for (const [name, charges] of [
@@ -97,6 +108,13 @@ describe("what an owner's decision may be", () => {
       [
         { chargeId: 1, providerReference: "ch_old" },
         { chargeId: 1, providerReference: "ch_old" },
+      ],
+    ],
+    [
+      "names the same old money under two rows",
+      [
+        { chargeId: 1, providerReference: "ch_old" },
+        { chargeId: 2, providerReference: "ch_old" },
       ],
     ],
     [

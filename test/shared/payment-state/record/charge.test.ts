@@ -193,6 +193,11 @@ describe("what a stored charge may be", () => {
       "A part refund must have given back some of the money, but not all",
     ],
     [
+      "a failed refund says more came back than was taken",
+      { refundedAmount: 150, refundState: "failed" as const },
+      "A refund that failed cannot have given back more than was taken",
+    ],
+    [
       "a finished refund gave only some back",
       { refundedAmount: 50, refundState: "completed" as const },
       "A finished refund must have given back everything taken",

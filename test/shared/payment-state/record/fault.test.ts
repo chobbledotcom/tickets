@@ -54,8 +54,14 @@ describe("picking between several answers", () => {
 describe("whether a value is there", () => {
   // Zero, an empty string, and false are all real values a record may hold, so
   // "there" cannot mean "truthy" — only missing counts as missing.
-  for (const value of [0, "", false, [], Number.NaN] as const) {
-    test(`counts ${JSON.stringify(value) ?? "NaN"} as being there`, () => {
+  for (const [name, value] of [
+    ["zero", 0],
+    ["an empty string", ""],
+    ["false", false],
+    ["an empty list", []],
+    ["a number that is not a number", Number.NaN],
+  ] as const) {
+    test(`counts ${name} as being there`, () => {
       expect(present(value)).toBe(true);
       expect(absent(value)).toBe(false);
     });

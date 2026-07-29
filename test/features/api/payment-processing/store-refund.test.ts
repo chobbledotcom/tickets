@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { refundSpec } from "#routes/api/payment-processing/refunds.ts";
 import {
   datelessGhostBookings,
   specForFailure,
@@ -48,11 +49,13 @@ describe("why a booking we tried could not be honoured", () => {
     ["unexpected_error", "unexpected_error"],
   ] as const) {
     test(`turns ${reason} into the ${code} refund reason`, () => {
-      const spec = specForFailure({ detail: "why", ok: false, reason });
-
-      expect(spec.code).toBe(code);
-      expect(spec.detail).toBe("why");
-      expect(spec.reason.length).toBeGreaterThan(0);
+      // The whole spec, not just its code: this is the one place that decides
+      // which refund a failed booking gets, so it has to hand back exactly
+      // what that refund is, wording and all. What each code says to the
+      // operator is pinned in refunds.test.ts.
+      expect(specForFailure({ detail: "why", ok: false, reason })).toEqual(
+        refundSpec(code)("why"),
+      );
     });
   }
 });

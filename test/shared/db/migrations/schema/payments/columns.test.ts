@@ -6,6 +6,7 @@ import {
   anyOf,
   currencyOrNull,
   encryptedPaymentColumn,
+  encryptedPaymentColumnOrNull,
   keyWords,
   madeAndTouched,
   oneOf,
@@ -92,6 +93,12 @@ describe("the kinds of column a payment record is built from", () => {
     // separator more than the envelope has.
     expect(encryptedPaymentColumn("evidence")).toBe(
       "TEXT NOT NULL CHECK ((evidence GLOB 'enc:1:?*:?*' AND evidence NOT GLOB 'enc:1:*:*:*'))",
+    );
+  });
+
+  test("a hidden value that may be missing is checked only when it is there", () => {
+    expect(encryptedPaymentColumnOrNull("decision")).toBe(
+      "(decision IS NULL OR (decision GLOB 'enc:1:?*:?*' AND decision NOT GLOB 'enc:1:*:*:*'))",
     );
   });
 

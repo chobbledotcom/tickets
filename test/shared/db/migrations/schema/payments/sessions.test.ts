@@ -15,7 +15,7 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
          result_state, ticket_state, completion_state, legacy_runtime)
         VALUES (NULL, 'legacy', 'created', 1, 1, 1,
           'none', 'none', 'none', 'enc:1:a:b')`),
-    ).rejects.toThrow();
+    ).rejects.toThrow("NOT NULL constraint failed");
   });
 
   test("refuses a payment booked to be looked at before it existed", async () => {

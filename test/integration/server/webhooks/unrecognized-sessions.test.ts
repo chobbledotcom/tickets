@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { stripeApi } from "#shared/stripe.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -71,9 +72,9 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
     const mockRefund = spy(stripeApi, "refundPayment");
 
     // The proof is ours, but the modifiers came back as an object instead of a
-    // list. Booking cannot act on that, so the checkout is left alone as a
-    // support case — not booked with values nobody has checked, and not
-    // refunded, because we do not refund on a reading we cannot trust.
+    // list. Booking cannot act on that, so nothing is booked with values
+    // nobody has checked, and nothing is given back on a reading we cannot
+    // trust — but the buyer HAS been charged, so the owner is told.
     await expectWebhookIgnored(
       checkoutSessionEvent({
         amountTotal: 500,
@@ -95,6 +96,16 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
       },
     );
     expect(mockRefund.calls.length).toBe(0);
+    // Silence here would leave a charged buyer with nothing and nobody
+    // looking, which is the whole difference from a checkout that is not ours.
+    const log = await getAllActivityLog();
+    expect(
+      log.some((entry) =>
+        entry.message.includes(
+          "Signed session's booking could not be read (session=cs_unreadable_booking)",
+        ),
+      ),
+    ).toBe(true);
   });
 
   test("webhook ignores unrecognized session via fallback retrieval path", async () => {

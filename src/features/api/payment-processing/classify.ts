@@ -32,6 +32,9 @@ export const paymentSessionErrorLogger =
 /** Log a payment session error with redirect context prefix */
 const logRedirectError = paymentSessionErrorLogger("redirect");
 
+/** Raise a checkout we can prove is ours but whose booking will not read. */
+const logUnreadableBooking = paymentSessionErrorLogger("booking");
+
 /** Split the `total.sig` price proof into a non-negative integer total and a
  * non-empty signature, or null when the field is absent or malformed. */
 const parsePriceProof = (
@@ -99,10 +102,14 @@ export const classifySession = async (
  * intent in one step. Returns `null` for an "ignore" verdict — a session with
  * no valid price proof (a foreign, replayed, or corrupt session) that we must
  * not process or refund — and for a session whose proof is valid but whose
- * booking will not read back. A valid proof should mean the booking is
- * byte-for-byte what we signed, so a booking that does not read is a support
- * case for the same reason a corrupt session is: better left alone than acted
- * on with values nobody has checked.
+ * booking will not read back.
+ *
+ * The two nulls mean very different things, so only one of them is quiet. A
+ * session with no valid proof may not be ours at all, and is left alone
+ * without comment. A session WITH a valid proof is provably ours and its buyer
+ * has been charged, so a booking nothing can read is a real fault: it is
+ * raised for the owner before we hand back the same null, because asking the
+ * provider again would only bring back the same unreadable booking.
  */
 export const classifySessionIntent = async (
   session: ValidatedPaymentSession,
@@ -110,7 +117,13 @@ export const classifySessionIntent = async (
   const verdict = await classifySession(session);
   if (verdict.verdict === "ignore") return null;
   const intent = extractIntent(session);
-  return intent === null ? null : { intent, verdict };
+  if (intent === null) {
+    logUnreadableBooking(
+      `Signed session's booking could not be read (session=${session.id})`,
+    );
+    return null;
+  }
+  return { intent, verdict };
 };
 
 export const validatePaidSession = async (

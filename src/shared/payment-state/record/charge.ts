@@ -80,6 +80,14 @@ export const refundedTotalMatchesState = (charge: StoredCharge): Fault => {
       charge.refundState !== "completed" || back === taken,
       "A finished refund must have given back everything taken",
     ],
+    // A refund that failed may still have given part of the money back before
+    // it stopped, so this only says it cannot have given back more than was
+    // taken. The table says the same for every charge; saying it here too
+    // means this rule answers on its own, without a table to lean on.
+    [
+      charge.refundState !== "failed" || back <= taken,
+      "A refund that failed cannot have given back more than was taken",
+    ],
   ]);
 };
 

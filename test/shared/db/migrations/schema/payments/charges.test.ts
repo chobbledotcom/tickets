@@ -70,6 +70,16 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
     });
   }
 
+  test("refuses an old charge that came from nowhere in particular", async () => {
+    // Only one charge per payment may come from a given old table, so a name
+    // of only spaces would slip past that as a second, different "nowhere".
+    await expectRefused(`INSERT INTO payment_charges
+      (payment_id, origin, provider_reference, refund_state,
+       legacy_source, created_at, updated_at, observed_at)
+      VALUES ('blank-source', 'legacy', 'hyb:1:k:i:c', 'unknown',
+        '   ', 1, 1, 1)`);
+  });
+
   test("refuses an old charge whose refund time is not a time", async () => {
     await expectRefused(`INSERT INTO payment_charges
       (payment_id, origin, provider_reference, refund_state,

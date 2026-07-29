@@ -381,8 +381,8 @@ describe("payment observations", () => {
       returned: { ...sessionResource, id: "cs_other" },
       status: "invalid",
     });
-    if (parsed.status !== "invalid") throw new Error("Expected invalid read");
     expect(parsed.status).toBe("invalid");
+    if (parsed.status !== "invalid") throw new Error("Expected invalid read");
     expect(parsed.returned?.id).toBe("cs_other");
   });
 });
