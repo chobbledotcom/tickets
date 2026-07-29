@@ -253,6 +253,7 @@ const BALANCE_LINK_CSS = `${brandedThemeCss(
 .public-page {
   background: #fdf9f4;
   border: 1px solid #e4d5c5;
+  border-radius: var(--border-radius);
   box-shadow: 0 14px 32px var(--color-shadow);
   padding: 1.25rem;
 }
