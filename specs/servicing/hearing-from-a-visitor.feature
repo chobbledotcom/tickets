@@ -58,7 +58,7 @@ Feature: A visitor writes to the owner
       Given the owner takes messages
       When a visitor writes in claiming the owner's own address
       Then the message reaches the owner
-      And a reply to it would not go to the claimed address
+      And a reply to it would go to the site's own address
       And the owner is warned the sender may be pretending
 
   @rule:servicing.a-message-that-did-not-go-is-never-called-sent

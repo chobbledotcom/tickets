@@ -9,7 +9,6 @@ import {
   contactPageAnswers,
   messageSent,
   messagesAreWorking,
-  OWNER_INBOX,
   ownerTakesAway,
   SENT,
   SPOOF_WARNING,
@@ -21,6 +20,7 @@ import {
   whatVisitorWasTold,
 } from "#test/specs/support/contact.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { CONTACT_OWNER_EMAIL } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -86,9 +86,11 @@ When(
 );
 
 Then(
-  "a reply to it would not go to the claimed address",
+  "a reply to it would go to the site's own address",
   function (this: TicketsWorld): void {
-    expect(messageSent(this)?.reply_to).not.toBe(ADDRESS_ON_OWNERS_HOST);
+    // The exact address, not merely "not the claimed one" — a message with no
+    // reply address at all would satisfy that and leave the owner stuck.
+    expect(messageSent(this)?.reply_to).toBe(CONTACT_OWNER_EMAIL);
   },
 );
 
@@ -124,7 +126,7 @@ Then(
 );
 
 Then("the message reaches the owner", function (this: TicketsWorld): void {
-  expect(messageSent(this)?.to).toEqual([OWNER_INBOX]);
+  expect(messageSent(this)?.to).toEqual([CONTACT_OWNER_EMAIL]);
 });
 
 Then("nothing reaches the owner", function (this: TicketsWorld): void {

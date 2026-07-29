@@ -13,27 +13,15 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { installRecordingFetch } from "#test-utils/mocks.ts";
-import { enablePublicSite } from "#test-utils/settings.ts";
+import { activateContactForm } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
-/** Where a visitor writes from, and where their message is meant to land. */
+/** Where a visitor writes from. */
 const CONTACT_PAGE = "/contact";
-export const OWNER_INBOX = "owner@example.com";
 
 /** The words on the button a visitor presses to send. */
 const SEND = "Send message";
-
-/** Everything the form needs before a visitor can use it: the public site on,
- * an address for messages to reach, the form switched on, and a way to send
- * email at all. A story can take any one of these away afterwards. */
-const ownerOffersMessages = async (): Promise<void> => {
-  await enablePublicSite();
-  await settings.update.businessEmail(OWNER_INBOX);
-  await settings.update.contactFormEnabled(true);
-  await settings.update.email.provider("resend");
-  await settings.update.email.apiKey("re_test_key");
-};
 
 /** The owner takes one part of that away, by the word the story uses for it. */
 const TAKEN_AWAY: Record<string, () => Promise<unknown>> = {
@@ -101,7 +89,7 @@ const takesMessagesWith =
   }): SetsUpMessages =>
   async (world) => {
     setSpamProtection(world, answers.spamProtection);
-    await ownerOffersMessages();
+    await activateContactForm();
     watchOutgoing(world, answers);
   };
 
