@@ -54,4 +54,16 @@ describe("db > migration registry", () => {
       MIGRATION_IDS.indexOf("2026-07-22_maintenance_completion"),
     );
   });
+
+  test("adds the payment record tables after notes learn what they are about", () => {
+    // Creating the payment tables asks the database to match the whole current
+    // schema, including the two columns notes gained. A site that skipped the
+    // note release still has rows in system_notes without them, and SQLite
+    // refuses to add a NOT NULL column to a table with rows — so the note
+    // migration, which adds them with a default and fills them in, has to go
+    // first. Reversing these two blocks that site from starting at all.
+    expect(MIGRATION_IDS.indexOf("2026-07-26_payment_records")).toBeGreaterThan(
+      MIGRATION_IDS.indexOf("2026-07-28_note_entities"),
+    );
+  });
 });

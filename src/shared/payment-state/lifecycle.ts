@@ -10,7 +10,10 @@ import {
   LegacyProviderAssignmentReadSchema,
   refundFitsInsideCapture,
 } from "#shared/payment-state/operator.ts";
-import type { ChargeLeg } from "#shared/payment-state/resources.ts";
+import type {
+  ChargeLeg,
+  RefundObservation,
+} from "#shared/payment-state/resources.ts";
 import {
   gaveEverythingBack,
   MoneySchema,
@@ -101,14 +104,22 @@ const everythingCameBack = (observation: Observation): boolean =>
   observation.charges !== undefined &&
   observation.charges.every(gaveEverythingBack);
 
-/** A charge the provider has not finished giving money back on. */
-const chargeIsStillRefunding = (charge: ChargeLeg): boolean =>
-  charge.refunds.some((refund) => refund.status === "pending");
+/** Asks whether any refund anywhere in a reading is in the given state. A
+ *  reading with no charge took nothing, so no refund can belong to it. */
+const someRefundIs =
+  (status: RefundObservation["status"]) =>
+  (observation: Observation): boolean =>
+    observation.charges?.some((charge) =>
+      charge.refunds.some((refund) => refund.status === status),
+    ) ?? false;
 
-/** Money on its way back somewhere in this reading. A reading with no charge
- *  took nothing, so nothing can be coming back from it. */
-const aRefundIsStillGoing = (observation: Observation): boolean =>
-  observation.charges?.some(chargeIsStillRefunding) ?? false;
+/** Money on its way back somewhere in this reading. */
+const aRefundIsStillGoing = someRefundIs("pending");
+
+/** A refund the provider tried and could not finish. The money is still here,
+ *  but somebody asked for it back and that did not happen — which the resolver
+ *  raises for the owner rather than treating as a booking to make. */
+const aRefundFailed = someRefundIs("failed");
 
 /** A charge that has kept every penny it took. */
 const nothingGivenBack = (charge: ChargeLeg): boolean =>
@@ -121,13 +132,16 @@ const tookMoneyAndKeptIt = (observation: Observation): boolean =>
   observation.charges?.every(nothingGivenBack) ?? false;
 
 /** The buyer paid and the money has stayed paid: none given back, none on its
- *  way back. Money part-returned is a problem for the owner, money fully
- *  returned is its own answer, and money still going is waited on — so a
- *  reading in any of those states is not a booking waiting to be made. */
+ *  way back, and none that somebody tried to send back and could not. Money
+ *  part-returned is a problem for the owner, money fully returned is its own
+ *  answer, money still going is waited on, and a refund that failed is the
+ *  owner's to look at — so a reading in any of those states is not a booking
+ *  waiting to be made. */
 const paidAndStayedPaid = (observation: Observation): boolean =>
   observation.status === "paid" &&
   tookMoneyAndKeptIt(observation) &&
-  !aRefundIsStillGoing(observation);
+  !aRefundIsStillGoing(observation) &&
+  !aRefundFailed(observation);
 
 /** Ready means the money question is settled: the buyer paid and the money
  *  stayed paid, or nothing was owed and so nothing was taken. A reading still

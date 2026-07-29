@@ -1951,6 +1951,28 @@ record's tables and words but nothing that reads or writes them.*
 
 Each is plausible, and each needs code that is not in that slice to settle.
 
+### A lease can be written already expired
+
+`payment_sessions.lease_expires_at` is floored on `created_at`, and
+`payment_cases.alert_lease_expires_at` on `first_observed_at`. So a payment made
+long ago and claimed today can be given an expiry that is already in the past:
+the claim is dead the moment it is written, and another worker can take the same
+payment while the first still believes it holds it.
+
+The review that found this suggested flooring on `updated_at` instead. **Do not
+do that** — it is the trap `redacted_at` already documents one line above it. A
+lease legitimately expires while the row keeps changing, so a later unrelated
+write would move `updated_at` past a lease expiry that was correct when written,
+and the table would start refusing ordinary writes. That is worse than the fault
+it fixes.
+
+The real rule is "a lease may not be *born* expired", which compares the expiry
+against the moment of the claim. A column rule cannot see that moment, so this
+belongs with the code that hands leases out, next to the token fence it is part
+of — the same split the rest of this record follows: shape rules in the table,
+rules about *when* something happens in TypeScript. Settle it in the slice that
+lands the reconcile runtime.
+
 **Booking dates are kept as any text.** `BookingIntentSchema`
 (`src/shared/payments.ts`) says a booking's date is a string, so `2026-02-30`
 or `banana` is stored and sent through payment metadata. The date is later

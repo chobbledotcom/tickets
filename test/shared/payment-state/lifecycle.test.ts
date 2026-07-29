@@ -218,6 +218,16 @@ describe("payment lifecycle", () => {
       "money is still on its way back",
       chargeLeg({ refunds: [refundObservation({ status: "pending" })] }),
     ],
+    // The money is all still here, so every other rule is happy — but somebody
+    // asked for it back and the provider could not do it. The resolver calls
+    // that a problem for the owner, so "ready" would be a second, different
+    // answer to the same reading.
+    [
+      "a refund was tried and could not be done",
+      chargeLeg({
+        refunds: [refundObservation({ reason: "declined", status: "failed" })],
+      }),
+    ],
   ] as const) {
     test(`refuses a ready payment where ${name}`, () => {
       expect(() =>

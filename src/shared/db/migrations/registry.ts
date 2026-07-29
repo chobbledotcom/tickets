@@ -382,14 +382,20 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-22_maintenance_completion",
     () => import("./2026-07-22_maintenance_completion.ts"),
   ),
-  // The tables one payment record lives in, before anything writes to them.
-  entry(
-    "2026-07-26_payment_records",
-    () => import("./2026-07-26_payment_records.ts"),
-  ),
   entry(
     "2026-07-28_note_entities",
     () => import("./2026-07-28_note_entities.ts"),
+  ),
+  // Runs after the note migration despite its earlier date, and must stay
+  // there. Creating these tables asks the database to match the whole current
+  // schema, which includes the two columns notes gained. On a site that
+  // skipped the note release, those columns are still missing from a
+  // system_notes table that already has rows, and SQLite refuses to add a
+  // NOT NULL column to a table with rows. The note migration is the one that
+  // knows how to do it — add them with a default, fill them in, then rebuild.
+  entry(
+    "2026-07-26_payment_records",
+    () => import("./2026-07-26_payment_records.ts"),
   ),
 ];
 /* jscpd:ignore-end */
