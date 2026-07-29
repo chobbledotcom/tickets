@@ -65,7 +65,9 @@ Feature: A visitor writes to the owner
   Rule: A message that did not go is never called sent
     When the site cannot deliver, the visitor is told so and asked to try
     later. Telling them it was sent would leave them waiting for an answer
-    nobody ever received.
+    nobody ever received. The same holds when spam protection is on and the
+    puzzle was never solved — a browser that ran no script sends no answer, and
+    an empty answer is turned down without anybody being asked about it.
 
     @case:contact.delivery-failed
     Scenario: The site cannot send the message
@@ -73,9 +75,10 @@ Feature: A visitor writes to the owner
       When a visitor writes in from "asker@outside.test"
       Then the visitor is told it could not be sent
 
-    @case:contact.spam-check-turned-it-down
-    Scenario: The spam check turns a message down
-      Given the owner takes messages, with spam protection turning them down
+    @case:contact.no-puzzle-solved
+    Scenario: A message arrives without the puzzle solved
+      Given the owner takes messages, with spam protection switched on
       When a visitor writes in from "asker@outside.test"
       Then the visitor is told it could not be checked
       And nothing reaches the owner
+      And the spam checker was never even asked

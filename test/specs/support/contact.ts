@@ -27,7 +27,7 @@ const SEND = "Send message";
 /** Everything the form needs before a visitor can use it: the public site on,
  * an address for messages to reach, the form switched on, and a way to send
  * email at all. A story can take any one of these away afterwards. */
-export const ownerOffersMessages = async (): Promise<void> => {
+const ownerOffersMessages = async (): Promise<void> => {
   await enablePublicSite();
   await settings.update.businessEmail(OWNER_INBOX);
   await settings.update.contactFormEnabled(true);
@@ -49,11 +49,13 @@ export const ownerTakesAway = (what: string): Promise<unknown> =>
  * the scenario ends, so one story's stand-in cannot leak into the next. */
 const watchOutgoing = (
   world: TicketsWorld,
-  answers: { checkPasses: boolean; providerStatus: number },
+  answers: { providerStatus: number },
 ) => {
   const watching = installRecordingFetch((url) => {
+    // The checker would say yes. A message turned down while this is standing
+    // by was turned down without the checker being asked at all.
     if (url.includes("api.botpoison.com")) {
-      return new Response(JSON.stringify({ ok: answers.checkPasses }));
+      return new Response(JSON.stringify({ ok: true }));
     }
     if (url.includes("api.resend.com")) {
       return new Response(null, { status: answers.providerStatus });
@@ -65,46 +67,62 @@ const watchOutgoing = (
   return watching;
 };
 
+/** Spam protection is on exactly when both keys are set, and they are read on
+ * every request. Each story says plainly whether it wants protection and the
+ * keys are put back afterwards — otherwise a machine whose shell already
+ * exports them would switch protection on for every story here, and every
+ * message would be turned down for a reason the story never mentions. */
+const SPAM_KEYS = {
+  BOTPOISON_PUBLIC_KEY: "pk_test_public",
+  BOTPOISON_SECRET_KEY: "sk_test_secret",
+};
+
+const setSpamProtection = (world: TicketsWorld, wanted: boolean): void => {
+  for (const [name, value] of Object.entries(SPAM_KEYS)) {
+    const before = process.env[name];
+    world.cleanup.push(() => {
+      if (before === undefined) delete process.env[name];
+      else process.env[name] = before;
+    });
+    if (wanted) process.env[name] = value;
+    else delete process.env[name];
+  }
+};
+
 /** The site set up to take messages, with the outside world answering the way
  * one story needs it to. Each way the outside world can behave is the same
  * set-up with different answers, so they are all made from here. */
 type SetsUpMessages = (world: TicketsWorld) => Promise<void>;
 
 const takesMessagesWith =
-  (answers: { checkPasses: boolean; providerStatus: number }): SetsUpMessages =>
+  (answers: {
+    providerStatus: number;
+    spamProtection: boolean;
+  }): SetsUpMessages =>
   async (world) => {
+    setSpamProtection(world, answers.spamProtection);
     await ownerOffersMessages();
     watchOutgoing(world, answers);
   };
 
 export const messagesAreWorking: SetsUpMessages = takesMessagesWith({
-  checkPasses: true,
   providerStatus: 200,
+  spamProtection: false,
 });
 
 /** The same, but the email provider is having a bad day. */
 export const sendingIsBroken: SetsUpMessages = takesMessagesWith({
-  checkPasses: true,
   providerStatus: 500,
+  spamProtection: false,
 });
 
-/** The same, with spam protection switched on and set to turn this one down.
- * The keys are read on each request, so putting them back at the end of the
- * scenario is enough to leave the next story without spam protection. */
-export const spamCheckTurnsMessagesDown: SetsUpMessages = async (world) => {
-  for (const [name, value] of Object.entries({
-    BOTPOISON_PUBLIC_KEY: "pk_test_public",
-    BOTPOISON_SECRET_KEY: "sk_test_secret",
-  })) {
-    const before = process.env[name];
-    world.cleanup.push(() => {
-      if (before === undefined) delete process.env[name];
-      else process.env[name] = before;
-    });
-    process.env[name] = value;
-  }
-  await takesMessagesWith({ checkPasses: false, providerStatus: 200 })(world);
-};
+/** The same, with spam protection switched on. A story sending through the
+ * page never solves the puzzle, because the puzzle is solved by a script in a
+ * real browser — so this is the visitor whose browser ran no script. */
+export const spamProtectionIsOn: SetsUpMessages = takesMessagesWith({
+  providerStatus: 200,
+  spamProtection: true,
+});
 
 /** Whether the page a visitor lands on really offers them a form to fill in.
  * A page that merely answers is not the same as a page they can write from. */
@@ -134,6 +152,12 @@ export const visitorWrites = async (
 /** What the visitor was told the last time they wrote. */
 export const whatVisitorWasTold = (world: TicketsWorld): string =>
   requiredWorldValue(world.visitorTold, "what the visitor was told");
+
+/** Whether the site asked the spam checker anything at all. */
+export const spamCheckWasAsked = (world: TicketsWorld): boolean =>
+  requiredWorldValue(world.messagesOut, "the outgoing watch").calls.some(
+    ({ url }) => url.includes("api.botpoison.com"),
+  );
 
 /** The email the site sent, or nothing when it sent none. */
 export const messageSent = (world: TicketsWorld): SentMessage | null => {

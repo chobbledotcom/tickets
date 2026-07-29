@@ -210,11 +210,10 @@ describeWithEnv(
       });
     });
 
-    // The delivered-message journey these used to cover is told by the
-    // "A visitor writes to the owner" story. The two refusals below are told
-    // there too, but a Cucumber run does not feed the coverage gate and these
-    // are the only tests that reach those lines — so they stay, beside the
-    // guards a person could not reach through the form at all.
+    // A Cucumber run does not feed the coverage gate, so the two refusals below
+    // need a direct test even though the "A visitor writes to the owner" story
+    // also tells them. The rest are guards no visitor could reach through the
+    // form at all.
     describe("POST /contact", () => {
       test("does not send and flashes an error when verification fails", async () => {
         await activate();

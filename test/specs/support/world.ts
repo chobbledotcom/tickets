@@ -133,7 +133,10 @@ export interface TicketsWorld extends World {
   listingIds: Map<string, number>;
   mergeOutcome?: { applied: boolean; message: string };
   mergePreviewHtml?: string;
-  messagesOut?: { emailCall: () => { body: unknown } | undefined };
+  messagesOut?: {
+    calls: Array<{ url: string }>;
+    emailCall: () => { body: unknown } | undefined;
+  };
   modifierId?: number;
   newStayLength?: number;
   orderCatalogSpec?: JourneyCatalogSpec;

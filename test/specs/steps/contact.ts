@@ -14,7 +14,8 @@ import {
   SENT,
   SPOOF_WARNING,
   sendingIsBroken,
-  spamCheckTurnsMessagesDown,
+  spamCheckWasAsked,
+  spamProtectionIsOn,
   visitorIsOfferedAForm,
   visitorWrites,
   whatVisitorWasTold,
@@ -35,9 +36,9 @@ Given(
 );
 
 Given(
-  "the owner takes messages, with spam protection turning them down",
+  "the owner takes messages, with spam protection switched on",
   function (this: TicketsWorld): Promise<void> {
-    return spamCheckTurnsMessagesDown(this);
+    return spamProtectionIsOn(this);
   },
 );
 
@@ -129,6 +130,15 @@ Then("the message reaches the owner", function (this: TicketsWorld): void {
 Then("nothing reaches the owner", function (this: TicketsWorld): void {
   expect(messageSent(this)).toBeNull();
 });
+
+Then(
+  "the spam checker was never even asked",
+  function (this: TicketsWorld): void {
+    // A message with no solved puzzle is turned down before anybody is asked,
+    // so a site that started asking about empty answers would fail here.
+    expect(spamCheckWasAsked(this)).toBe(false);
+  },
+);
 
 Then(
   "a reply to it would go to {string}",
