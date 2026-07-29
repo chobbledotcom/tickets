@@ -1,0 +1,255 @@
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import {
+  classifySession,
+  classifySessionIntent,
+  validatePaidSession,
+} from "#routes/api/payment-processing/classify.ts";
+import type {
+  SessionMetadata,
+  ValidatedPaymentSession,
+} from "#shared/payments.ts";
+import { runWithPendingWork } from "#shared/pending-work.ts";
+import { getAllActivityLog } from "#test-utils/activity-log.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+
+/** A paid checkout for one ticket at the given price, with a price proof made
+ *  with this site's own key unless the caller replaces it. */
+const paidSession = (
+  metadata: Partial<SessionMetadata> = {},
+  amountTotal = 500,
+): ValidatedPaymentSession => ({
+  amountTotal,
+  id: "cs_classify",
+  metadata: {
+    ...signedMeta(
+      {
+        email: "buyer@example.com",
+        items: singleItem(1, 1, 500),
+        name: "Buyer",
+      },
+      500,
+    ),
+    ...metadata,
+  },
+  paymentReference: "pi_classify",
+  paymentStatus: "paid",
+});
+
+describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
+  test("trusts a checkout whose proof and amount both agree", async () => {
+    await setupStripe();
+
+    expect(await classifySession(paidSession())).toEqual({
+      agreed: 500,
+      verdict: "trusted",
+    });
+  });
+
+  test("calls it a mismatch when the provider charged something else", async () => {
+    // The proof is ours, so the checkout is ours — but the money taken is not
+    // the money we signed for, which is a refund rather than a booking.
+    await setupStripe();
+
+    expect(await classifySession(paidSession({}, 900))).toEqual({
+      agreed: 500,
+      verdict: "mismatch",
+    });
+  });
+
+  // Without a proof we cannot show the checkout is ours, and acting on one that
+  // is not would move somebody else's money.
+  for (const [name, priceProof] of [
+    ["carries no proof at all", ""],
+    ["carries a proof in no shape we write", "not-a-proof"],
+    ["carries a proof with no signature", "500."],
+    ["carries a proof signed by somebody else", "500.deadbeef"],
+    ["carries a proof for a different total", "900.deadbeef"],
+  ] as const) {
+    test(`ignores a checkout that ${name}`, async () => {
+      await setupStripe();
+
+      expect(
+        await classifySession(paidSession({ price_proof: priceProof })),
+      ).toEqual({ verdict: "ignore" });
+    });
+  }
+});
+
+describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
+  test("hands back the verdict and the booking together", async () => {
+    await setupStripe();
+
+    const classified = await classifySessionIntent(paidSession());
+
+    expect(classified?.verdict).toEqual({ agreed: 500, verdict: "trusted" });
+    expect(classified?.intent.items).toEqual([{ e: 1, p: 500, q: 1 }]);
+  });
+
+  test("says nothing about a checkout we cannot show is ours", async () => {
+    await setupStripe();
+
+    expect(await classifySessionIntent(paidSession({ price_proof: "" }))).toBe(
+      null,
+    );
+  });
+
+  test("raises a checkout that is ours but whose booking will not read", async () => {
+    // The buyer has been charged and we can prove the checkout is ours, so
+    // silence would leave them with nothing and nobody looking.
+    await setupStripe();
+
+    // Raising it writes to the log the way a request does, so the test runs
+    // in the same kind of scope a request gives it.
+    const classified = await runWithPendingWork(() =>
+      classifySessionIntent(
+        paidSession(
+          signedMeta(
+            {
+              email: "buyer@example.com",
+              items: singleItem(1, 1, 500),
+              modifiers: "{}",
+              name: "Buyer",
+            },
+            500,
+          ),
+        ),
+      ),
+    );
+
+    expect(classified).toBe(null);
+
+    const log = await getAllActivityLog();
+    expect(
+      log.some((entry) =>
+        entry.message.includes(
+          "Signed session's booking could not be read (session=cs_classify)",
+        ),
+      ),
+    ).toBe(true);
+  });
+});
+
+describeWithEnv("checking a checkout before it is used", { db: true }, () => {
+  test("refuses when no payment provider is set up", async () => {
+    const result = await validatePaidSession("cs_no_provider");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    expect(await result.response.text()).toContain(
+      "Payment provider not configured",
+    );
+  });
+
+  test("refuses a checkout the provider has never heard of", async () => {
+    await setupStripe();
+    const { stub } = await import("@std/testing/mock");
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+      Promise.resolve(null),
+    );
+
+    const result = await validatePaidSession("cs_missing");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    expect(await result.response.text()).toContain("Payment session not found");
+  });
+
+  // A card that was declined and a buyer who changed their mind come back the
+  // same way on some providers, so both get the friendly page rather than an
+  // error telling them to contact support.
+  test("shows the cancelled page when the checkout failed", async () => {
+    await setupStripe();
+    const { stub } = await import("@std/testing/mock");
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+      Promise.resolve({
+        amountTotal: 0,
+        id: "cs_failed",
+        metadata: webhookMeta({
+          items: singleItem(99999, 1, 0),
+          name: "Declined",
+        }),
+        paymentReference: "",
+        paymentStatus: "failed" as const,
+      }),
+    );
+
+    const result = await validatePaidSession("cs_failed");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    // The listing is gone, so the page says so rather than offering a retry.
+    expect(await result.response.text()).toContain("Listing not found");
+  });
+
+  test("refuses a checkout the provider does not call paid", async () => {
+    await setupStripe();
+    const { stub } = await import("@std/testing/mock");
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+      Promise.resolve({
+        amountTotal: 500,
+        id: "cs_unpaid",
+        metadata: webhookMeta({ name: "Still Going" }),
+        paymentReference: "",
+        paymentStatus: "unpaid" as const,
+      }),
+    );
+
+    const result = await validatePaidSession("cs_unpaid");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    expect(await result.response.text()).toContain(
+      "Payment verification failed",
+    );
+  });
+
+  test("refuses a paid checkout we cannot show is ours", async () => {
+    await setupStripe();
+    const { stub } = await import("@std/testing/mock");
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+      Promise.resolve(paidSession({ price_proof: "" })),
+    );
+
+    const result = await validatePaidSession("cs_foreign");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    expect(await result.response.text()).toContain(
+      "Payment session not recognized",
+    );
+  });
+
+  test("passes on the checkout, its verdict, and its booking", async () => {
+    await setupStripe();
+    const { stub } = await import("@std/testing/mock");
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+      Promise.resolve(paidSession()),
+    );
+
+    const result = await validatePaidSession("cs_classify");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected the check to pass");
+    expect(result.data.session.id).toBe("cs_classify");
+    expect(result.data.verdict).toEqual({ agreed: 500, verdict: "trusted" });
+    expect(result.data.intent.items).toEqual([{ e: 1, p: 500, q: 1 }]);
+  });
+});
