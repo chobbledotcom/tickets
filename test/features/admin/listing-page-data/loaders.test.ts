@@ -251,7 +251,8 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
         "#test-utils/db-helpers/listings.ts"
       );
       const listing = await createDailyTestListing({});
-      const [day] = await bookableStartDates(listing.id);
+      const day = (await bookableStartDates(listing.id))[0];
+      if (day === undefined) throw new Error("the listing has no bookable day");
       // Book the day directly, since the roster's date options come from the
       // dates on the booking rows.
       const { attendeesApi } = await import("#shared/db/attendees/api.ts");
@@ -268,7 +269,10 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
           await loadListingRosterPanel(await loaded(listing.id), ctxWith()),
         ),
       );
-      expect(html).toContain(day!);
+      // The date picker only appears when the booked days were collected, so
+      // its presence is the assertion — the attendee row below prints the same
+      // date either way.
+      expect(html).toContain("All dates");
     });
   });
 
@@ -292,6 +296,39 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       );
       expect(html).toContain("Called about parking");
       expect(html).toContain("Noted Person");
+    });
+  });
+
+  describe("the answers summary", () => {
+    /** A question every listing asks, with one answer to count. */
+    const askEveryone = async (text: string): Promise<void> => {
+      const { addAnswer, createQuestion } = await import(
+        "#test-utils/questions/helpers.ts"
+      );
+      const questionId = await createQuestion(text);
+      await addAnswer(questionId, "Blue");
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute(
+        "UPDATE questions SET assign_all = 1 WHERE id = ?",
+        [questionId],
+      );
+    };
+
+    test("names each question the listing asks", async () => {
+      await askEveryone("Favourite colour");
+      const listing = await createTestListing({});
+      const html = await withTestSession(async () =>
+        String(await loadListingOverviewPanel(await loaded(listing.id))),
+      );
+      expect(html).toContain("Favourite colour");
+    });
+
+    test("is left out entirely for a listing that asks nothing", async () => {
+      const listing = await createTestListing({});
+      const html = await withTestSession(async () =>
+        String(await loadListingOverviewPanel(await loaded(listing.id))),
+      );
+      expect(html).not.toContain("Favourite colour");
     });
   });
 });
