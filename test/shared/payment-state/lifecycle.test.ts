@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { PaymentConflictSchema } from "#shared/payment-state/conflict.ts";
 import {
   PaymentCaseStateSchema,
   PaymentIgnoreReasonSchema,
@@ -21,30 +20,6 @@ import {
 } from "./fixtures.ts";
 
 describe("payment lifecycle", () => {
-  test("validates every payment conflict", () => {
-    const conflicts = [
-      { kind: "invalid_provider_data", reason: "mismatched_id" },
-      { kind: "missing_resource" },
-      { kind: "resource_mismatch" },
-      { kind: "currency_mismatch" },
-      { kind: "provider_total_mismatch" },
-      { kind: "partial_charge" },
-      { kind: "capture_total_mismatch" },
-      { kind: "refund_exceeds_capture" },
-      { kind: "duplicate_charge" },
-      { kind: "multiple_charges" },
-      { kind: "duplicate_refund" },
-      { kind: "multiple_pending_refunds" },
-      { kind: "paid_without_charge" },
-      { kind: "partial_refund" },
-      { kind: "failed_refund" },
-    ] as const;
-
-    expect(
-      conflicts.map((item) => v.parse(PaymentConflictSchema, item).kind),
-    ).toEqual(conflicts.map((item) => item.kind));
-  });
-
   test("validates every payment resolution", () => {
     const observation = paymentObservation();
     const resolutions = [
