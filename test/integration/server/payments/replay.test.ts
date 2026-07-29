@@ -155,7 +155,9 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const attendees = await getAttendeesRaw(listing.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.quantity).toBe(0);
-          expect((await getNoteRows("attendee", [attendees[0]!.id])).length).toBe(1);
+          expect(
+            (await getNoteRows("attendee", [attendees[0]!.id])).length,
+          ).toBe(1);
           expect(mockRefund.calls.length).toBe(1);
 
           const payment =

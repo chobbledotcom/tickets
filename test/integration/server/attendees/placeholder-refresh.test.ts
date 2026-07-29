@@ -5,12 +5,9 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { execute } from "#shared/db/client.ts";
-import { requestChargeRefund } from "#shared/db/payments/charges.ts";
-import {
-  createSystemNote,
-  getNotesFor,
-} from "#shared/db/notes/queries.ts";
+import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { requestChargeRefund } from "#shared/db/payments/charges.ts";
 import type { Attendee } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";

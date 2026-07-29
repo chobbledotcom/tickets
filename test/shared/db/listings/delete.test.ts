@@ -98,8 +98,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       await deleteListing(listing.id);
 
       // The attendee is orphaned, not purged, so its payment record survives.
-      const payment =
-        await requirePaymentAggregateByProviderSession("sess_listing_delete");
+      const payment = await requirePaymentAggregateByProviderSession(
+        "sess_listing_delete",
+      );
       expect(payment.attendeeId).toBe(attendee.id);
     });
 

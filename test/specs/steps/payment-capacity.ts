@@ -4,9 +4,9 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getPaymentSessionByResourceOrNull } from "#shared/db/payments/sessions.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
+import { getPaymentSessionByResourceOrNull } from "#shared/db/payments/sessions.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,

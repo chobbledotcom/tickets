@@ -82,7 +82,10 @@ describeWithEnv(
           const account = attendeeAccount(attendee!.id);
           expect(await transfersByAccount(account)).toEqual([]);
           expect(
-            await getNotesFor(attendeeNotes(attendee!.id), await getTestPrivateKey()),
+            await getNotesFor(
+              attendeeNotes(attendee!.id),
+              await getTestPrivateKey(),
+            ),
           ).toEqual([]);
           const due =
             await requirePaymentAggregateByProviderSession(

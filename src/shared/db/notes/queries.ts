@@ -55,7 +55,7 @@ const noteWriterOf =
       ? execute(`${sql} RETURNING id`, args)
       : transaction.execute({ args, sql: `${sql} RETURNING id` }));
     const row = result.rows[0];
-    return row === undefined ? null : Number(row["id"]);
+    return row === undefined ? null : Number(row.id);
   };
 
 /**

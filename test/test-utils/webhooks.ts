@@ -319,7 +319,10 @@ export const expectRefundNote = async (
   await settleDeferredPaymentWork();
   const [attendee] = await getAttendeesRaw(listingId);
   const kept = required(attendee, "a kept booking");
-  const notes = await getNotesFor(attendeeNotes(kept.id), await getTestPrivateKey());
+  const notes = await getNotesFor(
+    attendeeNotes(kept.id),
+    await getTestPrivateKey(),
+  );
   const text = notes.map((note) => note.note).join("\n");
   expect(text).toContain(contains);
 };
