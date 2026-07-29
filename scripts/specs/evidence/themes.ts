@@ -23,10 +23,14 @@ export type ReadEvidenceTheme = (captureId: string) => Promise<string>;
 
 export const defineThemeReader = (
   readTextFile: (path: string) => Promise<string>,
-  directory: string | undefined,
+  askForDirectory: () => string | undefined,
 ): ReadEvidenceTheme => {
-  if (!directory) return () => Promise.resolve("");
   return async (captureId) => {
+    // Asked for on each capture rather than when this module loads: the
+    // captures run in a process that is handed the directory as it starts, and
+    // reading it once at import time is a race nobody would see the loss from.
+    const directory = askForDirectory();
+    if (!directory) return "";
     const path = join(directory, `${captureId}.css`);
     try {
       return await readTextFile(path);
@@ -41,7 +45,7 @@ export const defineThemeReader = (
 
 export const readEvidenceTheme: ReadEvidenceTheme = defineThemeReader(
   Deno.readTextFile,
-  Deno.env.get(EVIDENCE_THEMES_ENV),
+  () => Deno.env.get(EVIDENCE_THEMES_ENV),
 );
 
 /** The themes directory, ready to hand to the process that does the capturing.
