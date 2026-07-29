@@ -22,6 +22,12 @@ import { adminGet } from "#test-utils/session.ts";
  * so they share this contract rather than repeating the signature. */
 export type CheckMoneyShown = (id: number, minor: number) => Promise<void>;
 
+/** One way of asking for a page: as the owner, or as anyone else. */
+type ReadOnePage = (path: string) => Promise<Response>;
+
+/** A page's HTML, once the response has been checked. */
+export type ReadOnePageHtml = (path: string) => Promise<string>;
+
 // -- Ledger-truth helpers ------------------------------------------------- //
 
 /** Normalise a signed-zero to a plain zero so `toBe(0)` (strict, `-0 !== 0`)
@@ -57,12 +63,21 @@ export const sumOfAllBalances = async (): Promise<number> => {
 
 // -- Admin page assertions ------------------------------------------------ //
 
+/**
+ * Read a page's HTML, asserting a 200, through whichever way of asking is
+ * given: an owner's session, or a plain request the way anyone else would.
+ * Who is asking is the only part that differs, so it is the only part passed.
+ */
+export const pageHtmlVia =
+  (get: ReadOnePage): ReadOnePageHtml =>
+  async (path) => {
+    const response = await get(path);
+    expect(response.status).toBe(200);
+    return response.text();
+  };
+
 /** GET an owner page and return its HTML, asserting a 200. */
-export const adminPageHtml = async (path: string): Promise<string> => {
-  const response = await adminGet(path);
-  expect(response.status).toBe(200);
-  return response.text();
-};
+export const adminPageHtml: ReadOnePageHtml = pageHtmlVia(adminGet);
 
 /**
  * Assert a `revenue` account's RUNNING BALANCE on the per-account ledger
