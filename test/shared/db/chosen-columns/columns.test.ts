@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 
-type ProjectionRow = {
+type SampleRow = {
   active: boolean;
   id: number;
   name: string;
@@ -11,8 +11,8 @@ type ProjectionRow = {
   tag: string;
 };
 
-const projectionTable = defineTable<ProjectionRow>({
-  name: "projection_rows",
+const sampleTable = defineTable<SampleRow>({
+  name: "sample_rows",
   primaryKey: "id",
   schema: {
     active: col.boolean(false),
@@ -30,14 +30,14 @@ const projectionTable = defineTable<ProjectionRow>({
 
 describe("chosen table columns", () => {
   test("builds explicit column SQL with an optional table alias", () => {
-    const chosen = chooseColumns(projectionTable, ["id", "name"]);
+    const chosen = chooseColumns(sampleTable, ["id", "name"]);
 
     expect(chosen.columnsSql()).toBe("id, name");
     expect(chosen.columnsSql("row")).toBe("row.id, row.name");
   });
 
   test("reads only the selected columns through their table transforms", async () => {
-    const chosen = chooseColumns(projectionTable, ["id", "name", "active"]);
+    const chosen = chooseColumns(sampleTable, ["id", "name", "active"]);
 
     expect(
       await chosen.read({ active: 1, id: 7, name: "stored:Open" }),
@@ -45,17 +45,17 @@ describe("chosen table columns", () => {
   });
 
   test("rejects a query row missing a selected column", async () => {
-    const chosen = chooseColumns(projectionTable, ["id", "name"]);
+    const chosen = chooseColumns(sampleTable, ["id", "name"]);
 
     await expect(
       chosen.read({ id: 7 } as { id: number; name: string }),
     ).rejects.toThrow(
-      "Chosen column name is missing from the projection_rows rows read back",
+      "Chosen column name is missing from the sample_rows rows read back",
     );
   });
 
   test("reads several selected rows", async () => {
-    const chosen = chooseColumns(projectionTable, ["id", "name"]);
+    const chosen = chooseColumns(sampleTable, ["id", "name"]);
 
     expect(
       await chosen.readAll([
@@ -69,7 +69,7 @@ describe("chosen table columns", () => {
   });
 
   test("uses each row's primary key while reading several rows", async () => {
-    const chosen = chooseColumns(projectionTable, ["id", "tag"]);
+    const chosen = chooseColumns(sampleTable, ["id", "tag"]);
 
     expect(
       await chosen.readAll([
@@ -84,16 +84,13 @@ describe("chosen table columns", () => {
 
   test("runs projected column transforms when the selected value is missing", async () => {
     expect(
-      await projectionTable.readColumn(
-        "summary",
-        undefined as unknown as string,
-      ),
+      await sampleTable.readColumn("summary", undefined as unknown as string),
     ).toBe("undefined");
   });
 
   test("rejects columns that do not physically exist on the table", () => {
-    expect(() => chooseColumns(projectionTable, ["summary"])).toThrow(
-      "Cannot select summary from projection_rows: it is not one of its columns",
+    expect(() => chooseColumns(sampleTable, ["summary"])).toThrow(
+      "Cannot select summary from sample_rows: it is not one of its columns",
     );
   });
 });

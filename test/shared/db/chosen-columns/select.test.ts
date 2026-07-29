@@ -21,7 +21,7 @@ import { equals, inList } from "#shared/db/where-clauses.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
-describeWithEnv("db > table > declared projection reads", { db: true }, () => {
+describeWithEnv("db > chosen columns > declared reads", { db: true }, () => {
   test("reads every row when nothing is asked of it", async () => {
     const first = await createTestListing({ name: "Alpha" });
     const second = await createTestListing({ name: "Beta" });
