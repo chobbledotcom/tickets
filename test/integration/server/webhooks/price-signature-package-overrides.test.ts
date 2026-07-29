@@ -132,7 +132,8 @@ describeWithEnv(
           );
           expect(transfers.rows).toEqual([]);
           const notes = await execute(
-            "SELECT note FROM system_notes WHERE attendee_id = ?",
+            `SELECT note FROM system_notes
+              WHERE entity_type = 'attendee' AND entity_id = ?`,
             [completed.attendeeId],
           );
           const encrypted = notes.rows[0]?.note;

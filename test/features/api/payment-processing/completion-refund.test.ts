@@ -162,7 +162,9 @@ const completionRows = async (attendeeId: number) => {
       [String(attendeeId), String(attendeeId)],
     ),
     getDb().execute(
-      "SELECT note FROM system_notes WHERE attendee_id = ? ORDER BY id",
+      `SELECT note FROM system_notes
+        WHERE entity_type = 'attendee' AND entity_id = ?
+        ORDER BY id`,
       [attendeeId],
     ),
     getDb().execute(
