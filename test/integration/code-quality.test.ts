@@ -101,6 +101,8 @@ const LIBRARY_PATHS = [
   "shared/db/site-page-items.ts",
   // Exempt until the code that uses each one lands; removed as it does.
   "shared/payment-state/decision.ts",
+  "shared/payment-state/conflict.ts",
+  "shared/payment-state/diagnose.ts",
   "shared/payment-state/lifecycle.ts",
   "shared/payment-state/observation.ts",
   "shared/payment-state/operator.ts",

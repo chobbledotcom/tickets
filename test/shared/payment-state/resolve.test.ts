@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ProviderRead } from "#shared/payment-state/observation.ts";
-import {
-  resolvePayment,
-  validatePaymentObservation,
-} from "#shared/payment-state/resolve.ts";
+import { resolvePayment } from "#shared/payment-state/resolve.ts";
 import type { RefundObservation } from "#shared/payment-state/resources.ts";
 import {
   chargeLeg,
@@ -184,12 +181,15 @@ describe("payment resolver", () => {
     ).toBe("paid_without_charge");
   });
 
-  test("accepts an observation with no charge facts before payment", () => {
+  test("finds nothing to settle in a checkout still being paid", () => {
+    // No charge facts yet is normal before payment, not a disagreement.
     expect(
-      validatePaymentObservation(
-        paymentObservation({ charges: undefined, status: "pending" }),
-      ),
-    ).toEqual({ valid: true });
+      resolvePayment(
+        foundRead(
+          paymentObservation({ charges: undefined, status: "pending" }),
+        ),
+      ).status,
+    ).toBe("pending");
   });
 
   for (const [name, observation, expected] of [
@@ -226,9 +226,6 @@ describe("payment resolver", () => {
     ],
   ] as const) {
     test(`reports a ${name} disagreement`, () => {
-      const check = validatePaymentObservation(observation);
-      expect(check.valid).toBe(false);
-      expect(check.valid ? undefined : check.issue.kind).toBe(expected);
       expect(issueKind(foundRead(observation))).toBe(expected);
     });
   }

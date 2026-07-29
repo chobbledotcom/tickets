@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { PaymentConflictSchema } from "#shared/payment-state/conflict.ts";
 import {
   PaymentCaseStateSchema,
-  PaymentConflictSchema,
   PaymentIgnoreReasonSchema,
   PaymentPendingReasonSchema,
   PaymentRefundStateSchema,
@@ -13,6 +13,7 @@ import {
 import {
   chargeLeg,
   noPaymentRequiredObservation,
+  partlyRefundedObservation,
   paymentObservation,
   refundedObservation,
   refundObservation,
@@ -57,7 +58,7 @@ describe("payment lifecycle", () => {
       { reason: "timed_out", resource: sessionResource, status: "retry" },
       {
         issue: { kind: "partial_refund" },
-        observation,
+        observation: partlyRefundedObservation(),
         resource: sessionResource,
         status: "conflict",
       },
@@ -210,7 +211,7 @@ describe("payment lifecycle", () => {
     expect(() =>
       v.parse(PaymentResolutionSchema, {
         issue: { kind: "partial_refund" },
-        observation: paymentObservation(),
+        observation: partlyRefundedObservation(),
         resource: { ...sessionResource, id: "another_checkout" },
         status: "conflict",
       }),

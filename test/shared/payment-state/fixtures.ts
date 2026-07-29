@@ -69,6 +69,14 @@ export const chargeLeg = (values: Partial<ChargeLeg> = {}): ChargeLeg => ({
   ...values,
 });
 
+/** A charge that gave some of the money back but not all of it — what a
+ *  "partly refunded" problem is actually made of. */
+export const partlyRefundedCharge = (): ChargeLeg =>
+  chargeLeg({
+    confirmedRefunded: { amount: 40, currency: "GBP" },
+    refunds: [refundObservation({ amount: { amount: 40, currency: "GBP" } })],
+  });
+
 export const paymentObservation = (
   values: Partial<PaymentObservation> = {},
 ): PaymentObservation => ({
@@ -133,3 +141,8 @@ export const validationMessage = (
   if (result.success) throw new Error("Expected validation to fail");
   return result.issues[0].message;
 };
+
+/** A reading of a checkout that gave part of the money back — what a "partly
+ *  refunded" problem is made of. */
+export const partlyRefundedObservation = (): PaymentObservation =>
+  paymentObservation({ charges: [partlyRefundedCharge()] });
