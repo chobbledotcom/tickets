@@ -227,6 +227,21 @@ When(
 const reservesHint = (days: number): string =>
   t("public.ticket.date_duration_hint", { durationDays: days });
 
+/** The words the length note opens with whatever the number is, taken from
+ * where two differently-numbered notes stop agreeing. Rejecting this start
+ * rejects the note for every length — a page wired to the wrong listing
+ * would word it for that listing's own days, not for 1. */
+const reservesHintStart = (): string => {
+  const [one, two] = [reservesHint(1), reservesHint(2)];
+  let shared = 0;
+  while (shared < one.length && one[shared] === two[shared]) shared++;
+  const start = one.slice(0, shared);
+  if (start.trim() === "") {
+    throw new Error("The length note has no wording before its number");
+  }
+  return start;
+};
+
 /** The page the customer was looking at when they last looked. */
 const pageLookedAt = (world: TicketsWorld): string =>
   requiredWorldValue(world.customerBrowser, "the page looked at").pageText;
@@ -241,9 +256,7 @@ Then(
 Then(
   "nothing tells them a booking reserves more than one day",
   function (this: TicketsWorld): void {
-    // A one-day listing that wrongly showed the note would word it for its
-    // own single day, so that exact wording is what must be absent.
-    expect(pageLookedAt(this)).not.toContain(reservesHint(1));
+    expect(pageLookedAt(this)).not.toContain(reservesHintStart());
   },
 );
 
