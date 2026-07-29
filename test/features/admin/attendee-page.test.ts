@@ -192,7 +192,11 @@ describeWithEnv("the attendee page", { db: true }, () => {
           query: new URLSearchParams({ return_url: "/admin/calendar" }),
         }),
       );
-      expect(await response.text()).toContain("/admin/calendar");
+      // The hidden field itself — the admin nav also links /admin/calendar,
+      // so a looser check would pass without the value ever being carried.
+      expect(await response.text()).toContain(
+        'name="return_url" type="hidden" value="/admin/calendar"',
+      );
     });
 
     test("is not carried at all when the caller named nowhere", async () => {
@@ -204,7 +208,20 @@ describeWithEnv("the attendee page", { db: true }, () => {
   });
 
   describe("an attendee holding no places", () => {
-    test("is summarised differently from one holding a place", async () => {
+    test("shows a ticket link while they hold a place", async () => {
+      const listing = await createTestListing({});
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Has A Place",
+        "has@example.com",
+      );
+      const html = await tabHtml(attendee.id, "");
+      expect(html).toContain("/t/");
+      expect(html).not.toContain("No quantity");
+    });
+
+    test("says so instead of linking a ticket page that would not open", async () => {
       const listing = await createTestListing({});
       const attendee = await createTestAttendee(
         listing.id,
@@ -212,10 +229,11 @@ describeWithEnv("the attendee page", { db: true }, () => {
         "No Places",
         "none@example.com",
       );
-      const booked = await tabHtml(attendee.id, "");
       await setBookingLineQuantity(attendee.id, listing.id, 0);
-      const unbooked = await tabHtml(attendee.id, "");
-      expect(unbooked).not.toBe(booked);
+      const html = await tabHtml(attendee.id, "");
+      expect(html).toContain("No quantity");
+      // The /t page 404s without a quantity, so it must not be linked at all.
+      expect(html).not.toContain("/t/");
     });
   });
 
@@ -223,7 +241,11 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("offers a way through to the full activity tab", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "");
-      expect(html).toContain(`/admin/attendees/${id}/activity`);
+      // The preview's own link, not the tab strip's — the strip would still
+      // link activity even if the preview pointed somewhere else.
+      expect(html).toContain(
+        `<a href="/admin/attendees/${id}/activity">View all activity</a>`,
+      );
     });
   });
 
@@ -262,20 +284,27 @@ describeWithEnv("the attendee page", { db: true }, () => {
     test("links back to the full activity history", async () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "ledger");
-      expect(html).toContain(`/admin/attendees/${id}/activity`);
+      expect(html).toContain(
+        `<a href="/admin/attendees/${id}/activity">See the full plain-English log on the Activity tab</a>`,
+      );
     });
   });
 
   describe("merging", () => {
-    test("carries the token the caller arrived with", async () => {
+    test("looks up the ticket the caller named, and says when there is none", async () => {
       const id = await bookAttendee();
-      const withToken = await withTestSession(() =>
+      const response = await withTestSession(() =>
         attendeePage.renderPage(OWNER, id, "actions", {
-          query: new URLSearchParams({ token: "a-merge-token" }),
+          query: new URLSearchParams({ token: "no-such-ticket" }),
         }),
       );
-      const plain = await tabHtml(id, "actions");
-      expect(await withToken.text()).not.toBe(plain);
+      expect(await response.text()).toContain("Ticket token not found");
+    });
+
+    test("looks nothing up when the caller named no ticket", async () => {
+      const id = await bookAttendee();
+      const html = await tabHtml(id, "actions");
+      expect(html).not.toContain("Ticket token not found");
     });
   });
 });
