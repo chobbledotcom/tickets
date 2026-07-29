@@ -1735,3 +1735,31 @@ its route suite drives real pages through the session helpers, so it moved from
 `test/integration/admin/` to `test/features/admin/`, which is where that kind
 of suite belongs (see "Let the misplaced-test list see past request helpers"
 above). The other four have no such suite to move.
+
+---
+
+## An answer filed under a listing nobody booked
+
+*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+
+Free-text answers travel through checkout filed under the listing they belong
+to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
+`src/shared/booking-intent.ts` checks that the key is written the way a listing
+id is written, so a key of any other shape stops the booking rather than losing
+the answers under it after the buyer has paid.
+
+What it cannot check is whether that listing was one of the ones actually
+bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
+and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
+looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
+answers. The buyer answered a question and the answer quietly goes nowhere.
+
+The schema is the wrong place for the check: it validates one booking's metadata
+on its own, and the listings that were bought are decided later, once the items
+have been priced and loaded. The natural home is next to
+`saveSessionAnswers`, which already has both the answer map and the booked
+listings — compare the two sets and raise any key that matches no booked
+listing, the same way an unreadable booking is raised.
+
+Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
+where the shape rule is covered and the "names a booked listing" rule is not.

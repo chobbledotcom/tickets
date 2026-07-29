@@ -16,7 +16,6 @@ import {
 } from "#routes/api/payment-processing/package-pricing.ts";
 import { validationFailure } from "#routes/api/payment-processing/refunds.ts";
 import type {
-  BookingIntent,
   ListingValidation,
   PaymentFailureResult,
 } from "#routes/api/webhook-types.ts";
@@ -26,6 +25,7 @@ import {
   lineGroupIds,
   standaloneLineListingIds,
 } from "#shared/booking/signed-metadata.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { resolveNamesConcealed } from "#shared/package-privacy.ts";
