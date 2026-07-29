@@ -148,6 +148,24 @@ describe("generateAttendeesCsv", () => {
     expect(lines[1]).toMatch(/^2026-03-15,/);
   });
 
+  test("writes a multi-day booking's date as its first and last day", () => {
+    // The stored end date is the day after the last day held, so a booking
+    // from the 12th ending (exclusive) on the 15th reads "12 to 14".
+    const attendees = [
+      testAttendee({ date: "2026-06-12", end_date: "2026-06-15" }),
+    ];
+    const lines = generateAttendeesCsv(attendees, true).split("\n");
+    expect(lines[1]).toMatch(/^2026-06-12 to 2026-06-14,/);
+  });
+
+  test("writes a one-day booking's stored range as the day alone", () => {
+    const attendees = [
+      testAttendee({ date: "2026-06-12", end_date: "2026-06-13" }),
+    ];
+    const lines = generateAttendeesCsv(attendees, true).split("\n");
+    expect(lines[1]).toMatch(/^2026-06-12,/);
+  });
+
   test("includes empty date in row when date is null", () => {
     const attendees = [testAttendee({ date: null })];
     const csv = generateAttendeesCsv(attendees, true);

@@ -20,4 +20,14 @@ describe("renderDateSelector", () => {
     expect(html).toContain('value="2026-01-01"');
     expect(html).not.toContain('value="2026-01-01" selected');
   });
+
+  test("says how many days each booking reserves when it spans several", () => {
+    const html = renderDateSelector(["2026-01-01"], "", 3);
+    expect(html).toContain("each booking reserves 3 days");
+  });
+
+  test("says nothing about duration for one-day bookings", () => {
+    const html = renderDateSelector(["2026-01-01"], "", 1);
+    expect(html).not.toContain("each booking reserves");
+  });
 });

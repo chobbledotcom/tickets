@@ -2,13 +2,15 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
 import { addDays, formatDateRangeLabel } from "#shared/dates.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import { stayListing } from "#test/specs/support/listings.ts";
 import {
-  daysOfferedFor,
+  daysOfferedOn,
   expectRefusedForWantOfRoom,
+  openBookingPage,
   visitorBooks,
   visitorTriesToBook,
 } from "#test/specs/support/public-booking.ts";
@@ -70,17 +72,20 @@ const bookStay = async (
 };
 
 /** A refused attempt keeps what the customer was shown, so the Then can read
- * the reason from the page rather than from the database. */
-const tryToBook = async (
+ * the reason from the page rather than from the database. The number of days
+ * only matters where the customer picks it themselves. */
+export const tryToBook = async (
   world: TicketsWorld,
   name: string,
   startsIn: number,
   places = 1,
+  dayCount?: number,
 ): Promise<void> => {
   const attempt = await visitorTriesToBook(stayListing(world, name), {
     ...guest(9),
     day: dayFromToday(world, startsIn),
     places,
+    ...(dayCount === undefined ? {} : { dayCount }),
   });
   world.customerBrowser = attempt.browser;
   world.bookingWasTaken = attempt.wasBooked;
@@ -94,10 +99,12 @@ export const expectStayCanBeBooked = async (
   day: string,
   expected: boolean,
   who = guest(8),
+  dayCount?: number,
 ): Promise<void> => {
   const attempt = await visitorTriesToBook(stayListing(world, name), {
     ...who,
     day,
+    ...(dayCount === undefined ? {} : { dayCount }),
   });
   if (expected) {
     expect(attempt.wasBooked).toBe(true);
@@ -206,9 +213,37 @@ When(
 When(
   "a customer looks at the days the {word} offers",
   async function (this: TicketsWorld, name: string): Promise<void> {
+    // The page itself is kept too, so a later step can read what it said
+    // beside the days — like how long each booking lasts.
+    const browser = await openBookingPage(stayListing(this, name));
+    this.customerBrowser = browser;
     this.daysOffered ??= new Map();
-    this.daysOffered.set(name, await daysOfferedFor(stayListing(this, name)));
+    this.daysOffered.set(name, daysOfferedOn(browser.currentHtml));
     this.daysOfferedLastLook = name;
+  },
+);
+
+/** The length note as the site words it for one length of booking. */
+const reservesHint = (days: number): string =>
+  t("public.ticket.date_duration_hint", { durationDays: days });
+
+/** The page the customer was looking at when they last looked. */
+const pageLookedAt = (world: TicketsWorld): string =>
+  requiredWorldValue(world.customerBrowser, "the page looked at").pageText;
+
+Then(
+  "they are told each booking reserves {int} days",
+  function (this: TicketsWorld, days: number): void {
+    expect(pageLookedAt(this)).toContain(reservesHint(days));
+  },
+);
+
+Then(
+  "nothing tells them a booking reserves more than one day",
+  function (this: TicketsWorld): void {
+    // A one-day listing that wrongly showed the note would word it for its
+    // own single day, so that exact wording is what must be absent.
+    expect(pageLookedAt(this)).not.toContain(reservesHint(1));
   },
 );
 
