@@ -1,7 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
 export const LATEST_UPDATE =
-  "Retire drained payment staging tables and redact old terminal payment evidence.";
+  "Let a note be about any record, not only an attendee.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";

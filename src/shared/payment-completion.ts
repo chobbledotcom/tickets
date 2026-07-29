@@ -1,10 +1,10 @@
 /* jscpd:ignore-start -- imports */
 import * as v from "valibot";
+import { BookingIntentSchema } from "#shared/booking-intent.ts";
 import {
   RefundResolutionSchema,
   ResourceIdSchema,
 } from "#shared/payment-state/resources.ts";
-import { BookingIntentSchema } from "#shared/payments.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
 

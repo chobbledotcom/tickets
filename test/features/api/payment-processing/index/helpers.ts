@@ -1,5 +1,5 @@
 import type { BookingPayment } from "#routes/api/webhook-types.ts";
-import type { BookingIntent, BookingItem } from "#shared/payments.ts";
+import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 
 export const bookingIntent = (
   items: BookingItem[],

@@ -382,6 +382,13 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-22_maintenance_completion",
     () => import("./2026-07-22_maintenance_completion.ts"),
   ),
+  // Notes move to their own tables before the payment work below: applying
+  // the schema walks every declared table, and adding a NOT NULL column to a
+  // table that already has rows is refused, so this has to land first.
+  entry(
+    "2026-07-28_note_entities",
+    () => import("./2026-07-28_note_entities.ts"),
+  ),
   // Create the durable payment aggregate and retain ambiguous legacy facts for repair.
   entry(
     "2026-07-26_payment_aggregate",

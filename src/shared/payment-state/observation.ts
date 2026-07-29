@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { BookingIntentSchema } from "#shared/booking-intent.ts";
 import {
   type ChargeLeg,
   ChargeLegsSchema,
@@ -10,7 +11,6 @@ import {
   ResourceIdSchema,
   sameProviderResource,
 } from "#shared/payment-state/resources.ts";
-import { BookingIntentSchema } from "#shared/payments.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
 
 export const PaymentModeSchema = v.picklist(["test", "live"]);

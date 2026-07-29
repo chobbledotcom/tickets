@@ -2,11 +2,11 @@
  * Types for webhook route handlers (payment callbacks and provider webhooks)
  */
 
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PaymentSessionClaim } from "#shared/db/payments/claims.ts";
 import type { PaymentSession } from "#shared/db/payments/types.ts";
 import type { PaymentClientResult } from "#shared/payment-completion.ts";
 import type { PaymentResolution } from "#shared/payment-state/lifecycle.ts";
-import type { BookingIntent } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 export type { BookingIntent };

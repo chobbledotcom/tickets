@@ -18,10 +18,8 @@ import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import {
-  ADMIN_API_ENDPOINTS,
-  PUBLIC_API_ENDPOINTS,
-} from "#shared/admin-api-example.ts";
+import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
+import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import {

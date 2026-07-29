@@ -1,7 +1,13 @@
 /** Form tables: questions, answers, attributes, built sites, notes. */
 
+import { NOTE_ENTITIES } from "#shared/db/notes/target.ts";
 import { createdColumn, sortOrderColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+
+/** The record kinds a note may be about, as a CHECK the database enforces. */
+const noteEntityCheck = `entity_type IN (${NOTE_ENTITIES.map(
+  (entity) => `'${entity}'`,
+).join(", ")})`;
 
 export const questionTables: [name: string, table: Table][] = [
   [
@@ -217,18 +223,22 @@ export const questionTables: [name: string, table: Table][] = [
   ],
 
   [
-    // Per-attendee notes the operator sees on the attendee record. `note` is
-    // always stored encrypted — a `system` note (auto-generated, e.g. the
+    // Notes the operator sees on a record, named by which kind of record they
+    // are about (`entity_type`) and which one (`entity_id`). `note` is always
+    // stored encrypted — a `system` note (auto-generated, e.g. the
     // refunded-but-stored booking warning) with the symmetric DB_ENCRYPTION_KEY
     // so a key-less system path can both write and read it back, an `owner` note
     // (operator-authored) with the owner public key so only the owner can read
-    // it. System notes are kept PII-free by convention. No FKs — the attendee
+    // it. System notes are kept PII-free by convention. No FKs — each record's
     // delete path prunes these rows explicitly.
     "system_notes",
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["attendee_id", "INTEGER NOT NULL"],
+        // The kinds come from NOTE_ENTITIES, so the stored values and the ones
+        // the code accepts cannot drift apart.
+        ["entity_type", `TEXT NOT NULL CHECK (${noteEntityCheck})`],
+        ["entity_id", "INTEGER NOT NULL"],
         [
           "type",
           "TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner'))",
@@ -237,7 +247,10 @@ export const questionTables: [name: string, table: Table][] = [
         createdColumn,
       ],
       indexes: [
-        { columns: ["attendee_id"], name: "idx_system_notes_attendee_id" },
+        {
+          columns: ["entity_type", "entity_id"],
+          name: "idx_system_notes_entity",
+        },
       ],
     },
   ],

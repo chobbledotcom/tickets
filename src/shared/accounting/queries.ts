@@ -29,12 +29,7 @@ import {
   LEG_COLUMNS,
   signedSumCase,
 } from "#shared/accounting/projection-sql.ts";
-import {
-  andPrefixed,
-  type LedgerRange,
-  occurredAtRange,
-  wherePrefixed,
-} from "#shared/accounting/range.ts";
+import { type LedgerRange, occurredAtRange } from "#shared/accounting/range.ts";
 import {
   fromDb,
   selectByEventGroup,
@@ -48,7 +43,15 @@ import {
   rowExists,
   type TxScope,
 } from "#shared/db/client.ts";
+import {
+  clauseArgs,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+
+/** Newest first by business time, ties broken by id so the order is stable. */
+const NEWEST_FIRST = "occurred_at DESC, id DESC";
 
 /** A parameterised "this leg's <role> side IS the account" match — two bound `?`
  *  for (type, id), built from the shared transfers column names so every balance
@@ -58,11 +61,14 @@ const legMatchesAccount = (role: "source" | "dest"): string =>
 
 /** Every transfer touching `account`, as source or destination. */
 export const transfersByAccount = (acct: AccountRef): Promise<Transfer[]> =>
-  selectTransfers(
-    fromDb,
-    ` WHERE (${legMatchesAccount("source")}) OR (${legMatchesAccount("dest")})`,
-    [acct.type, acct.id, acct.type, acct.id],
-  );
+  selectTransfers(fromDb, {
+    where: [
+      {
+        args: [acct.type, acct.id, acct.type, acct.id],
+        clause: `(${legMatchesAccount("source")}) OR (${legMatchesAccount("dest")})`,
+      },
+    ],
+  });
 
 /** Every leg of one business event (booking, refund, …). */
 export const transfersByEventGroup = (
@@ -83,17 +89,14 @@ export const eventGroupHasLegs = (eventGroup: string): Promise<boolean> =>
 
 /** The whole ledger. For tests and small reports; scoped reads are preferred on
  *  hot paths. */
-export const allTransfers = (): Promise<Transfer[]> =>
-  selectTransfers(fromDb, "", []);
+export const allTransfers = (): Promise<Transfer[]> => selectTransfers(fromDb);
 
 /** The most recent `limit` transfers, newest first (by business time then id, so
  *  ties are stable). The ordering + limit run in SQL so the whole ledger is never
  *  loaded into memory; `occurred_at` is the stored INTEGER epoch, so DESC is
  *  newest-first. */
 export const recentTransfers = (limit: number): Promise<Transfer[]> =>
-  selectTransfers(fromDb, " ORDER BY occurred_at DESC, id DESC LIMIT ?", [
-    limit,
-  ]);
+  selectTransfers(fromDb, { limit, order: NEWEST_FIRST });
 
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
  * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden, but
@@ -109,21 +112,25 @@ const VISIBLE_TRANSFER_SCOPE =
  *  so both types are included so service-cost legs appear in the listing view. */
 const listingLegScope = (
   listingIds: readonly number[] | null,
-): { clause: string; args: InValue[] } =>
-  listingIds === null
-    ? { args: [], clause: "" }
-    : listingIds.length === 0
-      ? { args: [], clause: " AND 0" }
-      : {
-          args: Array(4)
-            .fill(listingIds.map((id) => String(id)))
-            .flat(),
-          clause:
-            ` AND (dest_type = '${REVENUE}' AND dest_id IN (${inPlaceholders(listingIds)})` +
-            ` OR source_type = '${REVENUE}' AND source_id IN (${inPlaceholders(listingIds)})` +
-            ` OR source_type = '${COST}' AND source_id IN (${inPlaceholders(listingIds)})` +
-            ` OR dest_type = '${COST}' AND dest_id IN (${inPlaceholders(listingIds)}))`,
-        };
+): WhereClause[] => {
+  if (listingIds === null) return [];
+  // Asking for no listings can match no leg, so the read is skipped entirely.
+  if (listingIds.length === 0) {
+    return [{ args: [], clause: "0", matchesNothing: true }];
+  }
+  return [
+    {
+      args: Array(4)
+        .fill(listingIds.map((id) => String(id)))
+        .flat(),
+      clause:
+        `(dest_type = '${REVENUE}' AND dest_id IN (${inPlaceholders(listingIds)})` +
+        ` OR source_type = '${REVENUE}' AND source_id IN (${inPlaceholders(listingIds)})` +
+        ` OR source_type = '${COST}' AND source_id IN (${inPlaceholders(listingIds)})` +
+        ` OR dest_type = '${COST}' AND dest_id IN (${inPlaceholders(listingIds)}))`,
+    },
+  ];
+};
 
 /**
  * The visible transfer list for the operator ledger: newest first, capped at
@@ -137,14 +144,12 @@ export const visibleTransfers = (
   listingIds: readonly number[] | null,
   limit: number,
 ): Promise<Transfer[]> => {
-  const r = occurredAtRange(range);
-  const listing = listingLegScope(listingIds);
-  return selectTransfers(
-    fromDb,
-    ` WHERE ${VISIBLE_TRANSFER_SCOPE}${andPrefixed(r.clause)}${listing.clause}` +
-      " ORDER BY occurred_at DESC, id DESC LIMIT ?",
-    [...r.args, ...listing.args, limit],
-  );
+  const parts: WhereClause[] = [
+    { args: [], clause: VISIBLE_TRANSFER_SCOPE },
+    ...occurredAtRange(range),
+    ...listingLegScope(listingIds),
+  ];
+  return selectTransfers(fromDb, { limit, order: NEWEST_FIRST, where: parts });
 };
 
 /** Distinct-day bounds (earliest/latest `occurred_at`) over the whole ledger, or
@@ -201,7 +206,7 @@ type LedgerTotalsRow = {
 export const ledgerTotals = async (
   range: LedgerRange,
 ): Promise<LedgerTotals> => {
-  const r = occurredAtRange(range);
+  const parts = occurredAtRange(range);
   // An ungrouped aggregate always yields exactly one row.
   const row = await requireOne<LedgerTotalsRow>(
     `SELECT
@@ -214,8 +219,8 @@ export const ledgerTotals = async (
        ${signedSumCase(`source_type = '${ATTENDEE}'`, `dest_type = '${ATTENDEE}'`)} AS due,
        COALESCE(SUM(CASE WHEN kind = '${KIND.refundCash}' THEN amount ELSE 0 END), 0) AS refunded,
        ${signedSumCase(`dest_type = '${FEE_INCOME}'`, `source_type = '${FEE_INCOME}'`)} AS fees
-     FROM transfers${wherePrefixed(r.clause)}`,
-    r.args,
+     FROM transfers${whereSql(parts)}`,
+    clauseArgs(parts),
   );
   return {
     due: Number(row.due),

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { BookingItem } from "#shared/booking-intent.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
@@ -11,11 +12,7 @@ import {
 } from "#shared/payment-helpers.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
-import type {
-  BookingItem,
-  CheckoutIntent,
-  SessionMetadata,
-} from "#shared/payments.ts";
+import type { CheckoutIntent, SessionMetadata } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 // The provider registry is the single source of the caps these tests exercise.

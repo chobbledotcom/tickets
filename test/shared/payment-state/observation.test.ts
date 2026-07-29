@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { BookingIntentSchema } from "#shared/booking-intent.ts";
 import {
   ObservedPaymentStatusSchema,
   PaymentFactsSchema,
@@ -14,7 +15,6 @@ import {
   signedPaymentOwnership,
   stagedPaymentOwnership,
 } from "#shared/payment-state/observation.ts";
-import { BookingIntentSchema } from "#shared/payments.ts";
 import {
   chargeLeg,
   chargeResource,

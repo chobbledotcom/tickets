@@ -19,7 +19,11 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
-import { enablePublicSite } from "#test-utils/settings.ts";
+import {
+  activateContactForm,
+  CONTACT_OWNER_EMAIL,
+  enablePublicSite,
+} from "#test-utils/settings.ts";
 
 const BOTPOISON_ENV = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",
@@ -41,15 +45,6 @@ const installContactFetch = (opts: {
     }
     return null;
   });
-
-/** Configure everything the public contact form needs to be active. */
-const activate = async (): Promise<void> => {
-  await enablePublicSite();
-  await settings.update.businessEmail("owner@example.com");
-  await settings.update.contactFormEnabled(true);
-  await settings.update.email.provider("resend");
-  await settings.update.email.apiKey("re_test_key");
-};
 
 /** Fetch /contact and pull the CSRF token out of the rendered form. */
 const contactCsrf = async (): Promise<string> => {
@@ -82,7 +77,7 @@ const postContactForm = async (
 
 /** Activate the form, GET /contact, assert it renders, and return the HTML. */
 const renderActiveContactForm = async (): Promise<string> => {
-  await activate();
+  await activateContactForm();
   const response = await handleRequest(mockRequest("/contact"));
   const html = await response.text();
   expect(response.status).toBe(200);
@@ -132,21 +127,21 @@ describeWithEnv(
       });
 
       test("loads the bundled contact widget script", async () => {
-        await activate();
+        await activateContactForm();
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
         expect(html).toContain("/contact.js");
       });
 
       test("shows the Contact link in the public nav even without text", async () => {
-        await activate();
+        await activateContactForm();
         const response = await handleRequest(mockRequest("/"));
         const html = await response.text();
         expect(html).toContain('href="/contact"');
       });
 
       test("renders both contact text and the form together", async () => {
-        await activate();
+        await activateContactForm();
         await settings.update.contactPageText("Reach us anytime");
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
@@ -155,7 +150,7 @@ describeWithEnv(
       });
 
       test("shows the website title heading when one is configured", async () => {
-        await activate();
+        await activateContactForm();
         await settings.update.websiteTitle("Acme Tickets");
         const response = await handleRequest(mockRequest("/contact"));
         const html = await response.text();
@@ -164,7 +159,7 @@ describeWithEnv(
       });
 
       test("renders a success flash after a redirect", async () => {
-        await activate();
+        await activateContactForm();
         const response = await awaitTestRequest(
           `/contact?flash=${FLASH_TEST_ID}`,
           { cookie: flashCookieHeader("Message sent") },
@@ -174,7 +169,7 @@ describeWithEnv(
       });
 
       test("renders an error flash after a redirect", async () => {
-        await activate();
+        await activateContactForm();
         const response = await awaitTestRequest(
           `/contact?flash=${FLASH_TEST_ID}`,
           { cookie: flashCookieHeader("Please enter a message.", false) },
@@ -191,7 +186,7 @@ describeWithEnv(
 
       test("omits the form when the toggle is off", async () => {
         await enablePublicSite();
-        await settings.update.businessEmail("owner@example.com");
+        await settings.update.businessEmail(CONTACT_OWNER_EMAIL);
         await expectContactFormOmitted();
       });
 
@@ -210,9 +205,13 @@ describeWithEnv(
       });
     });
 
+    // A Cucumber run does not feed the coverage gate, so the two refusals below
+    // need a direct test even though the "A visitor writes to the owner" story
+    // also tells them. The rest are guards no visitor could reach through the
+    // form at all.
     describe("POST /contact", () => {
-      test("sends the message and flashes success when verified", async () => {
-        await activate();
+      test("delivers a submission whose puzzle was solved and verified", async () => {
+        await activateContactForm();
         await withContactFetch({ botpoisonOk: true }, async (mock) => {
           const response = await postContactForm({
             _botpoison: "solved",
@@ -221,15 +220,15 @@ describeWithEnv(
           });
           expectRedirect(response, "/contact");
           expectFlash(response, "Message sent");
-          const emailCall = mock.emailCall();
-          expect(emailCall).toBeDefined();
-          expect(emailCall?.body?.to).toEqual(["owner@example.com"]);
-          expect(emailCall?.body?.reply_to).toBe("visitor@external.test");
+          expect(mock.emailCall()?.body?.to).toEqual([CONTACT_OWNER_EMAIL]);
+          expect(mock.emailCall()?.body?.reply_to).toBe(
+            "visitor@external.test",
+          );
         });
       });
 
       test("does not send and flashes an error when verification fails", async () => {
-        await activate();
+        await activateContactForm();
         await withContactFetch({ botpoisonOk: false }, async (mock) => {
           const response = await postContactForm({
             _botpoison: "bad",
@@ -246,58 +245,8 @@ describeWithEnv(
         });
       });
 
-      test("rejects an invalid email without verifying", async () => {
-        await activate();
-        await withContactFetch({ botpoisonOk: true }, async (mock) => {
-          await expectInvalidEmailRejected(mock, { _botpoison: "solved" });
-        });
-      });
-
-      test("rejects an empty message", async () => {
-        await activate();
-        await withContactFetch({ botpoisonOk: true }, async () => {
-          const response = await postContactForm({
-            _botpoison: "solved",
-            email: "visitor@example.com",
-            message: "   ",
-          });
-          expectRedirect(response, "/contact");
-          expectFlash(response, "Please enter a message.", false);
-        });
-      });
-
-      test("rejects a message that exceeds the maximum length", async () => {
-        await activate();
-        await withContactFetch({ botpoisonOk: true }, async (mock) => {
-          const response = await postContactForm({
-            _botpoison: "solved",
-            email: "visitor@example.com",
-            message: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-          });
-          expectRedirect(response, "/contact");
-          expectFlash(
-            response,
-            expect.stringContaining("characters or fewer"),
-            false,
-          );
-          expect(mock.calls.length).toBe(0);
-        });
-      });
-
-      test("redirects to login when the public site is disabled", async () => {
-        await activate();
-        await setAdminFeatureEnabled("site", false);
-        const response = await handleRequest(
-          mockFormRequest("/contact", {
-            email: "visitor@example.com",
-            message: "Hello!",
-          }),
-        );
-        expectRedirect(response, "/admin/login");
-      });
-
       test("flashes an error when the message cannot be delivered", async () => {
-        await activate();
+        await activateContactForm();
         await withContactFetch(
           { botpoisonOk: true, emailStatus: 500 },
           async () => {
@@ -316,8 +265,58 @@ describeWithEnv(
         );
       });
 
+      test("rejects an invalid email without verifying", async () => {
+        await activateContactForm();
+        await withContactFetch({ botpoisonOk: true }, async (mock) => {
+          await expectInvalidEmailRejected(mock, { _botpoison: "solved" });
+        });
+      });
+
+      test("rejects an empty message", async () => {
+        await activateContactForm();
+        await withContactFetch({ botpoisonOk: true }, async () => {
+          const response = await postContactForm({
+            _botpoison: "solved",
+            email: "visitor@example.com",
+            message: "   ",
+          });
+          expectRedirect(response, "/contact");
+          expectFlash(response, "Please enter a message.", false);
+        });
+      });
+
+      test("rejects a message that exceeds the maximum length", async () => {
+        await activateContactForm();
+        await withContactFetch({ botpoisonOk: true }, async (mock) => {
+          const response = await postContactForm({
+            _botpoison: "solved",
+            email: "visitor@example.com",
+            message: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+          });
+          expectRedirect(response, "/contact");
+          expectFlash(
+            response,
+            expect.stringContaining("characters or fewer"),
+            false,
+          );
+          expect(mock.calls.length).toBe(0);
+        });
+      });
+
+      test("redirects to login when the public site is disabled", async () => {
+        await activateContactForm();
+        await setAdminFeatureEnabled("site", false);
+        const response = await handleRequest(
+          mockFormRequest("/contact", {
+            email: "visitor@example.com",
+            message: "Hello!",
+          }),
+        );
+        expectRedirect(response, "/admin/login");
+      });
+
       test("redirects with an error on an invalid CSRF token", async () => {
-        await activate();
+        await activateContactForm();
         const response = await handleRequest(
           mockFormRequest("/contact", {
             _botpoison: "solved",
@@ -354,13 +353,13 @@ describeWithEnv(
 
     describe("contact route dispatch", () => {
       test("404s sub-paths under /contact", async () => {
-        await activate();
+        await activateContactForm();
         const response = await handleRequest(mockRequest("/contact/extra"));
         expect(response.status).toBe(404);
       });
 
       test("404s unsupported methods on /contact", async () => {
-        await activate();
+        await activateContactForm();
         const response = await handleRequest(
           mockRequest("/contact", { method: "PUT" }),
         );
@@ -383,7 +382,7 @@ describeWithEnv(
     });
 
     test("accepts a submission without verification and emails the owner", async () => {
-      await activate();
+      await activateContactForm();
       await withContactFetch({ botpoisonOk: false }, async (mock) => {
         const response = await postContactForm({
           email: "visitor@example.com",
@@ -395,12 +394,12 @@ describeWithEnv(
         expect(
           mock.calls.some((c) => c.url.includes("api.botpoison.com")),
         ).toBe(false);
-        expect(mock.emailCall()?.body?.to).toEqual(["owner@example.com"]);
+        expect(mock.emailCall()?.body?.to).toEqual([CONTACT_OWNER_EMAIL]);
       });
     });
 
     test("still validates the email field", async () => {
-      await activate();
+      await activateContactForm();
       await withContactFetch({ botpoisonOk: false }, async (mock) => {
         await expectInvalidEmailRejected(mock);
       });
@@ -408,7 +407,7 @@ describeWithEnv(
 
     test("404s when the form is not enabled", async () => {
       await enablePublicSite();
-      await settings.update.businessEmail("owner@example.com");
+      await settings.update.businessEmail(CONTACT_OWNER_EMAIL);
       const response = await handleRequest(
         mockFormRequest("/contact", {
           email: "visitor@example.com",

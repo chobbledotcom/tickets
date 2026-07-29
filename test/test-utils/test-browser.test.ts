@@ -221,6 +221,38 @@ describe("TestBrowser navigation", () => {
     expect(browser.redirectedTo).toBe(OFF_SITE);
   });
 
+  it("reports a refusal without going anywhere", async () => {
+    const browser = new TestBrowser();
+    useHandler(browser, (request) =>
+      new URL(request.url).pathname === "/secret"
+        ? new Response("no", { status: 403 })
+        : new Response("arrived"),
+    );
+    await browser.visit("/home");
+
+    const answered = await browser.statusOf("/secret");
+
+    // The refusal is reported, and the browser is still where it was — a story
+    // asking whether a page is theirs must not be moved onto it.
+    expect(answered).toBe(403);
+    expect(browser.currentUrl).toBe("/home");
+    expect(browser.currentHtml).toBe("arrived");
+  });
+
+  it("does not follow a redirect when only reading what a page answered", async () => {
+    const browser = new TestBrowser();
+    useHandler(browser, (request) =>
+      new URL(request.url).pathname === "/moved"
+        ? new Response(null, {
+            headers: { location: "/elsewhere" },
+            status: 302,
+          })
+        : new Response("elsewhere"),
+    );
+
+    expect(await browser.statusOf("/moved")).toBe(302);
+  });
+
   it("forgets an earlier redirect target once a request does not redirect", async () => {
     const browser = browserSentOffSite();
 
@@ -509,8 +541,8 @@ describe("TestBrowser forms", () => {
     return { browser, getParams: () => new URLSearchParams(posted) };
   };
 
-  it("skips disabled matching buttons and submits the form without button data", async () => {
-    const { browser, getParams } = setupFormSubmit();
+  it("refuses to press a button the page has switched off", async () => {
+    const { browser } = setupFormSubmit();
     browser.currentHtml = `
       <form action="/disabled-button">
         <input name="title" value="Draft">
@@ -518,11 +550,34 @@ describe("TestBrowser forms", () => {
       </form>
     `;
 
+    // Naming a button means pressing it. Submitting the form without its data
+    // instead would let a test do something nobody looking at the page could.
+    await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+      'The "Publish" button is switched off',
+    );
+  });
+
+  it("presses a usable button in a later form, not the switched-off one", async () => {
+    const browser = new TestBrowser();
+    let postedPath = "";
+    useHandler(browser, (request) => {
+      postedPath = new URL(request.url).pathname;
+      return new Response("saved");
+    });
+    // A person reading this page can press the second Publish, so naming it
+    // must reach that one rather than stopping at the switched-off first.
+    browser.currentHtml = `
+      <form action="/draft">
+        <button name="action" value="publish" disabled>Publish</button>
+      </form>
+      <form action="/ready">
+        <button name="action" value="publish">Publish</button>
+      </form>
+    `;
+
     await browser.submitForm({}, "Publish");
 
-    const params = getParams();
-    expect(params.get("title")).toBe("Draft");
-    expect(params.has("action")).toBe(false);
+    expect(postedPath).toBe("/ready");
   });
 
   it("selects a form by body text even when no button text matches", async () => {
@@ -564,6 +619,21 @@ describe("TestBrowser forms", () => {
     const params = getParams();
     expect(params.get("title")).toBe("Draft");
     expect(params.has("undefined")).toBe(false);
+  });
+
+  it("presses a usable button when a switched-off one shares its text", async () => {
+    const browser = new TestBrowser();
+    useHandler(browser, () => new Response("saved"));
+    browser.currentHtml = `
+      <form action="/only">
+        <button disabled>Save</button>
+        <button name="action" value="now">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Save");
+
+    expect(browser.currentHtml).toBe("saved");
   });
 
   it("throws with available form actions when no button matches", async () => {

@@ -5,23 +5,17 @@
  * rules that are cheap to unit-test directly.
  */
 
-import {
-  dirname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-  SEPARATOR,
-} from "@std/path";
-import { openLockFile, withFileLock } from "#scripts/lock-file.ts";
-import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { isAbsolute, join, relative, resolve, SEPARATOR } from "@std/path";
+import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
-import { denoExitCode } from "./child-process.ts";
+import { directoryEntries } from "#scripts/walk-files.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
 export const MUTATION_RECORD_FILE = "run.json";
+const MUTATION_RUN_ID_PREFIX = "mutation-";
 export const MUTATION_RUN_LOCK_FILE = "run.lock";
+const MUTATION_COPY_BACK_LOCK_FILE = "copy-back.lock";
 export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
 export const MUTATION_RUN_ID_ENV = "TICKETS_MUTATION_RUN_ID";
 export const MUTATION_RUN_ROOT_ENV = "TICKETS_MUTATION_RUN_ROOT";
@@ -66,24 +60,30 @@ const SKIPPED_FILE_NAMES = new Set([
   "bunny-script.ts.map",
 ]);
 
-export type MutationRunStatus =
-  | "copying"
-  | "running"
-  | "passed"
-  | "failed"
-  | "interrupted";
+const MutationRunStatusSchema = v.picklist([
+  "copying",
+  "running",
+  "passed",
+  "failed",
+  "interrupted",
+]);
 
-export interface MutationRunRecord {
-  args: string[];
-  createdAt: string;
-  exitCode?: number;
-  id: string;
-  pid?: number;
-  root: string;
-  status: MutationRunStatus;
-  updatedAt: string;
-  workRoot: string;
-}
+export type MutationRunStatus = v.InferOutput<typeof MutationRunStatusSchema>;
+
+/** The shape of a run's record, so half-written ones can be spotted. */
+export const MutationRunRecordSchema = v.object({
+  args: v.array(v.string()),
+  createdAt: v.string(),
+  exitCode: v.optional(v.number()),
+  id: v.string(),
+  pid: v.optional(v.number()),
+  root: v.string(),
+  status: MutationRunStatusSchema,
+  updatedAt: v.string(),
+  workRoot: v.string(),
+});
+
+export type MutationRunRecord = v.InferOutput<typeof MutationRunRecordSchema>;
 
 export type IsolationCommand =
   | { kind: "clean"; target: string }
@@ -101,7 +101,8 @@ export const ISOLATION_USAGE = `Usage:
 
 Mutation runs are copied to .mutation-runs/<run-id>/work first. The normal
 in-place mutation engine then runs inside that copy, so live source files are
-not touched.`;
+not touched. The copy is deleted when the run ends, and anything a stopped run
+left behind is deleted when the next run starts.`;
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -139,8 +140,7 @@ const copyDirectory = async (
   const toDir = join(toRoot, relativePath);
   await Deno.mkdir(toDir, { recursive: true });
 
-  const entries: Deno.DirEntry[] = [];
-  for await (const entry of Deno.readDir(fromDir)) entries.push(entry);
+  const entries = await directoryEntries(fromDir);
 
   for (const entry of entries.sort((left, right) =>
     left.name.localeCompare(right.name),
@@ -175,7 +175,18 @@ const compactIso = (iso: string): string =>
 export const createRunId = (
   date = new Date(),
   suffix = crypto.randomUUID().slice(0, 8),
-): string => `mutation-${compactIso(date.toISOString())}-${suffix}`;
+): string =>
+  `${MUTATION_RUN_ID_PREFIX}${compactIso(date.toISOString())}-${suffix}`;
+
+const RUN_ID_SHAPE = new RegExp(
+  `^${MUTATION_RUN_ID_PREFIX}\\d{8}T\\d{6}Z-[0-9a-f]{8}$`,
+);
+
+/**
+ * Does this folder name look like one `createRunId` made? Only those are ours
+ * to clear away; anything else under .mutation-runs belongs to someone else.
+ */
+export const isRunId = (name: string): boolean => RUN_ID_SHAPE.test(name);
 
 export const runsRoot = (root = projectRoot): string =>
   join(root, MUTATION_RUNS_DIR);
@@ -195,6 +206,10 @@ export const recordPath = runChildPath(MUTATION_RECORD_FILE);
 
 export const runLockPath = (record: Pick<MutationRunRecord, "root">): string =>
   join(record.root, MUTATION_RUN_LOCK_FILE);
+
+/** One lock for the whole checkout, shared by every run bringing files back. */
+export const copyBackLockPath = (root = projectRoot): string =>
+  join(runsRoot(root), MUTATION_COPY_BACK_LOCK_FILE);
 
 export const newRunRecord = (
   id: string,
@@ -258,66 +273,25 @@ export const isTerminalRunStatus = (status: MutationRunStatus): boolean =>
  */
 export const RUN_STARTUP_GRACE_MS = 30_000;
 
-export const runStartedRecently = (
-  record: MutationRunRecord,
+/**
+ * Was `at` within the startup grace? Unknown times count as long ago, and so
+ * do times in the future: a clock put back must not make a folder look busy
+ * for ever.
+ */
+export const withinStartupGrace = (
+  at: number,
   now: Date = new Date(),
   graceMs: number = RUN_STARTUP_GRACE_MS,
-): boolean =>
-  Date.parse(record.updatedAt) > 0 &&
-  now.getTime() - Date.parse(record.updatedAt) < graceMs;
+): boolean => {
+  const age = now.getTime() - at;
+  return at > 0 && age >= 0 && age < graceMs;
+};
 
-export const writeRunRecord = async (
+export const runStartedRecently = (
   record: MutationRunRecord,
-): Promise<void> => {
-  await Deno.mkdir(dirname(join(record.root, MUTATION_RECORD_FILE)), {
-    recursive: true,
-  });
-  await Deno.writeTextFile(
-    join(record.root, MUTATION_RECORD_FILE),
-    `${JSON.stringify(record, null, 2)}\n`,
-  );
-};
-
-export const readRunRecord = async (
-  path: string,
-): Promise<MutationRunRecord | null> => {
-  try {
-    return JSON.parse(await Deno.readTextFile(path)) as MutationRunRecord;
-  } catch {
-    return null;
-  }
-};
-
-const recordInCurrentRunDirectory = (
-  record: MutationRunRecord,
-  id: string,
-  root = projectRoot,
-): MutationRunRecord => ({
-  ...record,
-  id,
-  root: runRoot(id, root),
-  workRoot: workRoot(id, root),
-});
-
-export const readRunRecords = async (
-  root = projectRoot,
-): Promise<MutationRunRecord[]> => {
-  const records: MutationRunRecord[] = [];
-  try {
-    for await (const entry of Deno.readDir(runsRoot(root))) {
-      if (!entry.isDirectory) continue;
-      const record = await readRunRecord(recordPath(entry.name, root));
-      if (record) {
-        records.push(recordInCurrentRunDirectory(record, entry.name, root));
-      }
-    }
-  } catch (error) {
-    rethrowUnlessNotFound(error);
-  }
-  return records.sort((left, right) =>
-    right.createdAt.localeCompare(left.createdAt),
-  );
-};
+  now?: Date,
+  graceMs?: number,
+): boolean => withinStartupGrace(Date.parse(record.updatedAt), now, graceMs);
 
 const withTrailingSeparator = (path: string): string =>
   path.endsWith(SEPARATOR) ? path : `${path}${SEPARATOR}`;
@@ -403,58 +377,6 @@ export const formatRunList = (
     : records.map((record) =>
         formatRunLine(record, liveRunIds.has(record.id), root),
       );
-
-const LOCK_HELD_EXIT_CODE = 124;
-
-const LOCK_PROBE_SCRIPT = `
-const [path, timeoutText] = Deno.args;
-const timeout = setTimeout(
-  () => Deno.exit(${LOCK_HELD_EXIT_CODE}),
-  Number(timeoutText),
-);
-const file = await Deno.open(path, { read: true, write: true }).catch(() => null);
-if (file === null) {
-  clearTimeout(timeout);
-  Deno.exit(2);
-}
-try {
-  await file.lock(true);
-  await file.unlock();
-  clearTimeout(timeout);
-  file.close();
-  Deno.exit(0);
-} catch {
-  clearTimeout(timeout);
-  file.close();
-  Deno.exit(2);
-}
-`;
-
-const lockProbeExitCode = (path: string, timeoutMs: number): Promise<number> =>
-  denoExitCode(["eval", LOCK_PROBE_SCRIPT, "--", path, String(timeoutMs)], {
-    stderr: "null",
-    stdout: "null",
-  });
-
-export const runLockIsHeld = async (
-  record: Pick<MutationRunRecord, "root">,
-  timeoutMs = 50,
-): Promise<boolean> => {
-  const path = runLockPath(record);
-  const file = await openLockFile(path).catch(() => null);
-  if (file === null) return false;
-  file.close();
-  return (await lockProbeExitCode(path, timeoutMs)) === LOCK_HELD_EXIT_CODE;
-};
-
-/** Hold a run's own lock, making its folder first so there is one to lock. */
-export const withMutationRunLock = async <Result>(
-  runRootPath: string,
-  run: () => Promise<Result>,
-): Promise<Result> => {
-  await Deno.mkdir(runRootPath, { recursive: true });
-  return await withFileLock(join(runRootPath, MUTATION_RUN_LOCK_FILE), run);
-};
 
 export const selectedRuns = (
   records: MutationRunRecord[],

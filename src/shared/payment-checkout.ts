@@ -1,11 +1,11 @@
 import * as v from "valibot";
 import { sumOf } from "#fp";
+import { BookingIntentSchema } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import {
   MoneySchema,
   ResourceIdSchema,
 } from "#shared/payment-state/resources.ts";
-import { BookingIntentSchema } from "#shared/payments.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { UrlSchema } from "#shared/validation/string.ts";
 

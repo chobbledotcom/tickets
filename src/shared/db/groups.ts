@@ -12,6 +12,7 @@ import {
   mapParallel,
   requiredMapValue,
 } from "#fp";
+import { t } from "#i18n";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   type GroupInput,
@@ -21,6 +22,7 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import {
   execute,
   executeBatch,
@@ -46,18 +48,14 @@ import {
   PRICE_TYPE_GROUP_DAY,
   removeListingGroupPricesStatement,
 } from "#shared/db/listing-prices.ts";
+import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import {
-  decryptListingWithCount,
-  type ListingProjectionRow,
-  queryListingsWithCounts,
-} from "#shared/db/listings/records.ts";
-import { listingProjectionSql } from "#shared/db/listings/sql.ts";
+  type ListingRecordRow,
+  listingReader,
+} from "#shared/db/listings/select.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
-import {
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
   type PackageChildEdgeBlock,
   type PackageMemberBlock,
@@ -93,15 +91,11 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...projectCatalogFields(groupCatalogFields, "columns", {}),
 });
 
-const packageDisplayProjection = defineTableProjection(rawGroupsTable, [
+const packageDisplayColumns = chooseColumns(rawGroupsTable, [
   "id",
   "hide_package_listings",
   "name",
 ]);
-type StoredPackageDisplay = StoredTableProjectionRow<
-  Group,
-  typeof packageDisplayProjection.columns
->;
 
 /** Execute a query and decrypt the resulting group rows */
 const queryGroups = queryAndMap<Group, Group>((row) =>
@@ -195,20 +189,13 @@ export const getListingsByGroupIds = async (
   activeOnly = false,
 ): Promise<Map<number, ListingWithCount[]>> => {
   if (groupIds.length === 0) return new Map();
-  type GroupListingRow = ListingProjectionRow & { group_ids: string };
+  type GroupListingRow = ListingRecordRow & { group_ids: string };
   type ListingGroups = { groupIds: number[]; member: ListingWithCount };
-  const rows = await queryAll<GroupListingRow>(
-    `SELECT json_group_array(groupListing.group_id) AS group_ids,
-            ${listingProjectionSql("listing")},
-            listing.booked_quantity AS attendee_count
-       FROM group_listings AS groupListing
-       JOIN listings AS listing ON listing.id = groupListing.listing_id
-      WHERE groupListing.group_id IN (${inPlaceholders(groupIds)})
-        ${activeOnly ? "AND listing.active = 1" : ""}
-      GROUP BY listing.id
-      ORDER BY listing.created DESC, listing.id DESC`,
-    [...groupIds],
-  );
+  const { sql, args } = listingReader.statement({
+    order: "created_desc",
+    where: { activeOnly, inGroups: [...groupIds] },
+  });
+  const rows = await queryAll<GroupListingRow>(sql, args);
   const listingsWithGroups: ListingGroups[] = await mapParallel(
     async (row: GroupListingRow): Promise<ListingGroups> => ({
       groupIds: groupIdsJson.read(
@@ -293,32 +280,22 @@ export const groupListingTypeError = (
   const siblings = allSiblings.filter((e) => e.id !== excludeListingId);
   const typeMismatch = siblings.find((e) => e.listing_type !== listingType);
   if (typeMismatch) {
-    return `This group already contains ${typeMismatch.listing_type} listings — all listings in a group must be the same type`;
+    return t("error.group_listing_type_mismatch", {
+      type: typeMismatch.listing_type,
+    });
   }
   const customisableMismatch = siblings.find(
     (e) => e.customisable_days !== customisableDays,
   );
   if (customisableMismatch) {
-    return customisableMismatch.customisable_days
-      ? "This group already contains listings with customisable days — all listings in a group must match"
-      : "This group already contains listings without customisable days — all listings in a group must match";
+    return t(
+      customisableMismatch.customisable_days
+        ? "error.group_customisable_days_expected"
+        : "error.group_customisable_days_unexpected",
+    );
   }
   return null;
 };
-
-/**
- * Listings that are NOT already in the given group, with attendee counts — the
- * candidates the group detail "add listings" form offers. Membership is
- * many-to-many, so a listing already in another group is still a valid
- * candidate here; only this group's current members are excluded.
- */
-export const getListingsNotInGroup = (
-  groupId: number,
-): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts(
-    "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
-    [groupId],
-  );
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
@@ -476,15 +453,16 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
-  const packageGroups = await packageDisplayProjection.readAll(
-    await rowsByIds<StoredPackageDisplay>(
-      [...new Set(groupIds)].filter((groupId) => groupId > 0),
-      (placeholders) =>
-        `SELECT ${packageDisplayProjection.columnsSql("groupRecord")}
-          FROM groups AS groupRecord
-        WHERE groupRecord.id IN (${placeholders}) AND groupRecord.is_package = 1`,
-    ),
-  );
+  const packageGroups = await packageDisplayColumns.select({
+    alias: "groupRecord",
+    where: [
+      ...inList(
+        "groupRecord.id",
+        [...new Set(groupIds)].filter((groupId) => groupId > 0),
+      ),
+      ...equals("groupRecord.is_package", 1),
+    ],
+  });
   return new Map(
     packageGroups.map((group) => [
       group.id,
@@ -749,7 +727,9 @@ const copyPackageOverridesStatement = (
                WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ?)
       WHERE cloneMembership.listing_id = ?
         AND cloneMembership.group_id IN (
-              SELECT group_id FROM group_listings WHERE listing_id = ?)
+              SELECT groupListing.group_id
+                FROM group_listings AS groupListing
+               WHERE groupListing.listing_id = ?)
         AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`,
 });
 
@@ -908,7 +888,10 @@ export const setGroupListingsActive = async (
   // Unaliased `id` (not IN_GROUP_SQL's `listing.id`) — this UPDATE has no table
   // alias, so SQLite would reject `listing.id` here.
   const result = await execute(
-    "UPDATE listings SET active = ? WHERE id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
+    `UPDATE listings SET active = ? WHERE id IN (
+       SELECT groupListing.listing_id
+         FROM group_listings AS groupListing
+        WHERE groupListing.group_id = ?)`,
     [active ? 1 : 0, groupId],
   );
   return result.rowsAffected;

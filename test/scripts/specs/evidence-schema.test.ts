@@ -15,7 +15,6 @@ const catalog = validateSpecSources([source()], registry);
 
 const declaration = {
   caseId: "payment.place-available",
-  css: ":root { color-scheme: light; }",
   element: "#payment-result",
   id: "payment-result",
   path: "/admin/payments/{paymentId}",
@@ -102,17 +101,18 @@ describe("Cucumber evidence schema", () => {
             description: "Customers can pay.",
             id: "payments.story",
             name: "Customer payment",
+            uri: "specs/payments/customer-payment.feature",
           },
         },
       ],
-      schemaVersion: 1,
+      schemaVersion: 2,
     };
 
     expect(v.parse(EvidenceManifestSchema, manifest)).toEqual(manifest);
     expect(
       v.safeParse(EvidenceManifestSchema, {
         ...manifest,
-        schemaVersion: 2,
+        schemaVersion: 3,
       }).success,
     ).toBe(false);
     expect(
@@ -121,6 +121,43 @@ describe("Cucumber evidence schema", () => {
         app: { ...manifest.app, commit: "short" },
       }).success,
     ).toBe(false);
+    // A story says where it was authored, so anything quoting it can link to
+    // the Feature without guessing the path.
+    const storyCapture = requireValue(
+      manifest.captures[0],
+      "Manifest capture is missing",
+    );
+    for (const uri of [
+      undefined,
+      "payments/customer-payment.feature",
+      "specs/x.md",
+      "specs/../secrets.feature",
+    ]) {
+      expect(
+        v.safeParse(EvidenceManifestSchema, {
+          ...manifest,
+          captures: [
+            { ...storyCapture, story: { ...storyCapture.story, uri } },
+          ],
+        }).success,
+        String(uri),
+      ).toBe(false);
+    }
+    // A valid filename is not required to be ASCII.
+    expect(
+      v.safeParse(EvidenceManifestSchema, {
+        ...manifest,
+        captures: [
+          {
+            ...storyCapture,
+            story: {
+              ...storyCapture.story,
+              uri: "specs/payments/capacité aux portes.feature",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(true);
 
     const capture = requireValue(
       manifest.captures[0],

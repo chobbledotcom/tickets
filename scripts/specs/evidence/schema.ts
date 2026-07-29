@@ -39,7 +39,6 @@ const EvidenceProfilesSchema = v.pipe(
 
 export const EvidenceCaptureDeclarationSchema = v.strictObject({
   caseId: stableId("evidence case id"),
-  css: v.optional(v.string()),
   element: TrimmedNonEmptyTextSchema,
   id: stableId("capture id"),
   path: v.pipe(
@@ -67,6 +66,27 @@ const EvidenceItemSchema = v.strictObject({
 const NamedEvidenceItemSchema = v.strictObject({
   description: TrimmedNonEmptyTextSchema,
   ...EvidenceItemSchema.entries,
+});
+
+/**
+ * Where the story lives, so a reader of the manifest can open it. Feature
+ * discovery accepts any path under specs/ ending in .feature, so this checks
+ * the shape rather than the alphabet: a valid filename with a space or an
+ * accent must not stop the evidence run.
+ */
+const FeatureUriSchema = v.pipe(
+  TrimmedNonEmptyTextSchema,
+  v.startsWith("specs/", "Feature uri must be under specs/"),
+  v.endsWith(".feature", "Feature uri must be a .feature file"),
+  v.check(
+    (uri) => !uri.split("/").includes("..") && !uri.includes("\\"),
+    "Feature uri must be a safe relative path",
+  ),
+);
+
+const EvidenceStorySchema = v.strictObject({
+  uri: FeatureUriSchema,
+  ...NamedEvidenceItemSchema.entries,
 });
 
 const EvidenceViewportSchema = v.strictObject({
@@ -118,7 +138,7 @@ const EvidenceCaptureSchema = v.strictObject({
     ),
     v.minLength(1),
   ),
-  story: NamedEvidenceItemSchema,
+  story: EvidenceStorySchema,
 });
 
 const EvidenceCapturesSchema = v.pipe(
@@ -143,7 +163,7 @@ export const EvidenceManifestSchema = v.strictObject({
     repository: v.literal(EVIDENCE_REPOSITORY),
   }),
   captures: EvidenceCapturesSchema,
-  schemaVersion: v.literal(1),
+  schemaVersion: v.literal(2),
 });
 
 export type EvidenceManifest = v.InferOutput<typeof EvidenceManifestSchema>;

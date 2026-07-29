@@ -29,6 +29,7 @@ describe("Cucumber story catalog", () => {
       "bookings.changing-how-long-a-stay-lasts",
       "bookings.day-limits-shared-across-listings",
       "bookings.ordering-several-things-at-once",
+      "bookings.selling-things-as-one-bundle",
       "bookings.volunteer-sign-up",
       "payments.capacity-after-payment",
       "payments.correcting-the-books",
@@ -44,7 +45,11 @@ describe("Cucumber story catalog", () => {
       "payments.refunding-everyone-at-once",
       "payments.repeated-money-actions",
       "payments.what-a-paid-booking-earned",
+      "servicing.hearing-from-a-visitor",
       "servicing.hold-and-cost",
+      "servicing.letting-another-system-in",
+      "servicing.what-an-editor-can-do",
+      "servicing.writing-the-pages-people-read",
     ]);
   });
 

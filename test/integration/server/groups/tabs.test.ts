@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { listingGroups } from "#shared/db/groups.ts";
@@ -251,7 +252,7 @@ describeWithEnv(
         );
         await expectFlashRedirect(
           `/admin/groups/${group.id}`,
-          "This group already contains standard listings — all listings in a group must be the same type",
+          t("error.group_listing_type_mismatch", { type: "standard" }),
           false,
         )(response);
 

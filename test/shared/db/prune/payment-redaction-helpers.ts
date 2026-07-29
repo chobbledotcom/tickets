@@ -1,3 +1,4 @@
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import { recordPaymentCase } from "#shared/db/payments/cases.ts";
 import { storeSessionProgress } from "#shared/db/payments/session-record.ts";
@@ -11,7 +12,6 @@ import type {
   ProviderChargeResource,
   ProviderSessionResource,
 } from "#shared/payment-state/resources.ts";
-import type { BookingIntent } from "#shared/payments.ts";
 import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 
 export const oldPaymentTime = (): number =>

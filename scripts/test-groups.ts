@@ -18,7 +18,7 @@
  * it a module-level `// test-groups: run-alone` comment.
  */
 
-import { join, relative } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { isSourcePath, isTestPath } from "./unit-tests-report-lib.ts";
 import { collectFiles } from "./walk-files.ts";
@@ -63,6 +63,17 @@ export type TestGroupPlan = {
   /** Files that keep their own isolate (global hooks or run-alone marker). */
   solo: string[];
 };
+
+/** Read each file once and pair it with whether it must run alone. */
+export const classifyRunAlone = (
+  paths: string[],
+): Promise<{ path: string; runsAlone: boolean }[]> =>
+  Promise.all(
+    paths.map(async (path) => ({
+      path,
+      runsAlone: mustRunAlone(await Deno.readTextFile(path)),
+    })),
+  );
 
 /** Split test files into isolate-sharing shards and solo files. Pure. */
 export const planTestGroups = (
@@ -118,6 +129,45 @@ export const rethrowUnlessLeftoverDir = (error: unknown): void => {
   throw error;
 };
 
+/** How an entry imports one of its members. Entries sit one level below the
+ *  project root, so the specifier climbs out of the entries directory to the
+ *  member's project-relative path — which keeps the project's import map
+ *  applying to it, and is what lets a mutated module bind through its alias. */
+export const groupEntryImport = (root: string, member: string): string =>
+  `../${relative(root, isAbsolute(member) ? member : join(root, member))}`;
+
+/**
+ * Write one entry module per shard into the entries directory, naming each by
+ * its index. Returns the entry paths to run and a cleanup that removes them.
+ */
+export const writeGroupEntries = async (
+  root: string,
+  shards: string[][],
+  nameFor: (index: number) => string,
+): Promise<{ cleanup: () => Promise<void>; paths: string[] }> => {
+  const entriesDir = join(root, GROUPS_DIR);
+  await Deno.mkdir(entriesDir, { recursive: true });
+  const paths: string[] = [];
+  for (const [index, members] of shards.entries()) {
+    const entry = join(entriesDir, nameFor(index));
+    await Deno.writeTextFile(
+      entry,
+      renderGroupEntry(members.map((member) => groupEntryImport(root, member))),
+    );
+    paths.push(entry);
+  }
+  return {
+    // Only an already-removed entry is expected; anything else must surface
+    // rather than leave generated files behind silently.
+    cleanup: async () => {
+      for (const entry of paths) {
+        await Deno.remove(entry).catch(rethrowUnlessNotFound);
+      }
+    },
+    paths,
+  };
+};
+
 export type WrittenTestGroups = {
   /** Paths to hand to `deno test`: group entries plus solo files. */
   runArgs: string[];
@@ -137,36 +187,20 @@ export const writeTestGroups = async (
   groupCount: number = defaultGroupCount(testWorkerCount()),
 ): Promise<WrittenTestGroups> => {
   const paths = await collectTestFiles(root);
-  const files = await Promise.all(
-    paths.map(async (path) => ({
-      path,
-      runsAlone: mustRunAlone(await Deno.readTextFile(path)),
-    })),
-  );
-  const plan = planTestGroups(files, groupCount);
+  const plan = planTestGroups(await classifyRunAlone(paths), groupCount);
 
-  const groupsDir = join(root, GROUPS_DIR);
-  await Deno.mkdir(groupsDir, { recursive: true });
-  const groupPaths: string[] = [];
-  for (const [index, members] of plan.grouped.entries()) {
-    const groupPath = join(groupsDir, `group-${index}.test.ts`);
-    await Deno.writeTextFile(
-      groupPath,
-      renderGroupEntry(members.map((member) => `../${relative(root, member)}`)),
-    );
-    groupPaths.push(groupPath);
-  }
+  const entries = await writeGroupEntries(
+    root,
+    plan.grouped,
+    (index) => `group-${index}.test.ts`,
+  );
 
   return {
     cleanup: async () => {
-      for (const groupPath of groupPaths) {
-        // Only an already-removed entry is expected; anything else must
-        // surface rather than leave generated files behind silently.
-        await Deno.remove(groupPath).catch(rethrowUnlessNotFound);
-      }
-      await Deno.remove(groupsDir).catch(rethrowUnlessLeftoverDir);
+      await entries.cleanup();
+      await Deno.remove(join(root, GROUPS_DIR)).catch(rethrowUnlessLeftoverDir);
     },
-    runArgs: [...groupPaths, ...plan.solo],
+    runArgs: [...entries.paths, ...plan.solo],
     testFiles: paths,
   };
 };

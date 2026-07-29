@@ -70,9 +70,10 @@ describeWithEnv(
       // now owns the triggers that keep saved feature data and visibility in step.
       // The built-site marker drop is also removal-only. The activity backfill
       // completion migration is data-only and covered by its direct tests. The
-      // five retired payment-table declarations own historical schema only, and
-      // the final payment-table retirement is removal-only.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 28);
+      // note-entities migration rebuilds system_notes around its new
+      // entity_type/entity_id pair, owning no additive objects to drop and
+      // restore; it has its own migration test.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 23);
     });
 
     test("restores triggers attached to a dropped table", async () => {

@@ -423,7 +423,7 @@ export const sharedGroupCapacity = (
   };
 };
 
-export type ItemImageProjection = {
+export type ItemImageColumns = {
   /** Projected from the first `image_uses` row for this item. Storage ownership
    * lives in the first-class images tables. */
   image_url: string;
@@ -433,7 +433,7 @@ export type ItemImageProjection = {
   image_alt_text: string;
 };
 
-export interface Listing extends ItemImageProjection {
+export interface Listing extends ItemImageColumns {
   active: boolean;
   assign_built_site: boolean;
   attachment_name: string;
@@ -815,8 +815,8 @@ export type NewsPostSummary = Pick<
 >;
 
 /** The public /news list projection: a summary plus the post's first image
- * (the shared {@link ItemImageProjection} columns). */
-export type NewsPostCard = NewsPostSummary & ItemImageProjection;
+ * (the shared {@link ItemImageColumns} columns). */
+export type NewsPostCard = NewsPostSummary & ItemImageColumns;
 
 /** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
  * is the positive magnitude the owner entered (a fixed amount in major currency
@@ -850,6 +850,25 @@ export interface Modifier {
   /** Trigger-maintained COUNT of this modifier's usage rows. */
   usage_count: number;
 }
+
+/**
+ * The listing values needed to place a listing in the shared sort order: which
+ * tier it belongs to (its type and date), its name for the within-tier sort,
+ * and — for a daily listing — the values that decide its next bookable date.
+ * A read that only lists or picks listings can select these columns alone and
+ * skip the whole listing record.
+ */
+export type SortableListing = Pick<
+  Listing,
+  | "bookable_days"
+  | "date"
+  | "duration_days"
+  | "id"
+  | "listing_type"
+  | "maximum_days_after"
+  | "minimum_days_before"
+  | "name"
+>;
 
 export interface ListingWithCount extends Listing {
   attendee_count: number;

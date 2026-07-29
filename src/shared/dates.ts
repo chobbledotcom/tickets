@@ -16,6 +16,7 @@ import {
   clampDurationDays,
   type Holiday,
   type Listing,
+  type SortableListing,
 } from "#shared/types.ts";
 
 /** Month names for display */
@@ -121,7 +122,7 @@ export const dateRange = (start: string, end: string): string[] => {
 
 /** Compute bookable date range for a daily listing */
 const bookableRange = (
-  listing: Listing,
+  listing: SortableListing,
 ): { bookableDays: string[]; start: string; end: string } => {
   const todayStr = todayInTz(settings.timezone);
   const start = addDays(todayStr, listing.minimum_days_before);
@@ -243,7 +244,7 @@ export const isBookingRangeValid = (
  * Returns null if no bookable dates are available.
  */
 export const getNextBookableDate = (
-  listing: Listing,
+  listing: SortableListing,
   holidays: Holiday[],
 ): string | null => {
   const range = bookableRange(listing);

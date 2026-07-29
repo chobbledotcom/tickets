@@ -8,17 +8,10 @@ import { defineEvidenceCapture } from "#scripts/specs/evidence/capture-flow.ts";
 import type { EvidenceCaptureDeclaration } from "#scripts/specs/evidence/schema.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { validFeature } from "#test/scripts/specs/profile-fixture.ts";
-import { compileEvidenceFeature } from "./evidence-fixture.ts";
-
-const declaration = {
-  caseId: "payment.place-available",
-  css: ":root { --test-colour: blue; }",
-  element: "#payment-result",
-  id: "payment-result",
-  path: "/admin/payments/{paymentId}",
-  presentation: "canonical",
-  profiles: ["mobile"],
-} as const satisfies EvidenceCaptureDeclaration;
+import {
+  compileEvidenceFeature,
+  PAYMENT_RESULT_CAPTURE as declaration,
+} from "./evidence-fixture.ts";
 
 interface CaptureCalls {
   attachments: Array<{
@@ -165,6 +158,7 @@ const captureFixture = (
         ? Promise.reject(options.launchError)
         : Promise.resolve(browser as never),
     readCatalog: () => Promise.resolve(fixture.catalog),
+    readTheme: () => Promise.resolve(":root { --test-colour: blue; }"),
     startServer: () => ({
       baseUrl: "http://127.0.0.1:4321",
       close: () => {

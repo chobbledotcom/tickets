@@ -178,7 +178,7 @@ describeWithEnv("API Keys", { db: true }, () => {
         await getApiKeyForUser(id, 1);
         expect(getQueryLog().map((entry) => entry.sql)).toEqual([
           "SELECT id, name, created, last_used FROM api_keys WHERE user_id = ? ORDER BY id ASC",
-          "SELECT id, name FROM api_keys WHERE id = ? AND user_id = ?",
+          "SELECT id, name FROM api_keys WHERE id = ? AND user_id = ? LIMIT ?",
         ]);
       });
     });
@@ -441,6 +441,9 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(html).toContain("error");
     });
 
+    // Sits beside the story `@story:servicing.letting-another-system-in`,
+    // which walks the same journey. This keeps the delete route's own line
+    // covered: a Cucumber run does not feed the coverage gate.
     test("POST /admin/api-keys/:id/delete removes a key with name confirmation", async () => {
       const { id } = await createTestApiKeyFull("Doomed Key");
 
@@ -510,26 +513,6 @@ describeWithEnv("API Keys", { db: true }, () => {
           expect(body.listings).toBeDefined();
         },
       );
-    });
-
-    test("rejects Bearer token on admin HTML pages", async () => {
-      const { apiKey } = await createTestApiKeyFull("Scope Test");
-
-      // Bearer should NOT authenticate admin UI routes
-      const dashboardResponse = await handleRequest(
-        requestAsApiKey("/admin/api-keys/docs", apiKey),
-      );
-      expect(dashboardResponse.status).toBe(302);
-
-      const settingsResponse = await handleRequest(
-        requestAsApiKey("/admin/settings", apiKey),
-      );
-      expect(settingsResponse.status).toBe(302);
-
-      const keysResponse = await handleRequest(
-        requestAsApiKey("/admin/api-keys", apiKey),
-      );
-      expect(keysResponse.status).toBe(302);
     });
 
     test("rejects invalid Bearer token", async () => {

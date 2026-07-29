@@ -15,40 +15,22 @@ import {
   resultRows,
   type SqlStatement,
 } from "#shared/db/client.ts";
-import type { Attendee, Listing, ListingWithCount } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { decryptListingWithCount } from "./records.ts";
-import { listingProjectionSql } from "./sql.ts";
-
-type StoredListingAggregateColumns = {
-  booked_quantity: number;
-  cost: number;
-  income: number;
-  tickets_count: number;
-};
-
-const extractListingRow = (
-  result: ResultSet,
-): (Listing & StoredListingAggregateColumns) | null =>
-  resultRows<Listing & StoredListingAggregateColumns>(result)[0] ?? null;
+import { type ListingRecordRow, listingReader } from "./select.ts";
 
 const withBatchListing = async <T>(
   listingResult: ResultSet,
   build: (listing: ListingWithCount) => T,
 ): Promise<T | null> => {
-  const listingRow = extractListingRow(listingResult);
+  const listingRow = resultRows<ListingRecordRow>(listingResult)[0];
   if (!listingRow) return null;
-  return build(
-    await decryptListingWithCount({
-      ...listingRow,
-      attendee_count: listingRow.booked_quantity,
-    }),
-  );
+  return build(await decryptListingWithCount(listingRow));
 };
 
-const listingStatement = (id: number): SqlStatement => ({
-  args: [id],
-  sql: `SELECT ${listingProjectionSql("listing")} FROM listings AS listing WHERE listing.id = ?`,
-});
+/** The listing half of these one-round-trip batch reads. */
+const oneListing = (id: number): SqlStatement =>
+  listingReader.statement({ where: { ids: [id] } });
 
 export type ListingWithAttendees = {
   listing: ListingWithCount;
@@ -60,7 +42,7 @@ export const getListingWithAttendeesRaw = async (
   id: number,
 ): Promise<ListingWithAttendees | null> => {
   const results = await queryBatch([
-    listingStatement(id),
+    oneListing(id),
     attendeeBatchStatement({
       fields: ATTENDEE_FIELDS,
       order: "created_desc",
@@ -170,7 +152,7 @@ export const getListingWithAttendeeRaw = async (
   attendeeId: number,
 ): Promise<ListingWithAttendeeRaw | null> => {
   const results = await queryBatch([
-    listingStatement(listingId),
+    oneListing(listingId),
     attendeeBatchStatement({
       fields: ATTENDEE_FIELDS,
       join: "left",

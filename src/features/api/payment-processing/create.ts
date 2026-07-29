@@ -21,6 +21,11 @@ import type {
   PaymentWork,
 } from "#routes/api/webhook-types.ts";
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
+import type {
+  BookingItem,
+  StoredTextAnswerRef,
+  TextAnswerRef,
+} from "#shared/booking-intent.ts";
 import {
   bookingsForOrder,
   checkoutBookingLines,
@@ -36,12 +41,7 @@ import {
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { PaymentCompletion } from "#shared/payment-completion.ts";
-import type {
-  BookingItem,
-  CheckoutIntent,
-  StoredTextAnswerRef,
-  TextAnswerRef,
-} from "#shared/payments.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 /* jscpd:ignore-end */
 

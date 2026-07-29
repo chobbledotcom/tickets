@@ -1,7 +1,15 @@
 #!/usr/bin/env -S deno run --allow-all
 
 import { auditEquivalentMutants } from "#scripts/mutation/equivalent-audit.ts";
-import { EQUIVALENT_MUTANTS_FILE } from "#scripts/mutation/ignore.ts";
+import {
+  EQUIVALENT_MUTANTS_FILE,
+  EQUIVALENT_MUTANTS_PATH,
+} from "#scripts/mutation/ignore.ts";
+import { runInSnapshot } from "#scripts/mutation/isolation.ts";
+import {
+  isSnapshotChild,
+  runSnapshotChild,
+} from "#scripts/mutation/snapshot-child.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import {
   offTerminationSignals,
@@ -25,8 +33,8 @@ const parseOptions = (args: string[]): { write: boolean } => {
   throw new Error(`Unknown arguments: ${args.join(" ")}\n\n${usage}`);
 };
 
-if (import.meta.main) {
-  const options = parseOptions(Deno.args);
+/** Audit inside this checkout, which the snapshot child owns outright. */
+const runAudit = async (options: { write: boolean }): Promise<number> => {
   const controller = new AbortController();
   const onSignal = (): void => controller.abort();
   onTerminationSignals(onSignal);
@@ -49,5 +57,20 @@ if (import.meta.main) {
   for (const line of [...result.killedByLint, ...result.killedByTypeCheck]) {
     console.log(`  ${line}`);
   }
-  if (!options.write && result.retained !== result.checked) Deno.exit(1);
+  return !options.write && result.retained !== result.checked ? 1 : 0;
+};
+
+if (import.meta.main) {
+  // Parsed here too, so a bad flag or --help answers without copying anything.
+  const options = parseOptions(Deno.args);
+  Deno.exit(
+    isSnapshotChild()
+      ? await runSnapshotChild(() => runAudit(options))
+      : await runInSnapshot({
+          args: Deno.args,
+          // Only a --write audit rewrites the list, so only it keeps a file.
+          copyBack: options.write ? [EQUIVALENT_MUTANTS_PATH] : [],
+          entryScript: "scripts/audit-equivalent-mutants.ts",
+        }),
+  );
 }

@@ -19,16 +19,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 const MIGRATIONS = await loadMigrations();
 const sortNums = (ns: number[]): number[] => ns.toSorted((a, b) => a - b);
 
-/** Assert a listing belongs to exactly `ids` (order-independent). */
-const expectGroupIds = async (
-  listingId: number,
-  ids: number[],
-): Promise<void> => {
-  expect(sortNums(await listingGroups.getIds(listingId))).toEqual(
-    sortNums(ids),
-  );
-};
-
 /** A package group with two member listings assigned to it (each test then sets
  * its own package overrides). `slug` keys the group and the listing names. */
 const groupWithTwoMembers = async (slug: string) => {
@@ -51,22 +41,6 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     expect(sortNums(map.get(listing.id) ?? [])).toEqual(
       sortNums([g1.id, g2.id]),
     );
-  });
-
-  test("setListingGroups removes unticked, adds new, keeps retained groups", async () => {
-    const g1 = await createTestGroup({ name: "A", slug: "a" });
-    const g2 = await createTestGroup({ name: "B", slug: "b" });
-    const g3 = await createTestGroup({ name: "C", slug: "c" });
-    const listing = await createTestListing({ name: "Diff" });
-
-    await setListingGroups(listing.id, [g1.id, g2.id]);
-    // Keep g2, drop g1, add g3.
-    await setListingGroups(listing.id, [g2.id, g3.id]);
-    await expectGroupIds(listing.id, [g2.id, g3.id]);
-
-    // Setting the same set again is a no-op (no statements to run).
-    await setListingGroups(listing.id, [g2.id, g3.id]);
-    await expectGroupIds(listing.id, [g2.id, g3.id]);
   });
 
   test("getGroupPackagePrices returns every membership row with its override", async () => {
@@ -191,47 +165,6 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     const after = await getTestPackagePrices(group.id);
     expect(after.get(a.id)).toBe(999);
     expect(after.has(b.id)).toBe(false);
-  });
-
-  test("setGroupPackageMembers clears members it isn't given and clears on empty", async () => {
-    // The group's second member is left unnamed below, so it falls into the
-    // CASE's ELSE branch and is reset to NULL (no override).
-    const { group, a } = await groupWithTwoMembers("clr");
-
-    // Only A named: the other member is reset to NULL (no override).
-    await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 700 }]);
-    expect(await getTestPackagePrices(group.id)).toEqual(
-      new Map([[a.id, 700]]),
-    );
-
-    // Empty array clears every override.
-    await setGroupPackageMembers(group.id, []);
-    expect(await getTestPackagePrices(group.id)).toEqual(new Map());
-  });
-
-  test("setGroupPackageMembers ignores non-member ids without wiping real overrides", async () => {
-    const group = await createTestGroup({ name: "Stale", slug: "stale" });
-    const a = await createTestListing({ name: "SA" });
-    const outsider = await createTestListing({ name: "Outsider" });
-    await setListingGroups(a.id, [group.id]);
-    await setGroupPackageMembers(group.id, [{ listingId: a.id, price: 500 }]);
-
-    // A submission listing only a non-member is a no-op, not a full wipe.
-    await setGroupPackageMembers(group.id, [
-      { listingId: outsider.id, price: 999 },
-    ]);
-    expect(await getTestPackagePrices(group.id)).toEqual(
-      new Map([[a.id, 500]]),
-    );
-
-    // A mixed submission applies the member entry and drops the non-member.
-    await setGroupPackageMembers(group.id, [
-      { listingId: a.id, price: 700 },
-      { listingId: outsider.id, price: 999 },
-    ]);
-    expect(await getTestPackagePrices(group.id)).toEqual(
-      new Map([[a.id, 700]]),
-    );
   });
 
   test("the migration backfills group_listings from a legacy group_id column", async () => {

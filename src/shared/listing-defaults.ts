@@ -43,6 +43,14 @@ export type ListingDefaultKind = "bool" | "number" | "url" | "days";
 /** What {@link resolveListingDefaults} knows beyond the listing being resolved. */
 export type ResolveContext = { hasLogistics: boolean };
 
+/**
+ * A row the overlay can resolve: it must carry the inheritance flag, and it
+ * inherits whichever defaultable fields it actually selected. A narrow read
+ * that selects only some of them gets only those overlaid — see
+ * {@link resolveListingDefaults}.
+ */
+export type ResolvableListing = Partial<Listing> & { use_defaults: boolean };
+
 export type ListingDefaultField = {
   /** Key in {@link ListingDefaults}. */
   key: keyof ListingDefaults;
@@ -55,7 +63,11 @@ export type ListingDefaultField = {
    * break, so {@link resolveListingDefaults} stays a plain fold with no
    * special-cased branches. Absent ⇒ the default always applies.
    */
-  appliesTo?: (listing: Listing, ctx: ResolveContext) => boolean;
+  appliesTo?: (listing: ResolvableListing, ctx: ResolveContext) => boolean;
+  /** The other fields {@link appliesTo} reads. A row carrying this field must
+   * carry these too — {@link resolveListingDefaults} throws rather than judge
+   * the gate on values that are not there. */
+  gateReads?: readonly (keyof Listing)[];
 };
 
 /**
@@ -93,6 +105,7 @@ export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   {
     appliesTo: (listing) => listing.months_per_unit === 0,
     field: "hidden",
+    gateReads: ["months_per_unit"],
     key: "hidden",
     kind: "bool",
   },
@@ -138,8 +151,12 @@ export const listingDefaultFormClasses = (defaults: ListingDefaults): string =>
  * the listing; otherwise return it unchanged. The per-field gates keep the
  * overlay from producing a listing the save path would reject — see
  * {@link LISTING_DEFAULT_FIELDS}.
+ *
+ * A field the row did not select cannot be inherited, so a narrow read gets the
+ * effective values of exactly the fields it asked for. Selecting a gated field
+ * without the fields its gate reads is a bug in the read, and throws.
  */
-export const resolveListingDefaults = <T extends Listing>(
+export const resolveListingDefaults = <T extends ResolvableListing>(
   listing: T,
   defaults: ListingDefaults,
   hasLogistics: boolean,
@@ -147,7 +164,16 @@ export const resolveListingDefaults = <T extends Listing>(
   if (!listing.use_defaults) return listing;
   const ctx: ResolveContext = { hasLogistics };
   const overlay: Partial<Record<keyof Listing, unknown>> = {};
-  for (const { key, field, appliesTo } of setListingDefaultFields(defaults)) {
+  for (const { key, field, appliesTo, gateReads } of setListingDefaultFields(
+    defaults,
+  )) {
+    if (!(field in listing)) continue;
+    const missing = (gateReads ?? []).filter((read) => !(read in listing));
+    if (missing.length > 0) {
+      throw new Error(
+        `Cannot resolve the ${field} default: the row selects it but not ${missing.join(", ")}, which its rule reads`,
+      );
+    }
     if (!appliesTo || appliesTo(listing, ctx)) overlay[field] = defaults[key];
   }
   return { ...listing, ...overlay };

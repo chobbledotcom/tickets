@@ -10,6 +10,7 @@ import {
   clearEvidenceOutput,
   writeEvidenceBundle,
 } from "./manifest.ts";
+import { evidenceThemesEnv } from "./themes.ts";
 
 const evidenceCommit = defineEvidenceCommit(runCommand);
 
@@ -21,5 +22,6 @@ export const runEvidenceSpecs: () => Promise<SpecRunSummary> =
     declarations: EVIDENCE_CAPTURES,
     outputDir: join(projectRoot, "reports", "evidence"),
     run: runSpecs,
+    themes: evidenceThemesEnv,
     writeBundle: writeEvidenceBundle,
   });

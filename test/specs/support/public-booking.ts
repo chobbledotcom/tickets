@@ -14,15 +14,20 @@
 import { expect } from "@std/expect";
 import { bookingError } from "#shared/booking/form.ts";
 import type { Listing } from "#shared/types.ts";
+// jscpd:ignore-start
+import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import {
   optionsOffered,
   whyValueCannotBeSent,
 } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
+// jscpd:ignore-end
 
-/** What a visitor fills in. The day and the number of days only apply to
- * listings booked by the day, so both are optional. */
+/** What somebody fills in to book a place — a visitor on the public page, or
+ * an organiser adding one by hand. The same details either way, so both use
+ * this. The day and the number of days only apply to listings booked by the
+ * day, so both are optional. */
 export interface BookingChoices {
   day?: string;
   dayCount?: number;
@@ -62,15 +67,23 @@ export interface FilledOrder {
   press: () => Promise<BookingAttempt>;
 }
 
-/** Open a page the site serves and fill the order in, checking as it goes that
- * a visitor could really send every value. Nothing is submitted yet. */
-export const visitorFillsInOrder = async (
+/** Somebody works through an order on a page the site serves. What comes back
+ * differs — the order still on screen, or what happened when it was sent — so
+ * the result is the part each one names for itself. */
+type FillsInOrder<Result> = (
   path: string,
   lines: OrderLine[],
   choices: BookingChoices,
-): Promise<FilledOrder> => {
-  const browser = new TestBrowser();
-  await browser.visit(path);
+) => Promise<Result>;
+
+/** Open a page the site serves and fill the order in, checking as it goes that
+ * a visitor could really send every value. Nothing is submitted yet. */
+export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
+  path,
+  lines,
+  choices,
+) => {
+  const browser = await openAsNewcomer(path);
   for (const { listing } of lines) {
     expect(browser.pageText).toContain(listing.name);
   }
@@ -106,12 +119,11 @@ export const visitorFillsInOrder = async (
 
 /** Fill the order in and press Continue straight away — what all but the race
  * stories want. */
-export const visitorTriesToOrder = async (
-  path: string,
-  lines: OrderLine[],
-  choices: BookingChoices,
-): Promise<BookingAttempt> =>
-  (await visitorFillsInOrder(path, lines, choices)).press();
+export const visitorTriesToOrder: FillsInOrder<BookingAttempt> = async (
+  path,
+  lines,
+  choices,
+) => (await visitorFillsInOrder(path, lines, choices)).press();
 
 /** The path and lines for one listing's own public page, so filling one in and
  * ordering from one both describe it the same way. */
@@ -172,8 +184,7 @@ export const expectRefusedForWantOfRoom = (
 /** The days the page offers as a stay's first day. Read from the served date
  * chooser, so a day the site stops offering disappears from this list. */
 export const daysOfferedFor = async (listing: Listing): Promise<string[]> => {
-  const browser = new TestBrowser();
-  await browser.visit(`/ticket/${listing.slug}`);
+  const browser = await openAsNewcomer(`/ticket/${listing.slug}`);
   // The chooser carries an empty "pick a day" option; only real days count.
   return optionsOffered(browser.currentHtml, "date").filter(
     (day) => day !== "",

@@ -68,7 +68,7 @@ export * from "#shared/db/listings/attendees.ts";
 export * from "#shared/db/listings/catalog.ts";
 export * from "#shared/db/listings/delete.ts";
 export * from "#shared/db/listings/records.ts";
-export * from "#shared/db/listings/sql.ts";
+export * from "#shared/db/listings/select.ts";
 export * from "#shared/db/listings/table.ts";
 export * from "#shared/db/login-attempts.ts";
 export * from "#shared/db/migrations.ts";

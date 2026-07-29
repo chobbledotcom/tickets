@@ -1,5 +1,6 @@
 /* jscpd:ignore-start -- imports */
 import * as v from "valibot";
+import { BookingIntentSchema } from "#shared/booking-intent.ts";
 import {
   type PaymentCheckoutCreateSnapshot,
   PaymentCheckoutCreateSnapshotSchema,
@@ -29,7 +30,6 @@ import {
   ProviderSessionResourceSchema,
   ResourceIdSchema,
 } from "#shared/payment-state/resources.ts";
-import { BookingIntentSchema } from "#shared/payments.ts";
 import { PaymentProviderSchema } from "#shared/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";

@@ -13,7 +13,7 @@ import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import type {
   GroupIdsByListingId,
   Image,
-  ItemImageProjection,
+  ItemImageColumns,
 } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -93,7 +93,7 @@ export type TicketPageOptions = GroupAvailability & {
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
-  groupImage?: ItemImageProjection;
+  groupImage?: ItemImageColumns;
   /** The header entity's images, shown as the shared CSS gallery above the
    * form (empty ⇒ falls back to the single header image). */
   galleryImages?: readonly Image[];

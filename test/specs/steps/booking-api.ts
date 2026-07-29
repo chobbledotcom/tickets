@@ -9,12 +9,8 @@ import {
   daysTheApiOffers,
   openTheApi,
 } from "#test/specs/support/booking-api.ts";
-import {
-  guest,
-  newestStayOn,
-  stayListing,
-  staysOn,
-} from "#test/specs/support/stays.ts";
+import { stayListing } from "#test/specs/support/listings.ts";
+import { guest, newestStayOn, staysOn } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,

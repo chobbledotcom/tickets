@@ -21,7 +21,7 @@
  * import them for their own narrower projections.
  */
 
-import type { InValue } from "@libsql/client";
+/* jscpd:ignore-start */
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
@@ -30,8 +30,15 @@ import {
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
+import { defineReader } from "#shared/db/read.ts";
+import {
+  inList,
+  inSubquery,
+  type WhereClause,
+} from "#shared/db/where-clauses.ts";
 import type { Attendee } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /**
  * Order-level refund status, projected from the transfers ledger rather than a
@@ -246,7 +253,7 @@ export type AttendeeWhere = {
   /** Attendees whose id is returned by this subquery — the "pick attendees,
    * then return all their booking lines" pattern (newest N, one page). The
    * subquery carries its own bound args. */
-  attendeeIdsSubquery?: { sql: string; args: InValue[] };
+  attendeeIdsSubquery?: SqlStatement;
   /** Booking lines on these listings. A single listing is a one-element array. */
   listingIds?: number[];
   /** Booking lines within one package group. */
@@ -280,33 +287,15 @@ const ORDER_SQL: Record<AttendeeOrder, string> = {
   upcoming: "COALESCE(listingAttendee.start_at, attendee.created), attendee.id",
 };
 
-/** One filter clause and the args that fill its placeholders, kept together so
- * the arg order can never drift from the clause order. */
-type WhereClause = { clause: string; args: InValue[] };
-
 const whereClauses = (where: AttendeeWhere): WhereClause[] => {
   const parts: WhereClause[] = [
     { args: [], clause: KIND_CLAUSE[where.kind ?? "attendee"] },
+    ...inList("attendee.id", where.attendeeIds),
   ];
-  const inList = (column: string, ids: number[] | undefined) => {
-    if (ids === undefined) return;
-    // An empty id set matches nothing. Emit `IN (NULL)` (always NULL, so no row
-    // passes) rather than the syntactically invalid `IN ()`, so the builder
-    // still produces valid SQL even if a caller doesn't prefilter an empty list.
-    parts.push(
-      ids.length === 0
-        ? { args: [], clause: `${column} IN (NULL)` }
-        : { args: ids, clause: `${column} IN (${inPlaceholders(ids)})` },
-    );
-  };
-  inList("attendee.id", where.attendeeIds);
   if (where.attendeeIdsSubquery !== undefined) {
-    parts.push({
-      args: where.attendeeIdsSubquery.args,
-      clause: `attendee.id IN (${where.attendeeIdsSubquery.sql})`,
-    });
+    parts.push(...inSubquery("attendee.id", where.attendeeIdsSubquery));
   }
-  inList("listingAttendee.listing_id", where.listingIds);
+  parts.push(...inList("listingAttendee.listing_id", where.listingIds));
   if (where.packageGroupId !== undefined) {
     parts.push({
       args: [where.packageGroupId],
@@ -334,32 +323,16 @@ const whereClauses = (where: AttendeeWhere): WhereClause[] => {
 };
 
 /**
- * Build the `FROM … WHERE … ORDER BY …` tail (and its bound args) for an
- * attendee read. Exposed so the batch readers, which must embed the SQL inside
- * a `queryBatch` statement rather than run it, share the exact same filter and
- * ordering logic as {@link getAttendees}.
+ * The tables an attendee read starts from. A daily-range filter is the one
+ * filter that also needs the listings table, because it asks about the listing
+ * rather than the booking.
  */
-export const attendeeFromWhere = (
-  join: AttendeeJoin,
-  where: AttendeeWhere,
-  order?: AttendeeOrder,
-): { from: string; args: InValue[] } => {
-  const parts = whereClauses(where);
-  const joinKeyword = join === "left" ? "LEFT JOIN" : "JOIN";
-  const listingsJoin =
-    where.dailyRange !== undefined
-      ? " JOIN listings AS listing ON listingAttendee.listing_id = listing.id"
-      : "";
-  // A single-attendee read (getAttendeeOrNull) needs no ordering; a list read always
-  // passes one so its rows are deterministic.
-  const orderBy = order === undefined ? "" : ` ORDER BY ${ORDER_SQL[order]}`;
-  return {
-    args: parts.flatMap((part) => part.args),
-    from: `FROM attendees AS attendee ${joinKeyword} listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id${listingsJoin} WHERE ${parts
-      .map((part) => part.clause)
-      .join(" AND ")}${orderBy}`,
-  };
-};
+const attendeeFrom = (join: AttendeeJoin, where: AttendeeWhere): string =>
+  `attendees AS attendee ${join === "left" ? "LEFT JOIN" : "JOIN"}` +
+  " listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id" +
+  (where.dailyRange === undefined
+    ? ""
+    : " JOIN listings AS listing ON listingAttendee.listing_id = listing.id");
 
 /** Everything a caller declares to list attendees: which fields to project,
  * which rows to keep, in what order, over which join. */
@@ -373,6 +346,21 @@ export type GetAttendeesQuery<F extends AttendeeField> = {
   join?: AttendeeJoin;
 };
 
+/** The attendee reader: the chosen fields, the tables, the filter, the order.
+ * A single-attendee read passes no order; a list read always passes one so its
+ * rows come back the same way every time. */
+const attendees = defineReader<AttendeeOrder, GetAttendeesQuery<AttendeeField>>(
+  ORDER_SQL,
+  (query) => {
+    const join = query.join ?? "inner";
+    return {
+      columns: attendeeColumns(join, query.fields),
+      from: attendeeFrom(join, query.where),
+      where: whereClauses(query.where),
+    };
+  },
+);
+
 /**
  * A `queryBatch` statement (SQL + bound args) for an attendee read: the single
  * place a declared query becomes runnable SQL. {@link getAttendees} runs it; the
@@ -382,14 +370,7 @@ export type GetAttendeesQuery<F extends AttendeeField> = {
  */
 export const attendeeBatchStatement = <F extends AttendeeField>(
   query: GetAttendeesQuery<F>,
-): { sql: string; args: InValue[] } => {
-  const join = query.join ?? "inner";
-  const { from, args } = attendeeFromWhere(join, query.where, query.order);
-  return {
-    args,
-    sql: `SELECT ${attendeeColumns(join, query.fields)} ${from}`,
-  };
-};
+): SqlStatement => attendees.statement(query);
 
 /**
  * The one reader every attendee-listing surface uses: declare the fields, the
@@ -399,7 +380,4 @@ export const attendeeBatchStatement = <F extends AttendeeField>(
  */
 export const getAttendees = <F extends AttendeeField>(
   query: GetAttendeesQuery<F>,
-): Promise<AttendeeRowFor<F>[]> => {
-  const { sql, args } = attendeeBatchStatement(query);
-  return queryAll<AttendeeRowFor<F>>(sql, args);
-};
+): Promise<AttendeeRowFor<F>[]> => attendees.rows<AttendeeRowFor<F>>(query);

@@ -8,10 +8,11 @@ import {
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
 import type { PaymentWork } from "#routes/api/webhook-types.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { bookingCompletion } from "#shared/payment-completion.ts";
-import type { BookingIntent, CheckoutIntent } from "#shared/payments.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 

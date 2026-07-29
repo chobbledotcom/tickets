@@ -1,15 +1,9 @@
 /** Cache-aware listing records, CRUD, and basic reads. */
 
 /* jscpd:ignore-start */
-import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import {
-  executeBatch,
-  inPlaceholders,
-  queryAll,
-  queryOnePrimary,
-} from "#shared/db/client.ts";
+import { executeBatch, queryOnePrimary } from "#shared/db/client.ts";
 import { cachedEntityTable } from "#shared/db/common-schema.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
 import {
@@ -18,30 +12,34 @@ import {
   syncListingPrices,
 } from "#shared/db/listing-prices.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema/listing-aggregates.ts";
-import { envNameSource, rowsByIds } from "#shared/db/query.ts";
+import { envNameSource } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type {
   DayPrices,
-  ItemImageProjection,
+  ItemImageColumns,
   Listing,
   ListingWithCount,
 } from "#shared/types.ts";
-import { LISTING_COUNT_SELECT } from "./sql.ts";
+import {
+  getListingRows,
+  type ListingRecordRow,
+  type ListingWhere,
+  listingReader,
+} from "./select.ts";
 import {
   computeSlugIndex,
   type ListingOption,
-  listingOptionProjection,
+  listingOptionColumns,
   rawListingsTable,
 } from "./table.ts";
+
 /* jscpd:ignore-end */
 
-export type ListingProjectionRow = Omit<ListingWithCount, "profit">;
-
 const decryptStoredListingWithCount = async (
-  row: ListingProjectionRow,
+  row: ListingRecordRow,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
   const income = Number(row.income);
@@ -58,7 +56,7 @@ const decryptStoredListingWithCount = async (
 
 /** Convert a projected DB row and overlay the effective listing defaults. */
 export const decryptListingWithCount = async (
-  row: ListingProjectionRow,
+  row: ListingRecordRow,
 ): Promise<ListingWithCount> =>
   resolveListingDefaults(
     await decryptStoredListingWithCount(row),
@@ -70,11 +68,7 @@ export const decryptListingWithCount = async (
 export const getStoredListingsWithCountsByIds = async (
   ids: readonly number[],
 ): Promise<ListingWithCount[]> => {
-  const rows = await rowsByIds<ListingProjectionRow>(
-    [...ids],
-    (placeholders) =>
-      `${LISTING_COUNT_SELECT} WHERE listing.id IN (${placeholders})`,
-  );
+  const rows = await getListingRows({ where: { ids: [...ids] } });
   return mapParallel(decryptStoredListingWithCount)(rows);
 };
 
@@ -84,15 +78,12 @@ export const getStoredListingWithCount = async (
 ): Promise<ListingWithCount | null> =>
   (await getStoredListingsWithCountsByIds([id]))[0] ?? null;
 
-/** Query projected listings in newest-first order. */
-export const queryListingsWithCounts = async (
-  whereClause = "",
-  args: InValue[] = [],
+/** Read listing records in newest-first order, with inherited defaults overlaid
+ * — the shared tail of the cache's three fetches. */
+const getListingsWithCounts = async (
+  where: ListingWhere,
 ): Promise<ListingWithCount[]> => {
-  const rows = await queryAll<ListingProjectionRow>(
-    `${LISTING_COUNT_SELECT} ${whereClause} ORDER BY listing.created DESC, listing.id DESC`,
-    args,
-  );
+  const rows = await getListingRows({ order: "created_desc", where });
   return mapParallel(decryptListingWithCount)(rows);
 };
 
@@ -105,17 +96,10 @@ const listingsEntity = cachedEntityTable<
   "listings",
   rawListingsTable,
   {
-    fetchAll: () => queryListingsWithCounts(),
-    fetchByIds: (ids) =>
-      queryListingsWithCounts(
-        `WHERE listing.id IN (${inPlaceholders(ids)})`,
-        ids,
-      ),
+    fetchAll: () => getListingsWithCounts({}),
+    fetchByIds: (ids) => getListingsWithCounts({ ids: [...ids] }),
     fetchByKeys: (slugIndexes) =>
-      queryListingsWithCounts(
-        `WHERE listing.slug_index IN (${inPlaceholders(slugIndexes)})`,
-        slugIndexes,
-      ),
+      getListingsWithCounts({ slugIndexes: [...slugIndexes] }),
     idOf: (listing) => listing.id,
     keyOf: (listing) => listing.slug_index,
     ttlMs: LISTINGS_CACHE_TTL_MS,
@@ -133,7 +117,7 @@ const listingsEntity = cachedEntityTable<
 );
 const listingsCache = listingsEntity.cache;
 const rawTable = listingsEntity.table;
-const EMPTY_LISTING_IMAGE: ItemImageProjection = {
+const EMPTY_LISTING_IMAGE: ItemImageColumns = {
   image_alt_text: "",
   image_thumb_url: "",
   image_url: "",
@@ -142,7 +126,7 @@ const EMPTY_LISTING_IMAGE: ItemImageProjection = {
 const withDayPrices = async (
   row: Listing,
   provided: DayPrices | undefined,
-  projectedImage?: ItemImageProjection,
+  projectedImage?: ItemImageColumns,
 ): Promise<Listing> => {
   const [day_prices, imageFilenames] = await Promise.all([
     provided ?? getListingDayPrices(row.id),
@@ -195,9 +179,7 @@ export const getListingsById = async (): Promise<
 
 /** Read the narrow listing option projection used by item pickers. */
 export const getAllListingOptions = (): Promise<ListingOption[]> =>
-  listingOptionProjection.queryAll(
-    `SELECT ${listingOptionProjection.columnsSql("listing")} FROM listings AS listing ORDER BY listing.id ASC`,
-  );
+  listingOptionColumns.select({ alias: "listing", order: "listing.id ASC" });
 
 /** Read and decrypt listing names without loading full records. */
 export const listingNames = envNameSource("listings", "listing");
@@ -230,10 +212,8 @@ export const getListingWithCount = (
 export const getListingWithCountPrimary = async (
   id: number,
 ): Promise<ListingWithCount | null> => {
-  const row = await queryOnePrimary<ListingProjectionRow>(
-    `${LISTING_COUNT_SELECT} WHERE listing.id = ?`,
-    [id],
-  );
+  const { sql, args } = listingReader.statement({ where: { ids: [id] } });
+  const row = await queryOnePrimary<ListingRecordRow>(sql, args);
   return row === null ? null : decryptListingWithCount(row);
 };
 

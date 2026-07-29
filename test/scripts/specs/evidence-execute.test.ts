@@ -1,19 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defineEvidenceRun } from "#scripts/specs/evidence/execute.ts";
-import type { EvidenceCaptureDeclaration } from "#scripts/specs/evidence/schema.ts";
 import type { runSpecs } from "#scripts/specs/run.ts";
 import { validFeature } from "#test/scripts/specs/profile-fixture.ts";
-import { compileEvidenceFeature } from "./evidence-fixture.ts";
-
-const declaration = {
-  caseId: "payment.place-available",
-  element: "#payment-result",
-  id: "payment-result",
-  path: "/admin/payments/{paymentId}",
-  presentation: "canonical",
-  profiles: ["mobile"],
-} as const satisfies EvidenceCaptureDeclaration;
+import {
+  compileEvidenceFeature,
+  PAYMENT_RESULT_CAPTURE as declaration,
+} from "./evidence-fixture.ts";
 
 describe("Cucumber evidence execution", () => {
   test("validates declarations and writes the successful run bundle", async () => {
@@ -58,6 +51,7 @@ describe("Cucumber evidence execution", () => {
       declarations: [declaration],
       outputDir: "/evidence",
       run,
+      themes: () => ({}),
       writeBundle: (outputDir, result) => {
         events.push("write");
         written = { bundle: result, outputDir };
@@ -84,6 +78,7 @@ describe("Cucumber evidence execution", () => {
       declarations: [declaration],
       outputDir: "/evidence",
       run,
+      themes: () => ({}),
       writeBundle: () => Promise.resolve(),
     });
 

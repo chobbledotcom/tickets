@@ -17,6 +17,24 @@ export const NonEmptyStringSchema = v.pipe(
 export const OptionalStringSchema = v.optional(v.string());
 export const UrlSchema = v.pipe(v.string(), v.url());
 
+/** A piece of text that may be left out, but has to pass the test when it is
+ *  there. */
+type OptionalCheckedString = v.OptionalSchema<
+  v.SchemaWithPipe<
+    readonly [
+      v.StringSchema<undefined>,
+      v.CheckAction<string, string | undefined>,
+    ]
+  >,
+  undefined
+>;
+
+export const optionalStringThat = (
+  passes: (value: string) => boolean,
+  message?: string,
+): OptionalCheckedString =>
+  v.optional(v.pipe(v.string(), v.check(passes, message)));
+
 export type NonEmptyString = v.InferOutput<typeof NonEmptyStringSchema>;
 type NonEmptyLiteral<T extends string> = T extends "" ? never : T;
 

@@ -14,7 +14,7 @@ import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import type {
   Image,
   ImageUseItemType,
-  ItemImageProjection,
+  ItemImageColumns,
   ListingWithCount,
 } from "#shared/types.ts";
 import type {
@@ -46,7 +46,7 @@ export type TicketSharedContext = {
   childDatesById: Map<string, ChildDatesByDayCount>;
   groupName?: string;
   groupDescription?: string;
-  groupImage?: ItemImageProjection;
+  groupImage?: ItemImageColumns;
   /** The header entity whose image gallery the public page renders (the group
    * on a group page, or the sole listing on a single-listing page); null for a
    * multi-listing combo. Just the reference — the images are read lazily on the

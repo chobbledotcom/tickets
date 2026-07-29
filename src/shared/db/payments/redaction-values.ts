@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import type {
   PaymentCaseEvidence,
   PaymentCompletion,
@@ -12,7 +13,6 @@ import type {
   PaymentObservation,
   ProviderRead,
 } from "#shared/payment-state/observation.ts";
-import type { BookingIntent } from "#shared/payments.ts";
 
 export const redactBookingIntent = (intent: BookingIntent): BookingIntent => ({
   address: "",

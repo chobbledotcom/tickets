@@ -17,16 +17,13 @@
  * Usage: deno task mutation <source-glob> <test-glob> [options]
  */
 
-import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
 import { DEFAULT_TIMEOUT, parseArgs } from "./mutation/args.ts";
+import { expand } from "./mutation/expand.ts";
 import { runIsolatedMutationCommand } from "./mutation/isolation.ts";
 import {
-  MUTATION_RUN_ID_ENV,
-  MUTATION_RUN_ROOT_ENV,
-  MUTATION_SNAPSHOT_CHILD_ENV,
-  MUTATION_WORK_ROOT_ENV,
-  withMutationRunLock,
-} from "./mutation/isolation-state.ts";
+  isSnapshotChild,
+  runSnapshotChild,
+} from "./mutation/snapshot-child.ts";
 
 const USAGE = `Usage:
   deno task mutation <source-glob> <test-glob> [options]
@@ -47,63 +44,6 @@ Options:
 Examples:
   deno task mutation src/shared/dates.ts test/shared/dates.test.ts
   deno task mutation 'src/shared/forms/definition.ts' 'test/shared/forms/definition/*.test.ts' --exhaustive`;
-
-/** Glob metacharacters; a path segment with none is a fixed directory name. */
-const GLOB_CHARS = /[*?{}[\]]/;
-
-/** Every file under `dir`, recursively; a missing directory yields nothing. */
-async function* walkFiles(dir: string): AsyncGenerator<string> {
-  let entries: AsyncIterable<Deno.DirEntry>;
-  try {
-    entries = Deno.readDir(dir);
-  } catch {
-    return;
-  }
-  for await (const entry of entries) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory) yield* walkFiles(path);
-    else if (entry.isFile) yield path;
-  }
-}
-
-/** The leading, glob-free directory of `glob` — where a walk can start without
- *  scanning the whole tree. An exact path (no metacharacters) returns itself. */
-const staticBase = (glob: string): string => {
-  const fixed: string[] = [];
-  for (const segment of normalize(glob).split(SEPARATOR)) {
-    if (GLOB_CHARS.test(segment)) break;
-    fixed.push(segment);
-  }
-  return fixed.length > 0 ? fixed.join(SEPARATOR) : ".";
-};
-
-/**
- * Expand source/test globs to absolute file paths. Replaces `@std/fs`'s
- * `expandGlob` (not in this project's lock, so unfetchable in a sandboxed run)
- * with `@std/path`'s `globToRegExp` over a `Deno.readDir` walk — same contract:
- * absolute paths to existing files, sorted and de-duplicated.
- */
-const expand = async (globs: string[]): Promise<string[]> => {
-  const cwd = Deno.cwd();
-  const paths = new Set<string>();
-  for (const glob of globs) {
-    const absGlob = join(cwd, glob);
-    const pattern = globToRegExp(absGlob, { extended: true, globstar: true });
-    const base = staticBase(absGlob);
-    try {
-      if ((await Deno.stat(base)).isFile) {
-        if (pattern.test(base)) paths.add(base);
-        continue;
-      }
-    } catch {
-      // base doesn't exist; the walk below simply yields nothing
-    }
-    for await (const path of walkFiles(base)) {
-      if (pattern.test(path)) paths.add(path);
-    }
-  }
-  return [...paths].sort();
-};
 
 const main = async (): Promise<void> => {
   const args = parseArgs(Deno.args);
@@ -139,23 +79,9 @@ const main = async (): Promise<void> => {
   Deno.exit(code);
 };
 
-const mutationRunRootFromEnv = (): string | null => {
-  const id = Deno.env.get(MUTATION_RUN_ID_ENV);
-  const runRoot = Deno.env.get(MUTATION_RUN_ROOT_ENV);
-  const workRoot = Deno.env.get(MUTATION_WORK_ROOT_ENV);
-  return id && runRoot && workRoot ? runRoot : null;
-};
-
-const runSnapshotChild = async (): Promise<void> => {
-  const runRoot = mutationRunRootFromEnv();
-  return runRoot === null
-    ? await main()
-    : await withMutationRunLock(runRoot, main);
-};
-
 if (import.meta.main) {
-  if (Deno.env.get(MUTATION_SNAPSHOT_CHILD_ENV) === "1") {
-    await runSnapshotChild();
+  if (isSnapshotChild()) {
+    await runSnapshotChild(main);
   } else {
     Deno.exit(await runIsolatedMutationCommand(Deno.args));
   }

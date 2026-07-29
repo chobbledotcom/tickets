@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { BookingIntentSchema } from "#shared/booking-intent.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { PaymentCaseEvidenceSchema } from "#shared/db/payments/types.ts";
 import { PaymentCheckoutCreateSnapshotSchema } from "#shared/payment-checkout.ts";
@@ -13,7 +14,6 @@ import {
   ProviderRefundResourceSchema,
   ProviderSessionResourceSchema,
 } from "#shared/payment-state/resources.ts";
-import { BookingIntentSchema } from "#shared/payments.ts";
 import { LegacyPaymentRuntimeSchema } from "./legacy.ts";
 import {
   defineEncryptedStoredJson,

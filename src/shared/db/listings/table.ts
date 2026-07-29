@@ -8,13 +8,14 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
-import { col, defineTableProjection } from "#shared/db/table.ts";
+import { col } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -106,7 +107,7 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
 export type ListingOption = Pick<Listing, "active" | "id" | "name">;
 
 /** The shared narrow listing shape used by listing and attribute pickers. */
-export const listingOptionProjection = defineTableProjection(rawListingsTable, [
+export const listingOptionColumns = chooseColumns(rawListingsTable, [
   "id",
   "name",
   "active",

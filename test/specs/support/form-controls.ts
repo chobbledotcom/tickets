@@ -1,8 +1,22 @@
 /**
  * Reading a served page's own form controls, and deciding whether a visitor
- * could really send a value through one. Pure: markup in, answers out — no
- * browser, so the rules can be checked directly.
+ * could really send a value through one. The deciding is pure — markup in,
+ * answers out, no browser — so the rules can be checked directly. The one
+ * `expect` helper at the foot sits on top of that, for the stories.
  */
+
+import { expect } from "@std/expect";
+import { t } from "#i18n";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
+
+/** Why a field could not carry a value, or null when it could. Each rule below
+ * answers the same question about a different piece of the page, so they share
+ * one contract. */
+type WhyFieldCannotCarry = (
+  markup: string,
+  field: string,
+  chosen: string,
+) => string | null;
 
 /** The dropdown on the page for one field, split into the tag's attributes and
  * its options, or null when the field is not a dropdown at all (a typed-in name
@@ -54,14 +68,17 @@ export const optionsOffered = (html: string, field: string): string[] => {
 const attribute = (tag: string, named: string): string | null =>
   tag.match(new RegExp(`${named}="([^"]*)"`))?.[1] ?? null;
 
+/** Whether a control carries a bare on/off attribute of its own, like
+ * `required` or `disabled`. Quoted values are dropped first and the name has to
+ * stand alone, so a box called `not_required`, an `aria-required="false"`, or a
+ * hint that happens to say "required" is not mistaken for the real thing. */
+const hasFlag = (tag: string, named: string): boolean =>
+  new RegExp(`\\s${named}(?=[\\s/>])`).test(tag.replace(/="[^"]*"/g, ""));
+
 /** Why a number box will not take this number, or null when it will. A box that
  * only accepts 1 to 3 cannot send 5, however happily a post carrying 5 is
  * accepted. */
-const whyNumberIsOutOfRange = (
-  box: string,
-  field: string,
-  chosen: string,
-): string | null => {
+const whyNumberIsOutOfRange: WhyFieldCannotCarry = (box, field, chosen) => {
   const number = Number(chosen);
   // An empty box, or anything that is not a number, has no range to break.
   if (chosen === "" || !Number.isFinite(number)) return null;
@@ -124,11 +141,11 @@ export const tickedCheckboxes = (html: string, field: string): string[] =>
  * usable option, a hidden box has to already hold it because the visitor cannot
  * type over one, and a number box has to accept it within its own limits.
  */
-export const whyValueCannotBeSent = (
-  html: string,
-  field: string,
-  chosen: string,
-): string | null => {
+export const whyValueCannotBeSent: WhyFieldCannotCarry = (
+  html,
+  field,
+  chosen,
+) => {
   const chooser = chooserFor(html, field);
   if (chooser) {
     if (chooser.attributes.includes("disabled")) {
@@ -145,10 +162,59 @@ export const whyValueCannotBeSent = (
   }
   const box = boxFor(html, field);
   if (!box) return `the page has no ${field} to fill in`;
-  if (box.includes("disabled")) return `the ${field} box is switched off`;
-  if (box.includes("readonly")) return `the ${field} box cannot be changed`;
+  return whyBoxCannotCarry(box, field, chosen);
+};
+
+/** Why one box on the page could not carry this value. */
+const whyBoxCannotCarry: WhyFieldCannotCarry = (box, field, chosen) => {
+  if (hasFlag(box, "disabled")) return `the ${field} box is switched off`;
+  if (hasFlag(box, "readonly")) return `the ${field} box cannot be changed`;
+  // A browser will not submit a form that leaves a required box empty, so
+  // "send nothing here" is only a real answer when the box is optional.
+  if (chosen === "" && hasFlag(box, "required")) {
+    return `the ${field} box must be filled in`;
+  }
   if (box.includes('type="hidden"') && !box.includes(`value="${chosen}"`)) {
     return `the ${field} box is fixed at something other than "${chosen}"`;
   }
   return whyNumberIsOutOfRange(box, field, chosen);
+};
+
+/** Everything somebody is about to send has to be something they could really
+ * type or pick on the page in front of them, so a story cannot post a value no
+ * real browser would have offered. */
+export const expectCanReallySend = (
+  html: string,
+  values: Record<string, string>,
+): void => {
+  for (const [field, chosen] of Object.entries(values)) {
+    expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
+  }
+};
+
+/** Somebody fills a page's form in and sends it. Every value is checked against
+ * the page they were served first, so a story can never send something no real
+ * browser would have offered them. */
+export const fillInAndSend = async (
+  browser: TestBrowser,
+  values: Record<string, string>,
+  buttonText: string,
+): Promise<void> => {
+  expectCanReallySend(browser.currentHtml, values);
+  await browser.submitForm(values, buttonText);
+};
+
+/** Somebody takes a thing down from its own admin page, typing its name to
+ * confirm. Every way in is followed rather than built: the delete link lives
+ * behind the page's Actions tab, so a thing whose page stopped offering either
+ * one is a thing nobody could take down, and the story fails with them. */
+export const takeDownFromActions = async (
+  browser: TestBrowser,
+  typed: string,
+  labelled: { deleteLink: string; submit: string },
+): Promise<string> => {
+  await browser.clickLink(t("entity.tab.actions"));
+  await browser.clickLink(labelled.deleteLink);
+  await fillInAndSend(browser, { confirm_identifier: typed }, labelled.submit);
+  return browser.pageText;
 };

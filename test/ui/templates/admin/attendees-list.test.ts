@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { SystemNote } from "#shared/db/system-notes.ts";
+import type { SystemNote } from "#shared/db/notes/types.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import {
   type AttendeesListPageProps,
@@ -87,8 +87,9 @@ describe("adminAttendeesListPage", () => {
 
   test("surfaces a red notes summary for attendees that have notes", () => {
     const noteRow: SystemNote = {
-      attendee_id: 1,
       created: "2026-06-23T10:00:00.000Z",
+      entity_id: 1,
+      entity_type: "attendee",
       id: 1,
       note: "needs a follow-up call",
       type: "system",

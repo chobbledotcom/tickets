@@ -5,6 +5,7 @@
  * the story names and lets the site work that code out.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { mapNotNullish } from "#fp";
 import { execute } from "#shared/db/client.ts";
@@ -15,11 +16,13 @@ import {
   saveContactRecord,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
+import { openAdminPage } from "#test/specs/support/browser.ts";
 import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+
+// jscpd:ignore-end
 
 /** What the organiser types into the record's form. A box left out here keeps
  * whatever the page already had in it, the way it would for a person who edits
@@ -32,9 +35,9 @@ interface RecordEdit {
   visits?: string;
 }
 
-/** The page for one person's record, found the way the site finds it. */
-const pagePath = async (email: string): Promise<string> =>
-  `/admin/history/${toContactHashParam(await hashEmail(email))}`;
+/** Where one person's record lives, under the one-way code made from their
+ *  email rather than the address itself. */
+const recordPath = (code: string): string => `/admin/history/${code}`;
 
 /** Everything the site has stored about them right now. */
 export const recordFor = async (email: string): Promise<ContactRecord> =>
@@ -86,14 +89,16 @@ export const unreadableRecord = async (
   );
 };
 
-/** The organiser opens someone's record. */
+/** The organiser opens someone's record. The address it lives at is kept on
+ *  the world because it is made from a one-way code, not from the email, so an
+ *  evidence capture has no path it could write by hand. */
 export const openRecord = async (
   world: TicketsWorld,
   email: string,
 ): Promise<TestBrowser> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(await pagePath(email));
-  return browser;
+  const code = toContactHashParam(await hashEmail(email));
+  world.evidenceValues.set("contactCode", code);
+  return openAdminPage(world, recordPath(code));
 };
 
 /** The boxes on the page, by the words this file uses for them. */

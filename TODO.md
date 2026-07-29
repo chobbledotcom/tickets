@@ -261,10 +261,14 @@ re-rendering. Migration is deliberately gradual and hardest-first.
 
 - **Slice 4 — the long tail.** Questions and `history/:hmac` remain. Groups,
   holidays, users, built sites, and attendee statuses are complete.
-- **Slice 5 — generalize `system_notes`** from attendee-only to
-  `(entity_type, entity_id)` so any entity page can carry a notes section. The
-  notes DB module currently has no `entity_type` column; this is a small
-  migration + query change that unblocks notes tabs on the other entities.
+- **Slice 5 — generalize `system_notes`: done.** A note now names the kind of
+  record it is about and which one (`entity_type`, `entity_id`), and the notes
+  module works in those terms (`src/shared/db/notes/`). What remains is per-page
+  work: add `"listing"` (or whichever record is next) to `NOTE_ENTITIES` in
+  `notes/target.ts`, give that record's delete path the notes delete statement,
+  and add the notes section to its entity page. The list drives the database
+  `CHECK`, so adding a kind ships with a small rebuild migration — as
+  `2026-06-20_free_text_questions` did for `questions.display_type`.
 
 ---
 
@@ -573,6 +577,13 @@ the percentage-surcharge cap noted below, which is a latent correctness bug
   grey out incompatible listings in the add-listings picker rather than erroring
   on save. Same treatment for the hardcoded "Customisable days cannot be
   combined with Allow Pay More" in `src/shared/listings-actions.ts`.
+- **Incompatible listings are offered by the add-listings picker.** The
+  group-homogeneity messages now live in the catalog and say why (`error.group_*`
+  in `src/locales/en/groups.json`), but the operator still only learns of a clash
+  when the save is refused. Better: grey out the listings that cannot join this
+  group in the add-listings picker, so the clash is visible before saving. The
+  rule to render from is `groupListingTypeError` (`src/shared/db/groups.ts`) —
+  same type, and same customisable-days setting, as the members already there.
 
 - **Two save-time either/ors would be clearer as disabled controls.** (a)
   customisable-days vs Allow Pay More (`validateCustomisableDays`,
@@ -819,6 +830,30 @@ them — when the fast claim fails and the case is unchanged, the reason *is*
 that the payment moved, so `closeStaleDecision` can be called without
 re-deriving anything. That is a behaviour change on a money path and wants its
 own change with its own tests.
+## Deferred Codex suggestions from PR #1975 (API documentation examples)
+
+*Origin: Codex review of PR #1975, which made the API documentation examples
+checkable and fixed eighteen real inaccuracies in them. Both items below are
+valid and were deliberately left out: they guard mistakes nobody has made yet,
+and each costs more machinery than the defect it would catch.*
+
+- **Validate admin request fields against their production constraints.**
+  `test/shared/admin-api-example/helpers.ts`'s `isBlank` judges a documented
+  request value by its sign and whether it is zero. A positive *fractional*
+  value (Codex's example: `duration_days: 1.5` in the listing create body)
+  therefore passes, while `API_BODY_FIELD_RULES` requires a safe integer and
+  the real endpoint answers 400. Fixing it properly means running each request
+  example through the endpoint's own field rules rather than a hand-written
+  check. Starting point: `API_BODY_FIELD_RULES` in `src/features/admin/api.ts`.
+
+- **Derive the documented create slug from what a create really does.**
+  `crudDocs` in `src/shared/admin-api-example.ts` builds the create response
+  from the example record, so it keeps `summer-workshop`; the listing and group
+  POST converters call `generateUniqueSlug`, which emits a random five-character
+  slug. The documented create response therefore cannot result from its own
+  request. Left alone because the honest fix — showing `a7f3k` — makes the page
+  harder for a person to read, which is a documentation judgement rather than a
+  correctness one. Starting point: `generateUniqueSlug` in `src/shared/slug.ts`.
 
 ## Deferred CodeRabbit suggestions from PR #1772 (servicing test relocation)
 
@@ -1873,37 +1908,6 @@ and `grep -rn "encryptWithOwnerKey\|decryptWithOwnerKey\|hybridEncrypt" src/`.
 
 ---
 
-## Make `--clean` synchronize with the run lock before removing a run
-
-*Origin: reviewer suggestion on PR #1951.*
-
-`cleanableRuns` in `scripts/mutation/isolation.ts` decides a `copying` run is
-abandoned when its lock is not held, and `removeRun` then deletes
-`record.root` recursively. Neither step takes the run lock, so a run can pass
-the check while still queueing, take the lock, and start copying — and the
-clean, already committed to its decision, removes the record and the
-half-copied snapshot underneath it.
-
-PR #1951 narrowed this: the run now writes its record again once it holds the
-lock, so a clean that lands entirely *before* the lock leaves a run that is
-still findable. That is the common ordering and it is covered by
-`recordAroundClean` in `test/scripts/mutation/isolation/helpers.ts`. The
-remaining window — clean decides, run takes the lock, clean removes — is not
-closed by that write, and no write can close it: the fix has to be that the
-clean holds the run lock across both the decision and the removal.
-
-It was left out of #1951 because that PR is about test coverage of
-`isolation.ts`, and this is a behaviour change to the clean path with its own
-concurrency design to think through (a clean that blocks on every run's lock
-must not hang on a genuinely live run — the existing `runLockIsHeld` check
-would become a `tryLock`).
-
-Starting point: `cleanableRuns`, `removeRun`, and `cleanRuns` in
-`scripts/mutation/isolation.ts`, plus `withMutationRunLock` and `runLockIsHeld`
-in `scripts/mutation/isolation-state.ts`.
-
----
-
 ## Decide what happens to undated bookings when a listing starts being booked by the day
 
 *Origin: found while migrating the multi-day tests to stories (PR for batch 8).*
@@ -2570,6 +2574,87 @@ that one needs looking at in the same change.
 
 Left for its own change: it touches a shared helper on the path that claims
 an owner decision, and this pass was closing gaps one file at a time.
+## Prove a bundle's blank price really charges the thing's own price
+
+*Origin: reviewer suggestion (Codex) on PR #1968.*
+
+The story `bookings.selling-things-as-one-bundle` proves the *saving* half of
+the blank-price rule: leaving a part's price empty on the bundle form stores no
+price of its own for that part. It does not prove the *charging* half — that the
+customer is then asked for that thing's own price rather than nothing.
+
+Its rule is worded to say only what it proves. Closing the gap needs a paid
+bundle taken all the way through a payment provider, which is what the money
+stories already set up (`test/specs/support/money-drivers.ts`), so the natural
+home is a scenario there rather than another one here. A bundle mixing an
+overridden part with a blank one, bought and paid for, should be charged the
+override plus the blank part's own price.
+
+Starting point: `packageMemberMaps` in `src/shared/db/groups.ts` for what counts
+as an override, and `test/integration/server/cart-packages.test.ts` for how a
+priced bundle reaches checkout today.
+
+---
+
+## Give the stripe-mock install lock the same shape as every other file lock
+
+*Origin: noticed while unifying the locks behind `scripts/lock-file.ts`.*
+
+Every lock that is a file — the precommit gate, the browser-asset build, the
+stripe-mock start, each mutation run — now goes through `withFileLock`, which
+holds one advisory lock and checks that the lock it holds is still the file at
+its path. (The database migration lock is not one of these: it is a row in a
+table, and is named below for the pattern it shares.)
+
+`scripts/stripe-mock/install.ts` is the exception: it has a second,
+hand-rolled protocol underneath (`createNew` to claim the lock, a timestamp
+written inside it, and `removeStaleInstallLock` to break a lock whose owner
+died), guarded by a `withFileLock` on a separate guard file.
+
+It answers a question the shared lock cannot: "whoever claimed this walked away,
+so take it from them". Two other places answer that same question their own way:
+the mutation runner uses a record with a status, a pid, and a startup grace plus
+`processExists`, and the database migration lock
+(`src/shared/db/migrations/lock.ts`) writes an owner into a settings row and
+lets anyone break a claim older than `MIGRATION_LOCK_TTL_MS`. Three mechanisms
+for one job.
+
+Worth folding into one: either teach `lock-file.ts` about an owner that can go
+away, or let the install reuse the run-record shape. It stayed out of PR #1957
+because it is a whole protocol, not a shared helper, and the install path has
+its own timing tests.
+
+Starting point: `tryAcquireInstallLock`/`removeStaleInstallLock` in
+`scripts/stripe-mock/install.ts`; `acquireMigrationLock` in
+`src/shared/db/migrations/lock.ts` is the best-worked-out version of the pattern
+and the one to copy; `activeByRecord` in `scripts/mutation/isolation-cleanup.ts`
+is the third; and `test/scripts/stripe-mock/install/stale-locks.test.ts` and
+`waiting.test.ts` say what the timing tests expect.
+
+## Tell a clear-up's hold on a run apart from the run's own
+
+*Origin: reviewer suggestion (Codex) on PR #1957.*
+
+`processBelongsToRun` in `scripts/mutation/isolation-cleanup.ts` decides a run
+belongs to the process in its record when that process is alive *and* somebody
+is holding the run's lock. A clear-up deleting that run's folder holds the same
+lock, so during a deletion the two are indistinguishable.
+
+That matters in one case: the record's process id has since been given to some
+unrelated program. `--kill` then reads "alive and locked" as proof and signals a
+process that has nothing to do with us. Deleting a whole checkout copy takes
+long enough for the window to be real.
+
+It needs the lock evidence tied to the run's own child rather than to whoever
+holds the lock — the holder could write who it is, or a clear-up could hold
+something a run never holds. Either is a change to what a lock means here, which
+is why it did not ride along with PR #1957.
+
+Starting point: `processBelongsToRun` and `removeRun` in
+`scripts/mutation/isolation-cleanup.ts`, `signalRun` in
+`scripts/mutation/isolation.ts` for what acts on the answer, and
+`scripts/held-lock-process.ts` for the process that holds a lock on our behalf.
+
 ---
 
 ## Watch for ports being taken between tests
@@ -2595,3 +2680,94 @@ and then lets go of it before use can be gazumped. The install tests are the
 ones that noticed, because they are the ones that assert a failure. Worth
 looking at whether ports should be handed out so that no two tests in a run can
 ever receive the same one.
+
+It has since been seen once more, in `test/scripts/stripe-mock/lifecycle.test.ts`
+("stops trying once the mock has been started as many times as asked", on CI for
+PR #1968), with a second symptom worth knowing about. That test counts how many
+times the fake mock was started and expects one start per try asked for. A try
+whose freshly picked port already has something listening on it is abandoned
+*before* the mock is started, so the count comes up short and the test fails —
+even though the starter did try the number of times it was asked to. Handing out
+ports so no two tests can receive the same one would fix this too; short of that,
+the count is the wrong thing to measure.
+
+---
+
+## The gap between a mutation child ending and its supervisor taking the lock
+
+*Raised by Codex on [PR #1976](https://github.com/chobbledotcom/tickets/pull/1976),
+about `scripts/mutation/isolation.ts` and `scripts/mutation/isolation-cleanup.ts`.*
+
+A run's copy is protected by its lock, held by the child while it works and by
+the supervisor afterwards. Between the child ending and the supervisor taking
+the lock, nobody holds it. A mutation command starting in that moment sees a
+record that says "running" with a process that has gone, and — once the run is
+older than the startup grace — may delete the run's folder.
+
+Today that costs a run its copy-back: the read fails, the run is reported as
+failed, and the work has to be run again. It is loud, not silent, and it needs
+a second mutation command to start inside a window of a few milliseconds.
+
+The fix is to stop judging a run's liveness by the child alone. If the record
+also carried the supervisor's process id, a run would count as live for as long
+as the supervisor is up, closing the gap. That means changing what
+`runProcessIsUp` and `activeByRecord` in `isolation-cleanup.ts` consider alive,
+and thinking again about the startup grace, which exists because a process id
+can be given to somebody else after the original has gone. Start at
+`RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
+
+## Four feature modules have no test at their mirrored path
+
+*Origin: `deno task precommit:mutation` on the notes-migration branch, which
+could not start.*
+
+The mutation gate refuses to run a source that has mutants but no test at its
+mirrored path under `test/`. Four modules are in that state:
+
+- `src/features/admin/attendee-page.ts` (55 mutants)
+- `src/features/admin/attendees-list.ts` (37)
+- `src/features/admin/listing-page-data.ts` (45)
+- `src/features/api/payment-processing/store-refund.ts` (29)
+
+Nothing needs moving: no test imports any of them. They are reached only
+through the app, by integration and Cucumber journeys, so each needs a direct
+test written at `test/features/…` to match its path.
+
+This blocks the gate for *any* branch that touches one of them, however small
+the change — the notes migration only swapped an import in each. Until they
+have direct tests, a branch touching them can prove its own work with a
+targeted `deno task mutation <source> <tests>` run instead.
+
+`src/features/admin/attendee-notes.ts` was in the same state and is now fixed:
+its route suite drives real pages through the session helpers, so it moved from
+`test/integration/admin/` to `test/features/admin/`, which is where that kind
+of suite belongs (see "Let the misplaced-test list see past request helpers"
+above). The other four have no such suite to move.
+
+---
+
+## An answer filed under a listing nobody booked
+
+*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+
+Free-text answers travel through checkout filed under the listing they belong
+to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
+`src/shared/booking-intent.ts` checks that the key is written the way a listing
+id is written, so a key of any other shape stops the booking rather than losing
+the answers under it after the buyer has paid.
+
+What it cannot check is whether that listing was one of the ones actually
+bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
+and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
+looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
+answers. The buyer answered a question and the answer quietly goes nowhere.
+
+The schema is the wrong place for the check: it validates one booking's metadata
+on its own, and the listings that were bought are decided later, once the items
+have been priced and loaded. The natural home is next to
+`saveSessionAnswers`, which already has both the answer map and the booked
+listings — compare the two sets and raise any key that matches no booked
+listing, the same way an unreadable booking is raised.
+
+Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
+where the shape rule is covered and the "names a booked listing" rule is not.

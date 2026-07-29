@@ -1,5 +1,9 @@
 import * as v from "valibot";
 import {
+  type BookingIntent,
+  BookingIntentSchema,
+} from "#shared/booking-intent.ts";
+import {
   assembleCheckoutMetadata,
   enforceMetadataLimits,
   extractSessionMetadata,
@@ -9,11 +13,7 @@ import {
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { signPrice, verifyPrice } from "#shared/payment-signature.ts";
 import { ResourceIdSchema } from "#shared/payment-state/resources.ts";
-import {
-  type BookingIntent,
-  BookingIntentSchema,
-  type SessionMetadata,
-} from "#shared/payments.ts";
+import type { SessionMetadata } from "#shared/payments.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 /** Rebuild provider metadata from the canonical intent held by our aggregate. */

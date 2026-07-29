@@ -128,7 +128,9 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   ),
   catalogTransfer: area(
     () => import("#routes/admin/catalog-transfer/routes.ts"),
-    ["catalog-transfer", "validation"],
+    // An import runs the same listing and group validators the admin forms do,
+    // so it needs their refusal messages too.
+    ["catalog-transfer", "groups", "listings-table", "validation"],
   ),
   contactHistory: area(
     () => import("#routes/admin/contact-history.ts"),

@@ -6,6 +6,7 @@
  * the story rather than being worked around.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import {
@@ -20,6 +21,16 @@ import { postListingSale } from "#test-utils/ledger.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
+// jscpd:ignore-end
+
+/** What the merge page shows before anything is merged: the page itself, the
+ * version it was built from, and the booking field it offers a choice about. */
+interface MergePreview {
+  bookingField: string;
+  html: string;
+  version: string;
+}
+
 /** GET the merge preview for `targetId` loaded with `sourceToken`, returning the
  *  `merge_version` the apply POST must echo back AND the name of the conflicting
  *  booking's decision field (`booking_<listingId>:<startAt>`) scraped from the
@@ -29,7 +40,7 @@ import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 const mergePreview = async (
   targetId: number,
   sourceToken: string,
-): Promise<{ bookingField: string; html: string; version: string }> => {
+): Promise<MergePreview> => {
   const page = await adminGet(
     `/admin/attendees/${targetId}/actions?token=${encodeURIComponent(
       sourceToken,
@@ -162,9 +173,7 @@ export const mergedListingId = (world: TicketsWorld): number =>
   requiredWorldValue(world.listingId, "the listing being merged on");
 
 /** Open the merge page and read the choices it offers. */
-export const mergeChoices = (
-  world: TicketsWorld,
-): Promise<{ bookingField: string; html: string; version: string }> =>
+export const mergeChoices = (world: TicketsWorld): Promise<MergePreview> =>
   mergePreview(
     survivorId(world),
     requiredWorldValue(world.duplicateToken, "the duplicate token"),

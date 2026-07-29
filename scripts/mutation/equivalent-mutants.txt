@@ -35,11 +35,11 @@ src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record ob
 # cases where x can't be such a value, or F equals the only one it can be.
 src/shared/checkout-pricing.ts:324:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/booking-lines.ts:71:42  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
-src/features/api/payment-processing/create.ts:60:36  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
-src/features/api/payment-processing/create.ts:193:28  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts:196:67  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
-src/features/api/payment-processing/create.ts:199:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts:203:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:63:36  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
+src/features/api/payment-processing/create.ts:200:28  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:203:67  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:206:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:210:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts:170:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts:36:5  ?? → ||    # providerValue returns boolean or null, and false stays false with either fallback operator
@@ -112,9 +112,9 @@ src/fp.ts:455:49  ?? → ||   # items?.length is undefined or a non-negative int
 # undefined, paired null checks already reject both nullish values, optional
 # conditions/dependencies are objects or arrays, and non-generated primary keys
 # are overwritten from the input-column fold in either initial-row branch.
-src/shared/db/table.ts:508:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
-src/shared/db/table.ts:548:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:720:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:521:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
+src/shared/db/table.ts:561:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:733:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
@@ -157,10 +157,13 @@ src/shared/db/listing-parents.ts:221:52  ?? → ||   # childrenByParent.get(id):
 src/shared/db/listing-parents.ts:222:49  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
 
 # Group membership and package storage (groups.ts).
-src/shared/db/groups.ts:229:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
-src/shared/db/groups.ts:437:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
-src/shared/db/groups.ts:682:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts:815:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
+src/shared/db/groups.ts:84:58  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
+src/shared/db/groups.ts:238:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
+src/shared/db/groups.ts:504:55  groupRecord → ""   # columnsSql only qualifies a column when the alias is truthy, so "" selects the same bare column names, which are unambiguous in this single-table query
+src/shared/db/groups.ts:224:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
+src/shared/db/groups.ts:458:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
+src/shared/db/groups.ts:703:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts:836:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
 src/features/admin/api-groups.ts:128:31  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
 src/features/admin/api-groups.ts:252:48  ?? → ||   # package rows are an array or undefined; every array, including [], is truthy
 
@@ -242,9 +245,9 @@ test/test-utils/csrf.ts:236:20  ?? → ||  # quantity id capture: string|undefin
 test/test-utils/test-browser.ts:80:73  ?? → ||   # find(): LinkMatch|undefined; a found object is truthy
 test/test-utils/test-browser.ts:100:26  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
 test/test-utils/test-browser.ts:150:19  ?? → ||  # submitted option tags are non-empty strings when present, otherwise undefined
-test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
-test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
-test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined
+test/test-utils/test-browser.ts:249:45  ?? → ||  # button value fallback is "", so empty value and absent value agree
+test/test-utils/test-browser.ts:382:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
+test/test-utils/test-browser.ts:460:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input
 src/ui/templates/admin/listing-defaults.tsx:105:17  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
 src/ui/templates/admin/listing-defaults.tsx:128:38  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
 src/shared/booking/build-tree.ts:130:48  ?? → ||    # childrenByParentId?.get(): readonly TicketListing[]|undefined — an array is always truthy, so ?? and || coincide
@@ -265,14 +268,17 @@ src/shared/booking/capacity-tree.ts:38:45  ?? → ||    # groupIdsByListingId.ge
 
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
-src/shared/db/attendees/capacity/groups.ts:134:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
-src/shared/db/attendees/capacity/groups.ts:145:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
+src/shared/db/attendees/capacity/groups.ts:135:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
+src/shared/db/attendees/capacity/groups.ts:146:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
 
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts:115:26  true → false   # safeAsync's getValue is () => true only to pass the value === null guard; the fn callback ignores the value so false is equivalent
 src/shared/payment-helpers.ts:204:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/payment-helpers.ts:584:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
 src/shared/payment-helpers.ts:643:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts:198:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:569:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:628:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # Admin listing API fallbacks receive only objects, arrays, positive ids, or
 # nullish values, so no valid request can distinguish these operators.
@@ -350,7 +356,7 @@ src/shared/db/listing-prices.ts:201:45  ?? → ||    # foldGroupDayRows result.g
 
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
-src/features/admin/attendee-page.ts:265:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
+src/features/admin/attendee-page.ts:266:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts:89:51  ?? → ||    # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts:109:20  ?? → ||    # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/import.ts:182:33  ?? → ||    # membershipSpec quantity comes from the PositiveInt schema (at least 1) or is undefined, so it is never 0
@@ -467,18 +473,18 @@ scripts/inline-jsquash-wasm.ts:75:38  ; → ""    # remote module remains semico
 # ignore-list checker cross-checks staleness against the full --exhaustive
 # mutant set regardless of which mode a given run used, so they stay valid
 # (not "stale") even under the default-mode precommit gate.
-src/shared/sort-listings.ts:18:48  2 → 3    # daily tier constant; only used via tierA-tierB's sign, never compared for equality
-src/shared/sort-listings.ts:19:10  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
-src/shared/sort-listings.ts:19:27   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
-src/shared/sort-listings.ts:19:32  0 → 1    # same effect as "always 1" above
-src/shared/sort-listings.ts:19:32  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
-src/shared/sort-listings.ts:59:19  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
+src/shared/sort-listings.ts:22:48  2 → 3    # daily tier constant; only used via tierA-tierB's sign, never compared for equality
+src/shared/sort-listings.ts:23:10  ?: → alternate only   # listingTier always-1: masked by compareDatedStandard's ""-sorts-first + same-tier name fallback, see block comment above
+src/shared/sort-listings.ts:23:27   → "mutated"   # same effect as "always 1" above, for any date value that isn't literally the string "mutated"
+src/shared/sort-listings.ts:23:32  0 → 1    # same effect as "always 1" above
+src/shared/sort-listings.ts:23:32  0 → -1   # tier -1 preserves sign vs 1/2, and same-tier dispatch falls through to compareDaily's non-daily name fallback — same result
+src/shared/sort-listings.ts:63:19  0 → -1   # tierA===-1 never matches a real tier; tier-0 same-tier compares fall through to compareDaily's non-daily fallback, which returns the same name comparison
 
 # sort-listings.ts's compareDaily: nextDates.get() is typed string|null, never
 # undefined in practice because every daily listing gets an explicit entry, and
 # getNextBookableDate never returns "". Therefore `?? null` and `|| null` agree.
-src/shared/sort-listings.ts:42:36  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
-src/shared/sort-listings.ts:43:36  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts:46:36  ?? → ||   # nextDates.get(a.id): string|null, never a falsy-non-null string
+src/shared/sort-listings.ts:47:36  ?? → ||   # nextDates.get(b.id): string|null, never a falsy-non-null string
 
 # sort-listings.ts's compareDaily return values on the dateA===null branch:
 # confirmed by direct experiment that Array.sort's swap decision only checks
@@ -488,9 +494,9 @@ src/shared/sort-listings.ts:43:36  ?? → ||   # nextDates.get(b.id): string|nul
 # returns -1 for the reverse pairing, no input can ever make this branch's
 # non-negative return value observably differ from the intended `1` (the
 # magnitude-only `1 → 2` entries below are --exhaustive-only; see note above).
-src/shared/sort-listings.ts:45:30  1 → 0   # non-negative result; see block comment above
-src/shared/sort-listings.ts:45:30  1 → 2   # sign-preserving magnitude change; see block comment above
-src/shared/sort-listings.ts:46:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
+src/shared/sort-listings.ts:49:30  1 → 0   # non-negative result; see block comment above
+src/shared/sort-listings.ts:49:30  1 → 2   # sign-preserving magnitude change; see block comment above
+src/shared/sort-listings.ts:50:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
 
 # orphan-retention.ts's Number.parseInt(safeValue, 10) radix: safeValue is
 # gated by isOrphanRetentionValue to always be one of ORPHAN_RETENTION_OPTIONS'
@@ -796,13 +802,13 @@ scripts/pr-queue/summary.ts:297:17  ?? → ||    # hasNextPage is boolean|undefi
 
 # dates.ts — provably-equivalent survivors from the whole-file run over the
 # dates suites. Each is unobservable through every export that reaches the line.
-src/shared/dates.ts:38:24  0 → 1    # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read
-src/shared/dates.ts:203:33  1 → 0    # getBookableStartDates' customisable duration override; normalizeDurationDays clamps 0 up to 1, so 0 and 1 are the same one-day span
-src/shared/dates.ts:425:26  1 → 0    # bookedRangeLabel's fallbackDurationDays default is only observed through the `> 1` guard and the `- 1` behind it; 0 and 1 both fail the guard identically
-src/shared/dates.ts:449:19   → "mutated"    # widestDatedEntry's initial widestEnd is only compared while `widest !== null`, by which point it has been overwritten by a real end value
-src/shared/dates.ts:452:47  ?? → ||    # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
-src/shared/dates.ts:412:21  1 → 0    # bookedSpanDays' `diffDays > 1 ? diffDays : 1`: diffDays is Math.round (an integer), and at the only differing input (diffDays === 1) both comparisons yield 1
-src/shared/dates.ts:430:30  1 → 0    # bookedRangeLabel's `fallbackDurationDays > 1` guard: at the only differing input (fallback === 1) the mutant computes lastDay = addDays(date, 0) = date, and the `lastDay > date` check then produces the same single-day label the null branch does
+src/shared/dates.ts:39:24  0 → 1    # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read
+src/shared/dates.ts:204:33  1 → 0    # getBookableStartDates' customisable duration override; normalizeDurationDays clamps 0 up to 1, so 0 and 1 are the same one-day span
+src/shared/dates.ts:426:26  1 → 0    # bookedRangeLabel's fallbackDurationDays default is only observed through the `> 1` guard and the `- 1` behind it; 0 and 1 both fail the guard identically
+src/shared/dates.ts:450:19   → "mutated"    # widestDatedEntry's initial widestEnd is only compared while `widest !== null`, by which point it has been overwritten by a real end value
+src/shared/dates.ts:453:47  ?? → ||    # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
+src/shared/dates.ts:413:21  1 → 0    # bookedSpanDays' `diffDays > 1 ? diffDays : 1`: diffDays is Math.round (an integer), and at the only differing input (diffDays === 1) both comparisons yield 1
+src/shared/dates.ts:431:30  1 → 0    # bookedRangeLabel's `fallbackDurationDays > 1` guard: at the only differing input (fallback === 1) the mutant computes lastDay = addDays(date, 0) = date, and the `lastDay > date` check then produces the same single-day label the null branch does
 
 # Admin segment dispatch (admin/index.ts) — two provably-equivalent survivors
 # from the routeAdmin/adminPathSegment run over the manifest + footer suites.
@@ -831,8 +837,8 @@ scripts/unit-tests-report-imports.ts:138:23   → "mutated"   # stem()'s first r
 
 # getAttendees filter/query builder (src/shared/db/attendees/select.ts) — the
 # defaulted `kind`/`join` operands are string unions that never include "".
-src/shared/db/attendees/select.ts:289:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
-src/shared/db/attendees/select.ts:386:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+src/shared/db/attendees/select.ts:294:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts:379:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
 # i18n (shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
@@ -879,6 +885,8 @@ src/shared/runtime.ts:67:45  ?? → ||   # nodeCompatVersion is string|undefined
 src/shared/runtime.ts:68:18  ?? → ||   # os is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts:70:43  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts:71:38  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
+src/shared/square.ts:312:21  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
+src/shared/square.ts:795:37  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
 src/ui/client/dom.ts:13:19  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only
@@ -889,14 +897,14 @@ src/features/api/payment-processing/items.ts:53:24  false → true   # validateL
 src/features/api/payment-processing/items.ts:87:41  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts:169:24  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
 src/features/api/payment-processing/pricing.ts:84:40  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
-src/features/api/payment-processing/package-pricing.ts:50:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts:51:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
-src/features/api/payment-processing/package-pricing.ts:156:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
-src/features/api/payment-processing/package-pricing.ts:212:37  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
-src/features/api/payment-processing/package-pricing.ts:218:49  false → true   # orderEdgeDrifted uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
-src/features/api/payment-processing/package-pricing.ts:228:45  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
-src/features/api/payment-processing/package-pricing.ts:243:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
-src/features/api/payment-processing/package-pricing.ts:260:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts:49:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts:50:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
+src/features/api/payment-processing/package-pricing.ts:155:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
+src/features/api/payment-processing/package-pricing.ts:211:37  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts:217:49  false → true   # orderEdgeDrifted uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
+src/features/api/payment-processing/package-pricing.ts:227:45  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
+src/features/api/payment-processing/package-pricing.ts:242:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
+src/features/api/payment-processing/package-pricing.ts:259:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/package-pricing.ts:296:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
@@ -953,16 +961,17 @@ scripts/mutation/summary.ts:65:69  ?? → ||   # Object.groupBy gives each statu
 scripts/mutation/summary.ts:92:33  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
 
 # Lock file: the handle exists only to carry the advisory lock.
-scripts/lock-file.ts:4:41  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
+scripts/lock-file.ts:16:41  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
 
 # Process helpers: the timer handle before the timer exists.
 scripts/process.ts:60:17  0 → 1   # the promise body runs straight away and overwrites this handle, so its starting value is never the one cleared
 scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it and replacing it store the same timer id
 
 # Isolated mutation runs: the exit code before any path has set one.
-scripts/mutation/isolation.ts:197:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
+scripts/mutation/isolation.ts:188:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
 src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
 
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.
 scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
+src/shared/crypto/encryption.ts:120:5  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable

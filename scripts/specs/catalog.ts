@@ -15,10 +15,16 @@ const DEFAULT_SPEC_PATH = join(projectRoot, "specs");
 const OWNER_PATH = join(DEFAULT_SPEC_PATH, "owners.json");
 
 const BASE_REGISTRY: Omit<SpecRegistry, "owners"> = {
-  actors: ["customer", "organiser"],
+  // An editor is an organiser-side helper who may write listings and nothing
+  // else, so a story about what they can reach has a different actor from one
+  // about the person who runs the site.
+  actors: ["customer", "editor", "organiser"],
   editions: ["managed", "self-hosted"],
   risks: ["high", "medium", "low"],
-  surfaces: ["admin", "return", "webhook"],
+  // "public" is a page a customer opens themselves, without signing in and
+  // without arriving back from a payment provider: the link they pay an
+  // outstanding balance from is one.
+  surfaces: ["admin", "public", "return", "webhook"],
 };
 
 const OwnerFileSchema = v.pick(SpecRegistrySchema, ["owners"]);

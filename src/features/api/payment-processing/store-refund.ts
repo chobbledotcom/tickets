@@ -36,6 +36,7 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
+import type { BookingItem } from "#shared/booking-intent.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
@@ -48,7 +49,6 @@ import {
   type PaymentRefundOutcome,
   refundCharges,
 } from "#shared/payment-runtime/refund.ts";
-import type { BookingItem } from "#shared/payments.ts";
 
 /* jscpd:ignore-end */
 
