@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -57,6 +57,38 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
         },
         paymentIntent: "pi_other_instance",
         sessionId: "cs_other_instance",
+      }),
+      () => {
+        mockRefund.restore();
+      },
+    );
+    expect(mockRefund.calls.length).toBe(0);
+  });
+
+  test("webhook ignores a signed session whose booking will not read back", async () => {
+    await setupStripe();
+
+    const mockRefund = spy(stripeApi, "refundPayment");
+
+    // The proof is ours, but the modifiers came back as an object instead of a
+    // list. Booking cannot act on that, so the checkout is left alone as a
+    // support case — not booked with values nobody has checked, and not
+    // refunded, because we do not refund on a reading we cannot trust.
+    await expectWebhookIgnored(
+      checkoutSessionEvent({
+        amountTotal: 500,
+        eventId: "evt_unreadable_booking",
+        metadata: signedMeta(
+          {
+            email: "unreadable@example.com",
+            items: singleItem(1, 1, 500),
+            modifiers: "{}",
+            name: "Unreadable Booking",
+          },
+          500,
+        ),
+        paymentIntent: "pi_unreadable_booking",
+        sessionId: "cs_unreadable_booking",
       }),
       () => {
         mockRefund.restore();
