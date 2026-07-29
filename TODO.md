@@ -1740,7 +1740,7 @@ could not start. Closed by the direct-test pass that followed.*
 All four now have a direct test at their mirrored path, so the gate no longer
 refuses to start on a branch that touches them:
 
-- `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (98.1%, one recorded equivalent)
+- `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
 - `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list.test.ts` (100%)
 - `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
 - `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
