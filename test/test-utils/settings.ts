@@ -220,6 +220,20 @@ export interface ProviderNoticeFixture {
   ) => Promise<ProviderRead>;
 }
 
+/** The address the site both sends from and delivers contact messages to. */
+export const CONTACT_OWNER_EMAIL = "owner@example.com";
+
+/** Everything the public contact form needs before anybody can use it. Shared
+ * by the story and the direct tests so the two can never drift into checking
+ * different set-ups. */
+export const activateContactForm = async (): Promise<void> => {
+  await enablePublicSite();
+  await settings.update.businessEmail(CONTACT_OWNER_EMAIL);
+  await settings.update.contactFormEnabled(true);
+  await settings.update.email.provider("resend");
+  await settings.update.email.apiKey("re_test_key");
+};
+
 export const stubWebhookVerify = async (
   fixture: ProviderNotice | ProviderNoticeFixture | null,
 ): Promise<{ restore: () => void }> => {

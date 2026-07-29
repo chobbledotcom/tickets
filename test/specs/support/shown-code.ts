@@ -9,7 +9,10 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { rememberStayListing, stayListing } from "#test/specs/support/stays.ts";
+import {
+  rememberStayListing,
+  stayListing,
+} from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";

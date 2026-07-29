@@ -6,6 +6,11 @@
 import * as v from "valibot";
 import { lazyRef, map } from "#fp";
 import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
+import type {
+  BookingIntent,
+  BookingItem,
+  ModifierRef,
+} from "#shared/booking-intent.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { parseDateMs } from "#shared/dates.ts";
@@ -24,11 +29,8 @@ import {
 import { signPrice } from "#shared/payment-signature.ts";
 import type { ProviderSessionResource } from "#shared/payment-state/resources.ts";
 import type {
-  BookingIntent,
-  BookingItem,
   CheckoutIntent,
   CheckoutSessionResult,
-  ModifierRef,
   ProviderCheckoutResult,
   SessionMetadata,
 } from "#shared/payments.ts";

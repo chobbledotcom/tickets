@@ -20,7 +20,6 @@ import type {
 } from "#shared/payment-state/resources.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
-import { integerAtLeast } from "#shared/validation/number.ts";
 /* jscpd:ignore-end */
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
@@ -146,6 +145,37 @@ export type ProviderCheckoutResult =
     }
   | { error: string }
   | null;
+
+/** Valid payment status value */
+export const PaymentStatusSchema = v.picklist([
+  "paid",
+  "unpaid",
+  "no_payment_required",
+  "failed",
+]);
+
+/** Valid payment status value */
+export type PaymentStatus = v.InferOutput<typeof PaymentStatusSchema>;
+
+/** A validated payment session returned after checkout completion */
+export type ValidatedPaymentSession = {
+  id: string;
+  paymentStatus: PaymentStatus;
+  paymentReference: string;
+  /** Total amount charged in smallest currency unit (cents), from the payment provider */
+  amountTotal: number;
+  metadata: SessionMetadata;
+  /**
+   * When the provider created this checkout, in the ledger's canonical ISO 8601
+   * form (`YYYY-MM-DDTHH:mm:ss.sssZ`), or undefined if the provider didn't supply
+   * a usable timestamp. Each provider normalises its own format (see
+   * toCanonicalIso) so this is safe to use directly as a ledger occurredAt. It is
+   * the customer's business time, so a payment processed late — a delayed
+   * webhook, an old redirect, a stale retry — is still recognised on the day it
+   * was paid, not the day we happened to process it.
+   */
+  createdAt?: string | undefined;
+};
 
 /** Logical provider metadata after provider-specific packing is removed. */
 export type SessionMetadata = ContactInfo & {
