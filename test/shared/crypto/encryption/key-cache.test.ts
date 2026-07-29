@@ -18,28 +18,30 @@ import {
   getEncryptionKeyString,
   setEncryptionKeyForTest,
 } from "#shared/crypto/encryption.ts";
-import { toBase64 } from "#shared/crypto/utils.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import {
+  OTHER_TEST_ENCRYPTION_KEY,
+  TEST_ENCRYPTION_KEY,
+} from "#test-utils/internal.ts";
 
 /** Over the 64KB limit, so these go through Web Crypto and import a key. */
 const bigPayload = (): Uint8Array =>
   Uint8Array.from({ length: 70 * 1024 }, (_, index) => index % 256);
 
-const otherKey = (): string =>
-  toBase64(new Uint8Array(32).fill(7) as Uint8Array<ArrayBuffer>);
-
 describeWithEnv("the encryption key caches", { encryptionKey: true }, () => {
   describe("the raw key bytes", () => {
     it("hand back the very same bytes each time, not a fresh copy", () => {
-      // Same instance, so callers holding the bytes cannot drift apart — and
-      // the decode is genuinely paid only once.
+      // Handing back one instance is the whole point of the cache: it is what
+      // keeps the decode off every encrypt on a cold-booting edge isolate.
+      // Nothing else distinguishes a working cache from a missing one, so this
+      // is the assertion that would notice it being dropped.
       expect(getEncryptionKeyBytes()).toBe(getEncryptionKeyBytes());
     });
 
     it("are a different set of bytes once the key changes", () => {
       const before = getEncryptionKeyBytes();
-      setEncryptionKeyForTest(otherKey());
+      setEncryptionKeyForTest(OTHER_TEST_ENCRYPTION_KEY);
       expect(getEncryptionKeyBytes()).not.toBe(before);
       setupTestEncryptionKey();
     });
@@ -47,9 +49,10 @@ describeWithEnv("the encryption key caches", { encryptionKey: true }, () => {
 
   describe("reading the key string", () => {
     it("prefers the test override over the environment", () => {
-      using _env = withEnv({ DB_ENCRYPTION_KEY: otherKey() });
-      setEncryptionKeyForTest(otherKey());
-      expect(getEncryptionKeyString()).toBe(otherKey());
+      // Two different valid keys, so the answer says which one was read.
+      using _env = withEnv({ DB_ENCRYPTION_KEY: TEST_ENCRYPTION_KEY });
+      setEncryptionKeyForTest(OTHER_TEST_ENCRYPTION_KEY);
+      expect(getEncryptionKeyString()).toBe(OTHER_TEST_ENCRYPTION_KEY);
       setupTestEncryptionKey();
     });
 
@@ -57,7 +60,7 @@ describeWithEnv("the encryption key caches", { encryptionKey: true }, () => {
       // An override of "" means "no key" deliberately: falling through to a
       // real environment key here would silently encrypt under a key the
       // caller just cleared.
-      using _env = withEnv({ DB_ENCRYPTION_KEY: otherKey() });
+      using _env = withEnv({ DB_ENCRYPTION_KEY: OTHER_TEST_ENCRYPTION_KEY });
       setEncryptionKeyForTest("");
       expect(() => getEncryptionKeyString()).toThrow(
         "DB_ENCRYPTION_KEY environment variable is required",
@@ -76,7 +79,7 @@ describeWithEnv("the encryption key caches", { encryptionKey: true }, () => {
 
     it("is imported once, however many big payloads are sealed", async () => {
       // A fresh key means neither cache is warm from an earlier test.
-      setEncryptionKeyForTest(otherKey());
+      setEncryptionKeyForTest(OTHER_TEST_ENCRYPTION_KEY);
       const realImportKey = crypto.subtle.importKey.bind(crypto.subtle);
       const counted = stub(
         crypto.subtle,
@@ -95,7 +98,7 @@ describeWithEnv("the encryption key caches", { encryptionKey: true }, () => {
 
     it("is dropped when the key changes, so old big payloads stop opening", async () => {
       const sealed = await encryptBytes(bigPayload());
-      setEncryptionKeyForTest(otherKey());
+      setEncryptionKeyForTest(OTHER_TEST_ENCRYPTION_KEY);
       await expect(decryptBytes(sealed)).rejects.toThrow();
       setupTestEncryptionKey();
     });
