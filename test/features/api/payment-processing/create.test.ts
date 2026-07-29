@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
+  alreadyProcessedResult,
   bookingSlot,
   createAttendeeForSession,
   logPromoCodeModifiers,
@@ -10,6 +11,7 @@ import {
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
 import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
@@ -282,5 +284,84 @@ describeWithEnv("payment booking lines", { db: true }, () => {
         await getTestPrivateKey(),
       ),
     ).toBe("Promo code 'FREE' used: +£0");
+  });
+
+  test("logs money off a booking as an amount off, not a minus amount", async () => {
+    // The owner reads this, so a discount says "£1.00 off" rather than
+    // repeating the minus sign the delta carries.
+    const listing = await createTestListing();
+    const attendee = await bookTestAttendee(
+      [listing.id],
+      "Discount buyer",
+      "discount@example.com",
+    );
+
+    await logPromoCodeModifiers(
+      [{ id: 1, name: "POUNDOFF" } as never],
+      [{ delta: -100, modifierId: 1 } as never],
+      listing as never,
+      attendee.id,
+    );
+
+    const [row] = await queryAll<{ message: string }>(
+      "SELECT message FROM activity_log WHERE attendee_id = ?",
+      [attendee.id],
+    );
+    expect(
+      await decryptWithOwnerKey(
+        row!.message as never,
+        await getTestPrivateKey(),
+      ),
+    ).toBe("Promo code 'POUNDOFF' used: £1 off");
+  });
+
+  // A buyer with several tickets has them kept as one joined-up value, so
+  // coming back to an already-finished checkout has to hand back each ticket
+  // separately rather than one run-together string.
+  for (const [name, tokens, expected] of [
+    ["several tickets", "tok_a+tok_b+tok_c", ["tok_a", "tok_b", "tok_c"]],
+    ["one ticket", "tok_only", ["tok_only"]],
+  ] as const) {
+    test(`hands back ${name} from a checkout already finished`, async () => {
+      const listing = await createTestListing();
+      const attendee = await bookTestAttendee(
+        [listing.id],
+        "Returning buyer",
+        `returning-${tokens}@example.com`,
+      );
+
+      expect(
+        await alreadyProcessedResult(listing.id, {
+          attendee_id: attendee.id,
+          ticket_tokens: await encrypt(tokens),
+        } as never),
+      ).toEqual({
+        attendee: { id: attendee.id },
+        listingId: listing.id,
+        success: true,
+        ticketTokens: expected,
+      });
+    });
+  }
+
+  test("hands back no tickets when the finished checkout kept none", async () => {
+    const listing = await createTestListing();
+    const attendee = await bookTestAttendee(
+      [listing.id],
+      "Tokenless buyer",
+      "tokenless@example.com",
+    );
+
+    expect(
+      await alreadyProcessedResult(listing.id, {
+        attendee_id: attendee.id,
+        ticket_tokens: "",
+      } as never),
+    ).toEqual({
+      attendee: { id: attendee.id },
+      listingId: listing.id,
+      success: true,
+      ticketTokens: [],
+    });
   });
 });

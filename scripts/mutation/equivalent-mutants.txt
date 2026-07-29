@@ -985,3 +985,4 @@ src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is b
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.
 scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
+src/features/api/payment-processing/cancel.ts:63:40  ?? → ||   # a line's listing id is a positive whole number, so the only value reaching the fallback is undefined, which both operators send to the same 0
