@@ -1093,7 +1093,7 @@ shows up in the report:
 - **Seed volume with a batch, not a loop.** When a test needs many rows (e.g.
   filling a pagination page), create ONE record through the production path
   and clone its rows in a single batch — see `seedFillerAttendees` in
-  `test/integration/server/attendees-list.test.ts` — instead of running the full
+  `test/test-utils/db-helpers/attendee-seeding.ts` — instead of running the full
   production write path N times.
 - **Shard inherently heavy suites.** A suite that is minutes of sequential
   work by nature (the migration restore/chain suites) is split into shard

@@ -35,6 +35,22 @@ const ctxWith = (query = ""): PageCtx => ({
   tabHref: (slug: string) => `/admin/listings/1/${slug}`,
 });
 
+/** The overview panel's markup for a listing, as the tab would render it. */
+const overviewHtml = async (
+  listingId: number,
+  canViewLedger?: boolean,
+): Promise<string> =>
+  await withTestSession(async () =>
+    String(
+      canViewLedger === undefined
+        ? await loadListingOverviewPanel(await loaded(listingId))
+        : await loadListingOverviewPanel(
+            await loaded(listingId),
+            canViewLedger,
+          ),
+    ),
+  );
+
 const loaded = async (id: number) => {
   const listing = await loadListingForPage(id);
   if (!listing) throw new Error(`no listing ${id}`);
@@ -127,33 +143,25 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
   describe("the overview panel", () => {
     test("names the listing", async () => {
       const listing = await createTestListing({ name: "Winter Show" });
-      const html = await withTestSession(async () =>
-        String(await loadListingOverviewPanel(await loaded(listing.id))),
-      );
+      const html = await overviewHtml(listing.id);
       expect(html).toContain("Winter Show");
     });
 
     test("links this listing's own ledger for someone who may see the money", async () => {
       const listing = await createTestListing({});
-      const html = await withTestSession(async () =>
-        String(await loadListingOverviewPanel(await loaded(listing.id), true)),
-      );
+      const html = await overviewHtml(listing.id, true);
       expect(html).toContain(`/admin/ledger?listing=${listing.id}`);
     });
 
     test("keeps the ledger away from someone who may not", async () => {
       const listing = await createTestListing({});
-      const html = await withTestSession(async () =>
-        String(await loadListingOverviewPanel(await loaded(listing.id), false)),
-      );
+      const html = await overviewHtml(listing.id, false);
       expect(html).not.toContain("/admin/ledger");
     });
 
     test("keeps it away by default, so a caller must ask for it", async () => {
       const listing = await createTestListing({});
-      const html = await withTestSession(async () =>
-        String(await loadListingOverviewPanel(await loaded(listing.id))),
-      );
+      const html = await overviewHtml(listing.id);
       expect(html).not.toContain("/admin/ledger");
     });
   });
@@ -201,20 +209,11 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
 
   describe("a listing hidden inside a package", () => {
     test("is marked as one, so its page can hide the standalone links", async () => {
-      const listing = await createTestListing({});
-      const { createTestGroup } = await import(
+      const { createHiddenPackageGroup } = await import(
         "#test-utils/db-helpers/groups.ts"
       );
-      const group = await createTestGroup({ isPackage: true });
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute(
-        "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
-        [group.id],
-      );
-      await getDb().execute(
-        "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-        [group.id, listing.id],
-      );
+      const group = await createHiddenPackageGroup();
+      const listing = await createTestListing({ groupId: group.id });
 
       expect((await loaded(listing.id)).isHiddenPackageMember).toBe(true);
     });
@@ -291,9 +290,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
         createSystemNote(attendeeNotes(attendee.id), "Called about parking"),
       );
 
-      const html = await withTestSession(async () =>
-        String(await loadListingOverviewPanel(await loaded(listing.id))),
-      );
+      const html = await overviewHtml(listing.id);
       expect(html).toContain("Called about parking");
       expect(html).toContain("Noted Person");
     });
@@ -317,17 +314,13 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
     test("names each question the listing asks", async () => {
       await askEveryone("Favourite colour");
       const listing = await createTestListing({});
-      const html = await withTestSession(async () =>
-        String(await loadListingOverviewPanel(await loaded(listing.id))),
-      );
+      const html = await overviewHtml(listing.id);
       expect(html).toContain("Favourite colour");
     });
 
     test("is left out entirely for a listing that asks nothing", async () => {
       const listing = await createTestListing({});
-      const html = await withTestSession(async () =>
-        String(await loadListingOverviewPanel(await loaded(listing.id))),
-      );
+      const html = await overviewHtml(listing.id);
       expect(html).not.toContain("Favourite colour");
     });
   });

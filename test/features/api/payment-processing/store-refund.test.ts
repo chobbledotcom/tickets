@@ -133,6 +133,9 @@ describe("the refund reason for a booking we could not honour", () => {
       reason: "unexpected_error",
     });
     expect(spec.code).toBe("unexpected_error");
+    expect(spec.reason).toBe(
+      "an unexpected error stopped the booking being completed",
+    );
   });
 
   test("carries the internal detail through for the log", () => {
@@ -216,6 +219,9 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       );
       const rows = await getAttendeesByListingIds([listing.id]);
       expect(rows.length).toBe(1);
+      // Kept, but holding nothing — a quantity-1 row here would take a place
+      // from a real buyer.
+      expect(rows[0]?.quantity).toBe(0);
     });
   });
 });
@@ -359,8 +365,10 @@ describeWithEnv(
       const { getAttendeesByListingIds } = await import(
         "#shared/db/listings/attendees.ts"
       );
-      // The two real bookings plus the quantity-0 placeholder.
-      expect((await getAttendeesByListingIds([listing.id])).length).toBe(3);
+      // The two real bookings plus the placeholder, which holds no places.
+      const rows = await getAttendeesByListingIds([listing.id]);
+      expect(rows.length).toBe(3);
+      expect(rows.filter((row) => row.quantity === 0).length).toBe(1);
     });
   },
 );

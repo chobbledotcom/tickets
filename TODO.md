@@ -1459,37 +1459,6 @@ Starting point: the three files named above.
 
 ---
 
-## Remaining mutation gaps in `listing-page-data.ts`
-
-*Origin: writing direct tests for the four feature modules that had none.*
-
-`test/features/admin/listing-page-data/` now exists and takes the file from
-0 to 77.8% (35 of 45). The gate wants 100% for a changed file, so a branch
-touching this module still has work to do. Each survivor needs a fixture the
-current suite does not build:
-
-- **`100:53` `hiddenMemberIds.size > 0`** — a listing that really is a hidden
-  member of a package.
-- **`165:72` / `165:73` (the `!!d` date filter)** and the dates list around it —
-  a *daily* listing with attendees booked on real, differing dates.
-- **`181:26` / `181:29` / `181:33`** (`questions.length > 0 ? … : undefined`) — a
-  listing with questions AND attendees who answered them. Note a question alone
-  is not enough: the overview panel renders answer counts, so a question with no
-  answers shows nothing to assert on. That is what defeated the first attempt.
-- **`189:20` / `190:7`** (`notes.length === 0 ? new Map() : …`) — a listing
-  carrying system notes written by a named attendee.
-- **`229:38`** (`canViewLedger ? { ledgerHref } : {}`) — survives even with an
-  exact-href assertion for both roles, so `isOwner` appears to gate the rendered
-  link independently of `ledgerHref`. Worth reading
-  `ListingOverviewPanel` before writing another test.
-- **`282:61`** (`?? []` on the child-listing names) — a parent listing with
-  children.
-
-Starting point: `test/features/admin/listing-page-data/loaders.test.ts`, and
-the daily/package fixtures in `test/test-utils/db-helpers/`.
-
----
-
 ## Let Deno-hosted sites with a Bunny database be migrated
 
 `POST /instance/site-credentials` (`src/features/instance.ts`) only returns
@@ -1773,12 +1742,12 @@ refuses to start on a branch that touches them:
 
 - `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (98.1%, one recorded equivalent)
 - `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list.test.ts` (100%)
-- `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (77.8%)
+- `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
 - `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
 
-The gate demands 100% for a *changed* file, so `listing-page-data.ts` is not
-finished: see "Remaining mutation gaps in `listing-page-data.ts`" above for
-exactly what each remaining survivor needs.
+Every one of them is now at the 100% the gate demands, so a branch touching
+any of them can pass without first writing the tests that should already have
+existed.
 
 `src/features/admin/attendee-notes.ts` was in the same state and was fixed
 earlier: its route suite drives real pages through the session helpers, so it
