@@ -65,12 +65,15 @@ const bySubquery =
     { args: subquery.args, clause: `${column} ${keyword} (${subquery.sql})` },
   ];
 
+/** Keep or drop rows another query names. */
+type SubqueryFilter = (column: string, subquery: SqlStatement) => WhereClause[];
+
 /** Keep rows the subquery names — "pick some rows, then read everything that
  * hangs off them". */
-export const inSubquery = bySubquery("IN");
+export const inSubquery: SubqueryFilter = bySubquery("IN");
 
 /** Keep rows the subquery does NOT name. */
-export const notInSubquery = bySubquery("NOT IN");
+export const notInSubquery: SubqueryFilter = bySubquery("NOT IN");
 
 /** Whether these clauses can never match a row — the ordinary cause being a
  * filter asking for none of something. */

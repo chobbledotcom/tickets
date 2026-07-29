@@ -51,7 +51,7 @@ import {
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import {
   type ListingRecordRow,
-  listingStatement,
+  listingReader,
 } from "#shared/db/listings/select.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
@@ -191,7 +191,7 @@ export const getListingsByGroupIds = async (
   if (groupIds.length === 0) return new Map();
   type GroupListingRow = ListingRecordRow & { group_ids: string };
   type ListingGroups = { groupIds: number[]; member: ListingWithCount };
-  const { sql, args } = listingStatement({
+  const { sql, args } = listingReader.statement({
     order: "created_desc",
     where: { activeOnly, inGroups: [...groupIds] },
   });

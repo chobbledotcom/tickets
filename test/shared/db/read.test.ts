@@ -7,7 +7,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { namedOrder, readStatement } from "#shared/db/read.ts";
+import { defineReader, readStatement } from "#shared/db/read.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
 
 describe("readStatement", () => {
@@ -78,15 +78,25 @@ describe("readStatement", () => {
   });
 });
 
-describe("namedOrder", () => {
-  const ORDERS = { newest: "created DESC", oldest: "created ASC" };
+describe("defineReader", () => {
+  const reader = defineReader<
+    "newest" | "oldest",
+    { order?: "newest" | "oldest" }
+  >({ newest: "created DESC", oldest: "created ASC" }, () => ({
+    columns: "id",
+    from: "listings",
+  }));
 
-  test("is nothing when the caller does not care about order", () => {
-    expect(namedOrder(ORDERS, undefined)).toBeUndefined();
+  test("each named order becomes its own ORDER BY", () => {
+    expect(reader.statement({ order: "newest" }).sql).toBe(
+      "SELECT id FROM listings ORDER BY created DESC",
+    );
+    expect(reader.statement({ order: "oldest" }).sql).toBe(
+      "SELECT id FROM listings ORDER BY created ASC",
+    );
   });
 
-  test("names the SQL for the chosen order", () => {
-    expect(namedOrder(ORDERS, "newest")).toBe("created DESC");
-    expect(namedOrder(ORDERS, "oldest")).toBe("created ASC");
+  test("omitting the order omits the clause", () => {
+    expect(reader.statement({}).sql).toBe("SELECT id FROM listings");
   });
 });

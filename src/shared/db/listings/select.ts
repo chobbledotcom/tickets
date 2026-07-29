@@ -15,7 +15,6 @@ import {
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
 } from "#shared/accounting/projection-sql.ts";
-import type { SqlStatement } from "#shared/db/client.ts";
 import { imageFilenameSubqueries } from "#shared/db/images.ts";
 import { defineReader } from "#shared/db/read.ts";
 import { inList, type WhereClause } from "#shared/db/where-clauses.ts";
@@ -108,7 +107,7 @@ export type GetListingsQuery = {
  * folds a listing's several memberships back into one row, naming which groups
  * it matched; every other read starts from the listings themselves.
  */
-const listings = defineReader<ListingOrder, GetListingsQuery>(
+export const listingReader = defineReader<ListingOrder, GetListingsQuery>(
   LISTING_ORDER_SQL,
   (query) => {
     const byGroup = query.where.inGroups !== undefined;
@@ -125,15 +124,6 @@ const listings = defineReader<ListingOrder, GetListingsQuery>(
   },
 );
 
-/**
- * A `queryBatch` statement (SQL + bound args) for a listing read: the single
- * place a declared query becomes runnable SQL. {@link getListingRows} runs it;
- * the activity-log reader embeds it in a batch, and the read-your-own-write
- * reader runs it against the primary.
- */
-export const listingStatement: (query: GetListingsQuery) => SqlStatement =
-  listings.statement;
-
 /** The raw shape a listing read returns: the stored columns plus the worked-out
  * values, before decryption and before any inherited defaults are overlaid. */
 export type ListingRecordRow = Omit<ListingWithCount, "profit">;
@@ -145,4 +135,4 @@ export type ListingRecordRow = Omit<ListingWithCount, "profit">;
  */
 export const getListingRows = (
   query: GetListingsQuery,
-): Promise<ListingRecordRow[]> => listings.rows<ListingRecordRow>(query);
+): Promise<ListingRecordRow[]> => listingReader.rows<ListingRecordRow>(query);

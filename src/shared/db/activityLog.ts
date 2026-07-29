@@ -35,7 +35,7 @@ import {
 } from "#shared/db/client.ts";
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
-import { listingStatement } from "#shared/db/listings/select.ts";
+import { listingReader } from "#shared/db/listings/select.ts";
 import { readRows } from "#shared/db/read.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
@@ -245,7 +245,7 @@ export const getListingWithActivityLogOrNull = async (
   limit = 100,
 ): Promise<ListingWithActivityLog | null> => {
   const results = await queryBatch([
-    listingStatement({ where: { ids: [listingId] } }),
+    listingReader.statement({ where: { ids: [listingId] } }),
     {
       args: [listingId, limit],
       sql: `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE listing_id = ? ORDER BY id DESC LIMIT ?`,

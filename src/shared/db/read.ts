@@ -78,7 +78,7 @@ export const readOneRow = async <Row>(read: Read): Promise<Row | null> =>
 
 /** The `ORDER BY` body for a named order, or nothing when the caller does not
  * care. Named so a caller cannot hand-roll a stray order of its own. */
-export const namedOrder = <Order extends string>(
+const namedOrder = <Order extends string>(
   orders: Record<Order, string>,
   order: Order | undefined,
 ): string | undefined => (order === undefined ? undefined : orders[order]);
