@@ -9,6 +9,7 @@ import {
   expectToldAbout,
   keyAddsSomethingForSale,
   keyNamed,
+  keysNamedOnList,
   keysPageResponse,
   keysPageText,
   ownerMakesKey,
@@ -74,7 +75,16 @@ Then(
 Then(
   "the list of keys is empty",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await keysPageText(this)).not.toContain("Shopfront");
+    // The site's own words for an empty list, not merely one name missing —
+    // which any other key still there would satisfy.
+    expect(await keysPageText(this)).toContain(t("api_keys.no_keys"));
+  },
+);
+
+Then(
+  "the list of keys names {word} and nothing else",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    expect(await keysNamedOnList(this)).toEqual([name]);
   },
 );
 

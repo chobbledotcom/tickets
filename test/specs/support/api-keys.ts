@@ -64,6 +64,14 @@ const readsKeysPage =
     whichPart(await openKeysPage(world));
 
 export const keysPageText = readsKeysPage((browser) => browser.pageText);
+
+/** The names the owner's list offers, each one a link into that key. Reading
+ * the links rather than the words means a name only mentioned in passing does
+ * not count as a key the owner has. */
+export const keysNamedOnList = async (world: TicketsWorld): Promise<string[]> =>
+  (await openKeysPage(world)).links
+    .filter(({ href }) => /^\/admin\/api-keys\/\d+$/.test(href))
+    .map(({ text }) => text);
 export const keysPageResponse = readsKeysPage((browser) => browser.currentHtml);
 
 /** What the site answers something carrying a key and nothing else — no
@@ -124,10 +132,11 @@ export const ownerTakesBackKey = async (
   typed: string,
 ): Promise<string> => {
   const browser = await openKeysPage(world);
-  // Followed from the list, so a key the owner cannot reach from their own
-  // page cannot be taken back by the story either.
-  const toKey = browser.links.find(({ href }) =>
-    /^\/admin\/api-keys\/\d+$/.test(href),
+  // The key the owner asked for, by the name they gave it — followed from the
+  // list, so a key they cannot reach from their own page cannot be taken back
+  // by the story either, and a list of several takes back the right one.
+  const toKey = browser.links.find(
+    ({ href, text }) => /^\/admin\/api-keys\/\d+$/.test(href) && text === name,
   );
   if (!toKey) throw new Error(`The keys page offers no way into ${name}`);
   await browser.visit(`${toKey.href}/delete`);

@@ -89,6 +89,16 @@ Feature: An owner lets another system work on their behalf
       Then the list of keys is empty
       And Shopfront is refused as unauthorised
 
+    @case:api-keys.only-the-named-key-goes
+    Scenario: The owner takes back one of two keys
+      Given the site sells a Pottery
+      And the owner has a key called Shopfront
+      And the owner has a key called Backroom
+      When the owner takes back the key called Backroom
+      Then the list of keys names Shopfront and nothing else
+      And Backroom is refused as unauthorised
+      And Shopfront is told about the Pottery
+
     @case:api-keys.wrong-name-changes-nothing
     Scenario: The owner types the wrong name
       Given the site sells a Pottery
