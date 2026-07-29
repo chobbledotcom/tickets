@@ -8,7 +8,7 @@
  * that in one place, separate from the core attendee create/edit machinery.
  */
 
-import { compact, flatMap } from "#fp";
+import { compact, flatMap, uniqueBy } from "#fp";
 import {
   execute,
   executeBatch,
@@ -16,6 +16,7 @@ import {
   queryAll,
   update,
 } from "#shared/db/client.ts";
+import { columnFrom } from "#shared/db/query.ts";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for
@@ -29,6 +30,12 @@ export type LogisticsAssignment = {
 
 /** A booking's logistics assignment, keyed by listing. */
 export type BookingLogisticsAssignment = LogisticsAssignment & {
+  attendeeId: number;
+  listingId: number;
+};
+
+/** A booking row named by the two ids the run sheet uses. */
+export type DeliveryBookingRef = {
   attendeeId: number;
   listingId: number;
 };
@@ -172,6 +179,17 @@ const buildLeg = (
   };
 };
 
+const runSheetLegWhere = (
+  sourceName: string,
+  agentPlaceholders: string,
+  datePlaceholders: string,
+): string => {
+  const column = columnFrom(sourceName);
+  return `((${column("start_agent_id")} IN (${agentPlaceholders}) AND DATE(${column("start_at")}) IN (${datePlaceholders}))
+        OR (${column("end_agent_id")} IN (${agentPlaceholders}) AND DATE(${column("end_at")}, '-1 day') IN (${datePlaceholders})))
+        AND ${column("quantity")} > 0`;
+};
+
 /** Collapse the identical legs a multi-path booking yields (a listing booked
  * through a package beside its standalone or second-package row is several
  * `listing_attendees` rows) into ONE run-sheet entry: the agents, dates and
@@ -216,20 +234,15 @@ export const getAgentRunSheet = async (
   dates: string[],
 ): Promise<AgentRunLeg[]> => {
   if (agentIds.length === 0 || dates.length === 0) return [];
+  const sourceName = "listingAttendee";
   const agentPlaceholders = inPlaceholders(agentIds);
   const datePlaceholders = inPlaceholders(dates);
   const rows = await queryAll<RunSheetRow>(
     `SELECT attendee_id, listing_id, start_agent_id, end_agent_id,
             start_time, end_time, start_done, end_done,
             DATE(start_at) AS start_date, DATE(end_at, '-1 day') AS end_date
-     FROM listing_attendees
-     -- quantity > 0 excludes no-quantity sentinel lines from run sheets. The
-     -- whole start/end OR is parenthesised so the predicate applies to BOTH arms
-     -- (AND binds tighter than OR — a bare trailing AND would gate the end arm
-     -- only, leaving ghost drop-offs on start-leg run sheets).
-     WHERE ((start_agent_id IN (${agentPlaceholders}) AND DATE(start_at) IN (${datePlaceholders}))
-        OR (end_agent_id IN (${agentPlaceholders}) AND DATE(end_at, '-1 day') IN (${datePlaceholders})))
-        AND quantity > 0`,
+     FROM listing_attendees AS ${sourceName}
+     WHERE ${runSheetLegWhere(sourceName, agentPlaceholders, datePlaceholders)}`,
     [...agentIds, ...dates, ...agentIds, ...dates],
   );
   const agentSet = new Set(agentIds);
@@ -242,6 +255,54 @@ export const getAgentRunSheet = async (
         buildLeg(row, "end", agentSet, dateSet),
       ]),
     )(rows),
+  );
+};
+
+const bookingRefKey = (booking: DeliveryBookingRef): string =>
+  bookingAssignmentKey(booking.attendeeId, booking.listingId);
+
+const bookingRefValues = (bookings: DeliveryBookingRef[]): string =>
+  bookings.map(() => "(?, ?)").join(", ");
+
+const bookingRefArgs = (bookings: DeliveryBookingRef[]): number[] =>
+  bookings.flatMap((booking) => [booking.attendeeId, booking.listingId]);
+
+/** Which requested bookings have a leg on the same run sheet the agent may
+ * view. Returns booking keys so callers can filter their own richer rows before
+ * decrypting PII. */
+export const getAgentRunSheetBookingKeys = async (
+  agentIds: number[],
+  dates: string[],
+  bookings: DeliveryBookingRef[],
+): Promise<Set<string>> => {
+  if (agentIds.length === 0) return new Set();
+  if (dates.length === 0) return new Set();
+  if (bookings.length === 0) return new Set();
+
+  const uniqueBookings = uniqueBy(bookingRefKey)(bookings);
+  const agentPlaceholders = inPlaceholders(agentIds);
+  const datePlaceholders = inPlaceholders(dates);
+  const sourceName = "listingAttendee";
+  const rows = await queryAll<{ attendee_id: number; listing_id: number }>(
+    `WITH requested_booking(attendee_id, listing_id) AS (
+       VALUES ${bookingRefValues(uniqueBookings)}
+     )
+     SELECT DISTINCT ${sourceName}.attendee_id, ${sourceName}.listing_id
+     FROM listing_attendees AS ${sourceName}
+     JOIN requested_booking AS requestedBooking
+       ON requestedBooking.attendee_id = ${sourceName}.attendee_id
+      AND requestedBooking.listing_id = ${sourceName}.listing_id
+     WHERE ${runSheetLegWhere(sourceName, agentPlaceholders, datePlaceholders)}`,
+    [
+      ...bookingRefArgs(uniqueBookings),
+      ...agentIds,
+      ...dates,
+      ...agentIds,
+      ...dates,
+    ],
+  );
+  return new Set(
+    rows.map((row) => bookingAssignmentKey(row.attendee_id, row.listing_id)),
   );
 };
 

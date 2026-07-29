@@ -9,7 +9,11 @@ type SharedAttendeeTableOptions = Pick<
   Partial<
     Pick<
       AttendeeTableOptions,
-      "activeFilter" | "phonePrefix" | "questionData" | "returnUrl"
+      | "activeFilter"
+      | "adminLinks"
+      | "phonePrefix"
+      | "questionData"
+      | "returnUrl"
     >
   >;
 

@@ -30,18 +30,25 @@ const attendeeColumnText = tableColumnText("admin.attendee_table.column");
 
 const name: AttendeeRenderer = {
   ...attendeeColumnText("name"),
-  cell: (row) => (
-    <a href={attendeeAdminPath(row.attendee)}>{row.attendee.name}</a>
-  ),
+  cell: (row, options) =>
+    options.adminLinks ? (
+      <a href={attendeeAdminPath(row.attendee)}>{row.attendee.name}</a>
+    ) : (
+      row.attendee.name
+    ),
 };
 
 const listings: AttendeeRenderer = {
   ...attendeeColumnText("listings"),
-  cell: (row) => {
+  cell: (row, options) => {
     const links = row.listings.map((listing, index) => (
       <>
         {index > 0 && ", "}
-        <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+        {options.adminLinks ? (
+          <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+        ) : (
+          listing.name
+        )}
       </>
     ));
     const fullList = row.listings.map((listing) => listing.name).join(", ");

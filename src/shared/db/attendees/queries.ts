@@ -28,7 +28,7 @@ import {
   rowExists,
   rowExistsForIdList,
 } from "#shared/db/client.ts";
-import { columnMapByIds, nameSource } from "#shared/db/query.ts";
+import { columnFrom, columnMapByIds, nameSource } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 /* jscpd:ignore-end */
@@ -40,7 +40,7 @@ import { guardFor } from "#shared/validation/guard.ts";
  * shadowing bare column names.
  */
 export const listingAttendeeRowColumnsFrom = (sourceName: string): string => {
-  const column = (name: string): string => `${sourceName}.${name}`;
+  const column = columnFrom(sourceName);
   return `${column("listing_id")}, ${column("start_at")}, ${column("end_at")}, ${column("quantity")}, ${column("checked_in")}, ${refundedFromLedger(
     column("attendee_id"),
   )}, ${pricePaidFromLedger(

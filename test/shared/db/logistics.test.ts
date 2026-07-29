@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
 import {
   bookingAssignmentKey,
   clearLogisticsAgentReferences,
+  type DeliveryBookingRef,
+  getAgentRunSheetBookingKeys,
   getLogisticsAssignments,
   getLogisticsAssignmentsForAttendees,
   setLogisticsAssignments,
@@ -12,6 +14,14 @@ import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  assignBookingLogistics,
+  logisticsAgentAssignment,
+} from "#test-utils/logistics.ts";
+
+const D1 = "2026-06-16";
+const D2 = "2026-06-17";
+const D3 = "2026-06-18";
 
 const newAttendee = async (): Promise<{
   attendeeId: number;
@@ -26,6 +36,9 @@ const newAttendee = async (): Promise<{
   );
   return { attendeeId: attendee.id, listingId: listing.id };
 };
+
+const bookingKey = ({ attendeeId, listingId }: DeliveryBookingRef): string =>
+  bookingAssignmentKey(attendeeId, listingId);
 
 const setupDropoffAndCollection = async (split: boolean) => {
   const drop = await logisticsAgents.table.insert({ name: "Drop" });
@@ -126,6 +139,71 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
         startTime: "",
       },
     ]);
+  });
+
+  test("getAgentRunSheetBookingKeys returns empty for missing inputs", async () => {
+    const booking = { attendeeId: 1, listingId: 1 };
+    expect(await getAgentRunSheetBookingKeys([], [D1], [booking])).toEqual(
+      new Set(),
+    );
+    expect(await getAgentRunSheetBookingKeys([1], [], [booking])).toEqual(
+      new Set(),
+    );
+    expect(await getAgentRunSheetBookingKeys([1], [D1], [])).toEqual(new Set());
+  });
+
+  test("getAgentRunSheetBookingKeys keeps only requested bookings on the agent's run sheet", async () => {
+    const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
+    const other = (await logisticsAgents.table.insert({ name: "Other" })).id;
+    const mine = await newAttendee();
+    const theirs = await newAttendee();
+
+    await assignBookingLogistics(mine, logisticsAgentAssignment(van), D1, D2);
+    await assignBookingLogistics(
+      theirs,
+      logisticsAgentAssignment(other),
+      D1,
+      D2,
+    );
+
+    const keys = await getAgentRunSheetBookingKeys([van], [D1], [mine, theirs]);
+    expect([...keys]).toEqual([bookingKey(mine)]);
+  });
+
+  test("getAgentRunSheetBookingKeys uses the run sheet collection date", async () => {
+    const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
+    const booking = await newAttendee();
+    await assignBookingLogistics(
+      booking,
+      {
+        ...logisticsAgentAssignment(van),
+        startAgentId: null,
+      },
+      D1,
+      D3,
+    );
+
+    const keys = await getAgentRunSheetBookingKeys([van], [D2], [booking]);
+    expect([...keys]).toEqual([bookingKey(booking)]);
+  });
+
+  test("getAgentRunSheetBookingKeys excludes no-quantity bookings", async () => {
+    const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
+    const booking = await newAttendee();
+    await assignBookingLogistics(
+      booking,
+      logisticsAgentAssignment(van),
+      D1,
+      D2,
+    );
+    await getDb().execute({
+      args: [booking.attendeeId, booking.listingId],
+      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
+    });
+
+    expect(await getAgentRunSheetBookingKeys([van], [D1], [booking])).toEqual(
+      new Set(),
+    );
   });
 
   test("clearLogisticsAgentReferences nulls agents but keeps times", async () => {

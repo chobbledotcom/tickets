@@ -20,6 +20,7 @@ const rawValue = (key: AttendeeColumnKey, row: AttendeeTableRow): unknown => {
   const read = columnOrThrow(attendeeTable, key).rawValue;
   if (read === undefined) throw new Error(`Column ${key} has no raw value`);
   const opts: AttendeeColumnOpts = {
+    adminLinks: true,
     allowedDomain: "example.com",
     answerQuestionMap: new Map(),
     answerTextMap: new Map(),
