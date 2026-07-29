@@ -15,36 +15,17 @@ import { optionalStringThat } from "#shared/validation/string.ts";
 
 /* jscpd:ignore-end */
 
-/**
- * Compact booking item stored in session metadata (serialized/deserialized as
- * JSON): listing id (`e`), quantity (`q`), line total in minor units (`p`).
- *
- * A top-level line also carries its edge provenance so the webhook can
- * reconstruct the line's canonical booking-tree `nodeKey` and re-check it still
- * resolves: `k` is the edge kind (`"p"` package member, `"g"` group member — see
- * signed-metadata.ts) and `r` the group id it hangs off. Both are absent on a
- * standalone line.
- */
-/** One signed booking line, schema-first: `e` listing id, `q` quantity, `p`
- * signed line total in minor units, and the optional edge tag (`k` code + `r`
- * group id) the webhook's nodeKey revalidation reconstructs. The writer
- * (signedEdgeFor) and every reader parse against THIS schema, so a drifted or
- * tampered blob is a loud parse failure — never a silently-wrong nodeKey.
- *
- * `p` is an integer: it is `unitPrice * quantity`, both integer minor units, so
- * a fractional value is corruption. `q` is a non-negative integer — a signed
- * line may deliberately carry quantity 0 (an admin no-quantity sentinel or a
- * refunded/deleted-listing placeholder), which downstream preserves rather than
- * coercing to 1 and the success page then rejects as having no live ticket; see
- * extractIntent. The edge tag is a pair — `k` and `r` are both present (a
- * package/group member) or both absent (a standalone line); a half-present tag
- * would let the reader fall back to a standalone nodeKey instead of failing
- * loud, so the schema rejects it. This schema is internal: production always
- * parses the array form (a single line is an array of one), so only
- * {@link BookingItemsSchema} and the {@link BookingItem} type are exported. */
 /** A positive integer (≥ 1): a listing id or a group id. */
 const positiveInt = integerAtLeast(1);
 
+/** One line of a booking: listing `e`, quantity `q`, line total `p` in minor
+ *  units, and the edge tag (`k` kind, `r` group id) the webhook rebuilds the
+ *  line's nodeKey from — see signed-metadata.ts.
+ *
+ *  Quantity 0 is allowed on purpose: an admin sentinel, or a line whose listing
+ *  was refunded or deleted, which later code keeps rather than reading as 1.
+ *  The edge tag is a pair, because half of one would quietly rebuild the wrong
+ *  nodeKey instead of failing. */
 const BookingItemSchema = v.pipe(
   v.object({
     e: positiveInt,
@@ -59,10 +40,7 @@ const BookingItemSchema = v.pipe(
   ),
 );
 
-export const BookingItemsSchema = v.pipe(
-  v.array(BookingItemSchema),
-  v.minLength(1),
-);
+const BookingItemsSchema = v.pipe(v.array(BookingItemSchema), v.minLength(1));
 
 export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
 
@@ -102,13 +80,15 @@ const TextAnswerRefSchema = v.strictObject({
 });
 export type TextAnswerRef = v.InferOutput<typeof TextAnswerRefSchema>;
 
-/** Per-listing answer references carried through a checkout, shared by the
- * booking and checkout intents. */
+/** Per-listing answer references as checkout writes them. Every string id is
+ * one we have really stored: the tolerant {@link TextAnswerRef} is only for
+ * reading back what the provider hands us, so a checkout cannot be built with
+ * an id it never resolved. */
 export type ListingAnswerRefs = {
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]> | undefined;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
-  listingTextAnswerIds?: Record<string, TextAnswerRef[]> | undefined;
+  listingTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
 };
 /**
  * Answers are filed under the listing they belong to, written the way a

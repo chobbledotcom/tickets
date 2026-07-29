@@ -1,8 +1,20 @@
 import { compile } from "@cucumber/gherkin";
 import { IdGenerator, type Pickle } from "@cucumber/messages";
+import type { EvidenceCaptureDeclaration } from "#scripts/specs/evidence/schema.ts";
 import { parseGherkinSource } from "#scripts/specs/gherkin.ts";
 import { validateSpecSources } from "#scripts/specs/profile.ts";
 import { registry, source } from "#test/scripts/specs/profile-fixture.ts";
+
+/** The capture two of these tests both declare: a page, the part of it to
+ * show, and nothing about how it looks. */
+export const PAYMENT_RESULT_CAPTURE = {
+  caseId: "payment.place-available",
+  element: "#payment-result",
+  id: "payment-result",
+  path: "/admin/payments/{paymentId}",
+  presentation: "canonical",
+  profiles: ["mobile"],
+} as const satisfies EvidenceCaptureDeclaration;
 
 export const PLAIN_EVIDENCE_SCENARIO = {
   case: {

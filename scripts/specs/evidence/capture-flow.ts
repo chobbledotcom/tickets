@@ -19,6 +19,7 @@ import {
 } from "./schema.ts";
 import type { LoopbackServer } from "./server.ts";
 import { storeEvidenceCss } from "./style.ts";
+import type { ReadEvidenceTheme } from "./themes.ts";
 
 /** Per-page capture timeout. The After hook has EVIDENCE_HOOK_TIMEOUT_MS
  * (hook.ts) for all captures in one scenario; keep the declaration×profile
@@ -34,6 +35,7 @@ interface EvidenceCaptureDependencies {
   getCookie: () => Promise<string>;
   launchBrowser: () => Promise<Browser>;
   readCatalog: () => Promise<SpecCatalog>;
+  readTheme: ReadEvidenceTheme;
   startServer: () => LoopbackServer;
   waitForPage: (page: Page) => Promise<void>;
   writeCss: (css: string) => Promise<void>;
@@ -88,7 +90,11 @@ const captureProfile = async (
   dependencies: EvidenceCaptureDependencies,
 ): Promise<void> => {
   const profile = SCREENSHOT_PROFILES[profileName];
-  await storeEvidenceCss(declaration, dependencies.writeCss);
+  await storeEvidenceCss(
+    declaration,
+    await dependencies.readTheme(declaration.id),
+    dependencies.writeCss,
+  );
   const context = await browser.newContext({
     baseURL: baseUrl,
     ...screenshotContextOptions(profile),

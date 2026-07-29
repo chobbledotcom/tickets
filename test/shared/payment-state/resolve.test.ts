@@ -183,13 +183,16 @@ describe("payment resolver", () => {
 
   test("finds nothing to settle in a checkout still being paid", () => {
     // No charge facts yet is normal before payment, not a disagreement.
-    expect(
-      resolvePayment(
-        foundRead(
-          paymentObservation({ charges: undefined, status: "pending" }),
-        ),
-      ).status,
-    ).toBe("pending");
+    const observation = paymentObservation({
+      charges: undefined,
+      status: "pending",
+    });
+
+    expect(resolvePayment(foundRead(observation))).toEqual({
+      observation,
+      reason: "payment_pending",
+      status: "pending",
+    });
   });
 
   for (const [name, observation, expected] of [

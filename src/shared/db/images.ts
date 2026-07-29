@@ -4,27 +4,23 @@
 
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { chooseColumns, type StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
-  queryAll,
-  queryOne,
   type SqlStatement,
   useTransaction,
 } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import {
-  type ColumnDef,
-  col,
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { type Read, readOneRow, readRows } from "#shared/db/read.ts";
+import { type ColumnDef, col } from "#shared/db/table.ts";
+import { equals } from "#shared/db/where-clauses.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type {
   Image,
   ImageUse,
   ImageUseItemType,
-  ItemImageProjection,
+  ItemImageColumns,
 } from "#shared/types.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 /* jscpd:ignore-end */
@@ -62,7 +58,7 @@ export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   name: col.encryptedText(encrypt, decrypt),
 });
 
-const imageProjection = defineTableProjection(imagesTable, [
+const imageColumns = chooseColumns(imagesTable, [
   "id",
   "name",
   "filename",
@@ -70,7 +66,7 @@ const imageProjection = defineTableProjection(imagesTable, [
   "alt_text",
 ]);
 
-const imageFileProjection = defineTableProjection(imagesTable, [
+const imageFileColumns = chooseColumns(imagesTable, [
   "id",
   "filename",
   "filename_thumb",
@@ -78,9 +74,7 @@ const imageFileProjection = defineTableProjection(imagesTable, [
 ]);
 
 export const getAllImages = (): Promise<Image[]> =>
-  imageProjection.queryAll(
-    `SELECT ${imageProjection.columnsSql()} FROM images ORDER BY id DESC`,
-  );
+  imageColumns.select({ order: "id DESC" });
 
 export const getImageById = (id: number): Promise<Image | null> =>
   imagesTable.findById(id);
@@ -114,26 +108,36 @@ export const imageFilenameSubqueries = (
     ),
   ].join(", ");
 
+/** The images attached to one item, in the order the operator arranged them.
+ * Both image reads below want the same rows and differ only in which columns
+ * they open, so they say it once here. */
+const imagesOfItem = (
+  columns: string,
+  itemType: ImageUseItemType,
+  itemId: number,
+): Read => ({
+  columns,
+  from: "image_uses AS imageUse JOIN images AS image ON image.id = imageUse.image_id",
+  order: "imageUse.sort_order ASC, imageUse.image_id ASC",
+  where: [
+    ...equals("imageUse.item_type", itemType),
+    ...equals("imageUse.item_id", itemId),
+  ],
+});
+
 export const getImageFilenamesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
-): Promise<ItemImageProjection> => {
-  type ImageFileRow = StoredTableProjectionRow<
-    Image,
-    typeof imageFileProjection.columns
-  > & { id: number };
-  const stored = await queryOne<ImageFileRow>(
-    `SELECT ${imageFileProjection.columnsSql("image")}
-       FROM image_uses AS imageUse
-       JOIN images AS image ON image.id = imageUse.image_id
-      WHERE imageUse.item_type = ? AND imageUse.item_id = ?
-      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC
-      LIMIT 1`,
-    [itemType, itemId],
+): Promise<ItemImageColumns> => {
+  type ImageFileRow = StoredRowOf<Image, typeof imageFileColumns.columns> & {
+    id: number;
+  };
+  const stored = await readOneRow<ImageFileRow>(
+    imagesOfItem(imageFileColumns.columnsSql("image"), itemType, itemId),
   );
   if (!stored)
     return { image_alt_text: "", image_thumb_url: "", image_url: "" };
-  const image = await imageFileProjection.read(
+  const image = await imageFileColumns.read(
     stored,
     `${stored.id} (first image of ${itemType} ${itemId})`,
   );
@@ -148,20 +152,17 @@ export const getImagesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
 ): Promise<OrderedImage[]> => {
-  type OrderedImageRow = StoredTableProjectionRow<
-    Image,
-    typeof imageProjection.columns
-  > & { sort_order: number };
-  const rows = await queryAll<OrderedImageRow>(
-    `SELECT ${imageProjection.columnsSql("image")},
-            imageUse.sort_order
-       FROM image_uses AS imageUse
-       JOIN images AS image ON image.id = imageUse.image_id
-      WHERE imageUse.item_type = ? AND imageUse.item_id = ?
-      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC`,
-    [itemType, itemId],
+  type OrderedImageRow = StoredRowOf<Image, typeof imageColumns.columns> & {
+    sort_order: number;
+  };
+  const rows = await readRows<OrderedImageRow>(
+    imagesOfItem(
+      `${imageColumns.columnsSql("image")}, imageUse.sort_order`,
+      itemType,
+      itemId,
+    ),
   );
-  const images = await imageProjection.readAll(rows);
+  const images = await imageColumns.readAll(rows);
   return images.map((image, index) => ({
     ...image,
     sort_order: rows[index]!.sort_order,
@@ -169,13 +170,12 @@ export const getImagesForItem = async (
 };
 
 export const getImageUsesForImage = (imageId: number): Promise<ImageUse[]> =>
-  queryAll<ImageUse>(
-    `SELECT image_id, item_type, item_id, sort_order
-       FROM image_uses
-      WHERE image_id = ?
-      ORDER BY item_type ASC, item_id ASC`,
-    [imageId],
-  );
+  readRows<ImageUse>({
+    columns: "image_id, item_type, item_id, sort_order",
+    from: "image_uses",
+    order: "item_type ASC, item_id ASC",
+    where: equals("image_id", imageId),
+  });
 
 const itemTable: Record<ImageUseItemType, string> = {
   group: "groups",

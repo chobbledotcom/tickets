@@ -9,6 +9,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  asksIfThereIs,
   stillThere,
   type TicketsWorld,
   theBooking,
@@ -54,6 +55,30 @@ describe("the story's shared lookups", () => {
       expect(() => stillThere(undefined, "Weekend")).toThrow(
         "The Weekend is gone altogether",
       );
+    });
+  });
+
+  describe("asking whether the site still offers something", () => {
+    /** Asks about one page, against a lookup that always answers the same. */
+    const asksGiven = (found: string | null) =>
+      asksIfThereIs(() => Promise.resolve(found))(worldWith({}), "Directions");
+
+    test("says yes when the lookup finds it", async () => {
+      expect(await asksGiven("/admin/thing/1")).toBe(true);
+    });
+
+    test("says no when the lookup finds nothing", async () => {
+      expect(await asksGiven(null)).toBe(false);
+    });
+
+    test("asks about the thing it was given", async () => {
+      const asked: string[] = [];
+      const asks = asksIfThereIs((_world, name) => {
+        asked.push(name);
+        return Promise.resolve(null);
+      });
+      await asks(worldWith({}), "Parking");
+      expect(asked).toEqual(["Parking"]);
     });
   });
 });

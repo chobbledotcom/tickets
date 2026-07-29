@@ -24,6 +24,21 @@ Feature: An organiser sells several things as one bundle
       And the bundle charges 25.00 for the Tent
       And the bundle sets no price of its own for the Breakfast
 
+  @rule:bookings.an-open-bundle-names-what-is-inside-it
+  @surface:public
+  Rule: An open bundle names what is inside it
+    A bundle that hides nothing tells the customer what they are getting
+    before they buy: the bundle's own name, and each thing inside it.
+
+    @case:bundles.the-parts-are-named-on-the-booking-page
+    Scenario: A customer opens the booking page of an open bundle
+      Given a Weekend group holding a Tent at 40.00 and a Breakfast at 10.00
+      And the organiser sells the Weekend as a bundle, with the Tent at 25.00 and the Breakfast left blank
+      When a customer opens the Weekend booking page
+      Then the booking page named the Weekend
+      And the booking page named the Tent
+      And the booking page named the Breakfast
+
   @rule:bookings.a-bundle-can-keep-what-is-inside-it-private
   Rule: A bundle can keep what is inside it private
     The organiser can sell a bundle by its own name alone. A customer buying it

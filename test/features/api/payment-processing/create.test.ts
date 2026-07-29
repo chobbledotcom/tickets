@@ -261,13 +261,14 @@ describeWithEnv("payment booking lines", { db: true }, () => {
     );
   });
 
-  // The owner reads these, so money off says "£1 off" rather than repeating
-  // the minus sign the delta carries, and nothing off is not called a discount.
-  for (const [name, code, delta, expected] of [
-    ["nothing off", "FREE", 0, "Promo code 'FREE' used: +£0"],
+  // What a code did to the price, in the words the owner reads. A discount
+  // says how much came off rather than repeating the minus sign the amount
+  // carries; a code worth nothing is not called a discount at all.
+  for (const [name, code, delta, message] of [
+    ["a code worth nothing", "FREE", 0, "Promo code 'FREE' used: +£0"],
     ["money off", "POUNDOFF", -100, "Promo code 'POUNDOFF' used: £1 off"],
   ] as const) {
-    test(`logs ${name} the way the owner reads it`, async () => {
+    test(`writes down ${name}`, async () => {
       const listing = await createTestListing();
       const attendee = await bookTestAttendee(
         [listing.id],
@@ -291,7 +292,7 @@ describeWithEnv("payment booking lines", { db: true }, () => {
           row!.message as never,
           await getTestPrivateKey(),
         ),
-      ).toBe(expected);
+      ).toBe(message);
     });
   }
 

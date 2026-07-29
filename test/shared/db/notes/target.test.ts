@@ -8,6 +8,11 @@ import {
   targetsWhere,
   targetWhere,
 } from "#shared/db/notes/target.ts";
+import {
+  clauseArgs,
+  rowsUnlessNoneMatch,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 
 describe("what a note is about", () => {
   test("names a record by its kind and its id", () => {
@@ -21,37 +26,42 @@ describe("what a note is about", () => {
   });
 
   test("asks for one record by both of its parts", () => {
-    expect(targetWhere(attendeeNotes(4))).toEqual({
-      args: ["attendee", 4],
-      sql: "entity_type = ? AND entity_id = ?",
-    });
+    const where = targetWhere(attendeeNotes(4));
+    expect(whereSql(where)).toBe(" WHERE entity_type = ? AND entity_id = ?");
+    expect(clauseArgs(where)).toEqual(["attendee", 4]);
   });
 
   test("asks for several records of one kind in one go", () => {
-    expect(targetsWhere("attendee", [4, 5])).toEqual({
-      args: ["attendee", 4, 5],
-      sql: "entity_type = ? AND entity_id IN (?, ?)",
-    });
+    const where = targetsWhere("attendee", [4, 5]);
+    expect(whereSql(where)).toBe(
+      " WHERE entity_type = ? AND entity_id IN (?, ?)",
+    );
+    expect(clauseArgs(where)).toEqual(["attendee", 4, 5]);
   });
 
-  test("refuses to ask about no records at all", () => {
-    // Building `IN ()` would be SQL no database accepts, and a caller with
-    // nothing to ask about should not have reached here.
-    expect(() => targetsWhere("attendee", [])).toThrow(
-      "Asked for the notes of no attendee records",
-    );
+  test("asking about no records is a question no row can answer", async () => {
+    // The reader sees this and skips the round trip, rather than building
+    // `IN ()` — SQL no database accepts.
+    let asked = false;
+    const rows = await rowsUnlessNoneMatch(targetsWhere("attendee", []), () => {
+      asked = true;
+      return Promise.resolve([{ id: 1 }]);
+    });
+
+    expect(rows).toEqual([]);
+    expect(asked).toBe(false);
   });
 
   test("keeps the subquery's own arguments after the kind", () => {
-    expect(
-      targetsSelectedBy("attendee", {
-        args: [12],
-        sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
-      }),
-    ).toEqual({
-      args: ["attendee", 12],
-      sql: "entity_type = ? AND entity_id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?)",
+    const where = targetsSelectedBy("attendee", {
+      args: [12],
+      sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
     });
+    expect(whereSql(where)).toBe(
+      " WHERE entity_type = ? AND entity_id IN" +
+        " (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?)",
+    );
+    expect(clauseArgs(where)).toEqual(["attendee", 12]);
   });
 
   test("groups notes by the record they are about, keeping their order", () => {

@@ -18,7 +18,7 @@ export const OptionalStringSchema = v.optional(v.string());
 
 /** A piece of text that may be left out, but has to pass the test when it is
  *  there. */
-export type OptionalCheckedString = v.OptionalSchema<
+type OptionalCheckedString = v.OptionalSchema<
   v.SchemaWithPipe<
     readonly [
       v.StringSchema<undefined>,

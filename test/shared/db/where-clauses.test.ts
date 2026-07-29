@@ -12,8 +12,7 @@ import {
   clauseArgs,
   equals,
   inList,
-  matchesNoRows,
-  orderSql,
+  rowsUnlessNoneMatch,
   whereSql,
 } from "#shared/db/where-clauses.ts";
 
@@ -70,19 +69,23 @@ describe("equals", () => {
   });
 });
 
-describe("matchesNoRows", () => {
-  test("is true when any clause can never match", () => {
-    expect(matchesNoRows([...inList("a.id", [1]), ...inList("b.id", [])])).toBe(
-      true,
-    );
+describe("rowsUnlessNoneMatch", () => {
+  test("runs the read when the clauses can match", async () => {
+    expect(
+      await rowsUnlessNoneMatch(inList("a.id", [1]), () =>
+        Promise.resolve([7]),
+      ),
+    ).toEqual([7]);
   });
 
-  test("is false when every clause can match", () => {
-    expect(matchesNoRows(inList("a.id", [1]))).toBe(false);
-  });
-
-  test("is false with no clauses at all", () => {
-    expect(matchesNoRows([])).toBe(false);
+  test("answers without running the read when they cannot", async () => {
+    let ran = false;
+    const rows = await rowsUnlessNoneMatch(inList("a.id", []), () => {
+      ran = true;
+      return Promise.resolve([7]);
+    });
+    expect(rows).toEqual([]);
+    expect(ran).toBe(false);
   });
 });
 
@@ -115,18 +118,5 @@ describe("clauseArgs", () => {
 
   test("is empty with no clauses", () => {
     expect(clauseArgs([])).toEqual([]);
-  });
-});
-
-describe("orderSql", () => {
-  const ORDERS = { newest: "created DESC", oldest: "created ASC" };
-
-  test("is empty when the caller does not care about order", () => {
-    expect(orderSql(ORDERS, undefined)).toBe("");
-  });
-
-  test("names the SQL for the chosen order", () => {
-    expect(orderSql(ORDERS, "newest")).toBe(" ORDER BY created DESC");
-    expect(orderSql(ORDERS, "oldest")).toBe(" ORDER BY created ASC");
   });
 });

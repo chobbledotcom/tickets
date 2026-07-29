@@ -10,6 +10,7 @@ import { stripeMockEnv } from "#scripts/stripe-mock.ts";
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
 import { denoExitCode, envWith } from "./child-process.ts";
+import { planIsolateEntries } from "./isolate-entry.ts";
 import type { Status } from "./summary.ts";
 
 export type Outcome = "failed" | "passed" | "timed-out";
@@ -113,20 +114,25 @@ const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
     stdout: "null",
   } as const;
   if (direct.length > 0) {
-    const code = await denoExitCode(
-      [
-        "test",
-        "--no-check",
-        "--allow-all",
-        "--parallel",
-        "--preload",
-        "./test/test-utils/preload.ts",
-        "--v8-flags=--expose-gc",
-        ...direct,
-      ],
-      options,
-    );
-    if (code !== 0) return code;
+    const entries = await planIsolateEntries(direct);
+    try {
+      const code = await denoExitCode(
+        [
+          "test",
+          "--no-check",
+          "--allow-all",
+          "--parallel",
+          "--preload",
+          "./test/test-utils/preload.ts",
+          "--v8-flags=--expose-gc",
+          ...entries.runArgs,
+        ],
+        options,
+      );
+      if (code !== 0) return code;
+    } finally {
+      await entries.cleanup();
+    }
   }
   return features.length === 0
     ? 0

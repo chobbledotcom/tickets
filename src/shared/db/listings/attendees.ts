@@ -17,20 +17,20 @@ import {
 } from "#shared/db/client.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { decryptListingWithCount } from "./records.ts";
-import { type ListingProjectionRow, listingStatement } from "./select.ts";
+import { type ListingRecordRow, listingReader } from "./select.ts";
 
 const withBatchListing = async <T>(
   listingResult: ResultSet,
   build: (listing: ListingWithCount) => T,
 ): Promise<T | null> => {
-  const listingRow = resultRows<ListingProjectionRow>(listingResult)[0];
+  const listingRow = resultRows<ListingRecordRow>(listingResult)[0];
   if (!listingRow) return null;
   return build(await decryptListingWithCount(listingRow));
 };
 
 /** The listing half of these one-round-trip batch reads. */
 const oneListing = (id: number): SqlStatement =>
-  listingStatement({ where: { ids: [id] } });
+  listingReader.statement({ where: { ids: [id] } });
 
 export type ListingWithAttendees = {
   listing: ListingWithCount;

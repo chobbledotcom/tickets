@@ -809,29 +809,6 @@ of genuinely long suites, which now bound the slowest groups:
 Starting point: run `deno task test`, read the slow-test report at the end,
 and profile the top entry.
 
-## Split the admin questions template test file
-
-*Origin: review of PR #1796 (the `[object Object]` error-box fix). Flagged by
-CodeRabbit while that PR hardened the questions template's mutation coverage.*
-
-`test/ui/templates/admin/questions.test.ts` is ~862 lines — over the ~400-line
-target for test files (it was already ~795 before #1796 added the hardening
-assertions; it stays under Biome's 1,000-line hard limit, so CI passes).
-Smaller, focused test files also let mutation
-runs map `questions.tsx` to a narrower suite.
-
-Split it into focused sibling suites sharing one fixtures helper, roughly:
-- `questions-list.test.ts` — `adminQuestionsPage` (the reorderable list).
-- `questions-detail.test.ts` — `adminQuestionPage` + `ListingQuestionsPanel`.
-- `questions-answer.test.ts` — `adminAnswerEditPage` / `adminAnswerRecalculatePage`.
-- `questions-delete.test.ts` — `adminQuestionDeletePage` / `adminAnswerDeletePage`.
-
-Extract the shared fixtures (`colourQuestion`, `TEST_LISTINGS`, `TEST_SESSION`,
-the answer/question factories) into a local helper the suites import, and keep
-`questionTextFlat` + `buildAnswerSummaryRows` with whichever suite reads most
-naturally. Preserve every existing assertion — behaviour must not change. The
-attribute template test (`attributes.test.tsx`) is the shape to mirror.
-
 ## Pre-existing issues surfaced during the min-tokens-20 dedup (PR #1795)
 
 CodeRabbit flagged these while reviewing the dedup PR. Each is a real point but
@@ -1387,43 +1364,6 @@ a malformed response throws rather than being silently cast. Starting point:
 
 ---
 
-## Split oversized test files moved by PR #1903
-
-*Origin: Codex review of PR #1903 ("Load heavy modules only when needed").
-That PR is a cold-start import reduction; as a side effect it relocated several
-test files via `git mv` to mirror their source module paths (the mutation gate
-requires mirror-located direct tests). Two of the moved files are over the
-~400-line target in AGENTS.md:*
-
-- **`test/features/admin/auth.test.ts` (651 lines).** Was
-  `test/lib/server-auth.test.ts` (658 lines on `main`) — the move did not grow
-  it. Covers login, logout, sessions, roles, invalid credentials, CSRF, and
-  `wrappedDataKey` edge cases. A future PR should split it into focused files
-  by concern (e.g. `login.test.ts`, `logout.test.ts`, `sessions.test.ts`,
-  `roles.test.ts`) under `test/features/admin/auth/`, mirroring the
-  `test/features/admin/users/` folder pattern already in place. Run
-  `deno task test:files test/features/admin/auth/*.ts` after the split to
-  confirm coverage stays at 100%.
-
-- **`test/ui/templates/checkin.test.ts` (523 lines).** Was
-  `test/lib/server-checkin.test.ts` (499 lines on `main`) — the move grew it
-  slightly via the row-scoped assertion rewrite in `64475d4f`. Covers GET/POST
-  `/checkin/:tokens` rendering, column visibility, check-in/out flows,
-  refunded-attendee blocking, shared-token behaviour, and route matching. A
-  future PR should split it by concern (e.g. `checkin/rendering.test.ts`,
-  `checkin/flows.test.ts`, `checkin/routes.test.ts`) under
-  `test/ui/templates/checkin/`. Keep the `rowFor` helper in a shared helper
-  file (or move it to `#test-utils` if a second caller appears) rather than
-  duplicating it across the split files.
-
-Both files are well under the Biome hard 1,000-line ceiling
-(`noExcessiveLinesPerFile`), so CI passes on both today.
-Splitting them now was deliberately deferred because doing it inside the
-cold-start PR would balloon the diff with unrelated mechanical test moves and
-re-conflict with the import-only changes that are the actual subject of the
-PR. The ~400-line target is guidance, and the cold-start PR's brief was
-explicitly about import-graph narrowing, not test reorganisation.
-
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
@@ -1494,43 +1434,6 @@ the mutation gaps rather than moving the file around; the file scores 100% as it
 stands, so the split can be a pure move.
 
 ---
-
-## Mutation gaps in `src/shared/crypto/encryption.ts`
-
-*Origin: mutation run while speeding up owner-key encryption (PR #1945).*
-
-`deno task mutation --source src/shared/crypto/encryption.ts --test
-test/shared/crypto/encryption.test.ts` reports **41 survivors out of 90**, a
-score of 54%. None came from that change; they are gaps the run happened to
-surface. They fall into three groups.
-
-**The binary file format** (`encryptBytes` / `decryptBytes`, the `ENCB` header —
-roughly lines 254 to 301). Most of the survivors are here: the magic bytes, the
-version byte, the header offsets, and both format errors can all be mutated
-without a direct test noticing. These functions are only reached today through
-integration tests (`test/features/images.test.ts`,
-`test/integration/attachment-route.test.ts`,
-`test/ui/templates/admin/settings/header-image.test.ts`), which the direct-test
-run does not include. They want unit tests in `test/shared/crypto/` covering the
-header layout byte by byte, a wrong magic, and a wrong version.
-
-**Key caching and change notification** (lines 65 to 136): clearing the two
-resolved-key caches and running the registered change callbacks can be removed
-without a test failing. A test that changes the key and then checks the *next*
-encryption uses the new one would close this.
-
-**The key import flag** (line 119): `false` → `true` on the `extractable`
-argument of `crypto.subtle.importKey`. No behaviour can tell these apart,
-because the key is never exported — a genuine equivalent mutant. Either record
-it in `scripts/mutation/equivalent-mutants.txt` with that reasoning, or find an
-assertion on the imported key itself. `importRsaKey` in
-`src/shared/crypto/keys.ts` has the same shape.
-
-Start with the binary format: it is the bulk of the count and the group where a
-surviving mutant would represent a real risk to stored files.
-
----
-
 
 ## Let Deno-hosted sites with a Bunny database be migrated
 
@@ -2171,3 +2074,28 @@ the human, as a required choice, not a default.
 This was left out of #1990 because that slice only hardens how a booking is read
 and checked. Giving a payment session a new state, a screen and an operator
 action belongs with the payment-record work, not with the parsing.
+## An answer filed under a listing nobody booked
+
+*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+
+Free-text answers travel through checkout filed under the listing they belong
+to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
+`src/shared/booking-intent.ts` checks that the key is written the way a listing
+id is written, so a key of any other shape stops the booking rather than losing
+the answers under it after the buyer has paid.
+
+What it cannot check is whether that listing was one of the ones actually
+bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
+and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
+looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
+answers. The buyer answered a question and the answer quietly goes nowhere.
+
+The schema is the wrong place for the check: it validates one booking's metadata
+on its own, and the listings that were bought are decided later, once the items
+have been priced and loaded. The natural home is next to
+`saveSessionAnswers`, which already has both the answer map and the booked
+listings — compare the two sets and raise any key that matches no booked
+listing, the same way an unreadable booking is raised.
+
+Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
+where the shape rule is covered and the "names a booked listing" rule is not.

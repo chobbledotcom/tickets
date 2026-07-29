@@ -1,7 +1,7 @@
 /**
  * Unit tests for the attendee SELECT builder (`src/shared/db/attendees/select.ts`).
  *
- * `attendeeColumns` and `attendeeFromWhere` are pure string builders — no DB —
+ * `attendeeColumns` and the statement builder are pure — no DB —
  * so they are tested directly here. This pins the field-selection contract (the
  * expensive ledger subqueries appear only when their field is requested) and
  * the filter/order SQL that every attendee-listing read now shares, so a mutant
@@ -14,9 +14,29 @@ import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeField,
+  type AttendeeJoin,
+  type AttendeeOrder,
+  type AttendeeWhere,
+  attendeeBatchStatement,
   attendeeColumns,
-  attendeeFromWhere,
 } from "#shared/db/attendees/select.ts";
+
+/** The filter and order half of an attendee read — everything from `FROM`
+ * onwards — plus its bound values. Field selection is covered separately, so
+ * these ask for no fields and drop the column list. */
+const attendeeFromWhere = (
+  join: AttendeeJoin,
+  where: AttendeeWhere,
+  order?: AttendeeOrder,
+): { from: string; args: unknown[] } => {
+  const { sql, args } = attendeeBatchStatement({
+    fields: [],
+    join,
+    where,
+    ...(order === undefined ? {} : { order }),
+  });
+  return { args, from: sql.slice(sql.indexOf("FROM ")) };
+};
 
 const CORE_ALIASES = [
   "attendee.id",
@@ -96,7 +116,7 @@ describe("attendeeColumns", () => {
   });
 });
 
-describe("attendeeFromWhere", () => {
+describe("attendee filter and order SQL", () => {
   test("uses the requested join keyword", () => {
     expect(attendeeFromWhere("inner", { attendeeIds: [1] }).from).toContain(
       "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee",
@@ -220,7 +240,7 @@ describe("attendeeFromWhere", () => {
   });
 
   test("each named order maps to its ORDER BY, and omitting order omits the clause", () => {
-    const cases: [Parameters<typeof attendeeFromWhere>[2], string][] = [
+    const cases: [AttendeeOrder, string][] = [
       ["created_desc", "ORDER BY attendee.created DESC"],
       ["id_asc", "ORDER BY attendee.id ASC, listingAttendee.listing_id ASC"],
       ["id_desc", "ORDER BY attendee.id DESC, listingAttendee.listing_id ASC"],

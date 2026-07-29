@@ -11,7 +11,11 @@ import { map } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
-import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
+import {
+  openAdminPage,
+  openAsNewcomer,
+  opensSalesPagesAt,
+} from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   expectCanReallySend,
@@ -24,6 +28,8 @@ import {
 } from "#test/specs/support/listings.ts";
 import {
   type ActOnOneThing,
+  type AsksAboutOneThing,
+  asksIfThereIs,
   type ReadAboutOneThing,
   requiredWorldValue,
   stillThere,
@@ -222,16 +228,35 @@ export const bundleChargeForOrNull = async (
   return inBundle.package_price;
 };
 
+/**
+ * The page a customer buys a bundle from, opened as anyone would. The slug is
+ * kept on the world so an evidence capture can open the same page the story
+ * read, and the page text so a story can say what it named.
+ */
+const openBundlePage = opensSalesPagesAt(
+  (world, name) => `/ticket/${bundleNamed(world, name).slug}`,
+);
+
+export const customerOpensBundlePage = async (
+  world: TicketsWorld,
+  name: string,
+): Promise<TestBrowser> => {
+  const group = bundleNamed(world, name);
+  const browser = await openBundlePage(world, name);
+  // The box has to be there and be able to take a one, or the bundle could not
+  // be chosen in a real browser however well a crafted send goes through.
+  expect(browser.currentHtml).toContain(`name="package_quantity_${group.id}"`);
+  world.bundleBookingPage = browser.pageText;
+  world.evidenceValues.set("bundleSlug", group.slug);
+  return browser;
+};
+
 /** A customer buys the bundle from its own page, and keeps the ticket they end
  * up holding so the story can look at it again later. */
 export const customerBuysBundle: ActOnOneThing = async (world, name) => {
   const group = bundleNamed(world, name);
-  const browser = await openAsNewcomer(`/ticket/${group.slug}`);
-  // The box has to be there and be able to take a one, or the bundle could not
-  // be chosen in a real browser however well a crafted send goes through.
+  const browser = await customerOpensBundlePage(world, name);
   const wanting = `package_quantity_${group.id}`;
-  expect(browser.currentHtml).toContain(`name="${wanting}"`);
-  world.bundleBookingPage = browser.pageText;
   const filledIn = {
     email: "buyer@example.com",
     name: "Buyer",
@@ -271,10 +296,8 @@ export const organiserDeletesBundle: ReadAboutOneThing = async (
   return browser.pageText;
 };
 
-export const bundleStillExists = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<boolean> => (await storedBundleOrNull(world, name)) !== null;
+export const bundleStillExists: AsksAboutOneThing =
+  asksIfThereIs(storedBundleOrNull);
 
 /** A customer opens one of the bundle's parts on its own. Its page has to
  * answer, be that thing's page, and offer a way to book it — a row left in the
