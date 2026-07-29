@@ -11,7 +11,7 @@ interface CheckinSession {
 
 type ListingOverrides = Parameters<typeof createTestAttendeeWithToken>[2];
 
-/** Create attendee + login, returning token + session for check-in tests */
+/** Create an attendee, returning its token plus the admin session to act as. */
 export const setupCheckinTest = async (
   name: string,
   email: string,

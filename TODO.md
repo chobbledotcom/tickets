@@ -1377,9 +1377,17 @@ per mutant into several. Codex's point is that this may cost more in repeated
 module-graph evaluation and setup than the single large file did.
 
 It may also cost less: each file is smaller, and they run in parallel. Nobody
-has measured it, and that measurement is the first job here — time
-`deno task mutation src/ui/templates/admin/questions.tsx` (which now selects six
-files) against the same run on the pre-split single file from git history.
+has measured it, and that measurement is the first job here. The command needs
+both a source and a test glob, so the split shape times as:
+
+```bash
+deno task mutation src/ui/templates/admin/questions.tsx \
+  'test/ui/templates/admin/questions/*.test.ts' --harness
+```
+
+For the "before" number, run the same command in a checkout from before PR
+#1981 — that is where the single `test/ui/templates/admin/questions.test.ts`
+still exists — with that one file as the test glob.
 
 Only if the split shape is genuinely slower is there something to change, and
 then the options are to select more narrowly (map a mutant to the one file whose
