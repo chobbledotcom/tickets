@@ -1,10 +1,6 @@
 /**
- * The pages a site has besides the things it sells — how to find us, what to
- * bring, who we are.
- *
- * The owner's half goes through the pages they would really use: the list, the
- * add form, the move buttons, and the delete page's confirm box. The visitor's
- * half opens the address itself, as somebody who was never signed in.
+ * The pages a site has besides the things it sells. The visitor's half is
+ * opened by somebody never signed in, because that is who these pages are for.
  */
 
 // jscpd:ignore-start
@@ -27,6 +23,12 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** The owner's own list of the site's pages. */
 const PAGES_LIST = "/admin/site/pages";
 
+/** Wording that appears on one page and nowhere else. Every page's name is in
+ * the navigation on every page, so a check that only looked for the name would
+ * pass against any page at all. */
+export const wordsOnlyOn = (name: string): string =>
+  `The body of ${name}, and of nothing else.`;
+
 /** The owner opens their list of pages, ready to write one. A page is no use
  * unless the public site is on, so a story that wrote one nobody could read
  * would prove nothing. */
@@ -46,7 +48,7 @@ export const ownerWritesPage = async (
   await browser.clickLink(t("site.pages.add"));
   await fillInAndSend(
     browser,
-    { name, slug: address },
+    { content: wordsOnlyOn(name), name, slug: address },
     t("site.pages.create_submit"),
   );
   world.sitePageTold = browser.pageText;
@@ -88,28 +90,53 @@ const openAbout = async (
   return { browser: await openAdminPage(world, path), id };
 };
 
-/** The names of the site's top-level pages, in the order they are offered. */
-export const pagesInOrder = async (): Promise<string[]> =>
-  (await sitePages.getAll()).map((row) => row.name);
+/** One page's own address on the owner's list, or nothing when the list does
+ * not offer it. Everything an owner does to a page is reached this way, so a
+ * page they could not get to from their own list cannot be acted on here
+ * either — and a missing move arrow means the page is already at the end. */
+const offeredOnTheList = async (
+  world: TicketsWorld,
+  name: string,
+  ending: string,
+): Promise<string | null> => {
+  const { browser, id } = await openAbout(world, name, PAGES_LIST);
+  const path = `${PAGES_LIST}/${id}${ending}`;
+  return browser.currentHtml.includes(path) ? path : null;
+};
+
+/** The names of the site's pages in the order the owner is offered them, read
+ * off their own list. Reading the stored rows instead would pass even if the
+ * page rendered them in some other order, which is the thing the rule is
+ * about. */
+export const pagesInOrder = async (world: TicketsWorld): Promise<string[]> => {
+  const browser = await openAdminPage(world, PAGES_LIST);
+  const named = await sitePages.getAll();
+  const shown = browser.pageText;
+  return named
+    .map(({ name }) => ({ at: shown.indexOf(name), name }))
+    .filter(({ at }) => at >= 0)
+    .sort((left, right) => left.at - right.at)
+    .map(({ name }) => name);
+};
 
 /** The owner moves one page a step up the list. The arrows are pictures rather
  * than words, and every row has its own, so the story checks the list really
  * offers this page's arrow before pressing it. A page already at the top has no
  * up arrow at all, which is how the site says "no further". */
 export const ownerMovesPageUp: ActOnOneThing = async (world, name) => {
-  const { browser, id } = await openAbout(world, name, PAGES_LIST);
-  const arrow = `${PAGES_LIST}/${id}/move-up`;
-  if (!browser.currentHtml.includes(arrow)) return;
-  await adminFormPost(arrow, {});
+  const arrow = await offeredOnTheList(world, name, "/move-up");
+  if (arrow) await adminFormPost(arrow, {});
 };
 
 /** The owner takes a page down, typing its name to confirm. */
 export const ownerTakesPageDown: ActOnOneThing = async (world, name) => {
-  const { browser } = await openAbout(
-    world,
-    name,
-    (id) => `${PAGES_LIST}/${id}/delete`,
-  );
+  const toPage = await offeredOnTheList(world, name, "");
+  if (!toPage) throw new Error(`The list offers no way into ${name}`);
+  const browser = await openAdminPage(world, toPage);
+  // The delete link lives behind the page's own Actions tab, which is where an
+  // owner would find it.
+  await browser.clickLink("Actions");
+  await browser.clickLink(t("site.pages.delete_title"));
   await fillInAndSend(
     browser,
     { confirm_identifier: name },

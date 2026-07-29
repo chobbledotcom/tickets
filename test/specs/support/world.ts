@@ -138,7 +138,6 @@ export interface TicketsWorld extends World {
   shownCode?: CodeOnScreen;
   signedInEditorName?: string;
   sitePageTold?: string;
-  sitePageVisit?: { answered: number; said: string };
   stayListings?: Map<string, Listing>;
   stayStartsOn?: string;
   testBrowser?: TestBrowser;

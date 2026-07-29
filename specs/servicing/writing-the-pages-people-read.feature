@@ -34,6 +34,7 @@ Feature: An owner writes the pages people read
       Given the owner has written a page called Directions at "how-to-find-us"
       When the owner writes a page called Parking at "how-to-find-us"
       Then the owner is told that will not do
+      And the site has no page called Parking
       And a visitor reading "how-to-find-us" is shown Directions
 
     @case:site-pages.address-the-site-keeps
@@ -41,6 +42,7 @@ Feature: An owner writes the pages people read
       Given the owner is writing the site's pages
       When the owner writes a page called Sneaky at "admin"
       Then the owner is told that will not do
+      And the site has no page called Sneaky
 
   @rule:servicing.the-owner-decides-what-order-the-pages-come-in
   Rule: The owner decides what order the pages come in

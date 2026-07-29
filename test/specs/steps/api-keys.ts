@@ -8,6 +8,7 @@ import {
   askedWhatIsSold,
   expectToldAbout,
   keyNamed,
+  keysPageResponse,
   keysPageText,
   ownerMakesKey,
   ownerOpensKeys,
@@ -60,7 +61,11 @@ Then(
 Then(
   "the list of keys never shows the key itself",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await keysPageText(this)).not.toContain(keyNamed(this, "Shopfront"));
+    // The whole response, not only its visible words: a key in a link or a
+    // hidden box is one anybody reading the page can still use.
+    expect(await keysPageResponse(this)).not.toContain(
+      keyNamed(this, "Shopfront"),
+    );
   },
 );
 

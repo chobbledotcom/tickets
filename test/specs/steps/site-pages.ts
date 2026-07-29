@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
 import {
   ownerMovesPageUp,
   ownerTakesPageDown,
@@ -10,6 +11,7 @@ import {
   pagesInOrder,
   visitorReading,
   whatOwnerWasTold,
+  wordsOnlyOn,
 } from "#test/specs/support/site-pages.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 
@@ -60,7 +62,7 @@ Given(
     for (const name of [first, second, third]) {
       await ownerWritesPage(this, name, name.toLowerCase());
     }
-    expect(await pagesInOrder()).toEqual([first, second, third]);
+    expect(await pagesInOrder(this)).toEqual([first, second, third]);
   },
 );
 
@@ -69,10 +71,24 @@ Then("the owner is told it saved", function (this: TicketsWorld): void {
 });
 
 Then("the owner is told that will not do", function (this: TicketsWorld): void {
-  // The site's own words for an address it will not accept, so a refusal that
-  // stopped explaining itself fails here rather than passing quietly.
-  expect(whatOwnerWasTold(this)).toContain("slug");
+  // One of the site's own two refusals, read from the catalog rather than
+  // written out here, so a refusal that stopped explaining itself fails.
+  const told = whatOwnerWasTold(this);
+  const refusals = [
+    t("site.pages.error.reserved"),
+    t("site.pages.error.slug_taken"),
+  ];
+  expect(refusals.some((refusal) => told.includes(refusal))).toBe(true);
 });
+
+Then(
+  "the site has no page called {word}",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    // A refusal that wrote the row anyway and then complained would satisfy
+    // the message check on its own, so the story reads the pages back.
+    expect(await pagesInOrder(this)).not.toContain(name);
+  },
+);
 
 Then(
   "a visitor reading {string} is shown {word}",
@@ -83,7 +99,9 @@ Then(
   ): Promise<void> {
     const { answered, said } = await visitorReading(address);
     expect(answered).toBe(200);
-    expect(said).toContain(name);
+    // Wording only this page carries. Every page's name is in the navigation on
+    // every page, so looking for the name alone would pass against any of them.
+    expect(said).toContain(wordsOnlyOn(name));
   },
 );
 
@@ -111,7 +129,7 @@ Then(
     second: string,
     third: string,
   ): Promise<void> {
-    expect(await pagesInOrder()).toEqual([first, second, third]);
+    expect(await pagesInOrder(this)).toEqual([first, second, third]);
   },
 );
 

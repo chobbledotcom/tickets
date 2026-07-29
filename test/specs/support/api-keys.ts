@@ -1,10 +1,7 @@
 /**
- * A key the owner hands to another system so it can work on their behalf.
- *
- * The owner's half goes through the pages they would really use — the keys
- * page, its form, and the delete page's confirm box — so a page that stopped
- * working fails the story. The other system's half goes through the real
- * request an outside caller would send, carrying the key and nothing else.
+ * A key the owner hands to another system so it can work on their behalf. The
+ * other system's half sends the real request an outside caller would, carrying
+ * the key and nothing else — no session, no cookie.
  */
 
 // jscpd:ignore-start
@@ -57,9 +54,16 @@ export const ownerMakesKey: ActOnOneThing = async (world, name) => {
 export const keyNamed = (world: TicketsWorld, name: string): string =>
   requiredWorldValue(world.apiKeys?.get(name), `the ${name} key`);
 
-/** What the owner's keys page says now. */
-export const keysPageText = async (world: TicketsWorld): Promise<string> =>
-  (await openKeysPage(world)).pageText;
+/** The owner's keys page as words on a screen, or as the whole response the
+ * site sent. A key hidden in a link or an attribute is still a key anybody
+ * reading the response can use, so "it is not shown" has to mean all of it. */
+const readsKeysPage =
+  (whichPart: (browser: TestBrowser) => string) =>
+  async (world: TicketsWorld): Promise<string> =>
+    whichPart(await openKeysPage(world));
+
+export const keysPageText = readsKeysPage((browser) => browser.pageText);
+export const keysPageResponse = readsKeysPage((browser) => browser.currentHtml);
 
 /** What the site answers a caller asking what it sells, and what it said. */
 export const askedWhatIsSold = async (
