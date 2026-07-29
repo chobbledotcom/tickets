@@ -99,6 +99,40 @@ describe("what one reading of a payment comes to", () => {
     });
   }
 
+  // Every answer asks the same shared judgement, so an answer cannot say the
+  // money is settled while the resolver would call the same reading a problem.
+  for (const [name, observation] of [
+    [
+      "a total the provider disagrees with",
+      paymentObservation({ providerTotal: { amount: 99, currency: "GBP" } }),
+    ],
+    [
+      "money taken in a different currency",
+      paymentObservation({ providerTotal: { amount: 100, currency: "USD" } }),
+    ],
+    [
+      "a charge belonging to another checkout",
+      paymentObservation({
+        charges: [
+          chargeLeg({
+            resource: {
+              id: "pi_1",
+              kind: "stripe_payment_intent",
+              parentId: "cs_somebody_else",
+              provider: "stripe",
+            },
+          }),
+        ],
+      }),
+    ],
+  ] as const) {
+    test(`refuses a payment called ready on ${name}`, () => {
+      expect(() =>
+        v.parse(PaymentResolutionSchema, { observation, status: "ready" }),
+      ).toThrow();
+    });
+  }
+
   test("refuses a stored problem whose reading has not finished", () => {
     expect(() =>
       v.parse(PaymentResolutionSchema, {

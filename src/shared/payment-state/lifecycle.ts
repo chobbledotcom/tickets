@@ -3,17 +3,13 @@ import {
   IS_THE_READING_ITSELF,
   PaymentConflictSchema,
 } from "#shared/payment-state/conflict.ts";
+import type { ObservationOutcome } from "#shared/payment-state/diagnose.ts";
 import { hasSettled, outcomeOf } from "#shared/payment-state/diagnose.ts";
 import {
   PaymentObservationSchema,
   ProviderUnavailableReasonSchema,
 } from "#shared/payment-state/observation.ts";
-import type {
-  ChargeLeg,
-  RefundObservation,
-} from "#shared/payment-state/resources.ts";
 import {
-  gaveEverythingBack,
   ProviderResourceSchema,
   sameProviderResource,
 } from "#shared/payment-state/resources.ts";
@@ -62,68 +58,20 @@ const answerFromReading = <const Status extends string>(
     v.check((answer) => readingSaysSo(answer.observation), message),
   );
 
-/** Fully refunded means every charge has given back everything. Without this,
- *  money still held on one charge could be filed as finally returned. A
- *  reading with no charge at all took nothing to give back. */
-const everythingCameBack = (observation: Observation): boolean =>
-  observation.status === "paid" &&
-  observation.charges !== undefined &&
-  observation.charges.every(gaveEverythingBack);
-
-/** Asks whether any refund anywhere in a reading is in the given state. A
- *  reading with no charge took nothing, so no refund can belong to it. */
-const someRefundIs =
-  (status: RefundObservation["status"]) =>
+/** What the reading beside an answer actually comes to. Asking the one shared
+ *  judgement, rather than working it out again here, is what stops a stored
+ *  answer from saying one thing while the resolver would say another about the
+ *  very same reading. */
+const readingComesTo =
+  (kind: ObservationOutcome["kind"]) =>
   (observation: Observation): boolean =>
-    observation.charges?.some((charge) =>
-      charge.refunds.some((refund) => refund.status === status),
-    ) ?? false;
-
-/** Money on its way back somewhere in this reading. */
-const aRefundIsStillGoing = someRefundIs("pending");
-
-/** A refund the provider tried and could not finish. The money is still here,
- *  but somebody asked for it back and that did not happen — which the resolver
- *  raises for the owner rather than treating as a booking to make. */
-const aRefundFailed = someRefundIs("failed");
-
-/** A charge that has kept every penny it took. */
-const nothingGivenBack = (charge: ChargeLeg): boolean =>
-  charge.confirmedRefunded.amount === 0;
-
-/** Money was taken, and every charge has kept what it took. A paid reading
- *  with no charge at all does not describe money that can be booked against —
- *  it is a payment nobody can find, which is a problem for the owner. */
-const tookMoneyAndKeptIt = (observation: Observation): boolean =>
-  observation.charges?.every(nothingGivenBack) ?? false;
-
-/** The buyer paid and the money has stayed paid: none given back, none on its
- *  way back, and none that somebody tried to send back and could not. Money
- *  part-returned is a problem for the owner, money fully returned is its own
- *  answer, money still going is waited on, and a refund that failed is the
- *  owner's to look at — so a reading in any of those states is not a booking
- *  waiting to be made. */
-const paidAndStayedPaid = (observation: Observation): boolean =>
-  observation.status === "paid" &&
-  tookMoneyAndKeptIt(observation) &&
-  !aRefundIsStillGoing(observation) &&
-  !aRefundFailed(observation);
-
-/** Ready means the money question is settled: the buyer paid and the money
- *  stayed paid, or nothing was owed and so nothing was taken. A reading still
- *  going, or one that failed, would otherwise let an unpaid checkout be
- *  treated as ready to book. */
-const moneyQuestionSettled = (observation: Observation): boolean =>
-  paidAndStayedPaid(observation) ||
-  (observation.status === "no_payment_required" &&
-    observation.expected.amount === 0 &&
-    observation.charges === undefined);
+    hasSettled(observation) && outcomeOf(observation).kind === kind;
 
 export const PaymentResolutionSchema = v.variant("status", [
   answerFromReading(
     "ready",
-    moneyQuestionSettled,
-    "A payment is only ready when it was paid, or nothing was owed",
+    readingComesTo("ready"),
+    "A payment is only ready when its reading says the money is settled",
   ),
   v.pipe(
     v.strictObject({
@@ -139,14 +87,13 @@ export const PaymentResolutionSchema = v.variant("status", [
       (answer) =>
         answer.reason === "payment_pending"
           ? answer.observation.status === "pending"
-          : answer.observation.status === "paid" &&
-            aRefundIsStillGoing(answer.observation),
+          : readingComesTo("refund_pending")(answer.observation),
       "What a payment is waiting for must match what its reading says",
     ),
   ),
   answerFromReading(
     "fully_refunded",
-    everythingCameBack,
+    readingComesTo("fully_refunded"),
     "A payment is only fully refunded once a charge has given it all back",
   ),
   v.strictObject({
