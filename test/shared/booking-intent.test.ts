@@ -4,18 +4,34 @@ import * as v from "valibot";
 import {
   BookingIntentSchema,
   type BookingItem,
-  BookingItemsSchema,
 } from "#shared/booking-intent.ts";
 
 /** A minimal booking line that satisfies every schema rule; spread and override
- * one field per case to probe a single boundary in isolation. Each line is
- * validated through BookingItemsSchema (the array wrapper production parses
- * against), so a single-element array exercises the per-line rules directly. */
+ * one field per case to probe a single boundary in isolation. Every line is
+ * checked the way production checks one — as the single line of a whole
+ * booking — so these cases exercise the real parser, not a piece of it. */
 const validItem: BookingItem = { e: 1, p: 0, q: 1 };
+
+/** The smallest booking a payment can carry. */
+const validIntent = {
+  address: "",
+  date: null,
+  email: "buyer@example.com",
+  items: [validItem],
+  modifiers: [],
+  name: "Buyer",
+  phone: "",
+  special_instructions: "",
+};
+
+const oneLineBooking = (item: Record<string, unknown>) => ({
+  ...validIntent,
+  items: [item],
+});
 const accepts = (item: Record<string, unknown>) =>
-  expect(v.is(BookingItemsSchema, [item])).toBe(true);
+  expect(v.is(BookingIntentSchema, oneLineBooking(item))).toBe(true);
 const rejects = (item: Record<string, unknown>) =>
-  expect(v.is(BookingItemsSchema, [item])).toBe(false);
+  expect(v.is(BookingIntentSchema, oneLineBooking(item))).toBe(false);
 
 describe("booking line validation", () => {
   test("accepts a minimal signed line", () => {
@@ -34,7 +50,10 @@ describe("booking line validation", () => {
   });
 
   test("the paired-edge-tag rejection carries its explanatory message", () => {
-    const result = v.safeParse(BookingItemsSchema, [{ ...validItem, k: "p" }]);
+    const result = v.safeParse(
+      BookingIntentSchema,
+      oneLineBooking({ ...validItem, k: "p" }),
+    );
     expect(result.success).toBe(false);
     expect(result.issues?.map((issue) => issue.message)).toContain(
       "edge tag k and r must both be present or both absent",
@@ -79,33 +98,32 @@ describe("booking line validation", () => {
   });
 });
 
-describe("BookingItemsSchema", () => {
-  test("accepts a non-empty array of valid lines", () => {
-    expect(v.is(BookingItemsSchema, [validItem])).toBe(true);
+describe("how many lines a booking may carry", () => {
+  test("accepts several valid lines", () => {
+    expect(
+      v.is(BookingIntentSchema, {
+        ...validIntent,
+        items: [validItem, { ...validItem, e: 2 }],
+      }),
+    ).toBe(true);
   });
 
-  test("rejects an empty array", () => {
-    expect(v.is(BookingItemsSchema, [])).toBe(false);
-  });
-
-  test("rejects an array containing an invalid line", () => {
-    expect(v.is(BookingItemsSchema, [validItem, { ...validItem, e: 0 }])).toBe(
+  test("refuses a booking with no lines at all", () => {
+    expect(v.is(BookingIntentSchema, { ...validIntent, items: [] })).toBe(
       false,
     );
   });
+
+  test("refuses every line when one of them is bad", () => {
+    expect(
+      v.is(BookingIntentSchema, {
+        ...validIntent,
+        items: [validItem, { ...validItem, e: 0 }],
+      }),
+    ).toBe(false);
+  });
 });
 
-/** The smallest booking a payment can carry. */
-const validIntent = {
-  address: "",
-  date: null,
-  email: "buyer@example.com",
-  items: [validItem],
-  modifiers: [],
-  name: "Buyer",
-  phone: "",
-  special_instructions: "",
-};
 const acceptsIntent = (extra: Record<string, unknown>) =>
   expect(v.is(BookingIntentSchema, { ...validIntent, ...extra })).toBe(true);
 const rejectsIntent = (extra: Record<string, unknown>) =>

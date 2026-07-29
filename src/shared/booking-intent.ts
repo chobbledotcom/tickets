@@ -39,9 +39,8 @@ import { optionalStringThat } from "#shared/validation/string.ts";
  * extractIntent. The edge tag is a pair — `k` and `r` are both present (a
  * package/group member) or both absent (a standalone line); a half-present tag
  * would let the reader fall back to a standalone nodeKey instead of failing
- * loud, so the schema rejects it. This schema is internal: production always
- * parses the array form (a single line is an array of one), so only
- * {@link BookingItemsSchema} and the {@link BookingItem} type are exported. */
+ * loud, so the schema rejects it. Both schemas are internal: production always
+ * parses a whole booking, so only the {@link BookingItem} type is exported. */
 /** A positive integer (≥ 1): a listing id or a group id. */
 const positiveInt = integerAtLeast(1);
 
@@ -59,10 +58,7 @@ const BookingItemSchema = v.pipe(
   ),
 );
 
-export const BookingItemsSchema = v.pipe(
-  v.array(BookingItemSchema),
-  v.minLength(1),
-);
+const BookingItemsSchema = v.pipe(v.array(BookingItemSchema), v.minLength(1));
 
 export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
 
@@ -102,13 +98,15 @@ const TextAnswerRefSchema = v.strictObject({
 });
 export type TextAnswerRef = v.InferOutput<typeof TextAnswerRefSchema>;
 
-/** Per-listing answer references carried through a checkout, shared by the
- * booking and checkout intents. */
+/** Per-listing answer references as checkout writes them. Every string id is
+ * one we have really stored: the tolerant {@link TextAnswerRef} is only for
+ * reading back what the provider hands us, so a checkout cannot be built with
+ * an id it never resolved. */
 export type ListingAnswerRefs = {
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]> | undefined;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
-  listingTextAnswerIds?: Record<string, TextAnswerRef[]> | undefined;
+  listingTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
 };
 /**
  * Answers are filed under the listing they belong to, written the way a
