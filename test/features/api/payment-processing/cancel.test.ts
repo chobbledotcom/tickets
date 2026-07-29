@@ -22,7 +22,8 @@ const cancelledSession = (items: string): ValidatedPaymentSession => ({
     items,
     name: "John",
   }) satisfies SessionMetadata,
-  paymentReference: null,
+  // Nothing was paid, so there is no payment to point at.
+  paymentReference: "",
   paymentStatus: "unpaid",
 });
 
