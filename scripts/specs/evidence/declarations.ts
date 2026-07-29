@@ -281,6 +281,104 @@ const BALANCE_LINK_CSS = `${brandedThemeCss(
 }
 `;
 
+const CONTACT_RECORD_CSS = `${brandedThemeCss(
+  "6px",
+  "#8c3b2f",
+  "#efe7dd",
+  "#fdfaf6",
+  "#8c3b2f",
+  "#6b2f26",
+  "#8c3b2f18",
+  "#5b2a2226",
+  "#8c3b2f",
+  "#33211d",
+  "#7b6259",
+)}
+
+#contact-history-form {
+  background: #fdfaf6;
+  border: 1px solid #e3d5c9;
+  border-top: 6px solid var(--color-secondary);
+  border-radius: var(--border-radius);
+  box-shadow: 0 12px 28px var(--color-shadow);
+  padding: 1rem;
+}
+
+#contact-history-form h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.6rem;
+}
+
+#contact-history-form label {
+  color: var(--color-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#contact-history-form input,
+#contact-history-form textarea {
+  background: #fff;
+  border-color: #d9c7b8;
+  border-radius: var(--border-radius);
+}
+
+#contact-history-form button[type="submit"] {
+  background: var(--color-secondary);
+  border-color: #52241d;
+  border-radius: var(--border-radius);
+  color: #fdfaf6;
+  font-weight: 800;
+}
+
+/* The note is written in a markdown editor, which brings its own toolbar, a
+ * character count and a second copy of the note underneath as a preview. The
+ * case is about what the record holds, so the capture shows the record. */
+#contact-history-form .md-toolbar,
+#contact-history-form .md-editor-footer,
+#contact-history-form .md-preview-link,
+#contact-history-form section {
+  display: none;
+}
+`;
+
+const BUNDLE_CHECKOUT_CSS = `${brandedThemeCss(
+  "10px",
+  "#c08a2e",
+  "#17362b",
+  "#fdfaf0",
+  "#1d4c3b",
+  "#1d4c3b",
+  "#1d4c3b18",
+  "#0c211a33",
+  "#1d4c3b",
+  "#1f2d26",
+  "#5f7168",
+)}
+
+.public-page {
+  background: #fdfaf0;
+  border-top: 6px solid var(--color-accent);
+  border-radius: var(--border-radius);
+  box-shadow: 0 14px 32px var(--color-shadow);
+  padding: 1.25rem;
+}
+
+.public-page h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.9rem;
+}
+
+.public-page button[type="submit"] {
+  background: var(--color-link);
+  border-color: #143a2c;
+  border-radius: var(--border-radius);
+  color: #fdfaf0;
+  font-weight: 800;
+}
+`;
+
 /** One branded mobile capture: the page an authored case leaves behind, the
  * part of it worth showing, and the styling it is shown in. */
 const brandedMobileCapture = (
@@ -321,6 +419,20 @@ export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
     "/pay/{balanceToken}",
     ".page-regions.public-page",
     BALANCE_LINK_CSS,
+  ),
+  brandedMobileCapture(
+    "contact-record.a-record-with-a-history-behind-it",
+    "contact-record",
+    "/admin/history/{contactCode}",
+    "#contact-history-form",
+    CONTACT_RECORD_CSS,
+  ),
+  brandedMobileCapture(
+    "bundles.the-parts-are-named-on-the-booking-page",
+    "bundle-booking-page",
+    "/ticket/{bundleSlug}",
+    ".page-regions.public-page",
+    BUNDLE_CHECKOUT_CSS,
   ),
   brandedMobileCapture(
     "door.someone-still-to-arrive-can-be-picked",
