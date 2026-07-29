@@ -142,16 +142,28 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       expect(html).toContain("Winter Show");
     });
 
-    test("offers the ledger only to someone who may see the money", async () => {
+    test("links this listing's own ledger for someone who may see the money", async () => {
       const listing = await createTestListing({});
-      const forOwner = await withTestSession(async () =>
+      const html = await withTestSession(async () =>
         String(await loadListingOverviewPanel(await loaded(listing.id), true)),
       );
-      const forOthers = await withTestSession(async () =>
+      expect(html).toContain(`/admin/ledger?listing=${listing.id}`);
+    });
+
+    test("keeps the ledger away from someone who may not", async () => {
+      const listing = await createTestListing({});
+      const html = await withTestSession(async () =>
         String(await loadListingOverviewPanel(await loaded(listing.id), false)),
       );
-      expect(forOwner).toContain("/admin/ledger");
-      expect(forOthers).not.toContain("/admin/ledger");
+      expect(html).not.toContain("/admin/ledger");
+    });
+
+    test("keeps it away by default, so a caller must ask for it", async () => {
+      const listing = await createTestListing({});
+      const html = await withTestSession(async () =>
+        String(await loadListingOverviewPanel(await loaded(listing.id))),
+      );
+      expect(html).not.toContain("/admin/ledger");
     });
   });
 
@@ -171,6 +183,28 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
         await loadListingActivity(found),
       ]);
       expect(preview.length).toBeLessThanOrEqual(full.length);
+    });
+  });
+
+  describe("the activity preview", () => {
+    test("stops at five entries however long the full log is", async () => {
+      const listing = await createTestListing({});
+      // Every booking writes activity, so this takes the log well past five.
+      for (let index = 0; index < 7; index++) {
+        await createTestAttendee(
+          listing.id,
+          listing.slug,
+          `Guest ${index}`,
+          `guest${index}@example.com`,
+        );
+      }
+      const found = await loaded(listing.id);
+      const [preview, full] = await withTestSession(async () => [
+        await loadListingActivityPreview(found),
+        await loadListingActivity(found),
+      ]);
+      expect(full.length).toBeGreaterThan(5);
+      expect(preview.length).toBe(5);
     });
   });
 });
