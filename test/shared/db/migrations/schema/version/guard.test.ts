@@ -100,8 +100,8 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-19_maintenance_checkpoint",
         "2026-07-21_activity_backfill_complete",
         "2026-07-22_maintenance_completion",
-        "2026-07-26_payment_records",
         "2026-07-28_note_entities",
+        "2026-07-26_payment_records",
       ],
       schemaHash: "11ih7x9",
     });
