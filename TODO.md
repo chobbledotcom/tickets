@@ -1435,6 +1435,30 @@ stands, so the split can be a pure move.
 
 ---
 
+## Two suites now cover the attendees list
+
+*Origin: Codex review of PR #1993 (direct tests for the four testless modules).*
+
+`test/features/admin/attendees-list.test.ts` was added because the mutation
+gate needs a test at the source's mirrored path. It calls the handlers
+directly. But `test/integration/server/attendees-list.test.ts` already drives
+the same behaviour over HTTP — authentication, the listing filter, sort order
+and paging — and `test/integration/server/attendees-csv.test.ts` covers the
+export. So the same rules are now checked twice.
+
+That costs runtime on every suite run, and lets the two sets of fixtures and
+expectations drift apart. The fix is to consolidate: move the route-level cases
+into the mirrored feature suite (which can call the handler directly *and* go
+through the router where that is the point), and delete what is left behind.
+
+Not done in #1993 because that change touches suites the PR otherwise had no
+reason to open, and the mirrored suite had to exist first. Worth doing next
+time either file is opened.
+
+Starting point: the three files named above.
+
+---
+
 ## Remaining mutation gaps in `listing-page-data.ts`
 
 *Origin: writing direct tests for the four feature modules that had none.*
