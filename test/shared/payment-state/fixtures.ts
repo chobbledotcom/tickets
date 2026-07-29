@@ -98,6 +98,14 @@ export const paymentObservation = (
   ...values,
 });
 
+/** A checkout whose charge has given back every penny it took. */
+export const refundedObservation = (): PaymentObservation =>
+  paymentObservation({
+    charges: [
+      chargeLeg({ confirmedRefunded: { amount: 100, currency: "GBP" } }),
+    ],
+  });
+
 /** A checkout that needed no money: nothing asked for, nothing taken, and no
  *  charges to go with it. */
 export const noPaymentRequiredObservation = (): PaymentObservation =>

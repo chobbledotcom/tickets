@@ -16,6 +16,7 @@ import {
   ProviderChargeResourceSchema,
   ProviderResourceSchema,
   ResourceIdSchema,
+  sameProviderResource,
 } from "#shared/payment-state/resources.ts";
 import {
   CASE_STATES,
@@ -80,6 +81,19 @@ const settledObservation = (
     observation.expected.amount === 0 &&
     observation.charges === undefined);
 
+/** Fully refunded means a charge has given back every penny it took. Without
+ *  this, money still on its way back — or still held — could be filed as
+ *  finally returned. */
+const everythingCameBack = (
+  observation: v.InferOutput<typeof PaymentObservationSchema>,
+): boolean =>
+  observation.status === "paid" &&
+  (observation.charges ?? []).some(
+    (charge) =>
+      charge.confirmedRefunded.currency === charge.captured.currency &&
+      charge.confirmedRefunded.amount === charge.captured.amount,
+  );
+
 export const PaymentResolutionSchema = v.variant("status", [
   v.pipe(
     v.strictObject({
@@ -96,21 +110,38 @@ export const PaymentResolutionSchema = v.variant("status", [
     reason: PaymentPendingReasonSchema,
     status: v.literal("pending"),
   }),
-  v.strictObject({
-    observation: PaymentObservationSchema,
-    status: v.literal("fully_refunded"),
-  }),
+  v.pipe(
+    v.strictObject({
+      observation: PaymentObservationSchema,
+      status: v.literal("fully_refunded"),
+    }),
+    v.check(
+      (resolution) => everythingCameBack(resolution.observation),
+      "A payment is only fully refunded once a charge has given it all back",
+    ),
+  ),
   v.strictObject({
     reason: ProviderUnavailableReasonSchema,
     resource: ProviderResourceSchema,
     status: v.literal("retry"),
   }),
-  v.strictObject({
-    issue: PaymentConflictSchema,
-    observation: v.optional(PaymentObservationSchema),
-    resource: ProviderResourceSchema,
-    status: v.literal("conflict"),
-  }),
+  v.pipe(
+    v.strictObject({
+      issue: PaymentConflictSchema,
+      observation: v.optional(PaymentObservationSchema),
+      resource: ProviderResourceSchema,
+      status: v.literal("conflict"),
+    }),
+    v.check(
+      (resolution) =>
+        resolution.observation === undefined ||
+        sameProviderResource(
+          resolution.resource,
+          resolution.observation.session,
+        ),
+      "A problem must name the same checkout its evidence describes",
+    ),
+  ),
   v.strictObject({
     reason: PaymentIgnoreReasonSchema,
     resource: ProviderResourceSchema,

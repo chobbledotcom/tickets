@@ -29,6 +29,7 @@ import {
   lineGroupIds,
   standaloneLineListingIds,
 } from "#shared/booking/signed-metadata.ts";
+import type { BookingItem } from "#shared/booking-intent.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import {
   getPackageDisplaysByIds,
@@ -40,7 +41,6 @@ import {
   listingChildren,
   listingParents,
 } from "#shared/db/listing-parents.ts";
-import type { BookingItem } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** Total allocated units per child across the order's per-parent allocations

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectRefused } from "./refuses.ts";
+import { expectAccepted, expectRefused } from "./refuses.ts";
 
 describeWithEnv("db > payment session rules", { db: true }, () => {
   test("refuses a session with no id", async () => {
@@ -44,6 +44,25 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
       VALUES ('stale-claim', 'current', 'stripe', 'test', 'acct', 100,
         'GBP', 'enc:1:a:b', 'enc:1:a:b', 'idx', 'pending', 1, 100, 100,
         'worker-1', 1, 'none', 'none', 'none')`);
+  });
+
+  test("lets a payment change after its buyer's details were cleared", async () => {
+    // Clearing the details does not freeze the money record: a refund landing
+    // later moves the last-changed time past the clearing. Floored on the last
+    // change instead, that ordinary update would be turned away.
+    await expectAccepted(`INSERT INTO payment_sessions
+      (id, origin, state, revision, created_at, updated_at, redacted_at,
+       result_state, ticket_state, completion_state, legacy_runtime)
+      VALUES ('redacted-then-refunded', 'legacy', 'fully_refunded', 2, 100,
+        200, 150, 'none', 'none', 'none', 'enc:1:a:b')`);
+  });
+
+  test("refuses a payment cleared before it existed", async () => {
+    await expectRefused(`INSERT INTO payment_sessions
+      (id, origin, state, revision, created_at, updated_at, redacted_at,
+       result_state, ticket_state, completion_state, legacy_runtime)
+      VALUES ('cleared-too-early', 'legacy', 'completed', 1, 100, 100, 1,
+        'none', 'none', 'none', 'enc:1:a:b')`);
   });
 
   test("refuses an empty claim on a payment", async () => {

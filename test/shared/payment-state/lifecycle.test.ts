@@ -14,8 +14,10 @@ import {
   PaymentSessionStateSchema,
 } from "#shared/payment-state/lifecycle.ts";
 import {
+  chargeLeg,
   noPaymentRequiredObservation,
   paymentObservation,
+  refundedObservation,
   sessionResource,
 } from "./fixtures.ts";
 
@@ -49,7 +51,7 @@ describe("payment lifecycle", () => {
     const resolutions = [
       { observation, status: "ready" },
       { observation, reason: "payment_pending", status: "pending" },
-      { observation, status: "fully_refunded" },
+      { observation: refundedObservation(), status: "fully_refunded" },
       { reason: "timed_out", resource: sessionResource, status: "retry" },
       {
         issue: { kind: "partial_refund" },
@@ -69,6 +71,34 @@ describe("payment lifecycle", () => {
       "conflict",
       "ignore",
     ]);
+  });
+
+  test("refuses a fully refunded payment with money still held", () => {
+    // The charge gave back only half, so the money is not finally returned.
+    const observation = paymentObservation({
+      charges: [
+        chargeLeg({ confirmedRefunded: { amount: 50, currency: "GBP" } }),
+      ],
+    });
+
+    expect(() =>
+      v.parse(PaymentResolutionSchema, {
+        observation,
+        status: "fully_refunded",
+      }),
+    ).toThrow();
+  });
+
+  test("refuses a problem that names a different checkout to its evidence", () => {
+    // The problem would send a worker, or the owner, to the wrong payment.
+    expect(() =>
+      v.parse(PaymentResolutionSchema, {
+        issue: { kind: "partial_refund" },
+        observation: paymentObservation(),
+        resource: { ...sessionResource, id: "another_checkout" },
+        status: "conflict",
+      }),
+    ).toThrow();
   });
 
   test("counts a checkout that needed no money as ready", () => {

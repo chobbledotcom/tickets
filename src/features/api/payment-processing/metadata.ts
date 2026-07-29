@@ -10,15 +10,15 @@
 
 import * as v from "valibot";
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { nowIso } from "#shared/now.ts";
 import {
   type BookingItem,
   BookingItemsSchema,
   type ModifierRef,
   type TextAnswerRef,
-  type ValidatedPaymentSession,
-} from "#shared/payments.ts";
+} from "#shared/booking-intent.ts";
+import type { ChildAllocation } from "#shared/db/attendee-types.ts";
+import { nowIso } from "#shared/now.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
 
 /**
  * The ledger occurredAt for a payment: the provider's checkout time — the

@@ -7,9 +7,9 @@ import {
   type PackagePricing,
   type ValidatedItem,
 } from "#routes/api/payment-processing/package-pricing.ts";
+import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import type { BookingIntent, BookingItem } from "#shared/payments.ts";
 import { bookingIntent } from "#test/features/api/payment-processing/index/helpers.ts";
 import { listingPair } from "#test/features/api/payment-processing/items/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

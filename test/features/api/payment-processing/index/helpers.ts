@@ -6,10 +6,11 @@ import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
+import type { BookingItem } from "#shared/booking-intent.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { execute } from "#shared/db/client.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import type { BookingItem, ValidatedPaymentSession } from "#shared/payments.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
 

@@ -103,7 +103,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-26_payment_records",
         "2026-07-28_note_entities",
       ],
-      schemaHash: "1jl7pgc",
+      schemaHash: "10dextq",
     });
   });
 

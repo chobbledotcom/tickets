@@ -15,22 +15,17 @@ describe("db > migrations > payment records", () => {
     expect(migration.id).toBe("2026-07-26_payment_records");
   });
 
-  test("asks for every table a payment record lives in", () => {
-    // A table left off this list is never created, so the first site to
+  test("asks for every table and index a payment record needs", () => {
+    // Anything left off this list is never created, so the first site to
     // migrate would run without it.
-    expect([...(migration.requires.newTables ?? [])].sort()).toEqual(
-      paymentTables.map(([name]) => name).sort(),
-    );
-  });
+    const declaredIndexes = paymentTables
+      .flatMap(([, table]) => (table.indexes ?? []).map((index) => index.name))
+      .sort();
 
-  test("asks for every index those tables declare", () => {
-    const declared = paymentTables.flatMap(([, table]) =>
-      (table.indexes ?? []).map((index) => index.name),
-    );
-
-    expect([...(migration.requires.indexes ?? [])].sort()).toEqual(
-      declared.sort(),
-    );
+    expect(migration.requires).toEqual({
+      indexes: declaredIndexes,
+      newTables: paymentTables.map(([name]) => name),
+    });
   });
 
   test("says what it does", () => {

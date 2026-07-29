@@ -8,12 +8,12 @@ import {
   pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type {
-  BookingIntent,
   CheckoutIntent,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";

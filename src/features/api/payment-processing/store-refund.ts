@@ -29,6 +29,7 @@ import type {
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
+import type { BookingItem } from "#shared/booking-intent.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
@@ -37,7 +38,7 @@ import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import type { BookingItem, ValidatedPaymentSession } from "#shared/payments.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
 

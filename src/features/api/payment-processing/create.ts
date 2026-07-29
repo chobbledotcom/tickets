@@ -20,6 +20,12 @@ import type {
 } from "#routes/api/webhook-types.ts";
 /* jscpd:ignore-start */
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
+import type {
+  BookingItem,
+  StoredTextAnswerRef,
+  TextAnswerRef,
+} from "#shared/booking-intent.ts";
+import { StoredTextAnswerRefSchema } from "#shared/booking-intent.ts";
 import {
   bookingsForOrder,
   checkoutBookingLines,
@@ -44,14 +50,10 @@ import {
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type {
-  BookingItem,
   CheckoutIntent,
   ModifierSpec,
-  StoredTextAnswerRef,
-  TextAnswerRef,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
-import { StoredTextAnswerRefSchema } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** The listing id + package path shared by every booking row we build from a

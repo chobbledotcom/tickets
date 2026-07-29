@@ -80,7 +80,10 @@ export const paymentSessionTable: [name: string, table: Table] = [
         oneOf("completion_state", COMPLETION_STATES, "none"),
       ],
       ["completion", "TEXT"],
-      ["redacted_at", wholeNumberOrNull("redacted_at", "updated_at")],
+      // Floored on when the payment was made, not when it last changed:
+      // clearing the buyer's details does not freeze the money record, so a
+      // later refund moves updated_at past a redaction that already happened.
+      ["redacted_at", wholeNumberOrNull("redacted_at", "created_at")],
       ["legacy_runtime", aboutThePayment("TEXT")],
     ],
     indexes: [

@@ -7,8 +7,8 @@ import {
   listingNodeKey,
   packageMemberNodeKey,
 } from "#shared/booking/tree.ts";
+import type { BookingItem } from "#shared/booking-intent.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import type { BookingItem } from "#shared/payments.ts";
 
 /**
  * Signed-metadata edge provenance.
