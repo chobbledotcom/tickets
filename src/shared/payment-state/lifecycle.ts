@@ -10,6 +10,7 @@ import {
   LegacyProviderAssignmentReadSchema,
   refundFitsInsideCapture,
 } from "#shared/payment-state/operator.ts";
+import type { ChargeLeg } from "#shared/payment-state/resources.ts";
 import {
   gaveEverythingBack,
   MoneySchema,
@@ -109,11 +110,14 @@ const everythingCameBack = (observation: Observation): boolean =>
   observation.charges !== undefined &&
   observation.charges.every(gaveEverythingBack);
 
-/** A charge with a refund the provider has not finished yet. */
+/** A charge the provider has not finished giving money back on. */
+const chargeIsStillRefunding = (charge: ChargeLeg): boolean =>
+  charge.refunds.some((refund) => refund.status === "pending");
+
+/** Money on its way back somewhere in this reading. */
 const aRefundIsStillGoing = (observation: Observation): boolean =>
-  (observation.charges ?? []).some((charge) =>
-    charge.refunds.some((refund) => refund.status === "pending"),
-  );
+  observation.charges !== undefined &&
+  observation.charges.some(chargeIsStillRefunding);
 
 export const PaymentResolutionSchema = v.variant("status", [
   answerFromReading(

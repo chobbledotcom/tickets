@@ -135,6 +135,17 @@ describe("payment lifecycle", () => {
     ).toBe("pending");
   });
 
+  test("refuses a payment waiting on a refund when it took no money", () => {
+    // No charge means there is nothing a refund could be coming back from.
+    expect(() =>
+      v.parse(PaymentResolutionSchema, {
+        observation: paymentObservation({ charges: undefined }),
+        reason: "refund_pending",
+        status: "pending",
+      }),
+    ).toThrow();
+  });
+
   test("refuses a payment waiting on a refund with nothing in flight", () => {
     // Nothing to find on the next look, so it would be looked at forever.
     expect(() =>
