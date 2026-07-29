@@ -809,29 +809,6 @@ of genuinely long suites, which now bound the slowest groups:
 Starting point: run `deno task test`, read the slow-test report at the end,
 and profile the top entry.
 
-## Split the admin questions template test file
-
-*Origin: review of PR #1796 (the `[object Object]` error-box fix). Flagged by
-CodeRabbit while that PR hardened the questions template's mutation coverage.*
-
-`test/ui/templates/admin/questions.test.ts` is ~862 lines — over the ~400-line
-target for test files (it was already ~795 before #1796 added the hardening
-assertions; it stays under Biome's 1,000-line hard limit, so CI passes).
-Smaller, focused test files also let mutation
-runs map `questions.tsx` to a narrower suite.
-
-Split it into focused sibling suites sharing one fixtures helper, roughly:
-- `questions-list.test.ts` — `adminQuestionsPage` (the reorderable list).
-- `questions-detail.test.ts` — `adminQuestionPage` + `ListingQuestionsPanel`.
-- `questions-answer.test.ts` — `adminAnswerEditPage` / `adminAnswerRecalculatePage`.
-- `questions-delete.test.ts` — `adminQuestionDeletePage` / `adminAnswerDeletePage`.
-
-Extract the shared fixtures (`colourQuestion`, `TEST_LISTINGS`, `TEST_SESSION`,
-the answer/question factories) into a local helper the suites import, and keep
-`questionTextFlat` + `buildAnswerSummaryRows` with whichever suite reads most
-naturally. Preserve every existing assertion — behaviour must not change. The
-attribute template test (`attributes.test.tsx`) is the shape to mirror.
-
 ## Pre-existing issues surfaced during the min-tokens-20 dedup (PR #1795)
 
 CodeRabbit flagged these while reviewing the dedup PR. Each is a real point but
@@ -1386,43 +1363,6 @@ a malformed response throws rather than being silently cast. Starting point:
 `src/shared/square.ts`; mirror the refund schema shape that already exists.
 
 ---
-
-## Split oversized test files moved by PR #1903
-
-*Origin: Codex review of PR #1903 ("Load heavy modules only when needed").
-That PR is a cold-start import reduction; as a side effect it relocated several
-test files via `git mv` to mirror their source module paths (the mutation gate
-requires mirror-located direct tests). Two of the moved files are over the
-~400-line target in AGENTS.md:*
-
-- **`test/features/admin/auth.test.ts` (651 lines).** Was
-  `test/lib/server-auth.test.ts` (658 lines on `main`) — the move did not grow
-  it. Covers login, logout, sessions, roles, invalid credentials, CSRF, and
-  `wrappedDataKey` edge cases. A future PR should split it into focused files
-  by concern (e.g. `login.test.ts`, `logout.test.ts`, `sessions.test.ts`,
-  `roles.test.ts`) under `test/features/admin/auth/`, mirroring the
-  `test/features/admin/users/` folder pattern already in place. Run
-  `deno task test:files test/features/admin/auth/*.ts` after the split to
-  confirm coverage stays at 100%.
-
-- **`test/ui/templates/checkin.test.ts` (523 lines).** Was
-  `test/lib/server-checkin.test.ts` (499 lines on `main`) — the move grew it
-  slightly via the row-scoped assertion rewrite in `64475d4f`. Covers GET/POST
-  `/checkin/:tokens` rendering, column visibility, check-in/out flows,
-  refunded-attendee blocking, shared-token behaviour, and route matching. A
-  future PR should split it by concern (e.g. `checkin/rendering.test.ts`,
-  `checkin/flows.test.ts`, `checkin/routes.test.ts`) under
-  `test/ui/templates/checkin/`. Keep the `rowFor` helper in a shared helper
-  file (or move it to `#test-utils` if a second caller appears) rather than
-  duplicating it across the split files.
-
-Both files are well under the Biome hard 1,000-line ceiling
-(`noExcessiveLinesPerFile`), so CI passes on both today.
-Splitting them now was deliberately deferred because doing it inside the
-cold-start PR would balloon the diff with unrelated mechanical test moves and
-re-conflict with the import-only changes that are the actual subject of the
-PR. The ~400-line target is guidance, and the cold-start PR's brief was
-explicitly about import-graph narrowing, not test reorganisation.
 
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 

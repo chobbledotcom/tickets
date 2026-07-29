@@ -224,7 +224,7 @@ export const buildEvidenceBundle = async (
   const manifest = v.parse(EvidenceManifestSchema, {
     app: { commit: input.commit, repository: EVIDENCE_REPOSITORY },
     captures,
-    schemaVersion: 1,
+    schemaVersion: 2,
   });
   return { assets, manifest };
 };
