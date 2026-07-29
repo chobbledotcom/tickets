@@ -98,16 +98,19 @@ export const classifySession = async (
  * Classify a paid session and, when it is provably ours, pull out its booking
  * intent in one step. Returns `null` for an "ignore" verdict — a session with
  * no valid price proof (a foreign, replayed, or corrupt session) that we must
- * not process or refund. Otherwise returns the signed verdict and the booking
- * intent: a valid proof means the metadata is byte-for-byte what we signed, so
- * `extractIntent` always parses.
+ * not process or refund — and for a session whose proof is valid but whose
+ * booking will not read back. A valid proof should mean the booking is
+ * byte-for-byte what we signed, so a booking that does not read is a support
+ * case for the same reason a corrupt session is: better left alone than acted
+ * on with values nobody has checked.
  */
 export const classifySessionIntent = async (
   session: ValidatedPaymentSession,
 ): Promise<{ verdict: SignedVerdict; intent: BookingIntent } | null> => {
   const verdict = await classifySession(session);
   if (verdict.verdict === "ignore") return null;
-  return { intent: extractIntent(session)!, verdict };
+  const intent = extractIntent(session);
+  return intent === null ? null : { intent, verdict };
 };
 
 export const validatePaidSession = async (

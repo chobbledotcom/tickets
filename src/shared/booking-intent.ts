@@ -85,12 +85,20 @@ export type StoredTextAnswerRef = v.InferOutput<
   typeof StoredTextAnswerRefSchema
 >;
 
-/** A free-text answer as it arrives in checkout metadata. The string id can be
- *  missing when it was lost between the form and the callback; booking drops
- *  that one answer rather than throwing away a paid order. */
+/** The stored text an answer points at, or nothing when what came back is not
+ *  an id we could ever have stored — lost between the form and the callback, or
+ *  garbled on the way back. Either way it reads as missing, and booking drops
+ *  that one answer and says so, rather than throwing away an order the buyer
+ *  has already paid for. */
+const UsableStringIdSchema = v.pipe(
+  v.optional(v.unknown()),
+  v.transform((id) => (v.is(positiveInt, id) ? id : undefined)),
+);
+
+/** A free-text answer as it arrives in checkout metadata. */
 const TextAnswerRefSchema = v.strictObject({
   ...StoredTextAnswerRefSchema.entries,
-  s: v.optional(positiveInt),
+  s: UsableStringIdSchema,
 });
 export type TextAnswerRef = v.InferOutput<typeof TextAnswerRefSchema>;
 

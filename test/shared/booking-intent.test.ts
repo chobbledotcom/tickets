@@ -132,6 +132,34 @@ describe("what a booking a payment carries may be", () => {
     });
   }
 
+  // A free-text answer whose stored text cannot be found is the one thing a
+  // booking forgives: the buyer has already paid, so that single answer is
+  // dropped and the rest of the order goes through.
+  for (const [name, stringId] of [
+    ["was lost on the way back", undefined],
+    ["is not an id we could have stored", "not-a-string-id"],
+    ["counts from nothing", 0],
+    ["is part of a number", 1.5],
+  ] as const) {
+    test(`forgets a free-text answer whose stored text ${name}`, () => {
+      const parsed = v.parse(BookingIntentSchema, {
+        ...validIntent,
+        listingTextAnswerIds: { "12": [{ q: 1, s: stringId }] },
+      });
+
+      expect(parsed.listingTextAnswerIds).toEqual({ "12": [{ q: 1 }] });
+    });
+  }
+
+  test("keeps a free-text answer that still knows its stored text", () => {
+    const parsed = v.parse(BookingIntentSchema, {
+      ...validIntent,
+      listingTextAnswerIds: { "12": [{ q: 1, s: 5 }] },
+    });
+
+    expect(parsed.listingTextAnswerIds).toEqual({ "12": [{ q: 1, s: 5 }] });
+  });
+
   test("accepts paying off a balance with the one line it owes", () => {
     acceptsIntent({ balanceAttendeeId: 1 });
   });

@@ -117,29 +117,23 @@ describe("reading a booking out of a paid checkout", () => {
     ).toEqual([{ i: 3, q: 2 }]);
   });
 
-  // A day count that is not a real count of days is dropped rather than used,
-  // so a booking never runs for zero, half, or minus a day.
+  // Our checkout only ever writes a whole number of days here, and leaves the
+  // field empty when there is no day count at all. Anything else means what
+  // came back is not what we sent, so the booking is not read rather than run
+  // for zero, half, or minus a day.
   for (const [name, dayCount] of [
     ["not a number at all", "lots"],
     ["none", "0"],
     ["below zero", "-2"],
+    ["part of a day", "2.7"],
   ] as const) {
-    test(`ignores a day count that is ${name}`, () => {
-      expect(extractIntent(session({ day_count: dayCount }))?.dayCount).toBe(
-        undefined,
-      );
+    test(`reads no booking when the day count is ${name}`, () => {
+      expect(extractIntent(session({ day_count: dayCount }))).toBe(null);
     });
   }
 
   test("keeps a day count of one", () => {
     expect(extractIntent(session({ day_count: "1" }))?.dayCount).toBe(1);
-  });
-
-  test("rounds a part-day count down to whole days", () => {
-    // Our own checkout writes this field from a whole number of days, so a
-    // part day never arrives. Written down because it is a silent rounding,
-    // not a refusal, if one ever did.
-    expect(extractIntent(session({ day_count: "2.7" }))?.dayCount).toBe(2);
   });
 
   // Nothing to book means there is no booking to read, and the caller is
@@ -152,6 +146,23 @@ describe("reading a booking out of a paid checkout", () => {
   ] as const) {
     test(`reads no booking when what was bought ${name}`, () => {
       expect(extractIntent(session({ items }))).toBe(null);
+    });
+  }
+
+  // Every other field the checkout sends is read back the same way: it is what
+  // we wrote or the booking is not read at all. Without this, a drifted field
+  // was cast straight through and fell over later, after the buyer had paid.
+  for (const [name, metadata] of [
+    ["the modifiers are not a list", { modifiers: "{}" }],
+    ["a modifier is missing its quantity", { modifiers: '[{"i":3}]' }],
+    ["the answers are not readable", { answer_ids: "{oh no" }],
+    ["an answer is filed under no listing", { answer_ids: '{"nope":[7]}' }],
+    ["the child tickets are not a list", { allocations: '{"childId":2}' }],
+    ["the balance attendee is not a number", { balance_attendee_id: "me" }],
+    ["a deposit cannot be read as an amount", { reservation_amount: "lots" }],
+  ] as const) {
+    test(`reads no booking when ${name}`, () => {
+      expect(extractIntent(session(metadata))).toBe(null);
     });
   }
 });
