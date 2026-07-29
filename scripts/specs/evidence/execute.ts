@@ -14,6 +14,7 @@ interface EvidenceRunDependencies<Bundle> {
   declarations: readonly EvidenceCaptureDeclaration[];
   outputDir: string;
   run: typeof runSpecs;
+  themes: () => Record<string, string>;
   writeBundle: (outputDir: string, bundle: Bundle) => Promise<void>;
 }
 
@@ -38,7 +39,12 @@ export const defineEvidenceRun =
             catalog,
           );
         },
-        env: { [SPEC_EVIDENCE_ENV]: "1" },
+        // The captures run in their own process, so the directory the themes
+        // were asked for travels with it.
+        env: {
+          [SPEC_EVIDENCE_ENV]: "1",
+          ...dependencies.themes(),
+        },
         onSuccess: async (messages, catalog) => {
           if (!declarations) {
             throw new Error("Evidence declarations were not validated");

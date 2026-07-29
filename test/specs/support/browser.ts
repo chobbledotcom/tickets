@@ -37,6 +37,19 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
+/** Opening the page one named thing is sold from, as somebody never signed in.
+ * Where that page lives is the only part that differs between the things that
+ * have one, so it is the only part passed. */
+export type OpensASalesPage = (
+  world: TicketsWorld,
+  name: string,
+) => Promise<TestBrowser>;
+
+export const opensSalesPagesAt =
+  (pathOf: (world: TicketsWorld, name: string) => string): OpensASalesPage =>
+  (world, name) =>
+    openAsNewcomer(pathOf(world, name));
+
 /** Opening any page as one particular person, and being handed the browser
  * they are looking at it through. */
 export type OpensAPage = (

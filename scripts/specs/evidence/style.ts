@@ -9,12 +9,11 @@ const DETERMINISTIC_CSS = `
 }`;
 
 export const storeEvidenceCss = async (
-  declaration: { css?: string | undefined; element: string },
+  declaration: { element: string },
+  theme: string,
   write: (css: string) => Promise<void>,
 ): Promise<void> => {
   await write(
-    `${declaration.css ?? ""}\n${isolateElementCss(
-      declaration.element,
-    )}\n${DETERMINISTIC_CSS}`,
+    `${theme}\n${isolateElementCss(declaration.element)}\n${DETERMINISTIC_CSS}`,
   );
 };
