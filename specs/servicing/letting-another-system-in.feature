@@ -68,6 +68,7 @@ Feature: An owner lets another system work on their behalf
       Given the owner has a key called Shopfront
       When Shopfront tries to send the owner's "keys" form
       Then Shopfront is not let in
+      And the list of keys names Shopfront and nothing else
 
     Scenario Outline: A key is turned away from an owner's own pages
       Given the owner has a key called Shopfront
@@ -78,6 +79,7 @@ Feature: An owner lets another system work on their behalf
         | case_id                        | page     |
         | api-keys.pages-shut-keys       | keys     |
         | api-keys.pages-shut-settings   | settings |
+        | api-keys.pages-shut-docs       | docs     |
 
   @rule:servicing.a-key-can-be-taken-back
   Rule: A key can be taken back

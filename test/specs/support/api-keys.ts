@@ -129,6 +129,7 @@ export const keyAddsSomethingForSale = async (
 
 /** A page the owner reads and clicks, by the word the story uses for it. */
 const OWNER_PAGES: Record<string, string> = {
+  docs: `${KEYS_PAGE}/docs`,
   keys: KEYS_PAGE,
   settings: "/admin/settings",
 };
