@@ -1435,6 +1435,40 @@ stands, so the split can be a pure move.
 
 ---
 
+## One unclosed mutant in `store-refund.ts` (the overbook flag)
+
+*Origin: writing direct tests for the four feature modules that had none.*
+
+`storeRefundedBooking` passes `allowOverbook: true` when storing the
+quantity-0 placeholder for a payment it could not honour. Mutating that to
+`false` survives every test in
+`test/features/api/payment-processing/store-refund.test.ts`, so the file sits at
+96.6% rather than 100%.
+
+It is **not** an equivalent mutant, so do not add it to
+`scripts/mutation/equivalent-mutants.txt`. Calling `createAttendeeAtomic`
+directly with a zero-quantity booking on an over-capacity listing proves the
+flag changes the result:
+
+```
+allowOverbook true  => success: true
+allowOverbook false => success: false
+```
+
+What defeats the obvious test is the date range. `placeholderBookings` carries
+the listing's current range through `bookingDateFields`, so the capacity check
+runs per day; a fixture that merely over-fills the listing still passes because
+the placeholder's day is empty. A killing test needs the existing bookings and
+the placeholder to land on the *same* day (or the placeholder to carry no date,
+as `datelessGhostBookings` does — note that path does not take the flag).
+
+Starting point: `buildCapacityCheckedInsert` in
+`src/shared/db/attendees/capacity/checks.ts` (the `allowOverbook` early return),
+and `buildCapacityCondition` in `src/shared/db/capacity.ts` for the dated
+versus date-less split.
+
+---
+
 ## Let Deno-hosted sites with a Bunny database be migrated
 
 `POST /instance/site-credentials` (`src/features/instance.ts`) only returns
