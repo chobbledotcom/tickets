@@ -9,10 +9,10 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";
 import {
   createMultiBookingAttendee,
   createTestAttendeeDirect,
-  seedFillerAttendees,
 } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
