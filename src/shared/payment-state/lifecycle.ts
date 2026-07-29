@@ -114,13 +114,19 @@ const aRefundIsStillGoing = (observation: Observation): boolean =>
 const nothingGivenBack = (charge: ChargeLeg): boolean =>
   charge.confirmedRefunded.amount === 0;
 
+/** Money was taken, and every charge has kept what it took. A paid reading
+ *  with no charge at all does not describe money that can be booked against —
+ *  it is a payment nobody can find, which is a problem for the owner. */
+const tookMoneyAndKeptIt = (observation: Observation): boolean =>
+  observation.charges?.every(nothingGivenBack) ?? false;
+
 /** The buyer paid and the money has stayed paid: none given back, none on its
  *  way back. Money part-returned is a problem for the owner, money fully
  *  returned is its own answer, and money still going is waited on — so a
  *  reading in any of those states is not a booking waiting to be made. */
 const paidAndStayedPaid = (observation: Observation): boolean =>
   observation.status === "paid" &&
-  (observation.charges ?? []).every(nothingGivenBack) &&
+  tookMoneyAndKeptIt(observation) &&
   !aRefundIsStillGoing(observation);
 
 /** Ready means the money question is settled: the buyer paid and the money

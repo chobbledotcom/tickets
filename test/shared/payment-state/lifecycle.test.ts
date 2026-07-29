@@ -229,6 +229,17 @@ describe("payment lifecycle", () => {
     });
   }
 
+  test("refuses a ready payment that says it was paid but took nothing", () => {
+    // A paid reading with no charge is a payment nobody can find, which the
+    // resolver raises as a problem rather than treating as ready to book.
+    expect(() =>
+      v.parse(PaymentResolutionSchema, {
+        observation: paymentObservation({ charges: undefined }),
+        status: "ready",
+      }),
+    ).toThrow();
+  });
+
   test("refuses a ready payment that needed no money but took some", () => {
     const observation = paymentObservation({ status: "no_payment_required" });
 
