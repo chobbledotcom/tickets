@@ -1364,44 +1364,6 @@ a malformed response throws rather than being silently cast. Starting point:
 
 ---
 
-## Should the mutation gate pick fewer test files per source?
-
-*Origin: Codex review of PR #1981 (splitting three oversized test files into
-folders).*
-
-`ownsTest` in `scripts/mutation/test-map.ts` matches a source's mirror prefix
-*and everything under it*, so a source whose tests live in a folder selects
-every file in that folder, and `execution.ts` runs them with `--parallel` — one
-isolate each, for every mutant. Splitting a suite therefore turns one isolate
-per mutant into several. Codex's point is that this may cost more in repeated
-module-graph evaluation and setup than the single large file did.
-
-It may also cost less: each file is smaller, and they run in parallel. Nobody
-has measured it, and that measurement is the first job here. The command needs
-both a source and a test glob, so the split shape times as:
-
-```bash
-deno task mutation src/ui/templates/admin/questions.tsx \
-  'test/ui/templates/admin/questions/*.test.ts' --harness
-```
-
-For the "before" number, run the same command in a checkout from before PR
-#1981 — that is where the single `test/ui/templates/admin/questions.test.ts`
-still exists — with that one file as the test glob.
-
-Only if the split shape is genuinely slower is there something to change, and
-then the options are to select more narrowly (map a mutant to the one file whose
-name matches the mutated export — fragile) or to generate a single entry file
-that imports the folder's suites so one isolate runs them all. Note the manual
-command is already narrow: you can name one file yourself, which is what the
-~400-line guidance in AGENTS.md is about.
-
-Starting point: `ownsTest` and `selectMutationTests` in
-`scripts/mutation/test-map.ts`, and the `--parallel` invocation in
-`scripts/mutation/execution.ts`.
-
----
-
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
@@ -1472,43 +1434,6 @@ the mutation gaps rather than moving the file around; the file scores 100% as it
 stands, so the split can be a pure move.
 
 ---
-
-## Mutation gaps in `src/shared/crypto/encryption.ts`
-
-*Origin: mutation run while speeding up owner-key encryption (PR #1945).*
-
-`deno task mutation --source src/shared/crypto/encryption.ts --test
-test/shared/crypto/encryption.test.ts` reports **41 survivors out of 90**, a
-score of 54%. None came from that change; they are gaps the run happened to
-surface. They fall into three groups.
-
-**The binary file format** (`encryptBytes` / `decryptBytes`, the `ENCB` header —
-roughly lines 254 to 301). Most of the survivors are here: the magic bytes, the
-version byte, the header offsets, and both format errors can all be mutated
-without a direct test noticing. These functions are only reached today through
-integration tests (`test/features/images.test.ts`,
-`test/integration/attachment-route.test.ts`,
-`test/ui/templates/admin/settings/header-image.test.ts`), which the direct-test
-run does not include. They want unit tests in `test/shared/crypto/` covering the
-header layout byte by byte, a wrong magic, and a wrong version.
-
-**Key caching and change notification** (lines 65 to 136): clearing the two
-resolved-key caches and running the registered change callbacks can be removed
-without a test failing. A test that changes the key and then checks the *next*
-encryption uses the new one would close this.
-
-**The key import flag** (line 119): `false` → `true` on the `extractable`
-argument of `crypto.subtle.importKey`. No behaviour can tell these apart,
-because the key is never exported — a genuine equivalent mutant. Either record
-it in `scripts/mutation/equivalent-mutants.txt` with that reasoning, or find an
-assertion on the imported key itself. `importRsaKey` in
-`src/shared/crypto/keys.ts` has the same shape.
-
-Start with the binary format: it is the bulk of the count and the group where a
-surviving mutant would represent a real risk to stored files.
-
----
-
 
 ## Let Deno-hosted sites with a Bunny database be migrated
 
@@ -1850,3 +1775,31 @@ the two posts never overlap. #1988 covers the neighbouring case it *can* reach
 honestly — a person who had the setup page open before somebody else finished,
 sending their stale form afterwards. A real test for this one needs both posts
 started together behind a barrier, and it should be written with the fix.
+
+---
+
+## An answer filed under a listing nobody booked
+
+*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+
+Free-text answers travel through checkout filed under the listing they belong
+to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
+`src/shared/booking-intent.ts` checks that the key is written the way a listing
+id is written, so a key of any other shape stops the booking rather than losing
+the answers under it after the buyer has paid.
+
+What it cannot check is whether that listing was one of the ones actually
+bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
+and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
+looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
+answers. The buyer answered a question and the answer quietly goes nowhere.
+
+The schema is the wrong place for the check: it validates one booking's metadata
+on its own, and the listings that were bought are decided later, once the items
+have been priced and loaded. The natural home is next to
+`saveSessionAnswers`, which already has both the answer map and the booked
+listings — compare the two sets and raise any key that matches no booked
+listing, the same way an unreadable booking is raised.
+
+Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
+where the shape rule is covered and the "names a booked listing" rule is not.

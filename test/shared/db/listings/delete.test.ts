@@ -18,7 +18,7 @@ import {
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import { listingStatement } from "#shared/db/listings/select.ts";
+import { listingReader } from "#shared/db/listings/select.ts";
 import {
   isSessionProcessed,
   reserveSession,
@@ -277,7 +277,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       const listing = await createTestListing({ name: "Deleted listing" });
       // The exact statement getAllListings issues, built the same way it is, so
       // the stubbed replica result cannot drift from the real read.
-      const listSql = listingStatement({
+      const listSql = listingReader.statement({
         order: "created_desc",
         where: {},
       }).sql;

@@ -27,7 +27,7 @@ import {
   getListingRows,
   type ListingRecordRow,
   type ListingWhere,
-  listingStatement,
+  listingReader,
 } from "./select.ts";
 import {
   computeSlugIndex,
@@ -212,7 +212,7 @@ export const getListingWithCount = (
 export const getListingWithCountPrimary = async (
   id: number,
 ): Promise<ListingWithCount | null> => {
-  const { sql, args } = listingStatement({ where: { ids: [id] } });
+  const { sql, args } = listingReader.statement({ where: { ids: [id] } });
   const row = await queryOnePrimary<ListingRecordRow>(sql, args);
   return row === null ? null : decryptListingWithCount(row);
 };

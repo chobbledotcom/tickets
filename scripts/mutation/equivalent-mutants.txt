@@ -35,11 +35,11 @@ src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record ob
 # cases where x can't be such a value, or F equals the only one it can be.
 src/shared/checkout-pricing.ts:324:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/booking-lines.ts:71:42  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
-src/features/api/payment-processing/create.ts:60:36  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
-src/features/api/payment-processing/create.ts:193:28  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts:196:67  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
-src/features/api/payment-processing/create.ts:199:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts:203:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:63:36  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
+src/features/api/payment-processing/create.ts:200:28  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:203:67  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:206:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:210:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts:170:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts:36:5  ?? → ||    # providerValue returns boolean or null, and false stays false with either fallback operator
@@ -274,9 +274,9 @@ src/shared/db/attendees/capacity/groups.ts:135:50  ?? → ||   # rowsByGroup.get
 src/shared/db/attendees/capacity/groups.ts:146:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:196:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts:567:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts:626:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts:198:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:569:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:628:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # Admin listing API fallbacks receive only objects, arrays, positive ids, or
 # nullish values, so no valid request can distinguish these operators.
@@ -895,14 +895,14 @@ src/features/api/payment-processing/items.ts:53:24  false → true   # validateL
 src/features/api/payment-processing/items.ts:87:41  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts:169:24  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
 src/features/api/payment-processing/pricing.ts:84:40  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
-src/features/api/payment-processing/package-pricing.ts:50:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts:51:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
-src/features/api/payment-processing/package-pricing.ts:156:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
-src/features/api/payment-processing/package-pricing.ts:212:37  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
-src/features/api/payment-processing/package-pricing.ts:218:49  false → true   # orderEdgeDrifted uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
-src/features/api/payment-processing/package-pricing.ts:228:45  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
-src/features/api/payment-processing/package-pricing.ts:243:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
-src/features/api/payment-processing/package-pricing.ts:260:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts:49:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts:50:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
+src/features/api/payment-processing/package-pricing.ts:155:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
+src/features/api/payment-processing/package-pricing.ts:211:37  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts:217:49  false → true   # orderEdgeDrifted uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
+src/features/api/payment-processing/package-pricing.ts:227:45  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
+src/features/api/payment-processing/package-pricing.ts:242:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
+src/features/api/payment-processing/package-pricing.ts:259:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/package-pricing.ts:296:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 
 # processed-payments read-path failure_data label: the
@@ -985,3 +985,4 @@ src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is b
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.
 scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
+src/shared/crypto/encryption.ts:120:5  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable

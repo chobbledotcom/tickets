@@ -223,6 +223,23 @@ describe("RSA key pair and hybrid encryption", () => {
     sharedPrivKey = await importPrivateKey(sharedPair.privateKey);
   };
 
+  describe("imported keys", () => {
+    it("cannot be exported back out of the browser's crypto", async () => {
+      await ensureSharedKeyPair();
+      // A private key that could be exported could be copied out of memory by
+      // any later code holding it, so both keys are imported non-extractable.
+      expect(sharedPrivKey.extractable).toBe(false);
+      expect(sharedPubKey.extractable).toBe(false);
+    });
+
+    it("refuses an export attempt", async () => {
+      await ensureSharedKeyPair();
+      await expect(
+        crypto.subtle.exportKey("jwk", sharedPrivKey),
+      ).rejects.toThrow();
+    });
+  });
+
   describe("generateKeyPair", () => {
     it("generates valid key pair", async () => {
       await ensureSharedKeyPair();

@@ -34,10 +34,10 @@ import {
 } from "#shared/accounting/rows.ts";
 import {
   executeBatch,
-  inPlaceholders,
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
+import { inList } from "#shared/db/where-clauses.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { assertValidTransfer } from "#shared/ledger/validate.ts";
 import { nowIso } from "#shared/now.ts";
@@ -144,18 +144,14 @@ type BatchSnapshot = {
   readonly originalsById: ReadonlyMap<number, Transfer>;
 };
 
-/** Read every transfer whose `column` is one of `values`; [] for an empty set
- *  without touching the database. `column` is a trusted constant, never input. */
+/** Read every transfer whose `column` is one of `values`; an empty set is
+ *  answered without touching the database. `column` is a trusted constant. */
 const selectByColumnIn = (
   read: RowReader,
   column: string,
   values: readonly InValue[],
 ): Promise<Transfer[]> =>
-  values.length === 0
-    ? Promise.resolve([])
-    : selectTransfers(read, ` WHERE ${column} IN (${inPlaceholders(values)})`, [
-        ...values,
-      ]);
+  selectTransfers(read, { where: inList(column, values) });
 
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
  *  selects — independent of the number of groups. `read` picks where the

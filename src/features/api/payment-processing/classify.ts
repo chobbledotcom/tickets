@@ -7,11 +7,11 @@
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type {
-  BookingIntent,
   SessionValidation,
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
@@ -31,6 +31,9 @@ export const paymentSessionErrorLogger =
 
 /** Log a payment session error with redirect context prefix */
 const logRedirectError = paymentSessionErrorLogger("redirect");
+
+/** Raise a checkout we can prove is ours but whose booking will not read. */
+const logUnreadableBooking = paymentSessionErrorLogger("booking");
 
 /** Split the `total.sig` price proof into a non-negative integer total and a
  * non-empty signature, or null when the field is absent or malformed. */
@@ -94,20 +97,23 @@ export const classifySession = async (
     : { agreed: evaluation.total, verdict: "mismatch" };
 };
 
-/**
- * Classify a paid session and, when it is provably ours, pull out its booking
- * intent in one step. Returns `null` for an "ignore" verdict — a session with
- * no valid price proof (a foreign, replayed, or corrupt session) that we must
- * not process or refund. Otherwise returns the signed verdict and the booking
- * intent: a valid proof means the metadata is byte-for-byte what we signed, so
- * `extractIntent` always parses.
- */
+/** The booking a paid session carries, or null when we cannot act on it.
+ *  Both nulls stop the session, but only one is quiet: a proof that does not
+ *  verify may not be ours, while one that does means the buyer was charged,
+ *  so a booking nothing can read is raised for the owner. */
 export const classifySessionIntent = async (
   session: ValidatedPaymentSession,
 ): Promise<{ verdict: SignedVerdict; intent: BookingIntent } | null> => {
   const verdict = await classifySession(session);
   if (verdict.verdict === "ignore") return null;
-  return { intent: extractIntent(session)!, verdict };
+  const intent = extractIntent(session);
+  if (intent === null) {
+    logUnreadableBooking(
+      `Signed session's booking could not be read (session=${session.id})`,
+    );
+    return null;
+  }
+  return { intent, verdict };
 };
 
 export const validatePaidSession = async (

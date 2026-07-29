@@ -15,6 +15,8 @@ import {
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
+import { type Read, readStatement } from "#shared/db/read.ts";
+import { equals, rowsUnlessNoneMatch } from "#shared/db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
   AccountRef,
@@ -225,26 +227,36 @@ export const fromTx =
   async (sql, args) =>
     resultRows<TransferRow>(await tx.execute({ args, sql }));
 
-/** Select transfers matching a WHERE clause (pass "" for the whole table). */
-export const selectTransfers = async (
+/** Which transfers to read, in what order, how many — everything but the
+ * columns and the table, which a transfer read always knows. */
+export type TransferRead = Omit<Read, "columns" | "from">;
+
+/** Select transfers, saying which rows and in what order rather than writing
+ * the query. `read` decides where the rows come from — the client, or an open
+ * transaction. Pass nothing to read the whole table. */
+export const selectTransfers = (
   read: RowReader,
-  where: string,
-  args: InValue[],
-): Promise<Transfer[]> => {
-  const rows = await read(`SELECT ${COLUMNS} FROM transfers${where}`, args);
-  return rows.map(rowToTransfer);
-};
+  query: TransferRead = {},
+): Promise<Transfer[]> =>
+  rowsUnlessNoneMatch(query.where ?? [], async () => {
+    const { sql, args } = readStatement({
+      ...query,
+      columns: COLUMNS,
+      from: "transfers",
+    });
+    return (await read(sql, args)).map(rowToTransfer);
+  });
 
 /** Every leg of one business event (booking, refund, …). */
 export const selectByEventGroup = (
   read: RowReader,
   eventGroup: string,
 ): Promise<Transfer[]> =>
-  selectTransfers(read, " WHERE event_group = ?", [eventGroup]);
+  selectTransfers(read, { where: equals("event_group", eventGroup) });
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (
   read: RowReader,
   id: number,
 ): Promise<Transfer | null> =>
-  (await selectTransfers(read, " WHERE id = ?", [id]))[0] ?? null;
+  (await selectTransfers(read, { where: equals("id", id) }))[0] ?? null;

@@ -3,10 +3,8 @@ import {
   pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
-import type {
-  BookingIntent,
-  ValidatedSession,
-} from "#routes/api/webhook-types.ts";
+import type { ValidatedSession } from "#routes/api/webhook-types.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
 import {

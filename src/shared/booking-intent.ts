@@ -1,0 +1,164 @@
+/**
+ * What a booking is, as the data a payment carries.
+ *
+ * Everything here is a schema first: the writer and every reader parse against
+ * the same declaration, so a drifted or tampered blob is a loud parse failure
+ * rather than a silently-wrong booking. Kept apart from the provider layer
+ * because these facts outlive any one provider.
+ */
+
+/* jscpd:ignore-start -- imports */
+import * as v from "valibot";
+import { parseReservationAmount } from "#shared/reservation-amount.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
+import { optionalStringThat } from "#shared/validation/string.ts";
+
+/* jscpd:ignore-end */
+
+/** A positive integer (≥ 1): a listing id or a group id. */
+const positiveInt = integerAtLeast(1);
+
+/** One line of a booking: listing `e`, quantity `q`, line total `p` in minor
+ *  units, and the edge tag (`k` kind, `r` group id) the webhook rebuilds the
+ *  line's nodeKey from — see signed-metadata.ts.
+ *
+ *  Quantity 0 is allowed on purpose: an admin sentinel, or a line whose listing
+ *  was refunded or deleted, which later code keeps rather than reading as 1.
+ *  The edge tag is a pair, because half of one would quietly rebuild the wrong
+ *  nodeKey instead of failing. */
+const BookingItemSchema = v.pipe(
+  v.object({
+    e: positiveInt,
+    k: v.optional(v.union([v.literal("p"), v.literal("g")])),
+    p: v.pipe(v.number(), v.integer()),
+    q: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    r: v.optional(positiveInt),
+  }),
+  v.check(
+    (item) => (item.k === undefined) === (item.r === undefined),
+    "edge tag k and r must both be present or both absent",
+  ),
+);
+
+const BookingItemsSchema = v.pipe(v.array(BookingItemSchema), v.minLength(1));
+
+export type BookingItem = v.InferOutput<typeof BookingItemSchema>;
+
+/** Compact modifier reference stored in session metadata: the modifier id and
+ * the quantity taken. The webhook re-fetches the modifier by id and re-derives
+ * its amount from the current database — provider metadata amounts are never
+ * trusted. */
+const ModifierRefSchema = v.strictObject({ i: positiveInt, q: positiveInt });
+export type ModifierRef = v.InferOutput<typeof ModifierRefSchema>;
+
+/** A text answer that still knows which stored string it points at. Booking
+ *  checks every answer against this before saving it: the metadata it came from
+ *  is parsed JSON that nothing has validated, so the string id can be any shape
+ *  at all. */
+export const StoredTextAnswerRefSchema = v.strictObject({
+  q: positiveInt,
+  s: positiveInt,
+});
+export type StoredTextAnswerRef = v.InferOutput<
+  typeof StoredTextAnswerRefSchema
+>;
+
+/** The stored text an answer points at, or nothing when what came back is not
+ *  an id we could ever have stored — lost between the form and the callback, or
+ *  garbled on the way back. Either way it reads as missing, and booking drops
+ *  that one answer and says so, rather than throwing away an order the buyer
+ *  has already paid for. */
+const UsableStringIdSchema = v.pipe(
+  v.optional(v.unknown()),
+  v.transform((id) => (v.is(positiveInt, id) ? id : undefined)),
+);
+
+/** A free-text answer as it arrives in checkout metadata. */
+const TextAnswerRefSchema = v.strictObject({
+  ...StoredTextAnswerRefSchema.entries,
+  s: UsableStringIdSchema,
+});
+export type TextAnswerRef = v.InferOutput<typeof TextAnswerRefSchema>;
+
+/** Per-listing answer references as checkout writes them. Every string id is
+ * one we have really stored: the tolerant {@link TextAnswerRef} is only for
+ * reading back what the provider hands us, so a checkout cannot be built with
+ * an id it never resolved. */
+export type ListingAnswerRefs = {
+  /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
+  listingAnswerIds?: Record<string, number[]> | undefined;
+  /** Per-listing free-text string refs: maps listingId → question/string ids. */
+  listingTextAnswerIds?: Record<string, StoredTextAnswerRef[]> | undefined;
+};
+/**
+ * Answers are filed under the listing they belong to, written the way a
+ * listing id is written. A key in any other shape can never match a listing,
+ * so the answers under it would be dropped without a word after the buyer had
+ * paid. Whether the key names a listing that was actually booked is a question
+ * only the booking code can answer, and is noted in TODO.md.
+ */
+const ListingKeySchema = v.pipe(
+  v.string(),
+  v.regex(/^[1-9][0-9]*$/u, "A listing key must be a listing id"),
+);
+
+/** Canonical booking facts persisted for a payment and sent through metadata. */
+export const BookingIntentSchema = v.pipe(
+  v.strictObject({
+    address: v.string(),
+    allocations: v.optional(
+      v.array(
+        v.object({
+          childId: positiveInt,
+          parentId: positiveInt,
+          qty: positiveInt,
+        }),
+      ),
+    ),
+    balanceAttendeeId: v.optional(positiveInt),
+    date: v.nullable(v.string()),
+    dayCount: v.optional(positiveInt),
+    email: v.string(),
+    items: BookingItemsSchema,
+    listingAnswerIds: v.optional(
+      v.record(ListingKeySchema, v.array(positiveInt)),
+    ),
+    listingTextAnswerIds: v.optional(
+      v.record(ListingKeySchema, v.array(TextAnswerRefSchema)),
+    ),
+    modifiers: v.array(ModifierRefSchema),
+    name: v.string(),
+    phone: v.string(),
+    // A deposit that cannot be read is turned into nothing further down, which
+    // reserves a place and leaves the whole price owed. The amount is checked
+    // when the owner saves it, and that check is stricter than this one, so a
+    // real setting always gets through here.
+    reservationAmount: optionalStringThat(
+      (raw) => parseReservationAmount(raw) !== null,
+      "Reservation amount must be a readable amount",
+    ),
+    siteTokenIndex: v.optional(v.string()),
+    special_instructions: v.string(),
+    thankYouUrl: v.optional(v.string()),
+  }),
+  // Paying off a balance is one made-up line holding what is still owed, and
+  // only that line is settled. A second line would be charged for and then
+  // neither booked nor given back.
+  v.check(
+    (intent) =>
+      intent.balanceAttendeeId === undefined || intent.items.length === 1,
+    "Paying off a balance must be for one line only",
+  ),
+  // Same reason, for anything added on top: settling a balance clears the
+  // line's own amount, so an add-on would be charged for and then left out of
+  // the money record entirely. The page that starts a balance payment adds
+  // none, and this keeps it that way.
+  v.check(
+    (intent) =>
+      intent.balanceAttendeeId === undefined || intent.modifiers.length === 0,
+    "Paying off a balance cannot carry anything added on top",
+  ),
+);
+
+/** Processed booking intent extracted from payment session metadata. */
+export type BookingIntent = v.InferOutput<typeof BookingIntentSchema>;

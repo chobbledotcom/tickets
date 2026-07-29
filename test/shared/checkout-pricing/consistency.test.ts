@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { ModifierRef } from "#shared/booking-intent.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -18,7 +19,6 @@ import { toModifierRefs } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
   CheckoutItem,
-  ModifierRef,
   ModifierSpec,
 } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";

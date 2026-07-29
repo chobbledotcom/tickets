@@ -7,7 +7,7 @@ import {
   paidByItem,
   paidPricingRefund,
 } from "#routes/api/payment-processing/pricing.ts";
-import type { BookingIntent } from "#routes/api/webhook-types.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import { pricedOrder, testListingWithCount } from "#test-utils/factories.ts";
