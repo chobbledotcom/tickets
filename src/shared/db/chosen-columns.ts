@@ -8,18 +8,18 @@
  * needs no SQL of its own.
  */
 
-import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
-import { queryAll, type SqlStatement } from "#shared/db/client.ts";
+import { type Read, readOneRow, readRows } from "#shared/db/read.ts";
 import type { Table } from "#shared/db/table.ts";
-import {
-  queryTail,
-  rowsUnlessNoneMatch,
-  type WhereClause,
-} from "#shared/db/where-clauses.ts";
+import type { WhereClause } from "#shared/db/where-clauses.ts";
 
 type TableColumn<Row> = keyof Row & string;
-type ColumnNames<Row> = readonly [TableColumn<Row>, ...TableColumn<Row>[]];
+
+/** One or more of a row's own column names — a read must select something. */
+export type ColumnNames<Row> = readonly [
+  TableColumn<Row>,
+  ...TableColumn<Row>[],
+];
 
 /** A selected row before the table's declared read transforms run. Database
  * values are unknown here because booleans and encrypted strings have a
@@ -33,13 +33,11 @@ type ChosenRow<Row, Columns extends ColumnNames<Row>> = Pick<
   Columns[number]
 >;
 
-type ColumnQuery<Result> = (sql: string, args?: InValue[]) => Promise<Result>;
-
 /**
  * A read declared rather than written. The chosen set already knows its table
  * and columns, so this is the whole of an ordinary single-table read; one that
- * joins or carries a subquery writes its own SQL and runs it through
- * {@link ChosenColumns.queryAll}.
+ * joins or carries a subquery says so with {@link readRows} instead, passing
+ * this set's {@link ChosenColumns.columnsSql} as its columns.
  */
 export type ReadRequest = {
   /** The filters, from `#shared/db/where-clauses.ts`. Absent keeps every row. */
@@ -55,7 +53,6 @@ export type ReadRequest = {
 export interface ChosenColumns<Row, Columns extends ColumnNames<Row>> {
   readonly columns: Columns;
   columnsSql: (alias?: string) => string;
-  queryAll: ColumnQuery<ChosenRow<Row, Columns>[]>;
   read: (
     row: StoredRowOf<Row, Columns>,
     rowId?: unknown,
@@ -136,38 +133,29 @@ export const chooseColumns = <
       ? columnsSql(alias)
       : `${columnsSql(alias)}, ${qualified(table.primaryKey, alias)}`;
 
-  /** Turn a declared read into SQL and its bound values. The chosen set
-   * supplies the columns and the table; the caller supplies the rest. */
-  const statementFor = (query: ReadRequest): SqlStatement => {
-    const from = query.alias ? `${table.name} AS ${query.alias}` : table.name;
-    const tail = queryTail(query.where ?? [], query);
-    return {
-      args: tail.args,
-      sql: `SELECT ${readColumnsSql(query.alias)} FROM ${from}${tail.sql}`,
-    };
-  };
+  /** The chosen set supplies the columns and the table; the caller supplies
+   * the rest of the read. */
+  const readFor = (query: ReadRequest): Read => ({
+    ...query,
+    columns: readColumnsSql(query.alias),
+    from: query.alias ? `${table.name} AS ${query.alias}` : table.name,
+  });
 
   /** The stored rows a declared read selects, before the read transforms. */
   const storedRowsFor = (
     query: ReadRequest,
   ): Promise<StoredRowOf<Row, Columns>[]> =>
-    rowsUnlessNoneMatch(query.where ?? [], () => {
-      const { sql, args } = statementFor(query);
-      return queryAll<StoredRowOf<Row, Columns>>(sql, args);
-    });
+    readRows<StoredRowOf<Row, Columns>>(readFor(query));
 
   return {
     columns,
     columnsSql,
-    queryAll: async (sql, args) =>
-      readAll(await queryAll<StoredRowOf<Row, Columns>>(sql, args)),
     read,
     readAll,
     select: async (query = {}) => readAll(await storedRowsFor(query)),
     selectOne: async (query = {}) => {
-      // One row is a read capped at one — the same path, not a second one.
-      const row = (await storedRowsFor({ ...query, limit: 1 }))[0];
-      return row === undefined ? null : read(row);
+      const row = await readOneRow<StoredRowOf<Row, Columns>>(readFor(query));
+      return row === null ? null : read(row);
     },
   };
 };

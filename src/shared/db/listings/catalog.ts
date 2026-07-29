@@ -2,7 +2,7 @@
 
 import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { settings } from "#shared/db/settings.ts";
-import { equals } from "#shared/db/where-clauses.ts";
+import { equals, notInSubquery } from "#shared/db/where-clauses.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#shared/types.ts";
 import { rawListingsTable } from "./table.ts";
@@ -70,24 +70,30 @@ const catalogVisibleSql = (hiddenDefault: boolean | undefined): string => {
 
 /** Read only active, effectively visible listings for the public catalog. */
 export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
-  const rows = await catalogListingColumns.queryAll(
-    `SELECT ${catalogListingColumns.columnsSql("listing")}
-     FROM listings AS listing
-     WHERE listing.active = 1
-       AND ${catalogVisibleSql(settings.listingDefaults.hidden)}
-       AND (listing.bookable_alone = 1
-            OR listing.id NOT IN (
-              SELECT listingParent.child_listing_id
-              FROM listing_parents AS listingParent
-            ))
-       AND listing.id NOT IN (
-         SELECT groupListing.listing_id
-           FROM group_listings AS groupListing
-           JOIN groups AS listingGroup ON listingGroup.id = groupListing.group_id
-          WHERE listingGroup.is_package = 1
-            AND listingGroup.hide_package_listings = 1
-       )`,
-  );
+  const rows = await catalogListingColumns.select({
+    alias: "listing",
+    where: [
+      { args: [], clause: "listing.active = 1" },
+      {
+        args: [],
+        clause: catalogVisibleSql(settings.listingDefaults.hidden),
+      },
+      // A child listing is only offered on its own when it says it may be.
+      {
+        args: [],
+        clause: `(listing.bookable_alone = 1 OR listing.id NOT IN (
+          SELECT listingParent.child_listing_id FROM listing_parents AS listingParent))`,
+      },
+      ...notInSubquery("listing.id", {
+        args: [],
+        sql: `SELECT groupListing.listing_id
+                FROM group_listings AS groupListing
+                JOIN groups AS listingGroup ON listingGroup.id = groupListing.group_id
+               WHERE listingGroup.is_package = 1
+                 AND listingGroup.hide_package_listings = 1`,
+      }),
+    ],
+  });
   return rows.map((row) => ({
     active: true,
     hidden: false,

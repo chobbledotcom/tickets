@@ -12,7 +12,6 @@ import {
   clauseArgs,
   equals,
   inList,
-  orderSql,
   rowsUnlessNoneMatch,
   whereSql,
 } from "#shared/db/where-clauses.ts";
@@ -119,18 +118,5 @@ describe("clauseArgs", () => {
 
   test("is empty with no clauses", () => {
     expect(clauseArgs([])).toEqual([]);
-  });
-});
-
-describe("orderSql", () => {
-  const ORDERS = { newest: "created DESC", oldest: "created ASC" };
-
-  test("is empty when the caller does not care about order", () => {
-    expect(orderSql(ORDERS, undefined)).toBe("");
-  });
-
-  test("names the SQL for the chosen order", () => {
-    expect(orderSql(ORDERS, "newest")).toBe(" ORDER BY created DESC");
-    expect(orderSql(ORDERS, "oldest")).toBe(" ORDER BY created ASC");
   });
 });

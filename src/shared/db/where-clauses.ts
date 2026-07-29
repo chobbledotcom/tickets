@@ -57,6 +57,24 @@ export const equals = (
     : [{ args: [value], clause: `${column} = ?` }];
 };
 
+/** Keep rows whose `column` is (or is not) among the ones another query names.
+ * The subquery brings its own values, so they stay tied to its placeholders. */
+const bySubquery =
+  (keyword: string) =>
+  (column: string, subquery: SqlStatement): WhereClause[] => [
+    { args: subquery.args, clause: `${column} ${keyword} (${subquery.sql})` },
+  ];
+
+/** Keep or drop rows another query names. */
+type SubqueryFilter = (column: string, subquery: SqlStatement) => WhereClause[];
+
+/** Keep rows the subquery names — "pick some rows, then read everything that
+ * hangs off them". */
+export const inSubquery: SubqueryFilter = bySubquery("IN");
+
+/** Keep rows the subquery does NOT name. */
+export const notInSubquery: SubqueryFilter = bySubquery("NOT IN");
+
 /** Whether these clauses can never match a row — the ordinary cause being a
  * filter asking for none of something. */
 const matchesNoRows = (parts: readonly WhereClause[]): boolean =>
@@ -78,30 +96,3 @@ export const whereSql = (parts: readonly WhereClause[]): string =>
 /** Every clause's arguments, in clause order. */
 export const clauseArgs = (parts: readonly WhereClause[]): InValue[] =>
   parts.flatMap((part) => part.args);
-
-/**
- * Everything after a read's columns and table: which rows, in what order, how
- * many — with the values that fill them, in the order the placeholders appear.
- * `order` is a constant belonging to the read, never caller input, so unlike a
- * filter it carries no values of its own.
- */
-export const queryTail = (
-  where: readonly WhereClause[],
-  options: { order?: string; limit?: number } = {},
-): SqlStatement => ({
-  args: [
-    ...clauseArgs(where),
-    ...(options.limit === undefined ? [] : [options.limit]),
-  ],
-  sql:
-    whereSql(where) +
-    (options.order === undefined ? "" : ` ORDER BY ${options.order}`) +
-    (options.limit === undefined ? "" : " LIMIT ?"),
-});
-
-/** The ` ORDER BY …` tail for a named order, or nothing when the caller does
- * not care how the rows come back. */
-export const orderSql = <Order extends string>(
-  orders: Record<Order, string>,
-  order: Order | undefined,
-): string => (order === undefined ? "" : ` ORDER BY ${orders[order]}`);
