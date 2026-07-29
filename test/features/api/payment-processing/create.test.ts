@@ -261,59 +261,39 @@ describeWithEnv("payment booking lines", { db: true }, () => {
     );
   });
 
-  test("logs a zero-value promo without calling it a discount", async () => {
-    const listing = await createTestListing();
-    const attendee = await bookTestAttendee(
-      [listing.id],
-      "Promo buyer",
-      "promo@example.com",
-    );
-    await logPromoCodeModifiers(
-      [{ id: 1, name: "FREE" } as never],
-      [{ delta: 0, modifierId: 1 } as never],
-      listing as never,
-      attendee.id,
-    );
-    const [row] = await queryAll<{ message: string }>(
-      "SELECT message FROM activity_log WHERE attendee_id = ?",
-      [attendee.id],
-    );
-    expect(
-      await decryptWithOwnerKey(
-        row!.message as never,
-        await getTestPrivateKey(),
-      ),
-    ).toBe("Promo code 'FREE' used: +£0");
-  });
+  // The owner reads these, so money off says "£1 off" rather than repeating
+  // the minus sign the delta carries, and nothing off is not called a discount.
+  for (const [name, code, delta, expected] of [
+    ["nothing off", "FREE", 0, "Promo code 'FREE' used: +£0"],
+    ["money off", "POUNDOFF", -100, "Promo code 'POUNDOFF' used: £1 off"],
+  ] as const) {
+    test(`logs ${name} the way the owner reads it`, async () => {
+      const listing = await createTestListing();
+      const attendee = await bookTestAttendee(
+        [listing.id],
+        `${code} buyer`,
+        `${code.toLowerCase()}@example.com`,
+      );
 
-  test("logs money off a booking as an amount off, not a minus amount", async () => {
-    // The owner reads this, so a discount says "£1.00 off" rather than
-    // repeating the minus sign the delta carries.
-    const listing = await createTestListing();
-    const attendee = await bookTestAttendee(
-      [listing.id],
-      "Discount buyer",
-      "discount@example.com",
-    );
+      await logPromoCodeModifiers(
+        [{ id: 1, name: code } as never],
+        [{ delta, modifierId: 1 } as never],
+        listing as never,
+        attendee.id,
+      );
 
-    await logPromoCodeModifiers(
-      [{ id: 1, name: "POUNDOFF" } as never],
-      [{ delta: -100, modifierId: 1 } as never],
-      listing as never,
-      attendee.id,
-    );
-
-    const [row] = await queryAll<{ message: string }>(
-      "SELECT message FROM activity_log WHERE attendee_id = ?",
-      [attendee.id],
-    );
-    expect(
-      await decryptWithOwnerKey(
-        row!.message as never,
-        await getTestPrivateKey(),
-      ),
-    ).toBe("Promo code 'POUNDOFF' used: £1 off");
-  });
+      const [row] = await queryAll<{ message: string }>(
+        "SELECT message FROM activity_log WHERE attendee_id = ?",
+        [attendee.id],
+      );
+      expect(
+        await decryptWithOwnerKey(
+          row!.message as never,
+          await getTestPrivateKey(),
+        ),
+      ).toBe(expected);
+    });
+  }
 
   // A buyer with several tickets has them kept as one joined-up value, so
   // coming back to an already-finished checkout has to hand back each ticket
