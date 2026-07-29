@@ -14,7 +14,12 @@ import type { Table } from "#shared/db/table.ts";
 import type { WhereClause } from "#shared/db/where-clauses.ts";
 
 type TableColumn<Row> = keyof Row & string;
-type ColumnNames<Row> = readonly [TableColumn<Row>, ...TableColumn<Row>[]];
+
+/** One or more of a row's own column names — a read must select something. */
+export type ColumnNames<Row> = readonly [
+  TableColumn<Row>,
+  ...TableColumn<Row>[],
+];
 
 /** A selected row before the table's declared read transforms run. Database
  * values are unknown here because booleans and encrypted strings have a

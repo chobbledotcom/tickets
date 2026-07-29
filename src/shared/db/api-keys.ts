@@ -14,13 +14,11 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { BlindIndex, WrappedKey } from "#shared/crypto/sealed.ts";
-import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { execute, executeUpdate } from "#shared/db/client.ts";
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { readOneRow } from "#shared/db/read.ts";
 import { col } from "#shared/db/table.ts";
-import { equals } from "#shared/db/where-clauses.ts";
+import { readerFor } from "#shared/db/table-reader.ts";
 import { nowIso } from "#shared/now.ts";
 import { getTouchOverride } from "#shared/test-overrides.ts";
 import type { ApiKey } from "#shared/types.ts";
@@ -59,18 +57,25 @@ const apiKeysTable = defineIdTable<ApiKeyRow, ApiKeyInput>("api_keys", {
   wrapped_data_key: col.simple<WrappedKey>(),
 });
 
-/** The api_keys columns, in one place, for the reads that select every column. */
-const API_KEY_COLUMNS =
-  "id, user_id, key_index, wrapped_data_key, name, created, last_used";
+/** Every read of this table goes through one reader, so a column name is
+ * checked against the table rather than spelled out as SQL. */
+const apiKeys = readerFor(apiKeysTable);
 
-const apiKeyListColumns = chooseColumns(apiKeysTable, [
+/** What the auth path reads: everything but the name, which it never shows —
+ * so the one encrypted column is neither fetched nor decrypted on a request
+ * that only needs to know whose key this is. */
+const apiKeyAuthColumns = apiKeys.pick([
   "id",
-  "name",
+  "user_id",
+  "key_index",
+  "wrapped_data_key",
   "created",
   "last_used",
 ]);
 
-const apiKeyNameColumns = chooseColumns(apiKeysTable, ["id", "name"]);
+const apiKeyListColumns = apiKeys.pick(["id", "name", "created", "last_used"]);
+
+const apiKeyNameColumns = apiKeys.pick(["id", "name"]);
 
 /**
  * Create a new API key for a user.
@@ -102,14 +107,8 @@ export const createApiKey = async (
  */
 export const getApiKeyByToken = async (
   token: string,
-): Promise<ApiKey | null> => {
-  const keyIndex = await hmacHash(token);
-  return readOneRow<ApiKey>({
-    columns: API_KEY_COLUMNS,
-    from: "api_keys",
-    where: equals("key_index", keyIndex),
-  });
-};
+): Promise<Omit<ApiKey, "name"> | null> =>
+  apiKeyAuthColumns.one({ key_index: await hmacHash(token) });
 
 /**
  * List all API keys for a user (decrypts names for display).
@@ -119,10 +118,10 @@ export const getApiKeysForUser = async (
 ): Promise<
   Array<{ id: number; name: string; created: string; lastUsed: string }>
 > => {
-  const decrypted = await apiKeyListColumns.select({
-    order: "id ASC",
-    where: equals("user_id", userId),
-  });
+  const decrypted = await apiKeyListColumns.many(
+    { user_id: userId },
+    { order: "id ASC" },
+  );
   return decrypted.map((row) => ({
     created: row.created,
     id: row.id,
@@ -138,9 +137,7 @@ export const getApiKeyForUser = async (
   id: number,
   userId: number,
 ): Promise<{ id: number; name: string }> => {
-  const decrypted = await apiKeyNameColumns.selectOne({
-    where: [...equals("id", id), ...equals("user_id", userId)],
-  });
+  const decrypted = await apiKeyNameColumns.one({ id, user_id: userId });
   if (!decrypted) throw new Error(`API key ${id} not found for user ${userId}`);
   return { id: decrypted.id, name: decrypted.name };
 };

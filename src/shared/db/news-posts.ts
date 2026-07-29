@@ -35,14 +35,14 @@ import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
 } from "#shared/db/images.ts";
-import { readOneRow, readRows } from "#shared/db/read.ts";
+import { readRows } from "#shared/db/read.ts";
 import {
   unclaimedSlugCondition,
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { col } from "#shared/db/table.ts";
-import { equals } from "#shared/db/where-clauses.ts";
+import { readerFor } from "#shared/db/table-reader.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -175,23 +175,14 @@ export const getNewsPostNames = async (): Promise<Map<number, string>> => {
 export const getNewsPostById = (id: number): Promise<NewsPost | null> =>
   newsPostsTable.findById(id);
 
-/** Every {@link NewsPost} column, listed explicitly (AGENTS.md) so a future
- * column can't silently widen what the single-post read fetches and decrypts. */
-const NEWS_POST_COLUMNS =
-  "id, created, slug, slug_index, name, meta_title, meta_description, snippet, content";
+/** The whole post, fully decrypted. */
+const wholeNewsPost = readerFor(newsPostsTable);
 
 /** One full post (fully decrypted) by blind-index slug lookup — the public
  * `/news/:slug` read. Null when absent. */
-export const getNewsPostBySlugIndex = async (
+export const getNewsPostBySlugIndex = (
   slugIndex: BlindIndex,
-): Promise<NewsPost | null> => {
-  const row = await readOneRow<NewsPost>({
-    columns: NEWS_POST_COLUMNS,
-    from: "news_posts",
-    where: equals("slug_index", slugIndex),
-  });
-  return row ? newsPostsTable.fromDb(row) : null;
-};
+): Promise<NewsPost | null> => wholeNewsPost.one({ slug_index: slugIndex });
 
 /** Create a post, stamping `created` now (the admin flow) or at a pinned time
  * (tests/restore), and deriving its immutable `/news` permalink from that date
