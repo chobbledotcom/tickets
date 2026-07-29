@@ -1,8 +1,4 @@
-/**
- * The one-off ceremony that turns a bare site into somebody's. Everything here
- * happens before any owner exists, so the whole story is told by a person who
- * has never signed in and could not.
- */
+/** The one-off ceremony that turns a bare site into somebody's. */
 
 // jscpd:ignore-start
 import { t } from "#i18n";
@@ -20,89 +16,105 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
-/** Where a site is set up, and where it says so afterwards. */
 const SETUP_PAGE = "/setup/";
 
-/** A page nobody but the owner may open, used to prove somebody really is
- * signed in rather than merely looking at a page that stopped asking. */
+/** A page nobody but the owner may open. */
 const OWNER_ONLY_PAGE = "/admin/settings";
 
-/** What the first owner types in. The country is picked from the page's own
- * list, so the story can never choose one the page does not offer. */
+/** What the first owner types in. */
 const CHOSEN = {
   name: "firstowner",
   password: "a-good-long-password",
 };
 
-/** A site nobody has set up yet: the database is there and the site answers,
- * but the ceremony that makes an owner has never been run. The scenario's own
- * cleanup still puts this back, because it is the same database it was given. */
+/** What somebody arriving second would type. A different name, so a site that
+ * let them through would be theirs and not the first owner's. */
+const LATECOMER = {
+  name: "secondcomer",
+  password: "another-good-password",
+};
+
 export const aSiteNobodyHasSetUp = async (): Promise<void> => {
   resetDb();
   await createTestDb(true);
 };
 
 /** The setup page, open in front of somebody who has never been here. */
-const openSetup = (): Promise<TestBrowser> => openAsNewcomer(SETUP_PAGE);
+export const openSetup = (): Promise<TestBrowser> => openAsNewcomer(SETUP_PAGE);
 
-/** Somebody sets the site up, typing the password once into each box. Sent
- * through the page's own form, so a value the page would not accept — a
- * password shorter than it asks for, a country it does not list — cannot be
- * sent by the story either. */
+/** Somebody fills the setup page in front of them and sends it. Sent through
+ * the page's own form, so a value the page would refuse — a password shorter
+ * than it asks for, a country it does not list — cannot be sent here either. */
+const sendSetup = (
+  browser: TestBrowser,
+  who: { name: string; password: string },
+  confirmation: string,
+): Promise<void> =>
+  fillInAndSend(
+    browser,
+    {
+      accept_agreement: checkboxValueOffered(
+        browser.currentHtml,
+        "accept_agreement",
+      ),
+      admin_password: who.password,
+      admin_password_confirm: confirmation,
+      admin_username: who.name,
+      country: "GB",
+    },
+    t("setup.submit"),
+  );
+
+/** Somebody opens the setup page and sets the site up. */
 export const somebodySetsUp = async (
   world: TicketsWorld,
   password: string,
   confirmation: string,
 ): Promise<string> => {
   const browser = await openSetup();
-  await fillInAndSend(
-    browser,
-    {
-      // Whatever the page's own tickbox sends, rather than a word the story
-      // believes in — a tickbox sending something the site does not expect
-      // would stop anybody finishing, and this has to fail with them.
-      accept_agreement: checkboxValueOffered(
-        browser.currentHtml,
-        "accept_agreement",
-      ),
-      admin_password: password,
-      admin_password_confirm: confirmation,
-      admin_username: CHOSEN.name,
-      country: "GB",
-    },
-    t("setup.submit"),
-  );
+  await sendSetup(browser, { ...CHOSEN, password }, confirmation);
   world.setUpTold = browser.pageText;
   return browser.pageText;
 };
 
-/** The password the story would use when it is not testing the password. */
+/** Somebody who had the setup page open before the site was set up sends it
+ * afterwards. Their page is never re-opened, because re-opening it is what the
+ * site redirects — a stale form is the only way this post can really arrive. */
+export const latecomerSendsSetup = async (
+  browser: TestBrowser,
+): Promise<void> => {
+  await sendSetup(browser, LATECOMER, LATECOMER.password);
+};
+
+/** The password the story uses when it is not testing the password. */
 export const GOOD_PASSWORD = CHOSEN.password;
 
-/** What whoever was setting the site up was told. */
 export const whatSetterWasTold = (world: TicketsWorld): string =>
   requiredWorldValue(world.setUpTold, "what the setter was told");
 
-/** Whether the first owner can now sign in with what they chose. Proving the
- * ceremony finished means using it, not reading a page that says it did. */
-export const firstOwnerCanSignIn = async (
+/** Whether somebody can sign in with a name and password. Proving the ceremony
+ * finished means using it, not reading a page that says it did. */
+const canSignIn = async (
+  username: string,
   password: string,
 ): Promise<boolean> => {
   const browser = await openAsNewcomer("/admin/login");
-  // A site with no owner has no way in at all, which is the plainest form of
-  // "nobody can sign in" — not a wrong password, no door.
+  // A site with no owner has no way in at all — not a wrong password, no door.
   if (!browser.currentHtml.includes('name="username"')) return false;
-  await fillInAndSend(
-    browser,
-    { password, username: CHOSEN.name },
-    t("login.submit"),
-  );
-  // Being signed in is proved by opening a page only an owner may open. A page
-  // that merely stopped asking for a password could be any signed-out page at
-  // all, so the settings page is opened and has to really be there.
-  await browser.visit(OWNER_ONLY_PAGE);
-  return browser.currentHtml.includes(t("settings.title"));
+  await fillInAndSend(browser, { password, username }, t("login.submit"));
+  // Only a page nobody but the owner may open proves they were let in. Merely
+  // not being asked for a password is true of every signed-out page too. A
+  // visitor who is not the owner is sent away from it, so staying there is the
+  // answer — and it still has to be a page, not a redirect they followed.
+  const answered = await browser.visit(OWNER_ONLY_PAGE);
+  return answered === 200 && browser.currentUrl === OWNER_ONLY_PAGE;
 };
+
+export const firstOwnerCanSignIn = (password: string): Promise<boolean> =>
+  canSignIn(CHOSEN.name, password);
+
+export const latecomerCanSignIn = (): Promise<boolean> =>
+  canSignIn(LATECOMER.name, LATECOMER.password);
 
 /** Where somebody opening the setup page ends up, and whether the ceremony is
  * still on offer there. Both matter: a page that stopped redirecting but no

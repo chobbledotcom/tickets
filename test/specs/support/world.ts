@@ -129,6 +129,7 @@ export interface TicketsWorld extends World {
   firstStatus?: number;
   groupSlug?: string;
   holdListingId?: number;
+  latecomerBrowser?: TestBrowser;
   lengthChangeMessage?: string;
   listingId?: number;
   listingIds: Map<string, number>;

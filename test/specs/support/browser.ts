@@ -37,14 +37,15 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
-/** What somebody who was never signed in is shown at an address, and whether
- * the site answered at all. The words are read whatever the answer, so a page
- * that refuses can still be checked for what it says. */
+/** What somebody who was never signed in is shown at an address, and how the
+ * site answered. Both come from the one visit, so they always describe the page
+ * the visitor really ended on rather than two separate answers. */
 export const newcomerReading = async (
   path: string,
 ): Promise<{ answered: number; said: string }> => {
-  const browser = await openAsNewcomer(path);
-  return { answered: await browser.statusOf(path), said: browser.pageText };
+  const browser = new TestBrowser();
+  const answered = await browser.visit(path);
+  return { answered, said: browser.pageText };
 };
 
 /** Opening the page one named thing is sold from, as somebody never signed in.

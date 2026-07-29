@@ -8,11 +8,17 @@ import {
   aSiteNobodyHasSetUp,
   firstOwnerCanSignIn,
   GOOD_PASSWORD,
+  latecomerCanSignIn,
+  latecomerSendsSetup,
   openingSetupAgain,
+  openSetup,
   somebodySetsUp,
   whatSetterWasTold,
 } from "#test/specs/support/setting-up.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
@@ -80,6 +86,32 @@ Then(
     expect(await firstOwnerCanSignIn(GOOD_PASSWORD)).toBe(false);
     const { said } = await newcomerReading("/");
     expect(said).toContain(t("public.not_activated.message"));
+  },
+);
+
+Given(
+  "somebody else already had the setup page open",
+  async function (this: TicketsWorld): Promise<void> {
+    this.latecomerBrowser = await openSetup();
+  },
+);
+
+When(
+  "they send their setup after the site is somebody's",
+  function (this: TicketsWorld): Promise<void> {
+    return latecomerSendsSetup(
+      requiredWorldValue(this.latecomerBrowser, "the latecomer's page"),
+    );
+  },
+);
+
+Then(
+  "the site still belongs to the first owner",
+  async function (this: TicketsWorld): Promise<void> {
+    // Setting up again would make a second owner and replace the keys that
+    // protect everybody's details, so the first owner would lose their site.
+    expect(await latecomerCanSignIn()).toBe(false);
+    expect(await firstOwnerCanSignIn(GOOD_PASSWORD)).toBe(true);
   },
 );
 
