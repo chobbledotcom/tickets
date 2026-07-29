@@ -127,8 +127,14 @@ export type ObservationOutcome =
   | { issue: PaymentConflict; kind: "conflict" }
   | { kind: "fully_refunded" }
   | { kind: "ready" }
-  | { kind: "refund_pending" }
-  | { kind: "still_going" };
+  | { kind: "refund_pending" };
+
+/** A reading that has finished saying what happened to the money. A checkout
+ *  still going, or one that failed, has not, and is answered before it gets
+ *  here. */
+export type SettledReading = PaymentObservation & {
+  status: "no_payment_required" | "paid";
+};
 
 /** A refund the provider tried and could not finish. */
 const providerCouldNotRefund = (refund: { reason?: string; status: string }) =>
@@ -176,13 +182,15 @@ const freeOutcome = (observation: PaymentObservation): ObservationOutcome => {
     : { issue: { kind: "paid_without_charge" }, kind: "conflict" };
 };
 
-/** What this reading amounts to. A reading still going, or one that failed,
- *  has not finished saying anything yet. */
-export const outcomeOf = (
+/** What this reading amounts to. */
+export const outcomeOf = (observation: SettledReading): ObservationOutcome =>
+  observation.status === "paid"
+    ? paidOutcome(observation)
+    : freeOutcome(observation);
+
+/** Whether this reading has finished saying what happened to the money. A
+ *  stored answer about one that has not is asking about nothing yet. */
+export const hasSettled = (
   observation: PaymentObservation,
-): ObservationOutcome => {
-  if (observation.status === "paid") return paidOutcome(observation);
-  return observation.status === "no_payment_required"
-    ? freeOutcome(observation)
-    : { kind: "still_going" };
-};
+): observation is SettledReading =>
+  observation.status === "paid" || observation.status === "no_payment_required";

@@ -3,7 +3,7 @@ import {
   IS_THE_READING_ITSELF,
   PaymentConflictSchema,
 } from "#shared/payment-state/conflict.ts";
-import { outcomeOf } from "#shared/payment-state/diagnose.ts";
+import { hasSettled, outcomeOf } from "#shared/payment-state/diagnose.ts";
 import {
   PaymentObservationSchema,
   ProviderUnavailableReasonSchema,
@@ -180,8 +180,10 @@ export const PaymentResolutionSchema = v.variant("status", [
     // this, a problem could name one thing while the reading beside it shows
     // another, and the owner would be sent after the wrong money.
     v.check((resolution) => {
-      if (resolution.observation === undefined) return true;
-      const outcome = outcomeOf(resolution.observation);
+      const reading = resolution.observation;
+      if (reading === undefined) return true;
+      if (!hasSettled(reading)) return false;
+      const outcome = outcomeOf(reading);
       return (
         outcome.kind === "conflict" &&
         outcome.issue.kind === resolution.issue.kind

@@ -74,10 +74,6 @@ const resolutionFor = (
       return pendingPayment(observation, "refund_pending");
     case "ready":
       return { observation, status: "ready" };
-    case "still_going":
-      throw new Error(
-        `A reading that has not finished cannot be settled: ${observation.session.id}`,
-      );
   }
 };
 

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { outcomeOf } from "#shared/payment-state/diagnose.ts";
+import { hasSettled, outcomeOf } from "#shared/payment-state/diagnose.ts";
 import { PaymentResolutionSchema } from "#shared/payment-state/lifecycle.ts";
 import {
   chargeLeg,
@@ -45,13 +45,6 @@ describe("what one reading of a payment comes to", () => {
       }),
       "refund_pending",
     ],
-    // Nothing has been decided yet, so there is nothing for a stored answer to
-    // agree or disagree with.
-    [
-      "a checkout still going",
-      paymentObservation({ status: "pending" }),
-      "still_going",
-    ],
   ] as const) {
     test(`calls ${name} ${expected}`, () => {
       expect(outcomeOf(observation).kind).toBe(expected);
@@ -81,6 +74,19 @@ describe("what one reading of a payment comes to", () => {
       }),
     ).toThrow();
   });
+
+  // Nothing has been decided yet, so there is nothing for a stored answer to
+  // agree or disagree with.
+  for (const [name, status, settled] of [
+    ["money taken", "paid", true],
+    ["nothing owed", "no_payment_required", true],
+    ["a checkout still going", "pending", false],
+    ["a checkout that failed", "failed", false],
+  ] as const) {
+    test(`${settled ? "counts" : "does not count"} ${name} as finished`, () => {
+      expect(hasSettled(paymentObservation({ status }))).toBe(settled);
+    });
+  }
 
   test("refuses a stored problem whose reading has not finished", () => {
     expect(() =>
