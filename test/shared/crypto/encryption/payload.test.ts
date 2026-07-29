@@ -38,8 +38,8 @@ describeWithEnv("parseEncryptedPayload", { encryptionKey: true }, () => {
 
   it("refuses a value with no separator after the prefix", () => {
     expect(() =>
-      parseEncryptedPayload(`${PREFIX}abcdef`, PREFIX, "a note"),
-    ).toThrow("Invalid a note format: missing IV separator");
+      parseEncryptedPayload(`${PREFIX}abcdef`, PREFIX, "a wrapped key"),
+    ).toThrow("Invalid a wrapped key format: missing IV separator");
   });
 
   it("tells the two failures apart", () => {
@@ -50,10 +50,13 @@ describeWithEnv("parseEncryptedPayload", { encryptionKey: true }, () => {
     ).not.toThrow(/^Invalid a note format$/);
   });
 
-  it("names whatever label the caller gave it", () => {
+  it("names whatever label the caller gave it, on either failure", () => {
     expect(() => parseEncryptedPayload("nope", PREFIX, "a ticket")).toThrow(
       "Invalid a ticket format",
     );
+    expect(() =>
+      parseEncryptedPayload(`${PREFIX}abcdef`, PREFIX, "a ticket"),
+    ).toThrow("Invalid a ticket format: missing IV separator");
   });
 
   it("keeps an empty ciphertext rather than inventing one", () => {

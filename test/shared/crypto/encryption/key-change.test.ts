@@ -1,5 +1,6 @@
 /**
- * What a key change invalidates on the small-value path. Values at or below
+ * What a key change invalidates on the small-value path, and in the caches
+ * sibling modules register through onEncryptionKeyChange. Values at or below
  * 64KB are sealed straight from the raw key bytes; the CryptoKey the larger
  * path imports is covered in key-cache.test.ts.
  */
@@ -12,7 +13,12 @@ import {
   getEncryptionKeyBytes,
   setEncryptionKeyForTest,
 } from "#shared/crypto/encryption.ts";
-import { decryptWithPrivateKey, generateKeyPair } from "#shared/crypto/keys.ts";
+import {
+  decryptWithOwnerKey,
+  encryptWithOwnerKey,
+  generateKeyPair,
+  importPrivateKey,
+} from "#shared/crypto/keys.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { OTHER_TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
@@ -54,6 +60,27 @@ describeWithEnv("changing the encryption key", { encryptionKey: true }, () => {
       setEncryptionKeyForTest(OTHER_TEST_ENCRYPTION_KEY);
       setupTestEncryptionKey();
       expect(await decrypt(sealed)).toBe("secret");
+    });
+  });
+
+  describe("caches other modules register", () => {
+    it("clears the owner-key cache, so a wrong key can no longer open a value", async () => {
+      const owner = await generateKeyPair();
+      const sealed = await encryptWithOwnerKey("a note", owner.publicKey);
+      const ownerPrivate = await importPrivateKey(owner.privateKey);
+      // Reading it once puts the plaintext in the shared cache.
+      expect(await decryptWithOwnerKey(sealed, ownerPrivate)).toBe("a note");
+
+      setEncryptionKeyForTest(OTHER_TEST_ENCRYPTION_KEY);
+
+      // With the cache cleared this has to do the real work, and the wrong
+      // private key cannot do it. A surviving entry would hand back the note.
+      const stranger = await generateKeyPair();
+      const strangerPrivate = await importPrivateKey(stranger.privateKey);
+      await expect(
+        decryptWithOwnerKey(sealed, strangerPrivate),
+      ).rejects.toThrow();
+      setupTestEncryptionKey();
     });
   });
 });

@@ -1435,22 +1435,6 @@ stands, so the split can be a pure move.
 
 ---
 
-## Mutation gaps in `src/shared/crypto/keys.ts` (the same `extractable` shape)
-
-*Origin: closing the `encryption.ts` gaps.*
-
-`encryption.ts` is now at 100% (89 killed, one recorded equivalent). Its
-`importKey` was exported but had no caller outside the module, so it is now
-module-private, which is what makes the `extractable: false → true` mutant on
-it provably equivalent — the key it returns cannot reach `exportKey`.
-
-`importRsaKey` in `src/shared/crypto/keys.ts` has the same shape and was noted
-alongside the original finding. Check whether its key also stays inside the
-module: if it does, the same reasoning applies; if it escapes to a caller, the
-mutant is killable and wants a test rather than an ignore-list entry.
-
----
-
 ## Let Deno-hosted sites with a Bunny database be migrated
 
 `POST /instance/site-credentials` (`src/features/instance.ts`) only returns

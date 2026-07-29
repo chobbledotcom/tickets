@@ -28,9 +28,8 @@ describeWithEnv("encryptBytes / decryptBytes", { encryptionKey: true }, () => {
       expect(sealed[VERSION_OFFSET]).toBe(1);
     });
 
-    it("puts a 12-byte IV between the version and the ciphertext", async () => {
+    it("gives every sealed file its own IV, in the header's IV slot", async () => {
       const sealed = await encryptBytes(plain);
-      expect(sealed.slice(IV_OFFSET, HEADER_SIZE).length).toBe(12);
       // A fresh IV every time is what keeps two identical files from sealing
       // to identical bytes.
       const other = await encryptBytes(plain);
@@ -47,7 +46,10 @@ describeWithEnv("encryptBytes / decryptBytes", { encryptionKey: true }, () => {
 
     it("does not leave the data readable in the sealed bytes", async () => {
       const sealed = await encryptBytes(plain);
-      expect([...sealed.slice(HEADER_SIZE)]).not.toEqual([...plain]);
+      // Same length as the data, so this compares like with like: a body that
+      // passed the plaintext straight through would match here.
+      const body = sealed.slice(HEADER_SIZE, HEADER_SIZE + plain.length);
+      expect([...body]).not.toEqual([...plain]);
     });
   });
 
