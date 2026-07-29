@@ -1,16 +1,20 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  ACCESS_KEY_ERROR,
   BUNDLE_PATH,
   BUNNY_API_BASE,
+  DEPLOY_BUILT_USAGE,
   type DeployEdgeDeps,
   deployScriptCode,
   type FetchText,
   type FetchTextResult,
   formatBunnyError,
   getAccessKey,
+  parseDeployBuiltArgs,
   parseScriptIdArg,
   publishScript,
+  runDeployBuiltEdge,
   runDeployEdge,
   USAGE,
   uploadScriptCode,
@@ -44,7 +48,6 @@ const response = (
   status: number,
   text: string,
 ): FetchTextResult => ({ ok, status, text });
-
 const headersFrom = (init: RequestInit): Record<string, string> =>
   init.headers as Record<string, string>;
 
@@ -110,6 +113,31 @@ describe("deploy-edge argument parsing", () => {
       error: USAGE,
       ok: false,
     });
+  });
+});
+
+describe("deploy-built-edge argument parsing", () => {
+  test("accepts a script ID and optional bundle path", () => {
+    expect(parseDeployBuiltArgs([" 12345 "])).toEqual({
+      bundlePath: BUNDLE_PATH,
+      ok: true,
+      scriptId: "12345",
+    });
+    expect(parseDeployBuiltArgs([" 12345 ", " built.ts "])).toEqual({
+      bundlePath: "built.ts",
+      ok: true,
+      scriptId: "12345",
+    });
+  });
+
+  test("rejects missing, blank, or extra inputs", () => {
+    const usageError = { error: DEPLOY_BUILT_USAGE, ok: false };
+    expect([
+      parseDeployBuiltArgs([]),
+      parseDeployBuiltArgs([" "]),
+      parseDeployBuiltArgs(["1", " "]),
+      parseDeployBuiltArgs(["1", "built.ts", "extra"]),
+    ]).toEqual([usageError, usageError, usageError, usageError]);
   });
 });
 
@@ -274,9 +302,7 @@ describe("runDeployEdge", () => {
     const stderr = await expectDeployFailsBeforeBuild({
       getEnv: envReader({}),
     });
-    expect(stderr).toEqual([
-      "BUNNY_ACCESS_KEY is required in .env (BUNNY_API_KEY also works).",
-    ]);
+    expect(stderr).toEqual([ACCESS_KEY_ERROR]);
   });
 
   test("stops when the edge build fails", async () => {
@@ -322,5 +348,52 @@ describe("runDeployEdge", () => {
 
     expect(stderr).toEqual(["Upload script code failed (401): Unauthorized"]);
     expect(recorder.calls).toHaveLength(1);
+  });
+});
+
+describe("runDeployBuiltEdge", () => {
+  test("returns usage errors before reading", async () => {
+    const { deps, stderr } = deployDeps({ args: [] });
+
+    await expect(runDeployBuiltEdge(deps)).resolves.toBe(1);
+
+    expect(stderr).toEqual([DEPLOY_BUILT_USAGE]);
+  });
+
+  test("reads, uploads, and publishes an already-built bundle", async () => {
+    const recorder = fetchRecorder([
+      response(true, 200, "{}"),
+      response(true, 200, "{}"),
+    ]);
+    const { deps, stderr, stdout } = deployDeps({
+      args: ["42", "built.ts"],
+      fetchText: recorder.fetchText,
+    });
+
+    await expect(runDeployBuiltEdge(deps)).resolves.toBe(0);
+
+    expect(stderr).toEqual([]);
+    expect(stdout).toEqual([
+      "Uploading built.ts to Bunny script 42...",
+      "Published Bunny script 42.",
+    ]);
+    expect(recorder.calls).toHaveLength(2);
+  });
+
+  test("requires a Bunny access key before reading the bundle", async () => {
+    let readCalled = false;
+    const { deps, stderr } = deployDeps({
+      args: ["42", "built.ts"],
+      getEnv: envReader({}),
+      readTextFile: () => {
+        readCalled = true;
+        return Promise.resolve("code");
+      },
+    });
+
+    await expect(runDeployBuiltEdge(deps)).resolves.toBe(1);
+
+    expect(stderr).toEqual([ACCESS_KEY_ERROR]);
+    expect(readCalled).toBe(false);
   });
 });

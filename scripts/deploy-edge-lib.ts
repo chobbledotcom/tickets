@@ -1,22 +1,18 @@
 import { mapNotNullish } from "#fp";
 import type { ScriptIo } from "#scripts/script-runner.ts";
+import type { FetchText, FetchTextResult } from "./fetch-text.ts";
+
+export type { FetchText, FetchTextResult } from "./fetch-text.ts";
 
 export const BUNNY_API_BASE = "https://api.bunny.net";
 export const BUNDLE_PATH = "bunny-script.ts";
 export const USAGE = "Usage: deno task deploy:edge <script-id>";
+export const DEPLOY_BUILT_USAGE =
+  "Usage: deno run scripts/deploy-built-edge.ts <script-id> [file]";
+export const ACCESS_KEY_ERROR =
+  "BUNNY_ACCESS_KEY is required (BUNNY_API_KEY also works).";
 
 const ACCESS_KEY_ENV_KEYS = ["BUNNY_ACCESS_KEY", "BUNNY_API_KEY"] as const;
-
-export interface FetchTextResult {
-  ok: boolean;
-  status: number;
-  text: string;
-}
-
-export type FetchText = (
-  url: string,
-  init: RequestInit,
-) => Promise<FetchTextResult>;
 
 export type BunnyDeployResult = { ok: true } | { error: string; ok: false };
 
@@ -41,6 +37,31 @@ export interface DeployEdgeDeps extends ScriptIo {
   runBuildEdge: (cwd: string) => Promise<BuildResult>;
 }
 
+export interface DeployBuiltEdgeDeps extends ScriptIo {
+  fetchText: FetchText;
+  readTextFile: (path: string) => Promise<string>;
+}
+
+export interface DeployBuiltArgs {
+  bundlePath: string;
+  scriptId: string;
+}
+
+type ParsedScriptId =
+  | { ok: true; scriptId: string }
+  | {
+      error: string;
+      ok: false;
+    };
+
+const parseScriptId = (
+  value: string | undefined,
+  usage: string,
+): ParsedScriptId => {
+  const scriptId = value?.trim();
+  return scriptId ? { ok: true, scriptId } : { error: usage, ok: false };
+};
+
 export const parseScriptIdArg = (
   args: string[],
 ): { ok: true; scriptId: string } | { error: string; ok: false } => {
@@ -48,8 +69,24 @@ export const parseScriptIdArg = (
     return { error: USAGE, ok: false };
   }
 
-  const scriptId = args[0]?.trim();
-  return scriptId ? { ok: true, scriptId } : { error: USAGE, ok: false };
+  return parseScriptId(args[0], USAGE);
+};
+
+export const parseDeployBuiltArgs = (
+  args: string[],
+): ({ ok: true } & DeployBuiltArgs) | { error: string; ok: false } => {
+  if (args.length < 1 || args.length > 2) {
+    return { error: DEPLOY_BUILT_USAGE, ok: false };
+  }
+
+  const scriptId = parseScriptId(args[0], DEPLOY_BUILT_USAGE);
+  if (!scriptId.ok) return scriptId;
+
+  const fileArg = args[1];
+  const bundlePath = fileArg === undefined ? BUNDLE_PATH : fileArg.trim();
+  return bundlePath
+    ? { bundlePath, ok: true, scriptId: scriptId.scriptId }
+    : { error: DEPLOY_BUILT_USAGE, ok: false };
 };
 
 export const getAccessKey = (
@@ -147,28 +184,18 @@ export const deployScriptCode: ScriptCodeFn = async (
   return publishScript(scriptId, accessKey, fetchText);
 };
 
-export const runDeployEdge = async (deps: DeployEdgeDeps): Promise<number> => {
-  const scriptId = parseScriptIdArg(deps.args);
-  if (!scriptId.ok) {
-    deps.stderr(scriptId.error);
-    return 1;
-  }
+interface DeployBuiltBundleDeps extends Pick<ScriptIo, "stderr" | "stdout"> {
+  accessKey: string;
+  bundlePath: string;
+  fetchText: FetchText;
+  labelPath: string;
+  readTextFile: (path: string) => Promise<string>;
+  scriptId: string;
+}
 
-  const accessKey = getAccessKey(deps.getEnv);
-  if (!accessKey) {
-    deps.stderr(
-      "BUNNY_ACCESS_KEY is required in .env (BUNNY_API_KEY also works).",
-    );
-    return 1;
-  }
-
-  deps.stdout("Building edge bundle...");
-  const build = await deps.runBuildEdge(deps.cwd);
-  if (!build.success) {
-    deps.stderr(`build:edge failed with exit code ${build.code}`);
-    return 1;
-  }
-
+const deployBuiltBundle = async (
+  deps: DeployBuiltBundleDeps,
+): Promise<number> => {
   let code: string;
   try {
     code = await deps.readTextFile(deps.bundlePath);
@@ -178,12 +205,12 @@ export const runDeployEdge = async (deps: DeployEdgeDeps): Promise<number> => {
   }
 
   deps.stdout(
-    `Uploading ${BUNDLE_PATH} to Bunny script ${scriptId.scriptId}...`,
+    `Uploading ${deps.labelPath} to Bunny script ${deps.scriptId}...`,
   );
   const deploy = await deployScriptCode(
-    scriptId.scriptId,
+    deps.scriptId,
     code,
-    accessKey,
+    deps.accessKey,
     deps.fetchText,
   );
   if (!deploy.ok) {
@@ -191,6 +218,63 @@ export const runDeployEdge = async (deps: DeployEdgeDeps): Promise<number> => {
     return 1;
   }
 
-  deps.stdout(`Published Bunny script ${scriptId.scriptId}.`);
+  deps.stdout(`Published Bunny script ${deps.scriptId}.`);
   return 0;
+};
+
+const withAccessKey = async (
+  deps: Pick<ScriptIo, "getEnv" | "stderr">,
+  run: (accessKey: string) => Promise<number>,
+): Promise<number> => {
+  const accessKey = getAccessKey(deps.getEnv);
+  if (!accessKey) {
+    deps.stderr(ACCESS_KEY_ERROR);
+    return 1;
+  }
+
+  return run(accessKey);
+};
+
+export const runDeployBuiltEdge = async (
+  deps: DeployBuiltEdgeDeps,
+): Promise<number> => {
+  const args = parseDeployBuiltArgs(deps.args);
+  if (!args.ok) {
+    deps.stderr(args.error);
+    return 1;
+  }
+
+  return withAccessKey(deps, (accessKey) =>
+    deployBuiltBundle({
+      ...deps,
+      accessKey,
+      bundlePath: args.bundlePath,
+      labelPath: args.bundlePath,
+      scriptId: args.scriptId,
+    }),
+  );
+};
+
+export const runDeployEdge = async (deps: DeployEdgeDeps): Promise<number> => {
+  const scriptId = parseScriptIdArg(deps.args);
+  if (!scriptId.ok) {
+    deps.stderr(scriptId.error);
+    return 1;
+  }
+
+  return withAccessKey(deps, async (accessKey) => {
+    deps.stdout("Building edge bundle...");
+    const build = await deps.runBuildEdge(deps.cwd);
+    if (!build.success) {
+      deps.stderr(`build:edge failed with exit code ${build.code}`);
+      return 1;
+    }
+
+    return deployBuiltBundle({
+      ...deps,
+      accessKey,
+      labelPath: BUNDLE_PATH,
+      scriptId: scriptId.scriptId,
+    });
+  });
 };

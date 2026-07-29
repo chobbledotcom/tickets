@@ -15,8 +15,14 @@ runs:
   using: composite
   steps:
     - name: Deploy script to Bunny Edge Scripting
-      uses: BunnyWay/actions/deploy-script@main
-      with:
-        script_id: ${{ inputs.script_id }}
-        file: ${{ inputs.file }}
-        api_key: ${{ inputs.api_key }}
+      shell: bash
+      env:
+        BUNNY_SCRIPT_ID: ${{ inputs.script_id }}
+        BUNNY_SCRIPT_FILE: ${{ inputs.file }}
+        BUNNY_ACCESS_KEY: ${{ inputs.api_key }}
+      run: |
+        deno run \
+          --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+          --allow-read="$BUNNY_SCRIPT_FILE" \
+          --allow-net=api.bunny.net \
+          scripts/deploy-built-edge.ts "$BUNNY_SCRIPT_ID" "$BUNNY_SCRIPT_FILE"
