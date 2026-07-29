@@ -105,9 +105,10 @@ export const getEncryptionKeyBytes = (): Uint8Array => {
 };
 
 /**
- * Import a CryptoKey from DB_ENCRYPTION_KEY.
+ * Import a CryptoKey from DB_ENCRYPTION_KEY. Module-private: the key is only
+ * ever used to seal and open data here, and never leaves this file.
  */
-export const importKey = async (
+const importKey = async (
   algorithm: Parameters<SubtleCrypto["importKey"]>[2],
   usages: KeyUsage[],
 ): Promise<CryptoKey> => {
