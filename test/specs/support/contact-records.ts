@@ -35,13 +35,9 @@ interface RecordEdit {
   visits?: string;
 }
 
-/** The page for one person's record, found the way the site finds it. */
 /** Where one person's record lives, under the one-way code made from their
  *  email rather than the address itself. */
 const recordPath = (code: string): string => `/admin/history/${code}`;
-
-const pagePath = async (email: string): Promise<string> =>
-  recordPath(toContactHashParam(await hashEmail(email)));
 
 /** Everything the site has stored about them right now. */
 export const recordFor = async (email: string): Promise<ContactRecord> =>
