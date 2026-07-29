@@ -14,6 +14,7 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -30,8 +31,16 @@ const intent = (): BookingIntent => ({
   special_instructions: "",
 });
 
+/** The listing a test just made. It is always there; saying so here keeps
+ *  every case below from repeating the check. */
+const loadedListing = async (id: number): Promise<ListingWithCount> => {
+  const listing = await getListingWithCount(id);
+  if (listing === null) throw new Error(`Listing ${id} was not created`);
+  return listing;
+};
+
 /** One checked line: the signed line and the listing it names. */
-const checkedLine = (listing: { id: number }): ValidatedItem[] =>
+const checkedLine = (listing: ListingWithCount): ValidatedItem[] =>
   [
     { item: { e: listing.id, p: 1000, q: 1 }, listing },
   ] as unknown as ValidatedItem[];
@@ -105,7 +114,7 @@ describeWithEnv(
         "Recovered Buyer",
         "recovered@example.com",
       );
-      const loaded = await getListingWithCount(listing.id);
+      const loaded = await loadedListing(listing.id);
       await reserveSession("cs_recover");
       await finalizeSessionIfUnresolved("cs_recover", attendee.id);
 
@@ -129,7 +138,7 @@ describeWithEnv(
         name: "Refunded",
         unitPrice: 1000,
       });
-      const loaded = await getListingWithCount(listing.id);
+      const loaded = await loadedListing(listing.id);
       await reserveSession("cs_rollback");
 
       const { completed, result } = await runRecovery({
@@ -152,7 +161,7 @@ describeWithEnv(
         name: "Unknown",
         unitPrice: 1000,
       });
-      const loaded = await getListingWithCount(listing.id);
+      const loaded = await loadedListing(listing.id);
       const original = new Error("nobody knows what happened");
 
       await expect(
@@ -179,7 +188,7 @@ describeWithEnv(
         "Mismatched Buyer",
         "mismatched@example.com",
       );
-      const loaded = await getListingWithCount(listing.id);
+      const loaded = await loadedListing(listing.id);
       await reserveSession("cs_mismatch");
 
       await expect(
