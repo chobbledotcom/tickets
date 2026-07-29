@@ -23,6 +23,10 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** Where a site is set up, and where it says so afterwards. */
 const SETUP_PAGE = "/setup/";
 
+/** A page nobody but the owner may open, used to prove somebody really is
+ * signed in rather than merely looking at a page that stopped asking. */
+const OWNER_ONLY_PAGE = "/admin/settings";
+
 /** What the first owner types in. The country is picked from the page's own
  * list, so the story can never choose one the page does not offer. */
 const CHOSEN = {
@@ -93,10 +97,11 @@ export const firstOwnerCanSignIn = async (
     { password, username: CHOSEN.name },
     t("login.submit"),
   );
-  // Being signed in means the site stopped asking. A refused password lands
-  // back on a page still offering the box, and the address it lands on is the
-  // same either way — so the address says nothing.
-  return !browser.currentHtml.includes('name="password"');
+  // Being signed in is proved by opening a page only an owner may open. A page
+  // that merely stopped asking for a password could be any signed-out page at
+  // all, so the settings page is opened and has to really be there.
+  await browser.visit(OWNER_ONLY_PAGE);
+  return browser.currentHtml.includes(t("settings.title"));
 };
 
 /** Where somebody opening the setup page ends up, and whether the ceremony is

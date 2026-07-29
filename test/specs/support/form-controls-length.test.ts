@@ -34,6 +34,13 @@ describe("a box that asks for a minimum length", () => {
     );
   });
 
+  // Sending nothing at all through an optional box is a real answer, so its
+  // minimum has nothing to measure. Without this the length rule would refuse
+  // to leave a box empty that the page is happy to leave empty.
+  test("lets an optional box be left empty", () => {
+    expect(whyValueCannotBeSent(password(), "pass", "")).toBeNull();
+  });
+
   test("ignores length on a box that asks for no minimum", () => {
     expect(
       whyValueCannotBeSent('<input name="pass" type="password">', "pass", "x"),
