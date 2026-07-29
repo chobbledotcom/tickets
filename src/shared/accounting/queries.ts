@@ -45,7 +45,8 @@ import {
 } from "#shared/db/client.ts";
 import {
   clauseArgs,
-  matchesNoRows,
+  queryTail,
+  rowsUnlessNoneMatch,
   type WhereClause,
   whereSql,
 } from "#shared/db/where-clauses.ts";
@@ -148,11 +149,12 @@ export const visibleTransfers = (
     ...occurredAtRange(range),
     ...listingLegScope(listingIds),
   ];
-  if (matchesNoRows(parts)) return Promise.resolve([]);
-  return selectTransfers(
-    fromDb,
-    `${whereSql(parts)} ORDER BY occurred_at DESC, id DESC LIMIT ?`,
-    [...clauseArgs(parts), limit],
+  const tail = queryTail(parts, {
+    limit,
+    order: "occurred_at DESC, id DESC",
+  });
+  return rowsUnlessNoneMatch(parts, () =>
+    selectTransfers(fromDb, tail.sql, tail.args),
   );
 };
 

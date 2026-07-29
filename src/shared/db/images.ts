@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { chooseColumns, type StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
   queryAll,
@@ -13,18 +14,13 @@ import {
 } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import {
-  type ColumnDef,
-  col,
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { type ColumnDef, col } from "#shared/db/table.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type {
   Image,
   ImageUse,
   ImageUseItemType,
-  ItemImageProjection,
+  ItemImageColumns,
 } from "#shared/types.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 /* jscpd:ignore-end */
@@ -62,7 +58,7 @@ export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   name: col.encryptedText(encrypt, decrypt),
 });
 
-const imageProjection = defineTableProjection(imagesTable, [
+const imageColumns = chooseColumns(imagesTable, [
   "id",
   "name",
   "filename",
@@ -70,7 +66,7 @@ const imageProjection = defineTableProjection(imagesTable, [
   "alt_text",
 ]);
 
-const imageFileProjection = defineTableProjection(imagesTable, [
+const imageFileColumns = chooseColumns(imagesTable, [
   "id",
   "filename",
   "filename_thumb",
@@ -78,9 +74,7 @@ const imageFileProjection = defineTableProjection(imagesTable, [
 ]);
 
 export const getAllImages = (): Promise<Image[]> =>
-  imageProjection.queryAll(
-    `SELECT ${imageProjection.columnsSql()} FROM images ORDER BY id DESC`,
-  );
+  imageColumns.select({ order: "id DESC" });
 
 export const getImageById = (id: number): Promise<Image | null> =>
   imagesTable.findById(id);
@@ -117,13 +111,12 @@ export const imageFilenameSubqueries = (
 export const getImageFilenamesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
-): Promise<ItemImageProjection> => {
-  type ImageFileRow = StoredTableProjectionRow<
-    Image,
-    typeof imageFileProjection.columns
-  > & { id: number };
+): Promise<ItemImageColumns> => {
+  type ImageFileRow = StoredRowOf<Image, typeof imageFileColumns.columns> & {
+    id: number;
+  };
   const stored = await queryOne<ImageFileRow>(
-    `SELECT ${imageFileProjection.columnsSql("image")}
+    `SELECT ${imageFileColumns.columnsSql("image")}
        FROM image_uses AS imageUse
        JOIN images AS image ON image.id = imageUse.image_id
       WHERE imageUse.item_type = ? AND imageUse.item_id = ?
@@ -133,7 +126,7 @@ export const getImageFilenamesForItem = async (
   );
   if (!stored)
     return { image_alt_text: "", image_thumb_url: "", image_url: "" };
-  const image = await imageFileProjection.read(
+  const image = await imageFileColumns.read(
     stored,
     `${stored.id} (first image of ${itemType} ${itemId})`,
   );
@@ -148,12 +141,11 @@ export const getImagesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
 ): Promise<OrderedImage[]> => {
-  type OrderedImageRow = StoredTableProjectionRow<
-    Image,
-    typeof imageProjection.columns
-  > & { sort_order: number };
+  type OrderedImageRow = StoredRowOf<Image, typeof imageColumns.columns> & {
+    sort_order: number;
+  };
   const rows = await queryAll<OrderedImageRow>(
-    `SELECT ${imageProjection.columnsSql("image")},
+    `SELECT ${imageColumns.columnsSql("image")},
             imageUse.sort_order
        FROM image_uses AS imageUse
        JOIN images AS image ON image.id = imageUse.image_id
@@ -161,7 +153,7 @@ export const getImagesForItem = async (
       ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC`,
     [itemType, itemId],
   );
-  const images = await imageProjection.readAll(rows);
+  const images = await imageColumns.readAll(rows);
   return images.map((image, index) => ({
     ...image,
     sort_order: rows[index]!.sort_order,

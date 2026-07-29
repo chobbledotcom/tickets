@@ -8,6 +8,7 @@
 /* jscpd:ignore-start */
 import { filter, groupToMap, map, reduce, sort, unique, uniqueBy } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   deleteByFieldBatch,
   executeBatch,
@@ -23,14 +24,10 @@ import {
 import { linkTableSide } from "#shared/db/link-table.ts";
 import {
   type ListingOption,
-  listingOptionProjection,
+  listingOptionColumns,
 } from "#shared/db/listings/table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import {
-  col,
-  defineTable,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { col, defineTable } from "#shared/db/table.ts";
 import type { Listing } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -259,9 +256,9 @@ export const getAttributeIdsOrdered = async (): Promise<number[]> =>
 export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
   new Set(await queryIdColumn("SELECT id FROM attribute_options"));
 
-type OptionListingRow = StoredTableProjectionRow<
+type OptionListingRow = StoredRowOf<
   Listing,
-  typeof listingOptionProjection.columns
+  typeof listingOptionColumns.columns
 > & {
   id: number;
   option_id: number;
@@ -283,7 +280,7 @@ export const getAttributeListingUse = async (
 ): Promise<AttributeListingUse> => {
   const rows = await queryAll<OptionListingRow>(
     `SELECT listingAttribute.option_id,
-            ${listingOptionProjection.columnsSql("listing")}
+            ${listingOptionColumns.columnsSql("listing")}
        FROM listing_attribute_options AS listingAttribute
        JOIN attribute_options AS attributeOption
          ON attributeOption.id = listingAttribute.option_id
@@ -301,7 +298,7 @@ export const getAttributeListingUse = async (
       (row: OptionListingRow) => row.option_id,
       (row) => row.id,
     )(rows),
-    listings: await listingOptionProjection.readAll(usedListings),
+    listings: await listingOptionColumns.readAll(usedListings),
   };
 };
 

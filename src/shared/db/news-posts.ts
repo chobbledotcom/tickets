@@ -15,6 +15,7 @@ import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { chooseColumns, type StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
   queryAll,
@@ -40,18 +41,14 @@ import {
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import {
-  col,
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { col } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import type { Result } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
 import type {
-  ItemImageProjection,
+  ItemImageColumns,
   NewsPost,
   NewsPostCard,
   NewsPostSummary,
@@ -78,7 +75,7 @@ export const newsPostsTable = defineIdTable<NewsPost, NewsPostInput>(
   },
 );
 
-const newsSummaryProjection = defineTableProjection(newsPostsTable, [
+const newsSummaryColumns = chooseColumns(newsPostsTable, [
   "id",
   "created",
   "slug",
@@ -86,10 +83,7 @@ const newsSummaryProjection = defineTableProjection(newsPostsTable, [
   "snippet",
 ]);
 
-const newsNameProjection = defineTableProjection(newsPostsTable, [
-  "id",
-  "name",
-]);
+const newsNameColumns = chooseColumns(newsPostsTable, ["id", "name"]);
 
 /** What the admin form provides: every editable column. The permalink is
  * derived on create, never entered, so `slug`/`slugIndex`/`created` are out. */
@@ -130,19 +124,19 @@ export const hasNewsPosts = async (): Promise<boolean> =>
   (await existenceCache.getAll()).length > 0;
 
 /** A card row as stored: the sealed summary plus sealed image projections. */
-type SealedCardRow = StoredTableProjectionRow<
+type SealedCardRow = StoredRowOf<
   NewsPost,
-  typeof newsSummaryProjection.columns
+  typeof newsSummaryColumns.columns
 > & {
-  [K in keyof ItemImageProjection]: EnvKeyEncrypted | "";
+  [K in keyof ItemImageColumns]: EnvKeyEncrypted | "";
 };
 
 /** Load the summary projection for every post, newest first: id, created,
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
 export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
-  newsSummaryProjection.queryAll(
-    `SELECT ${newsSummaryProjection.columnsSql()}
+  newsSummaryColumns.queryAll(
+    `SELECT ${newsSummaryColumns.columnsSql()}
        FROM news_posts
       ORDER BY created DESC, id DESC`,
   );
@@ -152,13 +146,13 @@ export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
   const rows = await queryAll<SealedCardRow>(
-    `SELECT ${newsSummaryProjection.columnsSql("news_post")},
+    `SELECT ${newsSummaryColumns.columnsSql("news_post")},
             ${imageFilenameSubqueries("news", "news_post.id")}
        FROM news_posts AS news_post
       ORDER BY news_post.created DESC, news_post.id DESC`,
   );
   return mapParallel(async (row: SealedCardRow) => ({
-    ...(await newsSummaryProjection.read(row)),
+    ...(await newsSummaryColumns.read(row)),
     image_alt_text: await decryptTextOrEmpty(row.image_alt_text),
     image_thumb_url: await decryptImageFilenameOrEmpty(
       row.image_thumb_url,
@@ -174,8 +168,8 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
 /** id → decrypted name for every post, newest first — the image library's
  * link-target labels (nothing but the name decrypted). */
 export const getNewsPostNames = async (): Promise<Map<number, string>> => {
-  const rows = await newsNameProjection.queryAll(
-    `SELECT ${newsNameProjection.columnsSql()} FROM news_posts ORDER BY created DESC, id DESC`,
+  const rows = await newsNameColumns.queryAll(
+    `SELECT ${newsNameColumns.columnsSql()} FROM news_posts ORDER BY created DESC, id DESC`,
   );
   return fieldById("name")(rows);
 };

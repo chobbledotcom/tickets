@@ -9,7 +9,7 @@
 
 import * as v from "valibot";
 import type { SqlStatement } from "#shared/db/client.ts";
-import { inPlaceholders } from "#shared/db/client.ts";
+import { equals, inList, type WhereClause } from "#shared/db/where-clauses.ts";
 
 /** The kinds of record a note can be about. Adding one here is what lets a
  *  page carry notes; the stored values are checked against this list. */
@@ -40,34 +40,28 @@ export const groupNotesByTargetId = <Note extends { entity_id: number }>(
 ): Map<number, Note[]> => Map.groupBy(notes, (note) => note.entity_id);
 
 /** Ask for one record's notes. */
-export const targetWhere = ({ entity, id }: NoteTarget): SqlStatement => ({
-  args: [entity, id],
-  sql: "entity_type = ? AND entity_id = ?",
-});
+export const targetWhere = ({ entity, id }: NoteTarget): WhereClause[] => [
+  ...equals("entity_type", entity),
+  ...equals("entity_id", id),
+];
 
 /**
- * Ask for several records of one kind at once. There must be at least one: a
- * caller with nothing to ask about has no question for the database, and asking
- * anyway would build SQL no database accepts.
+ * Ask for several records of one kind at once. Asking about none of them is a
+ * question no row can answer, which the reader sees and skips.
  */
 export const targetsWhere = (
   entity: NoteEntity,
   ids: number[],
-): SqlStatement => {
-  if (ids.length === 0) {
-    throw new Error(`Asked for the notes of no ${entity} records`);
-  }
-  return {
-    args: [entity, ...ids],
-    sql: `entity_type = ? AND entity_id IN (${inPlaceholders(ids)})`,
-  };
-};
+): WhereClause[] => [
+  ...equals("entity_type", entity),
+  ...inList("entity_id", ids),
+];
 
 /** Ask for the notes of one kind of record, chosen by a subquery of ids. */
 export const targetsSelectedBy = (
   entity: NoteEntity,
   idsQuery: SqlStatement,
-): SqlStatement => ({
-  args: [entity, ...idsQuery.args],
-  sql: `entity_type = ? AND entity_id IN (${idsQuery.sql})`,
-});
+): WhereClause[] => [
+  ...equals("entity_type", entity),
+  { args: idsQuery.args, clause: `entity_id IN (${idsQuery.sql})` },
+];
