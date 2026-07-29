@@ -10,8 +10,13 @@ import {
   datelessGhostBookings,
   placeholderBookings,
   specForFailure,
+  storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
 import type { BookingItem } from "#shared/booking/signed-metadata.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { bookingIntent, paymentSession } from "./index/helpers.ts";
 
 /** A signed cart line: `e` is the listing, `k`/`r` mark a package path. */
 const line = (listingId: number, groupId?: number): BookingItem =>
@@ -134,5 +139,80 @@ describe("the refund reason for a booking we could not honour", () => {
       reason: "capacity_exceeded",
     });
     expect(spec.detail).toBe("listing 9 oversold by 2");
+  });
+});
+
+describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
+  const specFor = (detail: string) =>
+    specForFailure({ detail, ok: false, reason: "capacity_exceeded" });
+
+  /** Store a placeholder for a paid-for booking on a real listing. */
+  const storeFor = async (id: string) => {
+    const listing = await createTestListing({});
+    const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
+    const session = paymentSession(id, 1000, intent);
+    const bookings = placeholderBookings(
+      [{ item: intent.items[0], listing }] as never,
+      intent,
+    );
+    const result = await storeRefundedBooking(
+      session,
+      intent,
+      bookings as never,
+      specFor("listing full"),
+    );
+    return { listing, result };
+  };
+
+  describe("when the money could be sent back", () => {
+    test("tells the customer their details were saved", async () => {
+      await setupStripe();
+      const { result } = await storeFor("cs_refunded");
+      expect(result.error).toBe(
+        "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.",
+      );
+    });
+
+    test("records that the refund happened", async () => {
+      await setupStripe();
+      const { result } = await storeFor("cs_refunded_flag");
+      expect(result.refunded).toBe(true);
+    });
+  });
+
+  describe("when the money could not be sent back", () => {
+    test("tells the customer a refund is being arranged", async () => {
+      const { result } = await storeFor("cs_unrefunded");
+      expect(result.error).toBe(
+        "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook. Your refund is being arranged — please contact us if it does not arrive.",
+      );
+    });
+
+    test("does not claim the refund happened", async () => {
+      const { result } = await storeFor("cs_unrefunded_flag");
+      expect(result.refunded).toBeUndefined();
+    });
+  });
+
+  describe("either way", () => {
+    test("is a handled outcome the provider should not retry", async () => {
+      const { result } = await storeFor("cs_status");
+      expect(result.status).toBe(200);
+      expect(result.success).toBe(false);
+    });
+
+    test("carries the internal detail for the log", async () => {
+      const { result } = await storeFor("cs_detail");
+      expect(result.detail).toBe("listing full");
+    });
+
+    test("keeps the booking, holding no places", async () => {
+      const { listing } = await storeFor("cs_kept");
+      const { getAttendeesByListingIds } = await import(
+        "#shared/db/listings/attendees.ts"
+      );
+      const rows = await getAttendeesByListingIds([listing.id]);
+      expect(rows.length).toBe(1);
+    });
   });
 });
