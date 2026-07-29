@@ -37,6 +37,16 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
+/** What somebody who was never signed in is shown at an address, and whether
+ * the site answered at all. The words are read whatever the answer, so a page
+ * that refuses can still be checked for what it says. */
+export const newcomerReading = async (
+  path: string,
+): Promise<{ answered: number; said: string }> => {
+  const browser = await openAsNewcomer(path);
+  return { answered: await browser.statusOf(path), said: browser.pageText };
+};
+
 /** Opening any page as one particular person, and being handed the browser
  * they are looking at it through. */
 export type OpensAPage = (

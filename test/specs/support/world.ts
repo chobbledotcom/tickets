@@ -153,6 +153,7 @@ export interface TicketsWorld extends World {
   secondStatus?: number;
   servicingEventId?: number;
   sessionId?: string;
+  setUpTold?: string;
   sharedDayLimit?: number;
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;
