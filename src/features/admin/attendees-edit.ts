@@ -24,9 +24,10 @@ import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne } from "#shared/db/client.ts";
 import {
   createSystemNote,
-  deleteAttendeeNote,
-  getNotesForAttendee,
-} from "#shared/db/system-notes.ts";
+  deleteNotes,
+  getNotesFor,
+} from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
 import type { RefundPaymentReference } from "#shared/payment-refund-reference.ts";
@@ -117,7 +118,10 @@ const recordConfirmedRefund = async (
   // stale note could still be there if the previous cleanup failed).
   await cleanupStaleManualRefundNote(attendeeId, privateKey);
   if (isPlaceholder) {
-    await createSystemNote(attendeeId, t("note.placeholder_refund_confirmed"));
+    await createSystemNote(
+      attendeeNotes(attendeeId),
+      t("note.placeholder_refund_confirmed"),
+    );
   }
   return null;
 };
@@ -130,10 +134,10 @@ const cleanupStaleManualRefundNote = async (
   attendeeId: number,
   privateKey: CryptoKey,
 ): Promise<void> => {
-  const notes = await getNotesForAttendee(attendeeId, privateKey);
+  const notes = await getNotesFor(attendeeNotes(attendeeId), privateKey);
   for (const note of notes) {
     if (note.type === "system" && note.note.includes("could NOT be refunded")) {
-      await deleteAttendeeNote(attendeeId, note.id);
+      await deleteNotes(attendeeNotes(attendeeId), [note.id]);
     }
   }
 };

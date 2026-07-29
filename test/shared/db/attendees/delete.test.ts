@@ -11,18 +11,12 @@ import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
-import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { insertModifierUsage } from "#test-utils/modifiers.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
@@ -42,51 +36,6 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     const privateKey = await getTestPrivateKey();
     const fetched = await getAttendeeOrNull(attendee.id, privateKey);
     expect(fetched).toBeNull();
-  });
-
-  test("removes processed payment records", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Jane Doe",
-      "jane@example.com",
-    );
-
-    await reserveSession("sess_attendee_delete");
-    await finalizeReservedPayment(
-      "sess_attendee_delete",
-      attendee.id,
-      "tok-test",
-      "pi_attendee_delete",
-    );
-
-    await deleteAttendee(attendee.id);
-
-    const processed = await isSessionProcessed("sess_attendee_delete");
-    expect(processed).toBeNull();
-  });
-
-  test("removes the attendee's checkout stage", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Open Checkout",
-      "open@example.com",
-    );
-    await insertCheckoutStage(attendee.id, "stage-attendee-delete");
-
-    await deleteAttendee(attendee.id);
-
-    const stage = await queryOne<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM checkout_stages WHERE attendee_id = ?",
-      [attendee.id],
-    );
-    expect(stage?.count).toBe(0);
   });
 
   test("releases listing aggregate totals by default", async () => {

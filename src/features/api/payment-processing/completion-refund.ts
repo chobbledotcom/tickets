@@ -21,12 +21,16 @@ import type {
   PaymentWork,
 } from "#routes/api/webhook-types.ts";
 import type { TxScope } from "#shared/db/client.ts";
+import {
+  createSystemNote,
+  updateSystemNote,
+} from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { applyPaymentSessionClaimKeepingLease } from "#shared/db/payments/claims.ts";
 import {
   requirePaymentCompletionRecordId,
   runPaymentCompletionDbEffect,
 } from "#shared/db/payments/completion-effects.ts";
-import { createSystemNote, updateSystemNote } from "#shared/db/system-notes.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
   type PlaceholderRefundCompletion,
@@ -174,7 +178,7 @@ export const placeholderCompletionActions: PlaceholderCompletionActions = {
         "pending_note",
       );
       await updateSystemNote(
-        completionAttendeeId(context.current),
+        attendeeNotes(completionAttendeeId(context.current)),
         noteId,
         placeholderNote(context, "completed"),
         transaction,
@@ -194,7 +198,7 @@ export const placeholderCompletionActions: PlaceholderCompletionActions = {
   pending_note: (context) =>
     runPlaceholderDbEffect(context, "pending_note", (transaction) =>
       createSystemNote(
-        completionAttendeeId(context.current),
+        attendeeNotes(completionAttendeeId(context.current)),
         placeholderNote(context, "pending"),
         transaction,
       ),

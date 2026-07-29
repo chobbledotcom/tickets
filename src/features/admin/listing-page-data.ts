@@ -33,15 +33,15 @@ import {
 } from "#shared/db/listing-parents.ts";
 import { getListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
+import {
+  loadNotesForAttendees,
+  loadNotesForListing,
+} from "#shared/db/notes/queries.ts";
+import type { SystemNote } from "#shared/db/notes/types.ts";
 import { getAttendeeIdsWithPayments } from "#shared/db/payments/sessions.ts";
 import { getListingChoiceAnswerMap } from "#shared/db/questions/attendee-answers/reads.ts";
 import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  loadNotesForAttendees,
-  loadNotesForListing,
-  type SystemNote,
-} from "#shared/db/system-notes.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
@@ -188,7 +188,7 @@ const noteAuthorNames = async (
   notes.length === 0
     ? new Map()
     : getAttendeeNamesByIds(
-        unique(notes.map((note) => note.attendee_id)),
+        unique(notes.map((note) => note.entity_id)),
         await requireRequestPrivateKey(),
       );
 
