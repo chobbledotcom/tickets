@@ -18,7 +18,7 @@ import {
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import { LISTING_COUNT_SELECT } from "#shared/db/listings/sql.ts";
+import { listingStatement } from "#shared/db/listings/select.ts";
 import {
   isSessionProcessed,
   reserveSession,
@@ -275,7 +275,12 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("does not refill the cache from a stale replica after deletion", async () => {
       const listing = await createTestListing({ name: "Deleted listing" });
-      const listSql = `${LISTING_COUNT_SELECT}  ORDER BY listing.created DESC, listing.id DESC`;
+      // The exact statement getAllListings issues, built the same way it is, so
+      // the stubbed replica result cannot drift from the real read.
+      const listSql = listingStatement({
+        order: "created_desc",
+        where: {},
+      }).sql;
       const staleReplicaResult = await getDb().execute(listSql);
 
       await deleteListing(listing.id);

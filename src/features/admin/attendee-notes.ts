@@ -26,10 +26,11 @@ import { getSearchParam } from "#routes/url.ts";
 import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import {
   createOwnerNote,
-  deleteAttendeeNote,
-  getAttendeeNote,
-  type SystemNote,
-} from "#shared/db/system-notes.ts";
+  deleteNotes,
+  getNote,
+} from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
+import type { SystemNote } from "#shared/db/notes/types.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminSession, Attendee } from "#shared/types.ts";
@@ -73,7 +74,7 @@ const loadNote = async ({
   attendeeId,
   noteId,
 }: NoteRouteParams): Promise<SystemNote | null> =>
-  getAttendeeNote(attendeeId, noteId, await requireRequestPrivateKey());
+  getNote(attendeeNotes(attendeeId), noteId, await requireRequestPrivateKey());
 const noteEntityHandler = createEntityHandler<NoteRouteParams, SystemNote>(
   loadNote,
 );
@@ -134,7 +135,7 @@ const handleAddNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/not
           400,
         );
       }
-      await createOwnerNote(attendeeId, note);
+      await createOwnerNote(attendeeNotes(attendeeId), note);
       return redirect(
         returnTarget(attendeeId, returnUrl),
         t("notes.added"),
@@ -162,7 +163,7 @@ const handleDeleteNoteGet: TypedRouteHandler<"GET /admin/attendee/:attendeeId/no
 /** POST /admin/attendee/:attendeeId/note/:noteId/delete — delete the note. */
 const handleDeleteNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/note/:noteId/delete"> =
   noteHandlers.post(async (note, _session, form, _request, { attendeeId }) => {
-    await deleteAttendeeNote(attendeeId, note.id);
+    await deleteNotes(attendeeNotes(attendeeId), [note.id]);
     return redirect(
       returnTarget(attendeeId, form.getString("return_url")),
       t("notes.deleted"),

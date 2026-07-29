@@ -8,6 +8,7 @@
 import { isAbsolute, join, relative, resolve, SEPARATOR } from "@std/path";
 import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
+import { directoryEntries } from "#scripts/walk-files.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
@@ -139,8 +140,7 @@ const copyDirectory = async (
   const toDir = join(toRoot, relativePath);
   await Deno.mkdir(toDir, { recursive: true });
 
-  const entries: Deno.DirEntry[] = [];
-  for await (const entry of Deno.readDir(fromDir)) entries.push(entry);
+  const entries = await directoryEntries(fromDir);
 
   for (const entry of entries.sort((left, right) =>
     left.name.localeCompare(right.name),

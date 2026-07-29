@@ -1,6 +1,7 @@
 import { sumOf } from "#fp";
 import { t } from "#i18n";
 import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
+import type { GroupListingCandidate } from "#shared/db/groups/candidates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -164,7 +165,7 @@ export const GroupOverviewPanel = ({
 }: {
   group: Group;
   listings: ListingWithCount[];
-  ungroupedListings: ListingWithCount[];
+  ungroupedListings: GroupListingCandidate[];
   attendees: Attendee[];
   allowedDomain: string;
   hasPaidListing: boolean;

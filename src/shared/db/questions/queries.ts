@@ -6,12 +6,17 @@
  * here too; display order always comes from the question's own sort_order.
  */
 
-import type { InValue } from "@libsql/client";
 import { filter, map, mapParallel, reduce } from "#fp";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import {
+  clauseArgs,
+  equals,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 
 /** Direct question-to-listing assignments, viewed from either side. */
 export const questionListings = linkTableSide(
@@ -100,11 +105,11 @@ const withAnswers = filter(
     q.display_type === "free_text" || q.answers.length > 0,
 );
 
-/** Fetch questions with answers by a WHERE clause on question.id */
-const fetchQuestions = (where: string, args: InValue[]) =>
+/** Fetch questions with their answers, keeping only the ones the clauses select. */
+const fetchQuestions = (parts: WhereClause[]) =>
   queryAll<JoinedRow>(
-    `SELECT ${QA_COLS} FROM ${QA_JOIN} ${where} ORDER BY answer.sort_order`,
-    args,
+    `SELECT ${QA_COLS} FROM ${QA_JOIN}${whereSql(parts)} ORDER BY answer.sort_order`,
+    clauseArgs(parts),
   );
 
 /** Get all questions with their answers (sorted by sort_order), decrypted */
@@ -205,7 +210,7 @@ export const getQuestionsWithListingIds = async (
 export const getQuestionWithAnswers = async (
   id: number,
 ): Promise<QuestionWithAnswers | null> => {
-  const rows = await fetchQuestions("WHERE question.id = ?", [id]);
+  const rows = await fetchQuestions(equals("question.id", id));
   if (rows.length === 0) return null;
   // rows is non-empty so groupJoinedRows always returns at least one entry
   return (await groupJoinedRows(rows))[0]!;

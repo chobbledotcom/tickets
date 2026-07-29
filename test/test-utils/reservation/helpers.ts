@@ -239,7 +239,7 @@ export const expectRefundedPlaceholder = async (
   expect(await modifierUsageCount(addOnId)).toBe(0);
   expect(refund.calls[0]!.args).toEqual([paymentIntentId]);
   expect(refund.calls.length).toBe(1);
-  const { getNoteRows } = await import("#shared/db/system-notes.ts");
-  expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+  const { getNoteRows } = await import("#shared/db/notes/queries.ts");
+  expect((await getNoteRows("attendee", [attendees[0]!.id])).length).toBe(1);
   return attendees;
 };

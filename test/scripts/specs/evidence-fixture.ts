@@ -24,6 +24,7 @@ export const PLAIN_EVIDENCE_SCENARIO = {
       "Customers get a clear result when the last place is taken during payment.",
     id: "payments.capacity-after-payment",
     name: "Paid booking capacity",
+    uri: "specs/payments/capacity.feature",
   },
 } as const;
 

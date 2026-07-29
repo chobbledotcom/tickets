@@ -14,11 +14,17 @@ interface StableNamedItem {
   name: string;
 }
 
+/** A story also carries the Feature file it was authored in, so anything
+ * quoting the story can link to its source without guessing the path. */
+interface StableStoryItem extends StableNamedItem {
+  uri: string;
+}
+
 export interface ResolvedEvidenceScenario {
   case: { id: string; name: string };
   rule: StableNamedItem;
   steps: Array<{ keyword: string; text: string }>;
-  story: StableNamedItem;
+  story: StableStoryItem;
 }
 
 interface AstIndex {
@@ -108,6 +114,11 @@ const stableItem = (item: SpecRule | SpecStory): StableNamedItem => ({
   name: item.name,
 });
 
+const stableStory = (story: SpecStory): StableStoryItem => ({
+  ...stableItem(story),
+  uri: story.uri,
+});
+
 const resolvedSteps = (
   pickle: Pickle,
   steps: Map<string, Step>,
@@ -144,6 +155,6 @@ export const resolveEvidenceScenario = (
     case: { id: match.caseId, name: pickle.name },
     rule: stableItem(match.rule),
     steps: resolvedSteps(pickle, index.steps),
-    story: stableItem(match.story),
+    story: stableStory(match.story),
   };
 };

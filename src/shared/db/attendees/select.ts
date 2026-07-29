@@ -21,6 +21,7 @@
  * import them for their own narrower projections.
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
@@ -30,8 +31,16 @@ import {
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import { queryAll } from "#shared/db/client.ts";
+import {
+  clauseArgs,
+  inList,
+  orderSql,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 import type { Attendee } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /**
  * Order-level refund status, projected from the transfers ledger rather than a
@@ -280,33 +289,18 @@ const ORDER_SQL: Record<AttendeeOrder, string> = {
   upcoming: "COALESCE(listingAttendee.start_at, attendee.created), attendee.id",
 };
 
-/** One filter clause and the args that fill its placeholders, kept together so
- * the arg order can never drift from the clause order. */
-type WhereClause = { clause: string; args: InValue[] };
-
 const whereClauses = (where: AttendeeWhere): WhereClause[] => {
   const parts: WhereClause[] = [
     { args: [], clause: KIND_CLAUSE[where.kind ?? "attendee"] },
+    ...inList("attendee.id", where.attendeeIds),
   ];
-  const inList = (column: string, ids: number[] | undefined) => {
-    if (ids === undefined) return;
-    // An empty id set matches nothing. Emit `IN (NULL)` (always NULL, so no row
-    // passes) rather than the syntactically invalid `IN ()`, so the builder
-    // still produces valid SQL even if a caller doesn't prefilter an empty list.
-    parts.push(
-      ids.length === 0
-        ? { args: [], clause: `${column} IN (NULL)` }
-        : { args: ids, clause: `${column} IN (${inPlaceholders(ids)})` },
-    );
-  };
-  inList("attendee.id", where.attendeeIds);
   if (where.attendeeIdsSubquery !== undefined) {
     parts.push({
       args: where.attendeeIdsSubquery.args,
       clause: `attendee.id IN (${where.attendeeIdsSubquery.sql})`,
     });
   }
-  inList("listingAttendee.listing_id", where.listingIds);
+  parts.push(...inList("listingAttendee.listing_id", where.listingIds));
   if (where.packageGroupId !== undefined) {
     parts.push({
       args: [where.packageGroupId],
@@ -352,12 +346,11 @@ export const attendeeFromWhere = (
       : "";
   // A single-attendee read (getAttendeeOrNull) needs no ordering; a list read always
   // passes one so its rows are deterministic.
-  const orderBy = order === undefined ? "" : ` ORDER BY ${ORDER_SQL[order]}`;
   return {
-    args: parts.flatMap((part) => part.args),
-    from: `FROM attendees AS attendee ${joinKeyword} listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id${listingsJoin} WHERE ${parts
-      .map((part) => part.clause)
-      .join(" AND ")}${orderBy}`,
+    args: clauseArgs(parts),
+    from: `FROM attendees AS attendee ${joinKeyword} listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id${listingsJoin}${whereSql(
+      parts,
+    )}${orderSql(ORDER_SQL, order)}`,
   };
 };
 

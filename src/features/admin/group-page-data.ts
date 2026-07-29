@@ -15,10 +15,10 @@ import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import { emptyRange } from "#shared/accounting/range.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
+import { getListingsNotInGroup } from "#shared/db/groups/candidates.ts";
 import {
   getGroupPackagePrices,
   getListingsByGroupId,
-  getListingsNotInGroup,
   groups,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";

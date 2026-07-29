@@ -18,8 +18,8 @@ import {
  */
 export const queryAndMap =
   <Row, Out>(toOut: (row: Row) => Promise<Out>) =>
-  async (sql: string): Promise<Out[]> =>
-    mapParallel(toOut)(resultRows<Row>(await execute(sql)));
+  async (sql: string, args: InValue[] = []): Promise<Out[]> =>
+    mapParallel(toOut)(resultRows<Row>(await execute(sql, args)));
 
 /** Collapse a result's rows to the set of one column's values, as strings —
  * the shared tail of the "which names/ids already exist" reads (applied

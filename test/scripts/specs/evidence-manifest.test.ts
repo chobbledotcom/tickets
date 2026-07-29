@@ -200,7 +200,7 @@ describe("Cucumber evidence manifest", () => {
           presentation: "canonical",
         },
       ],
-      schemaVersion: 1,
+      schemaVersion: 2,
     });
     expect(JSON.stringify(first.manifest)).not.toMatch(
       /started-case|test-case|timestamp/,

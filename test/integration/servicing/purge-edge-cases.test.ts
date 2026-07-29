@@ -15,6 +15,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
+import { createSystemNote, getNoteRows } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
@@ -33,14 +35,9 @@ import {
 
 // jscpd:ignore-end
 
-/** Insert a system_notes row for an attendee (a dependent row the purge clears). */
-const attachSystemNote = async (attendeeId: number): Promise<void> => {
-  await getDb().execute({
-    args: [attendeeId],
-    sql: `INSERT INTO system_notes (attendee_id, type, note, created)
-          VALUES (?, 'system', 'x', '2026-01-01T00:00:00Z')`,
-  });
-};
+/** How many notes this attendee has — a dependent row the purge clears. */
+const noteCount = async (attendeeId: number): Promise<number> =>
+  (await getNoteRows("attendee", [attendeeId])).length;
 
 describeWithEnv("servicing edge cases — purge", { db: true }, () => {
   test("a servicing orphan created exactly at the cutoff survives; one ms earlier is swept", async () => {
@@ -82,11 +79,11 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
   test("a servicing orphan's system_notes are swept with the attendee", async () => {
     const { id } = await createServicingHold();
     await orphanServicingEvent(id);
-    await attachSystemNote(id);
-    expect(await childRowCount("system_notes", id)).toBe(1);
+    await createSystemNote(attendeeNotes(id), "swept with the attendee");
+    expect(await noteCount(id)).toBe(1);
     await purgeOrphanedAttendees(nowIso());
-    // system_notes is a dependent row, so the shared purge clears it.
-    expect(await childRowCount("system_notes", id)).toBe(0);
+    // A note is a dependent row, so the shared purge clears it.
+    expect(await noteCount(id)).toBe(0);
   });
 
   test("the purge sweeps both a servicing orphan and an attendee orphan in one batch", async () => {

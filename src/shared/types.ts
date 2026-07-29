@@ -851,6 +851,25 @@ export interface Modifier {
   usage_count: number;
 }
 
+/**
+ * The listing values needed to place a listing in the shared sort order: which
+ * tier it belongs to (its type and date), its name for the within-tier sort,
+ * and — for a daily listing — the values that decide its next bookable date.
+ * A read that only lists or picks listings can select these columns alone and
+ * skip the whole listing record.
+ */
+export type SortableListing = Pick<
+  Listing,
+  | "bookable_days"
+  | "date"
+  | "duration_days"
+  | "id"
+  | "listing_type"
+  | "maximum_days_after"
+  | "minimum_days_before"
+  | "name"
+>;
+
 export interface ListingWithCount extends Listing {
   attendee_count: number;
   /** Projected servicing costs posted against this listing, in minor units. */

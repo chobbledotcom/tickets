@@ -31,19 +31,27 @@ describe("db > migration registry", () => {
   });
 
   test("orders every scheduled-maintenance schema change", () => {
-    // Found by name rather than by counting back from the end, so a later
-    // migration joining the list does not read as these having moved.
-    const first = MIGRATION_IDS.indexOf("2026-07-18_maintenance_tasks");
-    expect(MIGRATION_IDS.slice(first, first + 5)).toEqual([
+    const maintenanceOrder = [
       "2026-07-18_maintenance_tasks",
       "2026-07-18_drop_built_sites_last_pruned",
       "2026-07-19_maintenance_checkpoint",
       "2026-07-21_activity_backfill_complete",
       "2026-07-22_maintenance_completion",
-    ]);
+    ];
+    // Taken from where the run starts rather than from the end of the list, so
+    // a later migration does not look like the maintenance run losing its order.
+    const start = MIGRATION_IDS.indexOf(maintenanceOrder[0]!);
+
+    expect(MIGRATION_IDS.slice(start, start + maintenanceOrder.length)).toEqual(
+      maintenanceOrder,
+    );
   });
 
   test("adds the payment record tables after the maintenance work", () => {
-    expect(MIGRATION_IDS.at(-1)).toBe("2026-07-26_payment_records");
+    // Compared by position rather than by being last, so a later migration
+    // joining the list does not read as this one having moved.
+    expect(MIGRATION_IDS.indexOf("2026-07-26_payment_records")).toBeGreaterThan(
+      MIGRATION_IDS.indexOf("2026-07-22_maintenance_completion"),
+    );
   });
 });

@@ -5,11 +5,9 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { execute } from "#shared/db/client.ts";
+import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
-import {
-  createSystemNote,
-  getNotesForAttendee,
-} from "#shared/db/system-notes.ts";
 import type { Attendee } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -109,7 +107,7 @@ describeWithEnv(
         );
         const privateKey = await getTestPrivateKey();
         await createSystemNote(
-          attendee.id,
+          attendeeNotes(attendee.id),
           "This booking was kept at quantity 0 but its payment could NOT be refunded automatically because the event filled up while they were paying. Payment reference: pi_stale_note (code: capacity_full). Please refund it manually and check the [ledger](/admin/ledger/attendee/" +
             attendee.id +
             ").",
@@ -117,7 +115,7 @@ describeWithEnv(
 
         await submitRefreshPayment(attendee, () => Promise.resolve(true));
 
-        const notes = await getNotesForAttendee(attendee.id, privateKey);
+        const notes = await getNotesFor(attendeeNotes(attendee.id), privateKey);
         expect(
           notes.some((note) => note.note.includes("could NOT be refunded")),
         ).toBe(false);
@@ -152,7 +150,7 @@ describeWithEnv(
         // note cleanup failed — re-create the stale note afterward.
         await refreshAndVerifyRefundCash(attendee);
         await createSystemNote(
-          attendee.id,
+          attendeeNotes(attendee.id),
           "This booking was kept at quantity 0 but its payment could NOT be refunded.",
         );
 
@@ -164,7 +162,7 @@ describeWithEnv(
           expect.stringContaining("up to date"),
         );
 
-        const notes = await getNotesForAttendee(attendee.id, privateKey);
+        const notes = await getNotesFor(attendeeNotes(attendee.id), privateKey);
         expect(
           notes.some((note) => note.note.includes("could NOT be refunded")),
         ).toBe(false);

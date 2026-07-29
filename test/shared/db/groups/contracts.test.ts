@@ -8,7 +8,6 @@ import {
   getGroupPackagePrices,
   getListingsByGroupId,
   getListingsByGroupIds,
-  getListingsNotInGroup,
   groupExists,
   groups,
   isHiddenPackageMember,
@@ -122,16 +121,6 @@ describeWithEnv("db > group listing read contracts", { db: true }, () => {
     expect((await getListingsByGroupId(group.id)).map(({ id }) => id)).toEqual([
       inactive.id,
     ]);
-  });
-
-  test("the add-listing candidates exclude current members", async () => {
-    const group = await createTestGroup({ name: "Candidate Group" });
-    await createTestListing({ groupId: group.id, name: "Current Member" });
-    const candidate = await createTestListing({ name: "Candidate" });
-
-    expect((await getListingsNotInGroup(group.id)).map(({ id }) => id)).toEqual(
-      [candidate.id],
-    );
   });
 });
 
