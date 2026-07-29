@@ -211,13 +211,6 @@ const comparedWithMoneyTaken =
     charge.confirmedRefunded.currency === charge.captured.currency &&
     holds(moneyBack(charge), charge.captured.amount);
 
-/** A charge that has given back every penny it took. */
-export const gaveEverythingBack: (charge: ChargeLeg) => boolean =
-  comparedWithMoneyTaken(
-    (charge) => charge.confirmedRefunded.amount,
-    (back, taken) => back === taken,
-  );
-
 /** Nothing given back, or still on its way, comes to more than was taken. */
 const refundFitsWithinCapture = comparedWithMoneyTaken(
   (charge) => charge.confirmedRefunded.amount + refundMoneyStillGoing(charge),
