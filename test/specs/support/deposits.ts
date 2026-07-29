@@ -9,7 +9,10 @@ import { signBalanceToken } from "#shared/balance-link.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
-import { pageHtmlVia } from "#test/specs/support/money-reads.ts";
+import {
+  pageHtmlVia,
+  type ReadOnePageHtml,
+} from "#test/specs/support/money-reads.ts";
 import {
   type ActOnSomeMoney,
   type TicketsWorld,
@@ -23,7 +26,9 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 
 /** A page read the way anyone not signed in reads it. */
-const publicPageHtml = pageHtmlVia((path) => awaitTestRequest(path));
+const publicPageHtml: ReadOnePageHtml = pageHtmlVia((path) =>
+  awaitTestRequest(path),
+);
 
 /** A place taken but not paid for, so the whole price is owed. */
 export const unpaidPlace = async (
