@@ -5,6 +5,7 @@ import {
   collectTestFiles,
   defaultGroupCount,
   GROUPS_DIR,
+  groupEntryImport,
   mustRunAlone,
   planTestGroups,
   RUN_ALONE_MARKER,
@@ -254,6 +255,20 @@ describe("test-groups", () => {
 
     test("group count falls back to the machine's cores without DENO_JOBS", async () => {
       await expectOneGroupEntryWithEnv({ DENO_JOBS: undefined });
+    });
+  });
+
+  describe("groupEntryImport", () => {
+    test("climbs out of the entries directory to a project-relative path", () => {
+      expect(groupEntryImport("/repo", "/repo/test/a.test.ts")).toBe(
+        "../test/a.test.ts",
+      );
+    });
+
+    test("treats a member that is already project-relative as such", () => {
+      expect(groupEntryImport("/repo", "test/a.test.ts")).toBe(
+        "../test/a.test.ts",
+      );
     });
   });
 });

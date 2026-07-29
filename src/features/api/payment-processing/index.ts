@@ -32,12 +32,12 @@ import {
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
 import type {
-  BookingIntent,
   PaymentFailureResult,
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";

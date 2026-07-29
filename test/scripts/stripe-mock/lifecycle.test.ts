@@ -103,6 +103,9 @@ describe("starting stripe-mock", () => {
           delayMs: 10,
           paths,
           port,
+          // Far longer than the mock's shutdown, so a busy machine cannot make
+          // this read as an impatient stopper.
+          stopTimeoutMs: 10_000,
         });
         await expectPortOpen(port);
 

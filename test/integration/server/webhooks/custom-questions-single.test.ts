@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
@@ -158,7 +159,7 @@ describeWithEnv(
       expect(textAnswers.get(question.id)).toBe("Step-free entrance");
     });
 
-    test("finalizes a paid booking when a text-answer ref lost its string id, dropping only that answer", async () => {
+    test("finalizes a paid booking when a text-answer ref has no usable string id, dropping only those answers", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -174,14 +175,20 @@ describeWithEnv(
         displayType: "free_text",
         text: "Dietary needs?",
       });
-      await listingQuestions.setIds(listing.id, [goodQ.id, lostQ.id]);
+      const nonsenseQ = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Anything else?",
+      });
+      await listingQuestions.setIds(listing.id, [
+        goodQ.id,
+        lostQ.id,
+        nonsenseQ.id,
+      ]);
 
       const stringIds = await getOrCreateStringIds(["Step-free entrance"]);
 
-      // lostQ's ref carries no `s` — the corrupt shape a pre-fix checkout wrote
-      // when the string-id read raced replication and JSON.stringify dropped it.
-      // The payment is already captured, so the booking must finalize (200,
-      // processed) rather than crash-loop on the unsupported undefined bind.
+      // lostQ's ref has no `s`; nonsenseQ's `s` is not a string id. The money
+      // is already taken, so the booking must still finalize.
       await expectWebhookProcessed(
         checkoutSessionEvent({
           amountTotal: 1000,
@@ -195,6 +202,7 @@ describeWithEnv(
                 [String(listing.id)]: [
                   { q: goodQ.id, s: stringIds.get("Step-free entrance") },
                   { q: lostQ.id },
+                  { q: nonsenseQ.id, s: "not-a-string-id" },
                 ],
               }),
             },
@@ -213,11 +221,20 @@ describeWithEnv(
       expect(textAnswers.get(goodQ.id)).toBe("Step-free entrance");
       expect(textAnswers.has(lostQ.id)).toBe(false);
 
+      // Read the saved rows rather than the answers, because an answer saved
+      // against an id that points at no stored text reads back as absent — the
+      // same as never having been saved. Only the row itself tells them apart.
+      const savedForBadRefs = await getDb().execute({
+        args: [lostQ.id, nonsenseQ.id],
+        sql: "SELECT question_id FROM attendee_answers WHERE question_id IN (?, ?)",
+      });
+      expect(savedForBadRefs.rows).toEqual([]);
+
       // The dropped answer is surfaced loudly, not swallowed silently.
       const log = await getAllActivityLog();
       expect(
         log.some((entry) =>
-          entry.message.includes("Text answer ref missing string id"),
+          entry.message.includes("Text answer ref has no usable string id"),
         ),
       ).toBe(true);
     });

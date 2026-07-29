@@ -4,10 +4,8 @@ import {
   saveSessionAnswers,
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
-import type {
-  BookingIntent,
-  PaymentResult,
-} from "#routes/api/webhook-types.ts";
+import type { PaymentResult } from "#routes/api/webhook-types.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ModifierApplication } from "#shared/checkout-pricing.ts";
 import type { ModifierSpec } from "#shared/payments.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";

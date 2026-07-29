@@ -17,7 +17,7 @@ import {
 } from "#shared/db/client.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { decryptListingWithCount } from "./records.ts";
-import { type ListingRecordRow, listingStatement } from "./select.ts";
+import { type ListingRecordRow, listingReader } from "./select.ts";
 
 const withBatchListing = async <T>(
   listingResult: ResultSet,
@@ -30,7 +30,7 @@ const withBatchListing = async <T>(
 
 /** The listing half of these one-round-trip batch reads. */
 const oneListing = (id: number): SqlStatement =>
-  listingStatement({ where: { ids: [id] } });
+  listingReader.statement({ where: { ids: [id] } });
 
 export type ListingWithAttendees = {
   listing: ListingWithCount;

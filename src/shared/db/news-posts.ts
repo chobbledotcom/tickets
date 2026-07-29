@@ -19,7 +19,6 @@ import { chooseColumns, type StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
   queryAll,
-  queryOne,
   resultRows,
   type TxScope,
   useTransaction,
@@ -36,12 +35,14 @@ import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
 } from "#shared/db/images.ts";
+import { readRows } from "#shared/db/read.ts";
 import {
   unclaimedSlugCondition,
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { col } from "#shared/db/table.ts";
+import { readerFor } from "#shared/db/table-reader.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -135,22 +136,17 @@ type SealedCardRow = StoredRowOf<
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
 export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
-  newsSummaryColumns.queryAll(
-    `SELECT ${newsSummaryColumns.columnsSql()}
-       FROM news_posts
-      ORDER BY created DESC, id DESC`,
-  );
+  newsSummaryColumns.select({ order: "created DESC, id DESC" });
 
 /** Load the card projection for every post, newest first: the summary plus
  * the post's first linked image — for the public /news list, the one reader
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
-  const rows = await queryAll<SealedCardRow>(
-    `SELECT ${newsSummaryColumns.columnsSql("news_post")},
-            ${imageFilenameSubqueries("news", "news_post.id")}
-       FROM news_posts AS news_post
-      ORDER BY news_post.created DESC, news_post.id DESC`,
-  );
+  const rows = await readRows<SealedCardRow>({
+    columns: `${newsSummaryColumns.columnsSql("news_post")}, ${imageFilenameSubqueries("news", "news_post.id")}`,
+    from: "news_posts AS news_post",
+    order: "news_post.created DESC, news_post.id DESC",
+  });
   return mapParallel(async (row: SealedCardRow) => ({
     ...(await newsSummaryColumns.read(row)),
     image_alt_text: await decryptTextOrEmpty(row.image_alt_text),
@@ -168,9 +164,9 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
 /** id → decrypted name for every post, newest first — the image library's
  * link-target labels (nothing but the name decrypted). */
 export const getNewsPostNames = async (): Promise<Map<number, string>> => {
-  const rows = await newsNameColumns.queryAll(
-    `SELECT ${newsNameColumns.columnsSql()} FROM news_posts ORDER BY created DESC, id DESC`,
-  );
+  const rows = await newsNameColumns.select({
+    order: "created DESC, id DESC",
+  });
   return fieldById("name")(rows);
 };
 
@@ -179,22 +175,14 @@ export const getNewsPostNames = async (): Promise<Map<number, string>> => {
 export const getNewsPostById = (id: number): Promise<NewsPost | null> =>
   newsPostsTable.findById(id);
 
-/** Every {@link NewsPost} column, listed explicitly (AGENTS.md) so a future
- * column can't silently widen what the single-post read fetches and decrypts. */
-const NEWS_POST_COLUMNS =
-  "id, created, slug, slug_index, name, meta_title, meta_description, snippet, content";
+/** The whole post, fully decrypted. */
+const wholeNewsPost = readerFor(newsPostsTable);
 
 /** One full post (fully decrypted) by blind-index slug lookup — the public
  * `/news/:slug` read. Null when absent. */
-export const getNewsPostBySlugIndex = async (
+export const getNewsPostBySlugIndex = (
   slugIndex: BlindIndex,
-): Promise<NewsPost | null> => {
-  const row = await queryOne<NewsPost>(
-    `SELECT ${NEWS_POST_COLUMNS} FROM news_posts WHERE slug_index = ? LIMIT 1`,
-    [slugIndex],
-  );
-  return row ? newsPostsTable.fromDb(row) : null;
-};
+): Promise<NewsPost | null> => wholeNewsPost.one({ slug_index: slugIndex });
 
 /** Create a post, stamping `created` now (the admin flow) or at a pinned time
  * (tests/restore), and deriving its immutable `/news` permalink from that date

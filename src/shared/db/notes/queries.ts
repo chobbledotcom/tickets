@@ -10,13 +10,12 @@ import {
   execute,
   executeBatch,
   insert,
-  queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { readOneRow, readRows } from "#shared/db/read.ts";
 import {
   clauseArgs,
   equals,
-  rowsUnlessNoneMatch,
   type WhereClause,
   whereSql,
 } from "#shared/db/where-clauses.ts";
@@ -61,12 +60,12 @@ export const createOwnerNote = noteWriterOf("owner");
 /** The still-sealed rows matching a WHERE body, oldest first per record. Shared
  *  by every read so the column list and the ordering live in one place. */
 const noteRowsWhere = (where: WhereClause[]): Promise<SystemNoteRow[]> =>
-  rowsUnlessNoneMatch(where, () =>
-    queryAll<SystemNoteRow>(
-      `SELECT ${NOTE_COLUMNS} FROM system_notes${whereSql(where)} ORDER BY entity_id, id`,
-      clauseArgs(where),
-    ),
-  );
+  readRows<SystemNoteRow>({
+    columns: NOTE_COLUMNS,
+    from: "system_notes",
+    order: "entity_id, id",
+    where,
+  });
 
 /**
  * The still-sealed rows for several records of one kind, oldest first. Cheap
@@ -160,12 +159,11 @@ export const getNote = async (
   noteId: number,
   privateKey: CryptoKey,
 ): Promise<SystemNote | null> => {
-  const where = noteOfTarget(target, noteId);
-  const rows = await queryAll<SystemNoteRow>(
-    `SELECT ${NOTE_COLUMNS} FROM system_notes${whereSql(where)}`,
-    clauseArgs(where),
-  );
-  const row = rows[0];
+  const row = await readOneRow<SystemNoteRow>({
+    columns: NOTE_COLUMNS,
+    from: "system_notes",
+    where: noteOfTarget(target, noteId),
+  });
   return row ? openNote(row, privateKey) : null;
 };
 

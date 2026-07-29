@@ -10,6 +10,12 @@ export const TEST_ADMIN_PASSWORD = "testpassword123";
 export const TEST_ENCRYPTION_KEY =
   "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
+// A second valid 32-byte key, for tests that change the key and check what the
+// change invalidates. Different bytes from TEST_ENCRYPTION_KEY, so work sealed
+// under one cannot be opened with the other.
+export const OTHER_TEST_ENCRYPTION_KEY =
+  "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
+
 // The standard Bunny CDN test zone. Single source of truth shared by the
 // storage-mock helpers (as a runWithStorageConfig object) and describeWithEnv's
 // `storage: "cdn"` option (as STORAGE_ZONE_KEY/NAME env vars).
