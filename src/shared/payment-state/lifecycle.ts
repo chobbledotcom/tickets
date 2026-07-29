@@ -93,15 +93,6 @@ const answerFromReading = <const Status extends string>(
     v.check((answer) => readingSaysSo(answer.observation), message),
   );
 
-/** Ready means the money question is settled: the buyer paid, or nothing was
- *  owed and so nothing was taken. A reading still going, or one that failed,
- *  would otherwise let an unpaid checkout be treated as ready to book. */
-const moneyQuestionSettled = (observation: Observation): boolean =>
-  observation.status === "paid" ||
-  (observation.status === "no_payment_required" &&
-    observation.expected.amount === 0 &&
-    observation.charges === undefined);
-
 /** Fully refunded means every charge has given back everything. Without this,
  *  money still held on one charge could be filed as finally returned. A
  *  reading with no charge at all took nothing to give back. */
@@ -118,6 +109,29 @@ const chargeIsStillRefunding = (charge: ChargeLeg): boolean =>
  *  took nothing, so nothing can be coming back from it. */
 const aRefundIsStillGoing = (observation: Observation): boolean =>
   observation.charges?.some(chargeIsStillRefunding) ?? false;
+
+/** A charge that has kept every penny it took. */
+const nothingGivenBack = (charge: ChargeLeg): boolean =>
+  charge.confirmedRefunded.amount === 0;
+
+/** The buyer paid and the money has stayed paid: none given back, none on its
+ *  way back. Money part-returned is a problem for the owner, money fully
+ *  returned is its own answer, and money still going is waited on — so a
+ *  reading in any of those states is not a booking waiting to be made. */
+const paidAndStayedPaid = (observation: Observation): boolean =>
+  observation.status === "paid" &&
+  (observation.charges ?? []).every(nothingGivenBack) &&
+  !aRefundIsStillGoing(observation);
+
+/** Ready means the money question is settled: the buyer paid and the money
+ *  stayed paid, or nothing was owed and so nothing was taken. A reading still
+ *  going, or one that failed, would otherwise let an unpaid checkout be
+ *  treated as ready to book. */
+const moneyQuestionSettled = (observation: Observation): boolean =>
+  paidAndStayedPaid(observation) ||
+  (observation.status === "no_payment_required" &&
+    observation.expected.amount === 0 &&
+    observation.charges === undefined);
 
 export const PaymentResolutionSchema = v.variant("status", [
   answerFromReading(

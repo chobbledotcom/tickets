@@ -202,6 +202,33 @@ describe("payment lifecycle", () => {
     });
   }
 
+  // Money part-returned is a problem for the owner, money fully returned is
+  // its own answer, and money on its way back is waited on. None of them is a
+  // booking waiting to be made.
+  for (const [name, charge] of [
+    [
+      "some of the money has gone back",
+      chargeLeg({ confirmedRefunded: { amount: 40, currency: "GBP" } }),
+    ],
+    [
+      "all of the money has gone back",
+      chargeLeg({ confirmedRefunded: { amount: 100, currency: "GBP" } }),
+    ],
+    [
+      "money is still on its way back",
+      chargeLeg({ refunds: [refundObservation({ status: "pending" })] }),
+    ],
+  ] as const) {
+    test(`refuses a ready payment where ${name}`, () => {
+      expect(() =>
+        v.parse(PaymentResolutionSchema, {
+          observation: paymentObservation({ charges: [charge] }),
+          status: "ready",
+        }),
+      ).toThrow();
+    });
+  }
+
   test("refuses a ready payment that needed no money but took some", () => {
     const observation = paymentObservation({ status: "no_payment_required" });
 
