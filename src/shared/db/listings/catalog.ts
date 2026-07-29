@@ -1,7 +1,7 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
+import { defineTableProjection } from "#shared/db/projection.ts";
 import { settings } from "#shared/db/settings.ts";
-import { defineTableProjection } from "#shared/db/table.ts";
 import { equals } from "#shared/db/where-clauses.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#shared/types.ts";

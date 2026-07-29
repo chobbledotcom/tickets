@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { col, defineTable, defineTableProjection } from "#shared/db/table.ts";
+import { defineTableProjection } from "#shared/db/projection.ts";
+import { col, defineTable } from "#shared/db/table.ts";
 
 type ProjectionRow = {
   active: boolean;

@@ -14,11 +14,10 @@ import {
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import {
-  type ColumnDef,
-  col,
   defineTableProjection,
   type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+} from "#shared/db/projection.ts";
+import { type ColumnDef, col } from "#shared/db/table.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type {
   Image,

@@ -12,9 +12,8 @@ import {
   clauseArgs,
   equals,
   inList,
-  matchesNoRows,
   orderSql,
-  rowsUnlessEmpty,
+  rowsUnlessNoneMatch,
   whereSql,
 } from "#shared/db/where-clauses.ts";
 
@@ -71,32 +70,18 @@ describe("equals", () => {
   });
 });
 
-describe("matchesNoRows", () => {
-  test("is true when any clause can never match", () => {
-    expect(matchesNoRows([...inList("a.id", [1]), ...inList("b.id", [])])).toBe(
-      true,
-    );
-  });
-
-  test("is false when every clause can match", () => {
-    expect(matchesNoRows(inList("a.id", [1]))).toBe(false);
-  });
-
-  test("is false with no clauses at all", () => {
-    expect(matchesNoRows([])).toBe(false);
-  });
-});
-
-describe("rowsUnlessEmpty", () => {
+describe("rowsUnlessNoneMatch", () => {
   test("runs the read when the clauses can match", async () => {
     expect(
-      await rowsUnlessEmpty(inList("a.id", [1]), () => Promise.resolve([7])),
+      await rowsUnlessNoneMatch(inList("a.id", [1]), () =>
+        Promise.resolve([7]),
+      ),
     ).toEqual([7]);
   });
 
   test("answers without running the read when they cannot", async () => {
     let ran = false;
-    const rows = await rowsUnlessEmpty(inList("a.id", []), () => {
+    const rows = await rowsUnlessNoneMatch(inList("a.id", []), () => {
       ran = true;
       return Promise.resolve([7]);
     });

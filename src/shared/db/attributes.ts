@@ -26,11 +26,8 @@ import {
   listingOptionProjection,
 } from "#shared/db/listings/table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import {
-  col,
-  defineTable,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import type { StoredTableProjectionRow } from "#shared/db/projection.ts";
+import { col, defineTable } from "#shared/db/table.ts";
 import type { Listing } from "#shared/types.ts";
 /* jscpd:ignore-end */
 

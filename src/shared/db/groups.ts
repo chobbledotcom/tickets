@@ -52,9 +52,9 @@ import {
   type ListingProjectionRow,
   listingStatement,
 } from "#shared/db/listings/select.ts";
+import { defineTableProjection } from "#shared/db/projection.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
-import { defineTableProjection } from "#shared/db/table.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
   type PackageChildEdgeBlock,

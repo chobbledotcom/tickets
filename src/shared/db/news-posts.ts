@@ -36,15 +36,15 @@ import {
   imageFilenameSubqueries,
 } from "#shared/db/images.ts";
 import {
+  defineTableProjection,
+  type StoredTableProjectionRow,
+} from "#shared/db/projection.ts";
+import {
   unclaimedSlugCondition,
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import {
-  col,
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { col } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";

@@ -18,17 +18,13 @@ import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
+import { defineTableProjection } from "#shared/db/projection.ts";
 import {
   unclaimedSiteSlugCondition,
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import {
-  cachedTable,
-  col,
-  defineTableProjection,
-  writeTableRow,
-} from "#shared/db/table.ts";
+import { cachedTable, col, writeTableRow } from "#shared/db/table.ts";
 import {
   clauseArgs,
   equals,

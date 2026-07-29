@@ -10,7 +10,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { inPlaceholders } from "#shared/db/client.ts";
+import { inPlaceholders, type SqlStatement } from "#shared/db/client.ts";
 
 /** One filter clause and the arguments that fill its placeholders.
  * `matchesNothing` marks a clause that no row can ever pass, so a reader can
@@ -21,14 +21,9 @@ export type WhereClause = {
   matchesNothing?: true;
 };
 
-/**
- * Keep rows whose `column` is one of `values` — no clause at all when the
- * caller did not ask for this filter.
- *
- * An empty set matches nothing. It emits `IN (NULL)` (always NULL, so no row
- * passes) rather than the syntactically invalid `IN ()`, so the builder still
- * produces valid SQL even if a caller doesn't prefilter an empty list.
- */
+/** Keep rows whose `column` is one of `values`; absent means "don't filter on
+ * this". An empty set matches nothing, spelled `IN (NULL)` because `IN ()` is
+ * SQL no database accepts. */
 export const inList = (
   column: string,
   values: readonly InValue[] | undefined,
@@ -44,15 +39,10 @@ export const inList = (
   ];
 };
 
-/**
- * Keep rows whose `column` equals `value` — no clause at all when the caller
- * passed nothing to match on.
- *
- * Only `undefined` means "don't filter on this". SQL NULL is a value, not an
- * absence, and `column = NULL` is never true, so passing it would quietly widen
- * a read to every row. The type rules it out and the guard catches a caller who
- * gets there past the types; a read that wants NULL writes its own `IS NULL`.
- */
+/** Keep rows whose `column` equals `value`; absent means "don't filter on this".
+ * NULL is refused rather than accepted: `column = NULL` is never true, so taking
+ * it would quietly widen a read to every row. A read wanting NULL writes its own
+ * `IS NULL`. */
 export const equals = (
   column: string,
   value: Exclude<InValue, null> | undefined,
@@ -67,19 +57,14 @@ export const equals = (
     : [{ args: [value], clause: `${column} = ?` }];
 };
 
-/** Whether these clauses can never match a row, so the query is not worth
- * running. A filter asking for none of something — no ids, no keys — is the
- * ordinary way this happens. */
-export const matchesNoRows = (parts: readonly WhereClause[]): boolean =>
+/** Whether these clauses can never match a row — the ordinary cause being a
+ * filter asking for none of something. */
+const matchesNoRows = (parts: readonly WhereClause[]): boolean =>
   parts.some((part) => part.matchesNothing);
 
-/**
- * Run a read unless its clauses can match no row, in which case the answer is
- * already known and nothing is asked of the database. Every declared reader
- * goes through here, so "asking for none of something" costs no round trip
- * wherever it happens.
- */
-export const rowsUnlessEmpty = <Row>(
+/** Run a read unless its clauses can match no row — asking for none of
+ * something is already answered, so it costs no round trip. */
+export const rowsUnlessNoneMatch = <Row>(
   where: readonly WhereClause[],
   run: () => Promise<Row[]>,
 ): Promise<Row[]> => (matchesNoRows(where) ? Promise.resolve([]) : run());
@@ -93,6 +78,26 @@ export const whereSql = (parts: readonly WhereClause[]): string =>
 /** Every clause's arguments, in clause order. */
 export const clauseArgs = (parts: readonly WhereClause[]): InValue[] =>
   parts.flatMap((part) => part.args);
+
+/**
+ * Everything after a read's columns and table: which rows, in what order, how
+ * many — with the values that fill them, in the order the placeholders appear.
+ * `order` is a constant belonging to the read, never caller input, so unlike a
+ * filter it carries no values of its own.
+ */
+export const queryTail = (
+  where: readonly WhereClause[],
+  options: { order?: string; limit?: number } = {},
+): SqlStatement => ({
+  args: [
+    ...clauseArgs(where),
+    ...(options.limit === undefined ? [] : [options.limit]),
+  ],
+  sql:
+    whereSql(where) +
+    (options.order === undefined ? "" : ` ORDER BY ${options.order}`) +
+    (options.limit === undefined ? "" : " LIMIT ?"),
+});
 
 /** The ` ORDER BY …` tail for a named order, or nothing when the caller does
  * not care how the rows come back. */

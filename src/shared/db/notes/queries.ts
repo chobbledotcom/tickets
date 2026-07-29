@@ -16,7 +16,7 @@ import {
 import {
   clauseArgs,
   equals,
-  rowsUnlessEmpty,
+  rowsUnlessNoneMatch,
   type WhereClause,
   whereSql,
 } from "#shared/db/where-clauses.ts";
@@ -61,7 +61,7 @@ export const createOwnerNote = noteWriterOf("owner");
 /** The still-sealed rows matching a WHERE body, oldest first per record. Shared
  *  by every read so the column list and the ordering live in one place. */
 const noteRowsWhere = (where: WhereClause[]): Promise<SystemNoteRow[]> =>
-  rowsUnlessEmpty(where, () =>
+  rowsUnlessNoneMatch(where, () =>
     queryAll<SystemNoteRow>(
       `SELECT ${NOTE_COLUMNS} FROM system_notes${whereSql(where)} ORDER BY entity_id, id`,
       clauseArgs(where),

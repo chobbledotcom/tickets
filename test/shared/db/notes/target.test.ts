@@ -10,7 +10,7 @@ import {
 } from "#shared/db/notes/target.ts";
 import {
   clauseArgs,
-  matchesNoRows,
+  rowsUnlessNoneMatch,
   whereSql,
 } from "#shared/db/where-clauses.ts";
 
@@ -39,10 +39,17 @@ describe("what a note is about", () => {
     expect(clauseArgs(where)).toEqual(["attendee", 4, 5]);
   });
 
-  test("asking about no records is a question no row can answer", () => {
+  test("asking about no records is a question no row can answer", async () => {
     // The reader sees this and skips the round trip, rather than building
     // `IN ()` — SQL no database accepts.
-    expect(matchesNoRows(targetsWhere("attendee", []))).toBe(true);
+    let asked = false;
+    const rows = await rowsUnlessNoneMatch(targetsWhere("attendee", []), () => {
+      asked = true;
+      return Promise.resolve([{ id: 1 }]);
+    });
+
+    expect(rows).toEqual([]);
+    expect(asked).toBe(false);
   });
 
   test("keeps the subquery's own arguments after the kind", () => {

@@ -38,7 +38,7 @@ import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import { listingStatement } from "#shared/db/listings/select.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
-import { clauseArgs, equals, whereSql } from "#shared/db/where-clauses.ts";
+import { equals, queryTail } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -191,10 +191,11 @@ const queryActivityLog = async (
   // co-monotonic with created (newest row = highest id) but, being the rowid,
   // it is served straight from the primary key / idx_activity_log_listing_id
   // without a sort over the unbounded log table.
+  const tail = queryTail(parts, { limit, order: "id DESC" });
   return decryptLogRows(
     await queryAll<StoredActivityLogEntry>(
-      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log${whereSql(parts)} ORDER BY id DESC LIMIT ?`,
-      [...clauseArgs(parts), limit],
+      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log${tail.sql}`,
+      tail.args,
     ),
   );
 };

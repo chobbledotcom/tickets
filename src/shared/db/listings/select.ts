@@ -11,18 +11,17 @@
  */
 
 /* jscpd:ignore-start */
-import type { InValue } from "@libsql/client";
 import {
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
 } from "#shared/accounting/projection-sql.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { queryAll, type SqlStatement } from "#shared/db/client.ts";
 import { imageFilenameSubqueries } from "#shared/db/images.ts";
 import {
   clauseArgs,
   inList,
   orderSql,
-  rowsUnlessEmpty,
+  rowsUnlessNoneMatch,
   type WhereClause,
   whereSql,
 } from "#shared/db/where-clauses.ts";
@@ -115,7 +114,7 @@ export type GetListingsQuery = {
 const statementFor = (
   query: GetListingsQuery,
   parts: WhereClause[],
-): { sql: string; args: InValue[] } => {
+): SqlStatement => {
   const byGroup = query.where.inGroups !== undefined;
   const columns = byGroup
     ? `json_group_array(groupListing.group_id) AS group_ids, ${listingColumns()}`
@@ -142,9 +141,7 @@ const statementFor = (
  * the activity-log reader embeds it in a batch, and the read-your-own-write
  * reader runs it against the primary.
  */
-export const listingStatement = (
-  query: GetListingsQuery,
-): { sql: string; args: InValue[] } =>
+export const listingStatement = (query: GetListingsQuery): SqlStatement =>
   statementFor(query, whereClauses(query.where));
 
 /** The raw shape a listing read returns: the stored columns plus the projected
@@ -160,7 +157,7 @@ export const getListingRows = (
   query: GetListingsQuery,
 ): Promise<ListingProjectionRow[]> => {
   const parts = whereClauses(query.where);
-  return rowsUnlessEmpty(parts, () => {
+  return rowsUnlessNoneMatch(parts, () => {
     const { sql, args } = statementFor(query, parts);
     return queryAll<ListingProjectionRow>(sql, args);
   });

@@ -14,7 +14,8 @@ import {
 } from "#shared/db/common-schema.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
-import { col, defineTableProjection } from "#shared/db/table.ts";
+import { defineTableProjection } from "#shared/db/projection.ts";
+import { col } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";

@@ -2,8 +2,8 @@
 
 import { LISTING_ORDER_SQL } from "#shared/db/listings/select.ts";
 import { rawListingsTable } from "#shared/db/listings/table.ts";
+import { defineTableProjection } from "#shared/db/projection.ts";
 import { settings } from "#shared/db/settings.ts";
-import { defineTableProjection } from "#shared/db/table.ts";
 import { orderSql } from "#shared/db/where-clauses.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import type { SortableListing } from "#shared/types.ts";
