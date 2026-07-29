@@ -1466,40 +1466,6 @@ the daily/package fixtures in `test/test-utils/db-helpers/`.
 
 ---
 
-## One unclosed mutant in `store-refund.ts` (the overbook flag)
-
-*Origin: writing direct tests for the four feature modules that had none.*
-
-`storeRefundedBooking` passes `allowOverbook: true` when storing the
-quantity-0 placeholder for a payment it could not honour. Mutating that to
-`false` survives every test in
-`test/features/api/payment-processing/store-refund.test.ts`, so the file sits at
-96.6% rather than 100%.
-
-It is **not** an equivalent mutant, so do not add it to
-`scripts/mutation/equivalent-mutants.txt`. Calling `createAttendeeAtomic`
-directly with a zero-quantity booking on an over-capacity listing proves the
-flag changes the result:
-
-```
-allowOverbook true  => success: true
-allowOverbook false => success: false
-```
-
-What defeats the obvious test is the date range. `placeholderBookings` carries
-the listing's current range through `bookingDateFields`, so the capacity check
-runs per day; a fixture that merely over-fills the listing still passes because
-the placeholder's day is empty. A killing test needs the existing bookings and
-the placeholder to land on the *same* day (or the placeholder to carry no date,
-as `datelessGhostBookings` does — note that path does not take the flag).
-
-Starting point: `buildCapacityCheckedInsert` in
-`src/shared/db/attendees/capacity/checks.ts` (the `allowOverbook` early return),
-and `buildCapacityCondition` in `src/shared/db/capacity.ts` for the dated
-versus date-less split.
-
----
-
 ## Let Deno-hosted sites with a Bunny database be migrated
 
 `POST /instance/site-credentials` (`src/features/instance.ts`) only returns
@@ -1784,14 +1750,42 @@ refuses to start on a branch that touches them:
 - `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (98.1%, one recorded equivalent)
 - `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list.test.ts` (100%)
 - `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (77.8%)
-- `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (96.6%)
+- `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
 
-The gate demands 100% for a *changed* file, so the last two are not finished:
-see "Remaining mutation gaps in `listing-page-data.ts`" and "One unclosed mutant
-in `store-refund.ts`" above for exactly what each remaining survivor needs.
+The gate demands 100% for a *changed* file, so `listing-page-data.ts` is not
+finished: see "Remaining mutation gaps in `listing-page-data.ts`" above for
+exactly what each remaining survivor needs.
 
 `src/features/admin/attendee-notes.ts` was in the same state and was fixed
 earlier: its route suite drives real pages through the session helpers, so it
 moved from `test/integration/admin/` to `test/features/admin/`, which is where
 that kind of suite belongs (see "Let the misplaced-test list see past request
 helpers" above).
+
+---
+
+## An answer filed under a listing nobody booked
+
+*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+
+Free-text answers travel through checkout filed under the listing they belong
+to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
+`src/shared/booking-intent.ts` checks that the key is written the way a listing
+id is written, so a key of any other shape stops the booking rather than losing
+the answers under it after the buyer has paid.
+
+What it cannot check is whether that listing was one of the ones actually
+bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
+and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
+looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
+answers. The buyer answered a question and the answer quietly goes nowhere.
+
+The schema is the wrong place for the check: it validates one booking's metadata
+on its own, and the listings that were bought are decided later, once the items
+have been priced and loaded. The natural home is next to
+`saveSessionAnswers`, which already has both the answer map and the booked
+listings — compare the two sets and raise any key that matches no booked
+listing, the same way an unreadable booking is raised.
+
+Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
+where the shape rule is covered and the "names a booked listing" rule is not.

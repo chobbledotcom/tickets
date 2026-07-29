@@ -10,10 +10,8 @@ import {
   handleAttendeesListGet,
 } from "#routes/admin/attendees-list.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createTestAttendee,
-  seedFillerAttendees,
-} from "#test-utils/db-helpers/attendees.ts";
+import { seedFillerAttendees } from "#test-utils/db-helpers/attendee-seeding.ts";
+import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { testCookie, withTestSession } from "#test-utils/session.ts";

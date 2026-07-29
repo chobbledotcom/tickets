@@ -7,13 +7,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rosterFilterFromQuery } from "#routes/admin/listing-page-data.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { ListingType, ListingWithCount } from "#shared/types.ts";
 
-const listingOfType = (listing_type: string): ListingWithCount =>
+const listingOfType = (listing_type: ListingType): ListingWithCount =>
   ({ id: 1, listing_type }) as ListingWithCount;
 
 const DAILY = listingOfType("daily");
-const ONE_OFF = listingOfType("one_off");
+const STANDARD = listingOfType("standard");
 
 const filterFor = (
   listing: ListingWithCount,
@@ -57,8 +57,8 @@ describe("the roster filter", () => {
       expect(filterFor(DAILY, "date=").dateFilter).toBeNull();
     });
 
-    test("ignores a date on a listing that is not booked by the day", () => {
-      expect(filterFor(ONE_OFF, "date=2026-08-03").dateFilter).toBeNull();
+    test("ignores a date on a listing not booked by the day", () => {
+      expect(filterFor(STANDARD, "date=2026-08-03").dateFilter).toBeNull();
     });
 
     test("is absent when no date is asked for", () => {

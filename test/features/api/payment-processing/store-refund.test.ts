@@ -28,7 +28,7 @@ const line = (listingId: number, groupId?: number): BookingItem =>
     : { e: listingId, k: "p", p: 500, q: 1, r: groupId }) as BookingItem;
 
 // deno-lint-ignore no-explicit-any
-const listingOf = (id: number): any => ({ id, listing_type: "one_off" });
+const listingOf = (id: number): any => ({ id, listing_type: "standard" });
 
 // deno-lint-ignore no-explicit-any
 const itemsFor = (items: BookingItem[]): any =>
@@ -311,18 +311,33 @@ describeWithEnv(
 );
 
 describeWithEnv(
-  "a placeholder for a listing with no room left",
+  "a placeholder for a listing that is over capacity",
   { db: true },
   () => {
     test("is still stored, because capacity must never lose the record of a payment", async () => {
-      const listing = await createTestListing({ maxAttendees: 1 });
-      // Fill the listing, so a capacity-gated insert would refuse.
+      const listing = await createTestListing({ maxAttendees: 2 });
       await createTestAttendee(
         listing.id,
         listing.slug,
-        "Took The Last Place",
-        "full@example.com",
+        "First",
+        "first@example.com",
       );
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Second",
+        "second@example.com",
+      );
+      // Shrink the listing below what is already booked. At exactly full a
+      // quantity-0 row still fits (booked + 0 <= cap), so only going *over*
+      // makes the capacity gate refuse it — which is what the overbook flag
+      // has to override.
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute(
+        "UPDATE listings SET max_attendees = 1 WHERE id = ?",
+        [listing.id],
+      );
+
       const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
       const bookings = placeholderBookings(
         [{ item: intent.items[0], listing }] as never,
@@ -344,8 +359,8 @@ describeWithEnv(
       const { getAttendeesByListingIds } = await import(
         "#shared/db/listings/attendees.ts"
       );
-      // Both the real booking and the quantity-0 placeholder.
-      expect((await getAttendeesByListingIds([listing.id])).length).toBe(2);
+      // The two real bookings plus the quantity-0 placeholder.
+      expect((await getAttendeesByListingIds([listing.id])).length).toBe(3);
     });
   },
 );
