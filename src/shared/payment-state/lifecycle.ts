@@ -11,6 +11,7 @@ import {
   refundFitsInsideCapture,
 } from "#shared/payment-state/operator.ts";
 import {
+  gaveEverythingBack,
   MoneySchema,
   PositiveMoneySchema,
   ProviderChargeResourceSchema,
@@ -70,55 +71,70 @@ export type PaymentIgnoreReason = v.InferOutput<
   typeof PaymentIgnoreReasonSchema
 >;
 
+type Observation = v.InferOutput<typeof PaymentObservationSchema>;
+
+/**
+ * An answer that carries the reading it was worked out from, and only holds
+ * when that reading still says so. Written once because the two answers using
+ * it are the ones nothing may fake: a payment ready to book, and money finally
+ * given back.
+ */
+const answerFromReading = <const Status extends string>(
+  status: Status,
+  readingSaysSo: (observation: Observation) => boolean,
+  message: string,
+) =>
+  v.pipe(
+    v.strictObject({
+      observation: PaymentObservationSchema,
+      status: v.literal(status),
+    }),
+    v.check((answer) => readingSaysSo(answer.observation), message),
+  );
+
 /** Ready means the money question is settled: the buyer paid, or nothing was
  *  owed and so nothing was taken. A reading still going, or one that failed,
  *  would otherwise let an unpaid checkout be treated as ready to book. */
-const settledObservation = (
-  observation: v.InferOutput<typeof PaymentObservationSchema>,
-): boolean =>
+const moneyQuestionSettled = (observation: Observation): boolean =>
   observation.status === "paid" ||
   (observation.status === "no_payment_required" &&
     observation.expected.amount === 0 &&
     observation.charges === undefined);
 
-/** Fully refunded means a charge has given back every penny it took. Without
- *  this, money still on its way back — or still held — could be filed as
- *  finally returned. */
-const everythingCameBack = (
-  observation: v.InferOutput<typeof PaymentObservationSchema>,
-): boolean =>
+/** Fully refunded means every charge has given back everything. Without this,
+ *  money still held on one charge could be filed as finally returned. A
+ *  reading with no charge at all took nothing to give back. */
+const everythingCameBack = (observation: Observation): boolean =>
   observation.status === "paid" &&
-  (observation.charges ?? []).some(
-    (charge) =>
-      charge.confirmedRefunded.currency === charge.captured.currency &&
-      charge.confirmedRefunded.amount === charge.captured.amount,
-  );
+  observation.charges !== undefined &&
+  observation.charges.every(gaveEverythingBack);
 
 export const PaymentResolutionSchema = v.variant("status", [
+  answerFromReading(
+    "ready",
+    moneyQuestionSettled,
+    "A payment is only ready when it was paid, or nothing was owed",
+  ),
   v.pipe(
     v.strictObject({
       observation: PaymentObservationSchema,
-      status: v.literal("ready"),
+      reason: PaymentPendingReasonSchema,
+      status: v.literal("pending"),
     }),
+    // Waiting on the payment means the reading is still going; waiting on a
+    // refund means the money was taken and is on its way back. Checked apart,
+    // a settled or failed reading could be left on the retry path forever.
     v.check(
-      (resolution) => settledObservation(resolution.observation),
-      "A payment is only ready when it was paid, or nothing was owed",
+      (answer) =>
+        answer.observation.status ===
+        (answer.reason === "payment_pending" ? "pending" : "paid"),
+      "What a payment is waiting for must match what its reading says",
     ),
   ),
-  v.strictObject({
-    observation: PaymentObservationSchema,
-    reason: PaymentPendingReasonSchema,
-    status: v.literal("pending"),
-  }),
-  v.pipe(
-    v.strictObject({
-      observation: PaymentObservationSchema,
-      status: v.literal("fully_refunded"),
-    }),
-    v.check(
-      (resolution) => everythingCameBack(resolution.observation),
-      "A payment is only fully refunded once a charge has given it all back",
-    ),
+  answerFromReading(
+    "fully_refunded",
+    everythingCameBack,
+    "A payment is only fully refunded once a charge has given it all back",
   ),
   v.strictObject({
     reason: ProviderUnavailableReasonSchema,

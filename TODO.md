@@ -2001,6 +2001,36 @@ only the group. The check belongs where the created entries are known — where
 a group has already been opened up into the listings it holds — not on the
 intent alone.
 
+**An answer is not checked against whether its reading adds up.**
+`PaymentResolutionSchema` (`src/shared/payment-state/lifecycle.ts`) now ties
+each answer to what its reading *says* — ready means paid or nothing owed,
+fully refunded means every charge gave everything back, waiting on a refund
+means the money was taken. What it does not do is re-run
+`validatePaymentObservation`, so a reading whose totals, currencies, or charge
+ownership disagree can still be filed as ready.
+
+Codex asked for the resolver's own validation inside the schema. The plain
+blocker is that `validatePaymentObservation` lives in `resolve.ts`, which
+imports `lifecycle.ts` — calling it from the schema is a circular import. The
+real question underneath is which module owns "is this reading sound": the
+schema, the resolver, or a third module both use. That is the same seam as the
+pending-payment entry above, and should be settled once, with the runtime in
+view, rather than twice.
+
+**A hidden value may be plaintext wearing an envelope.** The tables check that
+an encrypted column looks like `enc:1:<part>:<part>` with no extra separators,
+which refuses a bare prefix or a value with the buyer's details tacked on the
+end. It does not check that the parts are the right *shape*, so `enc:1:Jane:John`
+still gets in and only fails when something tries to read it back.
+
+Codex asked for the parts to be constrained to base64 and to the lengths a real
+envelope has. The charset alone would not catch the example — `Jane` is all
+base64 characters — so it is the lengths that do the work, and SQLite cannot
+pull the parts out of a value without `substr`/`instr` gymnastics. That is
+exactly the hard-to-read SQL this PR moved away from. The check belongs in the
+record layer beside the other behaviour rules, where it can parse the envelope
+properly; see `src/shared/payment-state/record/`.
+
 **A refund that failed may say everything came back.** Codex asked for a
 failed refund's returned total to stay below the money taken, since
 `resolveRefund` calls a fully returned charge completed before it looks at

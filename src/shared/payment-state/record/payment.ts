@@ -47,6 +47,18 @@ const paymentBookkeepingHolds = (
   ],
 ];
 
+/** The six things a payment made here knows about itself. A copied one knows
+ *  none of them: which provider took an old payment is the owner's to say, so
+ *  the record must not invent one. */
+const whatAPaymentMadeHereKnows = (payment: StoredPayment): unknown[] => [
+  payment.provider,
+  payment.mode,
+  payment.accountId,
+  payment.expectedAmount,
+  payment.expectedCurrency,
+  payment.bookingIntent,
+];
+
 /** A payment is either made here or copied across, never a mix. */
 export const paymentKnowsWhereItCameFrom = (payment: StoredPayment): Fault => {
   if (payment.origin === "legacy") {
@@ -57,12 +69,12 @@ export const paymentKnowsWhereItCameFrom = (payment: StoredPayment): Fault => {
       ],
       [
         allAbsent([
-          payment.bookingIntent,
+          ...whatAPaymentMadeHereKnows(payment),
           payment.checkoutCreate,
           payment.sessionResource,
           payment.sessionReferenceIndex,
         ]),
-        "A payment copied across never knew what was being bought",
+        "A payment copied across never knew who took the money, or what for",
       ],
       [
         (payment.resultState === "none" && absent(payment.result)) ||
@@ -93,14 +105,7 @@ export const paymentKnowsWhereItCameFrom = (payment: StoredPayment): Fault => {
       "A payment made here has no old record to carry",
     ],
     [
-      [
-        payment.provider,
-        payment.mode,
-        payment.accountId,
-        payment.expectedAmount,
-        payment.expectedCurrency,
-        payment.bookingIntent,
-      ].every(present),
+      whatAPaymentMadeHereKnows(payment).every(present),
       "A payment made here knows who takes the money, how much, and what for",
     ],
     [

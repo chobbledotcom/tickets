@@ -11,6 +11,7 @@
 import * as v from "valibot";
 import { parseReservationAmount } from "#shared/reservation-amount.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
+import { optionalStringThat } from "#shared/validation/string.ts";
 
 /* jscpd:ignore-end */
 
@@ -144,14 +145,9 @@ export const BookingIntentSchema = v.pipe(
     // reserves a place and leaves the whole price owed. The amount is checked
     // when the owner saves it, and that check is stricter than this one, so a
     // real setting always gets through here.
-    reservationAmount: v.optional(
-      v.pipe(
-        v.string(),
-        v.check(
-          (raw) => parseReservationAmount(raw) !== null,
-          "Reservation amount must be a readable amount",
-        ),
-      ),
+    reservationAmount: optionalStringThat(
+      (raw) => parseReservationAmount(raw) !== null,
+      "Reservation amount must be a readable amount",
     ),
     siteTokenIndex: v.optional(v.string()),
     special_instructions: v.string(),

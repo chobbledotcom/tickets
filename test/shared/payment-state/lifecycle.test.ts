@@ -50,7 +50,11 @@ describe("payment lifecycle", () => {
     const observation = paymentObservation();
     const resolutions = [
       { observation, status: "ready" },
-      { observation, reason: "payment_pending", status: "pending" },
+      {
+        observation: paymentObservation({ status: "pending" }),
+        reason: "payment_pending",
+        status: "pending",
+      },
       { observation: refundedObservation(), status: "fully_refunded" },
       { reason: "timed_out", resource: sessionResource, status: "retry" },
       {
@@ -88,6 +92,59 @@ describe("payment lifecycle", () => {
       }),
     ).toThrow();
   });
+
+  test("refuses a fully refunded payment that never took any money", () => {
+    // With no charge there is nothing to have given back.
+    const observation = paymentObservation({ charges: undefined });
+
+    expect(() =>
+      v.parse(PaymentResolutionSchema, {
+        observation,
+        status: "fully_refunded",
+      }),
+    ).toThrow();
+  });
+
+  test("refuses a fully refunded payment holding money on a second charge", () => {
+    const observation = paymentObservation({
+      charges: [
+        chargeLeg({ confirmedRefunded: { amount: 100, currency: "GBP" } }),
+        chargeLeg(),
+      ],
+    });
+
+    expect(() =>
+      v.parse(PaymentResolutionSchema, {
+        observation,
+        status: "fully_refunded",
+      }),
+    ).toThrow();
+  });
+
+  test("accepts a payment waiting on a refund it took money for", () => {
+    expect(
+      v.parse(PaymentResolutionSchema, {
+        observation: paymentObservation(),
+        reason: "refund_pending",
+        status: "pending",
+      }).status,
+    ).toBe("pending");
+  });
+
+  for (const [reason, status] of [
+    ["payment_pending", "paid"],
+    ["refund_pending", "pending"],
+  ] as const) {
+    test(`refuses ${reason} beside a reading that says ${status}`, () => {
+      expect(() =>
+        v.parse(PaymentResolutionSchema, {
+          observation: paymentObservation({ status }),
+          reason,
+          status: "pending",
+        }),
+      ).toThrow();
+    });
+  }
 
   test("refuses a problem that names a different checkout to its evidence", () => {
     // The problem would send a worker, or the owner, to the wrong payment.

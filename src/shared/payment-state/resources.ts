@@ -197,10 +197,35 @@ const refundMoneyStillGoing = (charge: ChargeLeg): number =>
     charge.refunds.filter((refund) => refund.status === "pending"),
   );
 
+/**
+ * Compares money given back with money taken. Two currencies cannot be
+ * compared at all, so that is checked here once; which refunds count, and how
+ * the two totals must compare, is the caller's to say.
+ */
+const comparedWithMoneyTaken =
+  (
+    moneyBack: (charge: ChargeLeg) => number,
+    holds: (back: number, taken: number) => boolean,
+  ) =>
+  (charge: ChargeLeg): boolean =>
+    charge.confirmedRefunded.currency === charge.captured.currency &&
+    holds(moneyBack(charge), charge.captured.amount);
+
+/** A charge that has given back every penny it took. */
+export const gaveEverythingBack: (charge: ChargeLeg) => boolean =
+  comparedWithMoneyTaken(
+    (charge) => charge.confirmedRefunded.amount,
+    (back, taken) => back === taken,
+  );
+
+/** Nothing given back, or still on its way, comes to more than was taken. */
+const refundFitsWithinCapture = comparedWithMoneyTaken(
+  (charge) => charge.confirmedRefunded.amount + refundMoneyStillGoing(charge),
+  (back, taken) => back <= taken,
+);
+
 export const refundMoneyMatchesCapture = (charge: ChargeLeg): boolean =>
-  charge.confirmedRefunded.currency === charge.captured.currency &&
-  charge.confirmedRefunded.amount + refundMoneyStillGoing(charge) <=
-    charge.captured.amount &&
+  refundFitsWithinCapture(charge) &&
   charge.refunds.every(
     (refund) =>
       refund.amount.currency === charge.captured.currency &&
