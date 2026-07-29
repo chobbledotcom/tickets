@@ -35,11 +35,11 @@ src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record ob
 # cases where x can't be such a value, or F equals the only one it can be.
 src/shared/checkout-pricing.ts:324:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/booking-lines.ts:71:42  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
-src/features/api/payment-processing/create.ts:60:36  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
-src/features/api/payment-processing/create.ts:193:28  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts:196:67  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
-src/features/api/payment-processing/create.ts:199:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts:203:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:63:36  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
+src/features/api/payment-processing/create.ts:200:28  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:203:67  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:206:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:210:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts:170:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts:36:5  ?? → ||    # providerValue returns boolean or null, and false stays false with either fallback operator
@@ -88,7 +88,7 @@ src/shared/deno-deploy-api.ts:139:30  ?? → ||   # failure_reason is null or a 
 src/shared/bunny-cdn.ts:478:42  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
 src/shared/bunny-cdn.ts:530:50  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
 src/shared/subrequest-budget.ts:38:40  ?? → ||   # scoped counts is an object when present, and every object is truthy
-src/shared/accounting/queries.ts:166:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
+src/shared/accounting/queries.ts:174:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts:121:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
 src/shared/db/admin-features.ts:51:10  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
 src/shared/db/admin-features.ts:51:10  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
@@ -162,7 +162,7 @@ src/shared/db/listing-parents.ts:222:49  ?? → ||   # parentsByChild.get(id): L
 src/shared/db/groups.ts:84:58  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
 src/shared/db/groups.ts:238:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
 src/shared/db/groups.ts:504:55  groupRecord → ""   # columnsSql only qualifies a column when the alias is truthy, so "" selects the same bare column names, which are unambiguous in this single-table query
-src/shared/db/groups.ts:224:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
+src/shared/db/groups.ts:222:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
 src/shared/db/groups.ts:458:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
 src/shared/db/groups.ts:703:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
 src/shared/db/groups.ts:836:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
@@ -274,9 +274,9 @@ src/shared/db/attendees/capacity/groups.ts:135:50  ?? → ||   # rowsByGroup.get
 src/shared/db/attendees/capacity/groups.ts:146:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:196:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts:567:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts:626:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts:198:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:569:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:628:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # Admin listing API fallbacks receive only objects, arrays, positive ids, or
 # nullish values, so no valid request can distinguish these operators.
@@ -492,8 +492,8 @@ src/shared/sort-listings.ts:47:36  ?? → ||   # nextDates.get(b.id): string|nul
 # returns -1 for the reverse pairing, no input can ever make this branch's
 # non-negative return value observably differ from the intended `1` (the
 # magnitude-only `1 → 2` entries below are --exhaustive-only; see note above).
-src/shared/sort-listings.ts:49:30  1 → 0   # non-negative result; see block comment above
-src/shared/sort-listings.ts:49:30  1 → 2   # sign-preserving magnitude change; see block comment above
+src/shared/sort-listings.ts:50:30  1 → 0   # non-negative result; see block comment above
+src/shared/sort-listings.ts:50:30  1 → 2   # sign-preserving magnitude change; see block comment above
 src/shared/sort-listings.ts:50:31  1 → 2   # sign-preserving magnitude change on `return -1`; only the sign is ever observed
 
 # orphan-retention.ts's Number.parseInt(safeValue, 10) radix: safeValue is
@@ -895,15 +895,15 @@ src/features/api/payment-processing/items.ts:53:24  false → true   # validateL
 src/features/api/payment-processing/items.ts:87:41  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts:169:24  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
 src/features/api/payment-processing/pricing.ts:84:40  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
-src/features/api/payment-processing/package-pricing.ts:50:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts:51:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
-src/features/api/payment-processing/package-pricing.ts:156:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
-src/features/api/payment-processing/package-pricing.ts:212:37  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts:49:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts:50:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
+src/features/api/payment-processing/package-pricing.ts:155:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
+src/features/api/payment-processing/package-pricing.ts:211:37  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 src/features/api/payment-processing/package-pricing.ts:218:49  false → true   # orderEdgeDrifted uses buildTicketListing only to pass its listing row into buildBookingTree; the closed/availability fields never affect node keys
 src/features/api/payment-processing/package-pricing.ts:228:45  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
 src/features/api/payment-processing/package-pricing.ts:243:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
-src/features/api/payment-processing/package-pricing.ts:260:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts:296:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts:259:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
+src/features/api/payment-processing/package-pricing.ts:295:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 
 # processed-payments read-path failure_data label: the
 # "processed_payments.failure_data" context string surfaces only in errors

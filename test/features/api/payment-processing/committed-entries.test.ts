@@ -69,11 +69,35 @@ describeWithEnv(
 
       expect(entries).toHaveLength(1);
       expect(entries[0]?.listing.id).toBe(listing.id);
-      expect(entries[0]?.attendee).toMatchObject({
+      // The whole rebuilt booking, not a few fields: every value here is one
+      // the booking is remade from, so a wrong one would travel on unnoticed.
+      expect(entries[0]?.attendee).toEqual({
+        address: "1 Test Street",
+        attachment_downloads: 0,
+        checked_in: false,
+        created: entries[0]?.attendee.created,
+        date: null,
+        email: "buyer@example.com",
+        end_date: null,
         id: attendee.id,
+        kind: attendee.kind,
+        lat: "",
         listing_id: listing.id,
+        lng: "",
+        name: "Signed Buyer",
+        package_group_id: 0,
+        payment_id: "pi_committed",
+        phone: "07700900000",
+        pii_blob: "",
+        price_paid: "2000",
         quantity: 2,
+        refunded: false,
+        remaining_balance: 2000,
+        special_instructions: "Ring the bell",
+        split_logistics_agents: false,
+        status_id: attendee.status_id,
         ticket_token: "tok_committed",
+        ticket_token_index: entries[0]?.attendee.ticket_token_index,
       });
     });
 

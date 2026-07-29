@@ -133,37 +133,51 @@ describeWithEnv("reading the booking out of a checkout", { db: true }, () => {
 
     expect(classified).toBe(null);
 
-    const log = await getAllActivityLog();
     expect(
-      log.some((entry) =>
-        entry.message.includes(
-          "Signed session's booking could not be read (session=cs_classify)",
-        ),
+      await loggedAbout(
+        "booking",
+        "Signed session's booking could not be read (session=cs_classify)",
       ),
     ).toBe(true);
   });
 });
 
+/** Whether the owner's log carries this message, under the step it happened
+ *  on. The step prefix is part of what the owner reads, so it is asserted
+ *  rather than skipped over. */
+const loggedAbout = async (step: string, words: string): Promise<boolean> =>
+  (await getAllActivityLog()).some((entry) =>
+    entry.message.includes(`[${step}] ${words}`),
+  );
+
 describeWithEnv("checking a checkout before it is used", { db: true }, () => {
   test("refuses when no payment provider is set up", async () => {
-    const result = await validatePaidSession("cs_no_provider");
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_no_provider"),
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
     expect(await result.response.text()).toContain(
       "Payment provider not configured",
     );
+    expect(
+      await loggedAbout("redirect", "No payment provider configured"),
+    ).toBe(true);
   });
 
   test("refuses a checkout the provider has never heard of", async () => {
     await setupStripe();
     using _provider = await providerAnswers(null);
 
-    const result = await validatePaidSession("cs_missing");
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_missing"),
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
     expect(await result.response.text()).toContain("Payment session not found");
+    expect(await loggedAbout("redirect", "Session not found")).toBe(true);
   });
 
   // A card that was declined and a buyer who changed their mind come back the
@@ -200,12 +214,17 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       paymentStatus: "unpaid" as const,
     });
 
-    const result = await validatePaidSession("cs_unpaid");
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_unpaid"),
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
     expect(await result.response.text()).toContain(
       "Payment verification failed",
+    );
+    expect(await loggedAbout("redirect", "Payment not verified as paid")).toBe(
+      true,
     );
   });
 
@@ -213,12 +232,17 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     await setupStripe();
     using _provider = await providerAnswers(paidSession({ price_proof: "" }));
 
-    const result = await validatePaidSession("cs_foreign");
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_foreign"),
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
     expect(await result.response.text()).toContain(
       "Payment session not recognized",
+    );
+    expect(await loggedAbout("redirect", "Unrecognized payment session")).toBe(
+      true,
     );
   });
 
