@@ -4,9 +4,9 @@ import { account, accountKey } from "#shared/ledger/account.ts";
 import {
   allBalances,
   balanceOf,
-  costColumns,
+  costOfListing,
   inPeriod,
-  profitColumns,
+  profitOfListing,
   statementFor,
   sumOfKind,
 } from "#shared/ledger/project.ts";
@@ -94,8 +94,8 @@ describe("listing cost/profit projections", () => {
         source: account("cost", listingId),
       }),
     ];
-    expect(costColumns(listingId)(ts)).toBe(9000);
-    expect(profitColumns(listingId)(ts)).toBe(11000);
+    expect(costOfListing(listingId)(ts)).toBe(9000);
+    expect(profitOfListing(listingId)(ts)).toBe(11000);
   });
 });
 

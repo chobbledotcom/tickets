@@ -79,7 +79,7 @@ type ProjectionMode =
   | "storedApi"
   | "transfer";
 
-type CatalogColumns<
+type CatalogProjection<
   Fields extends CatalogFieldSet,
   Mode extends ProjectionMode,
   Source,
@@ -95,7 +95,7 @@ type ProjectionValue = (
   field: CatalogField,
   values: Record<string, unknown>,
 ) => unknown;
-type StoredValueColumns = (field: CatalogField, value: unknown) => unknown;
+type StoredValueProjection = (field: CatalogField, value: unknown) => unknown;
 
 const matchesTransfer = (value: unknown, transfer: TransferName) => {
   const kind = TRANSFER_KINDS[transfer];
@@ -125,7 +125,7 @@ const schemaValue: ProjectionValue = (field, values) => {
 };
 
 const fromStoredValue =
-  (project: StoredValueColumns): ProjectionValue =>
+  (project: StoredValueProjection): ProjectionValue =>
   (field, values) =>
     project(field, values[field[0]]);
 
@@ -157,7 +157,7 @@ const PROJECTION_USES = {
   transfer: 0,
 } as const satisfies Record<ProjectionMode, 0 | 1 | 2>;
 
-const fieldSupportsColumns = (
+const fieldSupportsProjection = (
   mode: ProjectionMode,
   field: CatalogField,
 ): boolean => {
@@ -172,7 +172,8 @@ const projectCatalogField = <Key extends PropertyKey>(
   excluded: readonly Key[],
   [key, field]: [Key, CatalogField],
 ): readonly (readonly [Key | string, unknown])[] => {
-  if (!fieldSupportsColumns(mode, field) || excluded.includes(key)) return [];
+  if (!fieldSupportsProjection(mode, field) || excluded.includes(key))
+    return [];
   const value = PROJECTION_VALUES[mode](field, source);
   return value === undefined
     ? []
@@ -188,7 +189,7 @@ export const projectCatalogFields = <
   mode: Mode,
   source: Source,
   excluded: readonly (keyof Fields)[] = [],
-): CatalogColumns<Fields, Mode, Source> => {
+): CatalogProjection<Fields, Mode, Source> => {
   const project = (
     field: [keyof Fields, CatalogField],
   ): readonly (readonly [keyof Fields | string, unknown])[] =>
@@ -201,5 +202,5 @@ export const projectCatalogFields = <
   const pairs = (
     Object.entries(fields) as [keyof Fields, CatalogField][]
   ).flatMap(project);
-  return Object.fromEntries(pairs) as CatalogColumns<Fields, Mode, Source>;
+  return Object.fromEntries(pairs) as CatalogProjection<Fields, Mode, Source>;
 };

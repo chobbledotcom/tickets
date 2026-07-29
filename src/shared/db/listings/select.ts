@@ -39,7 +39,7 @@ const listingMoneyProjections = (idExpression: string): string =>
 
 /** The listing's day-count prices, collapsed into one JSON object so a listing
  * read does not need a second query per row. */
-const listingDayPriceColumns = (idExpression: string): string =>
+const listingDayPriceColumn = (idExpression: string): string =>
   `COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
       FROM listing_prices AS listingPrice
       WHERE listingPrice.listing_id = ${idExpression}
@@ -50,7 +50,7 @@ const storedListingColumns = (alias: string): string => {
   const idExpression = `${alias}.id`;
   return `${alias}.*,
        ${listingMoneyProjections(idExpression)},
-       ${listingDayPriceColumns(idExpression)},
+       ${listingDayPriceColumn(idExpression)},
        ${imageFilenameSubqueries("listing", idExpression)}`;
 };
 

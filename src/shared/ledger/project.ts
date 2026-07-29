@@ -38,17 +38,17 @@ export const balanceOf =
     allBalances(transfers).get(accountKey(acct)) ?? 0;
 
 /** Positive cost total for one listing. Cost legs source `cost:<listingId>`. */
-export const costColumns =
+export const costOfListing =
   (listingId: number) =>
   (transfers: Transfer[]): number =>
     -balanceOf(costAccount(listingId))(transfers);
 
 /** Gross listing revenue less servicing costs. */
-export const profitColumns =
+export const profitOfListing =
   (listingId: number) =>
   (transfers: Transfer[]): number =>
     balanceOf(revenueAccount(listingId))(transfers) -
-    costColumns(listingId)(transfers);
+    costOfListing(listingId)(transfers);
 
 /** Total amount across transfers of one kind (e.g. cash refunded). */
 export const sumOfKind =
