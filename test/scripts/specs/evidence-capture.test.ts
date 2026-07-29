@@ -12,7 +12,6 @@ import { compileEvidenceFeature } from "./evidence-fixture.ts";
 
 const declaration = {
   caseId: "payment.place-available",
-  css: ":root { --test-colour: blue; }",
   element: "#payment-result",
   id: "payment-result",
   path: "/admin/payments/{paymentId}",
@@ -165,6 +164,7 @@ const captureFixture = (
         ? Promise.reject(options.launchError)
         : Promise.resolve(browser as never),
     readCatalog: () => Promise.resolve(fixture.catalog),
+    readTheme: () => Promise.resolve(":root { --test-colour: blue; }"),
     startServer: () => ({
       baseUrl: "http://127.0.0.1:4321",
       close: () => {

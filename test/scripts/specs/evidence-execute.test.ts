@@ -58,6 +58,7 @@ describe("Cucumber evidence execution", () => {
       declarations: [declaration],
       outputDir: "/evidence",
       run,
+      themes: () => ({}),
       writeBundle: (outputDir, result) => {
         events.push("write");
         written = { bundle: result, outputDir };
@@ -84,6 +85,7 @@ describe("Cucumber evidence execution", () => {
       declarations: [declaration],
       outputDir: "/evidence",
       run,
+      themes: () => ({}),
       writeBundle: () => Promise.resolve(),
     });
 
