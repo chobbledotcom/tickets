@@ -57,6 +57,28 @@ export const PaymentConflictSchema = v.variant("kind", [
 ]);
 export type PaymentConflict = v.InferOutput<typeof PaymentConflictSchema>;
 
+/** Whether the reading itself is the problem. Those two are all we have when
+ *  a read fails, so they come with nothing to show; every other problem was
+ *  spotted *in* a reading, and must bring it. Listing every kind means a new
+ *  one cannot be added without saying which it is. */
+const IS_THE_READING_ITSELF: Record<PaymentConflict["kind"], boolean> = {
+  capture_total_mismatch: false,
+  currency_mismatch: false,
+  duplicate_charge: false,
+  duplicate_refund: false,
+  failed_refund: false,
+  invalid_provider_data: true,
+  missing_resource: true,
+  multiple_charges: false,
+  multiple_pending_refunds: false,
+  paid_without_charge: false,
+  partial_charge: false,
+  partial_refund: false,
+  provider_total_mismatch: false,
+  refund_exceeds_capture: false,
+  resource_mismatch: false,
+};
+
 export const PaymentPendingReasonSchema = v.picklist([
   "payment_pending",
   "refund_pending",
@@ -204,6 +226,12 @@ export const PaymentResolutionSchema = v.variant("status", [
         ),
       "A problem must name the same checkout its evidence describes",
     ),
+    v.check(
+      (resolution) =>
+        IS_THE_READING_ITSELF[resolution.issue.kind] ===
+        (resolution.observation === undefined),
+      "A problem must bring the reading that shows it, unless the reading is the problem",
+    ),
   ),
   v.strictObject({
     reason: PaymentIgnoreReasonSchema,
@@ -266,19 +294,20 @@ const listsEachOnce = (values: (string | number)[]): boolean =>
  *  reading that showed it that way is treated as a problem elsewhere. A charge
  *  is the same money if either its own id or the provider's name for it
  *  repeats — how that name is read differs between a current and an old
- *  payment, so it is given here. */
+ *  payment, so it is given here. A list that carries no provider name gives
+ *  none, and is checked on its ids alone. */
 const withNoRepeatedCharges = <
   TSchema extends v.GenericSchema<{ charges: { chargeId: number }[] }>,
 >(
   schema: TSchema,
-  nameOf: (charge: v.InferOutput<TSchema>["charges"][number]) => string,
+  nameOf?: (charge: v.InferOutput<TSchema>["charges"][number]) => string,
 ) =>
   v.pipe(
     schema,
     v.check(
       (snapshot) =>
         listsEachOnce(snapshot.charges.map((charge) => charge.chargeId)) &&
-        listsEachOnce(snapshot.charges.map(nameOf)),
+        (nameOf === undefined || listsEachOnce(snapshot.charges.map(nameOf))),
       "Reviewed money must not list the same charge twice",
     ),
   );
@@ -362,18 +391,20 @@ export type PaymentOperatorDecisionClaim = v.InferOutput<
 export const PaymentOperatorDecisionSchema = v.variant("kind", [
   v.strictObject({ ...decisionBase, kind: v.literal("complete_booking") }),
   v.strictObject({ ...decisionBase, kind: v.literal("refund_remaining") }),
-  v.strictObject({
-    ...decisionBase,
-    charges: v.pipe(
-      v.array(
-        v.strictObject({
-          ...reviewedMoneyFields,
-        }),
+  withNoRepeatedCharges(
+    v.strictObject({
+      ...decisionBase,
+      charges: v.pipe(
+        v.array(
+          v.strictObject({
+            ...reviewedMoneyFields,
+          }),
+        ),
+        v.minLength(1),
       ),
-      v.minLength(1),
-    ),
-    kind: v.literal("confirm_fully_refunded"),
-  }),
+      kind: v.literal("confirm_fully_refunded"),
+    }),
+  ),
   v.strictObject({ ...decisionBase, kind: v.literal("keep_legacy_payment") }),
   v.pipe(
     v.strictObject({

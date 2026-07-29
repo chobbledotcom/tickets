@@ -50,6 +50,10 @@ export const caseStateAgreesWithItsWork = (problem: StoredCase): Fault => {
         present(problem.resolvedAt),
         "A settled problem says when it was settled",
       ],
+      [
+        absent(problem.alertLeaseToken),
+        "A settled problem has nobody part-way through telling the owner",
+      ],
     ],
     retrying: [
       [
@@ -60,6 +64,10 @@ export const caseStateAgreesWithItsWork = (problem: StoredCase): Fault => {
       [
         absent(problem.alertedAt),
         "A problem being retried has not been raised with the owner",
+      ],
+      [
+        absent(problem.alertLeaseToken),
+        "A problem being retried has nobody part-way through telling the owner",
       ],
     ],
   };

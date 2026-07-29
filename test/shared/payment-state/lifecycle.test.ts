@@ -172,6 +172,39 @@ describe("payment lifecycle", () => {
     });
   }
 
+  // A problem spotted inside a reading has to carry that reading, and the two
+  // problems that mean "the reading itself failed" have none to carry. Either
+  // way round leaves the owner looking at the wrong money problem.
+  for (const [name, issue, withEvidence] of [
+    [
+      "a problem spotted in a reading, with none shown",
+      "partial_refund",
+      false,
+    ],
+    ["a failed read that somehow shows a reading", "missing_resource", true],
+  ] as const) {
+    test(`refuses ${name}`, () => {
+      expect(() =>
+        v.parse(PaymentResolutionSchema, {
+          issue: { kind: issue },
+          resource: sessionResource,
+          status: "conflict",
+          ...(withEvidence ? { observation: paymentObservation() } : {}),
+        }),
+      ).toThrow();
+    });
+  }
+
+  test("accepts a failed read as a problem with nothing to show", () => {
+    expect(
+      v.parse(PaymentResolutionSchema, {
+        issue: { kind: "missing_resource" },
+        resource: sessionResource,
+        status: "conflict",
+      }).status,
+    ).toBe("conflict");
+  });
+
   test("refuses a problem that names a different checkout to its evidence", () => {
     // The problem would send a worker, or the owner, to the wrong payment.
     expect(() =>

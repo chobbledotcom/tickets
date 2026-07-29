@@ -255,4 +255,22 @@ describe("what an owner's decision may be", () => {
       );
     });
   }
+
+  test("rejects confirming the same charge twice", () => {
+    // Two entries for one charge are two different accounts of the money the
+    // owner just confirmed, and anything adding the list up counts it twice.
+    expect(
+      v.safeParse(PaymentOperatorDecisionSchema, {
+        actorId: 1,
+        caseRevision: 1,
+        charges: [
+          { captured: { amount: 1_000, currency: "GBP" }, chargeId: 1 },
+          { captured: { amount: 2_500, currency: "GBP" }, chargeId: 1 },
+        ],
+        decidedAt: 1,
+        kind: "confirm_fully_refunded",
+        reason: "Provider evidence checked",
+      }).success,
+    ).toBe(false);
+  });
 });

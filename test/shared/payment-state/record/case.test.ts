@@ -55,6 +55,13 @@ describe("what a stored problem may be", () => {
       { resolvedAt: 9 },
       "A problem being retried is not settled",
     ],
+    // Nobody is telling the owner about a problem that is going back for
+    // another look, so a claim left behind would hold an alert forever.
+    [
+      "a retrying problem somebody still holds the alert on",
+      { alertLeaseToken: "worker-1" },
+      "A problem being retried has nobody part-way through telling the owner",
+    ],
   ] as const) {
     test(`refuses ${name}`, () => {
       expect(caseStateAgreesWithItsWork({ ...retrying, ...broken })).toBe(
@@ -62,6 +69,14 @@ describe("what a stored problem may be", () => {
       );
     });
   }
+
+  test("refuses a settled problem somebody still holds the alert on", () => {
+    // The problem is over, so a claim still standing would leave a worker
+    // about to tell the owner about something that no longer needs them.
+    expect(
+      caseStateAgreesWithItsWork({ ...settled, alertLeaseToken: "worker-1" }),
+    ).toBe("A settled problem has nobody part-way through telling the owner");
+  });
 
   test("refuses a problem waiting on the owner that was never raised", () => {
     expect(
