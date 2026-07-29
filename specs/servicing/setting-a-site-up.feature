@@ -46,6 +46,7 @@ Feature: Somebody sets a new site up
       When somebody sets the site up typing a different password the second time
       Then they are told the passwords do not match
       And the site is still not set up
+      And the site can still be set up afterwards
 
   @rule:servicing.a-site-is-only-set-up-once
   Rule: A site is only set up once

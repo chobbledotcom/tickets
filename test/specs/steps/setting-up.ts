@@ -8,7 +8,7 @@ import {
   aSiteNobodyHasSetUp,
   firstOwnerCanSignIn,
   GOOD_PASSWORD,
-  setupIsStillOffered,
+  openingSetupAgain,
   somebodySetsUp,
   whatSetterWasTold,
 } from "#test/specs/support/setting-up.ts";
@@ -86,6 +86,20 @@ Then(
 Then(
   "opening the way to set it up leads away from it",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await setupIsStillOffered()).toBe(false);
+    const { landedOn, stillOffered } = await openingSetupAgain();
+    expect(stillOffered).toBe(false);
+    expect(landedOn).not.toBe("/setup/");
+  },
+);
+
+Then(
+  "the site can still be set up afterwards",
+  async function (this: TicketsWorld): Promise<void> {
+    // A refusal that made the owner anyway and then stopped short would leave
+    // the site unable to be set up at all — the name is taken and nobody can
+    // sign in. Setting it up properly now is what proves nothing was left.
+    await somebodySetsUp(this, GOOD_PASSWORD, GOOD_PASSWORD);
+    expect(whatSetterWasTold(this)).toContain(t("setup.complete.heading"));
+    expect(await firstOwnerCanSignIn(GOOD_PASSWORD)).toBe(true);
   },
 );

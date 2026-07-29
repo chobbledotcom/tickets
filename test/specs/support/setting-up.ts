@@ -84,13 +84,22 @@ export const firstOwnerCanSignIn = async (
     { password, username: CHOSEN.name },
     t("login.submit"),
   );
-  return !browser.currentUrl.includes("/login");
+  // Being signed in means the site stopped asking. A refused password lands
+  // back on a page still offering the box, and the address it lands on is the
+  // same either way — so the address says nothing.
+  return !browser.currentHtml.includes('name="password"');
 };
 
-/** Whether opening the setup page still shows the form to set the site up.
- * Where it sends somebody instead depends on how the site is configured, so
- * what matters is that the ceremony is no longer on offer. */
-export const setupIsStillOffered = async (): Promise<boolean> => {
+/** Where somebody opening the setup page ends up, and whether the ceremony is
+ * still on offer there. Both matter: a page that stopped redirecting but no
+ * longer shows the button would look the same as being sent away. */
+export const openingSetupAgain = async (): Promise<{
+  landedOn: string;
+  stillOffered: boolean;
+}> => {
   const browser = await openAsNewcomer(SETUP_PAGE);
-  return browser.currentHtml.includes(t("setup.submit"));
+  return {
+    landedOn: new URL(browser.currentUrl, "http://localhost").pathname,
+    stillOffered: browser.currentHtml.includes(t("setup.submit")),
+  };
 };
