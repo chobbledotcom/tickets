@@ -60,7 +60,7 @@ Feature: Somebody sets a new site up
       Then opening the way to set it up leads away from it
 
     @case:setup.stale-form-cannot-take-over
-    Scenario: Two people set the site up at the same time
+    Scenario: Somebody sends a setup page they opened before
       Given nobody has set the site up
       And somebody else already had the setup page open
       When somebody sets the site up
