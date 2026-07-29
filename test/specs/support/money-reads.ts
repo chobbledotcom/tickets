@@ -23,7 +23,7 @@ import { adminGet } from "#test-utils/session.ts";
 export type CheckMoneyShown = (id: number, minor: number) => Promise<void>;
 
 /** One way of asking for a page: as the owner, or as anyone else. */
-export type ReadOnePage = (path: string) => Promise<Response>;
+type ReadOnePage = (path: string) => Promise<Response>;
 
 /** A page's HTML, once the response has been checked. */
 export type ReadOnePageHtml = (path: string) => Promise<string>;
