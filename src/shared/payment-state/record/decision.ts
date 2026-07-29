@@ -52,8 +52,11 @@ export const decisionStateAgreesWithItsTries = (
       "A decision still waiting to run has not been tried",
     ],
     [
-      present(decision.decision) ||
-        ["accepted", "running", "retrying"].includes(decision.state),
-      "A finished decision says what was actually done",
+      (decision.state === "completed") === present(decision.decision),
+      // Both ways round: a finished decision says what was done, and one that
+      // has not finished cannot already say it — a row claiming the owner's
+      // action is still queued while recording its outcome says two things at
+      // once, and a worker could act on either.
+      "A decision says what was done exactly when it has finished",
     ],
   ]);

@@ -109,6 +109,12 @@ const everythingCameBack = (observation: Observation): boolean =>
   observation.charges !== undefined &&
   observation.charges.every(gaveEverythingBack);
 
+/** A charge with a refund the provider has not finished yet. */
+const aRefundIsStillGoing = (observation: Observation): boolean =>
+  (observation.charges ?? []).some((charge) =>
+    charge.refunds.some((refund) => refund.status === "pending"),
+  );
+
 export const PaymentResolutionSchema = v.variant("status", [
   answerFromReading(
     "ready",
@@ -122,12 +128,15 @@ export const PaymentResolutionSchema = v.variant("status", [
       status: v.literal("pending"),
     }),
     // Waiting on the payment means the reading is still going; waiting on a
-    // refund means the money was taken and is on its way back. Checked apart,
-    // a settled or failed reading could be left on the retry path forever.
+    // refund means the money was taken and a refund really is on its way back.
+    // Checked apart, a settled reading with nothing in flight could be left on
+    // the retry path forever, looked at again and again with nothing to find.
     v.check(
       (answer) =>
-        answer.observation.status ===
-        (answer.reason === "payment_pending" ? "pending" : "paid"),
+        answer.reason === "payment_pending"
+          ? answer.observation.status === "pending"
+          : answer.observation.status === "paid" &&
+            aRefundIsStillGoing(answer.observation),
       "What a payment is waiting for must match what its reading says",
     ),
   ),

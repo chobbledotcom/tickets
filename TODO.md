@@ -2017,6 +2017,22 @@ schema, the resolver, or a third module both use. That is the same seam as the
 pending-payment entry above, and should be settled once, with the runtime in
 view, rather than twice.
 
+**A charge's hidden reference is not tied to where the charge came from.**
+`provider_reference` on `payment_charges` accepts either envelope — this
+site's own key (`enc:1:`) or the wrapped-key one (`hyb:1:`) — whatever the
+charge's origin says. Codex asked for the choice to follow `origin`, so a
+current charge could only carry the current envelope and a copied one only the
+wrapped form.
+
+That may well be right, but it rests on a fact this slice cannot check: which
+envelope the copy actually writes. The two prefixes are about *which key
+protects the value*, not about which version wrote it — `hyb:1:` is
+hybrid (RSA+AES) encryption, used where a wrapped key travels with the data
+(`src/shared/crypto/keys.ts`). Whether the copy carries an old value across as
+it found it, or decrypts and re-encrypts it with this site's key, is decided by
+the copy code, which is not written yet. Guess wrong and the constraint refuses
+real charges on the money path. Settle it with the copy in view.
+
 **A hidden value may be plaintext wearing an envelope.** The tables check that
 an encrypted column looks like `enc:1:<part>:<part>` with no extra separators,
 which refuses a bare prefix or a value with the buyer's details tacked on the
