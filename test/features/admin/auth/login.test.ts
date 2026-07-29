@@ -102,7 +102,10 @@ describeWithEnv("server (admin login)", { db: true }, () => {
   describe("POST /admin/login", () => {
     test("validates required password field", async () => {
       const response = await handleRequest(
-        await mockAdminLoginRequest({ password: "", username: TEST_ADMIN_USERNAME }),
+        await mockAdminLoginRequest({
+          password: "",
+          username: TEST_ADMIN_USERNAME,
+        }),
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -130,7 +133,10 @@ describeWithEnv("server (admin login)", { db: true }, () => {
     test("accepts correct password and sets cookie", async () => {
       const password = TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
-        await mockAdminLoginRequest({ password, username: TEST_ADMIN_USERNAME }),
+        await mockAdminLoginRequest({
+          password,
+          username: TEST_ADMIN_USERNAME,
+        }),
       );
       await expectAdminLoginSuccess(response);
     });
@@ -176,7 +182,10 @@ describeWithEnv("server (admin login)", { db: true }, () => {
     test("redirects with a too-many-attempts flash when rate limited", async () => {
       // Rate limiting uses direct connection IP (falls back to "direct" in tests)
       const makeRequest = () =>
-        mockAdminLoginRequest({ password: "wrong", username: TEST_ADMIN_USERNAME });
+        mockAdminLoginRequest({
+          password: "wrong",
+          username: TEST_ADMIN_USERNAME,
+        });
 
       // Make 5 failed attempts to trigger lockout
       for (let i = 0; i < 5; i++) {

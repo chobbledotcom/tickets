@@ -13,8 +13,8 @@ import {
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { getSetupCsrfToken } from "#test-utils/csrf.ts";
-import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import {
   assertSchemaEmpty,
   schemaMarkerKeys,

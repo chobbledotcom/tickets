@@ -375,7 +375,11 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       resetTestSession();
       await initDb({ allowMissingSettings: true });
 
-      await settings.setup.complete(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, "USD");
+      await settings.setup.complete(
+        TEST_ADMIN_USERNAME,
+        TEST_ADMIN_PASSWORD,
+        "USD",
+      );
       const listing = await createTestListing({
         maxAttendees: 25,
         name: "New Listing",
@@ -402,7 +406,11 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       // database as fully migrated rather than throwing MissingSettingsTable.
       await initDb();
 
-      await settings.setup.complete(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, "USD");
+      await settings.setup.complete(
+        TEST_ADMIN_USERNAME,
+        TEST_ADMIN_PASSWORD,
+        "USD",
+      );
       const listing = await createTestListing({ name: "Fresh Schema Listing" });
       expect(listing.name).toBe("Fresh Schema Listing");
     });
