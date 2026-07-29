@@ -114,10 +114,10 @@ const everythingCameBack = (observation: Observation): boolean =>
 const chargeIsStillRefunding = (charge: ChargeLeg): boolean =>
   charge.refunds.some((refund) => refund.status === "pending");
 
-/** Money on its way back somewhere in this reading. */
+/** Money on its way back somewhere in this reading. A reading with no charge
+ *  took nothing, so nothing can be coming back from it. */
 const aRefundIsStillGoing = (observation: Observation): boolean =>
-  observation.charges !== undefined &&
-  observation.charges.some(chargeIsStillRefunding);
+  observation.charges?.some(chargeIsStillRefunding) ?? false;
 
 export const PaymentResolutionSchema = v.variant("status", [
   answerFromReading(
