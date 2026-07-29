@@ -72,6 +72,11 @@ export const stillThere = <Found>(
 export interface TicketsWorld extends World {
   apiAnswer?: ApiAnswer;
   apiFirstDay?: string;
+  apiKeyAnswer?: { answered: number; said: string };
+  apiKeyPageAnswer?: number;
+  apiKeyShownOnce?: string;
+  apiKeys?: Map<string, string>;
+  apiKeyTakeBack?: string;
   apiListing?: string;
   apiRoomAnswer?: boolean;
   attendeeId?: number;
@@ -132,6 +137,8 @@ export interface TicketsWorld extends World {
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;
   signedInEditorName?: string;
+  sitePageTold?: string;
+  sitePageVisit?: { answered: number; said: string };
   stayListings?: Map<string, Listing>;
   stayStartsOn?: string;
   testBrowser?: TestBrowser;
