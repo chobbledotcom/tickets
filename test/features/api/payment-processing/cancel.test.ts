@@ -1,30 +1,25 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { getDb } from "#shared/db/client.ts";
-import type {
-  SessionMetadata,
-  ValidatedPaymentSession,
-} from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { singleItem } from "#test-utils/factories.ts";
 import { makeParent } from "#test-utils/parents.ts";
 
-/** A cancelled checkout carrying the given lines. The buyer never paid, so the
- *  session has no payment to point at. */
-const cancelledSession = (items: string): ValidatedPaymentSession => ({
-  amountTotal: 0,
-  id: "cs_cancelled",
-  metadata: webhookMeta({
-    email: "john@example.com",
-    items,
-    name: "John",
-  }) satisfies SessionMetadata,
-  // Nothing was paid, so there is no payment to point at.
-  paymentReference: "",
-  paymentStatus: "unpaid",
+/** The booking a cancelled checkout was carrying. The buyer never paid, so
+ *  nothing here points at money. */
+const cancelledBooking = (items: string): BookingIntent => ({
+  address: "",
+  date: null,
+  email: "john@example.com",
+  items: JSON.parse(items),
+  modifiers: [],
+  name: "John",
+  phone: "",
+  special_instructions: "",
 });
 
 /** One package line: a member bought as part of the bundle it hangs off. */
@@ -35,8 +30,10 @@ const packageLine = (listingId: number, groupId: number): string =>
  *  asked to be written to the log. */
 const renderCancelPage = async (items: string) => {
   const logged: string[] = [];
-  const response = await cancelPageResponse(cancelledSession(items), (detail) =>
-    logged.push(detail),
+  const response = await cancelPageResponse(
+    cancelledBooking(items),
+    "cs_cancelled",
+    (detail: string) => logged.push(detail),
   );
   return { html: await response.text(), logged, status: response.status };
 };
@@ -152,23 +149,18 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
     expect(html).not.toContain(`/ticket/${child.slug}`);
   });
 
-  // Without a listing there is no page to show and nothing to try again, so
-  // each of these ends the same way — and says so in the log, because a paid
-  // buyer landing here is something the owner needs to see.
-  for (const [name, items, listingId] of [
-    ["the listing has been deleted", singleItem(99999, 1, 0), 99999],
-    ["the order bought nothing", "[]", 0],
-    ["what was bought cannot be read", "not-json", 0],
-    ["a line names no listing", JSON.stringify([{ e: 0, p: 1, q: 1 }]), 0],
-  ] as const) {
-    test(`says the listing was not found when ${name}`, async () => {
-      const { html, logged, status } = await renderCancelPage(items);
+  // A booking always names at least one line — the schema will not build one
+  // that does not — so the only way to reach here is a line whose listing has
+  // since gone. The owner needs to see that, because the buyer cannot retry.
+  test("says the listing was not found when the listing has been deleted", async () => {
+    const { html, logged, status } = await renderCancelPage(
+      singleItem(99999, 1, 0),
+    );
 
-      expect(status).toBe(404);
-      expect(html).toContain("Listing not found");
-      expect(logged).toEqual([
-        `Listing not found (session=cs_cancelled, listingId=${listingId})`,
-      ]);
-    });
-  }
+    expect(status).toBe(404);
+    expect(html).toContain("Listing not found");
+    expect(logged).toEqual([
+      "Listing not found (payment=cs_cancelled, listingId=99999)",
+    ]);
+  });
 });
