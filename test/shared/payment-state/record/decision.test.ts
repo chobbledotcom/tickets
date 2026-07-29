@@ -37,32 +37,47 @@ describe("what a stored decision may be", () => {
     }
   });
 
-  for (const [name, decision] of [
+  // Each case names the one thing that is wrong, so a rule cannot quietly stop
+  // saying it — and a failure here points at the rule that broke.
+  for (const [name, decision, fault] of [
     [
       "waiting to try again with nothing booked",
       { ...waiting, nextRetryAt: null },
+      "A decision is booked to try again exactly when it is waiting to",
     ],
     [
       "waiting to try again having never tried",
       { ...waiting, attemptCount: 0, lastAttemptAt: null },
+      "A decision that is retrying or finished has been tried at least once",
     ],
     [
       "waiting to try again with no reason kept",
       { ...waiting, lastError: null },
+      "A decision keeps why it failed exactly when it is waiting to try again",
     ],
     [
       "finished having never tried",
       { ...done, attemptCount: 0, lastAttemptAt: null },
+      "A decision that is retrying or finished has been tried at least once",
     ],
-    ["finished with nothing to say it did", { ...done, decision: null }],
-    ["tried but with no time for the try", { ...accepted, attemptCount: 1 }],
+    [
+      "finished with nothing to say it did",
+      { ...done, decision: null },
+      "A decision says what was done exactly when it has finished",
+    ],
+    [
+      "tried but with no time for the try",
+      { ...accepted, attemptCount: 1 },
+      "A decision has a last try exactly when it has been tried",
+    ],
     [
       "still waiting to run that has already been tried",
       { ...accepted, attemptCount: 1, lastAttemptAt: 5 },
+      "A decision still waiting to run has not been tried",
     ],
   ] as const) {
     test(`refuses a decision ${name}`, () => {
-      expect(decisionStateAgreesWithItsTries(decision)).not.toBe(null);
+      expect(decisionStateAgreesWithItsTries(decision)).toBe(fault);
     });
   }
 });

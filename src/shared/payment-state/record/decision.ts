@@ -39,14 +39,15 @@ export const decisionStateAgreesWithItsTries = (
       (decision.attemptCount === 0) === absent(decision.lastAttemptAt),
       "A decision has a last try exactly when it has been tried",
     ],
+    // The rule above already ties the count and the time together, and an
+    // earlier fault is reported before these, so both only need the count.
     [
       !["retrying", "completed"].includes(decision.state) ||
-        (decision.attemptCount >= 1 && present(decision.lastAttemptAt)),
+        decision.attemptCount >= 1,
       "A decision that is retrying or finished has been tried at least once",
     ],
     [
-      decision.state !== "accepted" ||
-        (decision.attemptCount === 0 && absent(decision.lastAttemptAt)),
+      decision.state !== "accepted" || decision.attemptCount === 0,
       // The owner's choice can be a refund, which cannot be taken back. A
       // decision waiting to run must never be one that has already run.
       "A decision still waiting to run has not been tried",
