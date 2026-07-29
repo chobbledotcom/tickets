@@ -192,6 +192,18 @@ type CheckoutIntentBase = ContactInfo &
     dayCount?: number | undefined;
   };
 
+/**
+ * Answers are filed under the listing they belong to, written the way a
+ * listing id is written. A key in any other shape can never match a listing,
+ * so the answers under it would be dropped without a word after the buyer had
+ * paid. Whether the key names a listing that was actually booked is a question
+ * only the booking code can answer, and is noted in TODO.md.
+ */
+const ListingKeySchema = v.pipe(
+  v.string(),
+  v.regex(/^[1-9][0-9]*$/u, "A listing key must be a listing id"),
+);
+
 /** Canonical booking facts persisted for a payment and sent through metadata. */
 export const BookingIntentSchema = v.pipe(
   v.strictObject({
@@ -210,9 +222,11 @@ export const BookingIntentSchema = v.pipe(
     dayCount: v.optional(positiveInt),
     email: v.string(),
     items: BookingItemsSchema,
-    listingAnswerIds: v.optional(v.record(v.string(), v.array(positiveInt))),
+    listingAnswerIds: v.optional(
+      v.record(ListingKeySchema, v.array(positiveInt)),
+    ),
     listingTextAnswerIds: v.optional(
-      v.record(v.string(), v.array(TextAnswerRefSchema)),
+      v.record(ListingKeySchema, v.array(TextAnswerRefSchema)),
     ),
     modifiers: v.array(ModifierRefSchema),
     name: v.string(),

@@ -1,10 +1,13 @@
+import type { PaymentProviderType } from "#shared/types.ts";
+
 /**
  * The words a payment record is allowed to use.
  *
  * Both the tables and the checks the code runs are built from these, so the
  * database and the code can never disagree about what a payment may say. This
- * module deliberately imports nothing: the tables are read while a site is
- * migrating, and nothing else should be dragged along with them.
+ * module takes only a type, which costs nothing at run time: the tables are
+ * read while a site is migrating, and nothing else should be dragged along
+ * with them.
  */
 
 /** Where a payment has got to. */
@@ -63,23 +66,20 @@ export const RECORD_ORIGINS = ["current", "legacy"] as const;
 /** Whether a payment was real money or a test. */
 export const PAYMENT_MODES = ["test", "live"] as const;
 
-/** What each provider calls the money it took. */
-export const RESOURCE_KINDS = [
-  "stripe_payment_intent",
-  "square_payment",
-  "sumup_transaction",
-] as const;
+/** What each provider calls the money it took. Keyed by provider rather than
+ *  lined up beside it, so adding a provider without saying what it calls its
+ *  money is a compile error rather than a silently mismatched pair. */
+export const RESOURCE_KIND_BY_PROVIDER = {
+  square: "square_payment",
+  stripe: "stripe_payment_intent",
+  sumup: "sumup_transaction",
+} as const satisfies Record<PaymentProviderType, string>;
+
+export const RESOURCE_KINDS = Object.values(RESOURCE_KIND_BY_PROVIDER);
 
 /** Which old table a copied charge came from. */
 export const LEGACY_SOURCES = [
   "processed_payments",
   "attendees.pii_blob",
   "attendee_merge",
-] as const;
-
-/** The states a payment has finished in, however it got there. */
-export const SETTLED_STATES = [
-  "completed",
-  "failed",
-  "fully_refunded",
 ] as const;

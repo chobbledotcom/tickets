@@ -2,6 +2,7 @@
 import {
   RECORD_ORIGINS,
   REFUND_STATES,
+  RESOURCE_KIND_BY_PROVIDER,
   RESOURCE_KINDS,
 } from "#shared/payment-state/words.ts";
 import { PaymentProviderSchema } from "#shared/types.ts";
@@ -27,9 +28,9 @@ const PROVIDERS = PaymentProviderSchema.options;
 /** Each provider names its money its own way, so when a charge says both, the
  *  two have to agree. Which name goes with which provider does not change. */
 const providerMatchesKind = anyOf(
-  PaymentProviderSchema.options.map(
-    (provider, index) =>
-      `(provider = '${provider}' AND resource_kind = '${RESOURCE_KINDS[index]}')`,
+  Object.entries(RESOURCE_KIND_BY_PROVIDER).map(
+    ([provider, kind]) =>
+      `(provider = '${provider}' AND resource_kind = '${kind}')`,
   ),
 );
 

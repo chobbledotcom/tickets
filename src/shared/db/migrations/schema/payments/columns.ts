@@ -31,7 +31,11 @@ export const anyOf = (rules: string[]): string => `(${rules.join(" OR ")})`;
 type Floor = number | string;
 
 const realNumber = (name: string, floor: Floor): string =>
-  `typeof(${name}) = 'integer' AND ${name} >= ${floor}`;
+  // A floor naming another column has to be there before it can be compared
+  // with: SQLite passes a rule that compares against a missing value.
+  `typeof(${name}) = 'integer'${
+    typeof floor === "string" ? ` AND ${floor} IS NOT NULL` : ""
+  } AND ${name} >= ${floor}`;
 
 /** A whole number that is really a number and not below its floor. */
 export const wholeNumber = (
@@ -74,7 +78,10 @@ export const keyWords = (name: string): string =>
  * refused — as it would have to be, since nothing could read it back either.
  */
 const sealed = (name: string, prefix: string, parts: number): string =>
-  `${name} GLOB '${prefix}${":?*".repeat(parts)}'`;
+  // GLOB's ?* happily swallows more separators, so a value with an extra part
+  // would pass while nothing could read it back. The second half refuses one
+  // separator more than the envelope has.
+  `(${name} GLOB '${prefix}${":?*".repeat(parts)}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
 
 /** Hidden with this site's own key: a starting block, then the hidden text. */
 const ownSealed = (name: string): string => sealed(name, "enc:1", 2);

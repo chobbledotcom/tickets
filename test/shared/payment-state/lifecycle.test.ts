@@ -13,7 +13,11 @@ import {
   PaymentResolutionSchema,
   PaymentSessionStateSchema,
 } from "#shared/payment-state/lifecycle.ts";
-import { paymentObservation, sessionResource } from "./fixtures.ts";
+import {
+  noPaymentRequiredObservation,
+  paymentObservation,
+  sessionResource,
+} from "./fixtures.ts";
 
 describe("payment lifecycle", () => {
   test("validates every payment conflict", () => {
@@ -65,6 +69,32 @@ describe("payment lifecycle", () => {
       "conflict",
       "ignore",
     ]);
+  });
+
+  test("counts a checkout that needed no money as ready", () => {
+    const observation = noPaymentRequiredObservation();
+
+    expect(
+      v.parse(PaymentResolutionSchema, { observation, status: "ready" }).status,
+    ).toBe("ready");
+  });
+
+  for (const status of ["pending", "failed"] as const) {
+    test(`refuses a ready payment whose reading is ${status}`, () => {
+      const observation = paymentObservation({ status });
+
+      expect(() =>
+        v.parse(PaymentResolutionSchema, { observation, status: "ready" }),
+      ).toThrow();
+    });
+  }
+
+  test("refuses a ready payment that needed no money but took some", () => {
+    const observation = paymentObservation({ status: "no_payment_required" });
+
+    expect(() =>
+      v.parse(PaymentResolutionSchema, { observation, status: "ready" }),
+    ).toThrow();
   });
 
   test("defines every pending and ignore reason", () => {

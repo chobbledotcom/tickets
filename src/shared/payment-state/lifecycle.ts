@@ -69,11 +69,28 @@ export type PaymentIgnoreReason = v.InferOutput<
   typeof PaymentIgnoreReasonSchema
 >;
 
+/** Ready means the money question is settled: the buyer paid, or nothing was
+ *  owed and so nothing was taken. A reading still going, or one that failed,
+ *  would otherwise let an unpaid checkout be treated as ready to book. */
+const settledObservation = (
+  observation: v.InferOutput<typeof PaymentObservationSchema>,
+): boolean =>
+  observation.status === "paid" ||
+  (observation.status === "no_payment_required" &&
+    observation.expected.amount === 0 &&
+    observation.charges === undefined);
+
 export const PaymentResolutionSchema = v.variant("status", [
-  v.strictObject({
-    observation: PaymentObservationSchema,
-    status: v.literal("ready"),
-  }),
+  v.pipe(
+    v.strictObject({
+      observation: PaymentObservationSchema,
+      status: v.literal("ready"),
+    }),
+    v.check(
+      (resolution) => settledObservation(resolution.observation),
+      "A payment is only ready when it was paid, or nothing was owed",
+    ),
+  ),
   v.strictObject({
     observation: PaymentObservationSchema,
     reason: PaymentPendingReasonSchema,

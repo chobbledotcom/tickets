@@ -1944,7 +1944,7 @@ refusing it stops the upgrade, and dropping it loses when the money went back.
 
 ---
 
-## Three payment findings that need the code around them
+## Payment findings that need the code around them
 
 *Origin: Codex and CodeRabbit reviews on PR #1973, which landed the payment
 record's tables and words but nothing that reads or writes them.*
@@ -1986,6 +1986,30 @@ been sent yet — sending it is what the alert claim and its lease are for. The
 real invariant is that the alert catches up, which is about time passing and
 cannot be written as a rule on a single row. If the gap should be bounded, the
 alerting worker is what bounds it, so settle this with that worker in hand.
+
+**Answers may be filed under a listing that was never bought.**
+`BookingIntentSchema` (`src/shared/payments.ts`) now says an answer's key has
+to be written the way a listing id is written, so a key in any other shape can
+never silently drop the buyer's answers. What it does not say is that the
+listing was actually part of this order.
+
+Codex asked for the keys to be checked against the order's own lines. That
+rule as written would refuse a real group booking: the keys come from
+`questionListingMap`, which files a question under the listing it belongs to,
+so a group's answers are keyed by its member listings while `items` carries
+only the group. The check belongs where the created entries are known — where
+a group has already been opened up into the listings it holds — not on the
+intent alone.
+
+**A refund that failed may say everything came back.** Codex asked for a
+failed refund's returned total to stay below the money taken, since
+`resolveRefund` calls a fully returned charge completed before it looks at
+failed readings. It is not that simple: a charge whose confirmed refund
+already covers the capture *and* still has a refund going reads as an invalid
+amount, which is a failed refund with everything back. Refusing to store that
+would lose the record of a real provider problem rather than prevent one.
+Settle it when the code writing charge rows exists, and decide there whether
+such a reading is stored as failed or turned into a case for the owner.
 
 ---
 

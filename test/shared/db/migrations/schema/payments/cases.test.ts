@@ -70,6 +70,26 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
         'worker-1', 1)`);
   });
 
+  test("refuses clearing a problem's evidence before it is settled", async () => {
+    // Comparing against a settled time that is not there passes in SQLite, so
+    // the settled time has to be demanded outright.
+    await expectRefused(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, next_reconcile_at,
+       consecutive_count, evidence, revision, evidence_redacted_at)
+      VALUES ('cleared-early', 'enc:1:a:b', 'cleared-early-index',
+        'network_error', 'retrying', 1, 1, 1, 1, 'enc:1:a:b', 1, 100)`);
+  });
+
+  test("refuses a problem booked to be looked at before its newest reading", async () => {
+    await expectRefused(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, next_reconcile_at,
+       consecutive_count, evidence, revision)
+      VALUES ('look-too-soon', 'enc:1:a:b', 'look-soon-index',
+        'network_error', 'retrying', 1, 100, 1, 1, 'enc:1:a:b', 1)`);
+  });
+
   test("refuses a case whose lookup code is only spaces", async () => {
     await expectRefused(`INSERT INTO payment_cases
       (payment_id, resource, resource_index, reason, state,

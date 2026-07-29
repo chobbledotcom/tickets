@@ -55,6 +55,21 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
     });
   }
 
+  // GLOB's ?* swallows extra separators, so an envelope with one part too
+  // many looked hidden while nothing could ever read it back.
+  for (const [name, reference] of [
+    ["one part too many", "enc:1:iv:text:extra"],
+    ["an older envelope with one part too many", "hyb:1:key:iv:text:extra"],
+  ] as const) {
+    test(`refuses a charge whose money is named with ${name}`, async () => {
+      await expectRefused(`INSERT INTO payment_charges
+        (payment_id, origin, provider_reference, refund_state,
+         legacy_source, created_at, updated_at, observed_at)
+        VALUES ('too-many-parts', 'legacy', '${reference}', 'unknown',
+          'processed_payments', 1, 1, 1)`);
+    });
+  }
+
   test("refuses an old charge whose refund time is not a time", async () => {
     await expectRefused(`INSERT INTO payment_charges
       (payment_id, origin, provider_reference, refund_state,

@@ -31,7 +31,10 @@ export const paymentCaseTable = paymentRecord("payment_cases", {
     ["state", oneOf("state", CASE_STATES)],
     ["first_observed_at", wholeNumber("first_observed_at")],
     ["last_observed_at", wholeNumber("last_observed_at", "first_observed_at")],
-    ["next_reconcile_at", wholeNumberOrNull("next_reconcile_at")],
+    [
+      "next_reconcile_at",
+      wholeNumberOrNull("next_reconcile_at", "last_observed_at"),
+    ],
     ["consecutive_count", wholeNumber("consecutive_count", 1)],
     ["alerted_at", wholeNumberOrNull("alerted_at")],
     ["alerted_revision", wholeNumberOrNull("alerted_revision", 1)],
