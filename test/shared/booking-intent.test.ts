@@ -136,6 +136,12 @@ describe("what a booking a payment carries may be", () => {
     acceptsIntent({ balanceAttendeeId: 1 });
   });
 
+  test("refuses paying off a balance with something added on top", () => {
+    // Settling clears the line's own amount, so an add-on would be charged for
+    // and then left out of the money record entirely.
+    rejectsIntent({ balanceAttendeeId: 1, modifiers: [{ i: 3, q: 1 }] });
+  });
+
   test("refuses paying off a balance that carries a second line", () => {
     // Only the balance line is settled, so a second line would be charged for
     // and then neither booked nor given back.

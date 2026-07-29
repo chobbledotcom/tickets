@@ -14,13 +14,11 @@ import {
   orderLineTotal,
   paidByItem,
 } from "#routes/api/payment-processing/pricing.ts";
-import type {
-  BookingIntent,
-  PaymentResult,
-} from "#routes/api/webhook-types.ts";
+import type { PaymentResult } from "#routes/api/webhook-types.ts";
 /* jscpd:ignore-start */
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
 import type {
+  BookingIntent,
   BookingItem,
   StoredTextAnswerRef,
   TextAnswerRef,

@@ -56,11 +56,26 @@ const attachedReadSchema = withRefundRule(
 
 export const LegacyProviderAssignmentReadSchema = v.variant("status", [
   attachedReadSchema,
-  v.strictObject({
-    captured: v.optional(MoneySchema),
-    refunded: v.optional(MoneySchema),
-    status: v.literal("ambiguous"),
-  }),
+  v.pipe(
+    v.strictObject({
+      captured: v.optional(MoneySchema),
+      refunded: v.optional(MoneySchema),
+      status: v.literal("ambiguous"),
+    }),
+    // An unclear reading may know neither figure, but when it knows both they
+    // still have to add up: this is written into the owner's choice to give an
+    // old payment a provider, and that choice moves real money.
+    v.check(
+      (read) =>
+        read.captured === undefined ||
+        read.refunded === undefined ||
+        refundFitsInsideCapture({
+          captured: read.captured,
+          refunded: read.refunded,
+        }),
+      "Money returned must fit inside the money taken, in the same currency",
+    ),
+  ),
   v.strictObject({ status: v.literal("missing") }),
   withRefundRule(
     v.strictObject({

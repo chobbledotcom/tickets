@@ -135,7 +135,7 @@ export const madeAndTouched: [string, string][] = [
  * record may never be, rather than being scattered over the columns.
  */
 export const alsoAbout =
-  (theRow: string[]) =>
+  (theRow: string[]): ((base: string) => string) =>
   (base: string): string =>
     [base, ...theRow.map((rule) => `CHECK (${rule})`)].join("\n          ");
 

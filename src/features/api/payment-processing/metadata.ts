@@ -9,7 +9,7 @@
  */
 
 import * as v from "valibot";
-import type { BookingIntent } from "#routes/api/webhook-types.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import {
   type BookingItem,
   BookingItemsSchema,

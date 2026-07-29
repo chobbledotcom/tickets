@@ -6,8 +6,6 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 
-export type { BookingIntent };
-
 /**
  * A paid session that carries a cryptographically valid price proof, so it is
  * provably ours. The two outcomes a valid proof can have:

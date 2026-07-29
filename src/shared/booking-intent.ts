@@ -161,6 +161,15 @@ export const BookingIntentSchema = v.pipe(
       intent.balanceAttendeeId === undefined || intent.items.length === 1,
     "Paying off a balance must be for one line only",
   ),
+  // Same reason, for anything added on top: settling a balance clears the
+  // line's own amount, so an add-on would be charged for and then left out of
+  // the money record entirely. The page that starts a balance payment adds
+  // none, and this keeps it that way.
+  v.check(
+    (intent) =>
+      intent.balanceAttendeeId === undefined || intent.modifiers.length === 0,
+    "Paying off a balance cannot carry anything added on top",
+  ),
 );
 
 /** Processed booking intent extracted from payment session metadata. */

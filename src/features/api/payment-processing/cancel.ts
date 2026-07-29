@@ -7,7 +7,6 @@
  */
 
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
-import type { BookingIntent } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import {
   getVisibleGroupMembers,
@@ -16,6 +15,7 @@ import {
 import { lacksStandalonePublicPage } from "#routes/public/ticket-payment.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { lineGroupIds } from "#shared/booking/signed-metadata.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import { groups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";

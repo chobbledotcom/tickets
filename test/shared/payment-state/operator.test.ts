@@ -75,4 +75,49 @@ describe("payment operator readings", () => {
       ).toBe(false);
     });
   }
+
+  // An unclear reading is allowed to know neither figure, one of them, or
+  // both — but when it knows both they still have to add up, because this is
+  // what the owner's provider choice gets written down from.
+  for (const [name, read, allowed] of [
+    ["knows neither figure", {}, true],
+    [
+      "knows only what was taken",
+      { captured: { amount: 100, currency: "GBP" } },
+      true,
+    ],
+    [
+      "knows both, and they add up",
+      {
+        captured: { amount: 100, currency: "GBP" },
+        refunded: { amount: 40, currency: "GBP" },
+      },
+      true,
+    ],
+    [
+      "gave back more than it took",
+      {
+        captured: { amount: 100, currency: "GBP" },
+        refunded: { amount: 200, currency: "GBP" },
+      },
+      false,
+    ],
+    [
+      "gave back another kind of money",
+      {
+        captured: { amount: 100, currency: "GBP" },
+        refunded: { amount: 40, currency: "USD" },
+      },
+      false,
+    ],
+  ] as const) {
+    test(`${allowed ? "accepts" : "refuses"} an unclear reading that ${name}`, () => {
+      expect(
+        v.safeParse(LegacyProviderAssignmentReadSchema, {
+          ...read,
+          status: "ambiguous",
+        }).success,
+      ).toBe(allowed);
+    });
+  }
 });

@@ -24,12 +24,11 @@ import {
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import type {
-  BookingIntent,
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
-import type { BookingItem } from "#shared/booking-intent.ts";
+import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";

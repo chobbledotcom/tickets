@@ -2,11 +2,10 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type {
-  BookingIntent,
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import type { BookingItem } from "#shared/booking-intent.ts";
+import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { execute } from "#shared/db/client.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
