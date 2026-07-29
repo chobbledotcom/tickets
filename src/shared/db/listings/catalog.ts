@@ -1,7 +1,8 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { settings } from "#shared/db/settings.ts";
-import { defineTableProjection } from "#shared/db/table.ts";
+import { equals } from "#shared/db/where-clauses.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#shared/types.ts";
 import { rawListingsTable } from "./table.ts";
@@ -13,20 +14,20 @@ export type ListingOfferFlags = Pick<
 
 type ListingPickerRow = ListingOfferFlags & { name: string };
 
-const listingOfferFlagsProjection = defineTableProjection(rawListingsTable, [
+const listingOfferFlagsColumns = chooseColumns(rawListingsTable, [
   "active",
   "hidden",
   "months_per_unit",
   "purchase_only",
 ]);
 
-const listingPickerProjection = defineTableProjection(rawListingsTable, [
+const listingPickerColumns = chooseColumns(rawListingsTable, [
   "id",
   "name",
-  ...listingOfferFlagsProjection.columns,
+  ...listingOfferFlagsColumns.columns,
 ]);
 
-const catalogListingProjection = defineTableProjection(rawListingsTable, [
+const catalogListingColumns = chooseColumns(rawListingsTable, [
   "id",
   "slug",
   "name",
@@ -40,10 +41,10 @@ const catalogListingProjection = defineTableProjection(rawListingsTable, [
 export const getListingOfferFlags = async (
   id: number,
 ): Promise<ListingOfferFlags | undefined> => {
-  const row = await listingOfferFlagsProjection.queryOne(
-    `SELECT ${listingOfferFlagsProjection.columnsSql("listing")} FROM listings AS listing WHERE listing.id = ? LIMIT 1`,
-    [id],
-  );
+  const row = await listingOfferFlagsColumns.selectOne({
+    alias: "listing",
+    where: equals("listing.id", id),
+  });
   return row ?? undefined;
 };
 
@@ -51,9 +52,10 @@ export const getListingOfferFlags = async (
 export const getListingPickerNames = async (): Promise<
   Map<number, ListingPickerRow>
 > => {
-  const rows = await listingPickerProjection.queryAll(
-    `SELECT ${listingPickerProjection.columnsSql("listing")} FROM listings AS listing ORDER BY listing.id ASC`,
-  );
+  const rows = await listingPickerColumns.select({
+    alias: "listing",
+    order: "listing.id ASC",
+  });
   return new Map(rows.map(({ id, ...listing }) => [id, listing] as const));
 };
 
@@ -68,8 +70,8 @@ const catalogVisibleSql = (hiddenDefault: boolean | undefined): string => {
 
 /** Read only active, effectively visible listings for the public catalog. */
 export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
-  const rows = await catalogListingProjection.queryAll(
-    `SELECT ${catalogListingProjection.columnsSql("listing")}
+  const rows = await catalogListingColumns.queryAll(
+    `SELECT ${catalogListingColumns.columnsSql("listing")}
      FROM listings AS listing
      WHERE listing.active = 1
        AND ${catalogVisibleSql(settings.listingDefaults.hidden)}

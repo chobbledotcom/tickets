@@ -19,27 +19,27 @@ import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type {
   DayPrices,
-  ItemImageProjection,
+  ItemImageColumns,
   Listing,
   ListingWithCount,
 } from "#shared/types.ts";
 import {
   getListingRows,
-  type ListingProjectionRow,
+  type ListingRecordRow,
   type ListingWhere,
   listingStatement,
 } from "./select.ts";
 import {
   computeSlugIndex,
   type ListingOption,
-  listingOptionProjection,
+  listingOptionColumns,
   rawListingsTable,
 } from "./table.ts";
 
 /* jscpd:ignore-end */
 
 const decryptStoredListingWithCount = async (
-  row: ListingProjectionRow,
+  row: ListingRecordRow,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
   const income = Number(row.income);
@@ -56,7 +56,7 @@ const decryptStoredListingWithCount = async (
 
 /** Convert a projected DB row and overlay the effective listing defaults. */
 export const decryptListingWithCount = async (
-  row: ListingProjectionRow,
+  row: ListingRecordRow,
 ): Promise<ListingWithCount> =>
   resolveListingDefaults(
     await decryptStoredListingWithCount(row),
@@ -117,7 +117,7 @@ const listingsEntity = cachedEntityTable<
 );
 const listingsCache = listingsEntity.cache;
 const rawTable = listingsEntity.table;
-const EMPTY_LISTING_IMAGE: ItemImageProjection = {
+const EMPTY_LISTING_IMAGE: ItemImageColumns = {
   image_alt_text: "",
   image_thumb_url: "",
   image_url: "",
@@ -126,7 +126,7 @@ const EMPTY_LISTING_IMAGE: ItemImageProjection = {
 const withDayPrices = async (
   row: Listing,
   provided: DayPrices | undefined,
-  projectedImage?: ItemImageProjection,
+  projectedImage?: ItemImageColumns,
 ): Promise<Listing> => {
   const [day_prices, imageFilenames] = await Promise.all([
     provided ?? getListingDayPrices(row.id),
@@ -179,9 +179,7 @@ export const getListingsById = async (): Promise<
 
 /** Read the narrow listing option projection used by item pickers. */
 export const getAllListingOptions = (): Promise<ListingOption[]> =>
-  listingOptionProjection.queryAll(
-    `SELECT ${listingOptionProjection.columnsSql("listing")} FROM listings AS listing ORDER BY listing.id ASC`,
-  );
+  listingOptionColumns.select({ alias: "listing", order: "listing.id ASC" });
 
 /** Read and decrypt listing names without loading full records. */
 export const listingNames = envNameSource("listings", "listing");
@@ -215,7 +213,7 @@ export const getListingWithCountPrimary = async (
   id: number,
 ): Promise<ListingWithCount | null> => {
   const { sql, args } = listingStatement({ where: { ids: [id] } });
-  const row = await queryOnePrimary<ListingProjectionRow>(sql, args);
+  const row = await queryOnePrimary<ListingRecordRow>(sql, args);
   return row === null ? null : decryptListingWithCount(row);
 };
 

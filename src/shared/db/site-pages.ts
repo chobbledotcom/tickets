@@ -2,7 +2,7 @@
  * `site_pages` table operations — user-created content pages.
  *
  * Cold-start efficiency is deliberate here: the public nav only needs a **narrow
- * projection** (id, slug, name, sort_order) and must not decrypt the large
+ * columns** (id, slug, name, sort_order) and must not decrypt the large
  * `content` / `meta_*` blobs on every request. So the cached read
  * ({@link sitePages}.getAll) selects and decrypts only those four columns; the
  * full row (with content/meta) is loaded one at a time, only for a single
@@ -13,6 +13,7 @@
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { queryOne, type TxScope, useTransaction } from "#shared/db/client.ts";
 import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
@@ -23,12 +24,13 @@ import {
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
+import { cachedTable, col, writeTableRow } from "#shared/db/table.ts";
 import {
-  cachedTable,
-  col,
-  defineTableProjection,
-  writeTableRow,
-} from "#shared/db/table.ts";
+  clauseArgs,
+  equals,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -49,22 +51,20 @@ const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
   sort_order: col.simple<number>(),
 });
 
-const sitePageNavProjection = defineTableProjection(rawSitePagesTable, [
+const sitePageNavColumns = chooseColumns(rawSitePagesTable, [
   "id",
   "slug",
   "name",
   "sort_order",
 ]);
 
-/** Load the nav projection: only id/slug/name/sort_order, decrypting just slug
+/** Load the nav columns: only id/slug/name/sort_order, decrypting just slug
  * and name (never content/meta). Ordered by (sort_order, id). The raw row
  * carries name and slug still sealed; the map below opens them. */
 const fetchNavRows = (): Promise<SitePageNavRow[]> =>
-  sitePageNavProjection.queryAll(
-    `SELECT ${sitePageNavProjection.columnsSql()} FROM site_pages ORDER BY sort_order ASC, id ASC`,
-  );
+  sitePageNavColumns.select({ order: "sort_order ASC, id ASC" });
 
-// Request-scoped cache over the projection: computed once per request, fresh on
+// Request-scoped cache over those columns: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write
 // to site_pages (cachedTable registers the dependency on the table name).
 export const sitePages = cachedTable({
@@ -86,12 +86,11 @@ const SITE_PAGE_COLUMNS =
 /** Load one full page (fully decrypted) — for the public/admin single-page
  * views. Null when absent. */
 const querySitePage = async (
-  where: string,
-  arg: number | string,
+  where: WhereClause[],
 ): Promise<SitePage | null> => {
   const row = await queryOne<SitePage>(
-    `SELECT ${SITE_PAGE_COLUMNS} FROM site_pages WHERE ${where} LIMIT 1`,
-    [arg],
+    `SELECT ${SITE_PAGE_COLUMNS} FROM site_pages${whereSql(where)} LIMIT 1`,
+    clauseArgs(where),
   );
   return row ? rawSitePagesTable.fromDb(row) : null;
 };
@@ -99,11 +98,11 @@ const querySitePage = async (
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
 export const getSitePageBySlugIndex = (
   slugIndex: string,
-): Promise<SitePage | null> => querySitePage("slug_index = ?", slugIndex);
+): Promise<SitePage | null> => querySitePage(equals("slug_index", slugIndex));
 
 /** One full page by id (the admin edit read). */
 export const getSitePageById = (id: number): Promise<SitePage | null> =>
-  querySitePage("id = ?", id);
+  querySitePage(equals("id", id));
 
 /** A create/update provides every editable column; the blind index is computed
  * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move

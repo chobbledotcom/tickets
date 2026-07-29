@@ -423,7 +423,7 @@ export const sharedGroupCapacity = (
   };
 };
 
-export type ItemImageProjection = {
+export type ItemImageColumns = {
   /** Projected from the first `image_uses` row for this item. Storage ownership
    * lives in the first-class images tables. */
   image_url: string;
@@ -433,7 +433,7 @@ export type ItemImageProjection = {
   image_alt_text: string;
 };
 
-export interface Listing extends ItemImageProjection {
+export interface Listing extends ItemImageColumns {
   active: boolean;
   assign_built_site: boolean;
   attachment_name: string;
@@ -815,8 +815,8 @@ export type NewsPostSummary = Pick<
 >;
 
 /** The public /news list projection: a summary plus the post's first image
- * (the shared {@link ItemImageProjection} columns). */
-export type NewsPostCard = NewsPostSummary & ItemImageProjection;
+ * (the shared {@link ItemImageColumns} columns). */
+export type NewsPostCard = NewsPostSummary & ItemImageColumns;
 
 /** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
  * is the positive magnitude the owner entered (a fixed amount in major currency

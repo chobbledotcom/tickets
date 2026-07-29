@@ -2,7 +2,7 @@
 
 /* jscpd:ignore-start */
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
-import type { ItemImageProjection } from "#shared/types.ts";
+import type { ItemImageColumns } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
@@ -51,7 +51,7 @@ export const buildOgTags = (
 /** Build the OG head extra for the ticket page from its header bits, or
  * `undefined` when there is no header image / name / base url to tag from. */
 export const ticketPageHeadExtra = (
-  headerImage: ItemImageProjection | null,
+  headerImage: ItemImageColumns | null,
   headerName: string | undefined,
   headerDescription: string | null | undefined,
   slugs: string[],

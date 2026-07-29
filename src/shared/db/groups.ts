@@ -22,6 +22,7 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import {
   execute,
   executeBatch,
@@ -49,15 +50,12 @@ import {
 } from "#shared/db/listing-prices.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import {
-  type ListingProjectionRow,
+  type ListingRecordRow,
   listingStatement,
 } from "#shared/db/listings/select.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
-import {
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
   type PackageChildEdgeBlock,
   type PackageMemberBlock,
@@ -93,15 +91,11 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...projectCatalogFields(groupCatalogFields, "columns", {}),
 });
 
-const packageDisplayProjection = defineTableProjection(rawGroupsTable, [
+const packageDisplayColumns = chooseColumns(rawGroupsTable, [
   "id",
   "hide_package_listings",
   "name",
 ]);
-type StoredPackageDisplay = StoredTableProjectionRow<
-  Group,
-  typeof packageDisplayProjection.columns
->;
 
 /** Execute a query and decrypt the resulting group rows */
 const queryGroups = queryAndMap<Group, Group>((row) =>
@@ -195,7 +189,7 @@ export const getListingsByGroupIds = async (
   activeOnly = false,
 ): Promise<Map<number, ListingWithCount[]>> => {
   if (groupIds.length === 0) return new Map();
-  type GroupListingRow = ListingProjectionRow & { group_ids: string };
+  type GroupListingRow = ListingRecordRow & { group_ids: string };
   type ListingGroups = { groupIds: number[]; member: ListingWithCount };
   const { sql, args } = listingStatement({
     order: "created_desc",
@@ -459,15 +453,16 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
-  const packageGroups = await packageDisplayProjection.readAll(
-    await rowsByIds<StoredPackageDisplay>(
-      [...new Set(groupIds)].filter((groupId) => groupId > 0),
-      (placeholders) =>
-        `SELECT ${packageDisplayProjection.columnsSql("groupRecord")}
-          FROM groups AS groupRecord
-        WHERE groupRecord.id IN (${placeholders}) AND groupRecord.is_package = 1`,
-    ),
-  );
+  const packageGroups = await packageDisplayColumns.select({
+    alias: "groupRecord",
+    where: [
+      ...inList(
+        "groupRecord.id",
+        [...new Set(groupIds)].filter((groupId) => groupId > 0),
+      ),
+      ...equals("groupRecord.is_package", 1),
+    ],
+  });
   return new Map(
     packageGroups.map((group) => [
       group.id,

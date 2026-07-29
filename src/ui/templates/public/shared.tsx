@@ -7,7 +7,7 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { NavModel } from "#shared/site-pages/types.ts";
-import type { Group, Image, ItemImageProjection } from "#shared/types.ts";
+import type { Group, Image, ItemImageColumns } from "#shared/types.ts";
 import {
   LabelledAmount,
   type LabelledAmountProps,
@@ -353,7 +353,7 @@ export const publicPage =
  * when one is stored, falling back to the full image for records without a
  * thumbnail filename. */
 export const renderListingImage = (
-  listing: Pick<ItemImageProjection, "image_url" | "image_thumb_url"> & {
+  listing: Pick<ItemImageColumns, "image_url" | "image_thumb_url"> & {
     image_alt_text?: string | undefined;
   },
   className = "listing-image",
