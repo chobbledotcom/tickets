@@ -13,7 +13,10 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+import {
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
+} from "#test-utils/internal.ts";
 import { mockAdminLoginRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -126,7 +129,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const newLoginResponse = await handleRequest(
         await mockAdminLoginRequest({
           password: "newpassword123",
-          username: "testadmin",
+          username: TEST_ADMIN_USERNAME,
         }),
       );
       expectRedirectWithFlash("/admin", "Logged in")(newLoginResponse);

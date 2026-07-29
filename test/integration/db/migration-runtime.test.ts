@@ -32,7 +32,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { tempDir } from "#test-utils/files.ts";
-import { resetTestSession, TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+import {
+  resetTestSession,
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
+} from "#test-utils/internal.ts";
 import { expectNtfyNotification, stubNtfyFetch } from "#test-utils/mocks.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
@@ -371,7 +375,11 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       resetTestSession();
       await initDb({ allowMissingSettings: true });
 
-      await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
+      await settings.setup.complete(
+        TEST_ADMIN_USERNAME,
+        TEST_ADMIN_PASSWORD,
+        "USD",
+      );
       const listing = await createTestListing({
         maxAttendees: 25,
         name: "New Listing",
@@ -398,7 +406,11 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       // database as fully migrated rather than throwing MissingSettingsTable.
       await initDb();
 
-      await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
+      await settings.setup.complete(
+        TEST_ADMIN_USERNAME,
+        TEST_ADMIN_PASSWORD,
+        "USD",
+      );
       const listing = await createTestListing({ name: "Fresh Schema Listing" });
       expect(listing.name).toBe("Fresh Schema Listing");
     });
