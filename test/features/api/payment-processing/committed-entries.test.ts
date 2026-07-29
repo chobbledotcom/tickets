@@ -22,6 +22,15 @@ const intent = (): BookingIntent => ({
   special_instructions: "Ring the bell",
 });
 
+/** The one checked line for a listing a test just made. The listing is always
+ *  there; saying so here means a missing one fails at the fixture rather than
+ *  somewhere inside the code under test. */
+const checkedLine = async (listingId: number): Promise<ValidatedItem[]> => {
+  const listing = await getListingWithCount(listingId);
+  if (listing === null) throw new Error(`Listing ${listingId} was not created`);
+  return [{ listing }] as ValidatedItem[];
+};
+
 /** The checkout the money was taken through. Only the payment it was taken
  *  under is read here, but it is built whole so nothing is pretended. */
 const session = (): ValidatedPaymentSession => ({
@@ -50,14 +59,12 @@ describeWithEnv(
         "booked@example.com",
         2,
       );
-      const loaded = await getListingWithCount(listing.id);
-
       const entries = await committedEntries(
         attendee.id,
         "tok_committed",
         session(),
         intent(),
-        [{ listing: loaded }] as ValidatedItem[],
+        await checkedLine(listing.id),
       );
 
       expect(entries).toHaveLength(1);
@@ -84,14 +91,12 @@ describeWithEnv(
         "Row Name",
         "row@example.com",
       );
-      const loaded = await getListingWithCount(listing.id);
-
       const entries = await committedEntries(
         attendee.id,
         "tok_contact",
         session(),
         intent(),
-        [{ listing: loaded }] as ValidatedItem[],
+        await checkedLine(listing.id),
       );
 
       expect(entries[0]?.attendee).toMatchObject({
@@ -115,14 +120,12 @@ describeWithEnv(
         "Paid Buyer",
         "paid@example.com",
       );
-      const loaded = await getListingWithCount(listing.id);
-
       const entries = await committedEntries(
         attendee.id,
         "tok_payment",
         session(),
         intent(),
-        [{ listing: loaded }] as ValidatedItem[],
+        await checkedLine(listing.id),
       );
 
       expect(entries[0]?.attendee.payment_id).toBe("pi_committed");
@@ -134,12 +137,14 @@ describeWithEnv(
         name: "Absent Listing",
         unitPrice: 1000,
       });
-      const loaded = await getListingWithCount(listing.id);
-
       expect(
-        await committedEntries(999999, "tok_none", session(), intent(), [
-          { listing: loaded },
-        ] as ValidatedItem[]),
+        await committedEntries(
+          999999,
+          "tok_none",
+          session(),
+          intent(),
+          await checkedLine(listing.id),
+        ),
       ).toEqual([]);
     });
   },

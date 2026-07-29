@@ -1974,7 +1974,7 @@ rules about *when* something happens in TypeScript. Settle it in the slice that
 lands the reconcile runtime.
 
 **Booking dates are kept as any text.** `BookingIntentSchema`
-(`src/shared/payments.ts`) says a booking's date is a string, so `2026-02-30`
+(`src/shared/booking-intent.ts`) says a booking's date is a string, so `2026-02-30`
 or `banana` is stored and sent through payment metadata. The date is later
 handed to the booking range code, where an impossible day is either quietly
 moved to another one or throws — after the buyer has paid.
@@ -2010,7 +2010,7 @@ cannot be written as a rule on a single row. If the gap should be bounded, the
 alerting worker is what bounds it, so settle this with that worker in hand.
 
 **Answers may be filed under a listing that was never bought.**
-`BookingIntentSchema` (`src/shared/payments.ts`) now says an answer's key has
+`BookingIntentSchema` (`src/shared/booking-intent.ts`) now says an answer's key has
 to be written the way a listing id is written, so a key in any other shape can
 never silently drop the buyer's answers. What it does not say is that the
 listing was actually part of this order.

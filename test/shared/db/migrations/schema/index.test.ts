@@ -36,10 +36,11 @@ describe("db > migrations > schema assembly", () => {
     // The bookkeeping table is the app's own record of what it has run, so a
     // site's schema is compared without it.
     expect(SCHEMA_TABLE_NAMES).toContain(SCHEMA_MIGRATIONS_TABLE);
-    expect(APP_SCHEMA.map(([name]) => name)).not.toContain(
-      SCHEMA_MIGRATIONS_TABLE,
+    // Compared whole rather than by name and count, so a table swapped for
+    // another, or listed twice, cannot slip through.
+    expect(APP_SCHEMA).toEqual(
+      SCHEMA.filter(([name]) => name !== SCHEMA_MIGRATIONS_TABLE),
     );
-    expect(APP_SCHEMA).toHaveLength(SCHEMA.length - 1);
   });
 
   test("stamps the schema with the hash a site is checked against", () => {

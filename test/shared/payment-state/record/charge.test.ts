@@ -225,7 +225,7 @@ describe("refund handles a charge may hold", () => {
         pendingRefundIdempotencyKey: "enc:1:a:b",
         refundState: "failed",
       }),
-    ).not.toBe(null);
+    ).toBe("A refund that failed cannot still name a refund in progress");
   });
 
   test("accepts a failed refund that holds no refund in progress", () => {

@@ -35,6 +35,7 @@ const bookedLine = async (
     `${listing.slug}@example.com`,
   );
   const loaded = await getListingWithCount(listing.id);
+  if (loaded === null) throw new Error(`Listing ${listing.id} was not created`);
   return {
     attendeeId: attendee.id,
     entry: { attendee, listing: loaded } as CreatedEntry,
