@@ -8,16 +8,10 @@ import { defineEvidenceCapture } from "#scripts/specs/evidence/capture-flow.ts";
 import type { EvidenceCaptureDeclaration } from "#scripts/specs/evidence/schema.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { validFeature } from "#test/scripts/specs/profile-fixture.ts";
-import { compileEvidenceFeature } from "./evidence-fixture.ts";
-
-const declaration = {
-  caseId: "payment.place-available",
-  element: "#payment-result",
-  id: "payment-result",
-  path: "/admin/payments/{paymentId}",
-  presentation: "canonical",
-  profiles: ["mobile"],
-} as const satisfies EvidenceCaptureDeclaration;
+import {
+  compileEvidenceFeature,
+  PAYMENT_RESULT_CAPTURE as declaration,
+} from "./evidence-fixture.ts";
 
 interface CaptureCalls {
   attachments: Array<{
