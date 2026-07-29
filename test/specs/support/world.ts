@@ -129,6 +129,7 @@ export interface TicketsWorld extends World {
   firstStatus?: number;
   groupSlug?: string;
   holdListingId?: number;
+  latecomerBrowser?: TestBrowser;
   lengthChangeMessage?: string;
   listingId?: number;
   listingIds: Map<string, number>;
@@ -153,6 +154,7 @@ export interface TicketsWorld extends World {
   secondStatus?: number;
   servicingEventId?: number;
   sessionId?: string;
+  setUpTold?: string;
   sharedDayLimit?: number;
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;

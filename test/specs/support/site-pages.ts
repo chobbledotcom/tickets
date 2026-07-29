@@ -7,8 +7,8 @@
 import { t } from "#i18n";
 import { sitePages } from "#shared/db/site-pages.ts";
 import {
+  newcomerReading,
   openAdminPage,
-  openAsNewcomer,
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
@@ -61,18 +61,12 @@ export const ownerWritesPage = async (
   return browser.pageText;
 };
 
-/** What a visitor reading an address is shown, and whether it answered at all.
- * Opened by somebody who was never signed in, because that is who these pages
- * are for. */
-export const visitorReading = async (
+/** What a visitor reading one of the site's own pages is shown. Opened by
+ * somebody who was never signed in, because that is who these pages are for. */
+export const visitorReading = (
   address: string,
-): Promise<{ answered: number; said: string }> => {
-  const browser = await openAsNewcomer("/");
-  const answered = await browser.statusOf(`/page/${address}`);
-  if (answered !== 200) return { answered, said: "" };
-  await browser.visit(`/page/${address}`);
-  return { answered, said: browser.pageText };
-};
+): Promise<{ answered: number; said: string }> =>
+  newcomerReading(`/page/${address}`);
 
 /** The page the site has under this name, or a loud failure when it has none —
  * a story that carried on would move the wrong page, or none. */
