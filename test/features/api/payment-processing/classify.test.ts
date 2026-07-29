@@ -15,6 +15,18 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
+/** Makes the provider answer with this checkout — or with nothing, for a
+ *  checkout it has never heard of — for as long as the test runs. */
+const providerAnswers = async (
+  answer: ValidatedPaymentSession | null,
+): Promise<Disposable> => {
+  const { stub } = await import("@std/testing/mock");
+  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
+  return stub(stripePaymentProvider, "retrieveSession", () =>
+    Promise.resolve(answer),
+  );
+};
+
 /** A paid checkout for one ticket at the given price, with a price proof made
  *  with this site's own key unless the caller replaces it. */
 const paidSession = (
@@ -145,13 +157,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
   test("refuses a checkout the provider has never heard of", async () => {
     await setupStripe();
-    const { stub } = await import("@std/testing/mock");
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
-      Promise.resolve(null),
-    );
+    using _provider = await providerAnswers(null);
 
     const result = await validatePaidSession("cs_missing");
 
@@ -165,22 +171,16 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
   // error telling them to contact support.
   test("shows the cancelled page when the checkout failed", async () => {
     await setupStripe();
-    const { stub } = await import("@std/testing/mock");
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
-      Promise.resolve({
-        amountTotal: 0,
-        id: "cs_failed",
-        metadata: webhookMeta({
-          items: singleItem(99999, 1, 0),
-          name: "Declined",
-        }),
-        paymentReference: "",
-        paymentStatus: "failed" as const,
+    using _provider = await providerAnswers({
+      amountTotal: 0,
+      id: "cs_failed",
+      metadata: webhookMeta({
+        items: singleItem(99999, 1, 0),
+        name: "Declined",
       }),
-    );
+      paymentReference: "",
+      paymentStatus: "failed" as const,
+    });
 
     const result = await validatePaidSession("cs_failed");
 
@@ -192,19 +192,13 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
   test("refuses a checkout the provider does not call paid", async () => {
     await setupStripe();
-    const { stub } = await import("@std/testing/mock");
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
-      Promise.resolve({
-        amountTotal: 500,
-        id: "cs_unpaid",
-        metadata: webhookMeta({ name: "Still Going" }),
-        paymentReference: "",
-        paymentStatus: "unpaid" as const,
-      }),
-    );
+    using _provider = await providerAnswers({
+      amountTotal: 500,
+      id: "cs_unpaid",
+      metadata: webhookMeta({ name: "Still Going" }),
+      paymentReference: "",
+      paymentStatus: "unpaid" as const,
+    });
 
     const result = await validatePaidSession("cs_unpaid");
 
@@ -217,13 +211,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
   test("refuses a paid checkout we cannot show is ours", async () => {
     await setupStripe();
-    const { stub } = await import("@std/testing/mock");
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
-      Promise.resolve(paidSession({ price_proof: "" })),
-    );
+    using _provider = await providerAnswers(paidSession({ price_proof: "" }));
 
     const result = await validatePaidSession("cs_foreign");
 
@@ -236,13 +224,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
   test("passes on the checkout, its verdict, and its booking", async () => {
     await setupStripe();
-    const { stub } = await import("@std/testing/mock");
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    using _retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
-      Promise.resolve(paidSession()),
-    );
+    using _provider = await providerAnswers(paidSession());
 
     const result = await validatePaidSession("cs_classify");
 

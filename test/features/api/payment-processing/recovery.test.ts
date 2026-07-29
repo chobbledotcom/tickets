@@ -19,17 +19,9 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
+import { bookingIntent } from "./index/helpers.ts";
 
-const intent = (): BookingIntent => ({
-  address: "",
-  date: null,
-  email: "buyer@example.com",
-  items: [{ e: 1, p: 1000, q: 1 }],
-  modifiers: [],
-  name: "Buyer",
-  phone: "",
-  special_instructions: "",
-});
+const intent = (): BookingIntent => bookingIntent([{ e: 1, p: 1000, q: 1 }]);
 
 /** The listing a test just made. It is always there; saying so here keeps
  *  every case below from repeating the check. */

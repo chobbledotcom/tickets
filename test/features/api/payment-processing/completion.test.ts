@@ -13,18 +13,11 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { bookingIntent } from "./index/helpers.ts";
 
 /** What the checkout signed, with no answers and nothing added on top. */
-const bareIntent = (): BookingIntent => ({
-  address: "",
-  date: null,
-  email: "buyer@example.com",
-  items: [{ e: 1, p: 1000, q: 1 }],
-  modifiers: [],
-  name: "Buyer",
-  phone: "",
-  special_instructions: "",
-});
+const bareIntent = (): BookingIntent =>
+  bookingIntent([{ e: 1, p: 1000, q: 1 }]);
 
 /** One booked line, as the code that writes the booking hands it on. */
 const bookedLine = async (
