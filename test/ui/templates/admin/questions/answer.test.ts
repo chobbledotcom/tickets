@@ -10,9 +10,6 @@ import { testAnswer, testQuestion } from "#test-utils/factories.ts";
 import { setupQuestionPageTest, tShirtQuestion } from "./fixtures.ts";
 
 describe("adminAnswerEditPage", () => {
-  beforeAll(setupQuestionPageTest);
-  afterAll(resetFeaturePageTest);
-
   const question = tShirtQuestion;
   const answer = question.answers[1]!;
   const modifiers = [
@@ -22,8 +19,13 @@ describe("adminAnswerEditPage", () => {
   const aligned = { times_selected: { current: 7, recalculated: 7 } };
   const drifted = { times_selected: { current: 7, recalculated: 5 } };
 
-  test("renders the editable text pre-filled and the form action", () => {
-    const html = adminAnswerEditPage(
+  /** The page for an active answer whose stored total matches the attendee
+   *  answers — the default most tests below assert against. Rendered once. */
+  let html = "";
+
+  beforeAll(async () => {
+    await setupQuestionPageTest();
+    html = adminAnswerEditPage(
       question,
       answer,
       OWNER_SESSION,
@@ -32,6 +34,10 @@ describe("adminAnswerEditPage", () => {
       modifiers,
       null,
     );
+  });
+  afterAll(resetFeaturePageTest);
+
+  test("renders the editable text pre-filled and the form action", () => {
     expect(html).toContain('action="/admin/questions/1/answers/11/edit"');
     expect(html).toContain('value="Large"');
     expect(html).toContain('class="active" href="/admin/questions"');
@@ -57,56 +63,20 @@ describe("adminAnswerEditPage", () => {
   });
 
   test("renders the editable selection total field with the stored value", () => {
-    const html = adminAnswerEditPage(
-      question,
-      answer,
-      OWNER_SESSION,
-      undefined,
-      aligned,
-      modifiers,
-      null,
-    );
     expect(html).toContain('name="times_selected"');
     expect(html).toContain('value="7"');
   });
 
   test("links back to the question", () => {
-    const html = adminAnswerEditPage(
-      question,
-      answer,
-      OWNER_SESSION,
-      undefined,
-      aligned,
-      modifiers,
-      null,
-    );
     expect(html).toContain('href="/admin/questions/1"');
     expect(html).toContain("Back to question");
   });
 
   test("links to the recalculate flow", () => {
-    const html = adminAnswerEditPage(
-      question,
-      answer,
-      OWNER_SESSION,
-      undefined,
-      aligned,
-      modifiers,
-      null,
-    );
     expect(html).toContain('href="/admin/questions/1/answers/11/recalculate"');
   });
 
   test("shows no drift warning when the total matches attendee answers", () => {
-    const html = adminAnswerEditPage(
-      question,
-      answer,
-      OWNER_SESSION,
-      undefined,
-      aligned,
-      modifiers,
-      null,
-    );
     expect(html).not.toContain("expected-actual-notice");
   });
 
@@ -143,28 +113,10 @@ describe("adminAnswerEditPage", () => {
   });
 
   test("selects the none option when no modifier is linked", () => {
-    const html = adminAnswerEditPage(
-      question,
-      answer,
-      OWNER_SESSION,
-      undefined,
-      aligned,
-      modifiers,
-      null,
-    );
     expect(html).toContain('<option selected value="">');
   });
 
   test("moves the delete action onto the edit page", () => {
-    const html = adminAnswerEditPage(
-      question,
-      answer,
-      OWNER_SESSION,
-      undefined,
-      aligned,
-      modifiers,
-      null,
-    );
     expect(html).toContain(
       '<a class="danger" href="/admin/questions/1/answers/11/delete">',
     );
@@ -214,7 +166,7 @@ describe("adminAnswerRecalculatePage", () => {
     expect(html).toContain('name="recalculate_fields"');
   });
 
-  test("renders error and success flashes", () => {
+  test("renders an error flash", () => {
     expect(
       adminAnswerRecalculatePage(
         question,
@@ -224,6 +176,9 @@ describe("adminAnswerRecalculatePage", () => {
         "Choose at least one total to recalculate",
       ),
     ).toContain("Choose at least one total to recalculate");
+  });
+
+  test("renders a success flash", () => {
     expect(
       adminAnswerRecalculatePage(
         question,

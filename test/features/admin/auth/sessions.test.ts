@@ -136,14 +136,15 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const sessionMatch = cookie.match(
         new RegExp(`${getSessionCookieName()}=([^;]+)`),
       );
-      const sessionToken = sessionMatch?.[1];
+      // loginAsAdmin always issues a session cookie, so the match is guaranteed.
+      const sessionToken = sessionMatch![1]!;
 
       await handleRequest(
         mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
       );
 
       // Verify current session still exists
-      const currentSession = await getSession(sessionToken || "");
+      const currentSession = await getSession(sessionToken);
       expect(currentSession).not.toBeNull();
     });
   });

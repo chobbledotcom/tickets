@@ -10,10 +10,12 @@ interface CheckinSession {
 }
 
 /** Create attendee + login, returning token + session for check-in tests */
+type ListingOverrides = Parameters<typeof createTestAttendeeWithToken>[2];
+
 export const setupCheckinTest = async (
   name: string,
   email: string,
-  listingOverrides = {},
+  listingOverrides: ListingOverrides = {},
   quantity = 1,
   phone = "",
 ): Promise<{ listing: Listing; session: CheckinSession; token: string }> => {

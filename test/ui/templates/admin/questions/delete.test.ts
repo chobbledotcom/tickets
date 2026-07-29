@@ -10,17 +10,22 @@ import { testAnswer, testQuestion } from "#test-utils/factories.ts";
 import { setupQuestionPageTest, tShirtQuestion } from "./fixtures.ts";
 
 describe("adminQuestionDeletePage", () => {
-  beforeAll(setupQuestionPageTest);
-  afterAll(resetFeaturePageTest);
-
   const question = testQuestion({
     answers: [testAnswer({ id: 10, sort_order: 0, text: "Small" })],
     id: 1,
     text: "T-shirt size?",
   });
 
+  /** The confirmation page with no error, rendered once for the tests below. */
+  let html = "";
+
+  beforeAll(async () => {
+    await setupQuestionPageTest();
+    html = adminQuestionDeletePage(question, OWNER_SESSION);
+  });
+  afterAll(resetFeaturePageTest);
+
   test("renders confirmation form with question text", () => {
-    const html = adminQuestionDeletePage(question, OWNER_SESSION);
     expect(html).toContain("Delete Question");
     expect(html).toContain("T-shirt size?");
     expect(html).toContain('name="confirm_identifier"');
@@ -29,7 +34,6 @@ describe("adminQuestionDeletePage", () => {
   });
 
   test("warns about cascading deletes", () => {
-    const html = adminQuestionDeletePage(question, OWNER_SESSION);
     expect(html).toContain("all its answers");
     expect(html).toContain("attendee responses");
   });
@@ -45,14 +49,19 @@ describe("adminQuestionDeletePage", () => {
 });
 
 describe("adminAnswerDeletePage", () => {
-  beforeAll(setupQuestionPageTest);
-  afterAll(resetFeaturePageTest);
-
   const question = tShirtQuestion;
   const answer = question.answers[0]!;
 
+  /** The confirmation page with no error, rendered once for the tests below. */
+  let html = "";
+
+  beforeAll(async () => {
+    await setupQuestionPageTest();
+    html = adminAnswerDeletePage(question, answer, OWNER_SESSION);
+  });
+  afterAll(resetFeaturePageTest);
+
   test("renders confirmation form with answer text", () => {
-    const html = adminAnswerDeletePage(question, answer, OWNER_SESSION);
     expect(html).toContain("Delete Answer");
     expect(html).toContain("Small");
     expect(html).toContain('name="confirm_identifier"');
@@ -60,7 +69,6 @@ describe("adminAnswerDeletePage", () => {
   });
 
   test("shows question context", () => {
-    const html = adminAnswerDeletePage(question, answer, OWNER_SESSION);
     expect(html).toContain("T-shirt size?");
   });
 

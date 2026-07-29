@@ -72,12 +72,20 @@ describe("adminQuestionsPage", () => {
     expect(html).toContain('<td class="col-quantity" title="All">0</td>');
   });
 
-  test("marks the nav active, renders the add form, and links to the guide", () => {
+  test("marks the questions nav entry active", () => {
     const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
     expect(html).toContain('class="active" href="/admin/questions"');
+  });
+
+  test("renders the add-question form", () => {
+    const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
     expect(html).toContain(
       '<form action="/admin/questions" autocomplete="off" method="POST" id="new-question">',
     );
+  });
+
+  test("links to the questions guide", () => {
+    const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
     expect(html).toContain(
       '<a class="guide-link" href="/admin/guide#questions">',
     );

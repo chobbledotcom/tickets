@@ -170,7 +170,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       );
     });
 
-    test("returns 429 when rate limited", async () => {
+    test("redirects with a too-many-attempts flash when rate limited", async () => {
       // Rate limiting uses direct connection IP (falls back to "direct" in tests)
       const makeRequest = () =>
         mockAdminLoginRequest({ password: "wrong", username: "testadmin" });
