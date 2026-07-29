@@ -9,9 +9,9 @@ interface CheckinSession {
   csrfToken: string;
 }
 
-/** Create attendee + login, returning token + session for check-in tests */
 type ListingOverrides = Parameters<typeof createTestAttendeeWithToken>[2];
 
+/** Create attendee + login, returning token + session for check-in tests */
 export const setupCheckinTest = async (
   name: string,
   email: string,
