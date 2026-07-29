@@ -121,8 +121,20 @@ export const chooseColumns = <
   ): Promise<ChosenRow<Row, Columns>[]> =>
     mapParallel((row: StoredRowOf<Row, Columns>) => read(row))(rows);
 
+  const qualified = (column: string, alias?: string): string =>
+    alias ? `${alias}.${column}` : column;
+
   const columnsSql = (alias?: string): string =>
-    columns.map((column) => (alias ? `${alias}.${column}` : column)).join(", ");
+    columns.map((column) => qualified(column, alias)).join(", ");
+
+  /** What a declared read actually selects: the chosen columns, plus the row's
+   * own key when it was not chosen. A column's read transform may name the row
+   * a bad value came from, and it can only do that if the key came back too.
+   * The key is dropped again before the row is handed back. */
+  const readColumnsSql = (alias?: string): string =>
+    columns.some((column) => column === table.primaryKey)
+      ? columnsSql(alias)
+      : `${columnsSql(alias)}, ${qualified(table.primaryKey, alias)}`;
 
   /** Turn a declared read into SQL and its bound values. The chosen set
    * supplies the columns and the table; the caller supplies the rest. */
@@ -131,7 +143,7 @@ export const chooseColumns = <
     const tail = queryTail(query.where ?? [], query);
     return {
       args: tail.args,
-      sql: `SELECT ${columnsSql(query.alias)} FROM ${from}${tail.sql}`,
+      sql: `SELECT ${readColumnsSql(query.alias)} FROM ${from}${tail.sql}`,
     };
   };
 

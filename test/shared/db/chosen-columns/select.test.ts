@@ -7,7 +7,11 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingOptionColumns } from "#shared/db/listings/table.ts";
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
+import {
+  listingOptionColumns,
+  rawListingsTable,
+} from "#shared/db/listings/table.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -69,6 +73,27 @@ describeWithEnv("db > table > declared projection reads", { db: true }, () => {
         where: equals("listing.id", 999_999),
       }),
     ).toBeNull();
+  });
+
+  test("fetches the row's own key even when it was not chosen", async () => {
+    // A column's read transform may name the row a bad value came from, which
+    // it can only do if the key came back with it — but the key is not part of
+    // what the caller asked for, so it must not be handed back either.
+    const listing = await createTestListing({ name: "Keyed" });
+    const nameOnly = chooseColumns(rawListingsTable, ["name"]);
+
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      const rows = await nameOnly.select({
+        alias: "listing",
+        where: equals("listing.id", listing.id),
+      });
+
+      // Only the selected columns count — the filter names the key too.
+      const sql = getQueryLog()[0]?.sql ?? "";
+      expect(sql.slice(0, sql.indexOf(" FROM "))).toContain("listing.id");
+      expect(rows).toEqual([{ name: "Keyed" }]);
+    });
   });
 
   test("asks the database nothing when the filter can match no row", async () => {
