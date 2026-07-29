@@ -145,6 +145,13 @@ Then(
 );
 
 Then(
+  "the record shows {int} bookings the organiser added for {word}",
+  function (this: TicketsWorld, added: number, _who: string): void {
+    boxShows(recordPage(this), "bookedByHand", String(added));
+  },
+);
+
+Then(
   "the record shows {word} has visited {int} times",
   function (this: TicketsWorld, _who: string, visits: number): void {
     boxShows(recordPage(this), "visits", String(visits));

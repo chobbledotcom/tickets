@@ -20,6 +20,8 @@ Feature: An organiser reads and corrects the record kept about someone
       Given the site has seen Sam book 5 times and get in touch 4 times
       When the organiser opens Sam's record
       Then the record shows Sam booked 5 times through the site
+      And the record shows 2 bookings the organiser added for Sam
+      And the record shows Sam has visited 9 times
       And the record shows Sam has been in touch 4 times
       And the record shows the note about Sam written out
 
