@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import type { SettledReading } from "#shared/payment-state/diagnose.ts";
 import { hasSettled, outcomeOf } from "#shared/payment-state/diagnose.ts";
 import { PaymentResolutionSchema } from "#shared/payment-state/lifecycle.ts";
+import type { PaymentObservation } from "#shared/payment-state/observation.ts";
 import {
   chargeLeg,
   partlyRefundedCharge,
@@ -10,6 +12,15 @@ import {
   refundObservation,
   sessionResource,
 } from "./fixtures.ts";
+
+/** A reading the case is about, once we have said out loud that it finished.
+ *  A fixture that has not is the test being wrong, not the code. */
+const finished = (observation: PaymentObservation): SettledReading => {
+  if (!hasSettled(observation)) {
+    throw new Error(`This reading has not finished: ${observation.status}`);
+  }
+  return observation;
+};
 
 describe("what one reading of a payment comes to", () => {
   for (const [name, observation, expected] of [
@@ -47,13 +58,13 @@ describe("what one reading of a payment comes to", () => {
     ],
   ] as const) {
     test(`calls ${name} ${expected}`, () => {
-      expect(outcomeOf(observation).kind).toBe(expected);
+      expect(outcomeOf(finished(observation)).kind).toBe(expected);
     });
   }
 
   test("names money given back in part as a partly refunded problem", () => {
     const outcome = outcomeOf(
-      paymentObservation({ charges: [partlyRefundedCharge()] }),
+      finished(paymentObservation({ charges: [partlyRefundedCharge()] })),
     );
 
     expect(outcome.kind === "conflict" ? outcome.issue.kind : undefined).toBe(
