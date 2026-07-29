@@ -198,4 +198,100 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       expect(preview.length).toBe(5);
     });
   });
+
+  describe("a listing hidden inside a package", () => {
+    test("is marked as one, so its page can hide the standalone links", async () => {
+      const listing = await createTestListing({});
+      const { createTestGroup } = await import(
+        "#test-utils/db-helpers/groups.ts"
+      );
+      const group = await createTestGroup({ isPackage: true });
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute(
+        "UPDATE groups SET hide_package_listings = 1 WHERE id = ?",
+        [group.id],
+      );
+      await getDb().execute(
+        "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
+        [group.id, listing.id],
+      );
+
+      expect((await loaded(listing.id)).isHiddenPackageMember).toBe(true);
+    });
+  });
+
+  describe("a listing offered under a parent", () => {
+    test("is marked as a child", async () => {
+      const parent = await createTestListing({ name: "The Package" });
+      const child = await createTestListing({ name: "The Member" });
+      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      await listingChildren.setIds(parent.id, [child.id]);
+
+      expect((await loaded(child.id)).isChild).toBe(true);
+    });
+
+    test("names its children on the parent's roster", async () => {
+      const parent = await createTestListing({ name: "The Package" });
+      const child = await createTestListing({ name: "Distinctive Child" });
+      const { listingChildren } = await import("#shared/db/listing-parents.ts");
+      await listingChildren.setIds(parent.id, [child.id]);
+
+      const html = await withTestSession(async () =>
+        String(
+          await loadListingRosterPanel(await loaded(parent.id), ctxWith()),
+        ),
+      );
+      expect(html).toContain("Distinctive Child");
+    });
+  });
+
+  describe("a listing booked by the day", () => {
+    test("offers the days its attendees actually booked", async () => {
+      const { createDailyTestListing, bookableStartDates } = await import(
+        "#test-utils/db-helpers/listings.ts"
+      );
+      const listing = await createDailyTestListing({});
+      const [day] = await bookableStartDates(listing.id);
+      // Book the day directly, since the roster's date options come from the
+      // dates on the booking rows.
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const booked = await attendeesApi.createAttendeeAtomic({
+        bookings: [{ date: day, listingId: listing.id, quantity: 1 }],
+        email: "day@example.com",
+        name: "Day Booker",
+        source: "public",
+      });
+      if (!booked.success) throw new Error("could not book the day");
+
+      const html = await withTestSession(async () =>
+        String(
+          await loadListingRosterPanel(await loaded(listing.id), ctxWith()),
+        ),
+      );
+      expect(html).toContain(day!);
+    });
+  });
+
+  describe("notes written about a listing's attendees", () => {
+    test("name whoever they are about", async () => {
+      const listing = await createTestListing({});
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Noted Person",
+        "noted@example.com",
+      );
+      const { createSystemNote } = await import("#shared/db/notes/queries.ts");
+      const { attendeeNotes } = await import("#shared/db/notes/target.ts");
+      await withTestSession(() =>
+        createSystemNote(attendeeNotes(attendee.id), "Called about parking"),
+      );
+
+      const html = await withTestSession(async () =>
+        String(await loadListingOverviewPanel(await loaded(listing.id))),
+      );
+      expect(html).toContain("Called about parking");
+      expect(html).toContain("Noted Person");
+    });
+  });
 });

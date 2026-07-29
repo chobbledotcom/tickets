@@ -127,14 +127,6 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       expect(html).not.toContain('rel="prev"');
     });
 
-    /** Register `count` throwaway attendees on the listing. One is booked
-     *  through the real production path; the rest are copies of that row
-     *  (same encrypted PII, fresh unique token index), inserted in a single
-     *  batch — page-filling needs volume, not a hundred full bookings, and
-     *  the sequential version dominated this suite's runtime. Copies get
-     *  higher AUTOINCREMENT ids than every earlier row, so the newest-first
-     *  (id-ordered) pagination under test sees them exactly like real
-     *  bookings made after the "oldest" fixture attendee. */
     test("shows the whole page with no paging links when the attendees exactly fill it", async () => {
       const listing = await makeListing("Full Page", ATTENDEES_PAGE_SIZE * 2);
       // Created first = oldest = the row a broken hasNext would trim off.

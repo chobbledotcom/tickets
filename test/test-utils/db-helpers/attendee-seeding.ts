@@ -5,9 +5,14 @@
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 
 /**
- * Seed `count` attendees on a listing by creating one through the production
- * path and cloning its rows in a single batch — far cheaper than booking each,
- * and enough to push a listing past a page boundary.
+ * Register `count` throwaway attendees on the listing. One is booked through
+ * the real production path; the rest are copies of that row (same encrypted
+ * PII, fresh unique token index), inserted in a single batch — page-filling
+ * needs volume, not a hundred full bookings.
+ *
+ * Copies get higher AUTOINCREMENT ids than every earlier row, so newest-first
+ * (id-ordered) paging sees them exactly like real bookings made after an
+ * earlier fixture attendee.
  */
 export const seedFillerAttendees = async (
   listingId: number,
