@@ -9,6 +9,7 @@ import {
   bundleStillExists,
   buyersTicket,
   customerBuysBundle,
+  customerOpensBundlePage,
   expectPartOnSaleAlone,
   GROUP_DELETED,
   GROUP_SAVED,
@@ -91,6 +92,13 @@ Given(
   "a customer buys the {word}",
   function (this: TicketsWorld, bundle: string): Promise<void> {
     return customerBuysBundle(this, bundle);
+  },
+);
+
+When(
+  "a customer opens the {word} booking page",
+  async function (this: TicketsWorld, bundle: string): Promise<void> {
+    await customerOpensBundlePage(this, bundle);
   },
 );
 

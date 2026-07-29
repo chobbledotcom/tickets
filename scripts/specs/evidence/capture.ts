@@ -11,6 +11,7 @@ import { defineEvidenceCapture } from "./capture-flow.ts";
 import { EVIDENCE_CAPTURES } from "./declarations.ts";
 import type { CaptureScenario } from "./hook.ts";
 import { defineLoopbackServer } from "./server.ts";
+import { readEvidenceTheme } from "./themes.ts";
 
 export const captureCurrentScenarioEvidence: CaptureScenario =
   defineEvidenceCapture({
@@ -22,6 +23,7 @@ export const captureCurrentScenarioEvidence: CaptureScenario =
       chromiumExecutable,
     ),
     readCatalog: readSpecCatalog,
+    readTheme: readEvidenceTheme,
     startServer: defineLoopbackServer(serveHandler),
     waitForPage: waitForScreenshotPage,
     writeCss: settings.update.customCss,

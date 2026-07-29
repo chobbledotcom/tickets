@@ -39,7 +39,6 @@ const EvidenceProfilesSchema = v.pipe(
 
 export const EvidenceCaptureDeclarationSchema = v.strictObject({
   caseId: stableId("evidence case id"),
-  css: v.optional(v.string()),
   element: TrimmedNonEmptyTextSchema,
   id: stableId("capture id"),
   path: v.pipe(

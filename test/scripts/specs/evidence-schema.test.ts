@@ -15,7 +15,6 @@ const catalog = validateSpecSources([source()], registry);
 
 const declaration = {
   caseId: "payment.place-available",
-  css: ":root { color-scheme: light; }",
   element: "#payment-result",
   id: "payment-result",
   path: "/admin/payments/{paymentId}",

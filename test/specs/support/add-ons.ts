@@ -10,7 +10,11 @@ const FIELD = "bookable_alone";
 import { expect } from "@std/expect";
 import { groups } from "#shared/db/groups.ts";
 // jscpd:ignore-start
-import { openAsNewcomer } from "#test/specs/support/browser.ts";
+import {
+  type OpensASalesPage,
+  openAsNewcomer,
+  opensSalesPagesAt,
+} from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   tickedCheckboxes,
@@ -120,13 +124,8 @@ export const sellOnItsOwn: ChangeOneThing<boolean> = async (
 };
 
 /** Whether the Chair's own booking page still offers the Cover with it. */
-export const bookingPageFor = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<TestBrowser> => {
-  const browser = await openAsNewcomer(bookingLinkFor(world, name));
-  return browser;
-};
+export const bookingPageFor: OpensASalesPage =
+  opensSalesPagesAt(bookingLinkFor);
 
 /** Everything the site currently offers for sale, as the customer sees it. */
 export const everythingForSale = async (): Promise<TestBrowser> => {
