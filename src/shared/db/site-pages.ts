@@ -14,23 +14,19 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { chooseColumns } from "#shared/db/chosen-columns.ts";
-import { queryOne, type TxScope, useTransaction } from "#shared/db/client.ts";
+import { type TxScope, useTransaction } from "#shared/db/client.ts";
 import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
+import { readOneRow } from "#shared/db/read.ts";
 import {
   unclaimedSiteSlugCondition,
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { cachedTable, col, writeTableRow } from "#shared/db/table.ts";
-import {
-  clauseArgs,
-  equals,
-  type WhereClause,
-  whereSql,
-} from "#shared/db/where-clauses.ts";
+import { equals, type WhereClause } from "#shared/db/where-clauses.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -88,10 +84,11 @@ const SITE_PAGE_COLUMNS =
 const querySitePage = async (
   where: WhereClause[],
 ): Promise<SitePage | null> => {
-  const row = await queryOne<SitePage>(
-    `SELECT ${SITE_PAGE_COLUMNS} FROM site_pages${whereSql(where)} LIMIT 1`,
-    clauseArgs(where),
-  );
+  const row = await readOneRow<SitePage>({
+    columns: SITE_PAGE_COLUMNS,
+    from: "site_pages",
+    where,
+  });
   return row ? rawSitePagesTable.fromDb(row) : null;
 };
 

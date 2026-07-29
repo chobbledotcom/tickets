@@ -45,12 +45,13 @@ import {
 } from "#shared/db/client.ts";
 import {
   clauseArgs,
-  queryTail,
-  rowsUnlessNoneMatch,
   type WhereClause,
   whereSql,
 } from "#shared/db/where-clauses.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+
+/** Newest first by business time, ties broken by id so the order is stable. */
+const NEWEST_FIRST = "occurred_at DESC, id DESC";
 
 /** A parameterised "this leg's <role> side IS the account" match — two bound `?`
  *  for (type, id), built from the shared transfers column names so every balance
@@ -60,11 +61,14 @@ const legMatchesAccount = (role: "source" | "dest"): string =>
 
 /** Every transfer touching `account`, as source or destination. */
 export const transfersByAccount = (acct: AccountRef): Promise<Transfer[]> =>
-  selectTransfers(
-    fromDb,
-    ` WHERE (${legMatchesAccount("source")}) OR (${legMatchesAccount("dest")})`,
-    [acct.type, acct.id, acct.type, acct.id],
-  );
+  selectTransfers(fromDb, {
+    where: [
+      {
+        args: [acct.type, acct.id, acct.type, acct.id],
+        clause: `(${legMatchesAccount("source")}) OR (${legMatchesAccount("dest")})`,
+      },
+    ],
+  });
 
 /** Every leg of one business event (booking, refund, …). */
 export const transfersByEventGroup = (
@@ -86,17 +90,14 @@ export const eventGroupHasLegs = (eventGroup: string): Promise<boolean> =>
 
 /** The whole ledger. For tests and small reports; scoped reads are preferred on
  *  hot paths. */
-export const allTransfers = (): Promise<Transfer[]> =>
-  selectTransfers(fromDb, "", []);
+export const allTransfers = (): Promise<Transfer[]> => selectTransfers(fromDb);
 
 /** The most recent `limit` transfers, newest first (by business time then id, so
  *  ties are stable). The ordering + limit run in SQL so the whole ledger is never
  *  loaded into memory; `occurred_at` is the stored INTEGER epoch, so DESC is
  *  newest-first. */
 export const recentTransfers = (limit: number): Promise<Transfer[]> =>
-  selectTransfers(fromDb, " ORDER BY occurred_at DESC, id DESC LIMIT ?", [
-    limit,
-  ]);
+  selectTransfers(fromDb, { limit, order: NEWEST_FIRST });
 
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
  * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden, but
@@ -149,13 +150,7 @@ export const visibleTransfers = (
     ...occurredAtRange(range),
     ...listingLegScope(listingIds),
   ];
-  const tail = queryTail(parts, {
-    limit,
-    order: "occurred_at DESC, id DESC",
-  });
-  return rowsUnlessNoneMatch(parts, () =>
-    selectTransfers(fromDb, tail.sql, tail.args),
-  );
+  return selectTransfers(fromDb, { limit, order: NEWEST_FIRST, where: parts });
 };
 
 /** Distinct-day bounds (earliest/latest `occurred_at`) over the whole ledger, or

@@ -15,16 +15,10 @@ import {
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
 } from "#shared/accounting/projection-sql.ts";
-import { queryAll, type SqlStatement } from "#shared/db/client.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
 import { imageFilenameSubqueries } from "#shared/db/images.ts";
-import {
-  clauseArgs,
-  inList,
-  orderSql,
-  rowsUnlessNoneMatch,
-  type WhereClause,
-  whereSql,
-} from "#shared/db/where-clauses.ts";
+import { defineReader } from "#shared/db/read.ts";
+import { inList, type WhereClause } from "#shared/db/where-clauses.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /* jscpd:ignore-end */
@@ -109,31 +103,27 @@ export type GetListingsQuery = {
   order?: ListingOrder;
 };
 
-/** Assemble the SQL from an already-built clause list, so a caller that has to
- * inspect the clauses first does not build them twice. */
-const statementFor = (
-  query: GetListingsQuery,
-  parts: WhereClause[],
-): SqlStatement => {
-  const byGroup = query.where.inGroups !== undefined;
-  const columns = byGroup
-    ? `json_group_array(groupListing.group_id) AS group_ids, ${listingColumns()}`
-    : listingColumns();
-  // Reading by group starts from the membership rows and folds a listing's
-  // several memberships back into one row; every other read starts from the
-  // listings themselves.
-  const from = byGroup
-    ? "FROM group_listings AS groupListing JOIN listings AS listing ON listing.id = groupListing.listing_id"
-    : "FROM listings AS listing";
-  const groupBy = byGroup ? " GROUP BY listing.id" : "";
-  return {
-    args: clauseArgs(parts),
-    sql: `SELECT ${columns} ${from}${whereSql(parts)}${groupBy}${orderSql(
-      LISTING_ORDER_SQL,
-      query.order,
-    )}`,
-  };
-};
+/**
+ * The listing reader. Reading by group starts from the membership rows and
+ * folds a listing's several memberships back into one row, naming which groups
+ * it matched; every other read starts from the listings themselves.
+ */
+const listings = defineReader<ListingOrder, GetListingsQuery>(
+  LISTING_ORDER_SQL,
+  (query) => {
+    const byGroup = query.where.inGroups !== undefined;
+    return {
+      columns: byGroup
+        ? `json_group_array(groupListing.group_id) AS group_ids, ${listingColumns()}`
+        : listingColumns(),
+      from: byGroup
+        ? "group_listings AS groupListing JOIN listings AS listing ON listing.id = groupListing.listing_id"
+        : "listings AS listing",
+      groupBy: byGroup ? "listing.id" : undefined,
+      where: whereClauses(query.where),
+    };
+  },
+);
 
 /**
  * A `queryBatch` statement (SQL + bound args) for a listing read: the single
@@ -141,8 +131,8 @@ const statementFor = (
  * the activity-log reader embeds it in a batch, and the read-your-own-write
  * reader runs it against the primary.
  */
-export const listingStatement = (query: GetListingsQuery): SqlStatement =>
-  statementFor(query, whereClauses(query.where));
+export const listingStatement: (query: GetListingsQuery) => SqlStatement =
+  listings.statement;
 
 /** The raw shape a listing read returns: the stored columns plus the worked-out
  * values, before decryption and before any inherited defaults are overlaid. */
@@ -155,10 +145,4 @@ export type ListingRecordRow = Omit<ListingWithCount, "profit">;
  */
 export const getListingRows = (
   query: GetListingsQuery,
-): Promise<ListingRecordRow[]> => {
-  const parts = whereClauses(query.where);
-  return rowsUnlessNoneMatch(parts, () => {
-    const { sql, args } = statementFor(query, parts);
-    return queryAll<ListingRecordRow>(sql, args);
-  });
-};
+): Promise<ListingRecordRow[]> => listings.rows<ListingRecordRow>(query);

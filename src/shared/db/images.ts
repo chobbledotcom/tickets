@@ -7,14 +7,14 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { chooseColumns, type StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
-  queryAll,
-  queryOne,
   type SqlStatement,
   useTransaction,
 } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
+import { type Read, readOneRow, readRows } from "#shared/db/read.ts";
 import { type ColumnDef, col } from "#shared/db/table.ts";
+import { equals } from "#shared/db/where-clauses.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type {
   Image,
@@ -108,6 +108,23 @@ export const imageFilenameSubqueries = (
     ),
   ].join(", ");
 
+/** The images attached to one item, in the order the operator arranged them.
+ * Both image reads below want the same rows and differ only in which columns
+ * they open, so they say it once here. */
+const imagesOfItem = (
+  columns: string,
+  itemType: ImageUseItemType,
+  itemId: number,
+): Read => ({
+  columns,
+  from: "image_uses AS imageUse JOIN images AS image ON image.id = imageUse.image_id",
+  order: "imageUse.sort_order ASC, imageUse.image_id ASC",
+  where: [
+    ...equals("imageUse.item_type", itemType),
+    ...equals("imageUse.item_id", itemId),
+  ],
+});
+
 export const getImageFilenamesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
@@ -115,14 +132,8 @@ export const getImageFilenamesForItem = async (
   type ImageFileRow = StoredRowOf<Image, typeof imageFileColumns.columns> & {
     id: number;
   };
-  const stored = await queryOne<ImageFileRow>(
-    `SELECT ${imageFileColumns.columnsSql("image")}
-       FROM image_uses AS imageUse
-       JOIN images AS image ON image.id = imageUse.image_id
-      WHERE imageUse.item_type = ? AND imageUse.item_id = ?
-      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC
-      LIMIT 1`,
-    [itemType, itemId],
+  const stored = await readOneRow<ImageFileRow>(
+    imagesOfItem(imageFileColumns.columnsSql("image"), itemType, itemId),
   );
   if (!stored)
     return { image_alt_text: "", image_thumb_url: "", image_url: "" };
@@ -144,14 +155,12 @@ export const getImagesForItem = async (
   type OrderedImageRow = StoredRowOf<Image, typeof imageColumns.columns> & {
     sort_order: number;
   };
-  const rows = await queryAll<OrderedImageRow>(
-    `SELECT ${imageColumns.columnsSql("image")},
-            imageUse.sort_order
-       FROM image_uses AS imageUse
-       JOIN images AS image ON image.id = imageUse.image_id
-      WHERE imageUse.item_type = ? AND imageUse.item_id = ?
-      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC`,
-    [itemType, itemId],
+  const rows = await readRows<OrderedImageRow>(
+    imagesOfItem(
+      `${imageColumns.columnsSql("image")}, imageUse.sort_order`,
+      itemType,
+      itemId,
+    ),
   );
   const images = await imageColumns.readAll(rows);
   return images.map((image, index) => ({
@@ -161,13 +170,12 @@ export const getImagesForItem = async (
 };
 
 export const getImageUsesForImage = (imageId: number): Promise<ImageUse[]> =>
-  queryAll<ImageUse>(
-    `SELECT image_id, item_type, item_id, sort_order
-       FROM image_uses
-      WHERE image_id = ?
-      ORDER BY item_type ASC, item_id ASC`,
-    [imageId],
-  );
+  readRows<ImageUse>({
+    columns: "image_id, item_type, item_id, sort_order",
+    from: "image_uses",
+    order: "item_type ASC, item_id ASC",
+    where: equals("image_id", imageId),
+  });
 
 const itemTable: Record<ImageUseItemType, string> = {
   group: "groups",

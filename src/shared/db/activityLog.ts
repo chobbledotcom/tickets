@@ -36,9 +36,10 @@ import {
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import { listingStatement } from "#shared/db/listings/select.ts";
+import { readRows } from "#shared/db/read.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
-import { equals, queryTail } from "#shared/db/where-clauses.ts";
+import { equals } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -184,21 +185,21 @@ const decryptLogRows = async (
 const queryActivityLog = async (
   listingId: number | null,
   limit: number,
-): Promise<ActivityLogEntry[]> => {
-  // A null listing means "every listing", which is no filter at all.
-  const parts = equals("listing_id", listingId ?? undefined);
-  // Order by id DESC, not created DESC: id is AUTOINCREMENT so it is
-  // co-monotonic with created (newest row = highest id) but, being the rowid,
-  // it is served straight from the primary key / idx_activity_log_listing_id
-  // without a sort over the unbounded log table.
-  const tail = queryTail(parts, { limit, order: "id DESC" });
-  return decryptLogRows(
-    await queryAll<StoredActivityLogEntry>(
-      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log${tail.sql}`,
-      tail.args,
-    ),
+): Promise<ActivityLogEntry[]> =>
+  decryptLogRows(
+    await readRows<StoredActivityLogEntry>({
+      columns: ACTIVITY_LOG_COLUMNS,
+      from: "activity_log",
+      limit,
+      // Order by id DESC, not created DESC: id is AUTOINCREMENT so it is
+      // co-monotonic with created (newest row = highest id) but, being the
+      // rowid, it is served straight from the primary key /
+      // idx_activity_log_listing_id without a sort over the unbounded log table.
+      order: "id DESC",
+      // A null listing means "every listing", which is no filter at all.
+      where: equals("listing_id", listingId ?? undefined),
+    }),
   );
-};
 
 /**
  * Get activity log entries for an listing (most recent first)

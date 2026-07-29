@@ -9,19 +9,23 @@
  * Keys inherit admin_level from their parent user.
  */
 
+/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { BlindIndex, WrappedKey } from "#shared/crypto/sealed.ts";
 import { chooseColumns } from "#shared/db/chosen-columns.ts";
-import { execute, executeUpdate, queryOne } from "#shared/db/client.ts";
+import { execute, executeUpdate } from "#shared/db/client.ts";
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
+import { readOneRow } from "#shared/db/read.ts";
 import { col } from "#shared/db/table.ts";
 import { equals } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { getTouchOverride } from "#shared/test-overrides.ts";
 import type { ApiKey } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 /** A row with its `name` decrypted for display — the table's read shape. */
 type ApiKeyRow = {
@@ -100,10 +104,11 @@ export const getApiKeyByToken = async (
   token: string,
 ): Promise<ApiKey | null> => {
   const keyIndex = await hmacHash(token);
-  return queryOne<ApiKey>(
-    `SELECT ${API_KEY_COLUMNS} FROM api_keys WHERE key_index = ?`,
-    [keyIndex],
-  );
+  return readOneRow<ApiKey>({
+    columns: API_KEY_COLUMNS,
+    from: "api_keys",
+    where: equals("key_index", keyIndex),
+  });
 };
 
 /**
