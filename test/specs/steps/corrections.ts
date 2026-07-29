@@ -333,9 +333,10 @@ Then(
   "it says nothing about who booked",
   async function (this: TicketsWorld): Promise<void> {
     const page = await balancePageHtml(this);
-    // The booker's own name and address are what the link must not carry.
-    for (const detail of [this.attendeeName, this.attendeeEmail]) {
-      if (detail) expect(page).not.toContain(detail);
+    // The booker's own name and address are what the link must not carry, so
+    // a fixture that set neither would prove nothing rather than pass.
+    for (const key of ["attendeeEmail", "attendeeName"] as const) {
+      expect(page).not.toContain(requiredWorldValue(this[key], key));
     }
   },
 );

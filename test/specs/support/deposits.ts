@@ -55,13 +55,9 @@ export const payDeposit: ActOnSomeMoney = async (world, amount) => {
   });
 };
 
-/**
- * The page a part-paid customer opens from their payment link.
- *
- * The token is kept on the world so an evidence capture can open the same
- * link the story just read: the page exists only at a signed URL, so a
- * screenshot of it cannot be taken from a path written by hand.
- */
+/** The page a part-paid customer opens from their payment link. The token is
+ *  kept on the world because the page exists only at a signed URL, so an
+ *  evidence capture has no path it could write by hand. */
 export const balancePageHtml = async (world: TicketsWorld): Promise<string> => {
   const token = await signBalanceToken(theBooking(world));
   world.evidenceValues.set("balanceToken", token);

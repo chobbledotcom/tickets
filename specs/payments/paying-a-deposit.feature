@@ -20,12 +20,15 @@ Feature: A customer pays a deposit and settles the rest later
       When the organiser settles the remaining 50.00
       Then they owe nothing, and their money page says the booking is fully paid
 
-  @rule:payments.the-customer-can-see-what-is-left-and-pay-it
+  @rule:payments.the-customer-can-see-what-is-left
   @surface:public
-  Rule: The customer can see what is left and pay it
+  Rule: The customer can see what is left
     A reserved booking has a payment link the customer can open without
     signing in. It names what they booked, what they have paid and what is
     left, and offers to take the rest. It carries no personal details.
+
+    What happens after the offer is taken is a payment provider's business
+    and is not read here.
 
     @case:deposit.balance-page-shows-what-is-left
     Scenario: The payment link for a part-paid 80.00 Retreat place
