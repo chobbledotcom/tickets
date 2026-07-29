@@ -27,12 +27,16 @@
           # Take Deno from the pinned nixpkgs so the shell uses exactly
           # ${denoVersion} regardless of what the main nixpkgs currently ships.
           deno = nixpkgs-deno.legacyPackages.${pkgs.stdenv.hostPlatform.system}.deno;
+          codexSecurityPython = pkgs.python3.withPackages (pythonPackages: [
+            pythonPackages.tomli
+          ]);
         in
         {
           default = pkgs.mkShell {
             packages =
               [
                 deno
+                codexSecurityPython
                 (pkgs.writeShellScriptBin "pc" ''
                   exec ${deno}/bin/deno task precommit "$@"
                 '')
@@ -63,6 +67,7 @@
               export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(openssl rand -base64 32)}"
               export DB_URL="''${DB_URL-:memory:}"
               export PORT="''${PORT-8080}"
+              export CODEX_SECURITY_PYTHON="''${CODEX_SECURITY_PYTHON-${codexSecurityPython}/bin/python3}"
               ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
                 export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
                 export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}:''${LD_LIBRARY_PATH:-}"

@@ -1,3 +1,4 @@
+import { consumeFlagValue, walkArguments } from "#scripts/args.ts";
 import { isFeaturePath, isSpecPath } from "./paths.ts";
 
 export interface SpecCliOptions {
@@ -75,23 +76,30 @@ export const focusedTargets = (args: string[]): FocusedTargets => {
   const specPaths: string[] = [];
   const testArgs: string[] = [];
   let tags: string | undefined;
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index]!;
-    if (arg === "--tags") {
-      tags = tagExpression(args[++index]);
-      continue;
+  walkArguments(args, (arg, index) => {
+    const tagArgCount = consumeFlagValue(
+      args,
+      arg,
+      index,
+      "--tags",
+      (value) => {
+        tags = tagExpression(value);
+      },
+    );
+    if (tagArgCount !== null) {
+      return tagArgCount;
     }
     const directCount = directArgumentCount(args, index);
     if (directCount > 0) {
       testArgs.push(...args.slice(index, index + directCount));
-      index += directCount - 1;
-      continue;
+      return directCount;
     }
     if (isFeaturePath(arg) || isSpecPath(arg)) {
       specPaths.push(arg);
-      continue;
+      return;
     }
     testArgs.push(arg);
-  }
+    return;
+  });
   return { specPaths, testArgs, ...(tags === undefined ? {} : { tags }) };
 };

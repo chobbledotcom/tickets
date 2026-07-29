@@ -1,9 +1,11 @@
 import {
   AuthenticationRequiredError,
   CodexSecurity,
+  type CodexSecurityConfig,
   type LoginResult,
   type ScanOptions,
 } from "@openai/codex-security";
+import { consumeFlagValue, walkArguments } from "#scripts/args.ts";
 
 interface SecurityRunResult {
   readonly findings: {
@@ -32,39 +34,130 @@ interface ScriptOutput {
 
 interface CommandOptions {
   readonly deviceAuth: boolean;
+  readonly pythonPath?: string;
   readonly repository: string;
 }
 
 const DEVICE_AUTH_FLAG = "--device-auth";
+const PYTHON_FLAG = "--python";
+const CODEX_SECURITY_PYTHON_ENV = "CODEX_SECURITY_PYTHON";
+const PYTHON_ENV = "PYTHON";
+
+interface ScriptEnvironment {
+  get(key: string): string | undefined;
+}
+
+interface RuntimeDependencies {
+  createSecurity(config: CodexSecurityConfig): CodexSecurityClient;
+  readonly environment: ScriptEnvironment;
+}
+
+const defaultRuntimeDependencies: RuntimeDependencies = {
+  createSecurity: (config) => new CodexSecurity(config),
+  environment: Deno.env,
+};
 
 export async function runCodexSecurity(
   args: readonly string[],
-  security: CodexSecurityClient = new CodexSecurity(),
+  security?: CodexSecurityClient,
   output: ScriptOutput = console,
+  dependencies: RuntimeDependencies = defaultRuntimeDependencies,
 ): Promise<void> {
-  const { deviceAuth, repository } = parseCodexSecurityArgs(args);
+  const { deviceAuth, pythonPath, repository } = parseCodexSecurityArgs(args);
+  const activeSecurity =
+    security ??
+    dependencies.createSecurity(
+      codexSecurityConfig(pythonPath, dependencies.environment),
+    );
   try {
-    await runScanAndPrintResult(security, repository, output);
+    await runScanAndPrintResult(activeSecurity, repository, output);
   } catch (error) {
     if (!(error instanceof AuthenticationRequiredError)) {
       throw error;
     }
 
     output.log("No saved ChatGPT sign-in was found.");
-    await loginWithChatGPT(security, output, deviceAuth);
-    await runScanAndPrintResult(security, repository, output);
+    await loginWithChatGPT(activeSecurity, output, deviceAuth);
+    await runScanAndPrintResult(activeSecurity, repository, output);
   } finally {
-    await security.close();
+    await activeSecurity.close();
   }
 }
 
 export function parseCodexSecurityArgs(
   args: readonly string[],
 ): CommandOptions {
+  let deviceAuth = false;
+  let pythonPath: string | undefined;
+  let repository: string | undefined;
+
+  walkArguments(args, (arg, index) => {
+    if (arg === DEVICE_AUTH_FLAG) {
+      deviceAuth = true;
+      return;
+    }
+    const pythonArgCount = consumeFlagValue(
+      args,
+      arg,
+      index,
+      PYTHON_FLAG,
+      (value) => {
+        pythonPath = requiredFlagValue(value, PYTHON_FLAG);
+      },
+      { equals: true },
+    );
+    if (pythonArgCount !== null) {
+      return pythonArgCount;
+    }
+    if (arg.startsWith("--")) {
+      throw new Error(`Unknown Codex Security option: ${arg}`);
+    }
+    if (repository !== undefined) {
+      throw new Error(`Unexpected Codex Security argument: ${arg}`);
+    }
+    repository = arg;
+    return;
+  });
+
   return {
-    deviceAuth: args.includes(DEVICE_AUTH_FLAG),
-    repository: args.find((arg) => arg !== DEVICE_AUTH_FLAG) ?? ".",
+    deviceAuth,
+    ...(pythonPath === undefined ? {} : { pythonPath }),
+    repository: repository ?? ".",
   };
+}
+
+function codexSecurityConfig(
+  pythonPath: string | undefined,
+  environment: ScriptEnvironment,
+): CodexSecurityConfig {
+  const configuredPythonPath =
+    pythonPath ??
+    environmentValue(environment, CODEX_SECURITY_PYTHON_ENV) ??
+    environmentValue(environment, PYTHON_ENV);
+  return configuredPythonPath === undefined
+    ? {}
+    : {
+        pythonPath: configuredPythonPath,
+      };
+}
+
+function environmentValue(
+  environment: ScriptEnvironment,
+  key: string,
+): string | undefined {
+  const value = environment.get(key)?.trim();
+  return value === undefined || value.length === 0 ? undefined : value;
+}
+
+function requiredFlagValue(value: string | undefined, flag: string): string {
+  if (
+    value === undefined ||
+    value.trim().length === 0 ||
+    value.startsWith("--")
+  ) {
+    throw new Error(`${flag} needs a Python path.`);
+  }
+  return value;
 }
 
 async function runScan(
