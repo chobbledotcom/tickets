@@ -33,18 +33,45 @@ describe("why a booking we kept had to be refunded", () => {
     });
   });
 
-  // A full event or a sold-out extra is ordinary; a wrong charge, a vanished
-  // listing, or an unexpected error is a broken promise somebody should see.
-  for (const [code, notify] of [
-    ["capacity_full", undefined],
-    ["sold_out", undefined],
-    ["price_changed", undefined],
-    ["charge_mismatch", ErrorCode.WEBHOOK_PRICE_SIGNATURE],
-    ["listing_removed", ErrorCode.PAYMENT_SESSION],
-    ["unexpected_error", ErrorCode.PAYMENT_SESSION],
+  // Every reason, in full: the phrase the operator reads on the note, and
+  // whether it pages anybody. A full event or a sold-out extra is ordinary; a
+  // wrong charge, a vanished listing, or an unexpected error is a broken
+  // promise somebody should see.
+  for (const [code, reason, notify] of [
+    ["capacity_full", "the event filled up while they were paying", undefined],
+    [
+      "sold_out",
+      "an add-on or extra they chose sold out while they were paying",
+      undefined,
+    ],
+    [
+      "price_changed",
+      "the listing price changed while they were paying",
+      undefined,
+    ],
+    [
+      "charge_mismatch",
+      "the amount charged did not match the agreed total",
+      ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+    ],
+    [
+      "listing_removed",
+      "the listing was removed while they were paying",
+      ErrorCode.PAYMENT_SESSION,
+    ],
+    [
+      "unexpected_error",
+      "an unexpected error stopped the booking being completed",
+      ErrorCode.PAYMENT_SESSION,
+    ],
   ] as const) {
-    test(`${notify === undefined ? "does not page" : "pages"} anyone about ${code}`, () => {
-      expect(refundSpec(code)("detail").notify).toBe(notify);
+    test(`explains ${code} to the operator, and ${notify === undefined ? "pages nobody" : "pages someone"}`, () => {
+      expect(refundSpec(code)("detail")).toEqual({
+        code,
+        detail: "detail",
+        reason,
+        ...(notify === undefined ? {} : { notify }),
+      });
     });
   }
 
