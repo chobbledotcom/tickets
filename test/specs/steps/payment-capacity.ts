@@ -5,7 +5,8 @@ import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getPaymentSessionByResourceOrNull } from "#shared/db/payments/sessions.ts";
-import { getNotesForAttendee } from "#shared/db/system-notes.ts";
+import { getNotesFor } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -159,8 +160,8 @@ Then(
     // booking, moments after the customer is answered. Run it first, the way
     // the site does, or the organiser's page is read too early.
     await settleDeferredPaymentWork();
-    const notes = await getNotesForAttendee(
-      attendeeId,
+    const notes = await getNotesFor(
+      attendeeNotes(attendeeId),
       await getTestPrivateKey(),
     );
     expect(notes).toHaveLength(1);

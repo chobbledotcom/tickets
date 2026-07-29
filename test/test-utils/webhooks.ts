@@ -312,13 +312,14 @@ export const expectRefundNote = async (
   contains: string,
 ): Promise<void> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
-  const { getNotesForAttendee } = await import("#shared/db/system-notes.ts");
+  const { getNotesFor } = await import("#shared/db/notes/queries.ts");
+  const { attendeeNotes } = await import("#shared/db/notes/target.ts");
   const { getTestPrivateKey } = await import("./crypto.ts");
   const { settleDeferredPaymentWork } = await import("./maintenance.ts");
   await settleDeferredPaymentWork();
   const [attendee] = await getAttendeesRaw(listingId);
   const kept = required(attendee, "a kept booking");
-  const notes = await getNotesForAttendee(kept.id, await getTestPrivateKey());
+  const notes = await getNotesFor(attendeeNotes(kept.id), await getTestPrivateKey());
   const text = notes.map((note) => note.note).join("\n");
   expect(text).toContain(contains);
 };

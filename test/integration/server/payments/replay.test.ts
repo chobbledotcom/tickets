@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getNoteRows } from "#shared/db/system-notes.ts";
+import { getNoteRows } from "#shared/db/notes/queries.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -155,7 +155,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const attendees = await getAttendeesRaw(listing.id);
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.quantity).toBe(0);
-          expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+          expect((await getNoteRows("attendee", [attendees[0]!.id])).length).toBe(1);
           expect(mockRefund.calls.length).toBe(1);
 
           const payment =

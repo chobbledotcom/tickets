@@ -5,7 +5,8 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
-import { getNotesForAttendee } from "#shared/db/system-notes.ts";
+import { getNotesFor } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { runPaymentReconciliationMaintenance } from "#shared/payment-runtime/maintenance.ts";
 import {
@@ -81,7 +82,7 @@ describeWithEnv(
           const account = attendeeAccount(attendee!.id);
           expect(await transfersByAccount(account)).toEqual([]);
           expect(
-            await getNotesForAttendee(attendee!.id, await getTestPrivateKey()),
+            await getNotesFor(attendeeNotes(attendee!.id), await getTestPrivateKey()),
           ).toEqual([]);
           const due =
             await requirePaymentAggregateByProviderSession(
@@ -99,8 +100,8 @@ describeWithEnv(
           expect(balanceOf(account)(legs)).toBe(0);
           expect(legs.some((leg) => leg.kind === "payment")).toBe(true);
           expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
-          const notes = await getNotesForAttendee(
-            attendee!.id,
+          const notes = await getNotesFor(
+            attendeeNotes(attendee!.id),
             await getTestPrivateKey(),
           );
           expect(notes).toHaveLength(1);

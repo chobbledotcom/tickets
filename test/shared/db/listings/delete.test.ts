@@ -19,10 +19,6 @@ import {
   listingsTable,
 } from "#shared/db/listings/records.ts";
 import { listingReader } from "#shared/db/listings/select.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
@@ -38,7 +34,10 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  createAggregatePayment,
+  requirePaymentAggregateByProviderSession,
+} from "#test-utils/payment-aggregate.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
@@ -90,19 +89,18 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         "john@example.com",
       );
 
-      await reserveSession("sess_listing_delete");
-      await finalizeReservedPayment(
-        "sess_listing_delete",
-        attendee.id,
-        "tok-test",
-        "pi_listing_delete",
-      );
+      await createAggregatePayment({
+        attendeeId: attendee.id,
+        paymentId: "pi_listing_delete",
+        providerSessionId: "sess_listing_delete",
+      });
 
       await deleteListing(listing.id);
 
       // The attendee is orphaned, not purged, so its payment record survives.
-      const processed = await isSessionProcessed("sess_listing_delete");
-      expect(processed?.attendee_id).toBe(attendee.id);
+      const payment =
+        await requirePaymentAggregateByProviderSession("sess_listing_delete");
+      expect(payment.attendeeId).toBe(attendee.id);
     });
 
     test("removes activity log entries for the listing", async () => {
@@ -221,20 +219,19 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(rows.map((r) => r.listing_id)).toEqual([listing2.id]);
     });
 
-    test("keeps the shared attendee's processed payment when one listing is deleted", async () => {
+    test("keeps the shared attendee's payment when one listing is deleted", async () => {
       const { attendeeId, listing1 } = await bookAttendeeOnTwoListings();
-      await reserveSession("sess_multi_listing");
-      await finalizeReservedPayment(
-        "sess_multi_listing",
+      await createAggregatePayment({
         attendeeId,
-        "tok-test",
-        "pi_multi_listing",
-      );
+        paymentId: "pi_multi_listing",
+        providerSessionId: "sess_multi_listing",
+      });
 
       await deleteListing(listing1.id);
 
-      const processed = await isSessionProcessed("sess_multi_listing");
-      expect(processed?.attendee_id).toBe(attendeeId);
+      const payment =
+        await requirePaymentAggregateByProviderSession("sess_multi_listing");
+      expect(payment.attendeeId).toBe(attendeeId);
     });
 
     test("leaves an attendee orphaned rather than deleting it", async () => {
