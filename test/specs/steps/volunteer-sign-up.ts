@@ -46,6 +46,9 @@ Given(
       text: ACCESS_QUESTION,
     });
     this.groupSlug = group.slug;
+    // The shifts are offered on the group's own page, which is where an
+    // evidence capture of the sign-up form has to go.
+    this.evidenceValues.set("volunteerGroupSlug", group.slug);
     this.questionId = question.id;
   },
 );

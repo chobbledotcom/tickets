@@ -13,6 +13,7 @@ import {
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { getSetupCsrfToken } from "#test-utils/csrf.ts";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import {
   assertSchemaEmpty,
@@ -54,7 +55,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
     return submitSetupForm({
       admin_password: "mypassword123",
       admin_password_confirm: "mypassword123",
-      admin_username: "testadmin",
+      admin_username: TEST_ADMIN_USERNAME,
       country: "GB",
       ...overrides,
     });
@@ -81,7 +82,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         {
           admin_password: "mypassword123",
           admin_password_confirm: "mypassword123",
-          admin_username: "testadmin",
+          admin_username: TEST_ADMIN_USERNAME,
           country: "GB",
         },
         csrfToken as string,
@@ -358,7 +359,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           mockFormRequest("/setup/", {
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            admin_username: "testadmin",
+            admin_username: TEST_ADMIN_USERNAME,
             country: "US",
           }),
         );
@@ -375,7 +376,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           mockFormRequest("/setup/", {
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            admin_username: "testadmin",
+            admin_username: TEST_ADMIN_USERNAME,
             country: "US",
             csrf_token: "wrong-token-in-form",
           }),
@@ -472,7 +473,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
                   {
                     admin_password: "mypassword123",
                     admin_password_confirm: "mypassword123",
-                    admin_username: "testadmin",
+                    admin_username: TEST_ADMIN_USERNAME,
                     country: "GB",
                   },
                   csrfToken as string,
@@ -550,7 +551,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           {
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            admin_username: "testadmin",
+            admin_username: TEST_ADMIN_USERNAME,
             country: "US",
           },
           csrfToken as string,

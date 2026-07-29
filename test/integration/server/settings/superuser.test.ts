@@ -24,6 +24,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   awaitTestRequest,
@@ -420,7 +421,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       fromAddress: validEmail("f@e.com"),
       provider: "resend",
     });
-    const user = await getUserByUsername("testadmin");
+    const user = await getUserByUsername(TEST_ADMIN_USERNAME);
     expect(user).not.toBeNull();
     const token = generateSecureToken();
     const csrf = await signCsrfToken();

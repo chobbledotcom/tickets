@@ -54,6 +54,24 @@ export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
     ".page-regions.public-page",
   ),
   brandedMobileCapture(
+    "bookings.volunteer-chooses-shift",
+    "volunteer-shift-form",
+    "/ticket/{volunteerGroupSlug}",
+    ".page-regions.public-page",
+  ),
+  brandedMobileCapture(
+    "editors.joining-from-an-invite",
+    "team-and-roles",
+    "/admin/users",
+    ".page-regions.admin-page",
+  ),
+  brandedMobileCapture(
+    "paid-booking.recorded-once",
+    "listing-ledger",
+    "/admin/ledger/revenue/{paidListingId}",
+    ".page-regions.admin-page",
+  ),
+  brandedMobileCapture(
     "door.someone-still-to-arrive-can-be-picked",
     "qr-code-check-in",
     "/admin/listing/{doorListingId}/scanner",
