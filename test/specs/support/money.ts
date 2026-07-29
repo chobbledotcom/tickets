@@ -21,7 +21,10 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { withRefundMock } from "#test-utils/refund-routes.ts";
+import {
+  type RefundBehavior,
+  withRefundMock,
+} from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** The id of a listing the story put on sale, by the name it used. */
@@ -36,24 +39,42 @@ export const bookingId = (world: TicketsWorld): number =>
 export const minorUnits = (pounds: string): number =>
   Math.round(Number(pounds) * 100);
 
-/** A listing that sells places at the given price, remembered by name. */
-export const sellPlacesAt = async (
+/** Something the site sells at a price, remembered under the name the story
+ * calls it. The listing a money story starts from, so its price and its id are
+ * in one place rather than set up slightly differently each time. */
+export const sellSomethingAt = async (
   world: TicketsWorld,
   name: string,
-  pounds: string,
+  price: string,
+  options: { canPayMore?: boolean; keepThankYouPage?: boolean } = {},
 ): Promise<Listing> => {
   const listing = await createTestListing({
     maxAttendees: 50,
     name,
-    // Keep the site's own thank-you page, so a story can read what the customer
-    // is shown rather than being sent off to another site.
-    thankYouUrl: "",
-    unitPrice: minorUnits(pounds),
+    // A listing that lets a customer pay more than it asks needs a ceiling to
+    // pay up to, or there is nothing to be generous within.
+    ...(options.canPayMore
+      ? { canPayMore: true, maxPrice: minorUnits("100.00") }
+      : {}),
+    // Keeping the site's own thank-you page lets a story read what the customer
+    // is shown, rather than being sent off to another site.
+    ...(options.keepThankYouPage ? { thankYouUrl: "" } : {}),
+    unitPrice: minorUnits(price),
   });
   world.listingIds.set(name, listing.id);
   world.listingId = listing.id;
   return listing;
 };
+
+/** A listing that sells places at the given price, remembered by name. Money
+ * stories read what the customer is shown, so they keep the site's own
+ * thank-you page. */
+export const sellPlacesAt = (
+  world: TicketsWorld,
+  name: string,
+  pounds: string,
+): Promise<Listing> =>
+  sellSomethingAt(world, name, pounds, { keepThankYouPage: true });
 
 /** One customer pays in full for one place, through the real payment return. */
 export const buyOnePlace = async (
@@ -124,6 +145,30 @@ export const buyPlaceWithExtra = async (
 export const bookingPagePath = (world: TicketsWorld, page: string): string =>
   `/admin/attendees/${bookingId(world)}/${page}`;
 
+/**
+ * Give money back from a page that makes the organiser type a name to confirm.
+ * The provider is stood in for, so a story can say which payments it turns
+ * down. Answers with what the page said afterwards.
+ */
+export const refundByTyping = async (
+  world: TicketsWorld,
+  page: { button: string; path: string; typed: string },
+  provider: RefundBehavior,
+): Promise<string> => {
+  const browser = await adminBrowser(world);
+  let said = "";
+  await withRefundMock(provider, async (mockRefund: Stub) => {
+    await browser.visit(page.path);
+    // The page must offer the confirm-by-typing box; the browser carries the
+    // page's own token and action, so a broken form fails here.
+    expect(browser.currentHtml).toContain('name="confirm_identifier"');
+    await browser.submitForm({ confirm_identifier: page.typed }, page.button);
+    said = browser.pageText;
+    world.refundCalls = () => mockRefund.calls.length;
+  });
+  return said;
+};
+
 /** Ask for a refund the way the organiser does: open the booking's refund page,
  * type the name it asks for into its own form, and submit that form. The
  * provider answers `succeeds`. Keeps how many times it was asked. */
@@ -131,16 +176,15 @@ export const askForRefund = async (
   world: TicketsWorld,
   succeeds: boolean,
 ): Promise<void> => {
-  const who = requiredWorldValue(world.attendeeName, "attendee name");
-  const browser = await adminBrowser(world);
-  await withRefundMock(succeeds, async (mockRefund: Stub) => {
-    await browser.visit(bookingPagePath(world, "refund"));
-    // The page must offer the confirm-by-typing box; the browser carries the
-    // page's own token and action, so a broken form fails here.
-    expect(browser.currentHtml).toContain('name="confirm_identifier"');
-    await browser.submitForm({ confirm_identifier: who }, "Refund Attendee");
-    world.refundCalls = () => mockRefund.calls.length;
-  });
+  await refundByTyping(
+    world,
+    {
+      button: "Refund Attendee",
+      path: bookingPagePath(world, "refund"),
+      typed: requiredWorldValue(world.attendeeName, "attendee name"),
+    },
+    succeeds,
+  );
 };
 
 /** Set a listing's income through the correction form on its own edit page, and

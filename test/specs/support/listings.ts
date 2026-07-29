@@ -11,12 +11,10 @@
 import { expect } from "@std/expect";
 import type { Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { minorUnits } from "#test/specs/support/money.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
@@ -36,33 +34,6 @@ export const rememberStayListing = (
 /** The listing a story set up under this name. */
 export const stayListing = (world: TicketsWorld, name: string): Listing =>
   requiredWorldValue(world.stayListings?.get(name), `${name} stay listing`);
-
-/** Something the site sells at a price, remembered under the name the story
- * calls it. The listing a money story starts from, so its price and its id are
- * in one place rather than set up slightly differently each time. */
-export const sellSomethingAt = async (
-  world: TicketsWorld,
-  name: string,
-  price: string,
-  options: { canPayMore?: boolean; keepThankYouPage?: boolean } = {},
-): Promise<Listing> => {
-  const listing = await createTestListing({
-    maxAttendees: 50,
-    name,
-    // A listing that lets a customer pay more than it asks needs a ceiling to
-    // pay up to, or there is nothing to be generous within.
-    ...(options.canPayMore
-      ? { canPayMore: true, maxPrice: minorUnits("100.00") }
-      : {}),
-    // Keeping the site's own thank-you page lets a story read what the customer
-    // is shown, rather than being sent off to another site.
-    ...(options.keepThankYouPage ? { thankYouUrl: "" } : {}),
-    unitPrice: minorUnits(price),
-  });
-  world.listingIds.set(name, listing.id);
-  world.listingId = listing.id;
-  return listing;
-};
 
 /** What the site tells somebody when a listing's own form saves. */
 export const LISTING_SAVED = "Listing updated";

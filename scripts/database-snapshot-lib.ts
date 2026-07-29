@@ -4,9 +4,13 @@ import { load } from "@std/dotenv";
 import { basename, dirname, join, resolve, toFileUrl } from "@std/path";
 import * as v from "valibot";
 import { withCleanup } from "#scripts/cleanup.ts";
+import {
+  lstatOrNull,
+  statNumberOrNull,
+  statOrNull,
+} from "#scripts/not-found.ts";
 import { secureUrlCheck } from "#scripts/secure-url.ts";
 import { getEnv } from "#shared/env.ts";
-import { recoverError } from "#shared/error-recovery.ts";
 
 export const SNAPSHOT_USAGE = "Usage: deno task snapshot --out <path.sqlite>";
 
@@ -153,22 +157,6 @@ export const readSnapshotRequestFromEnvFile = async (
 const outputAlreadyExists = (path: string): Error =>
   new Error(`Output already exists: ${path}`);
 
-const readOrNullIfMissing = async <Result>(
-  read: () => Promise<Result>,
-): Promise<Result | null> =>
-  recoverError<Result | null>(read, (error) => {
-    if (error instanceof Deno.errors.NotFound) return null;
-    throw error;
-  });
-
-const fileInfoOrNull =
-  (getRead: () => (path: string) => Promise<Deno.FileInfo>) =>
-  (path: string): Promise<Deno.FileInfo | null> =>
-    readOrNullIfMissing(() => getRead()(path));
-
-const statOrNull = fileInfoOrNull(() => Deno.stat);
-const lstatOrNull = fileInfoOrNull(() => Deno.lstat);
-
 const requireOutputDirectory = async (path: string): Promise<void> => {
   const info = await statOrNull(path);
   if (info === null)
@@ -280,11 +268,8 @@ const SNAPSHOT_QUERY_CHECKS = [
   ),
 ];
 
-const fileSizeOrNull = async (path: string): Promise<number | null> => {
-  const info = await statOrNull(path);
-  // SQLite can either remove an empty WAL or leave a zero-byte file.
-  return info?.size ?? null;
-};
+// SQLite can either remove an empty WAL or leave a zero-byte file.
+const fileSizeOrNull = statNumberOrNull((info) => info.size);
 
 const requireEmptyWal = async (path: string): Promise<void> => {
   const size = await fileSizeOrNull(`${path}-wal`);

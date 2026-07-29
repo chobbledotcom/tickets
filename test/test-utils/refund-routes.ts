@@ -24,7 +24,9 @@ type RefundRouteCtx = {
 };
 
 type RefundCheck = (mockRefund: Stub) => Promise<void> | void;
-type RefundBehavior = boolean | ((reference: string) => Promise<boolean>);
+export type RefundBehavior =
+  | boolean
+  | ((reference: string) => Promise<boolean>);
 const refundResult =
   (behavior: RefundBehavior) =>
   async (

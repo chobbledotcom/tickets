@@ -7,6 +7,7 @@
 
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import {
@@ -14,6 +15,7 @@ import {
   stayListing,
 } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
@@ -255,22 +257,25 @@ export const meddledWith = (link: string): string => {
   return link.replace(code, code.slice(0, at) + swapped + code.slice(at + 1));
 };
 
+/** Something a story does to the listing it named. */
+type ListingStep = (world: TicketsWorld, name: string) => Promise<void>;
+
+/** Look the named listing up once, then do the work on it — so every step that
+ *  works on a listing the story named finds it the same way. */
+const onNamedListing =
+  (use: (listingId: number) => Promise<unknown>): ListingStep =>
+  async (world, name) => {
+    await use(stayListing(world, name).id);
+  };
+
 /** The organiser takes something off sale after the codes are printed. */
-export const takeOffSale = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  const { listingsTable } = await import("#shared/db/listings/records.ts");
-  await listingsTable.update(stayListing(world, name).id, { active: false });
-};
+export const takeOffSale: ListingStep = onNamedListing((listingId) =>
+  listingsTable.update(listingId, { active: false }),
+);
 
 /** Nothing at all was booked, whatever the page said. */
-export const expectNothingBooked = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<void> => {
-  const { getAttendeesRaw } = await import(
-    "#test-utils/db-helpers/attendees.ts"
-  );
-  expect(await getAttendeesRaw(stayListing(world, name).id)).toEqual([]);
-};
+export const expectNothingBooked: ListingStep = onNamedListing(
+  async (listingId) => {
+    expect(await getAttendeesRaw(listingId)).toEqual([]);
+  },
+);
