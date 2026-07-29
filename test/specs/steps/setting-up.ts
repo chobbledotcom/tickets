@@ -88,7 +88,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const { landedOn, stillOffered } = await openingSetupAgain();
     expect(stillOffered).toBe(false);
-    expect(landedOn).not.toBe("/setup/");
+    expect(landedOn).not.toBe("/setup");
   },
 );
 

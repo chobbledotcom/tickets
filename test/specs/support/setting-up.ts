@@ -7,7 +7,10 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import {
+  checkboxValueOffered,
+  fillInAndSend,
+} from "#test/specs/support/form-controls.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -51,7 +54,13 @@ export const somebodySetsUp = async (
   await fillInAndSend(
     browser,
     {
-      accept_agreement: "yes",
+      // Whatever the page's own tickbox sends, rather than a word the story
+      // believes in — a tickbox sending something the site does not expect
+      // would stop anybody finishing, and this has to fail with them.
+      accept_agreement: checkboxValueOffered(
+        browser.currentHtml,
+        "accept_agreement",
+      ),
       admin_password: password,
       admin_password_confirm: confirmation,
       admin_username: CHOSEN.name,
@@ -98,8 +107,11 @@ export const openingSetupAgain = async (): Promise<{
   stillOffered: boolean;
 }> => {
   const browser = await openAsNewcomer(SETUP_PAGE);
+  const { pathname } = new URL(browser.currentUrl, "http://localhost");
   return {
-    landedOn: new URL(browser.currentUrl, "http://localhost").pathname,
+    // Both spellings of the address are the live setup page, so a redirect
+    // that only dropped the trailing slash has not sent anybody anywhere.
+    landedOn: pathname.replace(/\/$/, ""),
     stillOffered: browser.currentHtml.includes(t("setup.submit")),
   };
 };
