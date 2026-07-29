@@ -210,24 +210,12 @@ describeWithEnv(
       });
     });
 
+    // The delivered-message journey these used to cover is told by the
+    // "A visitor writes to the owner" story. The two refusals below are told
+    // there too, but a Cucumber run does not feed the coverage gate and these
+    // are the only tests that reach those lines — so they stay, beside the
+    // guards a person could not reach through the form at all.
     describe("POST /contact", () => {
-      test("sends the message and flashes success when verified", async () => {
-        await activate();
-        await withContactFetch({ botpoisonOk: true }, async (mock) => {
-          const response = await postContactForm({
-            _botpoison: "solved",
-            email: "visitor@external.test",
-            message: "Hello!",
-          });
-          expectRedirect(response, "/contact");
-          expectFlash(response, "Message sent");
-          const emailCall = mock.emailCall();
-          expect(emailCall).toBeDefined();
-          expect(emailCall?.body?.to).toEqual(["owner@example.com"]);
-          expect(emailCall?.body?.reply_to).toBe("visitor@external.test");
-        });
-      });
-
       test("does not send and flashes an error when verification fails", async () => {
         await activate();
         await withContactFetch({ botpoisonOk: false }, async (mock) => {
@@ -244,6 +232,26 @@ describeWithEnv(
           );
           expect(mock.emailCall()).toBeUndefined();
         });
+      });
+
+      test("flashes an error when the message cannot be delivered", async () => {
+        await activate();
+        await withContactFetch(
+          { botpoisonOk: true, emailStatus: 500 },
+          async () => {
+            const response = await postContactForm({
+              _botpoison: "solved",
+              email: "visitor@example.com",
+              message: "Hello!",
+            });
+            expectRedirect(response, "/contact");
+            expectFlash(
+              response,
+              expect.stringContaining("could not be sent"),
+              false,
+            );
+          },
+        );
       });
 
       test("rejects an invalid email without verifying", async () => {
@@ -294,26 +302,6 @@ describeWithEnv(
           }),
         );
         expectRedirect(response, "/admin/login");
-      });
-
-      test("flashes an error when the message cannot be delivered", async () => {
-        await activate();
-        await withContactFetch(
-          { botpoisonOk: true, emailStatus: 500 },
-          async () => {
-            const response = await postContactForm({
-              _botpoison: "solved",
-              email: "visitor@example.com",
-              message: "Hello!",
-            });
-            expectRedirect(response, "/contact");
-            expectFlash(
-              response,
-              expect.stringContaining("could not be sent"),
-              false,
-            );
-          },
-        );
       });
 
       test("redirects with an error on an invalid CSRF token", async () => {

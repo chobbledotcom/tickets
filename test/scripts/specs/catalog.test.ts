@@ -44,6 +44,7 @@ describe("Cucumber story catalog", () => {
       "payments.refunding-everyone-at-once",
       "payments.repeated-money-actions",
       "payments.what-a-paid-booking-earned",
+      "servicing.hearing-from-a-visitor",
       "servicing.hold-and-cost",
       "servicing.letting-another-system-in",
       "servicing.what-an-editor-can-do",
