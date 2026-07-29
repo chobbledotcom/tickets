@@ -2143,3 +2143,31 @@ exist while the case still needs the owner.
 the last error is kept; a decision that has run at all has an attempt time; one
 that has finished has been tried; a decision with no answer yet has not
 finished.
+
+---
+
+## A booking nobody can read leaves the payment with nowhere to go
+
+*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+
+`classifySessionIntent` in `src/features/api/payment-processing/classify.ts`
+handles a paid session whose proof verifies but whose booking will not parse. It
+raises the problem for the owner and stops. That is the right first move: the
+buyer has been charged, so it must not be quiet, and it must not refund by
+itself, because the likeliest cause is our own schema getting stricter after a
+deploy, and an automatic refund would undo good bookings.
+
+What is missing is the step after that. The session is left in no particular
+state. Nothing records that it was seen and could not be acted on, so nothing
+tells an operator it is waiting, nothing stops it being looked at again and
+raised again, and there is no place for them to say what should happen to it.
+
+A starting point: give the session a state meaning "seen, cannot be read", set
+it where the problem is raised, and show those sessions to the owner with the
+two choices only a person should make — book it by hand, or refund it. The rule
+in `AGENTS.md` about genuine conflicts applies: the money decision stays with
+the human, as a required choice, not a default.
+
+This was left out of #1990 because that slice only hardens how a booking is read
+and checked. Giving a payment session a new state, a screen and an operator
+action belongs with the payment-record work, not with the parsing.
