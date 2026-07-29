@@ -10,7 +10,10 @@ import {
   handleAttendeesListGet,
 } from "#routes/admin/attendees-list.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { testCookie, withTestSession } from "#test-utils/session.ts";
@@ -155,6 +158,68 @@ describeWithEnv("the attendees browser", { db: true }, () => {
       const body = await csvBody(`?listing=${first.id}`);
       expect(body).toContain("Ada");
       expect(body).not.toContain("Grace");
+    });
+  });
+
+  describe("the CSV export across more than one page of attendees", () => {
+    /** Clone one attendee's rows in a single batch, rather than booking each. */
+    const seedFillerAttendees = async (
+      listingId: number,
+      count: number,
+    ): Promise<void> => {
+      const { getDb } = await import("#shared/db/client.ts");
+      const { attendee } = await createTestAttendeeDirect(
+        listingId,
+        "Filler",
+        "filler@example.com",
+      );
+      const clones = [];
+      for (let index = 1; index < count; index++) {
+        clones.push(
+          {
+            args: [`filler-token-${index}`, attendee.id],
+            sql: `INSERT INTO attendees (created, kind, checked_in, ticket_token_index, pii_blob, status_id)
+                  SELECT created, kind, checked_in, ?, pii_blob, status_id
+                  FROM attendees WHERE id = ?`,
+          },
+          {
+            args: [attendee.id],
+            sql: `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in)
+                  SELECT listing_id, last_insert_rowid(), start_at, end_at, quantity, checked_in
+                  FROM listing_attendees WHERE attendee_id = ?`,
+          },
+        );
+      }
+      await getDb().batch(clones, "write");
+    };
+
+    test("keeps reading pages until it has every booking", async () => {
+      const { ATTENDEES_PAGE_SIZE } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
+      const listing = await createTestListing({
+        maxAttendees: ATTENDEES_PAGE_SIZE * 3,
+      });
+      // One page's worth plus a few, so a export that stopped after the first
+      // page — or walked backwards — would come back short.
+      const total = ATTENDEES_PAGE_SIZE + 5;
+      await seedFillerAttendees(listing.id, total);
+
+      const body = await csvBody();
+      const rows = body.trim().split("\n").length - 1;
+      expect(rows).toBe(total);
+    });
+  });
+
+  describe("the record of what was done", () => {
+    test("notes that the attendee list was exported", async () => {
+      await twoBookedListings();
+      await csvBody();
+      const { getAllActivityLog } = await import("#shared/db/activityLog.ts");
+      const entries = await withTestSession(() => getAllActivityLog(20));
+      expect(entries.map((entry) => entry.message)).toContain(
+        "Attendees CSV exported",
+      );
     });
   });
 });
