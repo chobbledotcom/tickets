@@ -2771,3 +2771,118 @@ listing, the same way an unreadable booking is raised.
 
 Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
 where the shape rule is covered and the "names a booked listing" rule is not.
+
+---
+
+## Ten more findings from the review of the aggregate base branch
+
+*Origin: automated review of PR #1962 at commit `cdac3314`, 2026-07-29.*
+
+All ten are in payment logic this branch moved but did not introduce, and each
+needs a regression test of its own. They are recorded together because they
+share a shape: something the site decided once, at payment time, is looked up
+again later from live settings or live state, and the two can disagree.
+
+### The currency a delayed delivery is labelled with
+
+`src/features/api/payment-processing/completion-deliveries.ts` (around line 37)
+reads the site's current currency when the non-critical delivery step runs,
+rather than `current.payment.expected.currency`, which was frozen when the buyer
+paid. An owner who changes the site currency in between gets a ticket
+attachment and a registration webhook labelling the stored minor units with the
+wrong currency — and currencies whose smallest coin is a different size will
+show a wrong amount, not just a wrong symbol. Build the delivery from the
+payment's own currency.
+
+### A SumUp retry converted with the live currency
+
+`src/shared/sumup.ts` (around line 176) divides `expected.amount` into major
+units using the live currency setting, while sending the stored
+`expected.currency` in the same request. Retrying a £10 checkout after the site
+switches to a currency with no decimal places sends `1000 GBP`, and the response
+parser converts the same wrong way, so it can accept that as matching. Pass the
+stored currency into both conversions.
+
+### A permanently refused delivery blocks the queue behind it
+
+`completion-deliveries.ts` (around line 123) lets a permanent 4xx from a prepared
+email or webhook throw before the row is marked done.
+`getPendingPaymentCompletionDeliveries` then picks the same oldest row every
+time, so nothing behind it ever runs, and because payment maintenance takes one
+due payment per page and lets the error out, later payments can starve too.
+Record a failed or needs-action outcome for a permanent refusal and carry on.
+
+### Deleting an attendee mid-refund
+
+`src/shared/db/attendees/delete.ts` (around line 87) fences deletion on
+`completion_state = 'pending'` only. A payment that finished booking but still
+has a refund out at the provider passes the fence, and the batch detaches the
+payment and deletes the attendee. When the refund lands there is no attendee to
+record it against: the single-attendee path has nowhere to write, and the bulk
+path throws on a null `attendeeId`. Money is then unreconciled after real funds
+went back. Fence on unfinished refund state as well.
+
+### A single refund left pending is never finished
+
+`src/features/admin/attendee-refunds.ts` (around line 130) returns before
+`recordAttendeeRefund` when a single Stripe or Square refund comes back pending.
+Maintenance can later move the aggregate and charge to `fully_refunded`, but
+`processDuePaymentSession` runs the local ledger completion only for payments
+carrying the bulk-refund case — so the attendee stays unrefunded in Money, with
+no case open, after the provider has returned the money. Persist the local
+completion work for single refunds too.
+
+### A refused payment reads as needing review on reload
+
+`src/shared/payment-runtime/terminal.ts` (around line 42) turns the second read
+of a declined or cancelled SumUp checkout into a `conflict`, where the first
+read stored `failed` with an `ignore` outcome and the buyer got the normal retry
+page. A reload therefore tells the buyer their payment needs review when no case
+exists. Keep the original failed/ignored outcome for a terminally refused
+payment.
+
+### Queued mail sent to a business address that has changed
+
+`src/shared/email.ts` (around line 514) records only the provider and the
+from-address with a prepared message, so a business email changed before
+maintenance sends it still matches. The owner notification — which carries the
+buyer's personal details — then goes to the old address, and the buyer's
+confirmation can keep it as reply-to. Store and check the business recipient
+alongside the rest.
+
+### An account lookup that fails leaves the payment stuck
+
+`src/shared/payment-runtime/process.ts` (around line 150) throws when resolving
+a due paid checkout's provider account fails — a temporary Stripe outage, or
+credentials that were removed. The claimed payment keeps its stale due time and
+lease until expiry, no case is raised, and the same paid booking can repeat
+without ever appearing on the Payments page. Store a transient failure as a
+retry and a configuration failure as a needs-action case.
+
+### A SumUp return routed by the current provider setting
+
+`src/features/api/webhooks.ts` (around line 156) treats only `payment_id` as a
+local locator, but a new SumUp checkout puts the aggregate's own id in
+`session_id`. Change or disable the active provider while a hosted checkout is
+open and the buyer's return is routed to the new provider, or refused before the
+lookup, so a paid return cannot hand over the ticket. Recognise SumUp's returned
+local id whatever the current provider setting says.
+
+### Pre-upgrade bookings cannot be refunded
+
+`src/shared/db/payments/sessions.ts` (around line 214) excludes every session
+with `origin = 'legacy'`, which is what an upgraded site's copied attendee
+payments keep. The attendee refund page and the refund-all candidate builder
+therefore see no payment for any booking made before the upgrade — even after
+the owner has assigned the legacy charge to a provider account. Either promote a
+resolved legacy session or give the refund paths a legacy-aware target.
+
+### Merging an attendee with a paid site still being set up
+
+`src/shared/merge/attendee-merge.ts` (around line 828) repoints the payment
+session and deletes the source booking, but a stored delivery and any
+already-reserved `built_sites` row still name the source attendee. Completion
+then assigns or keeps the bought site against an attendee that no longer exists,
+rather than the one it was merged into. Either block the merge until completion
+finishes, or repoint the delivery and the assigned-site facts in the same
+transaction.
