@@ -1364,6 +1364,44 @@ a malformed response throws rather than being silently cast. Starting point:
 
 ---
 
+## Should the mutation gate pick fewer test files per source?
+
+*Origin: Codex review of PR #1981 (splitting three oversized test files into
+folders).*
+
+`ownsTest` in `scripts/mutation/test-map.ts` matches a source's mirror prefix
+*and everything under it*, so a source whose tests live in a folder selects
+every file in that folder, and `execution.ts` runs them with `--parallel` — one
+isolate each, for every mutant. Splitting a suite therefore turns one isolate
+per mutant into several. Codex's point is that this may cost more in repeated
+module-graph evaluation and setup than the single large file did.
+
+It may also cost less: each file is smaller, and they run in parallel. Nobody
+has measured it, and that measurement is the first job here. The command needs
+both a source and a test glob, so the split shape times as:
+
+```bash
+deno task mutation src/ui/templates/admin/questions.tsx \
+  'test/ui/templates/admin/questions/*.test.ts' --harness
+```
+
+For the "before" number, run the same command in a checkout from before PR
+#1981 — that is where the single `test/ui/templates/admin/questions.test.ts`
+still exists — with that one file as the test glob.
+
+Only if the split shape is genuinely slower is there something to change, and
+then the options are to select more narrowly (map a mutant to the one file whose
+name matches the mutated export — fragile) or to generate a single entry file
+that imports the folder's suites so one isolate runs them all. Note the manual
+command is already narrow: you can name one file yourself, which is what the
+~400-line guidance in AGENTS.md is about.
+
+Starting point: `ownsTest` and `selectMutationTests` in
+`scripts/mutation/test-map.ts`, and the `--parallel` invocation in
+`scripts/mutation/execution.ts`.
+
+---
+
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and

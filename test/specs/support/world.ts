@@ -69,9 +69,29 @@ export const stillThere = <Found>(
   return found;
 };
 
+/** Turns "the thing, or nothing" into a plain yes or no, so a story can ask
+ * whether the site still offers something without repeating the lookup. */
+export type AsksAboutOneThing = (
+  world: TicketsWorld,
+  name: string,
+) => Promise<boolean>;
+
+export const asksIfThereIs =
+  <Found>(
+    look: (world: TicketsWorld, name: string) => Promise<Found | null>,
+  ): AsksAboutOneThing =>
+  async (world, name) =>
+    (await look(world, name)) !== null;
+
 export interface TicketsWorld extends World {
   apiAnswer?: ApiAnswer;
   apiFirstDay?: string;
+  apiKeyAnswer?: { answered: number; said: string };
+  apiKeyPageAnswer?: number;
+  apiKeyShownOnce?: string;
+  apiKeys?: Map<string, string>;
+  apiKeyTakeBack?: string;
+  apiKeyWrite?: number;
   apiListing?: string;
   apiRoomAnswer?: boolean;
   attendeeId?: number;
@@ -132,6 +152,7 @@ export interface TicketsWorld extends World {
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;
   signedInEditorName?: string;
+  sitePageTold?: string;
   stayListings?: Map<string, Listing>;
   stayStartsOn?: string;
   testBrowser?: TestBrowser;

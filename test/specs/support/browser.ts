@@ -1,5 +1,9 @@
 // jscpd:ignore-start
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import { t } from "#i18n";
+import {
+  fillInAndSend,
+  takeDownFromActions,
+} from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 import type { TicketsWorld } from "./world.ts";
@@ -70,3 +74,31 @@ export const submitRenderedAdminForm = async (
   await fillInAndSend(browser, values, buttonText);
   return browser;
 };
+
+/** Somebody takes one thing down, typing a name to confirm, and is told what
+ * the site said. Every way in is followed rather than built — the link on the
+ * list, then the delete link behind that page's Actions tab — so a thing the
+ * site stopped offering a way into is one the story cannot take down either. */
+export type TakesOneThingDown = (
+  world: TicketsWorld,
+  name: string,
+  typed: string,
+) => Promise<string>;
+
+export const takesDownFromList =
+  (
+    wayInto: (world: TicketsWorld, name: string) => Promise<string | null>,
+    labelled: {
+      deleteLinkKey: string;
+      missing: (name: string) => string;
+      submitKey: string;
+    },
+  ): TakesOneThingDown =>
+  async (world, name, typed) => {
+    const wayIn = await wayInto(world, name);
+    if (!wayIn) throw new Error(labelled.missing(name));
+    return takeDownFromActions(await openAdminPage(world, wayIn), typed, {
+      deleteLink: t(labelled.deleteLinkKey),
+      submit: t(labelled.submitKey),
+    });
+  };
