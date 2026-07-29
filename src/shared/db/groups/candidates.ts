@@ -1,8 +1,8 @@
 /** The listings a group's "add listings" form can offer. */
 
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { LISTING_ORDER_SQL } from "#shared/db/listings/select.ts";
 import { rawListingsTable } from "#shared/db/listings/table.ts";
-import { defineTableProjection } from "#shared/db/projection.ts";
 import { settings } from "#shared/db/settings.ts";
 import { orderSql } from "#shared/db/where-clauses.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
@@ -15,7 +15,7 @@ import type { SortableListing } from "#shared/types.ts";
  * ones, so it sorts the same way a full listing record does. */
 export type GroupListingCandidate = SortableListing & { active: boolean };
 
-const candidateProjection = defineTableProjection(rawListingsTable, [
+const candidateColumns = chooseColumns(rawListingsTable, [
   "id",
   "name",
   "active",
@@ -39,8 +39,8 @@ const candidateProjection = defineTableProjection(rawListingsTable, [
 export const getListingsNotInGroup = async (
   groupId: number,
 ): Promise<GroupListingCandidate[]> => {
-  const rows = await candidateProjection.queryAll(
-    `SELECT ${candidateProjection.columnsSql("listing")}
+  const rows = await candidateColumns.queryAll(
+    `SELECT ${candidateColumns.columnsSql("listing")}
        FROM listings AS listing
       WHERE listing.id NOT IN (
         SELECT groupListing.listing_id

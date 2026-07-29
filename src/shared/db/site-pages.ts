@@ -2,7 +2,7 @@
  * `site_pages` table operations — user-created content pages.
  *
  * Cold-start efficiency is deliberate here: the public nav only needs a **narrow
- * projection** (id, slug, name, sort_order) and must not decrypt the large
+ * columns** (id, slug, name, sort_order) and must not decrypt the large
  * `content` / `meta_*` blobs on every request. So the cached read
  * ({@link sitePages}.getAll) selects and decrypts only those four columns; the
  * full row (with content/meta) is loaded one at a time, only for a single
@@ -13,12 +13,12 @@
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { queryOne, type TxScope, useTransaction } from "#shared/db/client.ts";
 import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
-import { defineTableProjection } from "#shared/db/projection.ts";
 import {
   unclaimedSiteSlugCondition,
   updateRowWithUnclaimedSlug,
@@ -51,20 +51,20 @@ const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
   sort_order: col.simple<number>(),
 });
 
-const sitePageNavProjection = defineTableProjection(rawSitePagesTable, [
+const sitePageNavColumns = chooseColumns(rawSitePagesTable, [
   "id",
   "slug",
   "name",
   "sort_order",
 ]);
 
-/** Load the nav projection: only id/slug/name/sort_order, decrypting just slug
+/** Load the nav columns: only id/slug/name/sort_order, decrypting just slug
  * and name (never content/meta). Ordered by (sort_order, id). The raw row
  * carries name and slug still sealed; the map below opens them. */
 const fetchNavRows = (): Promise<SitePageNavRow[]> =>
-  sitePageNavProjection.select({ order: "sort_order ASC, id ASC" });
+  sitePageNavColumns.select({ order: "sort_order ASC, id ASC" });
 
-// Request-scoped cache over the projection: computed once per request, fresh on
+// Request-scoped cache over those columns: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write
 // to site_pages (cachedTable registers the dependency on the table name).
 export const sitePages = cachedTable({

@@ -17,7 +17,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type {
   Image,
-  ItemImageProjection,
+  ItemImageColumns,
   ListingWithCount,
 } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
@@ -47,7 +47,7 @@ export const TicketPageHeader = ({
 }: {
   headerName: string;
   headerDescription: string | null | undefined;
-  headerImage: ItemImageProjection | null;
+  headerImage: ItemImageColumns | null;
   galleryImages: readonly Image[];
   listingAttributes: AttributeWithOptions[] | undefined;
   singleListing: ListingWithCount | null;

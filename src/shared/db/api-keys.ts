@@ -13,10 +13,10 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { BlindIndex, WrappedKey } from "#shared/crypto/sealed.ts";
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { execute, executeUpdate, queryOne } from "#shared/db/client.ts";
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { defineTableProjection } from "#shared/db/projection.ts";
 import { col } from "#shared/db/table.ts";
 import { equals } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
@@ -59,17 +59,14 @@ const apiKeysTable = defineIdTable<ApiKeyRow, ApiKeyInput>("api_keys", {
 const API_KEY_COLUMNS =
   "id, user_id, key_index, wrapped_data_key, name, created, last_used";
 
-const apiKeyListProjection = defineTableProjection(apiKeysTable, [
+const apiKeyListColumns = chooseColumns(apiKeysTable, [
   "id",
   "name",
   "created",
   "last_used",
 ]);
 
-const apiKeyNameProjection = defineTableProjection(apiKeysTable, [
-  "id",
-  "name",
-]);
+const apiKeyNameColumns = chooseColumns(apiKeysTable, ["id", "name"]);
 
 /**
  * Create a new API key for a user.
@@ -117,7 +114,7 @@ export const getApiKeysForUser = async (
 ): Promise<
   Array<{ id: number; name: string; created: string; lastUsed: string }>
 > => {
-  const decrypted = await apiKeyListProjection.select({
+  const decrypted = await apiKeyListColumns.select({
     order: "id ASC",
     where: equals("user_id", userId),
   });
@@ -136,7 +133,7 @@ export const getApiKeyForUser = async (
   id: number,
   userId: number,
 ): Promise<{ id: number; name: string }> => {
-  const decrypted = await apiKeyNameProjection.selectOne({
+  const decrypted = await apiKeyNameColumns.selectOne({
     where: [...equals("id", id), ...equals("user_id", userId)],
   });
   if (!decrypted) throw new Error(`API key ${id} not found for user ${userId}`);

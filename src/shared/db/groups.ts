@@ -22,6 +22,7 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
+import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import {
   execute,
   executeBatch,
@@ -49,10 +50,9 @@ import {
 } from "#shared/db/listing-prices.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import {
-  type ListingProjectionRow,
+  type ListingRecordRow,
   listingStatement,
 } from "#shared/db/listings/select.ts";
-import { defineTableProjection } from "#shared/db/projection.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
@@ -91,7 +91,7 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...projectCatalogFields(groupCatalogFields, "columns", {}),
 });
 
-const packageDisplayProjection = defineTableProjection(rawGroupsTable, [
+const packageDisplayColumns = chooseColumns(rawGroupsTable, [
   "id",
   "hide_package_listings",
   "name",
@@ -189,7 +189,7 @@ export const getListingsByGroupIds = async (
   activeOnly = false,
 ): Promise<Map<number, ListingWithCount[]>> => {
   if (groupIds.length === 0) return new Map();
-  type GroupListingRow = ListingProjectionRow & { group_ids: string };
+  type GroupListingRow = ListingRecordRow & { group_ids: string };
   type ListingGroups = { groupIds: number[]; member: ListingWithCount };
   const { sql, args } = listingStatement({
     order: "created_desc",
@@ -453,7 +453,7 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
-  const packageGroups = await packageDisplayProjection.select({
+  const packageGroups = await packageDisplayColumns.select({
     alias: "groupRecord",
     where: [
       ...inList(

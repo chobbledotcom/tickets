@@ -17,13 +17,13 @@ import {
 } from "#shared/db/client.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { decryptListingWithCount } from "./records.ts";
-import { type ListingProjectionRow, listingStatement } from "./select.ts";
+import { type ListingRecordRow, listingStatement } from "./select.ts";
 
 const withBatchListing = async <T>(
   listingResult: ResultSet,
   build: (listing: ListingWithCount) => T,
 ): Promise<T | null> => {
-  const listingRow = resultRows<ListingProjectionRow>(listingResult)[0];
+  const listingRow = resultRows<ListingRecordRow>(listingResult)[0];
   if (!listingRow) return null;
   return build(await decryptListingWithCount(listingRow));
 };

@@ -1,12 +1,13 @@
 /**
- * Tests for a projection's declared read (`select` / `selectOne` in
- * `src/shared/db/table.ts`), which composes the projection's columns and table
- * with the shared filter clauses so an ordinary single-table read needs no SQL.
+ * Tests for a declared read (`select` / `selectOne` in
+ * `src/shared/db/chosen-columns.ts`), which puts the chosen columns and their
+ * table together with the shared filters, so an ordinary single-table read
+ * needs no SQL of its own.
  */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingOptionProjection } from "#shared/db/listings/table.ts";
+import { listingOptionColumns } from "#shared/db/listings/table.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -21,7 +22,7 @@ describeWithEnv("db > table > declared projection reads", { db: true }, () => {
     const first = await createTestListing({ name: "Alpha" });
     const second = await createTestListing({ name: "Beta" });
 
-    const rows = await listingOptionProjection.select({ alias: "listing" });
+    const rows = await listingOptionColumns.select({ alias: "listing" });
 
     expect(rows.map(({ id }) => id).toSorted()).toEqual(
       [first.id, second.id].toSorted(),
@@ -32,7 +33,7 @@ describeWithEnv("db > table > declared projection reads", { db: true }, () => {
     const wanted = await createTestListing({ name: "Wanted" });
     await createTestListing({ name: "Unwanted" });
 
-    const rows = await listingOptionProjection.select({
+    const rows = await listingOptionColumns.select({
       alias: "listing",
       where: equals("listing.id", wanted.id),
     });
@@ -44,7 +45,7 @@ describeWithEnv("db > table > declared projection reads", { db: true }, () => {
     const first = await createTestListing({ name: "First" });
     const second = await createTestListing({ name: "Second" });
 
-    const rows = await listingOptionProjection.select({
+    const rows = await listingOptionColumns.select({
       alias: "listing",
       limit: 1,
       order: "listing.id DESC",
@@ -57,13 +58,13 @@ describeWithEnv("db > table > declared projection reads", { db: true }, () => {
     const listing = await createTestListing({ name: "Only" });
 
     expect(
-      await listingOptionProjection.selectOne({
+      await listingOptionColumns.selectOne({
         alias: "listing",
         where: equals("listing.id", listing.id),
       }),
     ).toMatchObject({ id: listing.id, name: "Only" });
     expect(
-      await listingOptionProjection.selectOne({
+      await listingOptionColumns.selectOne({
         alias: "listing",
         where: equals("listing.id", 999_999),
       }),
@@ -76,13 +77,13 @@ describeWithEnv("db > table > declared projection reads", { db: true }, () => {
     await runWithQueryLogContext(async () => {
       enableQueryLog();
       expect(
-        await listingOptionProjection.select({
+        await listingOptionColumns.select({
           alias: "listing",
           where: inList("listing.id", []),
         }),
       ).toEqual([]);
       expect(
-        await listingOptionProjection.selectOne({
+        await listingOptionColumns.selectOne({
           alias: "listing",
           where: inList("listing.id", []),
         }),
