@@ -236,6 +236,50 @@ const DOOR_CHECK_IN_CSS = `${brandedThemeCss(
 }
 `;
 
+const BALANCE_LINK_CSS = `${brandedThemeCss(
+  "12px",
+  "#9c4a2f",
+  "#ece0d3",
+  "#fdf9f4",
+  "#9c4a2f",
+  "#5b3a2b",
+  "#9c4a2f18",
+  "#5b3a2b26",
+  "#9c4a2f",
+  "#3b2a22",
+  "#7a6155",
+)}
+
+.public-page {
+  background: #fdf9f4;
+  border: 1px solid #e4d5c5;
+  box-shadow: 0 14px 32px var(--color-shadow);
+  padding: 1.25rem;
+}
+
+.public-page h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+}
+
+.public-page table {
+  width: 100%;
+}
+
+.public-page th {
+  background: var(--color-accent);
+  color: #fdf9f4;
+}
+
+.public-page button[type="submit"] {
+  background: var(--color-accent);
+  border-color: #7f3a24;
+  border-radius: 999px;
+  color: #fdf9f4;
+  font-weight: 800;
+}
+`;
+
 /** One branded mobile capture: the page an authored case leaves behind, the
  * part of it worth showing, and the styling it is shown in. */
 const brandedMobileCapture = (
@@ -269,6 +313,13 @@ export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
     "/admin/settings",
     ".page-regions.admin-page",
     PAYMENT_PROVIDER_CSS,
+  ),
+  brandedMobileCapture(
+    "deposit.balance-page-shows-what-is-left",
+    "balance-payment-link",
+    "/pay/{balanceToken}",
+    ".page-regions.public-page",
+    BALANCE_LINK_CSS,
   ),
   brandedMobileCapture(
     "door.someone-still-to-arrive-can-be-picked",

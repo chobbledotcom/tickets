@@ -94,6 +94,7 @@ export interface TicketsWorld extends World {
   apiKeyWrite?: number;
   apiListing?: string;
   apiRoomAnswer?: boolean;
+  attendeeEmail?: string;
   attendeeId?: number;
   attendeeIds?: number[];
   attendeeName?: string;

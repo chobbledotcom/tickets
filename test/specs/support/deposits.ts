@@ -5,6 +5,7 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
+import { signBalanceToken } from "#shared/balance-link.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
@@ -16,6 +17,7 @@ import {
 } from "#test/specs/support/world.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { awaitTestRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 
 /** A place taken but not paid for, so the whole price is owed. */
@@ -25,13 +27,15 @@ export const unpaidPlace = async (
   price: string,
 ): Promise<void> => {
   const listing = await sellSomethingAt(world, name, price);
+  const email = `${name.toLowerCase().replaceAll(" ", "-")}@example.com`;
   const attendee = await createTestAttendee(
     listing.id,
     listing.slug,
     `${name} Payer`,
-    `${name.toLowerCase().replaceAll(" ", "-")}@example.com`,
+    email,
   );
   world.attendeeId = attendee.id;
+  world.attendeeEmail = email;
   world.attendeeName = `${name} Payer`;
 };
 
@@ -44,6 +48,21 @@ export const payDeposit: ActOnSomeMoney = async (world, amount) => {
     gross: 0,
     listingId: theListing(world),
   });
+};
+
+/**
+ * The page a part-paid customer opens from their payment link.
+ *
+ * The token is kept on the world so an evidence capture can open the same
+ * link the story just read: the page exists only at a signed URL, so a
+ * screenshot of it cannot be taken from a path written by hand.
+ */
+export const balancePageHtml = async (world: TicketsWorld): Promise<string> => {
+  const token = await signBalanceToken(theBooking(world));
+  world.evidenceValues.set("balanceToken", token);
+  const response = await awaitTestRequest(`/pay/${token}`);
+  expect(response.status).toBe(200);
+  return response.text();
 };
 
 /** The organiser settles what is left, the way the site settles it. */

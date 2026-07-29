@@ -21,7 +21,10 @@ const BASE_REGISTRY: Omit<SpecRegistry, "owners"> = {
   actors: ["customer", "editor", "organiser"],
   editions: ["managed", "self-hosted"],
   risks: ["high", "medium", "low"],
-  surfaces: ["admin", "return", "webhook"],
+  // "public" is a page a customer opens themselves, without signing in and
+  // without arriving back from a payment provider: the link they pay an
+  // outstanding balance from is one.
+  surfaces: ["admin", "public", "return", "webhook"],
 };
 
 const OwnerFileSchema = v.pick(SpecRegistrySchema, ["owners"]);

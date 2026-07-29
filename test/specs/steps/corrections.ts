@@ -13,6 +13,7 @@ import {
   accountBalance,
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import {
   addBalanceEntry,
   cashBefore,
@@ -22,6 +23,7 @@ import {
   surchargeId,
 } from "#test/specs/support/corrections.ts";
 import {
+  balancePageHtml,
   payDeposit,
   settleTheRest,
   unpaidPlace,
@@ -294,6 +296,47 @@ Then(
       `/admin/attendees/${bookingId(this)}/ledger`,
     );
     expect(page).toContain("This booking is fully paid");
+  },
+);
+
+Then(
+  "their payment link offers to take the {word} that is left",
+  async function (this: TicketsWorld, amount: string): Promise<void> {
+    const page = await balancePageHtml(this);
+    expect(page).toContain(
+      `Balance due:</strong> ${formatCurrency(minorUnits(amount))}`,
+    );
+    expect(page).toContain(`Pay ${formatCurrency(minorUnits(amount))} now`);
+  },
+);
+
+Then(
+  "it names the {word} place, {word} ordered and {word} paid",
+  async function (
+    this: TicketsWorld,
+    name: string,
+    ordered: string,
+    paid: string,
+  ): Promise<void> {
+    const page = await balancePageHtml(this);
+    expect(page).toContain(name);
+    expect(page).toContain(
+      `Full order price:</strong> ${formatCurrency(minorUnits(ordered))}`,
+    );
+    expect(page).toContain(
+      `Already paid:</strong> ${formatCurrency(minorUnits(paid))}`,
+    );
+  },
+);
+
+Then(
+  "it says nothing about who booked",
+  async function (this: TicketsWorld): Promise<void> {
+    const page = await balancePageHtml(this);
+    // The booker's own name and address are what the link must not carry.
+    for (const detail of [this.attendeeName, this.attendeeEmail]) {
+      if (detail) expect(page).not.toContain(detail);
+    }
   },
 );
 
