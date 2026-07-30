@@ -3,8 +3,9 @@
  * opened by somebody never signed in, because that is who these pages are for.
  */
 
-// jscpd:ignore-start
 import { t } from "#i18n";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import {
   newcomerReading,
@@ -62,7 +63,7 @@ export const ownerWritesPage = async (
   world.sitePageTold = browser.pageText;
   // The address the owner chose, so a capture can open the page the way a
   // visitor would rather than being told the address a second time.
-  world.evidenceValues.set("sitePageAddress", address);
+  leaveEvidencePage(world, ["page-anybody-can-read"], `/page/${address}`);
   return browser.pageText;
 };
 

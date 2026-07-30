@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { submitRenderedAdminForm } from "#test/specs/support/browser.ts";
 import {
@@ -103,7 +104,11 @@ When(
     }
     const eventId = Number(requiredWorldValue(match[1], "service event id"));
     this.servicingEventId = eventId;
-    this.evidenceValues.set("servicingEventId", String(eventId));
+    leaveEvidencePage(
+      this,
+      ["servicing-studio-floor-hold"],
+      `/admin/servicing/${eventId}`,
+    );
   },
 );
 

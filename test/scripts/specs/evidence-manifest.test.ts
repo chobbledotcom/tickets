@@ -63,7 +63,7 @@ const declaration = {
   caseId: "payment.place-available",
   element: "#payment-result",
   id: "payment-result",
-  path: "/admin/payments/{paymentId}",
+  path: "/admin/payments/42",
   presentation: "canonical",
   profiles: ["mobile"],
 } as const;

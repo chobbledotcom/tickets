@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
   organiserSavesListing,
@@ -100,7 +101,11 @@ When(
   "the organiser looks at the {word}'s page",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const { id } = stayListing(this, name);
-    this.evidenceValues.set("stayLengthListingId", String(id));
+    leaveEvidencePage(
+      this,
+      ["stay-length-on-the-page"],
+      `/admin/listing/${id}`,
+    );
     await openAdminPage(this, `/admin/listing/${id}`);
   },
 );

@@ -18,7 +18,7 @@ import {
 
 Before(async function (this: TicketsWorld): Promise<void> {
   this.cleanup = [];
-  this.evidenceValues = new Map();
+  this.evidencePages = new Map();
   this.listingIds = new Map();
   const cleanupDb = await setupTestDbEnvironment(true).catch((error) => {
     clearTestEncryptionKey();

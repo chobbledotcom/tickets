@@ -5,6 +5,7 @@
  */
 
 // jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
@@ -102,5 +103,9 @@ export const payYourOwnPrice: ActOnSomeMoney = async (world, chosen) => {
   });
   world.attendeeId = (await getAttendeesRaw(listingId))[0]!.id;
   // The statement that has to show what they chose rather than what was asked.
-  world.evidenceValues.set("payMoreListingId", String(listingId));
+  leaveEvidencePage(
+    world,
+    ["paid-more-than-asked"],
+    `/admin/ledger/revenue/${listingId}`,
+  );
 };

@@ -14,7 +14,7 @@ import {
 
 const world = {
   attach: () => Promise.resolve(),
-  evidenceValues: new Map<string, string>(),
+  evidencePages: new Map<string, string>(),
 };
 
 const hook = {
