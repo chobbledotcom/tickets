@@ -1,3 +1,4 @@
+/* jscpd:ignore-start -- imports */
 import {
   alsoAbout,
   encryptedPaymentColumnOrNull,
