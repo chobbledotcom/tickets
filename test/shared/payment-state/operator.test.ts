@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { LegacyProviderAssignmentReadSchema } from "#shared/payment-state/operator.ts";
-import { chargeResource, sessionResource } from "./fixtures.ts";
+import { chargeResource, sessionResource } from "#test-utils/payment-state.ts";
 
 /** A reading that says which money an old payment turned out to be. Every part
  *  of it agrees with every other, which is what the tests below break one at a

@@ -25,7 +25,7 @@ import {
   refundResource,
   sessionResource,
   validationMessage,
-} from "./fixtures.ts";
+} from "#test-utils/payment-state.ts";
 
 describe("payment observations", () => {
   test("validates signed and staged ownership proof", () => {

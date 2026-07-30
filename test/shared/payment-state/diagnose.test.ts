@@ -13,7 +13,7 @@ import {
   refundObservation,
   refundResource,
   sessionResource,
-} from "./fixtures.ts";
+} from "#test-utils/payment-state.ts";
 
 /** A reading the case is about, once we have said out loud that it finished.
  *  A fixture that has not is the test being wrong, not the code. */

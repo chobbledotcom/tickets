@@ -18,7 +18,7 @@ import {
   refundObservation,
   sessionResource,
   validationMessage,
-} from "./fixtures.ts";
+} from "#test-utils/payment-state.ts";
 
 describe("payment lifecycle", () => {
   // A stored answer that disagrees with its own reading is the fault these

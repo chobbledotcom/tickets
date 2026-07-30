@@ -13,7 +13,7 @@ import {
   refundObservation,
   refundResource,
   validationMessage,
-} from "../fixtures.ts";
+} from "#test-utils/payment-state.ts";
 
 describe("what a refund says about the money going back", () => {
   test("validates completed, pending, and failed refund observations", () => {

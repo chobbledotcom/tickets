@@ -12,7 +12,7 @@ import {
   refundObservation,
   refundResource,
   sessionResource,
-} from "./fixtures.ts";
+} from "#test-utils/payment-state.ts";
 
 const ownership = paymentObservation().ownership;
 

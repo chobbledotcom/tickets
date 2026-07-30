@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resolveRefund } from "#shared/payment-state/refund.ts";
 import type { ChargeLeg } from "#shared/payment-state/resources.ts";
-import { chargeLeg, refundObservation, refundResource } from "./fixtures.ts";
+import {
+  chargeLeg,
+  refundObservation,
+  refundResource,
+} from "#test-utils/payment-state.ts";
 
 const resolved = (charge: ChargeLeg) => resolveRefund(charge);
 

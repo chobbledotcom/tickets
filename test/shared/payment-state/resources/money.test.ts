@@ -17,7 +17,7 @@ import {
   refundResource,
   sessionResource,
   validationMessage,
-} from "../fixtures.ts";
+} from "#test-utils/payment-state.ts";
 
 describe("the money and the things a provider names", () => {
   test("accepts safe minor amounts and uppercase currencies", () => {
