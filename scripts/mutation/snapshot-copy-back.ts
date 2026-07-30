@@ -40,6 +40,18 @@ const assertUnchanged = async (
   }
 };
 
+/** Write through a sibling temp file and rename it into place, so a write
+ * that dies part-way (a full disk, a killed process) can never leave the
+ * live file truncated — it holds either the old text or the new. */
+const writeWholeOrNotAtAll = async (
+  path: string,
+  text: string,
+): Promise<void> => {
+  const temp = `${path}.writing`;
+  await Deno.writeTextFile(temp, text);
+  await Deno.rename(temp, path);
+};
+
 /** One file this run wrote back, with the text before and after the write. */
 export interface WrittenFile {
   after: string;
@@ -93,7 +105,7 @@ export const bringFilesBack = async (
         await assertUnchanged(root, entry);
         const after = await Deno.readTextFile(join(workRoot, entry.file));
         if (after === entry.before) continue;
-        await Deno.writeTextFile(join(root, entry.file), after);
+        await writeWholeOrNotAtAll(join(root, entry.file), after);
         written.push({ after, before: entry.before, file: entry.file });
         console.log(`Updated ${entry.file}`);
       }

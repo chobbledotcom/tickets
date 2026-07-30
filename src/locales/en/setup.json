@@ -31,6 +31,6 @@
   "fields.setup.password": "Admin password *",
   "fields.setup.password_hint": "Minimum 8 characters",
   "fields.setup.confirm_password": "Confirm admin password *",
-  "error.agreement_required": "You must accept the Data controller agreement to continue",
+  "error.agreement_required": "You must accept the Data controller agreement to continue.",
   "error.country_invalid": "Please select a valid country"
 }
