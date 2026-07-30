@@ -121,7 +121,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         response,
         200,
         "Add Logistics Agent",
-        "Agent Name",
+        "Agent name",
       );
     });
 
@@ -285,7 +285,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       });
       const body = await response.text();
       expect(response.status).toBe(400);
-      expect(body).toContain("Agent Name is required");
+      expect(body).toContain("Agent name is required");
       expect(body).toMatch(
         new RegExp(
           `checked[^>]*value="${userId}"|value="${userId}"[^>]*checked`,

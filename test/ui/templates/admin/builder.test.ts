@@ -9,9 +9,9 @@ import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 describe("adminBuilderPage", () => {
   test("renders form fields", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
-    expect(html).toContain("Site Name");
+    expect(html).toContain("Site name");
     expect(html).toContain("Database URL");
-    expect(html).toContain("Database Token");
+    expect(html).toContain("Database token");
     expect(html).toContain('name="site_name"');
     expect(html).toContain('name="db_url"');
     expect(html).toContain('name="db_token"');

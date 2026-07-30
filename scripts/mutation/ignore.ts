@@ -21,7 +21,10 @@
  */
 
 import { join } from "@std/path";
-import { namesInDirectory } from "#scripts/not-found.ts";
+import {
+  namesInDirectory,
+  rethrowUnlessNotFound,
+} from "#scripts/not-found.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
 import { type MutantResult, rel } from "./summary.ts";
@@ -30,10 +33,6 @@ export const EQUIVALENT_MUTANTS_DIR = new URL(
   "./equivalent-mutants/",
   import.meta.url,
 );
-
-/** The same directory, as a path from the top of the checkout. */
-export const EQUIVALENT_MUTANTS_DIR_PATH =
-  "scripts/mutation/equivalent-mutants";
 
 /** Every registry file in the directory, in name order so loads are stable.
  * A checkout without the directory simply has no records, so it reads empty. */
@@ -106,8 +105,10 @@ export const loadIgnoreList = async (
     let text: string;
     try {
       text = await Deno.readTextFile(file);
-    } catch {
-      // Absence is the documented empty case.
+    } catch (error) {
+      // Absence is the documented empty case; a file that exists but cannot
+      // be read is a real failure the run must surface, not an empty registry.
+      rethrowUnlessNotFound(error);
       continue;
     }
     entries.push(

@@ -97,7 +97,7 @@ const handleAttributesPost = createAuthedFormRoute({
     // One transaction: an attribute must never exist without its order entry
     // or its log line.
     const attributeId = await writeRowInTransaction(
-      await attributesTable.insertStatement!({ name }),
+      await attributesTable.insertStatement({ name }),
       null,
       async (transaction, id) => {
         await attributesOrder.append({ key: id, transaction });

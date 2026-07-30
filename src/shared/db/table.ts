@@ -172,6 +172,16 @@ export interface Table<Row, Input> {
   ) => Promise<SqlStatement>;
 }
 
+/** A table built by {@link defineTable}: the transactional statement builders
+ * and the primary-pinned read are always present. They stay optional on
+ * {@link Table} only for hand-written façade tables that never take the
+ * transactional path. */
+export interface CrudTable<Row, Input> extends Table<Row, Input> {
+  findByIdPrimary: NonNullable<Table<Row, Input>["findByIdPrimary"]>;
+  insertStatement: NonNullable<Table<Row, Input>["insertStatement"]>;
+  updateStatement: NonNullable<Table<Row, Input>["updateStatement"]>;
+}
+
 type TableRowInsert<Input, Condition = SqlStatement | undefined> = {
   condition?: Condition;
   input: Input;
@@ -276,7 +286,7 @@ export type TableDefinition<Row> = {
  */
 export const defineTable = <Row, Input = Row>(
   config: TableDefinition<Row>,
-): Table<Row, Input> => {
+): CrudTable<Row, Input> => {
   const { name, primaryKey, schema } = config;
 
   // Build column lists

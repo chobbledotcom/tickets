@@ -353,7 +353,7 @@ export type ListingEditFormValues = FormValues<ListingEditForm>;
  */
 const logisticsAgentFields = [
   {
-    label: "Agent Name",
+    label: "Agent name",
     name: "name",
     placeholder: "Van 1",
     required: true,

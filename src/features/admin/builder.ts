@@ -66,7 +66,7 @@ const handleBuilderGet = (request: Request): Promise<Response> => {
 export const builderForm = defineForm({
   fields: [
     {
-      label: "Site Name",
+      label: "Site name",
       maxlength: 64,
       minlength: 1,
       name: "site_name",
@@ -75,7 +75,7 @@ export const builderForm = defineForm({
       type: "text" as const,
     },
     {
-      label: "Hosting Provider",
+      label: "Hosting provider",
       name: "hosting_provider",
       options: [
         { label: "Bunny Edge Scripting", value: "bunny" },
@@ -84,7 +84,7 @@ export const builderForm = defineForm({
       type: "select" as const,
     },
     {
-      label: "Database Provider",
+      label: "Database provider",
       name: "db_provider",
       options: [
         { label: "Bunny DB (auto-provision)", value: "bunny" },
@@ -102,7 +102,7 @@ export const builderForm = defineForm({
     },
     {
       hint: "Leave blank to auto-provision a database",
-      label: "Database Token",
+      label: "Database token",
       name: "db_token",
       placeholder: "Token for the database",
       type: "password" as const,

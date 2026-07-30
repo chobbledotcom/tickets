@@ -211,7 +211,7 @@ export type ScopedOrderedRowInsert<Input> = (
 export const insertScopedOrderedRow =
   <Input>(
     table: {
-      insertStatement?: (input: Input) => Promise<{
+      insertStatement: (input: Input) => Promise<{
         args: InValue[];
         sql: string;
       }>;
@@ -227,7 +227,7 @@ export const insertScopedOrderedRow =
   (scope, input, log) =>
     (async () =>
       writeRowInTransaction(
-        await table.insertStatement!(input),
+        await table.insertStatement(input),
         null,
         async (transaction, id) => {
           await order.append({ key: id, scope, transaction });

@@ -77,14 +77,14 @@ describe("LogisticsAgentEditPanel", () => {
     const html = String(
       LogisticsAgentEditPanel({
         agent,
-        error: "Agent Name is required",
+        error: "Agent name is required",
         selectedUserIds: new Set([1]),
         users,
         values: { name: "Submitted van" },
       }),
     );
     expect(html).toContain('value="Submitted van"');
-    expect(html).toContain("Agent Name is required");
+    expect(html).toContain("Agent name is required");
     expect(html).toMatch(/value="1"[^>]*checked|checked[^>]*value="1"/);
   });
 });

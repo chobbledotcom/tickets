@@ -98,7 +98,7 @@ const handleQuestionsPost = createAuthedFormRoute({
     // One transaction: a question must never exist without its order entry
     // or its log line.
     const questionId = await writeRowInTransaction(
-      await questionsTable.insertStatement!({ displayType, text }),
+      await questionsTable.insertStatement({ displayType, text }),
       null,
       async (transaction, id) => {
         await questionsOrder.append({ key: id, transaction });
@@ -170,7 +170,7 @@ const handleQuestionListings = ownerFormById(async (id, _session, form) => {
   const assignAll = form.get("assign_all") === "on";
   const listingIds = form.getNumberArray("listing_ids");
   await writeRowInTransaction(
-    await questionsTable.updateStatement!(id, { assignAll }),
+    await questionsTable.updateStatement(id, { assignAll }),
     id,
     (tx) => questionListings.setIdsTx(tx, id, listingIds),
   );

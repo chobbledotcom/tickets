@@ -47,21 +47,21 @@ describe("admin field schemas", () => {
   test("the holiday form serves exactly its declared fields", () => {
     expect(getHolidayForm().fields.map(shape)).toEqual([
       {
-        label: "Holiday Name",
+        label: "Holiday name",
         name: "name",
         placeholder: "Bank Holiday",
         required: true,
         type: "text",
       },
       {
-        label: "Start Date",
+        label: "Start date",
         name: "start_date",
         required: true,
         type: "date",
       },
       {
         hint: "Must be on or after the start date",
-        label: "End Date",
+        label: "End date",
         name: "end_date",
         required: true,
         type: "date",
@@ -72,7 +72,7 @@ describe("admin field schemas", () => {
   test("the built-site form serves exactly its declared fields", () => {
     expect(getBuiltSiteForm().fields.map(shape)).toEqual([
       {
-        label: "Site Name",
+        label: "Site name",
         name: "name",
         placeholder: "My Ticket Site",
         required: true,
@@ -92,7 +92,7 @@ describe("admin field schemas", () => {
         type: "url",
       },
       {
-        label: "Database Token",
+        label: "Database token",
         name: "db_token",
         placeholder: "Database auth token",
         type: "password",
@@ -104,7 +104,7 @@ describe("admin field schemas", () => {
         type: "text",
       },
       {
-        label: "Hosting Provider",
+        label: "Hosting provider",
         name: "hosting_provider",
         options: [
           {
@@ -119,7 +119,7 @@ describe("admin field schemas", () => {
         type: "select",
       },
       {
-        label: "Database Provider",
+        label: "Database provider",
         name: "db_provider",
         options: [
           {
@@ -173,7 +173,7 @@ describe("admin field schemas", () => {
       {
         autocomplete: "username",
         hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
-        label: "Admin Username *",
+        label: "Admin username *",
         name: "admin_username",
         required: true,
         type: "text",
@@ -181,14 +181,14 @@ describe("admin field schemas", () => {
       {
         autocomplete: "new-password",
         hint: "Minimum 8 characters",
-        label: "Admin Password *",
+        label: "Admin password *",
         name: "admin_password",
         required: true,
         type: "password",
       },
       {
         autocomplete: "new-password",
-        label: "Confirm Admin Password *",
+        label: "Confirm admin password *",
         name: "admin_password_confirm",
         required: true,
         type: "password",
@@ -200,7 +200,7 @@ describe("admin field schemas", () => {
     expect(getChangePasswordForm().fields.map(shape)).toEqual([
       {
         autocomplete: "current-password",
-        label: "Current Password",
+        label: "Current password",
         name: "current_password",
         required: true,
         type: "password",
@@ -208,14 +208,14 @@ describe("admin field schemas", () => {
       {
         autocomplete: "new-password",
         hint: "Minimum 8 characters",
-        label: "New Password",
+        label: "New password",
         name: "new_password",
         required: true,
         type: "password",
       },
       {
         autocomplete: "new-password",
-        label: "Confirm New Password",
+        label: "Confirm new password",
         name: "new_password_confirm",
         required: true,
         type: "password",
@@ -228,7 +228,7 @@ describe("admin field schemas", () => {
       {
         autocomplete: "off",
         hint: "Enter a new key to update",
-        label: "Stripe Secret Key",
+        label: "Stripe secret key",
         name: "stripe_secret_key",
         placeholder: "sk_live_... or sk_test_...",
         required: true,
@@ -242,7 +242,7 @@ describe("admin field schemas", () => {
       {
         autocomplete: "off",
         hint: "Your Square application's access token",
-        label: "Square Access Token",
+        label: "Square access token",
         name: "square_access_token",
         placeholder: "EAAAl...",
         required: true,
@@ -265,7 +265,7 @@ describe("admin field schemas", () => {
       {
         autocomplete: "off",
         hint: "The signature key from your Square webhook subscription",
-        label: "Webhook Signature Key",
+        label: "Webhook signature key",
         name: "square_webhook_signature_key",
         required: true,
         type: "password",
@@ -278,7 +278,7 @@ describe("admin field schemas", () => {
       {
         autocomplete: "off",
         hint: "Your SumUp secret API key, from me.sumup.com → For Developers → API Keys",
-        label: "SumUp API Key",
+        label: "SumUp API key",
         name: "sumup_api_key",
         placeholder: "Paste your SumUp API key",
         required: true,
@@ -287,7 +287,7 @@ describe("admin field schemas", () => {
       {
         autocomplete: "off",
         hint: "Your SumUp merchant code, shown in your SumUp account profile (must match the API key's account)",
-        label: "Merchant Code",
+        label: "Merchant code",
         name: "sumup_merchant_code",
         placeholder: "M...",
         required: true,

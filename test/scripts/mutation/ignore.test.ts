@@ -108,10 +108,31 @@ describe("mutation ignore list", () => {
     ]);
   });
 
+  test("loads the checked-in registry directory by default", async () => {
+    const files = await listRegistryFiles();
+    expect(files.length).toBeGreaterThan(0);
+    for (const registryFile of files) {
+      expect(String(registryFile)).toMatch(/\.txt$/);
+    }
+
+    // The default load is exactly the merge of the listed registry files.
+    const loaded = await loadIgnoreList();
+    expect(loaded.entries.length).toBeGreaterThan(0);
+    expect(loaded.entries).toEqual((await loadIgnoreList(files)).entries);
+  });
+
   test("lists no registry files when the directory is absent", async () => {
     expect(await listRegistryFiles("/tmp/missing-mutation-ignore-dir")).toEqual(
       [],
     );
+  });
+
+  test("surfaces a registry file that exists but cannot be read", async () => {
+    using dir = tempDir({ prefix: "mutation-ignore-unreadable-" });
+
+    // A directory path given as a registry file fails with a non-NotFound
+    // error, which must surface rather than reading as an empty registry.
+    await expect(loadIgnoreList([dir.path])).rejects.toThrow(/directory/i);
   });
 
   test("uses an empty ignore list when the file is absent", async () => {

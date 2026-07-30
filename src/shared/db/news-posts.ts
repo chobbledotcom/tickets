@@ -218,7 +218,7 @@ export const createNewsPost = async (
       },
     });
     const result = await tx.execute(
-      await newsPostsTable.insertStatement!({
+      await newsPostsTable.insertStatement({
         ...input,
         created,
         slug,

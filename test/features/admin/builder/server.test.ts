@@ -83,7 +83,7 @@ const stubBuildAndCapture = () => {
 test("builder form defines every field and option exactly", () => {
   expect(JSON.parse(JSON.stringify(builderForm.fields))).toEqual([
     {
-      label: "Site Name",
+      label: "Site name",
       maxlength: 64,
       minlength: 1,
       name: "site_name",
@@ -92,7 +92,7 @@ test("builder form defines every field and option exactly", () => {
       type: "text",
     },
     {
-      label: "Hosting Provider",
+      label: "Hosting provider",
       name: "hosting_provider",
       options: [
         { label: "Bunny Edge Scripting", value: "bunny" },
@@ -101,7 +101,7 @@ test("builder form defines every field and option exactly", () => {
       type: "select",
     },
     {
-      label: "Database Provider",
+      label: "Database provider",
       name: "db_provider",
       options: [
         { label: "Bunny DB (auto-provision)", value: "bunny" },
@@ -119,7 +119,7 @@ test("builder form defines every field and option exactly", () => {
     },
     {
       hint: "Leave blank to auto-provision a database",
-      label: "Database Token",
+      label: "Database token",
       name: "db_token",
       placeholder: "Token for the database",
       type: "password",
@@ -168,9 +168,9 @@ describeWithEnv(
         200,
         "Site Builder",
         "Create New Site",
-        "Site Name",
+        "Site name",
         "Database URL",
-        "Database Token",
+        "Database token",
         "Built Sites",
       );
     });
@@ -214,7 +214,7 @@ describeWithEnv(
       expectRedirect(response, "/admin/builder");
       expectFlash(
         response,
-        expect.stringContaining("Site Name is required"),
+        expect.stringContaining("Site name is required"),
         false,
       );
     });

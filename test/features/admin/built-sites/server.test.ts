@@ -166,10 +166,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         response,
         200,
         "Add Built Site",
-        "Site Name",
+        "Site name",
         "Site URL",
         "Database URL",
-        "Database Token",
+        "Database token",
         "Hosting ID",
       );
     });
@@ -212,7 +212,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Site Name is required"),
+        expect.stringContaining("Site name is required"),
         false,
       );
     });
@@ -436,7 +436,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const html = await expectHtmlResponse(
         response,
         400,
-        "Site Name is required",
+        "Site name is required",
         "https://test.b-cdn.net",
       );
       expect(html).toContain('aria-current="page"');
