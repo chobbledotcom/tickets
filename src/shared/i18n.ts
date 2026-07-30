@@ -188,6 +188,13 @@ const CODE_OPENER = /^<code\b[^>]*>$/i;
 /** The matching `</code>` closer arriving in a later segment. */
 const CODE_CLOSER = /^<\/code>$/i;
 
+/** Track a `<code>` opener or closer passing by; the span itself stays as-is. */
+const trackCodeSpan = (span: string, state: CodeSpanState): string => {
+  if (CODE_OPENER.test(span)) state.inCode = true;
+  else if (CODE_CLOSER.test(span)) state.inCode = false;
+  return span;
+};
+
 /**
  * Rebrand every literal copy node in an ICU template's parse tree, walking into
  * each plural/select branch. Argument names and keywords are other node kinds,
@@ -265,11 +272,7 @@ export const buildReplacer = (raw: string | undefined): Replacer => {
     copy
       .split(PROTECTED_SPAN)
       .map((segment, i) => {
-        if (i % 2 === 1) {
-          if (CODE_OPENER.test(segment)) state.inCode = true;
-          else if (CODE_CLOSER.test(segment)) state.inCode = false;
-          return segment;
-        }
+        if (i % 2 === 1) return trackCodeSpan(segment, state);
         return state.inCode ? segment : rebrandProse(segment);
       })
       .join("");
