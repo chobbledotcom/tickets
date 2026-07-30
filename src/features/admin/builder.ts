@@ -39,7 +39,7 @@ import {
 } from "#templates/admin/builder.tsx";
 import {
   builtSiteBox,
-  DENO_DEPLOY_OPTION,
+  denoDeployOption,
   providerChoices,
 } from "#templates/fields/admin.ts";
 
@@ -80,13 +80,16 @@ export const builderForm = defineForm({
     },
     ...providerChoices({
       db: [
-        { label: "Bunny DB (auto-provision)", value: "bunny" },
-        { label: "Turso (auto-provision)", value: "turso" },
-        { label: "Manual (enter URL below)", value: "manual" },
+        {
+          label: t("fields.built_site.provider.bunny_db_auto"),
+          value: "bunny",
+        },
+        { label: t("fields.built_site.provider.turso_auto"), value: "turso" },
+        { label: t("fields.built_site.provider.manual_db"), value: "manual" },
       ],
       hosting: [
-        { label: "Bunny Edge Scripting", value: "bunny" },
-        DENO_DEPLOY_OPTION,
+        { label: t("fields.built_site.provider.bunny_edge"), value: "bunny" },
+        denoDeployOption(),
       ],
     }),
     {

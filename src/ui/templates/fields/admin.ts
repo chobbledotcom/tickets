@@ -109,11 +109,12 @@ const builtSiteChoice = <
   type: "select",
 });
 
-/** The one hosting option both provider lists share, word for word. */
-export const DENO_DEPLOY_OPTION = {
-  label: "Deno Deploy",
+/** The one hosting option both provider lists share, word for word. Built on
+ * demand, after the page's message group is loaded. */
+export const denoDeployOption = (): { label: string; value: "deno" } => ({
+  label: t("fields.built_site.provider.deno_deploy"),
   value: "deno",
-} as const;
+});
 
 /** The hosting and database provider choices, worded per form. */
 export const providerChoices = <
@@ -151,10 +152,16 @@ const getBuiltSiteFields = () =>
     builtSiteBox("hosting_id", "hosting_id", "text" as const),
     ...providerChoices({
       db: [
-        { label: "Bunny DB", value: "bunny" },
-        { label: "Turso", value: "turso" },
+        { label: t("fields.built_site.provider.bunny_db"), value: "bunny" },
+        { label: t("fields.built_site.provider.turso"), value: "turso" },
       ],
-      hosting: [{ label: "Bunny", value: "bunny" }, DENO_DEPLOY_OPTION],
+      hosting: [
+        {
+          label: t("fields.built_site.provider.bunny_hosting"),
+          value: "bunny",
+        },
+        denoDeployOption(),
+      ],
     }),
     checkboxField("assignable", {
       hint: t("fields.built_site.assignable_hint"),

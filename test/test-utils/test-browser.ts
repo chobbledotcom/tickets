@@ -6,6 +6,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { escapeForRegex } from "#test-utils/regex.ts";
 
 /** Extract all cookies from a Set-Cookie header and merge into a cookie jar */
 const parseCookies = (response: Response, jar: Map<string, string>): void => {
@@ -190,7 +191,10 @@ const findForms = (html: string): FormInfo[] =>
 /** Extract all checkbox values for a given field name from form HTML */
 const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
   regexCollect(
-    new RegExp(`<input\\b[^>]*name="${fieldName}"[^>]*>`, "gi"),
+    new RegExp(
+      `<input\\b[^>]*\\sname="${escapeForRegex(fieldName)}"[^>]*>`,
+      "gi",
+    ),
     formHtml,
     (m) => m[0],
   )
@@ -269,9 +273,12 @@ const findFormByButton = (
   const lower = buttonText.toLowerCase();
   // A page can serve two forms behind one button wording; the one rendering
   // every field being sent is the one a person filling them in would submit,
-  // so it wins whenever any form renders them all.
+  // so it wins whenever any form renders them all. The whitespace before
+  // name= keeps a longer attribute like data-name from counting as a field.
   const rendersEveryField = (body: string): boolean =>
-    fieldNames.every((field) => body.includes(`name="${field}"`));
+    fieldNames.every((field) =>
+      new RegExp(`\\sname="${escapeForRegex(field)}"`).test(body),
+    );
   const preferred = forms.filter((f) => rendersEveryField(f.body));
   const candidates = preferred.length > 0 ? preferred : forms;
   let switchedOff = false;

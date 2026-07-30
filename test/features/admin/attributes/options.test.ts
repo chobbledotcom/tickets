@@ -15,6 +15,14 @@ import {
 import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
+/** The stored options of an attribute the test knows exists — a missing
+ * attribute is a broken fixture, so it fails the test by name. */
+const attributeOptions = async (id: number) => {
+  const attribute = await getAttributeWithOptions(id);
+  if (!attribute) throw new Error(`No attribute ${id} in the database`);
+  return attribute.options;
+};
+
 /** Ask the delete route to remove Difficulty's only option, "Easy". */
 const postEasyOptionDelete = async (
   confirmIdentifier: string,
@@ -67,9 +75,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
           }),
         ).rejects.toThrow("order write failed");
       });
-      expect((await getAttributeWithOptions(attribute.id))?.options).toEqual(
-        [],
-      );
+      expect(await attributeOptions(attribute.id)).toEqual([]);
     });
 
     test("an empty option is refused back to the attribute page", async () => {
@@ -80,7 +86,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         "Option text is required",
         false,
       )((await adminFormPost(`/admin/attributes/${id}/options`)).response);
-      expect((await getAttributeWithOptions(id))?.options).toEqual([]);
+      expect(await attributeOptions(id)).toEqual([]);
     });
   });
 
@@ -164,9 +170,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         ).response,
       );
       expect(
-        (await getAttributeWithOptions(attribute.id))?.options.map(
-          (row) => row.text,
-        ),
+        (await attributeOptions(attribute.id)).map((row) => row.text),
       ).toEqual(["Only"]);
     });
   });
@@ -181,9 +185,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         "Option text does not match. Please type the exact option text to confirm deletion.",
         false,
       )(response);
-      expect(
-        (await getAttributeWithOptions(attributeId))?.options,
-      ).toHaveLength(1);
+      expect(await attributeOptions(attributeId)).toHaveLength(1);
     });
 
     test("deleting an option removes it, logs it, and says so", async () => {
@@ -194,7 +196,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         "Option deleted",
         true,
       )(response);
-      expect((await getAttributeWithOptions(attributeId))?.options).toEqual([]);
+      expect(await attributeOptions(attributeId)).toEqual([]);
       expect(await activityMessages()).toContain(
         "Attribute option 'Easy' deleted from Difficulty",
       );

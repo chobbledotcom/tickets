@@ -608,6 +608,26 @@ describe("TestBrowser forms", () => {
     expect(postedPath()).toBe("/words");
   });
 
+  it("ignores a data-name attribute when ranking forms by field", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // Only a real name attribute counts as rendering the field — a longer
+    // attribute like data-name on another form must not win the ranking.
+    browser.currentHtml = `
+      <form action="/decoy">
+        <div data-name="intro"></div>
+        <button>Save</button>
+      </form>
+      <form action="/real">
+        <textarea name="intro"></textarea>
+        <button>Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ intro: "Welcome" }, "Save");
+
+    expect(postedPath()).toBe("/real");
+  });
+
   it("keeps the first matching form when nothing renders a sent field", async () => {
     const { browser, postedPath } = postedPathBrowser();
     // A field no form renders is a plain override, so form choice falls back

@@ -3,6 +3,7 @@ import { it } from "@std/testing/bdd";
 import { once } from "#fp";
 import { getSessionCookieName, parseFlashValue } from "#shared/cookies.ts";
 import { BROKEN_IMAGE_PNG } from "#shared/images/broken.ts";
+import { escapeForRegex } from "#test-utils/regex.ts";
 
 export const FLASH_TEST_ID = "t001";
 
@@ -211,10 +212,9 @@ export const inputNamed = (html: string, name: string): string => {
   // The lookahead keeps a longer tag like input-widget out, the whitespace
   // before name= keeps a longer attribute like data-name out, and escaping
   // keeps regex characters in a name literal.
-  const literal = name.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
   const tag = html.match(
     new RegExp(
-      `<(?:input|textarea|select)(?=\\s)[^>]*\\sname="${literal}"[^>]*>`,
+      `<(?:input|textarea|select)(?=\\s)[^>]*\\sname="${escapeForRegex(name)}"[^>]*>`,
     ),
   )?.[0];
   if (!tag) throw new Error(`No control named ${name} on the page`);
@@ -611,10 +611,9 @@ export const selectOptionLabels = (
   html: string,
   ariaLabel: string,
 ): (string | undefined)[] => {
-  const escaped = ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const inner = html.match(
     new RegExp(
-      `<select[^>]*aria-label="${escaped}"[^>]*>([\\s\\S]*?)<\\/select>`,
+      `<select[^>]*aria-label="${escapeForRegex(ariaLabel)}"[^>]*>([\\s\\S]*?)<\\/select>`,
     ),
   )![1]!;
   return [...inner.matchAll(/<option[^>]*>([^<]+)</g)].map((m) => m[1]);
