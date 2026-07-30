@@ -182,7 +182,9 @@ const LedgerHistory = ({
 );
 
 export const AttendeeLedgerPanel = (view: AttendeeLedgerView): JSX.Element => (
-  <PageRegions>
+  // Named so one booking's money can be pointed at on its own: this tab sits
+  // inside the attendee page, among five other tabs' worth of chrome.
+  <PageRegions id="attendee-money">
     <div class="prose">
       <h3>{t("attendee_balance.heading")}</h3>
       <OrderSummaryList view={view} />

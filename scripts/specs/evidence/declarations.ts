@@ -72,6 +72,24 @@ export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
     ".page-regions.admin-page",
   ),
   brandedMobileCapture(
+    "site-pages.written-and-readable",
+    "page-anybody-can-read",
+    "/page/{sitePageAddress}",
+    "main",
+  ),
+  brandedMobileCapture(
+    "api-keys.made-and-shown-once",
+    "api-keys-list",
+    "/admin/api-keys",
+    ".page-regions.admin-page",
+  ),
+  brandedMobileCapture(
+    "payment.refund-undoes-the-sale",
+    "refunded-booking",
+    "/admin/attendees/{paidBookingId}/ledger",
+    "#attendee-money",
+  ),
+  brandedMobileCapture(
     "door.someone-still-to-arrive-can-be-picked",
     "qr-code-check-in",
     "/admin/listing/{doorListingId}/scanner",
