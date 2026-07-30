@@ -1,3 +1,4 @@
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -75,17 +76,38 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
     expect(await queryAll("SELECT id, name FROM table_write_rows")).toEqual([]);
   });
 
-  // The plain insert path keys the row it returns on the id the driver reports,
-  // so a driver that reports none must fail here rather than hand back a row
-  // whose id is NaN — which callers put straight into a redirect URL.
-  test("insert rejects a driver result that reports no row id", async () => {
+  // The id comes back from the row the INSERT wrote, so it needs no help from
+  // the driver's optional lastInsertRowid — which some drivers omit.
+  test("insert takes its id from the row the INSERT returned", async () => {
+    const table = await createWriteTable();
+    const realExecute = getDb().execute.bind(getDb());
+    using _execute = stub(getDb(), "execute", async (...args) => {
+      const result = await realExecute(
+        ...(args as Parameters<typeof realExecute>),
+      );
+      return { ...result, lastInsertRowid: undefined } as unknown as ResultSet;
+    });
+
+    const row = await table.insert({ name: "Named" });
+
+    // insert() reports the values it was given; the stored value keeps the
+    // column's write transform.
+    expect(row).toEqual({ id: 1, name: "Named" });
+    expect(await queryAll("SELECT id, name FROM table_write_rows")).toEqual([
+      { id: 1, name: "NAMED" },
+    ]);
+  });
+
+  // Nothing downstream can be keyed on a row the INSERT did not report, so the
+  // insert fails here rather than handing back a row with an unusable id.
+  test("insert rejects a result that returns no row", async () => {
     const table = await createWriteTable();
     using _execute = stub(getDb(), "execute", () =>
       Promise.resolve(emptyResultSet()),
     );
 
     await expect(table.insert({ name: "Nameless" })).rejects.toThrow(
-      "INSERT did not report a row id",
+      "INSERT did not return the id of the row it wrote",
     );
   });
 });

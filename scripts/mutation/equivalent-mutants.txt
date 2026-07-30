@@ -113,11 +113,11 @@ src/fp.ts:455:49  ?? → ||   # items?.length is undefined or a non-negative int
 # Table inputs make these operators equivalent: nullable query results exclude
 # undefined, paired null checks already reject both nullish values, and optional
 # conditions/dependencies are objects or arrays.
-src/shared/db/table.ts:441:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:488:71  ?? → ||   # a found row is a truthy object, and a miss is undefined, so both operators give the row or null
-src/shared/db/table.ts:492:31  ?? → ||   # findByIds's element is a truthy row, null, or undefined, and all three agree
-src/shared/db/table.ts:580:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts:613:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
+src/shared/db/table.ts:445:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:492:71  ?? → ||   # a found row is a truthy object, and a miss is undefined, so both operators give the row or null
+src/shared/db/table.ts:496:31  ?? → ||   # findByIds's element is a truthy row, null, or undefined, and all three agree
+src/shared/db/table.ts:584:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:617:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
@@ -875,7 +875,6 @@ src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separat
 src/features/admin/calendar-csv.ts:77:55  ?? → ||   # agentNames.get() is string|undefined; "" and the "" fallback are identical
 src/features/admin/calendar-csv.ts:94:59  ?? → ||   # startTime is string|undefined; every falsy value produces the same "" fallback
 src/features/admin/calendar-csv.ts:102:57  ?? → ||   # endTime is string|undefined; every falsy value produces the same "" fallback
-src/shared/db/activityLog.ts:187:69   → "mutated"   # the inserted word is an unused SQLite table alias, so rows, ordering, arguments, and limit are unchanged
 src/shared/forms/rendering.tsx:67:17   → "mutated"   # split("T")[0] always exists, and the empty input returned before this line
 src/shared/forms/rendering.tsx:194:35  || → &&   # publicLinkPath is absent or a function, so both boolean terms always agree
 src/shared/forms/rendering.tsx:209:20  ?? → ||   # beforeHtml is string|undefined and falls back to "", so both operators agree
