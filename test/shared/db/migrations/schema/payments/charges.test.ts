@@ -1,6 +1,12 @@
+import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectAccepted, expectRefused } from "./refuses.ts";
+import {
+  expectAccepted,
+  expectRefused,
+  expectRefusedAsRepeat,
+} from "./refuses.ts";
 
 describeWithEnv("db > payment charge rules", { db: true }, () => {
   test("rejects refunded money above its captured charge", async () => {
@@ -107,4 +113,81 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
           'enc:1:a:b', '${refundIndex}', 1, 1, 1)`);
     });
   }
+
+  test("refuses a charge that took no money at all", async () => {
+    // A charge row is written because money moved, so nothing taken is not a
+    // charge — it is a reading that belongs nowhere near the money paths.
+    await expectRefused(`INSERT INTO payment_charges
+      (payment_id, provider, resource_kind, provider_reference,
+       reference_index, captured_amount, currency, refunded_amount,
+       refund_state, created_at, updated_at, observed_at)
+      VALUES ('took-nothing', 'stripe', 'stripe_payment_intent', 'enc:1:a:b',
+        'took-nothing-index', 0, 'GBP', 0, 'none', 1, 1, 1)`);
+  });
+
+  test("refuses a charge with no time it was last seen", async () => {
+    // The last-seen time is what decides whether a reading is newer than what
+    // is held, so a charge without one can never be told apart from a fresh
+    // reading of the same money.
+    await expect(
+      getDb().execute(`INSERT INTO payment_charges
+        (payment_id, provider, resource_kind, provider_reference,
+         reference_index, captured_amount, currency, refunded_amount,
+         refund_state, created_at, updated_at, observed_at)
+        VALUES ('never-seen', 'stripe', 'stripe_payment_intent', 'enc:1:a:b',
+          'never-seen-index', 100, 'GBP', 0, 'none', 1, 1, NULL)`),
+    ).rejects.toThrow("NOT NULL constraint failed");
+  });
+
+  // Both are the provider's own words about a refund still going, so neither
+  // may sit in the open where the buyer's refund could be read off the row.
+  for (const [name, column] of [
+    ["the refund it sent", "pending_refund_id"],
+    ["the key that stops it asking twice", "pending_refund_idempotency_key"],
+  ] as const) {
+    test(`refuses a charge naming ${name} in plain words`, async () => {
+      await expectRefused(`INSERT INTO payment_charges
+        (payment_id, provider, resource_kind, provider_reference,
+         reference_index, captured_amount, currency, refunded_amount,
+         refund_state, ${column}, pending_refund_index,
+         created_at, updated_at, observed_at)
+        VALUES ('plain-refund', 'stripe', 'stripe_payment_intent',
+          'enc:1:a:b', 'plain-refund-index', 100, 'GBP', 0, 'pending',
+          're_12345', 'refund-index', 1, 1, 1)`);
+    });
+  }
+
+  test("refuses a second charge for the same money on one payment", async () => {
+    // Both rows would answer to the same provider callback, so the same money
+    // could be spoken for twice.
+    await expectAccepted(`INSERT INTO payment_charges
+      (payment_id, provider, resource_kind, provider_reference,
+       reference_index, captured_amount, currency, refunded_amount,
+       refund_state, created_at, updated_at, observed_at)
+      VALUES ('same-money', 'stripe', 'stripe_payment_intent', 'enc:1:a:b',
+        'same-money-index', 100, 'GBP', 0, 'none', 1, 1, 1)`);
+    await expectRefusedAsRepeat(`INSERT INTO payment_charges
+      (payment_id, provider, resource_kind, provider_reference,
+       reference_index, captured_amount, currency, refunded_amount,
+       refund_state, created_at, updated_at, observed_at)
+      VALUES ('same-money', 'stripe', 'stripe_payment_intent', 'enc:1:a:b',
+        'same-money-index', 200, 'GBP', 0, 'none', 2, 2, 2)`);
+  });
+
+  test("refuses copying the same old table's money twice onto one payment", async () => {
+    // The upgrade has to be safe to run again, so a second copy from the same
+    // old table is the repeat it is meant to skip.
+    await expectAccepted(`INSERT INTO payment_charges
+      (payment_id, origin, provider_reference, captured_amount, currency,
+       refunded_amount, refund_state, legacy_source, created_at, updated_at,
+       observed_at)
+      VALUES ('copied-twice', 'legacy', 'hyb:1:a:b:c', 100, 'GBP', 0,
+        'unknown', 'old_payments', 1, 1, 1)`);
+    await expectRefusedAsRepeat(`INSERT INTO payment_charges
+      (payment_id, origin, provider_reference, captured_amount, currency,
+       refunded_amount, refund_state, legacy_source, created_at, updated_at,
+       observed_at)
+      VALUES ('copied-twice', 'legacy', 'hyb:1:d:e:f', 200, 'GBP', 0,
+        'unknown', 'old_payments', 2, 2, 2)`);
+  });
 });

@@ -1,6 +1,12 @@
+import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectAccepted, expectRefused } from "./refuses.ts";
+import {
+  expectAccepted,
+  expectRefused,
+  expectRefusedAsRepeat,
+} from "./refuses.ts";
 
 describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   test("refuses a retry booked before the attempt it follows", async () => {
@@ -47,4 +53,60 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
         VALUES ('plain-message', 'registration_email', '${data}')`);
     });
   }
+
+  // A decision is about one problem, at one version of it. Both are counted
+  // from one, so nothing names neither.
+  for (const [name, caseId, caseRevision] of [
+    ["a problem numbered nothing", 0, 1],
+    ["a version numbered nothing", 3, 0],
+  ] as const) {
+    test(`refuses a decision about ${name}`, async () => {
+      await expectRefused(`INSERT INTO payment_case_decisions
+        (case_id, case_revision, claim, state, attempt_count, created_at,
+         last_error)
+        VALUES (${caseId}, ${caseRevision}, 'enc:1:a:b', 'accepted', 0, 1,
+          NULL)`);
+    });
+  }
+
+  test("accepts a decision the owner has taken but nothing has tried", async () => {
+    // Taking the decision and carrying it out are separate events, so a
+    // freshly taken one has been tried no times at all.
+    await expectAccepted(`INSERT INTO payment_case_decisions
+      (case_id, case_revision, claim, state, attempt_count, created_at,
+       last_error)
+      VALUES (10, 1, 'enc:1:a:b', 'accepted', 0, 1, NULL)`);
+  });
+
+  test("gives each decision its own number", async () => {
+    // The waiting-to-retry index finds a decision by its number, so two
+    // sharing one would hide each other from the worker.
+    await expectAccepted(`INSERT INTO payment_case_decisions
+      (case_id, case_revision, claim, state, attempt_count, created_at,
+       last_error)
+      VALUES (11, 1, 'enc:1:a:b', 'accepted', 0, 1, NULL)`);
+    await expectAccepted(`INSERT INTO payment_case_decisions
+      (case_id, case_revision, claim, state, attempt_count, created_at,
+       last_error)
+      VALUES (11, 2, 'enc:1:a:b', 'accepted', 0, 1, NULL)`);
+    const saved = await getDb().execute(
+      `SELECT id FROM payment_case_decisions WHERE case_id = 11
+        ORDER BY case_revision`,
+    );
+    const [first, second] = saved.rows.map((row) => Number(row.id));
+    expect(second).toBe(Number(first) + 1);
+  });
+
+  test("refuses a second decision on the same version of a problem", async () => {
+    // One version of a problem may only be settled once, so a double-click
+    // cannot give the money back twice.
+    await expectAccepted(`INSERT INTO payment_case_decisions
+      (case_id, case_revision, claim, state, attempt_count, created_at,
+       last_error)
+      VALUES (12, 1, 'enc:1:a:b', 'accepted', 0, 1, NULL)`);
+    await expectRefusedAsRepeat(`INSERT INTO payment_case_decisions
+      (case_id, case_revision, claim, state, attempt_count, created_at,
+       last_error)
+      VALUES (12, 1, 'enc:1:c:d', 'accepted', 0, 2, NULL)`);
+  });
 });
