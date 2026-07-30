@@ -67,7 +67,7 @@ const askSizeQuestion = async (
   id: number,
 ): Promise<void> => {
   await browser.visit("/admin/questions");
-  expect(browser.containsText("Custom Questions")).toBe(true);
+  expect(browser.containsText("Custom questions")).toBe(true);
   // Adding a question opens its own page, where its answers are added.
   await browser.submitForm({ text: QUESTION }, "Add question");
   expect(browser.containsText(QUESTION)).toBe(true);

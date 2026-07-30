@@ -49,7 +49,7 @@ describe("admin field schemas", () => {
       {
         label: "Holiday name",
         name: "name",
-        placeholder: "Bank Holiday",
+        placeholder: "Bank holiday",
         required: true,
         type: "text",
       },

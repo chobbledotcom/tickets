@@ -59,7 +59,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
 
     test("shows logistics agent management", async () => {
       const response = await adminGet("/admin/logistics");
-      await expectHtmlResponse(response, 200, "Logistics", "Logistics Agents");
+      await expectHtmlResponse(response, 200, "Logistics", "Logistics agents");
     });
 
     test("nav hides Logistics until the feature is enabled", async () => {
@@ -232,7 +232,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const confirm = await adminGet(`/admin/logistics/${id}/delete`);
       const confirmHtml = await confirm.text();
       expect(confirmHtml).toContain(`action="/admin/logistics/${id}/delete"`);
-      expect(confirmHtml).toContain("Delete Logistics Agent");
+      expect(confirmHtml).toContain("Delete logistics agent");
       expect(confirmHtml).toContain("Doomed Van");
       const { response } = await adminFormPost(
         `/admin/logistics/${id}/delete`,

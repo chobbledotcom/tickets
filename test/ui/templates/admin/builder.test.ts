@@ -15,7 +15,7 @@ describe("adminBuilderPage", () => {
     expect(html).toContain('name="site_name"');
     expect(html).toContain('name="db_url"');
     expect(html).toContain('name="db_token"');
-    expect(html).toContain("Build Site");
+    expect(html).toContain("Build site");
   });
 
   test("renders empty state when no sites", () => {

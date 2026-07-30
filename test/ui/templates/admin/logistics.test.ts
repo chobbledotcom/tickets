@@ -135,7 +135,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     expect(html).not.toContain('name="has_logistics"');
     expect(html).toContain('href="/admin/guide#logistics"');
     expect(html).toContain("Logistics guide");
-    expect(html).toContain("Logistics Agents");
+    expect(html).toContain("Logistics agents");
     expect(html).toContain('href="/admin/logistics/7"');
   });
 
@@ -143,7 +143,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     await enableFeature("logistics");
     const html = adminLogisticsPage([agent], OWNER_SESSION);
 
-    expect(html).toContain("Logistics Agents");
+    expect(html).toContain("Logistics agents");
     expect(html).toContain("Agents (e.g. vans, drivers, or crew)");
     expect(html).toContain('href="/admin/logistics/7"');
     expect(html).toContain("Van 1");
@@ -161,7 +161,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
   test("shows the empty-state placeholder with no agents", () => {
     const html = adminLogisticsPage([], OWNER_SESSION);
 
-    expect(html).toContain("Logistics Agents");
+    expect(html).toContain("Logistics agents");
     expect(html).toContain("No logistics agents yet.");
     // No agent rows are rendered.
     expect(html).not.toContain('href="/admin/logistics/7"');

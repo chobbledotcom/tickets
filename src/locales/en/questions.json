@@ -1,8 +1,8 @@
 {
-  "questions.title": "Custom Questions",
-  "questions.heading": "Custom Questions",
+  "questions.title": "Custom questions",
+  "questions.heading": "Custom questions",
   "questions.breadcrumb": "Dashboard",
-  "questions.new_label": "New Question",
+  "questions.new_label": "New question",
   "questions.new_placeholder": "e.g. What is your T-shirt size?",
   "questions.add_submit": "Add question",
   "questions.no_questions": "No custom questions yet.",
@@ -57,11 +57,11 @@
   "questions.delete_answer.submit": "Delete answer",
   "questions.listing.heading": "Questions for {listing}",
   "questions.listing.no_questions": "No questions created yet. Create questions first.",
-  "questions.listing.manage": "Manage Questions",
+  "questions.listing.manage": "Manage questions",
   "questions.assign_to_listings": "Assign to Listings",
   "questions.assign_all_listings": "Assign to all listings",
   "questions.linked_all_listings": "Linked {type} (all):",
-  "questions.save_listings": "Save Listings",
+  "questions.save_listings": "Save listings",
   "fields.answer.times_selected": "Times selected",
   "questions.answers.free_text_no_options": "Free-text questions don't have answer options."
 }
