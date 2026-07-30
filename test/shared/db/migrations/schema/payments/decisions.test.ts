@@ -49,6 +49,16 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
     });
   }
 
+  test("accepts a decision taken but not yet carried out", () => {
+    // What was decided and what went wrong are both allowed to be missing, so
+    // the rules on them have to let a missing one through as well as turning
+    // a plain one away. Only the claim itself must always be there.
+    return expectAccepted(`INSERT INTO payment_case_decisions
+      (case_id, case_revision, claim, state, attempt_count, created_at,
+       decision, last_error)
+      VALUES (99, 1, 'enc:1:a:b', 'accepted', 0, 0, NULL, NULL)`);
+  });
+
   // The buyer's name, email, phone and address wait here until the message
   // goes out, so this column may never hold them in the open.
   for (const [name, data] of [

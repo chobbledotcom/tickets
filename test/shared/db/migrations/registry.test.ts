@@ -47,11 +47,18 @@ describe("db > migration registry", () => {
     );
   });
 
+  // A missing name reads as position -1, which every later position beats, so
+  // each name is confirmed present before the two are compared.
+  const positionOf = (id: string): number => {
+    expect(MIGRATION_IDS).toContain(id);
+    return MIGRATION_IDS.indexOf(id);
+  };
+
   test("adds the payment record tables after the maintenance work", () => {
     // Compared by position rather than by being last, so a later migration
     // joining the list does not read as this one having moved.
-    expect(MIGRATION_IDS.indexOf("2026-07-26_payment_records")).toBeGreaterThan(
-      MIGRATION_IDS.indexOf("2026-07-22_maintenance_completion"),
+    expect(positionOf("2026-07-26_payment_records")).toBeGreaterThan(
+      positionOf("2026-07-22_maintenance_completion"),
     );
   });
 
@@ -62,8 +69,8 @@ describe("db > migration registry", () => {
     // refuses to add a NOT NULL column to a table with rows — so the note
     // migration, which adds them with a default and fills them in, has to go
     // first. Reversing these two blocks that site from starting at all.
-    expect(MIGRATION_IDS.indexOf("2026-07-26_payment_records")).toBeGreaterThan(
-      MIGRATION_IDS.indexOf("2026-07-28_note_entities"),
+    expect(positionOf("2026-07-26_payment_records")).toBeGreaterThan(
+      positionOf("2026-07-28_note_entities"),
     );
   });
 });
