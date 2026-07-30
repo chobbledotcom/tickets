@@ -196,7 +196,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains purchase only info", async () => {
       await guide(
-        "No Check-In",
+        "No check-in",
         "raffles, fundraisers, donations, merchandise",
         "Buy now",
         "QR codes",

@@ -252,7 +252,7 @@
   "fields.listing.hidden": "Hidden listing",
   "fields.listing.hidden_hint": "Hide from the public listings page and search engines. The listing is still bookable via its direct link.",
   "fields.listing.hidden_label": "Hide from public listings list",
-  "fields.listing.purchase_only": "No Check-In",
+  "fields.listing.purchase_only": "No check-in",
   "fields.listing.purchase_only_hint": "For items people buy without being checked in, such as raffles, fundraisers, donations, merch, or digital products. Hides QR codes, check-in, and wallet passes. Shows ‘Buy now’ instead of ‘Reserve’.",
   "fields.listing.purchase_only_label": "Disable check-in for this item",
   "fields.listing.bookable_alone": "Can be booked by itself",

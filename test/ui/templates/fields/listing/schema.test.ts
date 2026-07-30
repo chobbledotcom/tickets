@@ -275,7 +275,7 @@ const LISTING_FIELDS = [
   },
   {
     hint: "For items people buy without being checked in, such as raffles, fundraisers, donations, merch, or digital products. Hides QR codes, check-in, and wallet passes. Shows ‘Buy now’ instead of ‘Reserve’.",
-    label: "No Check-In",
+    label: "No check-in",
     name: "purchase_only",
     options: [
       {

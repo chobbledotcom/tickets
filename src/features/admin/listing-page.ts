@@ -7,7 +7,7 @@
  *                activity preview
  *   Attendees  — the roster (date + check-in filters), failed payments, quick
  *                add-attendee
- *   Scanner    — the check-in scanner (hidden for a "No Check-In" listing)
+ *   Scanner    — the check-in scanner (hidden for a "No check-in" listing)
  *   Activity   — the full activity log
  *   Actions    — duplicate / export (open to editors too) / email /
  *                refund-all, danger zone: deactivate|reactivate|delete

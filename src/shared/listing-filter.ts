@@ -21,7 +21,7 @@ export type ListingFilter = (typeof LISTING_FILTERS)[number];
 const LISTING_FILTER_LABELS: Record<ListingFilter, string> = {
   all: "All",
   daily: "Daily",
-  "purchase-only": "No Check-In",
+  "purchase-only": "No check-in",
   standard: "Standard",
 };
 

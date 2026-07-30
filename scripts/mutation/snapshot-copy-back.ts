@@ -65,6 +65,9 @@ export const bringFilesBack = async (
       await assertUnchanged(root, entry);
     }
     for (const entry of files) {
+      // Checked again at the moment of writing: an edit that lands between
+      // the preflight and this file's turn must still stop the overwrite.
+      await assertUnchanged(root, entry);
       if (await copyOneBack(root, workRoot, entry)) {
         console.log(`Updated ${entry.file}`);
       }
