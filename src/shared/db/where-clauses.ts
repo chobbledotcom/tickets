@@ -97,11 +97,14 @@ export const whereSql = (parts: readonly WhereClause[]): string =>
 export const clauseArgs = (parts: readonly WhereClause[]): InValue[] =>
   parts.flatMap((part) => part.args);
 
+/** A delete over whichever rows the clauses it is given select. */
+type DeleteFromTable = (where: readonly WhereClause[]) => SqlStatement;
+
 /** A delete over the rows some clauses select. `table` must be a trusted
  * constant, never anything a user typed. */
 export const deleteWhere =
-  (table: string) =>
-  (where: readonly WhereClause[]): SqlStatement => ({
+  (table: string): DeleteFromTable =>
+  (where) => ({
     args: clauseArgs(where),
     sql: `DELETE FROM ${table}${whereSql(where)}`,
   });

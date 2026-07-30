@@ -17,6 +17,7 @@ import {
   deleteWhere,
   equals,
   inList,
+  inSubquery,
   type WhereClause,
 } from "#shared/db/where-clauses.ts";
 
@@ -32,13 +33,13 @@ export type RecordTargetKey<Kind extends string> = `${Kind}:${number}`;
 
 /** How a stored row spells a target: the column holding the kind, and the one
  *  holding the id. */
-export interface RecordTargetColumns {
+interface RecordTargetColumns {
   id: string;
   kind: string;
 }
 
 /** What a domain must say to get its target vocabulary. */
-export interface RecordTargetConfig<Kind extends string> {
+interface RecordTargetConfig<Kind extends string> {
   /** The columns the kind and id are stored in. */
   columns: RecordTargetColumns;
   /** The kinds of record this domain accepts. */
@@ -102,10 +103,7 @@ export const defineRecordTarget = <Kind extends string>({
 
   const whereChosenBy = (kind: Kind, idsQuery: SqlStatement): WhereClause[] => [
     ...ofKind(undefined, kind),
-    {
-      args: idsQuery.args,
-      clause: `${columns.id} IN (${idsQuery.sql})`,
-    },
+    ...inSubquery(columns.id, idsQuery),
   ];
 
   const where = (target: RecordTarget<Kind>, alias?: string): WhereClause[] => [
