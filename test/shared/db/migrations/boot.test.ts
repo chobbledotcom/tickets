@@ -225,31 +225,36 @@ describeWithEnv(
     });
 
     /**
-     * Hide the settings table from the first boot probe and the first lock
-     * write, the way a request that arrives while another one is still creating
-     * that table sees the database. Everything after runs against the real
-     * database, so the request's second look finds a table it has no lock on.
+     * Report a missing settings table for this many boot probes and lock
+     * writes, the way a request that arrives while another one is still
+     * creating that table sees the database. Everything past those counts runs
+     * against the real database, so the request's second look finds a table it
+     * holds no lock on.
      */
-    const hideSettingsOnce = () => {
+    /** Which boot step a statement belongs to, by the SQL it starts with. */
+    const bootStep = (statement: InStatement): "lock" | "probe" | "other" => {
+      const sql = typeof statement === "string" ? statement : statement.sql;
+      if (sql.startsWith("SELECT key, value FROM settings")) return "probe";
+      return sql.startsWith("INSERT INTO settings") ? "lock" : "other";
+    };
+
+    const hideSettings = (probes: number, locks: number) => {
+      const leftToHide = { lock: locks, probe: probes };
       const client = getDb();
       const execute = client.execute.bind(client);
-      const stillToHide = new Set(["lock", "probe"]);
       return stub(client, "execute", (statement: InStatement) => {
-        const sql = typeof statement === "string" ? statement : statement.sql;
-        const step = sql.startsWith("SELECT key, value FROM settings")
-          ? "probe"
-          : sql.startsWith("INSERT INTO settings")
-            ? "lock"
-            : "other";
-        return stillToHide.delete(step)
-          ? Promise.reject(new Error("no such table: settings"))
-          : execute(statement);
+        const step = bootStep(statement);
+        if (step !== "other" && leftToHide[step] > 0) {
+          leftToHide[step] -= 1;
+          return Promise.reject(new Error("no such table: settings"));
+        }
+        return execute(statement);
       });
     };
 
     test("a lock taken before the settings table existed is taken again for real", async () => {
       await markMigrationsForRerun();
-      using _execute = hideSettingsOnce();
+      using _execute = hideSettings(1, 1);
 
       // Without a real lease, recording the migrations would be refused as
       // somebody else's migration and the database would stay out of date.
@@ -257,6 +262,23 @@ describeWithEnv(
 
       expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+    });
+
+    test("taking that lock again is not allowed to shrug off a missing table", async () => {
+      await markMigrationsForRerun();
+      try {
+        using _execute = hideSettings(1, 2);
+
+        // The table was there a moment ago, so it cannot be missing now. Only
+        // setup and restore may carry on without a lock, and this is neither.
+        await expect(initDb({ allowMissingSettings: true })).rejects.toThrow(
+          "no such table: settings",
+        );
+      } finally {
+        // Leave the database fully migrated for the tests that follow.
+        invalidateInitDbCache();
+        await initDb();
+      }
     });
 
     test("one missing marker is a database to update, not a blank one", async () => {
