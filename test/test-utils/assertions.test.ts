@@ -29,12 +29,21 @@ describe("inputNamed", () => {
     );
   });
 
-  test("hands back a textarea or select with the given name too", () => {
+  test("hands back a textarea with the given name too", () => {
     expect(inputNamed('<textarea name="notes" required>', "notes")).toBe(
       '<textarea name="notes" required>',
     );
+  });
+
+  test("hands back a select with the given name too", () => {
     expect(inputNamed('<select name="kind">', "kind")).toBe(
       '<select name="kind">',
+    );
+  });
+
+  test("rejects a control whose only name-like attribute is data-name", () => {
+    expect(() => inputNamed('<input data-name="a">', "a")).toThrow(
+      "No control named a on the page",
     );
   });
 });

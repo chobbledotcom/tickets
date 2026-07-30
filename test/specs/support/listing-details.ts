@@ -38,11 +38,11 @@ export const ownerKeepsDetail = async (
 ): Promise<void> => {
   const browser = await openAdminPage(world, "/admin/attributes");
   await fillInAndSend(browser, { name }, "Add attribute");
-  const id = browser.currentUrl.match(/\/admin\/attributes\/(\d+)/)?.[1];
-  world.listingDetail = {
-    id: Number(requiredWorldValue(id, `the page for the detail ${name}`)),
-    name,
-  };
+  const sentTo = requiredWorldValue(
+    browser.currentUrl.match(/\/admin\/attributes\/(\d+)/),
+    `the page for the detail ${name}`,
+  );
+  world.listingDetail = { id: Number(sentTo[1]), name };
   for (const wording of wordings) {
     await fillInAndSend(browser, { text: wording }, "Add option");
   }
@@ -58,13 +58,14 @@ const wordingId = async (
   wording: string,
 ): Promise<number> => {
   const detail = keptDetail(world);
-  const attribute = (await getAllAttributesWithOptions()).find(
-    (row) => row.id === detail.id,
+  const attribute = requiredWorldValue(
+    (await getAllAttributesWithOptions()).find((row) => row.id === detail.id),
+    `the stored detail ${detail.name}`,
   );
-  const option = attribute?.options.find((row) => row.text === wording);
-  if (!option) {
-    throw new Error(`The detail ${detail.name} has no wording "${wording}"`);
-  }
+  const option = requiredWorldValue(
+    attribute.options.find((row) => row.text === wording),
+    `the wording "${wording}" on ${detail.name}`,
+  );
   return option.id;
 };
 

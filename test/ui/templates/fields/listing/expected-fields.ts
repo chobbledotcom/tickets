@@ -129,7 +129,7 @@ export const LISTING_FIELDS = [
     type: "number",
   },
   {
-    hint: "How many days each booking reserves. With Customisable Days on, this is the maximum a visitor can choose. Only applies to daily listings unless Customisable Days is on.",
+    hint: "How many days each booking reserves. With Customisable days on, this is the maximum a visitor can choose. Only applies to daily listings unless Customisable days is on.",
     label: "Booking duration (days)",
     max: 90,
     min: 1,
@@ -138,7 +138,7 @@ export const LISTING_FIELDS = [
     type: "number",
   },
   {
-    hint: "Let visitors choose how many days to book (1 up to the Booking Duration above), each priced separately below. Works for standard and daily listings. Cannot be combined with Allow Pay More.",
+    hint: "Let visitors choose how many days to book (1 up to the Booking duration above), each priced separately below. Works for standard and daily listings. Cannot be combined with Allow pay more.",
     label: "Customisable days",
     name: "customisable_days",
     options: [

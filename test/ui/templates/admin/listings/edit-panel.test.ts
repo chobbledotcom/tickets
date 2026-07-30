@@ -141,7 +141,7 @@ describe("adminListingEditPage form sections", () => {
     expect(html).toContain("<legend>Tickets &amp; Pricing</legend>");
     expect(html).toContain("<legend>Daily Scheduling</legend>");
     expect(html).toContain(
-      "<legend>Booking Duration &amp; Day Prices</legend>",
+      "<legend>Booking duration &amp; day prices</legend>",
     );
     expect(html).toContain("<legend>Options &amp; Visibility</legend>");
     expect(html).toContain("<summary>Advanced settings</summary>");

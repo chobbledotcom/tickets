@@ -17,34 +17,37 @@ import { fieldShape as shape } from "#test-utils/field-shape.ts";
 // place before any field list is read — as the admin shell guarantees.
 await ensureMessageGroups(MESSAGE_GROUPS);
 
+/** The declared fields with just the named boxes made visible — what a view
+ * flag is expected to change, and nothing else. */
+const revealing = (names: string[]): Record<string, unknown>[] =>
+  LISTING_FIELDS.map((field) =>
+    names.includes(field.name) ? { ...field, visible: true } : field,
+  );
+
 describe("listing field schemas", () => {
   test("the listing form serves exactly its declared fields", () => {
     expect(getListingForm().fields.map(shape)).toEqual(LISTING_FIELDS);
   });
 
-  test("the logistics and storage views only reveal their own fields", () => {
-    // Turning the two view flags on changes nothing except making the agent
-    // assignment and image boxes visible.
-    const revealed = LISTING_FIELDS.map((field) =>
-      field.name === "uses_logistics" || field.name === "attachment"
-        ? { ...field, visible: true }
-        : field,
+  test("the logistics view only reveals the agent assignment box", () => {
+    expect(getListingForm({ logistics: true }).fields.map(shape)).toEqual(
+      revealing(["uses_logistics"]),
     );
-    expect(
-      getListingForm({ logistics: true, storage: true }).fields.map(shape),
-    ).toEqual(revealed);
+  });
+
+  test("the storage view only reveals the image box", () => {
+    expect(getListingForm({ storage: true }).fields.map(shape)).toEqual(
+      revealing(["attachment"]),
+    );
   });
 
   test("the builder view only reveals the built-site boxes", () => {
-    const revealed = LISTING_FIELDS.map((field) =>
-      ["months_per_unit", "initial_site_months", "assign_built_site"].includes(
-        field.name,
-      )
-        ? { ...field, visible: true }
-        : field,
-    );
     expect(getListingForm({ builder: true }).fields.map(shape)).toEqual(
-      revealed,
+      revealing([
+        "months_per_unit",
+        "initial_site_months",
+        "assign_built_site",
+      ]),
     );
   });
 

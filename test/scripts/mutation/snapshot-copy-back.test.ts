@@ -155,6 +155,29 @@ describe("bringing files back out of a snapshot", () => {
     });
   });
 
+  test("still puts back later files when an earlier one cannot be read", async () => {
+    await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
+      // The first written file has vanished from the checkout, so its restore
+      // fails; the second must still be put back, and the failure reported.
+      await Deno.writeTextFile(join(roots.root, KEPT), "one\n");
+
+      const run = await captureConsole(async () => {
+        await expect(
+          putBackOwnWrites(roots.root, [
+            { after: "x\n", before: "y\n", file: "missing.txt" },
+            { after: "one\n", before: "one\ntwo\n", file: KEPT },
+          ]),
+        ).rejects.toThrow("missing.txt");
+        return 0;
+      });
+
+      expect(run.logs).toEqual([`Put back ${KEPT}`]);
+      expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
+        "one\ntwo\n",
+      );
+    });
+  });
+
   test("reads nothing when no files are kept", async () => {
     await withCheckoutAndCopy("one\n", "one\n", async (roots) => {
       expect(await readCopyBackFiles(roots.root, [])).toEqual([]);

@@ -34,7 +34,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const question = (await getAllQuestionsWithAnswers()).find(
         (item) => item.id === id,
       );
-      expect(question?.answers).toEqual([]);
+      if (!question) throw new Error(`Expected question ${id} to exist`);
+      expect(question.answers).toEqual([]);
     });
 
     testRequiresAuth("/admin/questions/1/answers", {

@@ -178,7 +178,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains allow pay more info with max price", async () => {
       await guide(
-        "Allow Pay More",
+        "Allow pay more",
         "maximum",
         // formatCurrency strips the trailing zeros from whole amounts: £1.
         "at least £1 more than the ticket price",

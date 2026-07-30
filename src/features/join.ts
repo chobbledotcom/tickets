@@ -23,8 +23,8 @@ export const joinForm = defineForm({
   fields: [
     {
       autocomplete: "new-password" as const,
-      hint: "Minimum 8 characters",
-      label: "Password",
+      hint: t("join.set_password.min_chars"),
+      label: t("join.set_password.password"),
       minlength: 8,
       name: "password" as const,
       required: true,
@@ -33,7 +33,8 @@ export const joinForm = defineForm({
     },
     {
       autocomplete: "new-password" as const,
-      label: "Confirm Password",
+      label: t("join.set_password.confirm_password"),
+      minlength: 8,
       name: "password_confirm" as const,
       required: true,
       type: "password" as const,

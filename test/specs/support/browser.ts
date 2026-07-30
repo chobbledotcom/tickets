@@ -43,7 +43,7 @@ export const takesDownFromOwnPage =
   (
     openPage: (world: TicketsWorld) => Promise<TestBrowser>,
     deleteLabel: string,
-  ) =>
+  ): ((world: TicketsWorld, typed: string) => Promise<void>) =>
   async (world: TicketsWorld, typed: string): Promise<void> => {
     const browser = await openPage(world);
     await browser.clickLink(deleteLabel);

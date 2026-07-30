@@ -167,7 +167,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       await expectHtmlResponse(
         response,
         400,
-        "Total Attendees Ever must be 0 or greater",
+        "Total attendees ever must be 0 or greater",
       );
     });
 

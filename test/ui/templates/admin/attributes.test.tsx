@@ -211,7 +211,7 @@ describe("adminAttributeOptionEditPage", () => {
 
   test("links to the option delete page with danger styling", () => {
     expect(html()).toContain(
-      '<a class="danger" href="/admin/attributes/1/options/10/delete">Delete Option</a>',
+      '<a class="danger" href="/admin/attributes/1/options/10/delete">Delete option</a>',
     );
   });
 });

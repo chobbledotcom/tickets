@@ -170,9 +170,11 @@ export const addDatabaseCleanup = (
 };
 
 export const requiredWorldValue = <Value>(
-  value: Value | undefined,
+  value: Value | null | undefined,
   name: string,
 ): Value => {
-  if (value === undefined) throw new Error(`${name} was not set`);
+  if (value === undefined || value === null) {
+    throw new Error(`${name} was not set`);
+  }
   return value;
 };

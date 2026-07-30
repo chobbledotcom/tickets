@@ -88,7 +88,7 @@ export const paymentsSections = (): GuideSection[] => [
         "booking_duration_field",
         <>
           <p>
-            For daily listings, <strong>Booking Duration (days)</strong> sets
+            For daily listings, <strong>Booking duration (days)</strong> sets
             how many consecutive days a single booking reserves &mdash; useful
             for multi-night stays or multi-day passes. Leave it at 1 for a
             normal single-day booking, or set it up to {MAX_DURATION_DAYS} days.

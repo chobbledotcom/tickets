@@ -208,8 +208,11 @@ export const expectHtmlContains = (
  * or select — so a test can check the exact attributes a form serves
  * (default, bounds, required). */
 export const inputNamed = (html: string, name: string): string => {
+  // The whitespace before name= keeps a longer attribute like data-name from
+  // matching; escaping keeps regex characters in a name literal.
+  const literal = name.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
   const tag = html.match(
-    new RegExp(`<(?:input|textarea|select)[^>]*name="${name}"[^>]*>`),
+    new RegExp(`<(?:input|textarea|select)[^>]*\\sname="${literal}"[^>]*>`),
   )?.[0];
   if (!tag) throw new Error(`No control named ${name} on the page`);
   return tag;

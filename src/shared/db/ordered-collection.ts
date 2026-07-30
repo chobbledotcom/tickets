@@ -224,13 +224,12 @@ export const insertScopedOrderedRow =
       }) => Promise<void>;
     },
   ): ScopedOrderedRowInsert<Input> =>
-  (scope, input, log) =>
-    (async () =>
-      writeRowInTransaction(
-        await table.insertStatement(input),
-        null,
-        async (transaction, id) => {
-          await order.append({ key: id, scope, transaction });
-          await log(transaction);
-        },
-      ))();
+  async (scope, input, log) =>
+    writeRowInTransaction(
+      await table.insertStatement(input),
+      null,
+      async (transaction, id) => {
+        await order.append({ key: id, scope, transaction });
+        await log(transaction);
+      },
+    );

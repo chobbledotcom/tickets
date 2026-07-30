@@ -206,7 +206,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
           }/delete`,
         ),
         200,
-        "Delete Option",
+        "Delete option",
         "Spring",
       );
     });

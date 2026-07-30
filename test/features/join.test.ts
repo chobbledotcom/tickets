@@ -31,13 +31,14 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { joinForm } = await import("#routes/join.ts");
       const html = joinForm.render();
       expect(html).toContain("Password");
-      expect(html).toContain("Confirm Password");
+      expect(html).toContain("Confirm password");
       expect(html).toContain("Minimum 8 characters");
       const password = inputNamed(html, "password");
       expect(password).toContain('minlength="8"');
       expect(password).toContain('autocomplete="new-password"');
       expect(password).toContain("required");
       const confirm = inputNamed(html, "password_confirm");
+      expect(confirm).toContain('minlength="8"');
       expect(confirm).toContain('autocomplete="new-password"');
       expect(confirm).toContain("required");
     });
