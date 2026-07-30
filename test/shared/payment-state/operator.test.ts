@@ -76,6 +76,72 @@ describe("payment operator readings", () => {
     });
   }
 
+  test("accepts a reading that found nothing at the provider", () => {
+    expect(
+      v.safeParse(LegacyProviderAssignmentReadSchema, { status: "missing" })
+        .success,
+    ).toBe(true);
+  });
+
+  test("accepts a checked reading of money that adds up", () => {
+    expect(
+      v.safeParse(LegacyProviderAssignmentReadSchema, {
+        captured: { amount: 100, currency: "GBP" },
+        refunded: { amount: 40, currency: "GBP" },
+        status: "reviewed",
+      }).success,
+    ).toBe(true);
+  });
+
+  // These readings are what an owner's choice to give an old payment a
+  // provider is written from, and that choice moves real money — so the
+  // wording each rule fails with is pinned, not left to say anything at all.
+  const MONEY_MUST_FIT =
+    "Money returned must fit inside the money taken, in the same currency";
+
+  for (const [name, read, message] of [
+    [
+      "money taken by another provider",
+      {
+        ...attachedRead,
+        charge: {
+          ...chargeResource,
+          kind: "square_payment",
+          provider: "square",
+        },
+      },
+      "Charge must come from the same provider as the checkout",
+    ],
+    [
+      "money taken through another checkout",
+      {
+        ...attachedRead,
+        charge: { ...chargeResource, parentId: "cs_someone_else" },
+      },
+      "Charge must belong to the checkout it is attached to",
+    ],
+    [
+      "more money back than was taken",
+      { ...attachedRead, refunded: { amount: 101, currency: "GBP" } },
+      MONEY_MUST_FIT,
+    ],
+    [
+      "an unclear reading whose figures do not add up",
+      {
+        captured: { amount: 100, currency: "GBP" },
+        refunded: { amount: 200, currency: "GBP" },
+        status: "ambiguous",
+      },
+      MONEY_MUST_FIT,
+    ],
+  ] as const) {
+    test(`says what is wrong with ${name}`, () => {
+      const result = v.safeParse(LegacyProviderAssignmentReadSchema, read);
+
+      expect(result.issues?.map((issue) => issue.message)).toContain(message);
+    });
+  }
+
   // An unclear reading is allowed to know neither figure, one of them, or
   // both — but when it knows both they still have to add up, because this is
   // what the owner's provider choice gets written down from.
