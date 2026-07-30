@@ -89,7 +89,7 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
     withLookup(tokens, async (entries) => {
       const checkedIn = form.get("check_in") === "true";
       const decrypted = await decryptEntries(entries);
-      // Refunded rows are never touched, and purchase-only ("No check-in")
+      // Refunded rows are never touched, and purchase-only ("No Check-In")
       // listings' rows are excluded too — a package QR shared with a checkable
       // member must not silently mark the no-check-in member as attended.
       const eligible = filter(
