@@ -22,8 +22,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createAttributeViaRoute,
   createTestAttributeWithOptions,
-  withFailingOrderTrigger,
 } from "#test-utils/db-helpers/attributes.ts";
+import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   enableFeature,

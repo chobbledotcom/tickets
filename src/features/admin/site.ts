@@ -35,7 +35,7 @@ export const siteHomeForm = defineForm({
       autocomplete: "off" as const,
       hint: "Displayed as the main heading on all public pages (max 128 characters).",
       id: "website_title",
-      label: "Website Title",
+      label: "Website title",
       maxlength: MAX_WEBSITE_TITLE_LENGTH,
       name: "website_title",
       type: "text" as const,
@@ -43,7 +43,7 @@ export const siteHomeForm = defineForm({
     {
       hintHtml: `Text displayed on the public homepage (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
       id: "homepage_text",
-      label: "Homepage Text",
+      label: "Homepage text",
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
       name: "homepage_text",
@@ -58,7 +58,7 @@ export const siteContactForm = defineForm({
     {
       hintHtml: `Text displayed on the public contact page (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
       id: "contact_page_text",
-      label: "Contact Page Text",
+      label: "Contact page text",
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
       name: "contact_page_text",

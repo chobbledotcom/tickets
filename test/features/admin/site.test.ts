@@ -33,12 +33,12 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     test("serves the home form boxes with their labels and hints", async () => {
       const { siteHomeForm } = await import("#routes/admin/site.ts");
       const html = siteHomeForm.render();
-      expect(html).toContain("Website Title");
+      expect(html).toContain("Website title");
       expect(html).toContain(
         "Displayed as the main heading on all public pages (max 128 characters).",
       );
       expect(inputNamed(html, "website_title")).toContain('autocomplete="off"');
-      expect(html).toContain("Homepage Text");
+      expect(html).toContain("Homepage text");
       const homepage = inputNamed(html, "homepage_text");
       expect(homepage).toContain('placeholder="Welcome to our site..."');
       // markdown: true wires the preview affordance to the textarea.
@@ -49,7 +49,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const { siteContactForm } = await import("#routes/admin/site.ts");
       const html = siteContactForm.render();
       inputNamed(html, "contact_page_text");
-      expect(html).toContain("Contact Page Text");
+      expect(html).toContain("Contact page text");
     });
   });
 

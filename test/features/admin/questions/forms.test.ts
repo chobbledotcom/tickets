@@ -1,6 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
+import { ensureMessageGroups } from "#i18n";
+
+// The question form's hint renders copy at module load, so the group must be
+// in place before the route module is imported — as the area loader
+// guarantees in production.
+await ensureMessageGroups(["common"]);
+const { answerTextForm, questionTextForm } = await import(
+  "#routes/admin/questions/forms.ts"
+);
 
 // Focused rendering coverage for the two question/answer forms, kept in its own
 // small file so mutation runs over questions.ts only have to execute these

@@ -196,6 +196,13 @@ export const defineOrderedCollection = <
   return { append, next, nextMany, swap };
 };
 
+/** Inserts one child row under a scope and returns the new row's id. */
+export type ScopedOrderedRowInsert<Input> = (
+  scope: number,
+  input: Input,
+  log: (transaction: TxScope) => Promise<unknown>,
+) => Promise<number>;
+
 /**
  * Insert a child row and give it the next place in its scoped order — one
  * transaction, with any extra writes (like the log line) riding along. A
@@ -216,12 +223,8 @@ export const insertScopedOrderedRow =
         transaction: TxScope;
       }) => Promise<void>;
     },
-  ) =>
-  (
-    scope: number,
-    input: Input,
-    log: (transaction: TxScope) => Promise<unknown>,
-  ): Promise<number> =>
+  ): ScopedOrderedRowInsert<Input> =>
+  (scope, input, log) =>
     (async () =>
       writeRowInTransaction(
         await table.insertStatement!(input),

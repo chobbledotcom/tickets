@@ -1,47 +1,44 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
+import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
 import { createQuestion } from "#test/test-utils/questions/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import {
-  expectFlashRedirect,
-  expectStatus,
-  inputNamed,
-} from "#test-utils/assertions.ts";
+import { expectFlashRedirect, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server (admin question forms and delete)",
   { db: true },
   () => {
-    describe("the two question forms", () => {
-      // The expected labels, hints, and choices are written out here so a
-      // changed form definition fails this test instead of moving along.
-      test("serves the question box with its label, hint, and required flag", () => {
-        const html = questionTextForm.render();
-        expect(html).toContain("Question text");
-        const text = inputNamed(html, "text");
-        expect(text).toContain('placeholder="e.g. What is your T-shirt size?"');
-        expect(text).toContain("required");
+    describe("rollback on a failed order write", () => {
+      test("a failed order write leaves no half-made question behind", async () => {
+        // The insert and the order write run in one transaction, so the
+        // question must roll back with a failed append.
+        await withFailingOrderTrigger("questions", async () => {
+          await expect(
+            adminFormPost("/admin/questions", {
+              display_type: "radio",
+              text: "Ghost?",
+            }),
+          ).rejects.toThrow("order write failed");
+        });
+        expect(await getAllQuestionsWithAnswers()).toEqual([]);
       });
 
-      test("serves the display-as choice with all three ways to show it", () => {
-        const html = questionTextForm.render();
-        expect(html).toContain("Display as");
-        expect(html).toContain(">Radio buttons<");
-        expect(html).toContain(">Select box<");
-        expect(html).toContain(">Free text<");
-        // The choices carry their stored values in order.
-        expect(html).toContain('value="radio"');
-        expect(html).toContain('value="select"');
-        expect(html).toContain('value="free_text"');
-      });
+      test("a failed order write leaves no half-made answer behind", async () => {
+        const id = await createQuestion("Sizes?");
 
-      test("serves the answer box with its label and hint", () => {
-        const html = answerTextForm.render();
-        expect(html).toContain("Answer text");
-        expect(inputNamed(html, "text")).toContain('placeholder="e.g. Medium"');
+        await withFailingOrderTrigger("answers", async () => {
+          await expect(
+            adminFormPost(`/admin/questions/${id}/answers`, { text: "Ghost" }),
+          ).rejects.toThrow("order write failed");
+        });
+        const question = (await getAllQuestionsWithAnswers()).find(
+          (item) => item.id === id,
+        );
+        expect(question?.answers).toEqual([]);
       });
     });
 
