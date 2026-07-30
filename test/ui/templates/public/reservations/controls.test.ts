@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { renderDateSelector } from "#templates/public/reservations/controls.ts";
+import { reservesHint, reservesHintStart } from "#test-utils/duration-hint.ts";
 
 describe("renderDateSelector", () => {
   test("escapes date values in the option value attribute", () => {
@@ -23,11 +24,11 @@ describe("renderDateSelector", () => {
 
   test("says how many days each booking reserves when it spans several", () => {
     const html = renderDateSelector(["2026-01-01"], "", 3);
-    expect(html).toContain("each booking reserves 3 days");
+    expect(html).toContain(reservesHint(3));
   });
 
   test("says nothing about duration for one-day bookings", () => {
     const html = renderDateSelector(["2026-01-01"], "", 1);
-    expect(html).not.toContain("each booking reserves");
+    expect(html).not.toContain(reservesHintStart());
   });
 });
