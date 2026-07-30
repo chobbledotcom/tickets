@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run --allow-all
 
 import { fromFileUrl, relative, resolve } from "@std/path";
+import { splitFlagValues } from "#scripts/flag-values.ts";
 import { auditEquivalentMutants } from "#scripts/mutation/equivalent-audit.ts";
 import { listRegistryFiles } from "#scripts/mutation/ignore.ts";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
@@ -28,19 +29,11 @@ interface AuditOptions {
 }
 
 const parseOptions = (args: string[]): AuditOptions => {
-  const registry: string[] = [];
-  const rest: string[] = [];
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index]!;
-    if (arg === "--registry") {
-      index += 1;
-      const path = args[index];
-      if (!path) throw new Error(`--registry needs a path\n\n${usage}`);
-      registry.push(path);
-    } else {
-      rest.push(arg);
-    }
-  }
+  const { rest, values } = splitFlagValues(args, "--registry");
+  const registry = values.map((path) => {
+    if (!path) throw new Error(`--registry needs a path\n\n${usage}`);
+    return path;
+  });
   if (rest.length === 1 && ["-h", "--help"].includes(rest[0]!)) {
     console.log(usage);
     Deno.exit(0);
