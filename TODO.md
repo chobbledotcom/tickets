@@ -1435,6 +1435,30 @@ stands, so the split can be a pure move.
 
 ---
 
+## Two suites now cover the attendees list
+
+*Origin: Codex review of PR #1993 (direct tests for the four testless modules).*
+
+`test/features/admin/attendees-list.test.ts` was added because the mutation
+gate needs a test at the source's mirrored path. It calls the handlers
+directly. But `test/integration/server/attendees-list.test.ts` already drives
+the same behaviour over HTTP — authentication, the listing filter, sort order
+and paging — and `test/integration/server/attendees-csv.test.ts` covers the
+export. So the same rules are now checked twice.
+
+That costs runtime on every suite run, and lets the two sets of fixtures and
+expectations drift apart. The fix is to consolidate: move the route-level cases
+into the mirrored feature suite (which can call the handler directly *and* go
+through the router where that is the point), and delete what is left behind.
+
+Not done in #1993 because that change touches suites the PR otherwise had no
+reason to open, and the mirrored suite had to exist first. Worth doing next
+time either file is opened.
+
+Starting point: the three files named above.
+
+---
+
 ## Let Deno-hosted sites with a Bunny database be migrated
 
 `POST /instance/site-credentials` (`src/features/instance.ts`) only returns
@@ -1802,33 +1826,28 @@ and thinking again about the startup grace, which exists because a process id
 can be given to somebody else after the original has gone. Start at
 `RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
 
-## Four feature modules have no test at their mirrored path
+## Four feature modules had no test at their mirrored path — now they do
 
 *Origin: `deno task precommit:mutation` on the notes-migration branch, which
-could not start.*
+could not start. Closed by the direct-test pass that followed.*
 
-The mutation gate refuses to run a source that has mutants but no test at its
-mirrored path under `test/`. Four modules are in that state:
+All four now have a direct test at their mirrored path, so the gate no longer
+refuses to start on a branch that touches them:
 
-- `src/features/admin/attendee-page.ts` (55 mutants)
-- `src/features/admin/attendees-list.ts` (37)
-- `src/features/admin/listing-page-data.ts` (45)
-- `src/features/api/payment-processing/store-refund.ts` (29)
+- `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
+- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list.test.ts` (100%)
+- `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
+- `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
 
-Nothing needs moving: no test imports any of them. They are reached only
-through the app, by integration and Cucumber journeys, so each needs a direct
-test written at `test/features/…` to match its path.
+Every one of them is now at the 100% the gate demands, so a branch touching
+any of them can pass without first writing the tests that should already have
+existed.
 
-This blocks the gate for *any* branch that touches one of them, however small
-the change — the notes migration only swapped an import in each. Until they
-have direct tests, a branch touching them can prove its own work with a
-targeted `deno task mutation <source> <tests>` run instead.
-
-`src/features/admin/attendee-notes.ts` was in the same state and is now fixed:
-its route suite drives real pages through the session helpers, so it moved from
-`test/integration/admin/` to `test/features/admin/`, which is where that kind
-of suite belongs (see "Let the misplaced-test list see past request helpers"
-above). The other four have no such suite to move.
+`src/features/admin/attendee-notes.ts` was in the same state and was fixed
+earlier: its route suite drives real pages through the session helpers, so it
+moved from `test/integration/admin/` to `test/features/admin/`, which is where
+that kind of suite belongs (see "Let the misplaced-test list see past request
+helpers" above).
 
 ## Two people setting a site up at the same moment can both succeed
 

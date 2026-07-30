@@ -1007,3 +1007,6 @@ src/shared/db/migrations/schema/payments/sessions.ts:82:22  TEXT → ""   # comp
 src/shared/db/migrations/schema/payments/sessions.ts:87:42  TEXT → ""   # legacy_runtime is GLOB-locked to encrypted text by aboutThePayment
 src/shared/db/migrations/schema/payments/charges.ts:61:27  TEXT → ""   # pending_refund_id is GLOB-locked to encrypted text by aboutTheCharge
 src/shared/db/migrations/schema/payments/charges.ts:63:40  TEXT → ""   # pending_refund_idempotency_key is GLOB-locked to encrypted text by aboutTheCharge
+src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
+src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
+src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
