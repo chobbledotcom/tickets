@@ -76,62 +76,86 @@ type HolidayForm = FormDefinition<ReturnType<typeof getHolidayFields>>;
 export const getHolidayForm = (): HolidayForm =>
   defineForm({ fields: getHolidayFields() });
 
+/** One built-site box: its label and placeholder come from the field's
+ * catalog keys, so every form naming this value says the same words. */
+export const builtSiteBox = <Name extends string, Type extends string>(
+  name: Name,
+  key: string,
+  type: Type,
+): {
+  label: string;
+  name: Name;
+  placeholder: string;
+  type: Type;
+} => ({
+  label: t(`fields.built_site.${key}`),
+  name,
+  placeholder: t(`fields.built_site.${key}_placeholder`),
+  type,
+});
+
+/** One built-site provider choice; each form states its own options. */
+const builtSiteChoice = <
+  Name extends string,
+  const Options extends readonly { label: string; value: string }[],
+>(
+  name: Name,
+  key: string,
+  options: Options,
+): { label: string; name: Name; options: Options; type: "select" } => ({
+  label: t(`fields.built_site.${key}`),
+  name,
+  options,
+  type: "select",
+});
+
+/** The one hosting option both provider lists share, word for word. */
+export const DENO_DEPLOY_OPTION = {
+  label: "Deno Deploy",
+  value: "deno",
+} as const;
+
+/** The hosting and database provider choices, worded per form. */
+export const providerChoices = <
+  const Hosting extends readonly { label: string; value: string }[],
+  const Db extends readonly { label: string; value: string }[],
+>(choices: {
+  db: Db;
+  hosting: Hosting;
+}): readonly [
+  {
+    label: string;
+    name: "hosting_provider";
+    options: Hosting;
+    type: "select";
+  },
+  { label: string; name: "db_provider"; options: Db; type: "select" },
+] => [
+  builtSiteChoice("hosting_provider", "hosting_provider", choices.hosting),
+  builtSiteChoice("db_provider", "db_provider", choices.db),
+];
+
 /**
  * Built site form field definitions (per-request builder)
  */
 const getBuiltSiteFields = () =>
   [
+    { ...builtSiteBox("name", "name", "text" as const), required: true },
     {
-      label: t("fields.built_site.name"),
-      name: "name",
-      placeholder: t("fields.built_site.name_placeholder"),
+      ...builtSiteBox("site_url", "site_url", "url" as const),
       required: true,
-      type: "text",
-    },
-    {
-      label: t("fields.built_site.site_url"),
-      name: "site_url",
-      placeholder: t("fields.built_site.site_url_placeholder"),
-      required: true,
-      type: "url",
       validate: validateHttpsDomainUrl,
     },
-    {
-      label: t("fields.built_site.db_url"),
-      name: "db_url",
-      placeholder: t("fields.built_site.db_url_placeholder"),
-      type: "url",
-    },
-    {
-      label: t("fields.built_site.db_token"),
-      name: "db_token",
-      placeholder: t("fields.built_site.db_token_placeholder"),
-      type: "password",
-    },
-    {
-      label: t("fields.built_site.hosting_id"),
-      name: "hosting_id",
-      placeholder: t("fields.built_site.hosting_id_placeholder"),
-      type: "text",
-    },
-    {
-      label: t("fields.built_site.hosting_provider"),
-      name: "hosting_provider",
-      options: [
-        { label: "Bunny", value: "bunny" },
-        { label: "Deno Deploy", value: "deno" },
-      ],
-      type: "select",
-    },
-    {
-      label: t("fields.built_site.db_provider"),
-      name: "db_provider",
-      options: [
+    builtSiteBox("db_url", "db_url", "url" as const),
+    builtSiteBox("db_token", "db_token", "password" as const),
+    builtSiteBox("hosting_id", "hosting_id", "text" as const),
+    ...providerChoices({
+      db: [
         { label: "Bunny DB", value: "bunny" },
         { label: "Turso", value: "turso" },
       ],
-      type: "select",
-    },
+      hosting: [{ label: "Bunny", value: "bunny" }, DENO_DEPLOY_OPTION],
+    }),
     checkboxField("assignable", {
       hint: t("fields.built_site.assignable_hint"),
       label: t("fields.built_site.assignable"),

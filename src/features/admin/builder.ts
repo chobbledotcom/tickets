@@ -5,7 +5,6 @@ import { defineRoutes } from "#routes/router.ts";
  * Owner-only access, gated behind CAN_BUILD_SITES=true env var
  */
 
-import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -37,6 +36,11 @@ import {
   adminBuilderPage,
   type BuiltSiteDisplay,
 } from "#templates/admin/builder.tsx";
+import {
+  builtSiteBox,
+  DENO_DEPLOY_OPTION,
+  providerChoices,
+} from "#templates/fields/admin.ts";
 
 const BUILDER_PATH = "/admin/builder";
 
@@ -68,46 +72,29 @@ const handleBuilderGet = (request: Request): Promise<Response> => {
 export const builderForm = defineForm({
   fields: [
     {
-      label: t("fields.built_site.name"),
+      ...builtSiteBox("site_name", "name", "text" as const),
       maxlength: 64,
       minlength: 1,
-      name: "site_name",
-      placeholder: t("fields.built_site.name_placeholder"),
       required: true,
-      type: "text" as const,
     },
-    {
-      label: t("fields.built_site.hosting_provider"),
-      name: "hosting_provider",
-      options: [
-        { label: "Bunny Edge Scripting", value: "bunny" },
-        { label: "Deno Deploy", value: "deno" },
-      ] as const,
-      type: "select" as const,
-    },
-    {
-      label: t("fields.built_site.db_provider"),
-      name: "db_provider",
-      options: [
+    ...providerChoices({
+      db: [
         { label: "Bunny DB (auto-provision)", value: "bunny" },
         { label: "Turso (auto-provision)", value: "turso" },
         { label: "Manual (enter URL below)", value: "manual" },
-      ] as const,
-      type: "select" as const,
+      ],
+      hosting: [
+        { label: "Bunny Edge Scripting", value: "bunny" },
+        DENO_DEPLOY_OPTION,
+      ],
+    }),
+    {
+      ...builtSiteBox("db_url", "db_url", "url" as const),
+      hint: "Leave blank to auto-provision a database",
     },
     {
+      ...builtSiteBox("db_token", "db_token", "password" as const),
       hint: "Leave blank to auto-provision a database",
-      label: t("fields.built_site.db_url"),
-      name: "db_url",
-      placeholder: t("fields.built_site.db_url_placeholder"),
-      type: "url" as const,
-    },
-    {
-      hint: "Leave blank to auto-provision a database",
-      label: t("fields.built_site.db_token"),
-      name: "db_token",
-      placeholder: t("fields.built_site.db_token_placeholder"),
-      type: "password" as const,
     },
   ] as const,
 });
