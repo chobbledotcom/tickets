@@ -7,14 +7,17 @@ import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
 import {
   acquireMigrationLock,
   executeWhileMigrationLockOwned,
-  MIGRATION_LOCK_TTL_MS,
   releaseAfterMigrationFailure,
   releaseMigrationLock,
   whileMigrationLockOwned,
 } from "#shared/db/migrations/lock.ts";
 import { MIGRATION_LOCK_KEY } from "#shared/db/migrations/schema/version.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { takeMigrationLock } from "#test-utils/migrations.ts";
+import {
+  freshLockStamp,
+  LONG_EXPIRED_LOCK_STAMP,
+  takeMigrationLock,
+} from "#test-utils/migrations.ts";
 
 describeWithEnv("db > migrations > lock", { db: true }, () => {
   const heldLock = async (): Promise<string | null> => {
@@ -32,11 +35,7 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
     });
   };
 
-  /** Hold the lock from half a minute ago: comfortably inside the time limit,
-   *  but not the same instant as the acquisition under test — two writes that
-   *  land in one millisecond would leave the limit untested. */
-  const holdFreshLock = (): Promise<void> =>
-    holdLockSince(new Date(Date.now() - 30_000).toISOString());
+  const holdFreshLock = (): Promise<void> => holdLockSince(freshLockStamp());
 
   const clearLock = async (): Promise<void> => {
     await getDb().execute({
@@ -86,10 +85,7 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
   });
 
   test("a lock older than the time limit is stolen", async () => {
-    const expired = new Date(
-      Date.now() - MIGRATION_LOCK_TTL_MS - 1000,
-    ).toISOString();
-    await holdLockSince(expired);
+    await holdLockSince(LONG_EXPIRED_LOCK_STAMP);
 
     await expectLeaseStored();
   });

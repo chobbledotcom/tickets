@@ -21,10 +21,8 @@ import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
-import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
 import { recordScriptVersion } from "#shared/update.ts";
 import {
@@ -37,12 +35,12 @@ import {
   MigrationInProgressError,
   MissingSettingsTableError,
 } from "./migrations/errors.ts";
-import type { MigrationLease } from "./migrations/lock.ts";
 import {
   acquireMigrationLock,
-  MIGRATION_LOCK_TTL_MS,
+  migrationLockHeldError,
   releaseAfterMigrationFailure,
   releaseMigrationLock,
+  storedLease,
 } from "./migrations/lock.ts";
 import {
   migrationMarkerStatement,
@@ -62,7 +60,6 @@ import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
   LATEST_UPDATE,
-  MIGRATION_LOCK_KEY,
   SCHEMA_MIGRATIONS_TABLE,
 } from "./migrations/schema/version.ts";
 import {
@@ -292,35 +289,6 @@ const finishIfUpToDate = async (probe: DbProbe): Promise<boolean> => {
 
 type LockedMigrationResult = "continue" | "release" | "released";
 
-/** Tell a request another one is migrating, and let the operator know. */
-const migrationLockHeldError = (): MigrationInProgressError => {
-  void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
-  return new MigrationInProgressError(
-    "Database migration is already in progress (migration_lock held). " +
-      `The request can be retried; a crashed migration's lock is reclaimed automatically after ${
-        MIGRATION_LOCK_TTL_MS / 60000
-      } minutes, or manually DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'.`,
-  );
-};
-
-/**
- * The token this request may actually write with.
- *
- * A lease taken while the `settings` table was missing has no row behind it. If
- * another request created that table in the meantime, the token owns nothing, so
- * take a real lease before any lock-gated write — and step aside if that other
- * request is still holding one.
- */
-const storedToken = async (
-  lease: MigrationLease,
-  recheck: DbProbe,
-): Promise<string> => {
-  if (lease.stored || recheck.state === "missing_settings") return lease.token;
-  const retaken = await acquireMigrationLock(false);
-  if (retaken === null) throw migrationLockHeldError();
-  return retaken.token;
-};
-
 const runAcquiredMigrations = async (
   recheck: DbProbe,
   lockToken: string,
@@ -367,18 +335,24 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   const lease = await acquireMigrationLock(allowMissingSettings);
   if (lease === null) throw migrationLockHeldError();
 
-  let lockToken = lease.token;
+  // Only a stored lease is ever given back: a database with no settings table
+  // has no row to delete, and trying would swap this request's retry message
+  // for whatever the pointless write failed with.
+  let held = lease;
   let result: LockedMigrationResult;
   try {
     // Re-check after acquiring the lock because another process may have
     // finished, which is also what decides whether the lease is real yet.
     const recheck = await probeDbState();
-    lockToken = await storedToken(lease, recheck);
-    result = await runAcquiredMigrations(recheck, lockToken);
+    held = await storedLease(lease, recheck.state === "missing_settings");
+    result = await runAcquiredMigrations(recheck, held.token);
   } catch (error) {
-    return await releaseAfterMigrationFailure(lockToken, error);
+    if (!held.stored) throw error;
+    return await releaseAfterMigrationFailure(held.token, error);
   }
-  if (result === "release") await releaseMigrationLock(lockToken);
+  if (result === "release" && held.stored) {
+    await releaseMigrationLock(held.token);
+  }
   if (result === "continue") {
     throw new MigrationInProgressError(
       "Database update is continuing on the next request.",

@@ -224,13 +224,6 @@ describeWithEnv(
       );
     });
 
-    /**
-     * Report a missing settings table for this many boot probes and lock
-     * writes, the way a request that arrives while another one is still
-     * creating that table sees the database. Everything past those counts runs
-     * against the real database, so the request's second look finds a table it
-     * holds no lock on.
-     */
     /** Which boot step a statement belongs to, by the SQL it starts with. */
     const bootStep = (statement: InStatement): "lock" | "probe" | "other" => {
       const sql = typeof statement === "string" ? statement : statement.sql;
@@ -238,6 +231,9 @@ describeWithEnv(
       return sql.startsWith("INSERT INTO settings") ? "lock" : "other";
     };
 
+    /** Report a missing settings table for this many probes and lock writes,
+     *  then let the rest through — so boot takes the tolerated lease and its
+     *  second look finds a table another request has since created. */
     const hideSettings = (probes: number, locks: number) => {
       const leftToHide = { lock: locks, probe: probes };
       const client = getDb();

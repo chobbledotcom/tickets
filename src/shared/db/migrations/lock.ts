@@ -6,7 +6,9 @@
 
 import type { SqlStatement } from "#shared/db/client.ts";
 import { executeBatchWithResults, getDb } from "#shared/db/client.ts";
+import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
 
 import {
   combinedFailures,
@@ -21,7 +23,7 @@ import { MIGRATION_LOCK_KEY } from "./schema/version.ts";
  * orphaning the lock; the TTL lets the next boot self-heal instead of
  * requiring a manual DELETE FROM settings.
  */
-export const MIGRATION_LOCK_TTL_MS = 2 * 60 * 1000;
+const MIGRATION_LOCK_TTL_MS = 2 * 60 * 1000;
 
 /**
  * A migration lock this request holds. `stored` is false only for the tolerated
@@ -61,6 +63,35 @@ export const acquireMigrationLock = async (
     });
   if (result === null) return { stored: false, token: lockToken };
   return result.rowsAffected === 1 ? { stored: true, token: lockToken } : null;
+};
+
+/** Tell a request another one is migrating, and let the operator know. */
+export const migrationLockHeldError = (): MigrationInProgressError => {
+  void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
+  return new MigrationInProgressError(
+    "Database migration is already in progress (migration_lock held). " +
+      `The request can be retried; a crashed migration's lock is reclaimed automatically after ${
+        MIGRATION_LOCK_TTL_MS / 60000
+      } minutes, or manually DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'.`,
+  );
+};
+
+/**
+ * The lease this request may actually write with.
+ *
+ * A lease taken while the `settings` table was missing has no row behind it. If
+ * another request created that table in the meantime, the token owns nothing, so
+ * take a real lease before any lock-gated write — and step aside if that other
+ * request is still holding one.
+ */
+export const storedLease = async (
+  lease: MigrationLease,
+  settingsStillMissing: boolean,
+): Promise<MigrationLease> => {
+  if (lease.stored || settingsStillMissing) return lease;
+  const retaken = await acquireMigrationLock(false);
+  if (retaken === null) throw migrationLockHeldError();
+  return retaken;
 };
 
 /** The statement that gives up this request's lease. */
