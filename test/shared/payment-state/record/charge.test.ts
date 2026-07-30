@@ -42,6 +42,14 @@ describe("what a stored charge may be", () => {
     expect(chargeKnowsWhereItCameFrom(copiedAcross)).toBe(null);
   });
 
+  test("accepts a charge for a single penny", () => {
+    // A penny is the smallest real charge, so the floor has to let it
+    // through — "at least a penny" is not "more than a penny".
+    expect(
+      chargeKnowsWhereItCameFrom({ ...takenHere, capturedAmount: 1 }),
+    ).toBe(null);
+  });
+
   // Each case names the one thing that is wrong, so a rule cannot quietly stop
   // saying it — and a failure here points at the rule that broke.
   const KNOWS_ITSELF =
