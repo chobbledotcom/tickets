@@ -5,7 +5,6 @@ import { stub } from "@std/testing/mock";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { loadMigrations } from "#shared/db/migrations/context.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
-import { MIGRATION_LOCK_TTL_MS } from "#shared/db/migrations/lock.ts";
 import { baselineCurrentSchemaIfNeeded } from "#shared/db/migrations/runner.ts";
 import {
   DB_SCHEMA_HASH_KEY,
@@ -37,6 +36,10 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import {
+  freshLockStamp,
+  LONG_EXPIRED_LOCK_STAMP,
+} from "#test-utils/migrations.ts";
 import { expectNtfyNotification, stubNtfyFetch } from "#test-utils/mocks.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
@@ -206,9 +209,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
           STORAGE_ZONE_KEY: undefined,
           STORAGE_ZONE_NAME: undefined,
         });
-        await setStaleSchemaAndLock(
-          new Date(Date.now() - MIGRATION_LOCK_TTL_MS - 1000),
-        );
+        await setStaleSchemaAndLock(new Date(LONG_EXPIRED_LOCK_STAMP));
         await markCurrentSchemaMigrationPending();
 
         await initDb();
@@ -226,9 +227,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
     test("keeps blocking while a lock is still within its TTL", async () => {
       try {
-        await setStaleSchemaAndLock(
-          new Date(Date.now() - MIGRATION_LOCK_TTL_MS / 2),
-        );
+        await setStaleSchemaAndLock(new Date(freshLockStamp()));
         invalidateInitDbCache();
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
