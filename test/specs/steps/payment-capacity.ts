@@ -12,7 +12,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withExpectedError } from "#test-utils/mocks.ts";
@@ -66,19 +66,7 @@ const paymentEvent = (
 
 const setSoldOutListing = async (world: TicketsWorld): Promise<void> => {
   await setupStripe();
-  // Filled here rather than through the shared helper, because this story
-  // leaves behind a record that gets published: a screenshot of somebody
-  // losing a place reads as one only if the thing they lost has a name.
-  const listing = await createTestListing({
-    maxAttendees: 1,
-    name: "Harvest Supper",
-    unitPrice: 1000,
-  });
-  await bookAttendee(listing, {
-    email: "first@example.com",
-    name: "First",
-    paymentId: "pi_first",
-  });
+  const listing = await fillSoleCapacityListing();
   world.listingId = listing.id;
 };
 
@@ -204,9 +192,6 @@ Given(
     this.firstBody = await response.text();
     const attendee = await findKeptPlaceholder(listingId);
     this.placeholderId = attendee.id;
-    // The record the site kept for somebody whose payment arrived too late,
-    // which is the page that shows an organiser what happened to them.
-    this.evidenceValues.set("lostPlaceAttendeeId", String(attendee.id));
     this.attendeeIds = (await getAttendeesRaw(listingId)).map(({ id }) => id);
     const record = await isSessionProcessed(sessionId);
     if (!record?.failure_data)
