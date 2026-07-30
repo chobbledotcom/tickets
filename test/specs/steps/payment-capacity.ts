@@ -135,6 +135,9 @@ Then(
     const listingId = requiredWorldValue(this.listingId, "listing id");
     const attendee = await findKeptPlaceholder(listingId);
     this.placeholderId = attendee.id;
+    // The record the site kept for somebody whose payment arrived too late,
+    // which is the page that shows an organiser what happened to them.
+    this.evidenceValues.set("lostPlaceAttendeeId", String(attendee.id));
     expect((await getAttendeesRaw(listingId)).length).toBe(2);
   },
 );

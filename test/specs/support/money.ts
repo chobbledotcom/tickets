@@ -65,9 +65,10 @@ export const buyOnePlace = async (
   );
   world.attendeeId = attendeeId;
   world.attendeeName = who;
-  // What the listing earned is read from its own ledger page, which is where
-  // an evidence capture of the figures has to go.
+  // What the listing earned is read from its own ledger page, and what one
+  // booking has paid from its own, which is where captures of each figure go.
   world.evidenceValues.set("paidListingId", String(listingId));
+  world.evidenceValues.set("paidBookingId", String(attendeeId));
   return attendeeId;
 };
 

@@ -223,6 +223,7 @@ export const defineResource = <
         : [],
       plainWrite: () => fallback(result.value),
       readBack: (rowId) => table.findByIdPrimary!(rowId),
+      tableName: table.name,
     });
     return { ok: true, row };
   };
@@ -231,6 +232,9 @@ export const defineResource = <
     const result = await parseWriteAndCommit(form, null, (input) =>
       table.insert(input),
     );
+    // A create's row is never null: `insert` returns the row it wrote, and a
+    // transactional write that can't read its own row back throws in
+    // `writeEntity` rather than reporting a null-row success.
     return result.ok ? { ok: true, row: result.row as Row } : result;
   };
 

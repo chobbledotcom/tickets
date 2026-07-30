@@ -771,6 +771,19 @@ export const useTransaction = <T>(
   transaction === undefined ? withTransaction(work) : work(transaction);
 
 /**
+ * The row id an INSERT reported. Every generated key is a positive integer, so
+ * anything else (`lastInsertRowid` is optional on a libsql result) means nothing
+ * downstream can be keyed on this row and the write must fail here.
+ */
+export const insertedRowId = (result: ResultSet): number => {
+  const id = Number(result.lastInsertRowid);
+  if (Number.isInteger(id) && id > 0) return id;
+  throw new Error(
+    `INSERT did not report a row id (lastInsertRowid=${result.lastInsertRowid})`,
+  );
+};
+
+/**
  * Write one row `statement` in a fresh write transaction and run `persist` (the
  * coupled join-table writes) on the same `tx`, so the row and its side writes
  * commit or roll back together. Returns the row id — `existingId` on update, or
@@ -784,7 +797,7 @@ export const writeRowInTransaction = (
 ): Promise<number> =>
   withTransaction(async (tx) => {
     const res = await tx.execute(statement);
-    const id = existingId ?? Number(res.lastInsertRowid);
+    const id = existingId ?? insertedRowId(res);
     await persist(tx, id);
     return id;
   });

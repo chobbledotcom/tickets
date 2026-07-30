@@ -1,10 +1,13 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
+import { awaitTestRequest, mockMultipartRequest } from "#test-utils/mocks.ts";
 import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -74,6 +77,45 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
       const html = await getActionsTabHtml();
       expect(html).toContain('href="/admin/listing/1/export.json"');
       expect(html).toContain("<span>Export</span>");
+    });
+  });
+
+  describe("POST /admin/listing (duplicate)", () => {
+    // The reported failure: the copy commits, but reading it back finds nothing,
+    // so the handler used to reach `result.row.name` on a null row and die with
+    // "Cannot read properties of null (reading 'name')" — logged as the generic
+    // E_CDN_REQUEST, pointing nowhere near the read-back that actually failed.
+    test("fails with the table named when the copy cannot be read back", async () => {
+      const { cookie, csrfToken } = await setupListingAndLogin({
+        maxAttendees: 10,
+        name: "Original",
+        thankYouUrl: "https://example.com",
+      });
+      const readBack = stub(listingsTable, "findByIdPrimary", () =>
+        Promise.resolve(null),
+      );
+      const { handleRequest } = await import("#routes");
+
+      try {
+        // The message names the table and the id, instead of the null-field
+        // TypeError this used to raise from the redirect that followed.
+        await expect(
+          handleRequest(
+            mockMultipartRequest(
+              "/admin/listing",
+              {
+                ...baseListingForm,
+                csrf_token: csrfToken,
+                duplicated_from: "1",
+                name: "Copy",
+              },
+              cookie,
+            ),
+          ),
+        ).rejects.toThrow(/^listings: row \d+ was inserted/);
+      } finally {
+        readBack.restore();
+      }
     });
   });
 });

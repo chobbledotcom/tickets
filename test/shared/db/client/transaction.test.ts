@@ -197,4 +197,56 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     expect(id).toBe(0);
     expect(persistedIds).toEqual([0]);
   });
+
+  /** Run an INSERT through writeRowInTransaction against a driver whose result
+   *  reports `lastInsertRowid` as `reported`, recording the ids persist saw. */
+  const insertWithReportedRowid = async (
+    reported: unknown,
+  ): Promise<{ persistedIds: number[]; error: unknown }> => {
+    const persistedIds: number[] = [];
+    using _txStub = stubTransaction({
+      commit: () => Promise.resolve(),
+      execute: () =>
+        Promise.resolve({ lastInsertRowid: reported } as unknown as ResultSet),
+      rollback: () => Promise.resolve(),
+    });
+    try {
+      await writeRowInTransaction(
+        "INSERT INTO rows (x) VALUES (1)",
+        null,
+        (_tx, rowId) => {
+          persistedIds.push(rowId);
+          return Promise.resolve();
+        },
+      );
+      return { error: null, persistedIds };
+    } catch (thrown) {
+      return { error: thrown, persistedIds };
+    }
+  };
+
+  // A driver that doesn't report the new rowid used to give `Number(undefined)`
+  // = NaN as the row id: the join writes were then written against NaN and the
+  // transaction committed, and only the read-back afterwards found nothing.
+  // Fail before persist runs so the whole write rolls back instead.
+  test("writeRowInTransaction rejects an INSERT that reports no row id", async () => {
+    const { error, persistedIds } = await insertWithReportedRowid(undefined);
+
+    expect(String(error)).toContain("did not report a row id");
+    expect(persistedIds).toEqual([]);
+  });
+
+  test("writeRowInTransaction rejects an INSERT that reports row id 0", async () => {
+    const { error, persistedIds } = await insertWithReportedRowid(0n);
+
+    expect(String(error)).toContain("did not report a row id");
+    expect(persistedIds).toEqual([]);
+  });
+
+  test("writeRowInTransaction persists against the INSERT's reported row id", async () => {
+    const { error, persistedIds } = await insertWithReportedRowid(7n);
+
+    expect(error).toBeNull();
+    expect(persistedIds).toEqual([7]);
+  });
 });

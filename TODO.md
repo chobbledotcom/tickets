@@ -1839,9 +1839,9 @@ refuses to start on a branch that touches them:
 - `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
 - `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
 
-Every one of them is now at the 100% the gate demands, so a branch touching
-any of them can pass without first writing the tests that should already have
-existed.
+Every one of them now catches every mutation the gate demands, so a branch
+touching any of them can pass without first writing the tests that should
+already have existed.
 
 `src/features/admin/attendee-notes.ts` was in the same state and was fixed
 earlier: its route suite drives real pages through the session helpers, so it
@@ -2159,3 +2159,37 @@ listing, the same way an unreadable booking is raised.
 
 Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
 where the shape rule is covered and the "names a booked listing" rule is not.
+
+---
+
+## A create whose row can't be read back should not look retryable
+
+*Origin: Codex review on PR #2002, which added the loud failure for a create
+whose just-written row can't be read back.*
+
+`writeEntity` (`src/shared/rest/write-entity.ts`) writes the row, commits, then
+reads it back on the primary. When a create's read-back finds nothing it now
+raises an error. That error leaves the API write path in
+`src/shared/rest/crud-api.ts` and reaches the request handler
+(`src/features/app/request.ts`), which turns any unhandled error into the shared
+503 page. The row itself was committed, so a client that treats the 503 as
+"try again" can post the same create twice and end up with two rows.
+
+The reviewer's suggestion was to read the row back *before* committing, so a
+failed read-back rolls the insert back and there is nothing to duplicate. That
+is more than a local change: each resource can supply its own
+`lookupAfterWrite`, several of which join extra columns, and every one of them
+would need a version that reads inside the open transaction. It also trades one
+rare wrong answer for another — a row read before the commit can still be
+reported to the caller when the commit afterwards fails.
+
+`writeTableRow` in `src/shared/db/table.ts` already inserts and reads back
+inside one transaction (see `test/shared/db/table/write-row.test.ts`), so it is
+the place to start if the pre-commit read-back is the direction taken. The
+smaller alternative is to keep the failure after the commit but answer with a
+response that says plainly the create is not to be repeated, and carries the id
+of the row that was made, rather than falling through to the generic 503.
+
+Note that the id that made this reachable in the first place is now checked at
+the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
+answer given for a failure that should no longer happen — not a live fault.

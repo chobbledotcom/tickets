@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { installLockPath } from "#scripts/stripe-mock/install.ts";
+import { delay } from "#shared/now.ts";
 import {
   createFakeArchive,
   withFakeCurl,
@@ -126,6 +127,16 @@ describe("cleaning up after an install", () => {
               // stopped=true — it returns early instead of scheduling another.
               lockWrite.releaseWrite();
               await started;
+              // The stop caught every lock write, including one a just-fired
+              // timer had queued behind it. A write that slipped past the stop
+              // would land after this turn — and re-create the lock file that
+              // the failed install's cleanup already removed.
+              const writesWhenStopped = lockWrite.writesSoFar();
+              await delay(0);
+              expect(lockWrite.writesSoFar()).toBe(writesWhenStopped);
+              await expect(Deno.stat(installLockPath(paths))).rejects.toThrow(
+                Deno.errors.NotFound,
+              );
             },
           );
         },

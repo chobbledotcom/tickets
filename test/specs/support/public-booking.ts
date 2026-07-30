@@ -181,12 +181,16 @@ export const expectRefusedForWantOfRoom = (
   );
 };
 
-/** The days the page offers as a stay's first day. Read from the served date
- * chooser, so a day the site stops offering disappears from this list. */
-export const daysOfferedFor = async (listing: Listing): Promise<string[]> => {
-  const browser = await openAsNewcomer(`/ticket/${listing.slug}`);
+/** The page one listing is booked from, as a customer opening it fresh. */
+export const openBookingPage = (listing: Listing): Promise<TestBrowser> =>
+  openAsNewcomer(`/ticket/${listing.slug}`);
+
+/** The days a served booking page offers as a stay's first day. Read from the
+ * date chooser, so a day the site stops offering disappears from this list. */
+export const daysOfferedOn = (html: string): string[] =>
   // The chooser carries an empty "pick a day" option; only real days count.
-  return optionsOffered(browser.currentHtml, "date").filter(
-    (day) => day !== "",
-  );
-};
+  optionsOffered(html, "date").filter((day) => day !== "");
+
+/** The days a listing's own page offers as a stay's first day. */
+export const daysOfferedFor = async (listing: Listing): Promise<string[]> =>
+  daysOfferedOn((await openBookingPage(listing)).currentHtml);

@@ -15,6 +15,8 @@ import {
   rememberStayListing,
   stayListing,
 } from "#test/specs/support/listings.ts";
+import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
 import type {
   ActOnOneThing,
   ReadAboutOneThing,
@@ -58,8 +60,39 @@ export const personWithTicket = async (
   rememberStayListing(world, listing, created);
   // The door this person belongs to, so a screenshot capture can open it.
   world.evidenceValues.set("doorListingId", String(created.id));
+  rememberTicket(world, who, token);
+};
+
+/** Keep a ticket under the name the story calls its holder. */
+const rememberTicket = (
+  world: TicketsWorld,
+  who: string,
+  ticket: string,
+): void => {
   world.doorTickets ??= new Map();
-  world.doorTickets.set(who, token);
+  world.doorTickets.set(who, ticket);
+};
+
+/** Someone who booked a stay of several days through the listing's own page.
+ * The ticket they hold is the code the door itself offers for them when the
+ * organiser looks them up by name — nothing is invented for them. */
+export const personWithStayTicket = async (
+  world: TicketsWorld,
+  who: string,
+  listing: string,
+  days: number,
+): Promise<void> => {
+  await openStayListing(world, listing, days, 5);
+  await visitorBooks(world, stayListing(world, listing), {
+    day: dayFromToday(world, 10),
+    email: `${who.toLowerCase()}@example.com`,
+    who,
+  });
+  const person = (await peopleOfferedAtDoor(world, listing)).find(
+    (row) => row.name === who,
+  );
+  if (!person) throw new Error(`The ${listing} door does not offer ${who}`);
+  rememberTicket(world, who, person.ticket);
 };
 
 /** Another listing running its own door, with nobody booked on it yet. */

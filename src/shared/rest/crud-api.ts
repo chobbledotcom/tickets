@@ -459,11 +459,12 @@ export const defineCrudApi = <
       joinWrites,
       plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,
       readBack: lookupAfterWrite,
+      tableName: config.table.name,
     });
-    // writeEntity returns null when the just-written row can't be read back —
-    // an update whose row was deleted between the entityRoute lookup and the
-    // commit. Report a clean not-found (as defineResource's update path does)
-    // rather than dereferencing null in respondWithRow.
+    // writeEntity returns null only for an update whose row was deleted between
+    // the entityRoute lookup and the commit. Report a clean not-found (as
+    // defineResource's update path does) rather than dereferencing null in
+    // respondWithRow.
     if (!fullRow) return apiErrorResponse(`${singular} not found`, 404);
     return respondWithRow(fullRow, action, status);
   };
