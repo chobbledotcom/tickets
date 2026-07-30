@@ -143,7 +143,7 @@ describeWithEnv("validateListingInput package edges", { db: true }, () => {
         }),
       ),
     ).resolves.toBe(
-      "Months per unit requires No check-in and Hidden to be enabled",
+      "Months per unit requires No check-in and Hidden listing to be enabled.",
     );
   });
 });

@@ -171,6 +171,9 @@ export const somethingForSale = async (
     await createTestListing({
       maxAttendees: 10,
       name,
+      // The site's own thank-you page, so a story can read what a customer is
+      // shown after booking rather than being sent off to another site.
+      thankYouUrl: "",
       webhookUrl: options.forwardingTo,
     }),
   );

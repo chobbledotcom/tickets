@@ -10,7 +10,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import type { Listing } from "#shared/types.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
+import { adminBrowser, openAdminPage } from "#test/specs/support/browser.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   requiredWorldValue,
@@ -62,6 +63,25 @@ export const sellSomethingAt = async (
   world.listingIds.set(name, listing.id);
   world.listingId = listing.id;
   return listing;
+};
+
+/** Tick one box on a listing's own admin tab and save, checking the site
+ * confirms it. Both the questions and the attributes tab work this way. */
+export const tickOnListingTab = async (
+  world: TicketsWorld,
+  listingName: string,
+  tab: string,
+  field: string,
+  boxId: number,
+  saidAfter: string,
+): Promise<void> => {
+  const listing = stayListing(world, listingName);
+  const browser = await openAdminPage(
+    world,
+    `/admin/listing/${listing.id}/${tab}`,
+  );
+  await fillInAndSend(browser, { [field]: String(boxId) }, "Save");
+  expect(browser.pageText).toContain(saidAfter);
 };
 
 /** What the site tells somebody when a listing's own form saves. */

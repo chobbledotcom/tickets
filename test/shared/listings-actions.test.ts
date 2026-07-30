@@ -266,7 +266,7 @@ describeWithEnv("validateListingInput renewal config", { db: true }, () => {
       inputFor({ monthsPerUnit: 1, name: "Renewal One" }),
     );
     expect(error).toBe(
-      "Months per unit requires No check-in and Hidden to be enabled",
+      "Months per unit requires No check-in and Hidden listing to be enabled.",
     );
   });
 

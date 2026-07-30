@@ -83,6 +83,10 @@ export const asksIfThereIs =
   async (world, name) =>
     (await look(world, name)) !== null;
 
+/** What the owner was last told, or a loud failure when nothing was said. */
+export const ownerLastTold = (world: TicketsWorld): string =>
+  requiredWorldValue(world.ownerTold, "what the owner was told");
+
 export interface TicketsWorld extends World {
   apiAnswer?: ApiAnswer;
   apiFirstDay?: string;
@@ -107,6 +111,7 @@ export interface TicketsWorld extends World {
   bundleParts?: ThingForSale[];
   bundles?: Map<string, Group>;
   bundleTicketPath?: string;
+  buyerQuestion?: { id: number; text: string };
   cashBefore?: number;
   cleanup: Array<() => void | Promise<void>>;
   closedDayOn?: string;
@@ -131,6 +136,7 @@ export interface TicketsWorld extends World {
   holdListingId?: number;
   latecomerBrowser?: TestBrowser;
   lengthChangeMessage?: string;
+  listingDetail?: { id: number; name: string };
   listingId?: number;
   listingIds: Map<string, number>;
   mergeOutcome?: { applied: boolean; message: string };
@@ -144,6 +150,7 @@ export interface TicketsWorld extends World {
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
+  ownerTold?: string;
   placeholderId?: number;
   questionId?: number;
   raceListing?: string;
