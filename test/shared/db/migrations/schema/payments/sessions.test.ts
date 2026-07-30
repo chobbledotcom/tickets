@@ -127,6 +127,7 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
     ["whose id is", "id", "bytes-id"],
     ["whose lookup code is", "session_reference_index", "bytes-index"],
     ["whose buyer's details are", "booking_intent", "enc:1:a:b"],
+    ["whose kind of money is", "expected_currency", "GBP"],
   ] as const) {
     test(`refuses a payment ${name} bytes that only read like text`, async () => {
       const columns = [

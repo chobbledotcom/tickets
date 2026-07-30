@@ -107,8 +107,11 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
       `SELECT id FROM payment_case_decisions WHERE case_id = 11
         ORDER BY case_revision`,
     );
-    const [first, second] = saved.rows.map((row) => Number(row.id));
-    expect(second).toBe(Number(first) + 1);
+    const ids = saved.rows.map((row) => Number(row.id));
+    // Distinct and real, not consecutive: how SQLite hands numbers out is its
+    // business, and a gap is still two decisions the worker can tell apart.
+    expect(ids.every((id) => id > 0)).toBe(true);
+    expect(new Set(ids).size).toBe(2);
   });
 
   test("refuses a second decision on the same version of a problem", async () => {

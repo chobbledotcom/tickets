@@ -130,7 +130,10 @@ export const oneOfOrNull = (name: string, allowed: readonly string[]): string =>
 
 /** Three capital letters, the shape every currency is written in. */
 export const currencyOrNull = (name: string): string =>
-  column("TEXT", orMissing(name, `${name} GLOB '[A-Z][A-Z][A-Z]'`));
+  column(
+    "TEXT",
+    orMissing(name, `${isText(name)} AND ${name} GLOB '[A-Z][A-Z][A-Z]'`),
+  );
 
 /** When a row was made and last touched. Every payment record carries both,
  *  and the touch can never come before the making. */

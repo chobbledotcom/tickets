@@ -15,10 +15,12 @@ const refusedBy =
   };
 
 /** Turned away because the row breaks a rule about what it may say. */
-export const expectRefused = refusedBy("CHECK");
+export const expectRefused: (statement: InStatement) => Promise<void> =
+  refusedBy("CHECK");
 
 /** Turned away because the same thing is already written down. */
-export const expectRefusedAsRepeat = refusedBy("UNIQUE");
+export const expectRefusedAsRepeat: (statement: InStatement) => Promise<void> =
+  refusedBy("UNIQUE");
 
 /** Runs a write the tables are meant to accept. */
 export const expectAccepted = async (sql: string): Promise<void> => {

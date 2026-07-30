@@ -93,7 +93,7 @@ describe("the kinds of column a payment record is built from", () => {
 
   test("a currency is three capital letters", () => {
     expect(currencyOrNull("expected_currency")).toBe(
-      "TEXT CHECK (expected_currency IS NULL OR expected_currency GLOB '[A-Z][A-Z][A-Z]')",
+      "TEXT CHECK (expected_currency IS NULL OR typeof(expected_currency) = 'text' AND expected_currency GLOB '[A-Z][A-Z][A-Z]')",
     );
   });
 

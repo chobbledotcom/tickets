@@ -291,6 +291,18 @@ describe("payment resources", () => {
     ).toBe(false);
   });
 
+  test("says why a refund that moved money may not be for nothing", () => {
+    // The wording matters here: this is the rule that keeps a charge given
+    // fully back from reading as still going, for ever.
+    expect(
+      validationMessage(RefundObservationSchema, {
+        amount: { amount: 0, currency: "GBP" },
+        refund: refundResource,
+        status: "pending",
+      }),
+    ).toBe("A refund that moved money must be positive");
+  });
+
   test("counts a refund still going on top of the money already returned", () => {
     // A refund the provider has not finished is money on its way out, on top
     // of what has already gone back. Checked one at a time, £80 returned and

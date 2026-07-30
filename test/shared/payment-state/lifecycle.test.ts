@@ -79,6 +79,21 @@ describe("payment lifecycle", () => {
     });
   }
 
+  test("refuses a problem whose reading has not finished saying so", () => {
+    // A reading still going has not said what happened to the money, so
+    // nothing about it can be settled yet. Asked anyway, an unfinished
+    // reading answers from the free-payment arm and would agree with a
+    // "paid without charge" problem that nobody has actually established.
+    expect(() =>
+      v.parse(PaymentResolutionSchema, {
+        issue: { kind: "paid_without_charge" },
+        observation: paymentObservation({ status: "pending" }),
+        resource: sessionResource,
+        status: "conflict",
+      }),
+    ).toThrow();
+  });
+
   test("validates every payment resolution", () => {
     const observation = paymentObservation();
     const resolutions = [

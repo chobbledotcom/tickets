@@ -2133,6 +2133,7 @@ the human, as a required choice, not a default.
 This was left out of #1990 because that slice only hardens how a booking is read
 and checked. Giving a payment session a new state, a screen and an operator
 action belongs with the payment-record work, not with the parsing.
+
 ## An answer filed under a listing nobody booked
 
 *Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
