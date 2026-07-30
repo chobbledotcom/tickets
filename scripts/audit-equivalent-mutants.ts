@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-all
 
-import { fromFileUrl, relative } from "@std/path";
+import { fromFileUrl, relative, resolve } from "@std/path";
 import { auditEquivalentMutants } from "#scripts/mutation/equivalent-audit.ts";
 import { listRegistryFiles } from "#scripts/mutation/ignore.ts";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
@@ -19,28 +19,48 @@ const usage = `Usage: deno task mutation:audit-equivalents [--write]
 Runs lint and type-check against every recorded equivalent mutant without
 running tests. Pass --write to remove entries that static checks now kill.`;
 
-const parseOptions = (args: string[]): { write: boolean } => {
-  if (args.length === 0) return { write: false };
-  if (args.length === 1 && args[0] === "--write") {
-    return { write: true };
+/** The audit's options. The registry list is internal plumbing: the parent
+ * enumerates the shards once and hands the same list to its snapshot child,
+ * so the audited files and the copied-back files can never differ. */
+interface AuditOptions {
+  registry: string[];
+  write: boolean;
+}
+
+const parseOptions = (args: string[]): AuditOptions => {
+  const registry: string[] = [];
+  const rest: string[] = [];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]!;
+    if (arg === "--registry") {
+      index += 1;
+      const path = args[index];
+      if (!path) throw new Error(`--registry needs a path\n\n${usage}`);
+      registry.push(path);
+    } else {
+      rest.push(arg);
+    }
   }
-  if (args.length === 1 && ["-h", "--help"].includes(args[0]!)) {
+  if (rest.length === 1 && ["-h", "--help"].includes(rest[0]!)) {
     console.log(usage);
     Deno.exit(0);
   }
-  throw new Error(`Unknown arguments: ${args.join(" ")}\n\n${usage}`);
+  if (rest.length > 1 || (rest.length === 1 && rest[0] !== "--write")) {
+    throw new Error(`Unknown arguments: ${rest.join(" ")}\n\n${usage}`);
+  }
+  return { registry, write: rest[0] === "--write" };
 };
 
 /** Audit inside this checkout, which the snapshot child owns outright. */
-const runAudit = async (options: { write: boolean }): Promise<number> => {
+const runAudit = async (options: AuditOptions): Promise<number> => {
   const controller = new AbortController();
   const onSignal = (): void => controller.abort();
   onTerminationSignals(onSignal);
   const result = await auditEquivalentMutants({
-    ...options,
-    ignoreFiles: await listRegistryFiles(),
+    ignoreFiles: options.registry.map((path) => resolve(projectRoot, path)),
     root: projectRoot,
     signal: controller.signal,
+    write: options.write,
   })
     .catch((error) => {
       if (controller.signal.aborted) Deno.exit(130);
@@ -68,14 +88,18 @@ const registryCopyBackPaths = async (): Promise<string[]> =>
 if (import.meta.main) {
   // Parsed here too, so a bad flag or --help answers without copying anything.
   const options = parseOptions(Deno.args);
+  if (isSnapshotChild()) {
+    Deno.exit(await runSnapshotChild(() => runAudit(options)));
+  }
+  // One shard list serves the audit and the copy-back alike, so a shard added
+  // while the snapshot is being made can never be pruned and then lost.
+  const registry = await registryCopyBackPaths();
   Deno.exit(
-    isSnapshotChild()
-      ? await runSnapshotChild(() => runAudit(options))
-      : await runInSnapshot({
-          args: Deno.args,
-          // Only a --write audit rewrites the registry, so only it keeps files.
-          copyBack: options.write ? await registryCopyBackPaths() : [],
-          entryScript: "scripts/audit-equivalent-mutants.ts",
-        }),
+    await runInSnapshot({
+      args: [...Deno.args, ...registry.flatMap((path) => ["--registry", path])],
+      // Only a --write audit rewrites the registry, so only it keeps files.
+      copyBack: options.write ? registry : [],
+      entryScript: "scripts/audit-equivalent-mutants.ts",
+    }),
   );
 }

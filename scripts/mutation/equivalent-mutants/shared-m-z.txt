@@ -2,12 +2,12 @@
 
 # CRUD configuration values are functions or objects when present, and hydrated
 # map values are records, so none can be falsy-but-non-null.
-src/shared/rest/crud-api.ts:342:31  ?? → ||   # policy is an AuthPolicy object or undefined
-src/shared/rest/crud-api.ts:346:18  ?? → ||   # lookup is a function or undefined
-src/shared/rest/crud-api.ts:353:28  ?? → ||   # lookupAfterWrite is a function or undefined
-src/shared/rest/crud-api.ts:363:31  ?? → ||   # hydrated map values are records or undefined; records are truthy
-src/shared/rest/crud-api.ts:573:27  ?? → ||   # extraRoutes is a route object or undefined
-src/shared/rest/resource.ts:157:25  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
+src/shared/rest/crud-api.ts:343:31  ?? → ||   # policy is an AuthPolicy object or undefined
+src/shared/rest/crud-api.ts:347:18  ?? → ||   # lookup is a function or undefined
+src/shared/rest/crud-api.ts:357:28  ?? → ||   # lookupAfterWrite is a function or undefined
+src/shared/rest/crud-api.ts:367:31  ?? → ||   # hydrated map values are records or undefined; records are truthy
+src/shared/rest/crud-api.ts:577:27  ?? → ||   # extraRoutes is a route object or undefined
+src/shared/rest/resource.ts:158:25  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so

@@ -74,8 +74,8 @@ src/features/admin/catalog-transfer/schema.ts:286:34  ?? → ||    # formatTrans
 
 # Admin group routes (features/admin/groups.ts) — object/Map/0-fallback nullish
 # coalescing where ?? and || always agree.
-src/features/admin/groups.ts:182:47  ?? → ||   # parseMemberDayPrices byListing.get(): DayPrices|undefined — an object is always truthy
-src/features/admin/groups.ts:201:51  ?? → ||   # parsePackageMembers dayPricesByListing.get(): DayPrices|undefined — an object is always truthy
+src/features/admin/groups.ts:184:47  ?? → ||   # parseMemberDayPrices byListing.get(): DayPrices|undefined — an object is always truthy
+src/features/admin/groups.ts:203:51  ?? → ||   # parsePackageMembers dayPricesByListing.get(): DayPrices|undefined — an object is always truthy
 src/shared/listings-actions.ts:376:38  && → ||   # clearing false means mayStripPage never loads a flagged child; clearing true without a flagged child only reruns unchanged reachability, which cannot create an orphan
 
 # attendee merge/refund route: mutants with no observable effect.
@@ -151,7 +151,7 @@ src/features/api/payment-processing/package-pricing.ts:217:49  false → true   
 src/features/api/payment-processing/package-pricing.ts:227:45  false → true   # child TicketListing availability is likewise unread by buildBookingTree's node-key construction
 src/features/api/payment-processing/package-pricing.ts:242:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
 src/features/api/payment-processing/package-pricing.ts:259:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
-src/features/api/payment-processing/package-pricing.ts:296:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+src/features/api/payment-processing/package-pricing.ts:295:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
 src/features/api/folded-booking.ts:87:42  ?? → ||   # childrenByParentId is Map<number, TicketListing[]>; get returns an array (always truthy, even []) or undefined, so ?? and || agree
