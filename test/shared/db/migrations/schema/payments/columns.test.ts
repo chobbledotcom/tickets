@@ -125,12 +125,18 @@ describe("the kinds of column a payment record is built from", () => {
   });
 
   test("every record says when it was made and last touched", () => {
-    expect(madeAndTouched.map(([name]) => name)).toEqual([
-      "created_at",
-      "updated_at",
+    // Both rules in full: each names the column it is about, so a rule that
+    // lost that name would compare against nothing and let anything through.
+    expect(madeAndTouched).toEqual([
+      [
+        "created_at",
+        "INTEGER NOT NULL CHECK (typeof(created_at) = 'integer' AND created_at >= 0)",
+      ],
+      [
+        "updated_at",
+        "INTEGER NOT NULL CHECK (typeof(updated_at) = 'integer' AND created_at IS NOT NULL AND updated_at >= created_at)",
+      ],
     ]);
-    // A touch can never come before the making.
-    expect(madeAndTouched[1]?.[1]).toContain("updated_at >= created_at");
   });
 
   test("rules about the whole row hang off its last column", () => {
@@ -151,12 +157,13 @@ describe("the kinds of column a payment record is built from", () => {
     });
 
     expect(name).toBe("payment_charges");
-    expect(table.columns.map(([column]) => column)).toEqual([
-      "id",
-      "payment_id",
-      "captured_amount",
+    expect(table.columns).toEqual([
+      ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+      // The payment it belongs to must say something: a record hanging off a
+      // blank one belongs to no payment anybody can find.
+      ["payment_id", "TEXT NOT NULL CHECK (length(trim(payment_id)) > 0)"],
+      ["captured_amount", "INTEGER"],
     ]);
-    expect(table.columns[0]?.[1]).toBe("INTEGER PRIMARY KEY AUTOINCREMENT");
     expect(table.indexes).toEqual([
       { columns: ["payment_id"], name: "idx_charges_payment" },
     ]);
