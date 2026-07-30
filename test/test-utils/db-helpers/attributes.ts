@@ -6,6 +6,7 @@ import {
   attributesTable,
   listingAttributeOptions,
 } from "#shared/db/attributes.ts";
+import { execute } from "#shared/db/client.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -64,7 +65,6 @@ export const withFailingOrderTrigger = async (
   table: "attribute_options" | "attributes",
   run: () => Promise<void>,
 ): Promise<void> => {
-  const { execute } = await import("#shared/db/client.ts");
   await execute(`
     CREATE TRIGGER fail_${table}_order
     BEFORE UPDATE OF sort_order ON ${table}
