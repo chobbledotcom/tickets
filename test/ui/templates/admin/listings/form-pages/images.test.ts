@@ -118,9 +118,9 @@ describeWithEnv(
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expect(html).toContain("months_per_unit");
-          expect(html).toContain("Months Per Unit");
+          expect(html).toContain("Months per unit");
           expect(html).toContain("initial_site_months");
-          expect(html).toContain("Initial Site Months");
+          expect(html).toContain("Initial site months");
         });
       });
 
@@ -128,9 +128,9 @@ describeWithEnv(
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expect(html).not.toContain("months_per_unit");
-          expect(html).not.toContain("Months Per Unit");
+          expect(html).not.toContain("Months per unit");
           expect(html).not.toContain("initial_site_months");
-          expect(html).not.toContain("Initial Site Months");
+          expect(html).not.toContain("Initial site months");
         });
       });
 

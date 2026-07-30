@@ -82,6 +82,30 @@ describe("bringing files back out of a snapshot", () => {
     });
   });
 
+  test("writes no file when a later one changed during the run", async () => {
+    await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
+      // A second kept file, edited in the checkout mid-run. Every check runs
+      // before any write, so the first file must stay untouched too.
+      const second = "second.txt";
+      await Deno.writeTextFile(join(roots.root, second), "a\n");
+      await Deno.writeTextFile(join(roots.workRoot, second), "b\n");
+      const files = await readCopyBackFiles(roots.root, [KEPT, second]);
+      await Deno.writeTextFile(join(roots.root, second), "edited\n");
+
+      const run = await captureConsole(() =>
+        bringFilesBack(roots.root, roots.workRoot, files),
+      );
+
+      expect(run.result).toBe(1);
+      expect(run.errors.join("\n")).toContain(
+        `${second} changed while the isolated run was going`,
+      );
+      expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
+        "one\ntwo\n",
+      );
+    });
+  });
+
   test("reads nothing when no files are kept", async () => {
     await withCheckoutAndCopy("one\n", "one\n", async (roots) => {
       expect(await readCopyBackFiles(roots.root, [])).toEqual([]);

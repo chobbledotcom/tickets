@@ -336,7 +336,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         await assertPublicHtml(
           "/setup/",
           "Initial Setup",
-          "Admin Password",
+          "Admin password",
           "Your Country",
           "Data Controller Agreement",
         );
@@ -395,7 +395,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         });
         await expectFlashRedirect(
           "/setup/",
-          expect.stringContaining("Admin Password"),
+          expect.stringContaining("Admin password"),
           false,
         )(response);
       });

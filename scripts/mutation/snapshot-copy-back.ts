@@ -27,21 +27,25 @@ export const readCopyBackFiles = (
     })),
   );
 
-/**
- * Copy one file out of the snapshot, and say whether it moved. A file someone
- * else edited during the run stops the copy: the run's version was built from
- * the older text, so writing it would undo their edit.
- */
-const copyOneBack = async (
+/** Stop the copy when someone else edited the file during the run: the run's
+ * version was built from the older text, so writing it would undo their edit. */
+const assertUnchanged = async (
   root: string,
-  workRoot: string,
   { before, file }: CopyBackFile,
-): Promise<boolean> => {
+): Promise<void> => {
   if ((await Deno.readTextFile(join(root, file))) !== before) {
     throw new Error(
       `${file} changed while the isolated run was going, so its result was left behind. Re-run it on an unchanged checkout.`,
     );
   }
+};
+
+/** Copy one file out of the snapshot, and say whether it moved. */
+const copyOneBack = async (
+  root: string,
+  workRoot: string,
+  { before, file }: CopyBackFile,
+): Promise<boolean> => {
   const after = await Deno.readTextFile(join(workRoot, file));
   if (after === before) return false;
   await Deno.writeTextFile(join(root, file), after);
@@ -55,6 +59,11 @@ export const bringFilesBack = async (
   files: CopyBackFile[],
 ): Promise<number> => {
   try {
+    // Check every file before writing any: one changed file stops the whole
+    // copy up front, so a multi-file result is never left partly applied.
+    for (const entry of files) {
+      await assertUnchanged(root, entry);
+    }
     for (const entry of files) {
       if (await copyOneBack(root, workRoot, entry)) {
         console.log(`Updated ${entry.file}`);

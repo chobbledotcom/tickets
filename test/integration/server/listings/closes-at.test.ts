@@ -80,7 +80,7 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
         `/admin/listing/${listing.id}/edit`,
         'value="2099-06-15"',
         'value="14:30"',
-        "Registration Closes At",
+        "Registration closes at",
       );
     });
 
