@@ -4,6 +4,7 @@ import { execute, getDb, queryAll } from "#shared/db/client.ts";
 import noteEntities from "#shared/db/migrations/2026-07-28_note_entities.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
+  applySchemaChanges,
   recreateTable,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
@@ -247,6 +248,39 @@ describeWithEnv(
           sql: "INSERT INTO system_notes (entity_type, entity_id, type, note) VALUES ('spaceship', ?, ?, ?)",
         }),
       ).rejects.toThrow();
+    });
+
+    // A site that skipped this release has notes without the two new columns
+    // and rows already in the table. Any later migration that creates a table
+    // asks the database to match the whole current schema, and SQLite will not
+    // add a NOT NULL column to a table that has rows. This migration is the one
+    // that knows how — add with a default, fill in, rebuild — so it has to run
+    // before them or that site cannot start.
+    test("lets a later table be created on a site that skipped it", async () => {
+      await downgradeToAttendeeNotes();
+      await execute(
+        "INSERT INTO system_notes (attendee_id, type, note) VALUES (1, 'system', 'an old note')",
+      );
+
+      await runMigration();
+      await applySchemaChanges();
+
+      expect(await columnNames("system_notes")).toContain("entity_type");
+      expect(
+        await queryAll<{ note: string }>("SELECT note FROM system_notes"),
+      ).toEqual([{ note: "an old note" }]);
+    });
+
+    test("is refused by the database when a later table goes first", async () => {
+      // The failure the order above avoids, proven rather than assumed.
+      await downgradeToAttendeeNotes();
+      await execute(
+        "INSERT INTO system_notes (attendee_id, type, note) VALUES (1, 'system', 'an old note')",
+      );
+
+      await expect(applySchemaChanges()).rejects.toThrow(
+        "Cannot add a NOT NULL column with default value NULL",
+      );
     });
   },
 );

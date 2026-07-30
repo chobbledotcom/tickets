@@ -99,6 +99,21 @@ const LIBRARY_PATHS = [
   "shared/site-pages/core.ts",
   "shared/db/site-pages.ts",
   "shared/db/site-page-items.ts",
+  // Exempt until the code that uses each one lands; removed as it does.
+  "shared/payment-state/decision.ts",
+  "shared/payment-state/conflict.ts",
+  "shared/payment-state/diagnose.ts",
+  "shared/payment-state/lifecycle.ts",
+  "shared/payment-state/observation.ts",
+  "shared/payment-state/operator.ts",
+  "shared/payment-state/record/case.ts",
+  "shared/payment-state/record/charge.ts",
+  "shared/payment-state/record/decision.ts",
+  "shared/payment-state/record/fault.ts",
+  "shared/payment-state/record/payment.ts",
+  "shared/payment-state/refund.ts",
+  "shared/payment-state/resolve.ts",
+  "shared/payment-state/resources.ts",
 ];
 
 /** Index modules that only re-export from sub-modules */

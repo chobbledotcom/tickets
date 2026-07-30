@@ -234,9 +234,15 @@ export const isUsedInSameFile = (
       continue;
     }
     // Count usages: function calls, property access, or object shorthand
-    // Matches: name(, name., name, (in objects), name: (with type),
-    // and name } (when symbol is the trailing entry of an object literal)
-    const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(,:}]`);
+    // Matches: name(, name., name, (in objects), name: (with type), and
+    // name } (when symbol is the trailing entry of an object literal).
+    //
+    // `(typeof name)` is spelled out rather than allowing any `name )`, which
+    // would count a parameter that happens to share the name — `function
+    // visit(name)` — as a use of the export and hide it when it is dead.
+    const usagePattern = new RegExp(
+      `\\(typeof\\s+${symbolName}\\s*\\)|\\b${symbolName}\\s*[.(,:}]`,
+    );
     if (usagePattern.test(line)) {
       usageCount++;
     }

@@ -119,6 +119,8 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
       }
     }
     expect(finished).toBe(true);
+    // One pause per batch the runner can fit in a request. Adding a migration
+    // to the tail adds a request an upgrading site has to make.
     expect(continuations).toBe(5);
 
     const result = await getDb().execute({

@@ -1674,6 +1674,100 @@ the count is the wrong thing to measure.
 
 ---
 
+## Payment-record findings that need the code using the record
+
+*Origin: Codex review on PR #1973, which landed the payment record's tables and
+the words for what a payment is — but nothing that reads or writes them.*
+
+Four findings from that review describe real gaps, but each one's fix is a
+choice about what the payment should *do* instead, and nothing in that change
+made the choice: the repositories, the runtime, and the copy that brings older
+payments across all arrive later. They are recorded here so the slice that
+lands each consumer settles them, rather than inheriting them silently.
+
+Three findings from the same review were fixed in that change, because they
+were wrong whatever uses them: a payment could be saved with no id, a current
+charge could be saved with no refunded total and no provider, and an old charge
+could be saved without saying where it came from. All three were rules that
+compared against a missing value, which SQLite lets through.
+
+**The same money can be attached to two payments.** A charge is unique per
+payment and reference (`idx_payment_charges_payment_reference` in
+`src/shared/db/migrations/schema/payments/charges.ts`), so the same provider
+charge on two different payment records is allowed. Either could then complete
+a booking or ask for a refund against money the other already spoke for.
+
+Making the reference unique on its own is not a straight swap: that composite
+pair is also the upsert key (`ON CONFLICT(payment_id, reference_index)` in
+`charge-upsert.ts` on the aggregate branch), so the extra rule has to be an
+additional one. It also collides with a known upgrade fault already recorded
+above — a SumUp payment known by two ids can produce two records for the same
+money — where a unique rule would turn a split record into a failed upgrade.
+Decide it with the copy code in hand, and say which of the two failures is
+preferred.
+
+**A refund the provider says is done can leave the money refundable.**
+`resolveRefund` (`src/shared/payment-state/refund.ts`, around line 52) reads a
+completed refund, then answers from the charge's confirmed refunded total
+instead. While that total still says zero — a normal delay between the two
+readings — the answer is "no refund seen", which reads as refundable, so
+another refund can be sent for money that has already gone back. The two
+readings disagreeing is not "nothing happened": it should be held as still
+going, or put in front of the owner. Which of those is right depends on what
+the refund runtime does with each answer.
+
+**A failed checkout that took money is thrown away.** `foundReadResolution`
+(`src/shared/payment-state/resolve.ts`, around line 229) answers "ignore" for
+any failed observation, including one carrying a charge with money on it. A
+buyer whose checkout failed after the money was taken then has no booking, no
+refund, and nothing raised for the owner. A failed payment holding a captured
+charge should be a conflict instead. Note the related finding above about a
+failed payment already answering "conflict" from the terminal map — settle both
+together so the buyer's cancel page and the owner's list agree.
+
+**An owner's decision can carry the wrong evidence.** In
+`src/shared/payment-state/lifecycle.ts` (around line 205) the choice made and
+the review it was made from are checked separately, so a decision can pair a
+choice about an old payment with a review of a current payment's charges, or
+the reverse. The worker acting on it then has evidence describing a different
+payment, on a path that moves money and cannot be undone. The fix is to model
+the allowed pairs as variants so an impossible pairing cannot be built at all.
+Doing that needs the decision writer and worker in view, so the variants match
+what is actually offered.
+
+**A current payment's result can disagree with where it is.** On
+`payment_sessions` (`src/shared/db/migrations/schema/payments/sessions.ts`) the
+old-payment half of the rule ties each result to the state it can exist in —
+a succeeded result only on a completed payment, a failed result only on a
+failed one. The current-payment half only ties whether there *is* a result to
+whether the result state is "none". So a payment still being created can be
+stored as having succeeded, and a completed one as having failed. Someone
+reading where the payment is and someone reading how it turned out then get
+opposite answers about whether the booking ran.
+
+The fix is to name the allowed pairs the way the old-payment half already
+does. Which pairs those are is the runtime's own state machine — whether a
+result may be written while a payment is still processing, what a refunding
+payment's result says — so it should be written with that code in view rather
+than guessed. Guessing too narrowly refuses writes the runtime makes on the
+happy path.
+
+**A payment still going is believed without checking it.** `foundReadResolution`
+(`src/shared/payment-state/resolve.ts`, around line 226) answers "still going"
+for any pending reading, before `validatePaymentObservation` has run. So a
+reading whose money does not add up — a total that disagrees with what was
+asked for, a charge belonging to another checkout, a refund larger than the
+money taken — is asked about again in a minute rather than put in front of the
+owner, for as long as the provider keeps saying "pending".
+
+Checking it first is the obvious answer, but it is not safe to do blind: the
+check refuses any reading whose provider total differs from the expected
+amount, and what each provider reports as the total while a checkout is still
+open is the provider readers' business. If any of them reports zero until the
+money is taken, adding the check turns every ordinary pending payment into a
+case. Settle it with the provider readers in view, and pick which parts of the
+check apply before the money has arrived.
+
 ## The gap between a mutation child ending and its supervisor taking the lock
 
 *Raised by Codex on [PR #1976](https://github.com/chobbledotcom/tickets/pull/1976),
@@ -1762,6 +1856,249 @@ started together behind a barrier, and it should be written with the fix.
 
 ---
 
+**The copy has to turn an old refund time into a number.** `payment_charges`
+keeps `provider_refunded_at` as a number, like every other time in these
+tables. The old table it comes from
+(`processed_payments.provider_refunded_at`) keeps it as words, so the copy has
+to read it as a time before storing it — `Date.parse(...)`, exactly as the line
+above it in `legacyChargeStatement` (`src/shared/db/payments/legacy-copy.ts`,
+around line 265) already does for `observedAt`. Today it passes the words
+straight through, which the table now refuses.
+
+An empty value is already turned into nothing by the `||` on that line, so only
+real times arrive. A value that cannot be read as a time is a genuine decision:
+refusing it stops the upgrade, and dropping it loses when the money went back.
+
+---
+
+## Payment findings that need the code around them
+
+*Origin: Codex and CodeRabbit reviews on PR #1973, which landed the payment
+record's tables and words but nothing that reads or writes them.*
+
+Each is plausible, and each needs code that is not in that slice to settle.
+
+### A lease can be written already expired
+
+`payment_sessions.lease_expires_at` is floored on `created_at`, and
+`payment_cases.alert_lease_expires_at` on `first_observed_at`. So a payment made
+long ago and claimed today can be given an expiry that is already in the past:
+the claim is dead the moment it is written, and another worker can take the same
+payment while the first still believes it holds it.
+
+The review that found this suggested flooring on `updated_at` instead. **Do not
+do that** — it is the trap `redacted_at` already documents one line above it. A
+lease legitimately expires while the row keeps changing, so a later unrelated
+write would move `updated_at` past a lease expiry that was correct when written,
+and the table would start refusing ordinary writes. That is worse than the fault
+it fixes.
+
+The real rule is "a lease may not be *born* expired", which compares the expiry
+against the moment of the claim. A column rule cannot see that moment, so this
+belongs with the code that hands leases out, next to the token fence it is part
+of — the same split the rest of this record follows: shape rules in the table,
+rules about *when* something happens in TypeScript. Settle it in the slice that
+lands the reconcile runtime.
+
+**Booking dates are kept as any text.** `BookingIntentSchema`
+(`src/shared/booking-intent.ts`) says a booking's date is a string, so `2026-02-30`
+or `banana` is stored and sent through payment metadata. The date is later
+handed to the booking range code, where an impossible day is either quietly
+moved to another one or throws — after the buyer has paid.
+
+`IsoDateSchema` (`src/shared/validation/date.ts`) is the obvious rule to use.
+What it needs first is a check of every place a date is put into an intent: if
+any of them writes a day in another shape, adding the rule refuses real
+payments instead of bad ones. Confirm the writers, then tighten it.
+
+**A child booking can be allocated more places than were paid for.** The same
+schema lets a child line with a quantity of one carry an allocation of two.
+The drift checks read an allocation total at or above the line quantity as
+fully folded, and `expandChildAllocations` then writes the allocation's
+quantity, so a paid order can make two tickets while charging for one. The
+metadata is signed, so this is our own code drifting rather than something a
+buyer can send.
+
+The rule to add is that each child's allocations added together do not exceed
+its own signed line quantity. Getting it right needs the fold that builds the
+allocations and the pricing that reads them in view at once, so the rule
+matches what the checkout actually intends.
+
+**A case can need the owner while its alert describes an older version.** On
+`payment_cases` a `needs_action` case may sit at revision 2 while both alert
+revisions still say 1. Codex asked for the alerted revision to equal the
+current one whenever a case needs action.
+
+That rule as written would refuse the ordinary row: a case is bumped to a new
+revision when its evidence changes, and the alert for that revision has not
+been sent yet — sending it is what the alert claim and its lease are for. The
+real invariant is that the alert catches up, which is about time passing and
+cannot be written as a rule on a single row. If the gap should be bounded, the
+alerting worker is what bounds it, so settle this with that worker in hand.
+
+**Answers may be filed under a listing that was never bought.**
+`BookingIntentSchema` (`src/shared/booking-intent.ts`) now says an answer's key has
+to be written the way a listing id is written, so a key in any other shape can
+never silently drop the buyer's answers. What it does not say is that the
+listing was actually part of this order.
+
+Codex asked for the keys to be checked against the order's own lines. That
+rule as written would refuse a real group booking: the keys come from
+`questionListingMap`, which files a question under the listing it belongs to,
+so a group's answers are keyed by its member listings while `items` carries
+only the group. The check belongs where the created entries are known — where
+a group has already been opened up into the listings it holds — not on the
+intent alone.
+
+**An answer is not checked against whether its reading adds up.**
+`PaymentResolutionSchema` (`src/shared/payment-state/lifecycle.ts`) now ties
+each answer to what its reading *says* — ready means paid or nothing owed,
+fully refunded means every charge gave everything back, waiting on a refund
+means the money was taken. What it does not do is re-run
+`validatePaymentObservation`, so a reading whose totals, currencies, or charge
+ownership disagree can still be filed as ready.
+
+Codex asked for the resolver's own validation inside the schema. The plain
+blocker is that `validatePaymentObservation` lives in `resolve.ts`, which
+imports `lifecycle.ts` — calling it from the schema is a circular import. The
+real question underneath is which module owns "is this reading sound": the
+schema, the resolver, or a third module both use. That is the same seam as the
+pending-payment entry above, and should be settled once, with the runtime in
+view, rather than twice.
+
+**A charge's hidden reference is not tied to where the charge came from.**
+`provider_reference` on `payment_charges` accepts either envelope — this
+site's own key (`enc:1:`) or the wrapped-key one (`hyb:1:`) — whatever the
+charge's origin says. Codex asked for the choice to follow `origin`, so a
+current charge could only carry the current envelope and a copied one only the
+wrapped form.
+
+That may well be right, but it rests on a fact this slice cannot check: which
+envelope the copy actually writes. The two prefixes are about *which key
+protects the value*, not about which version wrote it — `hyb:1:` is
+hybrid (RSA+AES) encryption, used where a wrapped key travels with the data
+(`src/shared/crypto/keys.ts`). Whether the copy carries an old value across as
+it found it, or decrypts and re-encrypts it with this site's key, is decided by
+the copy code, which is not written yet. Guess wrong and the constraint refuses
+real charges on the money path. Settle it with the copy in view.
+
+**A hidden value may be plaintext wearing an envelope.** The tables check that
+an encrypted column looks like `enc:1:<part>:<part>` with no extra separators,
+which refuses a bare prefix or a value with the buyer's details tacked on the
+end. It does not check that the parts are the right *shape*, so `enc:1:Jane:John`
+still gets in and only fails when something tries to read it back.
+
+Codex asked for the parts to be constrained to base64 and to the lengths a real
+envelope has. The charset alone would not catch the example — `Jane` is all
+base64 characters — so it is the lengths that do the work, and SQLite cannot
+pull the parts out of a value without `substr`/`instr` gymnastics. That is
+exactly the hard-to-read SQL this PR moved away from. The check belongs in the
+record layer beside the other behaviour rules, where it can parse the envelope
+properly; see `src/shared/payment-state/record/`.
+
+**A refund that failed may say everything came back.** Codex asked for a
+failed refund's returned total to stay below the money taken, since
+`resolveRefund` calls a fully returned charge completed before it looks at
+failed readings. It is not that simple: a charge whose confirmed refund
+already covers the capture *and* still has a refund going reads as an invalid
+amount, which is a failed refund with everything back. Refusing to store that
+would lose the record of a real provider problem rather than prevent one.
+Settle it when the code writing charge rows exists, and decide there whether
+such a reading is stored as failed or turned into a case for the owner.
+
+---
+
+## Rules the payment tables no longer keep, for the record layer to keep instead
+
+*Origin: a look back over PR #1973, where six rounds of review were spent
+almost entirely on the table rules themselves rather than on code using them.*
+
+The six payment tables carried 104 rules; every other table in the site carries
+eight between them. SQLite cannot change a rule once rows exist — the table has
+to be rebuilt — so each of those was close to permanent, and the ones describing
+how a payment *behaves* are the ones most likely to need changing as the runtime
+is written.
+
+So the tables now keep only what is true of a value whatever the code does:
+its type, whether it may be missing, the words it may hold, that it is properly
+hidden, that two columns travel together, that a time is not before the moment
+it is measured from, and that money given back never exceeds money taken.
+
+The rules describing how a payment *behaves* moved to
+`src/shared/payment-state/record.ts`, as plain functions over plain data that
+answer with the one thing wrong or nothing at all. They are tested there without
+a database. **What is left to do is wire them in**: the record layer must run
+them on the way in and refuse the write loudly when they answer, which is the
+job of the slice that lands the repositories.
+
+The rules that moved are listed below so that wiring can be checked against
+them.
+
+**A charge is either money taken here or money copied across, never a mix.**
+Removed from `payment_charges`. A current charge must name its provider and the
+kind of thing the money is, carry a lookup code, an amount, a currency and a
+refunded total, and must not carry an old record's refund time or source. A
+copied charge must carry none of those, must say its refund state is "unknown",
+and must say which old table it came from.
+
+**Which refund handles a charge may hold, for each place a refund has got to.**
+Removed from `payment_charges`. A requested refund holds an idempotency key and
+no refund id; a failed one holds no id; a settled one holds neither. A refund
+still going may hold neither, because it may have been started in the provider's
+own dashboard. Also removed: that a requested or pending refund cannot already
+claim the whole capture, and that "none", "partial" and "completed" each agree
+with the refunded total.
+
+**A payment is either made here or copied across, never a mix.** Removed from
+`payment_sessions`, and the same shape as the charge rule above: a current
+payment knows its provider, mode, account, what was asked for and what was being
+bought; a copied one knows almost none of that and carries the old record whole.
+
+**When a buyer's details may be cleared.** Removed from `payment_sessions`. The
+payment must be over, nobody may hold it, nothing may be due to look at it
+again, and no ticket may still need them. The table still refuses a clearing
+time earlier than the last change.
+
+**Which state a case may be in, and what each state allows.** Removed from
+`payment_cases`. A retrying case has a next look booked and nobody told; one
+needing the owner has no next look and has been told; a settled one has neither
+and a settled time. Also removed: that a claim on sending an alert can only
+exist while the case still needs the owner.
+
+**Which state a decision may be in, and what each state allows.** Removed from
+`payment_case_decisions`. Waiting to be retried means a next try is booked and
+the last error is kept; a decision that has run at all has an attempt time; one
+that has finished has been tried; a decision with no answer yet has not
+finished.
+
+---
+
+## A booking nobody can read leaves the payment with nowhere to go
+
+*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+
+`classifySessionIntent` in `src/features/api/payment-processing/classify.ts`
+handles a paid session whose proof verifies but whose booking will not parse. It
+raises the problem for the owner and stops. That is the right first move: the
+buyer has been charged, so it must not be quiet, and it must not refund by
+itself, because the likeliest cause is our own schema getting stricter after a
+deploy, and an automatic refund would undo good bookings.
+
+What is missing is the step after that. The session is left in no particular
+state. Nothing records that it was seen and could not be acted on, so nothing
+tells an operator it is waiting, nothing stops it being looked at again and
+raised again, and there is no place for them to say what should happen to it.
+
+A starting point: give the session a state meaning "seen, cannot be read", set
+it where the problem is raised, and show those sessions to the owner with the
+two choices only a person should make — book it by hand, or refund it. The rule
+in `AGENTS.md` about genuine conflicts applies: the money decision stays with
+the human, as a required choice, not a default.
+
+This was left out of #1990 because that slice only hardens how a booking is read
+and checked. Giving a payment session a new state, a screen and an operator
+action belongs with the payment-record work, not with the parsing.
+
 ## An answer filed under a listing nobody booked
 
 *Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
@@ -1821,3 +2158,27 @@ of the row that was made, rather than falling through to the generic 503.
 Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
+
+## Payment-state modules waiting on their production callers
+
+`test/integration/code-quality.test.ts` exempts fourteen `shared/payment-state/*`
+modules from the "no test-only exports" check. Each is exempt only because the
+code that calls it has not landed yet, and each entry should be deleted the
+moment its caller does. This note exists so those removals are tracked rather
+than assumed, following the same convention as the ledger and site-pages
+entries already in that list.
+
+| module | removed when |
+| --- | --- |
+| `record/payment.ts`, `record/charge.ts`, `record/case.ts`, `record/decision.ts`, `record/fault.ts` | the repositories land, since they call these on the way in |
+| `observation.ts`, `resources.ts`, `diagnose.ts`, `resolve.ts`, `refund.ts`, `lifecycle.ts` | the reconciler lands and reads the provider |
+| `decision.ts`, `conflict.ts`, `operator.ts` | the owner's decision pages land |
+
+`words.ts` is the worked example of how an entry leaves: it was on this list
+until its vocabularies were read by `record/*` and by
+`ProviderChargeResourceSchema`, and `RESOURCE_KINDS` — which had no caller at
+all — was deleted outright rather than exempted.
+
+Raised by a reviewer on #1973 as a violation of "remove dead code". The reply
+there sets out why the modules are landing before their callers, and why
+deleting and re-adding them a slice later would be churn rather than hygiene.
