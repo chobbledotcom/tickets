@@ -64,17 +64,19 @@ const watchOutgoing = (
  * keys are put back afterwards — otherwise a machine whose shell already
  * exports them would switch protection on for every story here, and every
  * message would be turned down for a reason the story never mentions. */
-const SPAM_KEYS: Record<string, string> = {
+const SPAM_KEYS = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",
   BOTPOISON_SECRET_KEY: "sk_test_secret",
 };
 
 const setSpamProtection = (world: TicketsWorld, wanted: boolean): void => {
-  const keys = Object.keys(SPAM_KEYS);
   world.cleanup.add(
     withEnv(
       Object.fromEntries(
-        keys.map((name) => [name, wanted ? SPAM_KEYS[name] : undefined]),
+        Object.entries(SPAM_KEYS).map(([name, key]) => [
+          name,
+          wanted ? key : undefined,
+        ]),
       ),
     ),
   );
