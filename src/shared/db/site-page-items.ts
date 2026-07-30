@@ -22,17 +22,45 @@ import {
 } from "#shared/db/client.ts";
 import {
   clearImageUsesForItemStatement,
-  deleteByItemStatement,
+  imageUseTargets,
 } from "#shared/db/images.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
+import {
+  clauseArgs,
+  deleteWhere,
+  equals,
+  type WhereClause,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
   pageParentMapFromEdges,
   wouldCreateCycle,
 } from "#shared/site-pages/core.ts";
+import {
+  type SitePageItemTarget,
+  sitePageItemTargets,
+} from "#shared/site-pages/target.ts";
 import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 
 const SELECT_COLS = "page_id, item_type, item_id, sort_order";
+
+/** One item on one page — the composite key the edge table is unique on. */
+const itemOnPage = (
+  pageId: number,
+  target: SitePageItemTarget,
+): WhereClause[] => [
+  ...equals("page_id", pageId),
+  ...sitePageItemTargets.one(target),
+];
+
+/**
+ * The statement that clears every edge pointing at one listing, group, or page,
+ * for callers to fold into that record's own delete batch (so the cleanup is
+ * atomic with the row delete — no dangling public-nav entry).
+ */
+export const clearItemEdgesStatement =
+  sitePageItemTargets.deleteFrom("site_page_items");
 
 export const sitePageItemOrder = defineOrderedCollection({
   key: ["item_type", "item_id"] as const,
@@ -128,10 +156,14 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
   if (pageRows.length !== requiredIds.length) return false;
   // Duplicate edge (the unique (page_id, item_type, item_id) key): checked
   // in-transaction so a concurrent repeat can't slip past to the raw index.
+  const onThisPage = itemOnPage(
+    pageId,
+    sitePageItemTargets.of(itemType)(itemId),
+  );
   const duplicate = resultRows<SitePageItem>(
     await tx.execute({
-      args: [pageId, itemType, itemId],
-      sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ? AND item_type = ? AND item_id = ?`,
+      args: clauseArgs(onThisPage),
+      sql: `SELECT ${SELECT_COLS} FROM site_page_items${whereSql(onThisPage)}`,
     }),
   );
   if (duplicate.length > 0) return false;
@@ -172,10 +204,10 @@ const itemDeleteStatement = (
   pageId: number,
   itemType: SitePageItemType,
   itemId: number,
-): SqlStatement => ({
-  args: [pageId, itemType, itemId],
-  sql: "DELETE FROM site_page_items WHERE page_id = ? AND item_type = ? AND item_id = ?",
-});
+): SqlStatement =>
+  deleteWhere("site_page_items")(
+    itemOnPage(pageId, sitePageItemTargets.of(itemType)(itemId)),
+  );
 
 const runItemDelete = async (
   run: (statement: SqlStatement) => Promise<unknown>,
@@ -197,9 +229,6 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
     ),
 );
 
-/** Identifies one item within a page by its composite key. */
-export type ItemRef = { type: SitePageItemType; id: number };
-
 /**
  * Delete a page and every edge touching it — its own items, any edge naming it
  * as a child `page`, and its image links — in one batch (single implicit
@@ -210,19 +239,7 @@ export type ItemRef = { type: SitePageItemType; id: number };
 export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
   executeBatch([
     { args: [pageId], sql: "DELETE FROM site_page_items WHERE page_id = ?" },
-    {
-      args: [pageId],
-      sql: "DELETE FROM site_page_items WHERE item_type = 'page' AND item_id = ?",
-    },
-    clearImageUsesForItemStatement("page", pageId),
+    clearItemEdgesStatement(sitePageItemTargets.of("page")(pageId)),
+    clearImageUsesForItemStatement(imageUseTargets.of("page")(pageId)),
     { args: [pageId], sql: "DELETE FROM site_pages WHERE id = ?" },
   ]);
-
-/**
- * The statement that clears every edge pointing at a listing/group, for callers
- * to fold into that entity's own delete batch (so the cleanup is atomic with the
- * row delete — no dangling public-nav entry).
- */
-export const clearItemEdgesStatement = deleteByItemStatement<
-  "listing" | "group"
->("site_page_items");

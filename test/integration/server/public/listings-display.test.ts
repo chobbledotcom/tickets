@@ -391,8 +391,8 @@ describeWithEnv(
           filenameThumb: nonEmptyString("gallery-two-thumb.webp"),
           name: "Two",
         });
-        await appendImageToItem(first.id, { itemId, itemType });
-        await appendImageToItem(second.id, { itemId, itemType });
+        await appendImageToItem(first.id, { id: itemId, kind: itemType });
+        await appendImageToItem(second.id, { id: itemId, kind: itemType });
       };
 
       test("a single listing's page shows its images as the shared gallery", async () => {

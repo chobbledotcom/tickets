@@ -28,7 +28,6 @@ import { getListingOfferFlags } from "#shared/db/listings/catalog.ts";
 import {
   addPageItem,
   getItemsForPage,
-  type ItemRef,
   removePageItem,
   sitePageItemOrder,
 } from "#shared/db/site-page-items.ts";
@@ -39,13 +38,13 @@ import {
   sitePageOrder,
   updateSitePage,
 } from "#shared/db/site-pages.ts";
-import {
-  eligibleChildPages,
-  isReservedSlug,
-  parseTargetKey,
-  targetKey,
-} from "#shared/site-pages/core.ts";
+import { eligibleChildPages, isReservedSlug } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
+import {
+  type SitePageItemTarget,
+  sitePageItemTargets,
+  targetOfPageItem,
+} from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
   isSitePageItemType,
@@ -163,6 +162,8 @@ const LIST_PATH = paths.list;
 /** The Items and Images tabs live under the entity page; their POST
  * sub-actions bounce back to the relevant tab, not the Edit form. */
 const itemsPath = (id: number): string => `${LIST_PATH}/${id}/items`;
+
+const pageTarget = sitePageItemTargets.of("page");
 const pageFormHandler = createIdEntityHandler<SitePage>(getSitePageById)(
   formGuard(SITE_FORM),
 );
@@ -172,15 +173,18 @@ const pageFormHandler = createIdEntityHandler<SitePage>(getSitePageById)(
 const rootPageOrder = createOrderedCollectionHandlers({
   auth: SITE_FORM,
   keys: async () =>
-    (await loadPageForest()).forest.rootIds.map((id) => targetKey("page", id)),
+    (await loadPageForest()).forest.rootIds.map((id) =>
+      sitePageItemTargets.key(pageTarget(id)),
+    ),
   movedMessage: t("site.pages.moved"),
   redirectPath: () => LIST_PATH,
   swap: (first, second) =>
     sitePageOrder.swap({
-      first: parseTargetKey(first).id,
-      second: parseTargetKey(second).id,
+      first: sitePageItemTargets.parseKey(first).id,
+      second: sitePageItemTargets.parseKey(second).id,
     }),
-  target: ({ params }: { params: IdParam }) => targetKey("page", params.id),
+  target: ({ params }: { params: IdParam }) =>
+    sitePageItemTargets.key(pageTarget(params.id)),
 });
 
 // ─── Item manager ───────────────────────────────────────────────
@@ -240,11 +244,11 @@ const handleAddItem = pageFormHandler(async (page, _session, form) => {
 });
 
 type ItemRouteParams = { id: number; itemId: number; itemType: string };
-type PageItem = { page: SitePage; ref: ItemRef };
+type PageItem = { page: SitePage; ref: SitePageItemTarget };
 const loadPageItem = ({ id, itemId, itemType }: ItemRouteParams) =>
   throughParent(getSitePageById(id), (page) =>
     isSitePageItemType(itemType)
-      ? { page, ref: { id: itemId, type: itemType } }
+      ? { page, ref: { id: itemId, kind: itemType } }
       : null,
   );
 const pageItemHandler = createEntityHandler<ItemRouteParams, PageItem>(
@@ -254,7 +258,7 @@ const pageItemHandler = createEntityHandler<ItemRouteParams, PageItem>(
 const handleRemoveItem = pageItemHandler(async ({ page, ref }) =>
   saveContent(
     async (transaction) => {
-      await removePageItem(page.id, ref.type, ref.id, transaction);
+      await removePageItem(page.id, ref.kind, ref.id, transaction);
       return page;
     },
     () => ({
@@ -269,22 +273,22 @@ const pageItemOrder = createOrderedCollectionHandlers({
   auth: SITE_FORM,
   keys: async ({ params }) =>
     (await getItemsForPage(params.id)).map((item) =>
-      targetKey(item.item_type, item.item_id),
+      sitePageItemTargets.key(targetOfPageItem(item)),
     ),
   loadContext: async ({ itemId, itemType }: ItemRouteParams) =>
-    isSitePageItemType(itemType) ? { id: itemId, type: itemType } : null,
+    isSitePageItemType(itemType) ? { id: itemId, kind: itemType } : null,
   movedMessage: t("site.pages.moved"),
   redirectPath: ({ params }) => itemsPath(params.id),
   swap: (first, second, { params }) => {
-    const firstRef = parseTargetKey(first);
-    const secondRef = parseTargetKey(second);
+    const firstRef = sitePageItemTargets.parseKey(first);
+    const secondRef = sitePageItemTargets.parseKey(second);
     return sitePageItemOrder.swap({
-      first: [firstRef.type, firstRef.id],
+      first: [firstRef.kind, firstRef.id],
       scope: params.id,
-      second: [secondRef.type, secondRef.id],
+      second: [secondRef.kind, secondRef.id],
     });
   },
-  target: ({ context }) => targetKey(context.type, context.id),
+  target: ({ context }) => sitePageItemTargets.key(context),
 });
 
 // ─── Routes ─────────────────────────────────────────────────────

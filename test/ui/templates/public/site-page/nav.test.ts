@@ -1,14 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import {
-  buildForest,
-  buildNavModel,
-  targetKey,
-} from "#shared/site-pages/core.ts";
+import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
 import type { SitePage } from "#shared/types.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
-import { navPage as page } from "#test/test-utils/site-pages/nav-fixtures.ts";
+import {
+  navKey,
+  navPage as page,
+} from "#test/test-utils/site-pages/nav-fixtures.ts";
 
 describe("sitePagePage (nav-model race)", () => {
   test("renders without items when the model no longer contains the page", () => {
@@ -28,7 +27,7 @@ describe("sitePagePage (nav-model race)", () => {
     const model = buildNavModel(
       buildForest([page(1)], []),
       new Map(),
-      targetKey("page", gone.id),
+      navKey("page", gone.id),
     );
     const html = sitePagePage(
       gone,

@@ -1,0 +1,162 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import {
+  defineRecordTarget,
+  ITEM_TARGET_COLUMNS,
+} from "#shared/db/record-target.ts";
+import {
+  clauseArgs,
+  rowsUnlessNoneMatch,
+  whereSql,
+} from "#shared/db/where-clauses.ts";
+
+/** A make-believe domain: notes-style columns, two kinds, tables listed. */
+const targets = defineRecordTarget({
+  columns: { id: "entity_id", kind: "entity_type" },
+  kinds: ["attendee", "listing"] as const,
+  tables: { attendee: "attendees", listing: "listings" },
+});
+
+/** The same domain without tables, so existence cannot be checked. */
+const tablelessTargets = defineRecordTarget({
+  columns: ITEM_TARGET_COLUMNS,
+  kinds: ["listing"] as const,
+});
+
+describe("a record named by its kind and its id", () => {
+  test("names a record of one kind", () => {
+    expect(targets.of("attendee")(7)).toEqual({ id: 7, kind: "attendee" });
+  });
+
+  test("gives a record a stable name, and reads it back", () => {
+    const key = targets.key({ id: 42, kind: "listing" });
+
+    expect(key).toBe("listing:42");
+    expect(targets.parseKey(key)).toEqual({ id: 42, kind: "listing" });
+  });
+
+  test("refuses a name of a kind this domain does not have", () => {
+    expect(() => targets.parseKey("group:9" as never)).toThrow(
+      "Not the name of a record here: group:9",
+    );
+  });
+
+  test("refuses a name whose id is not a whole number", () => {
+    expect(() => targets.parseKey("listing:seven" as never)).toThrow(
+      "Not the name of a record here: listing:seven",
+    );
+  });
+
+  test("drops repeats, keeping the first of each record", () => {
+    const kept = targets.unique([
+      { id: 1, kind: "listing" },
+      { id: 1, kind: "attendee" },
+      { id: 1, kind: "listing" },
+      { id: 2, kind: "listing" },
+    ]);
+
+    expect(kept).toEqual([
+      { id: 1, kind: "listing" },
+      { id: 1, kind: "attendee" },
+      { id: 2, kind: "listing" },
+    ]);
+  });
+});
+
+describe("asking for a record's rows", () => {
+  test("asks by both of its parts", () => {
+    const where = targets.one({ id: 4, kind: "attendee" });
+
+    expect(whereSql(where)).toBe(" WHERE entity_type = ? AND entity_id = ?");
+    expect(clauseArgs(where)).toEqual(["attendee", 4]);
+  });
+
+  test("names the table when the read joins", () => {
+    const where = targets.one({ id: 4, kind: "attendee" }, "note");
+
+    expect(whereSql(where)).toBe(
+      " WHERE note.entity_type = ? AND note.entity_id = ?",
+    );
+  });
+
+  test("asks for several records of one kind in one go", () => {
+    const where = targets.many("attendee", [4, 5]);
+
+    expect(whereSql(where)).toBe(
+      " WHERE entity_type = ? AND entity_id IN (?, ?)",
+    );
+    expect(clauseArgs(where)).toEqual(["attendee", 4, 5]);
+  });
+
+  test("names the table for several records too", () => {
+    expect(whereSql(targets.many("attendee", [4], "note"))).toBe(
+      " WHERE note.entity_type = ? AND note.entity_id IN (?)",
+    );
+  });
+
+  test("asking about no records is a question no row can answer", async () => {
+    // The reader sees this and skips the round trip, rather than building
+    // `IN ()` — SQL no database accepts.
+    let asked = false;
+    const rows = await rowsUnlessNoneMatch(targets.many("attendee", []), () => {
+      asked = true;
+      return Promise.resolve([{ id: 1 }]);
+    });
+
+    expect(rows).toEqual([]);
+    expect(asked).toBe(false);
+  });
+
+  test("keeps another query's own arguments after the kind", () => {
+    const where = targets.selectedBy("attendee", {
+      args: [12],
+      sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
+    });
+
+    expect(whereSql(where)).toBe(
+      " WHERE entity_type = ? AND entity_id IN" +
+        " (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?)",
+    );
+    expect(clauseArgs(where)).toEqual(["attendee", 12]);
+  });
+});
+
+describe("deleting a record's rows", () => {
+  test("deletes the rows of one record", () => {
+    expect(
+      targets.deleteFrom("system_notes")({ id: 4, kind: "attendee" }),
+    ).toEqual({
+      args: ["attendee", 4],
+      sql: "DELETE FROM system_notes WHERE entity_type = ? AND entity_id = ?",
+    });
+  });
+
+  test("deletes the rows of the records another query names", () => {
+    expect(
+      targets.deleteSelectedBy("system_notes")("attendee", {
+        args: [12],
+        sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
+      }),
+    ).toEqual({
+      args: ["attendee", 12],
+      sql:
+        "DELETE FROM system_notes WHERE entity_type = ? AND entity_id IN" +
+        " (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?)",
+    });
+  });
+});
+
+describe("checking a record is really there", () => {
+  test("asks the table that kind of record lives in", () => {
+    expect(targets.exists({ id: 3, kind: "listing" })).toEqual({
+      args: [3],
+      sql: "EXISTS (SELECT 1 FROM listings WHERE id = ?)",
+    });
+  });
+
+  test("says so loudly when the domain listed no tables", () => {
+    expect(() => tablelessTargets.exists({ id: 3, kind: "listing" })).toThrow(
+      "No table listed for listing records",
+    );
+  });
+});

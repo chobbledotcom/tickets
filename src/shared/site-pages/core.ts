@@ -10,6 +10,10 @@
  */
 
 import { identity, mapById } from "#fp";
+import {
+  sitePageItemTargets,
+  targetOfPageItem,
+} from "#shared/site-pages/target.ts";
 import type {
   Forest,
   NavModel,
@@ -23,22 +27,10 @@ import type {
   SitePageNavRow,
 } from "#shared/types.ts";
 
-/** Mint the composite key for a target. The one place keys are formed. */
-export const targetKey = (type: SitePageItemType, id: number): TargetKey =>
-  `${type}:${id}`;
+const pageTarget = sitePageItemTargets.of("page");
 
-/** Parse a {@link TargetKey} back into its parts. */
-export const parseTargetKey = (
-  key: TargetKey,
-): { type: SitePageItemType; id: number } => {
-  const idx = key.indexOf(":");
-  return {
-    id: Number(key.slice(idx + 1)),
-    type: key.slice(0, idx) as SitePageItemType,
-  };
-};
-
-const pageKey = (id: number): TargetKey => targetKey("page", id);
+const pageKey = (id: number): TargetKey =>
+  sitePageItemTargets.key(pageTarget(id));
 
 /** Order comparator for pages/items: by `sort_order`, then a stable tiebreak. */
 const bySortThen =
@@ -216,14 +208,14 @@ const anchorPageId = (
   current: TargetKey | null,
 ): number | null => {
   if (current === null) return null;
-  const { type, id } = parseTargetKey(current);
-  if (type === "page") return forest.byId.has(id) ? id : null;
+  const { kind, id } = sitePageItemTargets.parseKey(current);
+  if (kind === "page") return forest.byId.has(id) ? id : null;
   // A leaf may sit under several pages. Pick by the occurrence's own edge
   // `sort_order` (its meaningful position — not the parent page's root order,
   // which is unused while the page is nested), then page id.
   const candidates: { edgeOrder: number; pageId: number }[] = [];
   for (const [pid, list] of forest.itemsByPage) {
-    const match = list.find((i) => i.item_type === type && i.item_id === id);
+    const match = list.find((i) => i.item_type === kind && i.item_id === id);
     if (match && forest.byId.has(pid)) {
       candidates.push({ edgeOrder: match.sort_order, pageId: pid });
     }
@@ -252,7 +244,7 @@ export const buildNavModel = (
   const activeRootId = chain[0] ?? null;
   const deepest = chain.length - 1;
   const currentIsLeaf =
-    current !== null && parseTargetKey(current).type !== "page";
+    current !== null && sitePageItemTargets.parseKey(current).kind !== "page";
 
   // The single node key to highlight in level `i`: the next chain page for the
   // levels above the deepest, and the current leaf in the deepest level itself.
@@ -264,7 +256,7 @@ export const buildNavModel = (
         : null;
 
   const leafNode = (item: SitePageItem, active: boolean): NavNode | null => {
-    const key = targetKey(item.item_type, item.item_id);
+    const key = sitePageItemTargets.key(targetOfPageItem(item));
     const t = targets.get(key);
     return t
       ? {
@@ -308,7 +300,7 @@ export const buildNavModel = (
     const activeKey = activeKeyAt(i);
     return (forest.itemsByPage.get(pageId) ?? [])
       .map((item) => {
-        const key = targetKey(item.item_type, item.item_id);
+        const key = sitePageItemTargets.key(targetOfPageItem(item));
         return NODE_BUILDERS[item.item_type](item, key === activeKey);
       })
       .filter((n): n is NavNode => n !== null);

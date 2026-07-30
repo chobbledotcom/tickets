@@ -24,8 +24,9 @@ import { getHiddenPackageMemberIds, groups } from "#shared/db/groups.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { hasNewsPosts } from "#shared/db/news-posts.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
-import { buildNavModel, targetKey } from "#shared/site-pages/core.ts";
+import { buildNavModel } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
+import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import type {
   NavModel,
   ResolvedTarget,
@@ -68,7 +69,7 @@ const resolveTargets = async (
     row: { id: number; name: string; slug: string },
     live: boolean,
   ): void => {
-    targets.set(targetKey(type, row.id), {
+    targets.set(sitePageItemTargets.key(sitePageItemTargets.of(type)(row.id)), {
       href: `/ticket/${row.slug}`,
       label: row.name,
       live,

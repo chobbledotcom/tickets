@@ -5,16 +5,17 @@
  * transform. No DB, no crypto, no JSX.
  */
 
+import type { RecordTargetKey } from "#shared/db/record-target.ts";
 import type {
   SitePageItem,
   SitePageItemType,
   SitePageNavRow,
 } from "#shared/types.ts";
 
-/** A stable string key for any nav target — the composite `(type, id)` the
- * whole system is keyed on. `targetKey()` in `core.ts` mints it; everything
+/** A stable string key for any nav target — the composite `(kind, id)` the
+ * whole system is keyed on. `sitePageItemTargets.key()` mints it; everything
  * compares by it. */
-export type TargetKey = `${SitePageItemType}:${number}`;
+export type TargetKey = RecordTargetKey<SitePageItemType>;
 
 /** A leaf's resolved presentation + reachability, produced by the acquire ring
  * (listing/group liveness classification lands here as plain data). */

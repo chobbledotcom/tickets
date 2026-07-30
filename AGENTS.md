@@ -316,6 +316,15 @@ mechanisms to copy:
   `SectionFieldset` keeps that so. The listing form (`listings/form-sections.tsx`)
   and the attendee form (`admin/attendee-form.tsx`) both build a `FormSection[]`;
   see them for conditional sections (`compact` drops the ones that don't apply).
+- **One vocabulary for "attached to any record".** `defineRecordTarget`
+  (`src/shared/db/record-target.ts`): a domain says which kinds of record it
+  accepts and which two columns hold the kind and the id, and gets back the
+  naming (`of("listing")(7)`), a stable key, the one/many/subquery clauses, the
+  deletes, and an existence check. Notes
+  (`src/shared/db/notes/target.ts`), image links (`src/shared/db/images.ts`),
+  and site page items (`src/shared/site-pages/target.ts`) all use it — a fourth
+  "attach something to any record" feature declares its kinds, it does not
+  invent a fourth vocabulary.
 - **A data table plus one fold.** `LISTING_DEFAULT_FIELDS` +
   `resolveListingDefaults` (`src/shared/listing-defaults.ts`); the admin
   guide's `GuideSection[]` + `renderGuideSections`.
