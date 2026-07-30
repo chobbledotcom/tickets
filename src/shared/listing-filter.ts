@@ -5,6 +5,7 @@
  * lets both pages drive the same control with their own link targets.
  */
 
+import { t } from "#i18n";
 import { renderFilterBar } from "#shared/filter-bar.ts";
 import type { ListingType } from "#shared/types.ts";
 
@@ -18,16 +19,17 @@ export const LISTING_FILTERS = [
 
 export type ListingFilter = (typeof LISTING_FILTERS)[number];
 
-const LISTING_FILTER_LABELS: Record<ListingFilter, string> = {
-  all: "All",
-  daily: "Daily",
-  "purchase-only": "No check-in",
-  standard: "Standard",
+const LISTING_FILTER_LABEL_KEYS: Record<ListingFilter, string> = {
+  all: "listings_table.filter.all",
+  daily: "listings_table.filter.daily",
+  "purchase-only": "listings_table.filter.purchase_only",
+  standard: "listings_table.filter.standard",
 };
 
-/** Human label for a filter value (e.g. for a "… for <Type>" heading). */
+/** Human label for a filter value (e.g. for a "… for <Type>" heading).
+ * Resolved per call, so it reads the catalog once the catalog is loaded. */
 export const listingFilterLabel = (f: ListingFilter): string =>
-  LISTING_FILTER_LABELS[f];
+  t(LISTING_FILTER_LABEL_KEYS[f]);
 
 /** Type guard for a raw `?filter=`/`?type=` value. */
 export const isListingFilter = (s: string | null): s is ListingFilter =>
@@ -85,7 +87,7 @@ export const renderTypeFilter = (
     options.map((f) => ({
       active: f === active,
       href: hrefFor(f),
-      label: LISTING_FILTER_LABELS[f],
+      label: listingFilterLabel(f),
     })),
   );
 };

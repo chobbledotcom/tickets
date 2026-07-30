@@ -1,9 +1,11 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin builder routes — create new Tickets instances via Bunny API
  * Owner-only access, gated behind CAN_BUILD_SITES=true env var
  */
 
+import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -66,16 +68,16 @@ const handleBuilderGet = (request: Request): Promise<Response> => {
 export const builderForm = defineForm({
   fields: [
     {
-      label: "Site name",
+      label: t("fields.built_site.name"),
       maxlength: 64,
       minlength: 1,
       name: "site_name",
-      placeholder: "My Listing Site",
+      placeholder: t("fields.built_site.name_placeholder"),
       required: true,
       type: "text" as const,
     },
     {
-      label: "Hosting provider",
+      label: t("fields.built_site.hosting_provider"),
       name: "hosting_provider",
       options: [
         { label: "Bunny Edge Scripting", value: "bunny" },
@@ -84,7 +86,7 @@ export const builderForm = defineForm({
       type: "select" as const,
     },
     {
-      label: "Database provider",
+      label: t("fields.built_site.db_provider"),
       name: "db_provider",
       options: [
         { label: "Bunny DB (auto-provision)", value: "bunny" },
@@ -95,16 +97,16 @@ export const builderForm = defineForm({
     },
     {
       hint: "Leave blank to auto-provision a database",
-      label: "Database URL",
+      label: t("fields.built_site.db_url"),
       name: "db_url",
-      placeholder: "libsql://your-db.turso.io",
+      placeholder: t("fields.built_site.db_url_placeholder"),
       type: "url" as const,
     },
     {
       hint: "Leave blank to auto-provision a database",
-      label: "Database token",
+      label: t("fields.built_site.db_token"),
       name: "db_token",
-      placeholder: "Token for the database",
+      placeholder: t("fields.built_site.db_token_placeholder"),
       type: "password" as const,
     },
   ] as const,

@@ -87,7 +87,7 @@ test("builder form defines every field and option exactly", () => {
       maxlength: 64,
       minlength: 1,
       name: "site_name",
-      placeholder: "My Listing Site",
+      placeholder: "My Ticket Site",
       required: true,
       type: "text",
     },
@@ -121,7 +121,7 @@ test("builder form defines every field and option exactly", () => {
       hint: "Leave blank to auto-provision a database",
       label: "Database token",
       name: "db_token",
-      placeholder: "Token for the database",
+      placeholder: "Database auth token",
       type: "password",
     },
   ]);

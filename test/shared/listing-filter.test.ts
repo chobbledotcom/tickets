@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { ensureMessageGroups } from "#i18n";
+import { MESSAGE_GROUPS } from "#locales/manifest.ts";
 import {
   filterListingsByType,
   isListingFilter,
@@ -11,6 +13,9 @@ import {
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
 import type { ListingType } from "#shared/types.ts";
+
+// The filter labels resolve through the catalog, so it must be loaded first.
+await ensureMessageGroups(MESSAGE_GROUPS);
 
 /** A minimal listing shape carrying only the two fields the categoriser reads. */
 const listing = (
