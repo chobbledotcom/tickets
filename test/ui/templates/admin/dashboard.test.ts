@@ -107,7 +107,7 @@ describe("adminDashboardPage", () => {
       ],
     );
 
-    expect(html).toContain("Upcoming Holidays</summary>");
+    expect(html).toContain("Upcoming holidays</summary>");
     expect(html).toContain('class="table-scroll dashboard-holidays-scroll"');
     expect(html).toContain('href="/admin/holidays/1"');
     expect(html).toContain("Winter Break");

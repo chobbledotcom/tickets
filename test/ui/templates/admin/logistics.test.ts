@@ -114,8 +114,8 @@ describe("logisticsAgentPages new page", () => {
 
   test("renders the add-agent form posting to the logistics base path", () => {
     const html = logisticsAgentPages.newPage(OWNER_SESSION);
-    expect(html).toContain("Add Logistics Agent");
-    expect(html).toContain("Create Agent");
+    expect(html).toContain("Add logistics agent");
+    expect(html).toContain("Create agent");
     expect(html).toContain('action="/admin/logistics"');
     // A direct URL stays usable while the feature is hidden, without restoring
     // its navigation link.
@@ -151,7 +151,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     expect(html).toContain('action="/admin/logistics"');
     expect(html).toContain('class="listing-section"');
     expect(html).toContain('href="/icons.svg#plus"');
-    expect(html).toContain("Add Agent");
+    expect(html).toContain("Add agent");
     // The page marks the logistics nav entry active.
     expect(html).toContain('<a class="active" href="/admin/logistics">');
     // A populated list shows the table, not the empty-state placeholder.

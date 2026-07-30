@@ -26,7 +26,7 @@ describe("holiday templates", () => {
     test("renders the add-holiday action and guide link in the action row", () => {
       const html = adminHolidaysPage([holiday], OWNER_SESSION);
       expect(html).toContain('href="/admin/holidays/new"');
-      expect(html).toContain("Add Holiday");
+      expect(html).toContain("Add holiday");
       expect(html).toContain('href="/admin/guide#holidays"');
     });
 
@@ -71,7 +71,7 @@ describe("holiday templates", () => {
       expect(html).toContain('name="start_date"');
       expect(html).toContain('name="end_date"');
       // Submit button uses the create label and plus icon.
-      expect(html).toContain("Create Holiday");
+      expect(html).toContain("Create holiday");
     });
 
     test("renders the error flash when an error is passed", () => {
@@ -118,7 +118,7 @@ describe("holiday templates", () => {
       expect(html).toContain('name="confirm_identifier"');
       // The name to type is shown as the confirm target.
       expect(html).toContain("Christmas");
-      expect(html).toContain("Delete Holiday");
+      expect(html).toContain("Delete holiday");
       expect(html).not.toContain('<button class="danger"');
     });
 

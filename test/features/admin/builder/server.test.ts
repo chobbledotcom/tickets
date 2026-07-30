@@ -166,12 +166,12 @@ describeWithEnv(
       await expectHtmlResponse(
         response,
         200,
-        "Site Builder",
-        "Create New Site",
+        "Site builder",
+        "Create new site",
         "Site name",
         "Database URL",
         "Database token",
-        "Built Sites",
+        "Built sites",
       );
     });
 

@@ -40,7 +40,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Built Sites",
+        "Built sites",
         "No built sites recorded",
       );
     });
@@ -565,7 +565,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         const response = await adminGet("/admin/built-sites");
         const body = await response.text();
         expect(body).toContain("/admin/built-sites");
-        // The nav link is labelled "Builds" (the page title stays "Built Sites").
+        // The nav link is labelled "Builds" (the page title stays "Built sites").
         expect(body).toContain(">Builds<");
       } finally {
         Deno.env.delete("CAN_BUILD_SITES");

@@ -131,7 +131,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Add Holiday",
+        "Add holiday",
         "Holiday name",
         "Start date",
         "End date",

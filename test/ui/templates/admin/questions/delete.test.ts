@@ -62,7 +62,7 @@ describe("adminAnswerDeletePage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders confirmation form with answer text", () => {
-    expect(html).toContain("Delete Answer");
+    expect(html).toContain("Delete answer");
     expect(html).toContain("Small");
     expect(html).toContain('name="confirm_identifier"');
     expect(html).toContain('action="/admin/questions/1/answers/10/delete"');

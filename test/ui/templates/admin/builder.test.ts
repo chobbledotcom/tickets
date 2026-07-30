@@ -69,6 +69,6 @@ describe("adminBuilderPage", () => {
 
   test("renders page title", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
-    expect(html).toContain("Site Builder");
+    expect(html).toContain("Site builder");
   });
 });

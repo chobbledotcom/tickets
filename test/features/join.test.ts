@@ -109,9 +109,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("GET /join/complete shows confirmation page", async () => {
       await assertPublicHtml(
         "/join/complete",
-        "Password Set",
+        "Password set",
         'href="/admin/login"',
-        "Log In",
+        "Log in",
       );
     });
 

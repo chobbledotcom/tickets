@@ -120,7 +120,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Add Logistics Agent",
+        "Add logistics agent",
         "Agent name",
       );
     });

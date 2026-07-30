@@ -189,7 +189,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Delete Holiday",
+        "Delete holiday",
         "Christmas",
         "confirm_identifier",
       );

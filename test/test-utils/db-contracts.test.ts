@@ -347,8 +347,8 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       expect(actions).toEqual([
         "visit:/setup/",
-        "submit:Complete Setup",
-        "click:Log In",
+        "submit:Complete setup",
+        "click:Log in",
         "submit:Login",
         "click:Back to dashboard",
       ]);
