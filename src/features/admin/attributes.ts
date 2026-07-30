@@ -49,7 +49,7 @@ import {
   scopedCollectionSwap,
 } from "#shared/db/ordered-collection.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { defineForm } from "#shared/forms/definition.ts";
+import { defineTextForm } from "#shared/forms/definition.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
@@ -66,29 +66,17 @@ import { createListingChoicePost } from "./listing-choice-post.ts";
 
 /* jscpd:ignore-end */
 
-export const attributeNameForm = defineForm({
-  fields: [
-    {
-      label: "Attribute name",
-      name: "name",
-      placeholder: "e.g. Difficulty",
-      required: true,
-      type: "text",
-    },
-  ] as const,
-});
+export const attributeNameForm = defineTextForm(
+  "Attribute name",
+  "name",
+  "e.g. Difficulty",
+);
 
-export const attributeOptionForm = defineForm({
-  fields: [
-    {
-      label: "Option text",
-      name: "text",
-      placeholder: "e.g. Beginner",
-      required: true,
-      type: "text",
-    },
-  ] as const,
-});
+export const attributeOptionForm = defineTextForm(
+  "Option text",
+  "text",
+  "e.g. Beginner",
+);
 
 const handleAttributesGet = ownerPage(async (session) => {
   const flash = getFlash();

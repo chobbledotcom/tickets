@@ -158,3 +158,24 @@ export const defineForm = <
     validate,
   };
 };
+
+/** The field shape `defineTextForm` builds: one required text box. */
+type SingleTextField<TName extends string> = {
+  readonly label: string;
+  readonly name: TName;
+  readonly placeholder: string;
+  readonly required: true;
+  readonly type: "text";
+};
+
+/** One required text box — the whole form for naming or renaming one thing. */
+export const defineTextForm = <TName extends string>(
+  label: string,
+  name: TName,
+  placeholder: string,
+): FormDefinition<readonly [SingleTextField<TName>]> =>
+  defineForm({
+    fields: [
+      { label, name, placeholder, required: true, type: "text" },
+    ] as const,
+  });

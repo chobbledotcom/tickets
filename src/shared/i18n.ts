@@ -12,7 +12,6 @@ import {
   type MessageFormatElement,
   parse,
 } from "@formatjs/icu-messageformat-parser";
-import { printAST } from "@formatjs/icu-messageformat-parser/printer";
 import { IntlMessageFormat } from "intl-messageformat";
 import { lazyRef } from "#fp";
 import {
@@ -149,8 +148,12 @@ export const withMessageGroups = async <T>(
 const needsIcu = (msg: string): boolean =>
   msg.includes("{") || msg.includes("'");
 
-/** Rewrites the translatable copy of a message template. */
-type Replacer = (template: string) => string;
+/**
+ * Rewrites the translatable copy of a message template. An ICU template comes
+ * back as a rebranded parse tree, which `IntlMessageFormat` accepts directly —
+ * never re-printed to a string, so ICU escaping survives untouched.
+ */
+type Replacer = (template: string) => string | MessageFormatElement[];
 
 /** No replacements configured: hand the template straight back, zero overhead. */
 const identity: Replacer = (template) => template;
@@ -173,19 +176,33 @@ const titleCase = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
 const PROTECTED_SPAN = /(<code\b[^>]*>[\s\S]*?<\/code>|<[^>]+>)/gi;
 
 /**
+ * Whether the copy at this point sits inside an open `<code>` example. The flag
+ * is threaded through a whole template because an ICU argument can split one
+ * `<code>…</code>` span across several literal nodes — the closing half must
+ * stay as protected as the opening half.
+ */
+type CodeSpanState = { inCode: boolean };
+
+/** A lone `<code …>` opener — its closing tag lives in a later segment. */
+const CODE_OPENER = /^<code\b[^>]*>$/i;
+/** The matching `</code>` closer arriving in a later segment. */
+const CODE_CLOSER = /^<\/code>$/i;
+
+/**
  * Rebrand every literal copy node in an ICU template's parse tree, walking into
  * each plural/select branch. Argument names and keywords are other node kinds,
  * so they can never be rewritten.
  */
 const rebrandIcuNodes = (
   nodes: MessageFormatElement[],
-  rebrandCopy: (copy: string) => string,
+  rebrandCopy: (copy: string, state: CodeSpanState) => string,
+  state: CodeSpanState,
 ): void => {
   for (const node of nodes) {
-    if (isLiteralElement(node)) node.value = rebrandCopy(node.value);
+    if (isLiteralElement(node)) node.value = rebrandCopy(node.value, state);
     else if (isPluralElement(node) || isSelectElement(node))
       for (const branch of Object.values(node.options))
-        rebrandIcuNodes(branch.value, rebrandCopy);
+        rebrandIcuNodes(branch.value, rebrandCopy, state);
   }
 };
 
@@ -242,17 +259,26 @@ export const buildReplacer = (raw: string | undefined): Replacer => {
     });
 
   // Rewrite only the prose between protected spans, leaving tags/code verbatim.
-  const rebrandCopy = (copy: string): string =>
+  // A `<code>` opener whose closer sits in a later literal node flips the
+  // state, so the copy in between stays protected too.
+  const rebrandCopy = (copy: string, state: CodeSpanState): string =>
     copy
       .split(PROTECTED_SPAN)
-      .map((segment, i) => (i % 2 === 0 ? rebrandProse(segment) : segment))
+      .map((segment, i) => {
+        if (i % 2 === 1) {
+          if (CODE_OPENER.test(segment)) state.inCode = true;
+          else if (CODE_CLOSER.test(segment)) state.inCode = false;
+          return segment;
+        }
+        return state.inCode ? segment : rebrandProse(segment);
+      })
       .join("");
 
   return (template) => {
-    if (!needsIcu(template)) return rebrandCopy(template);
+    if (!needsIcu(template)) return rebrandCopy(template, { inCode: false });
     const nodes = parse(template, { ignoreTag: true });
-    rebrandIcuNodes(nodes, rebrandCopy);
-    return printAST(nodes);
+    rebrandIcuNodes(nodes, rebrandCopy, { inCode: false });
+    return nodes;
   };
 };
 
@@ -280,15 +306,17 @@ const resolveMessage = (locale: string, key: string): Resolved | null => {
   if (raw === undefined) return null;
 
   // Rebrand the copy once, here, so interpolated values stay untouched and the
-  // compiled (and cached) format does no extra per-render work.
+  // compiled (and cached) format does no extra per-render work. A rebranded
+  // ICU template arrives as a parse tree, which the formatter takes as-is.
   const msg = getReplacer()(raw);
 
   // Plain copy is cached and returned as-is; only genuine ICU needs a formatter.
   // ignoreTag: treat <tags> in messages as literal text (locale values may
   // contain HTML rendered via <Raw>), not ICU rich-text tag syntax.
-  const resolved: Resolved = needsIcu(msg)
-    ? new IntlMessageFormat(msg, locale, undefined, { ignoreTag: true })
-    : msg;
+  const resolved: Resolved =
+    typeof msg !== "string" || needsIcu(msg)
+      ? new IntlMessageFormat(msg, locale, undefined, { ignoreTag: true })
+      : msg;
   formatCache[cacheKey] = resolved;
   return resolved;
 };

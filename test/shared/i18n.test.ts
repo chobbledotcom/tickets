@@ -210,7 +210,7 @@ describe("i18n", () => {
 
     /** Render a rebranded template the way `t` would, to check it end to end. */
     const format = (
-      template: string,
+      template: ReturnType<ReturnType<typeof buildReplacer>>,
       values: Record<string, number | string>,
     ): string =>
       String(
@@ -231,10 +231,11 @@ describe("i18n", () => {
       // The handler supplies the value under the argument's exact name, so a
       // rebrand pair like "listing|event" must not touch `{listings, …}` —
       // only the copy inside the branches.
+      // Formatting under the original argument name is the proof: a renamed
+      // argument would make IntlMessageFormat throw on the missing value.
       const rebranded = buildReplacer("listing|event")(
         "Created {listings, plural, one {# listing} other {# listings}}.",
       );
-      expect(rebranded).toContain("{listings,");
       expect(format(rebranded, { listings: 3 })).toBe("Created 3 events.");
     });
 
@@ -262,6 +263,28 @@ describe("i18n", () => {
       );
       expect(format(rebranded, { attendee: "Alice" })).toBe(
         "The guest Alice checked in.",
+      );
+    });
+
+    test("keeps a <code> example intact when an argument splits it", () => {
+      // The argument cuts the <code> span into two literal nodes; the second
+      // half must stay protected, while the prose after the span rebrands.
+      const rebranded = buildReplacer("listing|event")(
+        "Subscribe at <code>https://{domain}/feeds/listings.ics</code> for listings.",
+      );
+      expect(format(rebranded, { domain: "example.com" })).toBe(
+        "Subscribe at <code>https://example.com/feeds/listings.ics</code> for events.",
+      );
+    });
+
+    test("keeps ICU apostrophe escaping working in a rebranded template", () => {
+      // '' is an escaped literal apostrophe; the rebranded template must keep
+      // it as one, not turn it into a quote that swallows the argument.
+      const rebranded = buildReplacer("listing|event")(
+        "Saved ''{value}'' to the listing.",
+      );
+      expect(format(rebranded, { value: "Note" })).toBe(
+        "Saved 'Note' to the event.",
       );
     });
   });
