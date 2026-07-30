@@ -179,6 +179,11 @@ const startInstallLockRefresh = (
   return async (): Promise<void> => {
     stopped = true;
     clearTimeout(timeout);
+    // A timer that fired just before the clear has already queued refreshLock,
+    // and it runs before this zero delay does. Waiting one turn means the wait
+    // below catches the write it starts, instead of leaking it past the stop —
+    // a leaked write could re-create the lock file after cleanup removed it.
+    await delay(0);
     // A refresh already under way finishes without booking another, because
     // scheduling checks the flag above.
     await latestRefresh;
