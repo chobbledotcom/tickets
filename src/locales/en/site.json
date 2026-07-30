@@ -1,18 +1,18 @@
 {
   "site.guide_link": "Public site guide",
-  "site.home.heading": "Home Page",
+  "site.home.heading": "Home page",
   "site.home.title_label": "Website Title",
   "site.home.title_hint": "Displayed as the main heading on all public pages (max 128 characters).",
   "site.home.text_label": "Homepage Text",
   "site.home.text_hint": "Text displayed on the public homepage (max 2048 characters).",
   "site.home.text_placeholder": "Welcome to our site...",
-  "site.contact.heading": "Contact Page",
-  "site.contact.text_label": "Contact Page Text",
+  "site.contact.heading": "Contact page",
+  "site.contact.text_label": "Contact page text",
   "site.contact.text_hint": "Text displayed on the public contact page (max 2048 characters).",
   "site.contact.text_placeholder": "Get in touch with us...",
   "site.home_title": "Site - Home",
   "site.contact_title": "Site - Contact",
   "site.order_title": "Site - Order",
-  "site.contact_form_heading": "Contact Form",
-  "site.order_page_heading": "Order Page"
+  "site.contact_form_heading": "Contact form",
+  "site.order_page_heading": "Order page"
 }

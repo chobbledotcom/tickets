@@ -3,11 +3,9 @@
 # Table inputs make these operators equivalent: nullable query results exclude
 # undefined, paired null checks already reject both nullish values, and optional
 # conditions/dependencies are objects or arrays.
-src/shared/db/table.ts:455:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:502:71  ?? → ||   # a found row is a truthy object, and a miss is undefined, so both operators give the row or null
-src/shared/db/table.ts:506:31  ?? → ||   # findByIds's element is a truthy row, null, or undefined, and all three agree
-src/shared/db/table.ts:594:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts:627:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
+src/shared/db/table.ts:466:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:575:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:608:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.

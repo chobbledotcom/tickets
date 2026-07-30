@@ -25,7 +25,7 @@ describeWithEnv("server (admin site order)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Order Page",
+        "Order page",
         "order_enabled",
         "Enable order page",
         "order_intro_text",

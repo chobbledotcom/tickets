@@ -30,7 +30,7 @@ describeWithEnv("server (admin site contact)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Contact Page",
+        "Contact page",
         "contact_page_text",
         "Formatting help",
       );
@@ -152,7 +152,7 @@ describeWithEnv(
         await expectHtmlResponse(
           response,
           200,
-          "Contact Form",
+          "Contact form",
           "contact_form_enabled",
           "Enable contact form",
         );

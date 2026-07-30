@@ -52,7 +52,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Home Page",
+        "Home page",
         "website_title",
         "homepage_text",
         "Formatting help",

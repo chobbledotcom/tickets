@@ -106,6 +106,30 @@ describe("bringing files back out of a snapshot", () => {
     });
   });
 
+  test("puts back an already-written file when a later one fails", async () => {
+    await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
+      // A second kept file whose copy in the work tree vanishes after the
+      // preflight, so the failure lands mid-loop — after the first file has
+      // already been written. The first file must be put back.
+      const second = "second.txt";
+      await Deno.writeTextFile(join(roots.root, second), "a\n");
+      await Deno.writeTextFile(join(roots.workRoot, second), "b\n");
+      const files = await readCopyBackFiles(roots.root, [KEPT, second]);
+      await Deno.remove(join(roots.workRoot, second));
+
+      const run = await captureConsole(() =>
+        bringFilesBack(roots.root, roots.workRoot, files),
+      );
+
+      expect(run.result).toBe(1);
+      expect(run.logs).toEqual([`Updated ${KEPT}`, `Put back ${KEPT}`]);
+      expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
+        "one\ntwo\n",
+      );
+      expect(await Deno.readTextFile(join(roots.root, second))).toBe("a\n");
+    });
+  });
+
   test("reads nothing when no files are kept", async () => {
     await withCheckoutAndCopy("one\n", "one\n", async (roots) => {
       expect(await readCopyBackFiles(roots.root, [])).toEqual([]);

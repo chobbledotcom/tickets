@@ -64,13 +64,25 @@ export const bringFilesBack = async (
     for (const entry of files) {
       await assertUnchanged(root, entry);
     }
-    for (const entry of files) {
-      // Checked again at the moment of writing: an edit that lands between
-      // the preflight and this file's turn must still stop the overwrite.
-      await assertUnchanged(root, entry);
-      if (await copyOneBack(root, workRoot, entry)) {
-        console.log(`Updated ${entry.file}`);
+    const written: CopyBackFile[] = [];
+    try {
+      for (const entry of files) {
+        // Checked again at the moment of writing: an edit that lands between
+        // the preflight and this file's turn must still stop the overwrite.
+        await assertUnchanged(root, entry);
+        if (await copyOneBack(root, workRoot, entry)) {
+          written.push(entry);
+          console.log(`Updated ${entry.file}`);
+        }
       }
+    } catch (error) {
+      // A failure part-way through must not leave a half-applied result: put
+      // back what was already written, then report the failure.
+      for (const entry of written) {
+        await Deno.writeTextFile(join(root, entry.file), entry.before);
+        console.log(`Put back ${entry.file}`);
+      }
+      throw error;
     }
     return 0;
   } catch (error) {

@@ -73,7 +73,7 @@ export const siteOrderForm = defineForm({
     {
       hintHtml: `Shown at the top of the public order page (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
       id: "order_intro_text",
-      label: "Order Page Intro",
+      label: "Order page intro",
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
       name: "order_intro_text",
