@@ -213,6 +213,11 @@ const readOf = (row: string, what: string): string => {
 
 /** What the listing's own record of the day says happened. */
 export const dayLog: ReadAboutOneThing = async (world, listing) => {
+  // The listing whose own record of the day a capture of a check-in goes to.
+  world.evidenceValues.set(
+    "checkedInListingId",
+    String(stayListing(world, listing).id),
+  );
   const browser = await openAdminPage(
     world,
     listingPath(world, listing, "activity"),
