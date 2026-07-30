@@ -61,11 +61,11 @@ export const appliedMigrationIds = async (): Promise<string[]> => {
 /** Take the migration lock for a test, failing loudly if another lease holds
  *  it — a test that cannot lock has nothing meaningful to assert. */
 export const takeMigrationLock = async (): Promise<string> => {
-  const lockToken = await acquireMigrationLock(false);
-  if (lockToken === null) {
+  const lease = await acquireMigrationLock(false);
+  if (lease === null) {
     throw new Error("Could not take the migration lock for this test");
   }
-  return lockToken;
+  return lease.token;
 };
 
 export const schemaMarkerKeys = async (): Promise<string[]> => {

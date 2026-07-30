@@ -37,6 +37,7 @@ import {
   MigrationInProgressError,
   MissingSettingsTableError,
 } from "./migrations/errors.ts";
+import type { MigrationLease } from "./migrations/lock.ts";
 import {
   acquireMigrationLock,
   MIGRATION_LOCK_TTL_MS,
@@ -291,11 +292,39 @@ const finishIfUpToDate = async (probe: DbProbe): Promise<boolean> => {
 
 type LockedMigrationResult = "continue" | "release" | "released";
 
+/** Tell a request another one is migrating, and let the operator know. */
+const migrationLockHeldError = (): MigrationInProgressError => {
+  void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
+  return new MigrationInProgressError(
+    "Database migration is already in progress (migration_lock held). " +
+      `The request can be retried; a crashed migration's lock is reclaimed automatically after ${
+        MIGRATION_LOCK_TTL_MS / 60000
+      } minutes, or manually DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'.`,
+  );
+};
+
+/**
+ * The token this request may actually write with.
+ *
+ * A lease taken while the `settings` table was missing has no row behind it. If
+ * another request created that table in the meantime, the token owns nothing, so
+ * take a real lease before any lock-gated write — and step aside if that other
+ * request is still holding one.
+ */
+const storedToken = async (
+  lease: MigrationLease,
+  recheck: DbProbe,
+): Promise<string> => {
+  if (lease.stored || recheck.state === "missing_settings") return lease.token;
+  const retaken = await acquireMigrationLock(false);
+  if (retaken === null) throw migrationLockHeldError();
+  return retaken.token;
+};
+
 const runAcquiredMigrations = async (
+  recheck: DbProbe,
   lockToken: string,
 ): Promise<LockedMigrationResult> => {
-  // Re-check after acquiring lock because another process may have finished.
-  const recheck = await probeDbState();
   if (await finishIfUpToDate(recheck)) return "release";
 
   if (
@@ -335,20 +364,17 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   if (await finishIfUpToDate(probe)) return;
   requireAllowedInitialDbState(probe.state, allowMissingSettings);
 
-  const lockToken = await acquireMigrationLock(allowMissingSettings);
-  if (lockToken === null) {
-    void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
-    throw new MigrationInProgressError(
-      "Database migration is already in progress (migration_lock held). " +
-        `The request can be retried; a crashed migration's lock is reclaimed automatically after ${
-          MIGRATION_LOCK_TTL_MS / 60000
-        } minutes, or manually DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'.`,
-    );
-  }
+  const lease = await acquireMigrationLock(allowMissingSettings);
+  if (lease === null) throw migrationLockHeldError();
 
+  let lockToken = lease.token;
   let result: LockedMigrationResult;
   try {
-    result = await runAcquiredMigrations(lockToken);
+    // Re-check after acquiring the lock because another process may have
+    // finished, which is also what decides whether the lease is real yet.
+    const recheck = await probeDbState();
+    lockToken = await storedToken(lease, recheck);
+    result = await runAcquiredMigrations(recheck, lockToken);
   } catch (error) {
     return await releaseAfterMigrationFailure(lockToken, error);
   }

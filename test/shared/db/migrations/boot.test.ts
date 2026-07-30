@@ -1,5 +1,7 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
@@ -220,6 +222,41 @@ describeWithEnv(
       expect(bodies.some((body) => body.endsWith("E_DB_MIGRATION_LOCK "))).toBe(
         true,
       );
+    });
+
+    /**
+     * Hide the settings table from the first boot probe and the first lock
+     * write, the way a request that arrives while another one is still creating
+     * that table sees the database. Everything after runs against the real
+     * database, so the request's second look finds a table it has no lock on.
+     */
+    const hideSettingsOnce = () => {
+      const client = getDb();
+      const execute = client.execute.bind(client);
+      const stillToHide = new Set(["lock", "probe"]);
+      return stub(client, "execute", (statement: InStatement) => {
+        const sql = typeof statement === "string" ? statement : statement.sql;
+        const step = sql.startsWith("SELECT key, value FROM settings")
+          ? "probe"
+          : sql.startsWith("INSERT INTO settings")
+            ? "lock"
+            : "other";
+        return stillToHide.delete(step)
+          ? Promise.reject(new Error("no such table: settings"))
+          : execute(statement);
+      });
+    };
+
+    test("a lock taken before the settings table existed is taken again for real", async () => {
+      await markMigrationsForRerun();
+      using _execute = hideSettingsOnce();
+
+      // Without a real lease, recording the migrations would be refused as
+      // somebody else's migration and the database would stay out of date.
+      await initDb({ allowMissingSettings: true });
+
+      expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
+      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     });
 
     test("one missing marker is a database to update, not a blank one", async () => {

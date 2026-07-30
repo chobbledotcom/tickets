@@ -32,6 +32,12 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
     });
   };
 
+  /** Hold the lock from half a minute ago: comfortably inside the time limit,
+   *  but not the same instant as the acquisition under test — two writes that
+   *  land in one millisecond would leave the limit untested. */
+  const holdFreshLock = (): Promise<void> =>
+    holdLockSince(new Date(Date.now() - 30_000).toISOString());
+
   const clearLock = async (): Promise<void> => {
     await getDb().execute({
       args: [MIGRATION_LOCK_KEY],
@@ -39,19 +45,27 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
     });
   };
 
-  test("acquiring stores this request's lease", async () => {
+  /** Take the lock and check the row now holding it is this lease's own. */
+  const expectLeaseStored = async (): Promise<void> => {
     try {
-      const lockToken = await acquireMigrationLock(false);
+      const lease = await acquireMigrationLock(false);
+      if (lease === null)
+        throw new Error("the lock was not free for this test");
 
-      expect(await heldLock()).toBe(lockToken);
+      expect(lease.stored).toBe(true);
+      expect(await heldLock()).toBe(lease.token);
     } finally {
       await clearLock();
     }
+  };
+
+  test("acquiring stores this request's lease", async () => {
+    await expectLeaseStored();
   });
 
   test("a test that cannot take the lock fails loudly", async () => {
     try {
-      await holdLockSince(new Date().toISOString());
+      await holdFreshLock();
 
       await expect(takeMigrationLock()).rejects.toThrow(
         "Could not take the migration lock for this test",
@@ -61,9 +75,9 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
     }
   });
 
-  test("a fresh lock held by someone else is not taken", async () => {
+  test("a lock still inside the time limit is not taken", async () => {
     try {
-      await holdLockSince(new Date().toISOString());
+      await holdFreshLock();
 
       expect(await acquireMigrationLock(false)).toBeNull();
     } finally {
@@ -72,19 +86,12 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
   });
 
   test("a lock older than the time limit is stolen", async () => {
-    try {
-      const expired = new Date(
-        Date.now() - MIGRATION_LOCK_TTL_MS - 1000,
-      ).toISOString();
-      await holdLockSince(expired);
+    const expired = new Date(
+      Date.now() - MIGRATION_LOCK_TTL_MS - 1000,
+    ).toISOString();
+    await holdLockSince(expired);
 
-      const lockToken = await acquireMigrationLock(false);
-
-      expect(lockToken).not.toBeNull();
-      expect(await heldLock()).toBe(lockToken);
-    } finally {
-      await clearLock();
-    }
+    await expectLeaseStored();
   });
 
   test("releasing leaves another request's lease alone", async () => {
@@ -163,7 +170,11 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
         ],
         lockToken,
       ),
-    ).rejects.toThrow(MigrationInProgressError);
+    ).rejects.toThrow(
+      new MigrationInProgressError(
+        "Database migration lock ownership was lost before completion.",
+      ),
+    );
 
     const result = await getDb().execute(
       "SELECT value FROM settings WHERE key = 'lock_test_marker'",
@@ -197,8 +208,12 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
   test("a missing settings table is only tolerated when it is expected", async () => {
     using _execute = failLockWriteWith("no such table: settings");
 
-    // Setup and restore create the table, so they carry on without a lock...
-    expect(await acquireMigrationLock(true)).not.toBeNull();
+    // Setup and restore create the table, so they carry on without a lock —
+    // and the lease says so, because no row was written to back it.
+    expect(await acquireMigrationLock(true)).toEqual({
+      stored: false,
+      token: expect.any(String),
+    });
     // ...but an ordinary request must not treat it as a free lock.
     await expect(acquireMigrationLock(false)).rejects.toThrow(
       "no such table: settings",

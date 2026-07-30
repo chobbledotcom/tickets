@@ -24,8 +24,15 @@ import { MIGRATION_LOCK_KEY } from "./schema/version.ts";
 export const MIGRATION_LOCK_TTL_MS = 2 * 60 * 1000;
 
 /**
+ * A migration lock this request holds. `stored` is false only for the tolerated
+ * acquisition against a database with no `settings` table: there was no row to
+ * write, so nothing backs the token until that table exists.
+ */
+export type MigrationLease = { stored: boolean; token: string };
+
+/**
  * Acquire an advisory migration lock via the settings table.
- * Returns this request's timestamp-prefixed lease token when acquired, or null
+ * Returns this request's timestamp-prefixed lease when acquired, or null
  * when another process holds a fresh lock. The ISO-8601 prefix sorts
  * lexicographically, so one atomic UPSERT both takes a free lock and steals an
  * expired one: DO UPDATE only fires when the held lock predates the cutoff, and
@@ -34,7 +41,7 @@ export const MIGRATION_LOCK_TTL_MS = 2 * 60 * 1000;
  */
 export const acquireMigrationLock = async (
   allowMissingSettings: boolean,
-): Promise<string | null> => {
+): Promise<MigrationLease | null> => {
   const now = new Date();
   const cutoff = new Date(now.getTime() - MIGRATION_LOCK_TTL_MS).toISOString();
   const stamp = now.toISOString();
@@ -52,7 +59,8 @@ export const acquireMigrationLock = async (
       }
       throw error;
     });
-  return result === null || result.rowsAffected === 1 ? lockToken : null;
+  if (result === null) return { stored: false, token: lockToken };
+  return result.rowsAffected === 1 ? { stored: true, token: lockToken } : null;
 };
 
 /** The statement that gives up this request's lease. */
