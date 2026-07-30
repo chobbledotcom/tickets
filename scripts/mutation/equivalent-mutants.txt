@@ -995,4 +995,3 @@ src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns Li
 # resolve.
 src/shared/db/news-posts.ts:148:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
 src/features/admin/api-keys.ts:147:75  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
-src/features/admin/attributes.ts:188:20  0 → 1   # option insert's sortOrder is a placeholder: attributeOptionsOrder.append immediately overwrites it with MAX(sibling)+1 (or the collection's start), and nothing reads the row in between — no input can see the inserted value

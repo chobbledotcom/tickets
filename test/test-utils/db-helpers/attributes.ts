@@ -47,3 +47,14 @@ export const assignTestAttributeOptions = (
     listingId,
     options.map((option) => option.id),
   );
+
+/** Create an attribute through the real admin POST and return its new id. */
+export const createAttributeViaRoute = async (
+  name: string,
+): Promise<number> => {
+  const { adminFormPost } = await import("#test-utils/session.ts");
+  const { expectRedirect } = await import("#test-utils/assertions.ts");
+  const { response } = await adminFormPost("/admin/attributes", { name });
+  const location = expectRedirect(response, /^\/admin\/attributes\/\d+/);
+  return Number(new URL(location, "http://localhost").pathname.split("/")[3]);
+};

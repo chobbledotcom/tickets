@@ -44,10 +44,12 @@ import {
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
 } from "#shared/db/attributes.ts";
+import { type TxScope, withTransaction } from "#shared/db/client.ts";
 import {
   flatCollectionSwap,
   scopedCollectionSwap,
 } from "#shared/db/ordered-collection.ts";
+import { writeTableRow } from "#shared/db/table.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineTextForm } from "#shared/forms/definition.ts";
 import {
@@ -92,9 +94,22 @@ const handleAttributesPost = createAuthedFormRoute({
   form: attributeNameForm,
   onInvalid: ({ error }) => errorRedirect("/admin/attributes", error),
   onValid: async ({ values: { name } }) => {
-    const attribute = await attributesTable.insert({ name });
-    await attributesOrder.append({ key: attribute.id });
-    await logActivity(`Attribute '${name}' created`);
+    // One transaction: an attribute must never exist without its order entry
+    // or its log line.
+    const attribute = await withTransaction(async (transaction) => {
+      const created = await writeTableRow(transaction, attributesTable, {
+        input: { name },
+        kind: "insert",
+      });
+      await attributesOrder.append({ key: created.id, transaction });
+      await logActivity(
+        `Attribute '${name}' created`,
+        undefined,
+        undefined,
+        transaction,
+      );
+      return created;
+    });
     return redirect(
       `/admin/attributes/${attribute.id}`,
       "Attribute created",
@@ -148,11 +163,15 @@ const logAttributeOptionActivity = (
   optionText: string,
   action: string,
   attribute: AttributeWithOptions,
+  transaction?: TxScope,
 ) =>
   logActivity(
     `Attribute option '${optionText}' ${action} ${attributeNameFlat(
       attribute.name,
     )}`,
+    undefined,
+    undefined,
+    transaction,
   );
 
 const handleAttributeEdit = createAuthedFormRoute<
@@ -183,16 +202,26 @@ const handleAddOption = createAuthedFormRoute<
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { text } }) =>
     orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
-      const option = await attributeOptionsTable.insert({
-        attributeId: params.id,
-        sortOrder: 0,
-        text,
+      // One transaction: an option must never exist without its place in the
+      // order or its log line. The inserted sortOrder is a placeholder the
+      // append overwrites before anything can read it.
+      await withTransaction(async (transaction) => {
+        const option = await writeTableRow(transaction, attributeOptionsTable, {
+          input: { attributeId: params.id, sortOrder: 0, text },
+          kind: "insert",
+        });
+        await attributeOptionsOrder.append({
+          key: option.id,
+          scope: params.id,
+          transaction,
+        });
+        await logAttributeOptionActivity(
+          text,
+          "added to",
+          attribute,
+          transaction,
+        );
       });
-      await attributeOptionsOrder.append({
-        key: option.id,
-        scope: params.id,
-      });
-      await logAttributeOptionActivity(text, "added to", attribute);
       return redirect(`/admin/attributes/${params.id}`, "Option added", true);
     }),
 });
