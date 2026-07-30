@@ -300,10 +300,14 @@ describe("payment resolver", () => {
   });
 
   test("reports duplicate refund ids", () => {
+    // Half the money each, so the two together still fit inside what was
+    // taken: the only thing wrong with this reading is the repeated id.
+    const half = refundObservation({ amount: { amount: 50, currency: "GBP" } });
     const observation = paymentObservation({
       charges: [
         chargeLeg({
-          refunds: [refundObservation(), refundObservation()],
+          confirmedRefunded: { amount: 100, currency: "GBP" },
+          refunds: [half, half],
         }),
       ],
     });

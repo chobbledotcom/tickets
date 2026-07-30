@@ -189,7 +189,11 @@ describe("what one reading of a payment comes to", () => {
           charges: [
             chargeLeg({
               confirmedRefunded: { amount: 100, currency: "GBP" },
-              refunds: [refundObservation(), refundObservation()],
+              // Half each, so only the repeated id is wrong with this reading.
+              refunds: [
+                refundObservation({ amount: { amount: 50, currency: "GBP" } }),
+                refundObservation({ amount: { amount: 50, currency: "GBP" } }),
+              ],
             }),
           ],
         }),

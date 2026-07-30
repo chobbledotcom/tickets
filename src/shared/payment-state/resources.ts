@@ -192,10 +192,16 @@ export const providerRefundResources = (
 /** Money on its way back that the provider has not finished sending. A refund
  *  it has finished is already counted in the returned total, so only the ones
  *  still going are added on top. */
-const refundMoneyStillGoing = (charge: ChargeLeg): number =>
-  sumOf((refund: RefundObservation) => refund.amount.amount)(
-    charge.refunds.filter((refund) => refund.status === "pending"),
-  );
+/** The money named by every refund at one point in its life, added up. */
+const refundMoneyThatIs =
+  (status: RefundObservation["status"]) =>
+  (charge: ChargeLeg): number =>
+    sumOf((refund: RefundObservation) => refund.amount.amount)(
+      charge.refunds.filter((refund) => refund.status === status),
+    );
+
+const refundMoneyStillGoing = refundMoneyThatIs("pending");
+const refundMoneyGivenBack = refundMoneyThatIs("completed");
 
 /**
  * Compares money given back with money taken. Two currencies cannot be
@@ -217,8 +223,21 @@ const refundFitsWithinCapture = comparedWithMoneyTaken(
   (back, taken) => back <= taken,
 );
 
+/**
+ * Every refund the provider says it finished, added up, still fits inside the
+ * money taken. Checked on its own rather than added to the returned total,
+ * which is meant to hold these same refunds already — so this catches two
+ * readings of one charge that cannot both be true, without double-counting a
+ * refund that is correctly inside the total.
+ */
+const finishedRefundsFitWithinCapture = comparedWithMoneyTaken(
+  refundMoneyGivenBack,
+  (back, taken) => back <= taken,
+);
+
 export const refundMoneyMatchesCapture = (charge: ChargeLeg): boolean =>
   refundFitsWithinCapture(charge) &&
+  finishedRefundsFitWithinCapture(charge) &&
   charge.refunds.every(
     (refund) =>
       refund.amount.currency === charge.captured.currency &&

@@ -337,6 +337,27 @@ describe("payment resources", () => {
     ).toBe(true);
   });
 
+  test("refuses finished refunds that together come to more than was taken", () => {
+    // Each £60 refund fits inside £100 on its own, and the returned total says
+    // £100, so every figure looks right one at a time. Together the provider
+    // is claiming £120 went back out of £100 — the two readings cannot both be
+    // true of one charge, so the reading is wrong rather than settled.
+    expect(
+      refundMoneyMatchesCapture(
+        chargeLeg({
+          confirmedRefunded: { amount: 100, currency: "GBP" },
+          refunds: [
+            refundObservation({ amount: { amount: 60, currency: "GBP" } }),
+            refundObservation({
+              amount: { amount: 60, currency: "GBP" },
+              refund: { ...refundResource, id: "re_2" },
+            }),
+          ],
+        }),
+      ),
+    ).toBe(false);
+  });
+
   test("checks every refund amount and currency against its capture", () => {
     expect(refundMoneyMatchesCapture(chargeLeg())).toBe(true);
     expect(
