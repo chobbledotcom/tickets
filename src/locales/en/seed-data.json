@@ -4,6 +4,5 @@
   "admin.seeds.intro": "Fill the empty site with example listings and attendees. Useful for testing and trying things out.",
   "admin.seeds.submit": "Create example data",
   "admin.seeds.back": "Back to dashboard",
-  "admin.seeds.created": "Created {listings, plural, one {# listing} other {# listings}} with {attendees, plural, one {# attendee} other {# attendees}}.",
-  "admin.seeds.failed": "Could not create the example data. Finish setup first."
+  "admin.seeds.created": "Created {listings, plural, one {# listing} other {# listings}} with {attendees, plural, one {# attendee} other {# attendees}}."
 }

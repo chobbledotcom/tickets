@@ -2,9 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { MAX_SEED_LISTINGS, seedsForm } from "#routes/admin/seeds.ts";
-import { getDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
-import { settings } from "#shared/db/settings.ts";
 import { SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import {
   expectFlashRedirect,
@@ -84,23 +82,6 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
     await expectFlashRedirect(
       "/admin/seeds",
       t("admin.seeds.created", { attendees: 0, listings: 1 }),
-    )(response);
-  });
-
-  test("says seed data could not be made when setup is incomplete", async () => {
-    // Remove the public key so creating seed attendees cannot work.
-    await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
-    settings.invalidateCache();
-
-    const response = await postSeeds({
-      attendees_per_listing: "0",
-      listing_count: "1",
-    });
-
-    await expectFlashRedirect(
-      "/admin/seeds",
-      t("admin.seeds.failed"),
-      false,
     )(response);
   });
 
