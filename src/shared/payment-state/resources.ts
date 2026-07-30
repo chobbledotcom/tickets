@@ -217,27 +217,25 @@ const comparedWithMoneyTaken =
     charge.confirmedRefunded.currency === charge.captured.currency &&
     holds(moneyBack(charge), charge.captured.amount);
 
+/**
+ * Everything that has gone back or is going back, counted once. The returned
+ * total is meant to already hold the refunds the provider says it finished,
+ * so adding both would count those twice — but the total can also lag behind
+ * a refund it has not caught up with. Taking whichever of the two is larger
+ * covers both, and money still on its way is genuinely on top of it.
+ */
+const refundMoneyAccountedFor = (charge: ChargeLeg): number =>
+  Math.max(charge.confirmedRefunded.amount, refundMoneyGivenBack(charge)) +
+  refundMoneyStillGoing(charge);
+
 /** Nothing given back, or still on its way, comes to more than was taken. */
 const refundFitsWithinCapture = comparedWithMoneyTaken(
-  (charge) => charge.confirmedRefunded.amount + refundMoneyStillGoing(charge),
-  (back, taken) => back <= taken,
-);
-
-/**
- * Every refund the provider says it finished, added up, still fits inside the
- * money taken. Checked on its own rather than added to the returned total,
- * which is meant to hold these same refunds already — so this catches two
- * readings of one charge that cannot both be true, without double-counting a
- * refund that is correctly inside the total.
- */
-const finishedRefundsFitWithinCapture = comparedWithMoneyTaken(
-  refundMoneyGivenBack,
+  refundMoneyAccountedFor,
   (back, taken) => back <= taken,
 );
 
 export const refundMoneyMatchesCapture = (charge: ChargeLeg): boolean =>
   refundFitsWithinCapture(charge) &&
-  finishedRefundsFitWithinCapture(charge) &&
   charge.refunds.every(
     (refund) =>
       refund.amount.currency === charge.captured.currency &&

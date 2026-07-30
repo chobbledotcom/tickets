@@ -157,6 +157,27 @@ describe("what a refund says about the money going back", () => {
     ).toBe(false);
   });
 
+  test("counts money already back and money still going as one total", () => {
+    // £80 has gone and £80 more is on its way, out of £100 taken. Each half
+    // fits on its own, so checked apart this reads as a refund quietly in
+    // progress rather than a reading that cannot be true.
+    expect(
+      refundMoneyMatchesCapture(
+        chargeLeg({
+          confirmedRefunded: { amount: 0, currency: "GBP" },
+          refunds: [
+            refundObservation({ amount: { amount: 80, currency: "GBP" } }),
+            refundObservation({
+              amount: { amount: 80, currency: "GBP" },
+              refund: { ...refundResource, id: "re_2" },
+              status: "pending",
+            }),
+          ],
+        }),
+      ),
+    ).toBe(false);
+  });
+
   test("checks every refund amount and currency against its capture", () => {
     expect(refundMoneyMatchesCapture(chargeLeg())).toBe(true);
     expect(
