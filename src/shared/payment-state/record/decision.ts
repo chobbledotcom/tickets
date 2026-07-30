@@ -32,6 +32,15 @@ export const decisionStateAgreesWithItsTries = (
       "A decision is booked to try again exactly when it is waiting to",
     ],
     [
+      // A next try set before the last one already happened reads as due
+      // right now, every time it is looked at. The owner's choice can be a
+      // refund, so that is real money going out in a tight loop.
+      decision.nextRetryAt === null ||
+        decision.lastAttemptAt === null ||
+        decision.nextRetryAt >= decision.lastAttemptAt,
+      "The next try comes after the try it follows",
+    ],
+    [
       (decision.state === "retrying") === present(decision.lastError),
       "A decision keeps why it failed exactly when it is waiting to try again",
     ],

@@ -4,6 +4,7 @@ import {
   madeAndTouched,
   paymentRecord,
   sealedEitherWay,
+  wholeNumber,
   wholeNumberOrNull,
   words,
   wordsOrNull,
@@ -11,8 +12,6 @@ import {
 
 /* jscpd:ignore-end */
 
-/** Each provider names its money its own way, so when a charge says both, the
- *  two have to agree. Which name goes with which provider does not change. */
 /** The only rule the table keeps: the buyer's details really are hidden. */
 const aboutTheCharge = alsoAbout([
   encryptedPaymentColumnOrNull("pending_refund_id"),
@@ -38,13 +37,9 @@ export const paymentChargeTable = paymentRecord("payment_charges", {
     // SQLite sorts numbers before text whatever they say, so one time kept
     // as words would always read as later than one kept as a number.
     ["provider_refunded_at", wholeNumberOrNull()],
-    // Named outright rather than left as any words at all: only one charge may
-    // be copied from a given old table per payment, so anything the upgrade
-    // does not know about would be a second, distinct "nowhere" that the
-    // unique index happily accepts.
     ["legacy_source", wordsOrNull()],
     ...madeAndTouched,
-    ["observed_at", aboutTheCharge("INTEGER NOT NULL")],
+    ["observed_at", aboutTheCharge(wholeNumber())],
   ],
   indexes: [
     {

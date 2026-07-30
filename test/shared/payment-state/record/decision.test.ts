@@ -51,6 +51,11 @@ describe("what a stored decision may be", () => {
       "A decision that is retrying or finished has been tried at least once",
     ],
     [
+      "booked to try again before the try it follows",
+      { ...waiting, lastAttemptAt: 100, nextRetryAt: 1 },
+      "The next try comes after the try it follows",
+    ],
+    [
       "waiting to try again with no reason kept",
       { ...waiting, lastError: null },
       "A decision keeps why it failed exactly when it is waiting to try again",

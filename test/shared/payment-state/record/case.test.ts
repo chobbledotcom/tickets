@@ -11,6 +11,7 @@ describe("what a stored problem may be", () => {
     alertedAt: null,
     alertedRevision: null,
     alertLeaseToken: null,
+    alertSentAt: null,
     alertSentRevision: null,
     nextReconcileAt: 9,
     resolvedAt: null,
@@ -120,6 +121,7 @@ describe("what a stored problem may be", () => {
       mayClaimTheAlert({
         ...needsOwner,
         alertedRevision: 2,
+        alertSentAt: 5,
         alertSentRevision: 1,
         revision: 2,
       }),
@@ -128,8 +130,21 @@ describe("what a stored problem may be", () => {
 
   test("refuses a claim once the owner has heard about this version", () => {
     expect(
-      mayClaimTheAlert({ ...needsOwner, alertSentRevision: 1, revision: 1 }),
+      mayClaimTheAlert({
+        ...needsOwner,
+        alertSentAt: 5,
+        alertSentRevision: 1,
+        revision: 1,
+      }),
     ).toBe("The owner has already been told about this version");
+  });
+
+  test("refuses a claim when an alert was only half written down", () => {
+    // The version alone is what stops a second send, so a version with no
+    // time behind it would silence an alert that never went.
+    expect(mayClaimTheAlert({ ...needsOwner, alertSentRevision: 2 })).toBe(
+      "An alert says both when it went and which version it was for",
+    );
   });
 
   test("refuses a claim on a problem the owner is not waiting on", () => {

@@ -19,6 +19,7 @@ export type StoredCase = {
   resolvedAt: number | null;
   alertedAt: number | null;
   alertedRevision: number | null;
+  alertSentAt: number | null;
   alertSentRevision: number | null;
   alertLeaseToken: string | null;
   revision: number;
@@ -85,6 +86,13 @@ export const mayClaimTheAlert = (problem: StoredCase): Fault =>
     [
       problem.state === "needs_action",
       "Only a problem waiting on the owner has an alert to send",
+    ],
+    [
+      // The version alone is what stops the same alert going twice, so a
+      // version written without the time it went reads as "already told" for
+      // a send that never happened, and the owner never hears about it.
+      present(problem.alertSentAt) === present(problem.alertSentRevision),
+      "An alert says both when it went and which version it was for",
     ],
     [
       problem.alertSentRevision !== problem.revision,

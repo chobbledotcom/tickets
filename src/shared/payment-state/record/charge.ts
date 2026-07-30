@@ -13,7 +13,10 @@ import {
   present,
 } from "#shared/payment-state/record/fault.ts";
 import type { RecordOrigin } from "#shared/payment-state/words.ts";
-import { LEGACY_SOURCES } from "#shared/payment-state/words.ts";
+import {
+  LEGACY_SOURCES,
+  RESOURCE_KIND_BY_PROVIDER,
+} from "#shared/payment-state/words.ts";
 /* jscpd:ignore-end */
 
 /** A stored charge, in the shape the tables hold it. */
@@ -128,6 +131,14 @@ const moneyCopiedAcrossIsBare = (charge: StoredCharge): Fault =>
     ],
   ]);
 
+/** Each provider names the money it took its own way, so a charge saying both
+ *  a provider and a name has to say the pair that goes together. */
+const kindMatchesProvider = (charge: StoredCharge): boolean =>
+  Object.entries(RESOURCE_KIND_BY_PROVIDER).some(
+    ([provider, kind]) =>
+      provider === charge.provider && kind === charge.resourceKind,
+  );
+
 /** Money taken here knows everything about itself. */
 const moneyTakenHereIsComplete = (charge: StoredCharge): Fault =>
   firstFault([
@@ -140,17 +151,41 @@ const moneyTakenHereIsComplete = (charge: StoredCharge): Fault =>
       "Money taken here knows who took it, how much, and how to find it again",
     ],
     [
+      kindMatchesProvider(charge),
+      "Money taken here must be named the way its own provider names it",
+    ],
+    [
       charge.refundState !== "unknown",
       `Only money copied across may say its refund is "unknown"`,
     ],
   ]);
 
+/**
+ * Money is money either side: a charge that took nothing is not a charge, and
+ * money cannot go back in the wrong direction. Without this a stored -100
+ * would quietly subtract from what a payment took and turn its refunds round.
+ */
+const theMoneyItselfMakesSense = (charge: StoredCharge): Fault =>
+  firstFault([
+    [
+      charge.capturedAmount === null || charge.capturedAmount > 0,
+      "Money taken must be at least a penny",
+    ],
+    [
+      charge.refundedAmount === null || charge.refundedAmount >= 0,
+      "Money gone back cannot be less than nothing",
+    ],
+  ]);
+
 /** A charge is either money taken here or money copied across, never a mix. */
 export const chargeKnowsWhereItCameFrom = (charge: StoredCharge): Fault =>
-  charge.origin === "current"
-    ? firstOf(
-        moneyTakenHereIsComplete(charge),
-        refundHandlesMatchState(charge),
-        refundedTotalMatchesState(charge),
-      )
-    : moneyCopiedAcrossIsBare(charge);
+  firstOf(
+    theMoneyItselfMakesSense(charge),
+    charge.origin === "current"
+      ? firstOf(
+          moneyTakenHereIsComplete(charge),
+          refundHandlesMatchState(charge),
+          refundedTotalMatchesState(charge),
+        )
+      : moneyCopiedAcrossIsBare(charge),
+  );

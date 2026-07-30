@@ -15,6 +15,7 @@ const madeHere: StoredPayment = {
   completionState: "none",
   expectedAmount: 100,
   expectedCurrency: "GBP",
+  leaseExpiresAt: null,
   leaseToken: null,
   legacyRuntime: null,
   mode: "test",
@@ -23,6 +24,7 @@ const madeHere: StoredPayment = {
   provider: "stripe",
   result: null,
   resultState: "none",
+  revision: 1,
   sessionReferenceIndex: "idx",
   sessionResource: "enc:1:a:b",
   state: "pending",
@@ -73,6 +75,21 @@ describe("what a stored payment may be", () => {
       "it is past its start with no checkout",
       { sessionReferenceIndex: null, sessionResource: null },
       "A payment past its start must know the checkout it belongs to",
+    ],
+    [
+      "it keeps a checkout nothing can find again",
+      { sessionReferenceIndex: null },
+      "A checkout is kept with the code that finds it again",
+    ],
+    [
+      "it is claimed by a worker with no end to the claim",
+      { leaseToken: "w1" },
+      "A worker's claim on a payment says when it runs out",
+    ],
+    [
+      "its version counts from nothing",
+      { revision: 0 },
+      "A payment's version counts up from one",
     ],
     [
       "it still holds what the provider was asked to build",

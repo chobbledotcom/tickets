@@ -34,8 +34,10 @@ export type StoredPayment = {
   sessionResource: string | null;
   sessionReferenceIndex: string | null;
   state: PaymentSessionState;
+  revision: number;
   nextReconcileAt: number | null;
   leaseToken: string | null;
+  leaseExpiresAt: number | null;
   resultState: ResultState;
   result: string | null;
   ticketState: TicketState;
@@ -52,6 +54,19 @@ const paymentBookkeepingHolds = (
   [
     (payment.ticketState === "ready") === present(payment.ticketTokens),
     "A payment has its tickets exactly when it says they are ready",
+  ],
+  [
+    // A claim with no end never goes stale, so a worker that dies holding one
+    // would keep the payment to itself for good.
+    present(payment.leaseToken) === present(payment.leaseExpiresAt),
+    "A worker's claim on a payment says when it runs out",
+  ],
+  [
+    // Versions only ever climb. One that went backwards could reach a number
+    // it already had, letting an old write look current and overwrite a
+    // newer one.
+    payment.revision >= 1,
+    "A payment's version counts up from one",
   ],
 ];
 
@@ -125,6 +140,14 @@ export const paymentKnowsWhereItCameFrom = (payment: StoredPayment): Fault => {
       present(payment.sessionResource) ||
         ["created", "failed"].includes(payment.state),
       "A payment past its start must know the checkout it belongs to",
+    ],
+    [
+      // The provider's callback finds the payment by this lookup code alone.
+      // A checkout stored without one can never be found again, so the money
+      // arrives and the record it belongs to is missed.
+      present(payment.sessionResource) ===
+        present(payment.sessionReferenceIndex),
+      "A checkout is kept with the code that finds it again",
     ],
     [
       (payment.resultState === "none") === absent(payment.result),

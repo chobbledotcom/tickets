@@ -51,6 +51,26 @@ describe("what a stored charge may be", () => {
 
   for (const [name, broken, fault] of [
     ["it names no provider", { provider: null }, KNOWS_ITSELF],
+    [
+      "it is named the way another provider names its money",
+      { resourceKind: "square_payment" },
+      "Money taken here must be named the way its own provider names it",
+    ],
+    [
+      "it took nothing at all",
+      { capturedAmount: 0 },
+      "Money taken must be at least a penny",
+    ],
+    [
+      "it took less than nothing",
+      { capturedAmount: -100 },
+      "Money taken must be at least a penny",
+    ],
+    [
+      "money went back the wrong way",
+      { refundedAmount: -1 },
+      "Money gone back cannot be less than nothing",
+    ],
     ["it has no refunded total", { refundedAmount: null }, KNOWS_ITSELF],
     ["it has no way to be found again", { referenceIndex: null }, KNOWS_ITSELF],
     [

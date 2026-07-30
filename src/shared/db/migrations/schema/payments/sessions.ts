@@ -48,8 +48,6 @@ export const paymentSessionTable: [name: string, table: Table] = [
       ["state", words()],
       ["revision", wholeNumber(1)],
       ...madeAndTouched,
-      // An empty claim would match another empty one, so two workers could
-      // both think they held the payment.
       ["lease_token", wordsOrNull()],
       ["lease_expires_at", wholeNumberOrNull()],
       ["next_reconcile_at", wholeNumberOrNull()],
@@ -60,9 +58,6 @@ export const paymentSessionTable: [name: string, table: Table] = [
       ["ticket_tokens", wordsOrNull()],
       ["completion_state", words("none")],
       ["completion", wordsOrNull()],
-      // Floored on when the payment was made, not when it last changed:
-      // clearing the buyer's details does not freeze the money record, so a
-      // later refund moves updated_at past a redaction that already happened.
       ["redacted_at", wholeNumberOrNull()],
       ["legacy_runtime", aboutThePayment(wordsOrNull())],
     ],
