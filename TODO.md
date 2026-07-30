@@ -1856,32 +1856,3 @@ of the row that was made, rather than falling through to the generic 503.
 Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
-
----
-
-## Give nine route/template files mirror-located direct tests
-
-*Origin: `deno task precommit:mutation` on PR #2006, which touched every
-`defineForm` caller to drop the dead form `id`.*
-
-The mutation gate refuses to run for a changed source file with no direct
-test at its mirror path, and these nine only have tests elsewhere (mostly
-under `test/integration/`):
-
-- `src/features/admin/api-keys.ts` — tests in `test/integration/api-keys.test.ts`
-- `src/features/admin/attributes.ts` — tests in `test/integration/server/attributes/`
-- `src/features/admin/content-form-fields.ts` — covered via the news/pages suites
-- `src/features/admin/database-reset.ts` — tests in `test/integration/server/demo-reset.test.ts`
-- `src/features/admin/news-form.ts` — covered via `test/integration/server/site-content-forms.test.ts`
-- `src/features/admin/site-pages-form.ts` — same
-- `src/features/admin/site.ts` — tests in `test/integration/server/site.test.ts`
-- `src/features/join.ts` — covered via invite/user suites
-- `src/ui/templates/admin/ledger/entry-form.ts` — covered via ledger page suites
-
-The fix the gate itself names: move each file's tests to the matching path
-under `test/` (`test/features/admin/api-keys.test.ts`, and so on), run
-`deno task mutation` per file, and add assertions for any survivor. This is
-a test-location migration of about 2,400 lines plus survivor work, so it
-needs its own change; PR #2006 only deleted one config line in each of
-these files and ran the standalone mutation gate on every changed file that
-does have a mirror suite.

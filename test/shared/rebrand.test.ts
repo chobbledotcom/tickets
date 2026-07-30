@@ -211,6 +211,29 @@ describe("buildReplacer", () => {
     );
   });
 
+  test("a > inside a quoted attribute does not end the tag early", () => {
+    // HTML allows > in a quoted value; the whole tag, title and href alike,
+    // must pass through untouched while the label and prose rebrand.
+    expect(
+      buildReplacer("listing|event")(
+        '<a title="a > listing" href="/listings/x">the listing</a> for listings.',
+      ),
+    ).toBe(
+      '<a title="a > listing" href="/listings/x">the event</a> for events.',
+    );
+  });
+
+  test("a quoted attribute split by an argument keeps its later > as text", () => {
+    // The argument splits the title's quoted value; the > after it is still
+    // inside the quote, so the tag only ends at the real closing bracket.
+    const rebranded = buildReplacer("listing|event")(
+      '<a title="{n} > listings" href="/listings/x">go</a> to listings.',
+    );
+    expect(format(rebranded, { n: 2 })).toBe(
+      '<a title="2 > listings" href="/listings/x">go</a> to events.',
+    );
+  });
+
   test("a branch closing a <code> span does not unprotect its siblings", () => {
     // Each branch closes the code span itself, so the copy after the close
     // rebrands inside every branch — including the later ones, which must

@@ -55,13 +55,33 @@ type ScanState = {
   inTag: boolean;
   /** The unfinished tag is a `<code …>` opener, so closing it starts a code span. */
   tagIsCode: boolean;
+  /** Inside a quoted attribute value, where a `>` is text, not the tag's end. */
+  quote: '"' | "'" | null;
 };
 
 const freshScan = (): ScanState => ({
   inCode: false,
   inTag: false,
+  quote: null,
   tagIsCode: false,
 });
+
+/**
+ * The index of the `>` that really ends the tag, skipping any `>` inside a
+ * quoted attribute value — or -1 when the tag runs past this node. The quote
+ * state lives on the scan so a value an ICU argument split stays quoted into
+ * the next node.
+ */
+const scanTagEnd = (copy: string, from: number, state: ScanState): number => {
+  for (let i = from; i < copy.length; i++) {
+    const char = copy[i]!;
+    if (state.quote) {
+      if (char === state.quote) state.quote = null;
+    } else if (char === '"' || char === "'") state.quote = char;
+    else if (char === ">") return i;
+  }
+  return -1;
+};
 
 const CODE_CLOSE = "</code>";
 
@@ -107,16 +127,17 @@ const stepCode = spanStep(takeCodeSpan, CODE_CLOSE.length, (state) => {
   state.inCode = false;
 });
 
-/** Inside an unfinished tag: emit it verbatim until (and including) its `>`. */
-const stepTag = spanStep(
-  (copy, i) => copy.indexOf(">", i),
-  1,
-  (state) => {
-    state.inTag = false;
-    state.inCode = state.tagIsCode;
-    state.tagIsCode = false;
-  },
-);
+/** Inside an unfinished tag: emit it verbatim until (and including) its real `>`. */
+const stepTag = (copy: string, i: number, state: ScanState): ScanStep =>
+  spanStep(
+    (tagCopy, from) => scanTagEnd(tagCopy, from, state),
+    1,
+    (closed) => {
+      closed.inTag = false;
+      closed.inCode = closed.tagIsCode;
+      closed.tagIsCode = false;
+    },
+  )(copy, i, state);
 
 /** In prose: rebrand up to the next tag, then emit that tag (or note it is unfinished). */
 const stepProse = (
@@ -128,7 +149,7 @@ const stepProse = (
   const open = copy.indexOf("<", i);
   if (open === -1) return { next: -1, text: rebrandProse(copy.slice(i)) };
   const prose = rebrandProse(copy.slice(i, open));
-  const end = copy.indexOf(">", open);
+  const end = scanTagEnd(copy, open + 1, state);
   if (end === -1) {
     state.inTag = true;
     state.tagIsCode = opensCode(copy.slice(open));
