@@ -45,8 +45,6 @@ describe("news post forms", () => {
   test("newsPostToValues pre-fills every edit field, snippet included", () => {
     const values = newsPostToValues({
       content: "Body",
-      created: "2026-01-01T00:00:00Z",
-      id: 1,
       meta_description: "Desc",
       meta_title: "Title",
       name: "Post",

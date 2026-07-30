@@ -31,7 +31,12 @@ export const { createForm: newsPostForm, editForm: newsPostEditForm } =
   });
 
 /** Snake-case field values for pre-filling the edit form (slug included). */
-export const newsPostToValues = (post: NewsPost): Record<string, string> => ({
+export const newsPostToValues = (
+  post: Pick<
+    NewsPost,
+    "content" | "meta_description" | "meta_title" | "name" | "slug" | "snippet"
+  >,
+): Record<string, string> => ({
   ...contentFieldValues(post),
   snippet: post.snippet,
 });
