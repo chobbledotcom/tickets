@@ -161,4 +161,46 @@ describe("buildReplacer", () => {
       "Saved 'Note' to the event.",
     );
   });
+
+  test("keeps a tag's attributes intact when an argument splits the tag", () => {
+    // The argument sits inside the href, cutting the <a> tag across three
+    // nodes. The route in the href must survive; the link's visible label
+    // and the prose after it still rebrand.
+    const rebranded = buildReplacer("listing|event")(
+      'See <a href="/listings/{id}/edit">the listing</a> for listings.',
+    );
+    expect(format(rebranded, { id: 7 })).toBe(
+      'See <a href="/listings/7/edit">the event</a> for events.',
+    );
+  });
+
+  test("every plural branch starts inside the same open <code> span", () => {
+    // The whole plural sits inside one <code> example. The first branch must
+    // not leak state that unprotects the later branches: both keep their
+    // code text verbatim, and the prose after the span still rebrands.
+    const rebranded = buildReplacer("listing|event")(
+      "Run <code>ls {count, plural, one {listing} other {listings}}</code> to list listings.",
+    );
+    expect(format(rebranded, { count: 1 })).toBe(
+      "Run <code>ls listing</code> to list events.",
+    );
+    expect(format(rebranded, { count: 5 })).toBe(
+      "Run <code>ls listings</code> to list events.",
+    );
+  });
+
+  test("a branch closing a <code> span does not unprotect its siblings", () => {
+    // Each branch closes the code span itself, so the copy after the close
+    // rebrands inside every branch — including the later ones, which must
+    // still open inside the span.
+    const rebranded = buildReplacer("listing|event")(
+      "<code>{kind, select, ls {ls</code> lists listings} other {ls -a</code> lists all listings}}",
+    );
+    expect(format(rebranded, { kind: "ls" })).toBe(
+      "<code>ls</code> lists events",
+    );
+    expect(format(rebranded, { kind: "verbose" })).toBe(
+      "<code>ls -a</code> lists all events",
+    );
+  });
 });

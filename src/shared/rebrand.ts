@@ -43,33 +43,124 @@ const escapeRegExp = (s: string): string =>
 const titleCase = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
 
 /**
- * Spans that must never be rewritten, captured whole so the rebrander only ever
- * sees the prose between them:
- *   - a complete `<code>…</code>` block (literal route/CLI examples), and
- *   - any single HTML tag `<…>` (keeping tag names and attributes such as
- *     link `href`s intact).
- * The capturing group makes `String.split` keep these spans, at odd indices.
+ * Where the scan through a message's copy currently is. It is threaded across
+ * literal nodes because an ICU argument can split an HTML tag (`<a
+ * href="/x/{id}">`) or a whole `<code>…</code>` example over several nodes —
+ * the later halves must stay as protected as the first.
  */
-const PROTECTED_SPAN = /(<code\b[^>]*>[\s\S]*?<\/code>|<[^>]+>)/gi;
+type ScanState = {
+  /** Inside a `<code>…</code>` example: everything is literal until it closes. */
+  inCode: boolean;
+  /** Inside an HTML tag whose `>` sits in a later node. */
+  inTag: boolean;
+  /** The unfinished tag is a `<code …>` opener, so closing it starts a code span. */
+  tagIsCode: boolean;
+};
+
+const freshScan = (): ScanState => ({
+  inCode: false,
+  inTag: false,
+  tagIsCode: false,
+});
+
+const CODE_CLOSE = "</code>";
+
+/** Whether the text starting at an `<` opens a `<code>` example. */
+const opensCode = (rest: string): boolean => /^<code\b/i.test(rest);
+
+/** Rewrites a run of plain prose (no tags or code in it). */
+type ProseRewriter = (prose: string) => string;
+
+/** Copy code text verbatim up to (and including) its `</code>`; -1 = no close here. */
+const takeCodeSpan = (copy: string, from: number): number =>
+  copy.toLowerCase().indexOf(CODE_CLOSE, from);
+
+/** One scanner move: the text to emit, and where to continue (-1 = at the end). */
+type ScanStep = { text: string; next: number };
+
+/** Inside a code example: emit it verbatim until (and including) `</code>`. */
+const stepCode = (copy: string, i: number, state: ScanState): ScanStep => {
+  const close = takeCodeSpan(copy, i);
+  if (close === -1) return { next: -1, text: copy.slice(i) };
+  state.inCode = false;
+  return {
+    next: close + CODE_CLOSE.length,
+    text: copy.slice(i, close + CODE_CLOSE.length),
+  };
+};
+
+/** Inside an unfinished tag: emit it verbatim until (and including) its `>`. */
+const stepTag = (copy: string, i: number, state: ScanState): ScanStep => {
+  const end = copy.indexOf(">", i);
+  if (end === -1) return { next: -1, text: copy.slice(i) };
+  state.inTag = false;
+  state.inCode = state.tagIsCode;
+  state.tagIsCode = false;
+  return { next: end + 1, text: copy.slice(i, end + 1) };
+};
+
+/** In prose: rebrand up to the next tag, then emit that tag (or note it is unfinished). */
+const stepProse = (
+  copy: string,
+  i: number,
+  state: ScanState,
+  rebrandProse: ProseRewriter,
+): ScanStep => {
+  const open = copy.indexOf("<", i);
+  if (open === -1) return { next: -1, text: rebrandProse(copy.slice(i)) };
+  const prose = rebrandProse(copy.slice(i, open));
+  const end = copy.indexOf(">", open);
+  if (end === -1) {
+    state.inTag = true;
+    state.tagIsCode = opensCode(copy.slice(open));
+    return { next: -1, text: prose + copy.slice(open) };
+  }
+  state.inCode = opensCode(copy.slice(open));
+  return { next: end + 1, text: prose + copy.slice(open, end + 1) };
+};
 
 /**
- * Whether the copy at this point sits inside an open `<code>` example. The flag
- * is threaded through a whole template because an ICU argument can split one
- * `<code>…</code>` span across several literal nodes — the closing half must
- * stay as protected as the opening half.
+ * Rewrite one literal node's copy: prose is rebranded; HTML tags (with their
+ * attributes) and `<code>` examples pass through verbatim, even when an ICU
+ * argument split them across nodes.
  */
-type CodeSpanState = { inCode: boolean };
+const rebrandLiteral = (
+  copy: string,
+  rebrandProse: ProseRewriter,
+  state: ScanState,
+): string => {
+  let out = "";
+  let i = 0;
+  while (i !== -1 && i < copy.length) {
+    const step = state.inCode
+      ? stepCode(copy, i, state)
+      : state.inTag
+        ? stepTag(copy, i, state)
+        : stepProse(copy, i, state, rebrandProse);
+    out += step.text;
+    i = step.next;
+  }
+  return out;
+};
 
-/** A lone `<code …>` opener — its closing tag lives in a later segment. */
-const CODE_OPENER = /^<code\b[^>]*>$/i;
-/** The matching `</code>` closer arriving in a later segment. */
-const CODE_CLOSER = /^<\/code>$/i;
-
-/** Track a `<code>` opener or closer passing by; the span itself stays as-is. */
-const trackCodeSpan = (span: string, state: CodeSpanState): string => {
-  if (CODE_OPENER.test(span)) state.inCode = true;
-  else if (CODE_CLOSER.test(span)) state.inCode = false;
-  return span;
+/**
+ * The branches of one plural/select are alternatives for the same spot in the
+ * message, so each starts from the same scan state; well-formed copy leaves
+ * them all agreeing, and the first branch's exit state carries forward.
+ */
+const rebrandBranches = (
+  options: Record<string, { value: MessageFormatElement[] }>,
+  rebrandCopy: (copy: string, state: ScanState) => string,
+  state: ScanState,
+): void => {
+  const entry = { ...state };
+  let adopted = false;
+  for (const branch of Object.values(options)) {
+    const branchState = { ...entry };
+    rebrandIcuNodes(branch.value, rebrandCopy, branchState);
+    if (!adopted) Object.assign(state, branchState);
+    adopted = true;
+  }
 };
 
 /**
@@ -79,14 +170,13 @@ const trackCodeSpan = (span: string, state: CodeSpanState): string => {
  */
 const rebrandIcuNodes = (
   nodes: MessageFormatElement[],
-  rebrandCopy: (copy: string, state: CodeSpanState) => string,
-  state: CodeSpanState,
+  rebrandCopy: (copy: string, state: ScanState) => string,
+  state: ScanState,
 ): void => {
   for (const node of nodes) {
     if (isLiteralElement(node)) node.value = rebrandCopy(node.value, state);
     else if (isPluralElement(node) || isSelectElement(node))
-      for (const branch of Object.values(node.options))
-        rebrandIcuNodes(branch.value, rebrandCopy, state);
+      rebrandBranches(node.options, rebrandCopy, state);
   }
 };
 
@@ -135,29 +225,20 @@ export const buildReplacer = (raw: string | undefined): Replacer => {
     .join("|");
   const regex = new RegExp(pattern, "gi");
 
-  const rebrandProse = (prose: string): string =>
+  const rebrandProse: ProseRewriter = (prose) =>
     prose.replace(regex, (match) => {
       const entry = map.get(match.toLowerCase())!;
       const first = match[0]!;
       return first === first.toLowerCase() ? entry.lower : entry.title;
     });
 
-  // Rewrite only the prose between protected spans, leaving tags/code verbatim.
-  // A `<code>` opener whose closer sits in a later literal node flips the
-  // state, so the copy in between stays protected too.
-  const rebrandCopy = (copy: string, state: CodeSpanState): string =>
-    copy
-      .split(PROTECTED_SPAN)
-      .map((segment, i) => {
-        if (i % 2 === 1) return trackCodeSpan(segment, state);
-        return state.inCode ? segment : rebrandProse(segment);
-      })
-      .join("");
+  const rebrandCopy = (copy: string, state: ScanState): string =>
+    rebrandLiteral(copy, rebrandProse, state);
 
   return (template) => {
-    if (!needsIcu(template)) return rebrandCopy(template, { inCode: false });
+    if (!needsIcu(template)) return rebrandCopy(template, freshScan());
     const nodes = parse(template, { ignoreTag: true });
-    rebrandIcuNodes(nodes, rebrandCopy, { inCode: false });
+    rebrandIcuNodes(nodes, rebrandCopy, freshScan());
     return nodes;
   };
 };
