@@ -139,6 +139,8 @@ export interface Table<Row, Input> {
   insertStatement?: (
     input: Input,
     condition?: SqlStatement,
+    /** Columns the INSERT reports back. Defaults to the primary key. */
+    returningColumns?: string,
   ) => Promise<SqlStatement>;
   name: string;
   primaryKey: keyof Row & string;
@@ -204,16 +206,13 @@ export async function writeTableRow<Row, Input>(
 ): Promise<Row | null> {
   const statement =
     write.kind === "insert"
-      ? await table.insertStatement!(write.input, write.condition)
+      ? await table.insertStatement!(
+          write.input,
+          write.condition,
+          table.columns.join(", "),
+        )
       : await table.updateStatement!(write.id, write.input, write.condition);
-  const returning =
-    write.kind === "insert"
-      ? {
-          ...statement,
-          sql: `${statement.sql} RETURNING ${table.columns.join(", ")}`,
-        }
-      : statement;
-  const row = resultRows<Row>(await transaction.execute(returning))[0];
+  const row = resultRows<Row>(await transaction.execute(statement))[0];
   return row ? table.fromDb(row) : null;
 }
 
@@ -237,16 +236,19 @@ const applyWriteTransform = <T>(
 };
 
 /** Build INSERT SQL */
+/** Build INSERT SQL with RETURNING, so the written row itself reports the
+ * columns the caller needs — a generated key included. */
 const buildInsertSql = (
   name: string,
   columns: string[],
+  returningColumns: string,
   condition?: string,
 ): string => {
   const placeholders = columns.map(() => "?").join(", ");
   const values = condition
     ? `SELECT ${placeholders} WHERE ${condition}`
     : `VALUES (${placeholders})`;
-  return `INSERT INTO ${name} (${columns.join(", ")}) ${values}`;
+  return `INSERT INTO ${name} (${columns.join(", ")}) ${values} RETURNING ${returningColumns}`;
 };
 
 /** Build UPDATE SQL with RETURNING to get updated row in one round trip */
@@ -377,6 +379,7 @@ export const defineTable = <Row, Input = Row>(
    * lives in one place. */
   const buildInsert = async (
     input: Input,
+    returningColumns: string,
   ): Promise<{
     args: InValue[];
     columns: string[];
@@ -389,17 +392,17 @@ export const defineTable = <Row, Input = Row>(
       args: columns.map((col) => dbValues[col] as InValue),
       columns,
       dbValues,
-      sql: buildInsertSql(name, columns),
+      sql: buildInsertSql(name, columns, returningColumns),
     };
   };
 
   // Insert implementation
   const insert = async (input: Input): Promise<Row> => {
-    const { args, dbValues, sql } = await buildInsert(input);
+    const { args, dbValues, sql } = await buildInsert(input, primaryKey);
     const result = await execute(sql, args);
 
     const initialRow = schema[primaryKey].generated
-      ? { [primaryKey]: insertedRowId(result) }
+      ? { [primaryKey]: insertedRowId(result, primaryKey) }
       : {};
 
     return reduce((row: Record<string, unknown>, col: string) => {
@@ -414,12 +417,13 @@ export const defineTable = <Row, Input = Row>(
   const insertStatement = async (
     input: Input,
     condition?: SqlStatement,
+    returningColumns: string = primaryKey,
   ): Promise<SqlStatement> => {
-    const { args, columns, sql } = await buildInsert(input);
+    const { args, columns, sql } = await buildInsert(input, returningColumns);
     return condition
       ? {
           args: [...args, ...condition.args],
-          sql: buildInsertSql(name, columns, condition.sql),
+          sql: buildInsertSql(name, columns, returningColumns, condition.sql),
         }
       : { args, sql };
   };

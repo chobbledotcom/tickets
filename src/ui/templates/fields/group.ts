@@ -99,7 +99,7 @@ const groupCreateFields = () => {
 type GroupCreateForm = FormDefinition<ReturnType<typeof groupCreateFields>>;
 
 export const getGroupCreateForm = (): GroupCreateForm =>
-  defineForm({ fields: groupCreateFields(), id: "group-create" });
+  defineForm({ fields: groupCreateFields() });
 
 /** Group form field definitions (edit - includes slug) */
 const groupEditFields = () => {
@@ -110,7 +110,7 @@ const groupEditFields = () => {
 type GroupForm = FormDefinition<ReturnType<typeof groupEditFields>>;
 
 export const getGroupForm = (): GroupForm =>
-  defineForm({ fields: groupEditFields(), id: "group-edit" });
+  defineForm({ fields: groupEditFields() });
 
 export type GroupCreateFormValues = FormValues<GroupCreateForm>;
 export type GroupFormValues = FormValues<GroupForm>;

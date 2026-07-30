@@ -335,7 +335,7 @@ const listingFields = (view: ListingFormView = {}) =>
 type ListingForm = FormDefinition<ReturnType<typeof listingFields>>;
 
 export const getListingForm = (view: ListingFormView = {}): ListingForm =>
-  defineForm({ fields: listingFields(view), id: "listing" });
+  defineForm({ fields: listingFields(view) });
 
 const listingEditFields = (view: ListingFormView) =>
   [...listingFields(view), { ...getSlugField(), section: "advanced" }] as const;
@@ -344,8 +344,7 @@ type ListingEditForm = FormDefinition<ReturnType<typeof listingEditFields>>;
 
 export const getListingEditForm = (
   view: ListingFormView = {},
-): ListingEditForm =>
-  defineForm({ fields: listingEditFields(view), id: "listing-edit" });
+): ListingEditForm => defineForm({ fields: listingEditFields(view) });
 
 export type ListingFormValues = FormValues<ListingForm>;
 export type ListingEditFormValues = FormValues<ListingEditForm>;
@@ -364,5 +363,4 @@ const logisticsAgentFields = [
 
 export const logisticsAgentForm = defineForm({
   fields: logisticsAgentFields,
-  id: "logistics-agent",
 });

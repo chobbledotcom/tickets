@@ -113,11 +113,11 @@ src/fp.ts:455:49  ?? → ||   # items?.length is undefined or a non-negative int
 # Table inputs make these operators equivalent: nullable query results exclude
 # undefined, paired null checks already reject both nullish values, and optional
 # conditions/dependencies are objects or arrays.
-src/shared/db/table.ts:441:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:488:71  ?? → ||   # a found row is a truthy object, and a miss is undefined, so both operators give the row or null
-src/shared/db/table.ts:492:31  ?? → ||   # findByIds's element is a truthy row, null, or undefined, and all three agree
-src/shared/db/table.ts:580:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts:613:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
+src/shared/db/table.ts:445:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:492:71  ?? → ||   # a found row is a truthy object, and a miss is undefined, so both operators give the row or null
+src/shared/db/table.ts:496:31  ?? → ||   # findByIds's element is a truthy row, null, or undefined, and all three agree
+src/shared/db/table.ts:584:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:617:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
@@ -840,16 +840,16 @@ scripts/unit-tests-report-imports.ts:138:23   → "mutated"   # stem()'s first r
 src/shared/db/attendees/select.ts:294:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
 src/shared/db/attendees/select.ts:379:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
-# i18n (shared/i18n.ts) — four provably-equivalent survivors.
+# i18n copy handling (shared/rebrand.ts + shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
 # compiled by IntlMessageFormat; both produce identical output for a
 # placeholder-free message (locked by the "fast path renders every
 # placeholder-free message exactly as full ICU would" test), so a mutant that
 # makes needsIcu always-true is a pure performance change with no observable effect.
-src/shared/i18n.ts:237:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
-src/shared/i18n.ts:237:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
-src/shared/i18n.ts:180:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
-src/shared/i18n.ts:319:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
+src/shared/rebrand.ts:26:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
+src/shared/rebrand.ts:26:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
+src/shared/rebrand.ts:251:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts:230:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # listing edit panel (features/admin/listing-page-management-panels.ts) — group-id fallback.
 src/features/admin/listing-page-management-panels.ts:46:39  ?? → ||   # `selectedGroupIds ?? ctxData.selectedGroupIds`: selectedGroupIds is number[]|undefined — a submitted array (even []) is always truthy, so both operators return it unchanged, and undefined maps to the stored ids under both. No input distinguishes them (same class as attributes.tsx:173:61)
@@ -875,7 +875,6 @@ src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separat
 src/features/admin/calendar-csv.ts:77:55  ?? → ||   # agentNames.get() is string|undefined; "" and the "" fallback are identical
 src/features/admin/calendar-csv.ts:94:59  ?? → ||   # startTime is string|undefined; every falsy value produces the same "" fallback
 src/features/admin/calendar-csv.ts:102:57  ?? → ||   # endTime is string|undefined; every falsy value produces the same "" fallback
-src/shared/db/activityLog.ts:187:69   → "mutated"   # the inserted word is an unused SQLite table alias, so rows, ordering, arguments, and limit are unchanged
 src/shared/forms/rendering.tsx:67:17   → "mutated"   # split("T")[0] always exists, and the empty input returned before this line
 src/shared/forms/rendering.tsx:194:35  || → &&   # publicLinkPath is absent or a function, so both boolean terms always agree
 src/shared/forms/rendering.tsx:209:20  ?? → ||   # beforeHtml is string|undefined and falls back to "", so both operators agree
@@ -982,7 +981,7 @@ scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it a
 
 # Isolated mutation runs: the exit code before any path has set one.
 scripts/mutation/isolation.ts:188:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
-src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
+src/shared/db/migrations.ts:252:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
 
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.

@@ -154,7 +154,7 @@ const buildUserInsert = async (
     username_index: usernameIndex,
     wrapped_data_key: opts.wrappedDataKey,
   };
-  return { statement: insert("users", values), values };
+  return { statement: insert("users", values, "id"), values };
 };
 
 /** A user INSERT statement plus the row values needed to rebuild the User. */

@@ -6,7 +6,7 @@ import type { Field } from "#shared/forms/field.ts";
 import { renderField } from "#shared/forms/rendering.tsx";
 import { ensureMessageGroups } from "#shared/i18n.ts";
 
-const singleActionSelect = (id: string, invalidMessage?: string) =>
+const singleActionSelect = (invalidMessage?: string) =>
   defineForm({
     fields: [
       {
@@ -17,7 +17,6 @@ const singleActionSelect = (id: string, invalidMessage?: string) =>
         type: "select",
       },
     ] as const,
-    id,
   });
 
 describe("form field schema", () => {
@@ -36,7 +35,6 @@ describe("form field schema", () => {
           type: "select",
         },
       ] as const,
-      id: "option-hints",
     });
     const html = form.render();
     expect(html).toContain("<strong>Payment:</strong> Use cash.");
@@ -57,7 +55,6 @@ describe("form field schema", () => {
           type: "select",
         },
       ] as const,
-      id: "select-validation",
     });
 
     expect(form.validate(new FormParams({ action: "refund" }))).toEqual({
@@ -67,7 +64,7 @@ describe("form field schema", () => {
   });
 
   test("uses the shared invalid message when a choice has no custom message", () => {
-    const form = singleActionSelect("default-choice-message");
+    const form = singleActionSelect();
 
     expect(form.validate(new FormParams({ action: "refund" }))).toEqual({
       error: "Action is invalid.",
@@ -88,7 +85,6 @@ describe("form field schema", () => {
           type: "select",
         },
       ] as const,
-      id: "select-values",
     });
 
     const result = form.validate(new FormParams({ action: "pay" }));
@@ -100,7 +96,7 @@ describe("form field schema", () => {
   });
 
   test("normalizes an empty select value to null", () => {
-    const form = singleActionSelect("empty-select-value");
+    const form = singleActionSelect();
 
     expect(form.validate(new FormParams())).toEqual({
       valid: true,
@@ -139,7 +135,6 @@ describe("form field schema", () => {
             type: "select",
           } as unknown as Field,
         ] as const,
-        id: "empty-select",
       });
 
     expect(defineEmptySelect).toThrow("Action must define at least one option");
@@ -158,7 +153,6 @@ describe("form field schema", () => {
           type: "checkbox-group",
         },
       ] as const,
-      id: "spaced-checkboxes",
     });
 
     expect(
@@ -181,7 +175,6 @@ describe("form field schema", () => {
               type: "checkbox-group",
             },
           ] as const,
-          id: "ambiguous-checkboxes",
         }),
       ).toThrow(
         "Tags checkbox option values must be trimmed, non-empty, and contain no commas",
@@ -202,7 +195,6 @@ describe("form field schema", () => {
           type: "checkbox-group",
         },
       ] as const,
-      id: "malformed-checkboxes",
     });
 
     expect(form.validate(new FormParams({ tags: "one,,two" }))).toEqual({
@@ -224,7 +216,6 @@ describe("form field schema", () => {
           visible: false,
         },
       ] as const,
-      id: "sections",
     });
     const rejectUnknownSection = () => {
       // @ts-expect-error Section ids come from the field declarations.
@@ -241,7 +232,6 @@ describe("form field schema", () => {
   test("throws when a field lookup uses an unknown name", () => {
     const form = defineForm({
       fields: [{ label: "Name", name: "name", type: "text" }] as const,
-      id: "field-lookup",
     });
     const renderUnknownField = () => {
       // @ts-expect-error Field names come from the field declarations.
@@ -254,7 +244,6 @@ describe("form field schema", () => {
   test("renders an omitted field value as blank", () => {
     const form = defineForm({
       fields: [{ label: "Name", name: "name", type: "text" }] as const,
-      id: "blank-field",
     });
 
     expect(form.renderField("name")).not.toContain("value=");

@@ -99,7 +99,9 @@ Given(
 When(
   "the organiser looks at the {word}'s page",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    await openAdminPage(this, `/admin/listing/${stayListing(this, name).id}`);
+    const { id } = stayListing(this, name);
+    this.evidenceValues.set("stayLengthListingId", String(id));
+    await openAdminPage(this, `/admin/listing/${id}`);
   },
 );
 

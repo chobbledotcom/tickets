@@ -58,14 +58,29 @@ export const appliedMigrationIds = async (): Promise<string[]> => {
   return result.rows.map((row) => String(row.id));
 };
 
+/**
+ * A lock stamp from long enough ago that no sane time limit still honours it.
+ * Tests wanting an abandoned lock use this rather than working a date back from
+ * the production limit, which would hide a change to the limit itself.
+ */
+export const LONG_EXPIRED_LOCK_STAMP = "2020-01-01T00:00:00.000Z";
+
+/**
+ * A lock stamp the time limit still honours — but not the same instant as the
+ * acquisition under test, since two writes landing in one millisecond would
+ * leave the limit untested.
+ */
+export const freshLockStamp = (): string =>
+  new Date(Date.now() - 30_000).toISOString();
+
 /** Take the migration lock for a test, failing loudly if another lease holds
  *  it — a test that cannot lock has nothing meaningful to assert. */
 export const takeMigrationLock = async (): Promise<string> => {
-  const lockToken = await acquireMigrationLock(false);
-  if (lockToken === null) {
+  const lease = await acquireMigrationLock(false);
+  if (lease === null) {
     throw new Error("Could not take the migration lock for this test");
   }
-  return lockToken;
+  return lease.token;
 };
 
 export const schemaMarkerKeys = async (): Promise<string[]> => {
