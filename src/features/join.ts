@@ -39,7 +39,6 @@ export const joinForm = defineForm({
       type: "password" as const,
     },
   ] as const,
-  id: "join",
 });
 
 /** Validate invite code and return user, or an error response */

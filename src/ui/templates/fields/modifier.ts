@@ -140,6 +140,6 @@ const getModifierFields = () =>
 type ModifierForm = FormDefinition<ReturnType<typeof getModifierFields>>;
 
 export const getModifierForm = (): ModifierForm =>
-  defineForm({ fields: getModifierFields(), id: "modifier" });
+  defineForm({ fields: getModifierFields() });
 
 export type ModifierFormValues = FormValues<ModifierForm>;

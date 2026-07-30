@@ -71,7 +71,6 @@ export type FormDefinition<
   TFields extends FormFieldDefinitions,
   TContext = undefined,
 > = {
-  id: string;
   fields: TFields;
   render: (values?: FormRenderValuesFor<TFields>) => string;
   renderField: (name: TFields[number]["name"], value?: string) => string;
@@ -91,7 +90,6 @@ export const defineForm = <
   TFields extends FormFieldDefinitions,
   TContext = undefined,
 >(config: {
-  id: string;
   fields: TFields;
   validate?: (
     values: FormValuesFor<TFields>,
@@ -153,7 +151,6 @@ export const defineForm = <
 
   return {
     fields: config.fields,
-    id: config.id,
     render,
     renderField: (name, value = "") => renderField(fieldByName(name), value),
     section,
@@ -161,3 +158,24 @@ export const defineForm = <
     validate,
   };
 };
+
+/** The field shape `defineTextForm` builds: one required text box. */
+type SingleTextField<TName extends string> = {
+  readonly label: string;
+  readonly name: TName;
+  readonly placeholder: string;
+  readonly required: true;
+  readonly type: "text";
+};
+
+/** One required text box — the whole form for naming or renaming one thing. */
+export const defineTextForm = <TName extends string>(
+  label: string,
+  name: TName,
+  placeholder: string,
+): FormDefinition<readonly [SingleTextField<TName>]> =>
+  defineForm({
+    fields: [
+      { label, name, placeholder, required: true, type: "text" },
+    ] as const,
+  });

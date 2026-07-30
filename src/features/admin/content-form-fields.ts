@@ -119,8 +119,6 @@ export const defineContentForms = <
 >(config: {
   createSlugFields: CreateSlug;
   extraFields: Extra;
-  /** Form ids: `<id>` for create, `<id>Edit` for edit. */
-  id: string;
   nameLabel: string;
   publicLinkPath: (slug: string) => string;
 }): ContentForms<CreateSlug, Extra> => {
@@ -137,7 +135,6 @@ export const defineContentForms = <
         ...config.createSlugFields,
         ...trailingFields,
       ] as const,
-      id: config.id,
     }),
     editForm: defineForm({
       fields: [
@@ -145,7 +142,6 @@ export const defineContentForms = <
         contentSlugField(config.publicLinkPath),
         ...trailingFields,
       ] as const,
-      id: `${config.id}Edit`,
     }),
   };
 };

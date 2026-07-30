@@ -19,7 +19,6 @@ describe("defineForm", () => {
             type: "money",
           },
         ] as const,
-        id: "money",
       });
 
       const html = form.render({ amount: "1.005" });
@@ -43,7 +42,6 @@ describe("defineForm", () => {
             type: "money",
           },
         ] as const,
-        id: "optional-money",
       });
 
       const html = form.render();
@@ -59,7 +57,6 @@ describe("defineForm", () => {
       fields: [
         { label: "When", name: "when", type: "datetime-local" },
       ] as const,
-      id: "datetime-local",
     });
     expect(form.render({ when: "2026-06-22T09:30" })).toContain(
       'type="datetime-local"',
@@ -80,7 +77,6 @@ describe("defineForm", () => {
           type: "money",
         },
       ] as const,
-      id: "messages",
     });
 
   test("uses the schema message when a required value is missing", () => {
@@ -109,7 +105,6 @@ describe("defineForm", () => {
           type: "money",
         },
       ] as const,
-      id: "null-result",
     });
 
     expect(form.validate(new FormParams({ amount: "12" }))).toEqual({
@@ -128,7 +123,6 @@ describe("defineForm", () => {
           type: "money",
         },
       ] as const,
-      id: "non-finite-result",
     });
 
     expect(form.validate(new FormParams({ amount: "not-a-number" }))).toEqual({
@@ -148,7 +142,6 @@ describe("defineForm", () => {
           type: "number",
         },
       ] as const,
-      id: "test",
     });
 
     const result = form.validate(new FormParams({ age: "25" }));
@@ -161,7 +154,6 @@ describe("defineForm", () => {
       fields: [
         { label: "Name", name: "name", required: true, type: "text" },
       ] as const,
-      id: "test",
     });
 
     const html = form.render({ name: "Alice" });
@@ -172,7 +164,6 @@ describe("defineForm", () => {
   test("field render returns single field HTML", () => {
     const form = defineForm({
       fields: [{ label: "Color", name: "color", type: "text" }] as const,
-      id: "test",
     });
 
     const html = form.renderField("color", "blue");
@@ -182,7 +173,6 @@ describe("defineForm", () => {
   test("returns an empty string for a blank optional text field", () => {
     const form = defineForm({
       fields: [{ label: "Note", name: "note", type: "text" }] as const,
-      id: "optional-text",
     });
 
     const result = form.validate(new FormParams({ note: "" }));
@@ -196,7 +186,6 @@ describe("defineForm", () => {
   test("returns an empty string for a blank optional datetime field", () => {
     const form = defineForm({
       fields: [{ label: "When", name: "when", type: "datetime" }] as const,
-      id: "optional-datetime",
     });
 
     const result = form.validate(new FormParams({}));
@@ -217,7 +206,6 @@ describe("defineForm", () => {
           type: "checkbox-group",
         },
       ] as const,
-      id: "optional-checkboxes",
     });
 
     const result = form.validate(new FormParams({}));
@@ -238,7 +226,6 @@ describe("defineForm", () => {
           type: "select",
         },
       ] as const,
-      id: "test",
     });
 
     const result = form.validate(new FormParams({ date: "" }));
@@ -255,7 +242,6 @@ describe("defineForm", () => {
           type: "number",
         },
       ] as const,
-      id: "test",
     });
 
     const result = form.validate(new FormParams({ qty: "5" }));
@@ -266,7 +252,6 @@ describe("defineForm", () => {
   test("optional number field preserves a zero value (not coerced to null)", () => {
     const form = defineForm({
       fields: [{ label: "Qty", name: "qty", type: "number" }] as const,
-      id: "test",
     });
 
     const result = form.validate(new FormParams({ qty: "0" }));
@@ -279,7 +264,6 @@ describe("defineForm", () => {
   test("rejects trailing text in a number field", () => {
     const form = defineForm({
       fields: [{ label: "Quantity", name: "qty", type: "number" }] as const,
-      id: "strict-number",
     });
 
     expect(form.validate(new FormParams({ qty: "5abc" }))).toEqual({
@@ -291,7 +275,6 @@ describe("defineForm", () => {
   test("preserves a decimal number instead of truncating it", () => {
     const form = defineForm({
       fields: [{ label: "Value", name: "value", type: "number" }] as const,
-      id: "decimal-number",
     });
 
     expect(form.validate(new FormParams({ value: "1.5" }))).toEqual({
@@ -305,7 +288,6 @@ describe("defineForm", () => {
       fields: [
         { label: "Code", name: "code", required: true, type: "text" },
       ] as const,
-      id: "test",
       validate: (values) => (values.code === "secret" ? null : "Invalid code"),
     });
 
@@ -322,7 +304,6 @@ describe("defineForm", () => {
       fields: [
         { label: "Name", name: "name", required: true, type: "text" },
       ] as const,
-      id: "test",
       validate: () => "should not run",
     });
 

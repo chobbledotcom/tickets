@@ -9,6 +9,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertJson,
   expectFlash,
+  inputNamed,
   redirectFormId,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -111,10 +112,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("sumup");
       const response = await adminGet("/admin/settings");
       const html = await response.text();
-      const inputTag = (name: string): string =>
-        html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? "";
-      expect(inputTag("sumup_api_key")).toContain('autocomplete="off"');
-      expect(inputTag("sumup_merchant_code")).toContain('autocomplete="off"');
+      expect(inputNamed(html, "sumup_api_key")).toContain('autocomplete="off"');
+      expect(inputNamed(html, "sumup_merchant_code")).toContain(
+        'autocomplete="off"',
+      );
     });
 
     test("shows the configured message and the test button", async () => {

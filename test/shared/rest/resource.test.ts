@@ -29,7 +29,6 @@ const testForm = defineForm({
     { label: "Name", name: "name", required: true, type: "text" },
     { label: "Value", name: "value", required: true, type: "number" },
   ] as const,
-  id: "test-resource",
 });
 
 type TestFormValues = FormValues<typeof testForm>;
