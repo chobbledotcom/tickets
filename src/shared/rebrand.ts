@@ -71,6 +71,9 @@ const opensCode = (rest: string): boolean => /^<code\b/i.test(rest);
 /** Rewrites a run of plain prose (no tags or code in it). */
 type ProseRewriter = (prose: string) => string;
 
+/** Rewrites one literal node's copy, tracking spans across nodes via the state. */
+type CopyRewriter = (copy: string, state: ScanState) => string;
+
 /** Copy code text verbatim up to (and including) its `</code>`; -1 = no close here. */
 const takeCodeSpan = (copy: string, from: number): number =>
   copy.toLowerCase().indexOf(CODE_CLOSE, from);
@@ -78,26 +81,42 @@ const takeCodeSpan = (copy: string, from: number): number =>
 /** One scanner move: the text to emit, and where to continue (-1 = at the end). */
 type ScanStep = { text: string; next: number };
 
-/** Inside a code example: emit it verbatim until (and including) `</code>`. */
-const stepCode = (copy: string, i: number, state: ScanState): ScanStep => {
-  const close = takeCodeSpan(copy, i);
-  if (close === -1) return { next: -1, text: copy.slice(i) };
-  state.inCode = false;
-  return {
-    next: close + CODE_CLOSE.length,
-    text: copy.slice(i, close + CODE_CLOSE.length),
+/**
+ * A step that copies a protected span verbatim through its closing marker,
+ * running `onClose` when the span ends in this node — or emitting the whole
+ * rest when the close sits in a later node.
+ */
+const spanStep =
+  (
+    findClose: (copy: string, i: number) => number,
+    markerLength: number,
+    onClose: (state: ScanState) => void,
+  ) =>
+  (copy: string, i: number, state: ScanState): ScanStep => {
+    const end = findClose(copy, i);
+    if (end === -1) return { next: -1, text: copy.slice(i) };
+    onClose(state);
+    return {
+      next: end + markerLength,
+      text: copy.slice(i, end + markerLength),
+    };
   };
-};
+
+/** Inside a code example: emit it verbatim until (and including) `</code>`. */
+const stepCode = spanStep(takeCodeSpan, CODE_CLOSE.length, (state) => {
+  state.inCode = false;
+});
 
 /** Inside an unfinished tag: emit it verbatim until (and including) its `>`. */
-const stepTag = (copy: string, i: number, state: ScanState): ScanStep => {
-  const end = copy.indexOf(">", i);
-  if (end === -1) return { next: -1, text: copy.slice(i) };
-  state.inTag = false;
-  state.inCode = state.tagIsCode;
-  state.tagIsCode = false;
-  return { next: end + 1, text: copy.slice(i, end + 1) };
-};
+const stepTag = spanStep(
+  (copy, i) => copy.indexOf(">", i),
+  1,
+  (state) => {
+    state.inTag = false;
+    state.inCode = state.tagIsCode;
+    state.tagIsCode = false;
+  },
+);
 
 /** In prose: rebrand up to the next tag, then emit that tag (or note it is unfinished). */
 const stepProse = (
@@ -150,7 +169,7 @@ const rebrandLiteral = (
  */
 const rebrandBranches = (
   options: Record<string, { value: MessageFormatElement[] }>,
-  rebrandCopy: (copy: string, state: ScanState) => string,
+  rebrandCopy: CopyRewriter,
   state: ScanState,
 ): void => {
   const entry = { ...state };
@@ -170,7 +189,7 @@ const rebrandBranches = (
  */
 const rebrandIcuNodes = (
   nodes: MessageFormatElement[],
-  rebrandCopy: (copy: string, state: ScanState) => string,
+  rebrandCopy: CopyRewriter,
   state: ScanState,
 ): void => {
   for (const node of nodes) {
