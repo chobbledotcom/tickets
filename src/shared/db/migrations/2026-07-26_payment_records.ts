@@ -1,11 +1,9 @@
 import { schemaMigration } from "./define.ts";
 
 /**
- * The tables one payment record lives in.
- *
- * Nothing writes to them yet. The code that does — the repositories, the
- * runtime, and the copy that brings older payments across — follows in its own
- * changes, so each arrives small enough to read.
+ * The tables one payment record lives in: the payment itself, the money taken
+ * against it, the work and messages that follow, and any problem for the owner
+ * to settle.
  */
 export default schemaMigration(
   "2026-07-26_payment_records",

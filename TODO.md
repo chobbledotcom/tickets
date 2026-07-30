@@ -2193,3 +2193,27 @@ of the row that was made, rather than falling through to the generic 503.
 Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
+
+## Payment-state modules waiting on their production callers
+
+`test/integration/code-quality.test.ts` exempts fourteen `shared/payment-state/*`
+modules from the "no test-only exports" check. Each is exempt only because the
+code that calls it has not landed yet, and each entry should be deleted the
+moment its caller does. This note exists so those removals are tracked rather
+than assumed, following the same convention as the ledger and site-pages
+entries already in that list.
+
+| module | removed when |
+| --- | --- |
+| `record/payment.ts`, `record/charge.ts`, `record/case.ts`, `record/decision.ts`, `record/fault.ts` | the repositories land, since they call these on the way in |
+| `observation.ts`, `resources.ts`, `diagnose.ts`, `resolve.ts`, `refund.ts`, `lifecycle.ts` | the reconciler lands and reads the provider |
+| `decision.ts`, `conflict.ts`, `operator.ts` | the owner's decision pages land |
+
+`words.ts` is the worked example of how an entry leaves: it was on this list
+until its vocabularies were read by `record/*` and by
+`ProviderChargeResourceSchema`, and `RESOURCE_KINDS` — which had no caller at
+all — was deleted outright rather than exempted.
+
+Raised by a reviewer on #1973 as a violation of "remove dead code". The reply
+there sets out why the modules are landing before their callers, and why
+deleting and re-adding them a slice later would be churn rather than hygiene.
