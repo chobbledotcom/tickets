@@ -196,6 +196,36 @@ describeWithEnv("API Keys", { db: true }, () => {
   });
 
   describe("admin UI", () => {
+    test("serves the name box with its label, hint, bound, and required flag", async () => {
+      // The expected attributes are written out here so a changed form
+      // definition fails this test instead of moving the expectation along.
+      const { apiKeyForm } = await import("#routes/admin/api-keys.ts");
+      const html = apiKeyForm.render();
+      expect(html).toContain("Name");
+      const input = html.slice(html.indexOf('name="name"') - 200);
+      expect(input).toContain('maxlength="100"');
+      expect(input).toContain('placeholder="e.g. CI Pipeline"');
+      expect(input).toContain("required");
+    });
+
+    test("a flash that is only a key still shows the copy panel, not a message", async () => {
+      // The key sits after the newline; a flash that STARTS with the newline
+      // has an empty message and only the key. The copy panel must still
+      // appear — the split runs on position 0, which is a found position.
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest(`/admin/api-keys?flash=${FLASH_TEST_ID}`, {
+          headers: {
+            cookie: `${cookie}; ${flashCookieHeader("\nBARE-KEY-123")}`,
+          },
+        }),
+      );
+
+      const html = await response.text();
+      expect(html).toContain("Copy your API key now");
+      expect(html).toContain("BARE-KEY-123");
+    });
+
     test("GET /admin/api-keys shows the page", async () => {
       const cookie = await testCookie();
       const response = await handleRequest(
@@ -348,6 +378,8 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(firstHtml).toContain(`href="/admin/api-keys/${id}/actions"`);
       expect(firstHtml).not.toContain(`/admin/api-keys/${id}/delete`);
       expect(firstHtml).toContain("Never");
+      // The manage page lights up the API keys entry in the admin nav.
+      expect(firstHtml).toContain('<a class="active" href="/admin/api-keys">');
 
       // Once used, the summary renders the formatted last-used date.
       await touchApiKeyLastUsed(id);
@@ -451,7 +483,11 @@ describeWithEnv("API Keys", { db: true }, () => {
         confirm_identifier: "Doomed Key",
       });
 
-      expect(response.status).toBe(302);
+      await expectFlashRedirect(
+        "/admin/api-keys",
+        "API key deleted",
+        true,
+      )(response);
       expect(await getApiKeysForUser(1)).toEqual([]);
     });
 
@@ -466,7 +502,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       // backstop renders the mismatch error, so the operator actually sees it.
       await expectFlashRedirect(
         `/admin/api-keys/${id}/delete`,
-        expect.stringContaining("does not match"),
+        expect.stringContaining("API key name does not match"),
         false,
       )(response);
       expect(await getApiKeysForUser(1)).toHaveLength(1);
