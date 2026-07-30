@@ -53,20 +53,23 @@ const twoBookedListings = async (): Promise<{
 
 describeWithEnv("the attendees browser", { db: true }, () => {
   describe("who may open it", () => {
-    test("a request with no session is turned away", async () => {
+    test("a request with no session is sent to the login page", async () => {
       const response = await handleAttendeesListGet(
         mockRequest("/admin/attendees"),
         {},
       );
-      expect(response.status).not.toBe(200);
+      // The exact redirect, so a 500 could never pass for "turned away".
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
-    test("the export is turned away too", async () => {
+    test("the export is sent there too, rather than handing out a file", async () => {
       const response = await handleAttendeesCsvExport(
         mockRequest("/admin/attendees/csv"),
         {},
       );
-      expect(response.status).not.toBe(200);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
     });
   });
 

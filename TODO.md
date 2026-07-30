@@ -1745,9 +1745,9 @@ refuses to start on a branch that touches them:
 - `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
 - `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
 
-Every one of them is now at the 100% the gate demands, so a branch touching
-any of them can pass without first writing the tests that should already have
-existed.
+Every one of them now catches every mutation the gate demands, so a branch
+touching any of them can pass without first writing the tests that should
+already have existed.
 
 `src/features/admin/attendee-notes.ts` was in the same state and was fixed
 earlier: its route suite drives real pages through the session helpers, so it
