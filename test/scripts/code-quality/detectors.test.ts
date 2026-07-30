@@ -539,6 +539,17 @@ describe("isUsedInSameFile", () => {
     );
   });
 
+  test("does not count a parameter that happens to share the name", () => {
+    // The shape above is spelled out rather than allowing any "FOO )", so a
+    // shadowing parameter cannot vouch for an export that is really dead.
+    expect(
+      isUsedInSameFile(
+        "FOO",
+        'export const FOO = ["a"] as const;\nfunction visit(FOO) {}',
+      ),
+    ).toBe(false);
+  });
+
   test("detects a list used to derive its own type", () => {
     // A vocabulary read only as `(typeof FOO)[number]` is used, not dead, so
     // the list and the type it names can live together.
