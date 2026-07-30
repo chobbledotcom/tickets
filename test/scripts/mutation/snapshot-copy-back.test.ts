@@ -9,6 +9,7 @@ import { captureConsole } from "#test/scripts/mutation/isolation-helpers.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 const KEPT = "kept.txt";
+const SECOND = "second.txt";
 
 /** A checkout holding `live`, and a copy of it holding `inWork`. */
 const withCheckoutAndCopy = <Result>(
@@ -36,6 +37,23 @@ const keepFile = async (
 ): ReturnType<typeof captureConsole<number>> => {
   const files = await readCopyBackFiles(roots.root, [KEPT]);
   await between();
+  return await captureConsole(() =>
+    bringFilesBack(roots.root, roots.workRoot, files),
+  );
+};
+
+/** Keep a second file too, break it via `breakSecond`, then bring both back. */
+const keepTwoFiles = async (
+  roots: { root: string; workRoot: string },
+  breakSecond: (paths: { live: string; inWork: string }) => Promise<void>,
+): ReturnType<typeof captureConsole<number>> => {
+  await Deno.writeTextFile(join(roots.root, SECOND), "a\n");
+  await Deno.writeTextFile(join(roots.workRoot, SECOND), "b\n");
+  const files = await readCopyBackFiles(roots.root, [KEPT, SECOND]);
+  await breakSecond({
+    inWork: join(roots.workRoot, SECOND),
+    live: join(roots.root, SECOND),
+  });
   return await captureConsole(() =>
     bringFilesBack(roots.root, roots.workRoot, files),
   );
@@ -84,21 +102,15 @@ describe("bringing files back out of a snapshot", () => {
 
   test("writes no file when a later one changed during the run", async () => {
     await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
-      // A second kept file, edited in the checkout mid-run. Every check runs
-      // before any write, so the first file must stay untouched too.
-      const second = "second.txt";
-      await Deno.writeTextFile(join(roots.root, second), "a\n");
-      await Deno.writeTextFile(join(roots.workRoot, second), "b\n");
-      const files = await readCopyBackFiles(roots.root, [KEPT, second]);
-      await Deno.writeTextFile(join(roots.root, second), "edited\n");
-
-      const run = await captureConsole(() =>
-        bringFilesBack(roots.root, roots.workRoot, files),
+      // The second kept file is edited in the checkout mid-run. Every check
+      // runs before any write, so the first file must stay untouched too.
+      const run = await keepTwoFiles(roots, ({ live }) =>
+        Deno.writeTextFile(live, "edited\n"),
       );
 
       expect(run.result).toBe(1);
       expect(run.errors.join("\n")).toContain(
-        `${second} changed while the isolated run was going`,
+        `${SECOND} changed while the isolated run was going`,
       );
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
         "one\ntwo\n",
@@ -108,17 +120,11 @@ describe("bringing files back out of a snapshot", () => {
 
   test("puts back an already-written file when a later one fails", async () => {
     await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
-      // A second kept file whose copy in the work tree vanishes after the
+      // The second kept file's copy in the work tree vanishes after the
       // preflight, so the failure lands mid-loop — after the first file has
       // already been written. The first file must be put back.
-      const second = "second.txt";
-      await Deno.writeTextFile(join(roots.root, second), "a\n");
-      await Deno.writeTextFile(join(roots.workRoot, second), "b\n");
-      const files = await readCopyBackFiles(roots.root, [KEPT, second]);
-      await Deno.remove(join(roots.workRoot, second));
-
-      const run = await captureConsole(() =>
-        bringFilesBack(roots.root, roots.workRoot, files),
+      const run = await keepTwoFiles(roots, ({ inWork }) =>
+        Deno.remove(inWork),
       );
 
       expect(run.result).toBe(1);
@@ -126,7 +132,7 @@ describe("bringing files back out of a snapshot", () => {
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
         "one\ntwo\n",
       );
-      expect(await Deno.readTextFile(join(roots.root, second))).toBe("a\n");
+      expect(await Deno.readTextFile(join(roots.root, SECOND))).toBe("a\n");
     });
   });
 
