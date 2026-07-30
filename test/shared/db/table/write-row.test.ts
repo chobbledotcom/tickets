@@ -80,14 +80,13 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
   // the driver's optional lastInsertRowid — which some drivers omit.
   test("insert takes its id from the row the INSERT returned", async () => {
     const table = await createWriteTable();
-    const withoutDriverRowid = (result: ResultSet): ResultSet =>
-      ({ ...result, lastInsertRowid: undefined }) as unknown as ResultSet;
     const realExecute = getDb().execute.bind(getDb());
-    using _execute = stub(getDb(), "execute", (...args) =>
-      realExecute(...(args as Parameters<typeof realExecute>)).then(
-        withoutDriverRowid,
-      ),
-    );
+    using _execute = stub(getDb(), "execute", async (...args) => {
+      const result = await realExecute(
+        ...(args as Parameters<typeof realExecute>),
+      );
+      return { ...result, lastInsertRowid: undefined } as unknown as ResultSet;
+    });
 
     const row = await table.insert({ name: "Named" });
 

@@ -230,14 +230,18 @@ describeWithEnv("db > client transaction", { db: true }, () => {
   test("writeRowInTransaction rejects an INSERT that returns no row", async () => {
     const { error, persistedIds } = await insertReturningRows([]);
 
-    expect(String(error)).toContain("did not return the id of the row it wrote");
+    expect(String(error)).toContain(
+      "did not return the id of the row it wrote",
+    );
     expect(persistedIds).toEqual([]);
   });
 
   test("writeRowInTransaction rejects a returned row whose id is 0", async () => {
     const { error, persistedIds } = await insertReturningRows([{ id: 0 }]);
 
-    expect(String(error)).toContain("did not return the id of the row it wrote");
+    expect(String(error)).toContain(
+      "did not return the id of the row it wrote",
+    );
     expect(persistedIds).toEqual([]);
   });
 

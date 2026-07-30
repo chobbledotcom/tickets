@@ -81,10 +81,8 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
   });
 
   describe("POST /admin/listing (duplicate)", () => {
-    // The reported failure: the copy commits, but reading it back finds nothing,
-    // so the handler used to reach `result.row.name` on a null row and die with
-    // "Cannot read properties of null (reading 'name')" — logged as the generic
-    // E_CDN_REQUEST, pointing nowhere near the read-back that actually failed.
+    // A copy that cannot be read back names the table and row, so the error
+    // points at the read-back rather than at whatever field was asked for next.
     test("fails with the table named when the copy cannot be read back", async () => {
       const { cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 10,
