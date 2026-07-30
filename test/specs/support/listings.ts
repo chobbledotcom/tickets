@@ -12,7 +12,10 @@ import { expect } from "@std/expect";
 import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import type { Listing } from "#shared/types.ts";
 import { adminBrowser, openAdminPage } from "#test/specs/support/browser.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import {
+  fillInAndSend,
+  requireCheckboxOffered,
+} from "#test/specs/support/form-controls.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -86,6 +89,7 @@ export const tickOnListingTab = async (
     world,
     `/admin/listing/${listing.id}/${tab}`,
   );
+  requireCheckboxOffered(browser.currentHtml, field, String(boxId));
   await fillInAndSend(browser, { [field]: String(boxId) }, "Save");
   expect(browser.pageText).toContain(saidAfter);
 };

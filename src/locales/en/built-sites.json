@@ -111,7 +111,7 @@
   "fields.built_site.db_url_placeholder": "libsql://your-db.turso.io",
   "fields.built_site.db_token": "Database token",
   "fields.built_site.db_token_placeholder": "Database auth token",
-  "fields.built_site.auto_provision_hint": "Leave blank to auto-provision a database",
+  "fields.built_site.auto_provision_hint": "Leave blank to auto-provision a database.",
   "fields.built_site.hosting_id": "Hosting ID",
   "fields.built_site.hosting_id_placeholder": "Script ID or app ID",
   "fields.built_site.hosting_provider": "Hosting provider",

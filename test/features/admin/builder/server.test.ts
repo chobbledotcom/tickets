@@ -111,14 +111,14 @@ test("builder form defines every field and option exactly", () => {
       type: "select",
     },
     {
-      hint: "Leave blank to auto-provision a database",
+      hint: "Leave blank to auto-provision a database.",
       label: "Database URL",
       name: "db_url",
       placeholder: "libsql://your-db.turso.io",
       type: "url",
     },
     {
-      hint: "Leave blank to auto-provision a database",
+      hint: "Leave blank to auto-provision a database.",
       label: "Database token",
       name: "db_token",
       placeholder: "Database auth token",

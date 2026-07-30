@@ -12,7 +12,7 @@
   "questions.listings_column": "Listings",
   "questions.all_listings": "All",
   "questions.answer_column": "Answer",
-  "questions.selected_column": "Times Selected",
+  "questions.selected_column": "Times selected",
   "questions.edit.text_label": "Question Text",
   "questions.edit.update": "Update",
   "questions.edit.answers_heading": "Answer Options",
@@ -62,6 +62,6 @@
   "questions.assign_all_listings": "Assign to all listings",
   "questions.linked_all_listings": "Linked {type} (all):",
   "questions.save_listings": "Save Listings",
-  "fields.answer.times_selected": "Times Selected",
+  "fields.answer.times_selected": "Times selected",
   "questions.answers.free_text_no_options": "Free-text questions don't have answer options."
 }
