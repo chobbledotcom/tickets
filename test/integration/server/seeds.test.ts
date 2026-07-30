@@ -37,7 +37,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     });
 
     test("renders seeds page when authenticated", async () => {
-      await assertAdminHtml("/admin/seeds", "Seed data");
+      await assertAdminHtml("/admin/seeds", "Example data");
     });
 
     test("contains form with listing count and attendees per listing fields", async () => {
@@ -45,7 +45,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         "/admin/seeds",
         "listing_count",
         "attendees_per_listing",
-        "Create seed data",
+        "Create example data",
       );
     });
 
