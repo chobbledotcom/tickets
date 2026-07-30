@@ -143,21 +143,21 @@ export const logActivity = async (
   attendeeId?: number | null,
   transaction?: TxScope,
 ): Promise<ActivityLogEntry> => {
-  const statement = await activityLogTable.insertStatement!({
-    attendeeId: attendeeId ?? null,
-    listingId: toListingId(listing),
-    // Encrypt with the owner's public key — a set-up site always has one, so
-    // there is no env-key fallback (ownerPublicKey loads it if the snapshot was
-    // reset earlier this request).
-    message: await encryptWithOwnerKey(message, await ownerPublicKey()),
-  });
-  const returning = {
-    ...statement,
-    sql: `${statement.sql} RETURNING ${ACTIVITY_LOG_COLUMNS}`,
-  };
+  const statement = await activityLogTable.insertStatement!(
+    {
+      attendeeId: attendeeId ?? null,
+      listingId: toListingId(listing),
+      // Encrypt with the owner's public key — a set-up site always has one, so
+      // there is no env-key fallback (ownerPublicKey loads it if the snapshot was
+      // reset earlier this request).
+      message: await encryptWithOwnerKey(message, await ownerPublicKey()),
+    },
+    undefined,
+    ACTIVITY_LOG_COLUMNS,
+  );
   const result = transaction
-    ? await transaction.execute(returning)
-    : await execute(returning.sql, returning.args);
+    ? await transaction.execute(statement)
+    : await execute(statement.sql, statement.args);
   const row = resultRows<StoredActivityLogEntry>(result)[0]!;
   return { ...row, message };
 };
