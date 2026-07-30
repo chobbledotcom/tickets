@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   bringFilesBack,
+  putBackOwnWrites,
   readCopyBackFiles,
 } from "#scripts/mutation/snapshot-copy-back.ts";
 import { captureConsole } from "#test/scripts/mutation/isolation-helpers.ts";
@@ -133,6 +134,24 @@ describe("bringing files back out of a snapshot", () => {
         "one\ntwo\n",
       );
       expect(await Deno.readTextFile(join(roots.root, SECOND))).toBe("a\n");
+    });
+  });
+
+  test("keeps an edit made after its own write when putting files back", async () => {
+    await withCheckoutAndCopy("one\ntwo\n", "one\n", async (roots) => {
+      // The checkout copy was edited again after this run wrote it, so the
+      // undo must keep that newer edit rather than restore the pre-run text.
+      await Deno.writeTextFile(join(roots.root, KEPT), "newer\n");
+
+      const run = await captureConsole(async () => {
+        await putBackOwnWrites(roots.root, [
+          { after: "one\n", before: "one\ntwo\n", file: KEPT },
+        ]);
+        return 0;
+      });
+
+      expect(run.logs).toEqual([]);
+      expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe("newer\n");
     });
   });
 

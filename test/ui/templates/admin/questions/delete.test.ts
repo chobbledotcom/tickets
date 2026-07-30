@@ -26,7 +26,7 @@ describe("adminQuestionDeletePage", () => {
   afterAll(resetFeaturePageTest);
 
   test("renders confirmation form with question text", () => {
-    expect(html).toContain("Delete Question");
+    expect(html).toContain("Delete question");
     expect(html).toContain("T-shirt size?");
     expect(html).toContain('name="confirm_identifier"');
     expect(html).toContain('action="/admin/questions/1/delete"');

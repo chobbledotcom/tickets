@@ -40,16 +40,25 @@ const assertUnchanged = async (
   }
 };
 
-/** Copy one file out of the snapshot, and say whether it moved. */
-const copyOneBack = async (
+/** One file this run wrote back, with the text before and after the write. */
+export interface WrittenFile {
+  after: string;
+  before: string;
+  file: string;
+}
+
+/** Undo this run's own writes after a failure. A file that no longer holds
+ * what this run wrote was edited again meanwhile — that edit stays. */
+export const putBackOwnWrites = async (
   root: string,
-  workRoot: string,
-  { before, file }: CopyBackFile,
-): Promise<boolean> => {
-  const after = await Deno.readTextFile(join(workRoot, file));
-  if (after === before) return false;
-  await Deno.writeTextFile(join(root, file), after);
-  return true;
+  written: WrittenFile[],
+): Promise<void> => {
+  for (const { after, before, file } of written) {
+    if ((await Deno.readTextFile(join(root, file))) === after) {
+      await Deno.writeTextFile(join(root, file), before);
+      console.log(`Put back ${file}`);
+    }
+  }
 };
 
 /** Bring every kept file back, and report a failure as an exit code. */
@@ -64,24 +73,22 @@ export const bringFilesBack = async (
     for (const entry of files) {
       await assertUnchanged(root, entry);
     }
-    const written: CopyBackFile[] = [];
+    const written: WrittenFile[] = [];
     try {
       for (const entry of files) {
         // Checked again at the moment of writing: an edit that lands between
         // the preflight and this file's turn must still stop the overwrite.
         await assertUnchanged(root, entry);
-        if (await copyOneBack(root, workRoot, entry)) {
-          written.push(entry);
-          console.log(`Updated ${entry.file}`);
-        }
+        const after = await Deno.readTextFile(join(workRoot, entry.file));
+        if (after === entry.before) continue;
+        await Deno.writeTextFile(join(root, entry.file), after);
+        written.push({ after, before: entry.before, file: entry.file });
+        console.log(`Updated ${entry.file}`);
       }
     } catch (error) {
       // A failure part-way through must not leave a half-applied result: put
       // back what was already written, then report the failure.
-      for (const entry of written) {
-        await Deno.writeTextFile(join(root, entry.file), entry.before);
-        console.log(`Put back ${entry.file}`);
-      }
+      await putBackOwnWrites(root, written);
       throw error;
     }
     return 0;

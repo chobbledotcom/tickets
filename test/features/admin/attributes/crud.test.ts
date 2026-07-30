@@ -229,7 +229,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
       await expectHtmlResponse(
         await adminGet(`/admin/attributes/${attribute.id}/delete`),
         200,
-        "Delete Attribute",
+        "Delete attribute",
         "Audience",
       );
 

@@ -37,14 +37,14 @@ export const ownerKeepsDetail = async (
   wordings: string[],
 ): Promise<void> => {
   const browser = await openAdminPage(world, "/admin/attributes");
-  await fillInAndSend(browser, { name }, "Add Attribute");
+  await fillInAndSend(browser, { name }, "Add attribute");
   const id = browser.currentUrl.match(/\/admin\/attributes\/(\d+)/)?.[1];
   world.listingDetail = {
     id: Number(requiredWorldValue(id, `the page for the detail ${name}`)),
     name,
   };
   for (const wording of wordings) {
-    await fillInAndSend(browser, { text: wording }, "Add Option");
+    await fillInAndSend(browser, { text: wording }, "Add option");
   }
   for (const wording of wordings) {
     expect(browser.pageText).toContain(wording);
@@ -97,5 +97,5 @@ export const visitorReadsListingPage = async (
  * and keeps what the site said. */
 export const ownerRemovesDetail = takesDownFromOwnPage(
   (world) => openAdminPage(world, `/admin/attributes/${keptDetail(world).id}`),
-  "Delete Attribute",
+  "Delete attribute",
 );

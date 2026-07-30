@@ -47,7 +47,7 @@ const ownerWritesQuestion = async (
   await fillInAndSend(
     browser,
     { display_type: displayType, text },
-    "Add Question",
+    "Add question",
   );
   const id = browser.currentUrl.match(/\/admin\/questions\/(\d+)/)?.[1];
   world.buyerQuestion = {
@@ -80,7 +80,7 @@ export const ownerAsksChoiceQuestion = async (
 ): Promise<void> => {
   const browser = await ownerWritesQuestion(world, text, "radio");
   for (const answer of answers) {
-    await fillInAndSend(browser, { text: answer }, "Add Answer");
+    await fillInAndSend(browser, { text: answer }, "Add answer");
   }
   for (const answer of answers) {
     expect(browser.pageText).toContain(answer);
@@ -175,11 +175,11 @@ const openQuestionPage = (world: TicketsWorld): Promise<TestBrowser> =>
 export const questionPageOffersChoices = async (
   world: TicketsWorld,
 ): Promise<boolean> =>
-  (await openQuestionPage(world)).pageText.includes("Add Answer");
+  (await openQuestionPage(world)).pageText.includes("Add answer");
 
 /** The owner takes the question down from its own page, typing text to
  * confirm, and keeps what the site said. */
 export const ownerTakesQuestionDown = takesDownFromOwnPage(
   openQuestionPage,
-  "Delete Question",
+  "Delete question",
 );

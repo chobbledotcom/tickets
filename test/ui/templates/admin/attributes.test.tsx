@@ -176,7 +176,7 @@ describe("adminAttributePage (detail)", () => {
 
   test("links to the attribute delete page", () => {
     expect(withListings([])).toContain(
-      '<a class="danger" href="/admin/attributes/1/delete">Delete Attribute</a>',
+      '<a class="danger" href="/admin/attributes/1/delete">Delete attribute</a>',
     );
   });
 });
