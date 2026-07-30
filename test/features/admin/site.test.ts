@@ -26,6 +26,33 @@ const expectRedirectContaining = (response: Response, text: string) => {
 };
 
 describeWithEnv("server (admin site)", { db: true }, () => {
+  describe("the site forms", () => {
+    // The expected labels, hints, and names are written out here so a changed
+    // form definition fails this test instead of moving the expectation along.
+    test("serves the home form boxes with their labels and hints", async () => {
+      const { siteHomeForm } = await import("#routes/admin/site.ts");
+      const html = siteHomeForm.render();
+      expect(html).toContain('name="website_title"');
+      expect(html).toContain("Website Title");
+      expect(html).toContain('autocomplete="off"');
+      expect(html).toContain(
+        "Displayed as the main heading on all public pages (max 128 characters).",
+      );
+      expect(html).toContain('name="homepage_text"');
+      expect(html).toContain("Homepage Text");
+      expect(html).toContain('placeholder="Welcome to our site..."');
+      // markdown: true wires the preview affordance to the textarea.
+      expect(html).toContain("data-markdown-preview");
+    });
+
+    test("serves the contact form box with its label", async () => {
+      const { siteContactForm } = await import("#routes/admin/site.ts");
+      const html = siteContactForm.render();
+      expect(html).toContain('name="contact_page_text"');
+      expect(html).toContain("Contact Page Text");
+    });
+  });
+
   describe("GET /admin/site", () => {
     testRequiresAuth("/admin/site");
 
