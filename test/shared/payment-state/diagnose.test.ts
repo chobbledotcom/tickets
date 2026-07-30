@@ -142,7 +142,11 @@ describe("what one reading of a payment comes to", () => {
       "from another provider",
       {
         ...refundObservation(),
-        refund: { ...refundResource, provider: "square" },
+        refund: {
+          ...refundResource,
+          kind: "square_refund",
+          provider: "square",
+        },
       },
     ],
     [

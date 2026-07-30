@@ -17,9 +17,68 @@ import {
   refundedObservation,
   refundObservation,
   sessionResource,
+  validationMessage,
 } from "./fixtures.ts";
 
 describe("payment lifecycle", () => {
+  // A stored answer that disagrees with its own reading is the fault these
+  // rules exist to stop, so each one is pinned by the words it refuses with
+  // rather than only by refusing.
+  for (const [name, answer, message] of [
+    [
+      "a payment called ready whose reading is not settled",
+      { observation: partlyRefundedObservation(), status: "ready" },
+      "A payment is only ready when its reading says the money is settled",
+    ],
+    [
+      "a payment waiting on a refund that no refund is on its way back for",
+      {
+        observation: paymentObservation(),
+        reason: "refund_pending",
+        status: "pending",
+      },
+      "What a payment is waiting for must match what its reading says",
+    ],
+    [
+      "a payment called fully refunded with money still held",
+      { observation: paymentObservation(), status: "fully_refunded" },
+      "A payment is only fully refunded once a charge has given it all back",
+    ],
+    [
+      "a problem naming a checkout its evidence does not describe",
+      {
+        issue: { kind: "partial_refund" },
+        observation: partlyRefundedObservation(),
+        resource: { ...sessionResource, id: "cs_somebody_else" },
+        status: "conflict",
+      },
+      "A problem must name the same checkout its evidence describes",
+    ],
+    [
+      "a problem the reading spotted, brought with no reading",
+      {
+        issue: { kind: "partial_refund" },
+        resource: sessionResource,
+        status: "conflict",
+      },
+      "A problem must bring the reading that shows it, unless the reading is the problem",
+    ],
+    [
+      "a problem its own reading does not show",
+      {
+        issue: { kind: "failed_refund" },
+        observation: partlyRefundedObservation(),
+        resource: sessionResource,
+        status: "conflict",
+      },
+      "A problem must be the one its own reading shows",
+    ],
+  ] as const) {
+    test(`says what is wrong with ${name}`, () => {
+      expect(validationMessage(PaymentResolutionSchema, answer)).toBe(message);
+    });
+  }
+
   test("validates every payment resolution", () => {
     const observation = paymentObservation();
     const resolutions = [
