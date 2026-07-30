@@ -78,6 +78,20 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
       VALUES (10, 1, 'enc:1:a:b', 'accepted', 0, 1, NULL)`);
   });
 
+  test("counts a decision as untried when the write does not say", async () => {
+    // A decision is written the moment the owner makes it, before any worker
+    // picks it up. Starting the count at one would say a try had happened
+    // that never did, and the row rule tying a try to its time would refuse
+    // the write outright.
+    await expectAccepted(`INSERT INTO payment_case_decisions
+      (case_id, case_revision, claim, state, created_at, last_error)
+      VALUES (13, 1, 'enc:1:a:b', 'accepted', 1, NULL)`);
+    const saved = await getDb().execute(
+      "SELECT attempt_count FROM payment_case_decisions WHERE case_id = 13",
+    );
+    expect(Number(saved.rows[0]?.attempt_count)).toBe(0);
+  });
+
   test("gives each decision its own number", async () => {
     // The waiting-to-retry index finds a decision by its number, so two
     // sharing one would hide each other from the worker.
