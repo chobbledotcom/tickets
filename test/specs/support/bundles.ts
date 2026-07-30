@@ -23,8 +23,9 @@ import {
   whyValueCannotBeSent,
 } from "#test/specs/support/form-controls.ts";
 import {
-  rememberStayListing,
-  stayListing,
+  listingIdNamed,
+  listingNamed,
+  rememberListing,
 } from "#test/specs/support/listings.ts";
 import {
   type ActOnOneThing,
@@ -58,7 +59,7 @@ export interface ThingForSale extends PartOfBundle {
 
 /** The bundle a story is talking about. */
 const bundleNamed = (world: TicketsWorld, name: string): Group =>
-  requiredWorldValue(world.bundles?.get(name), `the ${name} bundle`);
+  world.things.require("bundle", name);
 
 /** Things that exist and belong together, before the organiser has decided
  * they are a bundle at all. */
@@ -69,10 +70,9 @@ export const thingsGroupedTogether = async (
 ): Promise<void> => {
   await enablePublicSite();
   const group = await createTestGroup({ name });
-  world.bundles ??= new Map();
-  world.bundles.set(name, group);
+  world.things.remember("bundle", name, group);
   for (const part of parts) {
-    rememberStayListing(
+    rememberListing(
       world,
       part.name,
       await createTestListing({
@@ -96,7 +96,7 @@ const bundleForm = (
 ): Record<string, string> => {
   const filledIn = Object.fromEntries(
     map((part: PartOfBundle) => {
-      const box = `package_price_${stayListing(world, part.name).id}`;
+      const box = `package_price_${listingIdNamed(world, part.name)}`;
       expect(html).toContain(`name="${box}"`);
       return [
         box,
@@ -221,7 +221,7 @@ export const bundleChargeForOrNull = async (
   name: string,
   part: string,
 ): Promise<number | null> => {
-  const wanted = stayListing(world, part).id;
+  const wanted = listingIdNamed(world, part);
   const rows = await getGroupPackagePrices(bundleNamed(world, name).id);
   const inBundle = rows.find((row: GroupListing) => row.listing_id === wanted);
   if (!inBundle) throw new Error(`The ${part} is not in the ${name} at all`);
@@ -303,7 +303,7 @@ export const bundleStillExists: AsksAboutOneThing =
  * answer, be that thing's page, and offer a way to book it — a row left in the
  * database that nobody can reach is not "for sale". */
 export const expectPartOnSaleAlone: ActOnOneThing = async (world, part) => {
-  const listing = stayListing(world, part);
+  const listing = listingNamed(world, part);
   const browser = await openAsNewcomer(`/ticket/${listing.slug}`);
   expect(browser.pageText).toContain(part);
   const box = `quantity_${listing.id}`;

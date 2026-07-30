@@ -3,7 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
-import { stayListing } from "#test/specs/support/listings.ts";
+import { listingNamed } from "#test/specs/support/listings.ts";
 import {
   customerPaysMore,
   customerScans,
@@ -199,7 +199,7 @@ Then(
 );
 
 Then("it is for the {word}", function (this: TicketsWorld, name: string): void {
-  expect(payingNow(this).forWhat).toBe(stayListing(this, name).slug);
+  expect(payingNow(this).forWhat).toBe(listingNamed(this, name).slug);
 });
 
 Then(

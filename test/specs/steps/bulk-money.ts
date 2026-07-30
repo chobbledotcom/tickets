@@ -10,7 +10,8 @@ import {
   payYourOwnPrice,
   refundedPeople,
 } from "#test/specs/support/bulk-money.ts";
-import { listingIdFor, minorUnits } from "#test/specs/support/money.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
+import { minorUnits } from "#test/specs/support/money.ts";
 import {
   assertRenderedIncome,
   attendeeLegsOfKind,
@@ -35,7 +36,7 @@ Given(
   ): Promise<void> {
     await paidPlaceEach(this, listing, price, ["One", "Two", "Three"]);
     // The premise the rest of the story rests on: all three sales counted.
-    expect(await incomeOf(listingIdFor(this, listing))).toBe(
+    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
       3 * minorUnits(price),
     );
   },
@@ -85,7 +86,7 @@ Then(
     expect((await attendeeLegsOfKind(turnedDown, "refund_cash")).length).toBe(
       0,
     );
-    expect(await incomeOf(listingIdFor(this, listing))).toBe(
+    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
       minorUnits(earned),
     );
     expect(await sumOfAllBalances()).toBe(0);
@@ -113,7 +114,7 @@ Then(
     listing: string,
     earned: string,
   ): Promise<void> {
-    expect(await incomeOf(listingIdFor(this, listing))).toBe(
+    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
       minorUnits(earned),
     );
     expect(await worldBalance()).toBe(-minorUnits(earned));
