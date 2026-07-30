@@ -175,7 +175,8 @@ src/shared/rest/crud-api.ts:342:31  ?? → ||   # policy is an AuthPolicy object
 src/shared/rest/crud-api.ts:346:18  ?? → ||   # lookup is a function or undefined
 src/shared/rest/crud-api.ts:353:28  ?? → ||   # lookupAfterWrite is a function or undefined
 src/shared/rest/crud-api.ts:363:31  ?? → ||   # hydrated map values are records or undefined; records are truthy
-src/shared/rest/crud-api.ts:572:27  ?? → ||   # extraRoutes is a route object or undefined
+src/shared/rest/crud-api.ts:573:27  ?? → ||   # extraRoutes is a route object or undefined
+src/shared/rest/resource.ts:157:25  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is

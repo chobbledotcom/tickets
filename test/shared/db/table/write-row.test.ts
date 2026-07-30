@@ -1,8 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryAll, withTransaction } from "#shared/db/client.ts";
+import { stub } from "@std/testing/mock";
+import {
+  execute,
+  getDb,
+  queryAll,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { col, defineTable, writeTableRow } from "#shared/db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 type WriteRow = { id: number; name: string };
 type WriteInput = { name: string };
@@ -66,5 +73,19 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
 
     expect(row).toBeNull();
     expect(await queryAll("SELECT id, name FROM table_write_rows")).toEqual([]);
+  });
+
+  // The plain insert path keys the row it returns on the id the driver reports,
+  // so a driver that reports none must fail here rather than hand back a row
+  // whose id is NaN — which callers put straight into a redirect URL.
+  test("insert rejects a driver result that reports no row id", async () => {
+    const table = await createWriteTable();
+    using _execute = stub(getDb(), "execute", () =>
+      Promise.resolve(emptyResultSet()),
+    );
+
+    await expect(table.insert({ name: "Nameless" })).rejects.toThrow(
+      "INSERT did not report a row id",
+    );
   });
 });

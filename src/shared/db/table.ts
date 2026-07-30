@@ -18,6 +18,7 @@ import {
 } from "#shared/cache-registry.ts";
 import {
   execute,
+  insertedRowId,
   queryAll,
   queryOne,
   queryOnePrimary,
@@ -398,7 +399,7 @@ export const defineTable = <Row, Input = Row>(
     const result = await execute(sql, args);
 
     const initialRow = schema[primaryKey].generated
-      ? { [primaryKey]: Number(result.lastInsertRowid) }
+      ? { [primaryKey]: insertedRowId(result) }
       : {};
 
     return reduce((row: Record<string, unknown>, col: string) => {

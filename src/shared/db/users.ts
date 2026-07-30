@@ -24,6 +24,7 @@ import {
   execute,
   inPlaceholders,
   insert,
+  insertedRowId,
   queryAll,
 } from "#shared/db/client.ts";
 import {
@@ -165,7 +166,7 @@ const runUserInsert = async ({
   values,
 }: BuiltUserInsert): Promise<User> => {
   const result = await execute(statement.sql, statement.args);
-  return { id: Number(result.lastInsertRowid), ...values };
+  return { id: insertedRowId(result), ...values };
 };
 
 /** Shared user creation logic */
