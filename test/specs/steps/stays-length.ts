@@ -2,7 +2,10 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
+import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
+  organiserSavesListing,
   rememberStayListing,
   stayListing,
 } from "#test/specs/support/listings.ts";
@@ -18,8 +21,12 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { expectListingActivityLogContains } from "#test-utils/assertions.ts";
+import {
+  expectListingActivityLogContains,
+  expectListingActivityLogLacks,
+} from "#test-utils/assertions.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";
 
 // jscpd:ignore-end
@@ -75,6 +82,63 @@ Given(
       dayCount: days,
     });
     this.attendeeId = await newestStayOn(this, "Retreat");
+  },
+);
+
+Given(
+  "a {word} that is not booked by the day",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    rememberStayListing(
+      this,
+      name,
+      await createTestListing({ maxAttendees: 5, name }),
+    );
+  },
+);
+
+When(
+  "the organiser looks at the {word}'s page",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await openAdminPage(this, `/admin/listing/${stayListing(this, name).id}`);
+  },
+);
+
+Then(
+  "the page says each booking lasts {int} days",
+  function (this: TicketsWorld, days: number): void {
+    const page = scenarioBrowser(this).pageText;
+    expect(page).toContain(t("listings_table.booking_duration"));
+    expect(page).toContain(
+      `${days} ${t("listings_table.day_count_with_parens")}`,
+    );
+  },
+);
+
+Then(
+  "the page says nothing about how long bookings last",
+  function (this: TicketsWorld): void {
+    expect(scenarioBrowser(this).pageText).not.toContain(
+      t("listings_table.booking_duration"),
+    );
+  },
+);
+
+When(
+  "the organiser saves the {word} without changing how long stays last",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    // The form is saved exactly as served: every box keeps the value the page
+    // already held, including the length.
+    await organiserSavesListing(this, name, () => ({}));
+  },
+);
+
+Then(
+  "the {word}'s history says nothing about a length change",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await expectListingActivityLogLacks(
+      stayListing(this, name).id,
+      "duration changed",
+    );
   },
 );
 

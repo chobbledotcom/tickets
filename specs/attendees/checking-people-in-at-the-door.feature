@@ -34,6 +34,14 @@ Feature: An organiser checks people in at the door
       When the organiser reads Alice's ticket at the Ceilidh door
       Then the Ceilidh's record of the day says Alice was checked in
 
+    @case:door.a-ticket-for-a-stay-of-several-days
+    Scenario: The organiser reads a ticket for a stay of several days
+      Given Alice has a ticket for a 3-day stay at the Cabin
+      When the organiser reads Alice's ticket at the Cabin door
+      Then the door lets Alice in
+      When the organiser reads Alice's ticket at the Cabin door
+      Then the door says Alice is already in
+
   @rule:attendees.a-ticket-already-used-says-so
   @surface:admin
   Rule: A ticket already used says so

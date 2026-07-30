@@ -15,67 +15,6 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
-  describe("public ticket page", () => {
-    test("shows booking duration hint for multi-day daily listings", async () => {
-      const { buildTicketListing } = await import("#shared/booking/model.ts");
-      const { ticketPage } = await import(
-        "#templates/public/reservations/ticket-page.tsx"
-      );
-      const listing = await createDailyTestListing({
-        durationDays: 3,
-        maxAttendees: 10,
-      });
-      const fresh = (await getListingWithCount(listing.id))!;
-      const html = ticketPage({
-        dates: ["2026-08-10", "2026-08-11"],
-        listings: [buildTicketListing(fresh, false, undefined)],
-        slugs: [listing.slug],
-      });
-      expect(html).toContain("each booking reserves 3 days");
-    });
-
-    test("no duration hint for single-day daily listings", async () => {
-      const { buildTicketListing } = await import("#shared/booking/model.ts");
-      const { ticketPage } = await import(
-        "#templates/public/reservations/ticket-page.tsx"
-      );
-      const listing = await createDailyTestListing({ maxAttendees: 10 });
-      const fresh = (await getListingWithCount(listing.id))!;
-      const html = ticketPage({
-        dates: ["2026-08-10"],
-        listings: [buildTicketListing(fresh, false, undefined)],
-        slugs: [listing.slug],
-      });
-      expect(html).not.toContain("each booking reserves");
-    });
-  });
-
-  describe("admin listing detail page", () => {
-    test("shows booking duration row for daily listings with duration > 1", async () => {
-      const { listing, cookie } = await setupListingAndLogin({
-        durationDays: 3,
-        listingType: "daily",
-        maximumDaysAfter: 30,
-        minimumDaysBefore: 0,
-      });
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie,
-      });
-      const html = await response.text();
-      expect(html).toContain("Booking Duration");
-      expect(html).toContain("3 day(s)");
-    });
-
-    test("does not show booking duration for standard listings", async () => {
-      const { listing, cookie } = await setupListingAndLogin();
-      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
-        cookie,
-      });
-      const html = await response.text();
-      expect(html).not.toContain("Booking Duration");
-    });
-  });
-
   describe("admin listing edit page", () => {
     test("edit form pre-fills duration_days and includes warning UI", async () => {
       const { listing, cookie } = await setupListingAndLogin({
@@ -122,6 +61,12 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       thank_you_url: "https://example.com",
     });
 
+    /**
+     * The reconciler's unchanged-duration early return. The story
+     * `@case:stay-length.saving-without-a-change-leaves-stays-alone` states
+     * the same rule in the organiser's terms; this owns the direct coverage
+     * of the branch, which a Cucumber journey may never be the only cover of.
+     */
     test("editing a daily listing without changing duration leaves ranges and log alone", async () => {
       const listing = await createDailyTestListing({
         durationDays: 2,

@@ -3,10 +3,31 @@
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 Feature: An organiser changes how long a stay lasts
-  An organiser can change how many days each stay on a listing covers. Stays
-  already booked are stretched or shortened to match, so the calendar and the
-  bookings never disagree — except where the customer chose the length
-  themselves, which is theirs to keep.
+  An organiser can change how many days each stay on a listing covers. The
+  listing's own page says how long its stays last. Stays already booked are
+  stretched or shortened to match a change, so the calendar and the bookings
+  never disagree — except where the customer chose the length themselves,
+  which is theirs to keep. A save that does not change the length leaves
+  every stay exactly as it was.
+
+  @rule:bookings.the-listing-page-says-how-long-stays-last
+  @surface:admin
+  Rule: The listing's own page says how long its stays last
+    The length shows on the listing's page for a listing booked by the day, so
+    the organiser can read it without opening the edit form. A listing not
+    booked by the day has no stay length to show.
+
+    @case:stay-length.the-length-is-on-the-listing-page
+    Scenario: The organiser looks at a listing booked three days at a time
+      Given a Lodge that is booked 3 days at a time, with room for 5 places a day
+      When the organiser looks at the Lodge's page
+      Then the page says each booking lasts 3 days
+
+    @case:stay-length.a-listing-not-booked-by-the-day-shows-no-length
+    Scenario: The organiser looks at a listing not booked by the day
+      Given a Pottery that is not booked by the day
+      When the organiser looks at the Pottery's page
+      Then the page says nothing about how long bookings last
 
   @rule:bookings.a-longer-stay-stretches-bookings-already-made
   @surface:admin
@@ -51,6 +72,21 @@ Feature: An organiser changes how long a stay lasts
       Then a Lodge stay can start in 11 days again
       And a Lodge stay can start in 12 days again
       And a Lodge stay can no longer start in 10 days
+
+  @rule:bookings.saving-an-unchanged-length-rewrites-nothing
+  @surface:admin
+  Rule: Saving the listing without changing the length rewrites nothing
+    An organiser saves a listing's form for all sorts of reasons. When the
+    length was not touched, the stays already booked keep their days exactly,
+    and nothing about a length change is written in the listing's history.
+
+    @case:stay-length.saving-without-a-change-leaves-stays-alone
+    Scenario: The organiser saves the form with the length it already had
+      Given a Lodge that is booked 2 days at a time, with room for 5 places a day
+      And a customer booked a Lodge stay starting in 10 days
+      When the organiser saves the Lodge without changing how long stays last
+      Then the organiser sees that stay still runs for 2 days
+      And the Lodge's history says nothing about a length change
 
   @rule:bookings.a-length-change-that-breaks-a-shared-limit-is-flagged
   @surface:admin
