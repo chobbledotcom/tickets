@@ -274,7 +274,7 @@
   "fields.listing.duration_days": "Booking duration (days)",
   "fields.listing.duration_days_hint": "How many days each booking reserves. With Customisable Days on, this is the maximum a visitor can choose. Only applies to daily listings unless Customisable Days is on.",
   "fields.validation.invalid_contact_field": "Invalid contact field: {part}",
-  "fields.validation.listing_type": "Listing type must be standard or daily",
+  "fields.validation.listing_type": "Listing type must be standard or daily.",
   "fields.validation.days_required": "At least one day is required",
   "fields.validation.invalid_day": "Invalid day: {day}. Use: {valid}",
   "fields.validation.duration_whole": "Booking duration (days) must be a whole number.",

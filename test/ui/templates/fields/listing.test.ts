@@ -292,7 +292,7 @@ describe("listing form listing_type", () => {
         listingForm({ listing_type: value }),
       );
     }
-    expectInvalid("Listing type must be standard or daily")(
+    expectInvalid("Listing type must be standard or daily.")(
       getListingForm().fields,
       listingForm({ listing_type: "weekly" }),
     );

@@ -18,7 +18,7 @@ export const LISTING_FIELDS = [
   },
   {
     hint: "Daily listings require attendees to select a specific date when booking",
-    invalidMessage: "Listing type must be standard or daily",
+    invalidMessage: "Listing type must be standard or daily.",
     label: "Listing type",
     name: "listing_type",
     options: [
