@@ -1,10 +1,8 @@
 #!/usr/bin/env -S deno run --allow-all
 
+import { fromFileUrl, relative } from "@std/path";
 import { auditEquivalentMutants } from "#scripts/mutation/equivalent-audit.ts";
-import {
-  EQUIVALENT_MUTANTS_FILE,
-  EQUIVALENT_MUTANTS_PATH,
-} from "#scripts/mutation/ignore.ts";
+import { listRegistryFiles } from "#scripts/mutation/ignore.ts";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
 import {
   isSnapshotChild,
@@ -40,7 +38,7 @@ const runAudit = async (options: { write: boolean }): Promise<number> => {
   onTerminationSignals(onSignal);
   const result = await auditEquivalentMutants({
     ...options,
-    ignoreFile: EQUIVALENT_MUTANTS_FILE,
+    ignoreFiles: await listRegistryFiles(),
     root: projectRoot,
     signal: controller.signal,
   })
@@ -60,6 +58,13 @@ const runAudit = async (options: { write: boolean }): Promise<number> => {
   return !options.write && result.retained !== result.checked ? 1 : 0;
 };
 
+/** Project-relative registry paths, listed before snapshotting so a --write
+ * audit can carry each pruned file back to the live checkout. */
+const registryCopyBackPaths = async (): Promise<string[]> =>
+  (await listRegistryFiles()).map((file) =>
+    relative(projectRoot, typeof file === "string" ? file : fromFileUrl(file)),
+  );
+
 if (import.meta.main) {
   // Parsed here too, so a bad flag or --help answers without copying anything.
   const options = parseOptions(Deno.args);
@@ -68,8 +73,8 @@ if (import.meta.main) {
       ? await runSnapshotChild(() => runAudit(options))
       : await runInSnapshot({
           args: Deno.args,
-          // Only a --write audit rewrites the list, so only it keeps a file.
-          copyBack: options.write ? [EQUIVALENT_MUTANTS_PATH] : [],
+          // Only a --write audit rewrites the registry, so only it keeps files.
+          copyBack: options.write ? await registryCopyBackPaths() : [],
           entryScript: "scripts/audit-equivalent-mutants.ts",
         }),
   );

@@ -968,7 +968,7 @@ rate, so the cost stays bounded to the source files you actually changed. Run
 branch that changes `src/` files; the standard `deno task precommit` no longer
 runs it (it was too slow for every commit).
 Known-equivalent survivors recorded in
-`scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
+`scripts/mutation/equivalent-mutants/` are suppressed, as with a manual run.
 Never record `=== → ==`/`!== → !=` mutants: Biome's `noDoubleEquals` rule is
 configured to reject loose comparisons even against `null`, and the runner
 counts that lint failure as killed before tests run. Use
@@ -978,8 +978,8 @@ now kill. The audit never runs tests and refuses to rewrite stale or malformed
 entries. Like `deno task mutation`, it works in a copy of the checkout under
 `.mutation-runs/`, so the live source files are never left mutated and a commit
 made while it runs cannot pick up a mutant. With `--write`, the pruned
-`equivalent-mutants.txt` is copied back when the run ends — unless that file was
-edited meanwhile, which fails the run instead of overwriting the edit.
+`equivalent-mutants/` registry files are copied back when the run ends — unless
+one was edited meanwhile, which fails the run instead of overwriting the edit.
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap
 **static gates**, ordered cheapest-first: a per-file Biome **lint** and then a
@@ -996,7 +996,7 @@ trusted after the runner confirms the *unmutated* target passes it (the baseline
 probe): a standalone `deno task mutation` doesn't run `lint:ci`/`typecheck`
 first, so if the target isn't already clean the run aborts loudly rather than
 scoring a bogus 100%. This means a mutant recorded in
-`equivalent-mutants.txt` must be one that survives *both* gates *and* the tests;
+`equivalent-mutants/` must be one that survives *both* gates *and* the tests;
 a mutation that produces a type error never reaches the ignore-list because the
 type-check gate kills it first.
 
@@ -1006,7 +1006,7 @@ to fix. Never determine whether a survivor "predates main" (no `git stash`, no
 diffing against the base to excuse it): the bar is 100%, and a survivor on a
 line in your changed file is a real gap in that file's tests that you are now
 the person best placed to close. Either write the assertion that kills it, or
-record the mutant in `scripts/mutation/equivalent-mutants.txt` with a proof that
+record the mutant in `scripts/mutation/equivalent-mutants/` with a proof that
 no input can distinguish it. "It was already there" is not a resolution; leaving
 it just guarantees the next person trips over the same survivor. This is the
 [Good citizen](#preferences) rule applied to mutation testing.

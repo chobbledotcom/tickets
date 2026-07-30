@@ -1230,7 +1230,7 @@ proves they create the attendee and ledger rows exactly once.
 *Origin: running `deno task mutation:audit-equivalents` while hardening
 `src/shared/square.ts` for the confirmed-Square-refunds job.*
 
-`scripts/mutation/equivalent-mutants.txt` carries several entries whose
+`scripts/mutation/equivalent-mutants/` carries several entries whose
 `file:line:col` no longer points at a generated mutant, so
 `deno task mutation:audit-equivalents` aborts with "No generated mutant matches".
 The mutants are still real and equivalent; only the code moved. Confirmed stale
@@ -1254,7 +1254,7 @@ the audit command's own output lists every stale `file:line:col`);
 
 Fix: for each stale entry, re-run `deno task mutation <file> '<tests>'
 --exhaustive`, locate the surviving equivalent mutant's current `file:line:col`
-from the report, and update the line/col in `equivalent-mutants.txt` (or remove
+from the report, and update the line/col in the `equivalent-mutants/` registry (or remove
 the entry if the static gates now kill it — `mutation:audit-equivalents --write`
 does this automatically for entries the lint/type-check gates catch). Then
 re-run the audit until it reports no stale entries. Starting point: the audit's
@@ -1334,7 +1334,7 @@ a malformed response throws rather than being silently cast. Starting point:
 Direct tests at `test/features/api/folded-booking.test.ts` and
 `test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
 Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
-`scripts/mutation/equivalent-mutants.txt` with proofs — no unsuppressed survivors remain.
+`scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors remain.
 
 ## Split `render-selector.test.ts` by what each case actually checks
 

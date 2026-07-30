@@ -12,6 +12,8 @@ interface PhysicalEntry {
   lineNumber: number;
   newOperator: string;
   operator: string;
+  /** Which registry file the entry lives in, as an index into the file list. */
+  registry: number;
   sourcePath: string;
 }
 
@@ -21,8 +23,15 @@ interface ResolvedEntry extends PhysicalEntry {
   original: string;
 }
 
+/** One registry file's text, split into prune-able line chunks. */
+interface RegistryFile {
+  chunks: string[];
+  file: string | URL;
+  original: string;
+}
+
 export interface EquivalentAuditOptions {
-  ignoreFile: string | URL;
+  ignoreFiles: (string | URL)[];
   root: string;
   signal?: AbortSignal;
   write: boolean;
@@ -44,9 +53,12 @@ const realDeps: EquivalentAuditDeps = { createGates: createStaticGates };
 const chunksOf = (text: string): string[] =>
   text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
 
-const physicalEntries = (chunks: string[]): PhysicalEntry[] => {
-  const seen = new Set<string>();
-  return chunks.flatMap((chunk, index) => {
+const physicalEntries = (
+  registry: number,
+  chunks: string[],
+  seen: Set<string>,
+): PhysicalEntry[] =>
+  chunks.flatMap((chunk, index) => {
     const line = chunk.replace(/\r?\n$/, "");
     const parsed = parseIgnoreLine(line);
     if (!parsed) {
@@ -58,9 +70,8 @@ const physicalEntries = (chunks: string[]): PhysicalEntry[] => {
     }
     seen.add(parsed.key);
     const { line: lineNumber, ...rest } = parsed;
-    return [{ chunk, index, line, lineNumber, ...rest }];
+    return [{ chunk, index, line, lineNumber, registry, ...rest }];
   });
-};
 
 const sourceFile = (root: string, sourcePath: string): string => {
   if (isAbsolute(sourcePath)) {
@@ -146,7 +157,8 @@ const failedGateFor = async (
 };
 
 interface AuditClassification extends EquivalentAuditResult {
-  killedIndexes: Set<number>;
+  /** Killed entries as `${registry}:${index}` chunk coordinates. */
+  killedChunks: Set<string>;
 }
 
 const auditEntries = async (
@@ -164,39 +176,40 @@ const auditEntries = async (
 
   const killedByLint: string[] = [];
   const killedByTypeCheck: string[] = [];
-  const killedIndexes = new Set<number>();
+  const killedChunks = new Set<string>();
   for (const entry of entries) {
     signal.throwIfAborted();
     const failed = await failedGateFor(entry, gates, signal);
     if (!failed) continue;
     const target = failed === "lint" ? killedByLint : killedByTypeCheck;
     target.push(entry.line);
-    killedIndexes.add(entry.index);
+    killedChunks.add(`${entry.registry}:${entry.index}`);
   }
   return {
     checked: entries.length,
     killedByLint,
     killedByTypeCheck,
-    killedIndexes,
-    retained: entries.length - killedIndexes.size,
+    killedChunks,
+    retained: entries.length - killedChunks.size,
   };
 };
 
 const pruneKilledEntries = async (
-  ignoreFile: string | URL,
-  originalIgnore: string,
-  chunks: string[],
-  killedIndexes: Set<number>,
+  registries: RegistryFile[],
+  killedChunks: Set<string>,
 ): Promise<void> => {
-  if ((await Deno.readTextFile(ignoreFile)) !== originalIgnore) {
-    throw new Error("Equivalent-mutant file changed during the audit.");
+  for (const [registry, { chunks, file, original }] of registries.entries()) {
+    const kept = chunks
+      .map((chunk, index) =>
+        killedChunks.has(`${registry}:${index}`) ? "" : chunk,
+      )
+      .join("");
+    if (kept === original) continue;
+    if ((await Deno.readTextFile(file)) !== original) {
+      throw new Error("Equivalent-mutant file changed during the audit.");
+    }
+    await Deno.writeTextFile(file, kept);
   }
-  await Deno.writeTextFile(
-    ignoreFile,
-    chunks
-      .map((chunk, index) => (killedIndexes.has(index) ? "" : chunk))
-      .join(""),
-  );
 };
 
 /** Apply every listed equivalent and run only lint plus type-check. */
@@ -204,20 +217,25 @@ export const auditEquivalentMutants = async (
   options: EquivalentAuditOptions,
   deps: EquivalentAuditDeps = realDeps,
 ): Promise<EquivalentAuditResult> => {
-  const { ignoreFile, root } = options;
-  const originalIgnore = await Deno.readTextFile(ignoreFile);
-  const chunks = chunksOf(originalIgnore);
-  const entries = await resolveEntries(root, physicalEntries(chunks));
+  const { ignoreFiles, root } = options;
+  const registries: RegistryFile[] = await Promise.all(
+    ignoreFiles.map(async (file) => {
+      const original = await Deno.readTextFile(file);
+      return { chunks: chunksOf(original), file, original };
+    }),
+  );
+  const seen = new Set<string>();
+  const entries = await resolveEntries(
+    root,
+    registries.flatMap(({ chunks }, registry) =>
+      physicalEntries(registry, chunks, seen),
+    ),
+  );
   const gates = await deps.createGates();
   const signal = options.signal ?? new AbortController().signal;
   const result = await auditEntries(entries, gates, signal);
-  if (options.write && result.killedIndexes.size > 0) {
-    await pruneKilledEntries(
-      ignoreFile,
-      originalIgnore,
-      chunks,
-      result.killedIndexes,
-    );
+  if (options.write && result.killedChunks.size > 0) {
+    await pruneKilledEntries(registries, result.killedChunks);
   }
   return {
     checked: result.checked,

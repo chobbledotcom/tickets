@@ -20,18 +20,39 @@
  * real surviving mutant, so a stale/redundant/duplicate entry fails the run.
  */
 
+import { join } from "@std/path";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
 import { type MutantResult, rel } from "./summary.ts";
 
-export const EQUIVALENT_MUTANTS_FILE = new URL(
-  "./equivalent-mutants.txt",
+export const EQUIVALENT_MUTANTS_DIR = new URL(
+  "./equivalent-mutants/",
   import.meta.url,
 );
 
-/** The same file, as a path from the top of the checkout. */
-export const EQUIVALENT_MUTANTS_PATH =
-  "scripts/mutation/equivalent-mutants.txt";
+/** The same directory, as a path from the top of the checkout. */
+export const EQUIVALENT_MUTANTS_DIR_PATH =
+  "scripts/mutation/equivalent-mutants";
+
+/** Every registry file in the directory, in name order so loads are stable.
+ * A checkout without the directory simply has no records, so it reads empty. */
+export const listRegistryFiles = async (
+  dir: string | URL = EQUIVALENT_MUTANTS_DIR,
+): Promise<(string | URL)[]> => {
+  const names: string[] = [];
+  try {
+    for await (const item of Deno.readDir(dir)) {
+      if (item.isFile && item.name.endsWith(".txt")) names.push(item.name);
+    }
+  } catch {
+    // Absence is the documented empty case, matching loadIgnoreList.
+    return [];
+  }
+  names.sort();
+  return names.map((name) =>
+    typeof dir === "string" ? join(dir, name) : new URL(name, dir),
+  );
+};
 
 /** Canonical key for a mutant at a project-relative path. */
 export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
@@ -77,21 +98,30 @@ export interface IgnoreList {
   keys: Set<string>;
 }
 
-/** Load the ignore-list (empty when the file is absent). */
+/** Load the ignore-list from the given registry files, defaulting to every
+ * file in the registry directory (empty when a file or the directory is
+ * absent — a checkout without records is a valid, empty registry). */
 export const loadIgnoreList = async (
-  ignoreFile: string | URL = EQUIVALENT_MUTANTS_FILE,
+  ignoreFiles?: (string | URL)[],
 ): Promise<IgnoreList> => {
-  let text: string;
-  try {
-    text = await Deno.readTextFile(ignoreFile);
-  } catch {
-    return { entries: [], keys: new Set() };
+  const files = ignoreFiles ?? (await listRegistryFiles());
+  const entries: string[] = [];
+  for (const file of files) {
+    let text: string;
+    try {
+      text = await Deno.readTextFile(file);
+    } catch {
+      // Absence is the documented empty case.
+      continue;
+    }
+    entries.push(
+      ...text
+        .split("\n")
+        .map(parseIgnoreLine)
+        .filter((entry): entry is ParsedIgnoreLine => entry !== null)
+        .map((entry) => entry.key),
+    );
   }
-  const entries = text
-    .split("\n")
-    .map(parseIgnoreLine)
-    .filter((entry): entry is ParsedIgnoreLine => entry !== null)
-    .map((entry) => entry.key);
   return { entries, keys: new Set(entries) };
 };
 

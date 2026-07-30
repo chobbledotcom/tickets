@@ -40,7 +40,7 @@ const auditSetup = (
   write = false,
 ) =>
   auditEquivalentMutants(
-    { ignoreFile: state.ignoreFile, root: state.dir.path, write },
+    { ignoreFiles: [state.ignoreFile], root: state.dir.path, write },
     deps(gates),
   );
 
@@ -146,7 +146,7 @@ describe("equivalent-mutant static audit", () => {
 
     await auditEquivalentMutants(
       {
-        ignoreFile,
+        ignoreFiles: [ignoreFile],
         root: dir.path,
         write: true,
       },
@@ -218,6 +218,64 @@ describe("equivalent-mutant static audit", () => {
     await expect(auditSetup(state)).rejects.toThrow(
       "Duplicate equivalent-mutant entry",
     );
+  });
+
+  test("rejects an entry duplicated across two registry files", async () => {
+    const state = await setup();
+    using _dir = state.dir;
+    const secondFile = join(state.dir.path, "second.txt");
+    await Deno.writeTextFile(secondFile, state.entry);
+
+    await expect(
+      auditEquivalentMutants(
+        {
+          ignoreFiles: [state.ignoreFile, secondFile],
+          root: state.dir.path,
+          write: false,
+        },
+        deps([]),
+      ),
+    ).rejects.toThrow("Duplicate equivalent-mutant entry");
+  });
+
+  test("prunes a killed entry from its own registry file only", async () => {
+    const state = await setup();
+    using _dir = state.dir;
+    // A second registry file whose entry survives the gates untouched.
+    const secondSource = "export const other = second ?? 0;\n";
+    const secondSourceFile = join(state.dir.path, "second-source.ts");
+    await Deno.writeTextFile(secondSourceFile, secondSource);
+    const kept = generateMutants(secondSource, secondSourceFile, true).find(
+      (entry) => entry.operator === "??" && entry.newOperator === "||",
+    );
+    if (!kept) throw new Error("Expected nullish mutant");
+    const secondFile = join(state.dir.path, "second.txt");
+    const keptEntry = `second-source.ts:${kept.line}:${kept.column} ?? → || # kept\n`;
+    await Deno.writeTextFile(secondFile, keptEntry);
+
+    await auditEquivalentMutants(
+      {
+        ignoreFiles: [state.ignoreFile, secondFile],
+        root: state.dir.path,
+        write: true,
+      },
+      deps([
+        // Kill only the first registry's mutant: the mutated text of
+        // state.sourceFile fails lint, everything else passes.
+        gate("lint", async (file) =>
+          (await Deno.readTextFile(file)).startsWith(
+            "export const value = maybe || 0",
+          )
+            ? 1
+            : 0,
+        ),
+      ]),
+    );
+
+    expect(await Deno.readTextFile(state.ignoreFile)).toBe(
+      "# kept comment\n\n",
+    );
+    expect(await Deno.readTextFile(secondFile)).toBe(keptEntry);
   });
 
   test("rejects absolute source paths", async () => {
