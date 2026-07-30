@@ -57,12 +57,10 @@ describe("group fields", () => {
       options: [{ label: "Sell this group as a package", value: "1" }],
       type: "checkbox-group",
     });
-    expect(hideListings?.type).toBe("checkbox-group");
-    expect(
-      (hideListings as { options: { value: string }[] }).options.map(
-        (o) => o.value,
-      ),
-    ).toEqual(["1"]);
+    expect(hideListings).toMatchObject({
+      options: [{ value: "1" }],
+      type: "checkbox-group",
+    });
   });
 
   test("terms are a markdown textarea that rejects only over-long text", () => {
