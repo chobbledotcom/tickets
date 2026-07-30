@@ -28,10 +28,10 @@ import {
   settleTheRest,
   unpaidPlace,
 } from "#test/specs/support/deposits.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   bookingId,
   expectMoneyHandedBack,
-  listingIdFor,
   minorUnits,
 } from "#test/specs/support/money.ts";
 import {
@@ -82,7 +82,10 @@ Then(
     listing: string,
     amount: string,
   ): Promise<void> {
-    await assertRenderedIncome(listingIdFor(this, listing), minorUnits(amount));
+    await assertRenderedIncome(
+      listingIdNamed(this, listing),
+      minorUnits(amount),
+    );
   },
 );
 
@@ -105,7 +108,7 @@ const correctListingIncome = function (
   listing: string,
   amount: string,
 ): Promise<void> {
-  const page = `/admin/listing/${listingIdFor(this, listing)}/edit`;
+  const page = `/admin/listing/${listingIdNamed(this, listing)}/edit`;
   return correctEarnings(this, page, "income", amount, LISTING_TOLD);
 };
 
@@ -121,7 +124,7 @@ Then(
     listing: string,
     amount: string,
   ): Promise<void> {
-    expect(await incomeOf(listingIdFor(this, listing))).toBe(
+    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
       minorUnits(amount),
     );
   },
@@ -207,7 +210,7 @@ const earnedAnd = (alsoTrue: (world: TicketsWorld) => Promise<void>) =>
     listing: string,
     amount: string,
   ): Promise<void> {
-    expect(await incomeOf(listingIdFor(this, listing))).toBe(
+    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
       minorUnits(amount),
     );
     await alsoTrue(this);

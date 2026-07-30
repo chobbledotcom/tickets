@@ -12,10 +12,14 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { installRecordingFetch } from "#test-utils/mocks.ts";
 import { activateContactForm } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
+
+/** The person writing in. Everything the site says back is said to them. */
+const VISITOR = "the visitor";
 
 /** Where a visitor writes from. */
 const CONTACT_PAGE = "/contact";
@@ -50,7 +54,7 @@ const watchOutgoing = (
     }
     return null;
   });
-  world.cleanup.push(watching.restore);
+  world.cleanup.add(watching.restore);
   world.messagesOut = watching;
   return watching;
 };
@@ -60,21 +64,20 @@ const watchOutgoing = (
  * keys are put back afterwards — otherwise a machine whose shell already
  * exports them would switch protection on for every story here, and every
  * message would be turned down for a reason the story never mentions. */
-const SPAM_KEYS = {
+const SPAM_KEYS: Record<string, string> = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",
   BOTPOISON_SECRET_KEY: "sk_test_secret",
 };
 
 const setSpamProtection = (world: TicketsWorld, wanted: boolean): void => {
-  for (const [name, value] of Object.entries(SPAM_KEYS)) {
-    const before = process.env[name];
-    world.cleanup.push(() => {
-      if (before === undefined) delete process.env[name];
-      else process.env[name] = before;
-    });
-    if (wanted) process.env[name] = value;
-    else delete process.env[name];
-  }
+  const keys = Object.keys(SPAM_KEYS);
+  world.cleanup.add(
+    withEnv(
+      Object.fromEntries(
+        keys.map((name) => [name, wanted ? SPAM_KEYS[name] : undefined]),
+      ),
+    ),
+  );
 };
 
 /** The site set up to take messages, with the outside world answering the way
@@ -133,13 +136,13 @@ export const visitorWrites = async (
 ): Promise<string> => {
   const browser = await openAsNewcomer(CONTACT_PAGE);
   await fillInAndSend(browser, { email: from, message }, SEND);
-  world.visitorTold = browser.pageText;
+  world.things.remember("told", VISITOR, browser.pageText);
   return browser.pageText;
 };
 
 /** What the visitor was told the last time they wrote. */
 export const whatVisitorWasTold = (world: TicketsWorld): string =>
-  requiredWorldValue(world.visitorTold, "what the visitor was told");
+  world.things.require("told", VISITOR);
 
 /** Whether the site asked the spam checker anything at all. */
 export const spamCheckWasAsked = (world: TicketsWorld): boolean =>

@@ -3,7 +3,12 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import { newcomerReading } from "#test/specs/support/browser.ts";
+import {
+  browserSeenBy,
+  LATECOMER,
+  newcomerReading,
+  rememberBrowser,
+} from "#test/specs/support/browser.ts";
 import {
   aSiteNobodyHasSetUp,
   firstOwnerCanSignIn,
@@ -15,10 +20,7 @@ import {
   somebodySetsUp,
   whatSetterWasTold,
 } from "#test/specs/support/setting-up.ts";
-import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
@@ -92,16 +94,14 @@ Then(
 Given(
   "somebody else already had the setup page open",
   async function (this: TicketsWorld): Promise<void> {
-    this.latecomerBrowser = await openSetup();
+    rememberBrowser(this, LATECOMER, await openSetup());
   },
 );
 
 When(
   "they send their setup after the site is somebody's",
   function (this: TicketsWorld): Promise<void> {
-    return latecomerSendsSetup(
-      requiredWorldValue(this.latecomerBrowser, "the latecomer's page"),
-    );
+    return latecomerSendsSetup(browserSeenBy(this, LATECOMER));
   },
 );
 

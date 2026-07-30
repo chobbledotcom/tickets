@@ -13,16 +13,18 @@ import {
   sellWithAddOn,
 } from "#test/specs/support/add-ons.ts";
 import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+  browserSeenBy,
+  CUSTOMER,
+  rememberBrowser,
+} from "#test/specs/support/browser.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
 /** The page of everything for sale, as the customer last saw it. */
 const forSalePage = (world: TicketsWorld): TestBrowser =>
-  requiredWorldValue(world.customerBrowser, "the page the customer saw");
+  browserSeenBy(world, CUSTOMER);
 
 Given(
   "a {word} sold with a {word} that can also be bought on its own",
@@ -62,7 +64,7 @@ When(
 When(
   "a customer looks at everything for sale",
   async function (this: TicketsWorld): Promise<void> {
-    this.customerBrowser = await everythingForSale();
+    rememberBrowser(this, CUSTOMER, await everythingForSale());
   },
 );
 

@@ -8,6 +8,7 @@ import {
   resetScenarioBrowser,
   scenarioBrowser,
 } from "#test/specs/support/browser.ts";
+import { rememberListing } from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -30,14 +31,14 @@ const seedListingWithBooking = async (world: TicketsWorld): Promise<void> => {
     maxQuantity: 5,
     name: LISTING,
   });
-  world.listingIds.set(LISTING, listing.id);
+  rememberListing(world, LISTING, listing);
   await createTestAttendeeDirect(listing.id, CUSTOMER, CUSTOMER_EMAIL);
 };
 
 /** Keep backup files on disk for this Scenario, and clear them afterwards. */
 const useLocalBackupStorage = (world: TicketsWorld): void => {
   const dir = setupTestStorage("local");
-  world.cleanup.push(() => teardownTestStorage(dir));
+  world.cleanup.add(() => teardownTestStorage(dir));
 };
 
 /** Empty the site and walk the fresh-install setup wizard again. The old

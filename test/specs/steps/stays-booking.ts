@@ -4,8 +4,13 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { addDays, formatDateRangeLabel } from "#shared/dates.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
-import { stayListing } from "#test/specs/support/listings.ts";
+import {
+  adminBrowser,
+  browserSeenBy,
+  CUSTOMER,
+  rememberBrowser,
+} from "#test/specs/support/browser.ts";
+import { listingNamed } from "#test/specs/support/listings.ts";
 import {
   daysOfferedOn,
   expectRefusedForWantOfRoom,
@@ -35,10 +40,7 @@ const stayStart = (world: TicketsWorld): string =>
 
 /** The days a listing's page offered when the customer looked at it. */
 export const offeredDaysOf = (world: TicketsWorld, name: string): string[] =>
-  requiredWorldValue(
-    world.daysOffered?.get(name),
-    `the days the ${name} page offered`,
-  );
+  world.things.require("daysOffered", name);
 
 /** The days the page offered the last time a customer looked. */
 const offeredDays = (world: TicketsWorld): string[] =>
@@ -62,7 +64,7 @@ const bookStay = async (
   dayCount?: number,
 ): Promise<void> => {
   world.stayStartsOn = dayFromToday(world, startsIn);
-  await visitorBooks(world, stayListing(world, name), {
+  await visitorBooks(world, listingNamed(world, name), {
     ...guest(order),
     day: world.stayStartsOn,
     places,
@@ -81,13 +83,13 @@ export const tryToBook = async (
   places = 1,
   dayCount?: number,
 ): Promise<void> => {
-  const attempt = await visitorTriesToBook(stayListing(world, name), {
+  const attempt = await visitorTriesToBook(listingNamed(world, name), {
     ...guest(9),
     day: dayFromToday(world, startsIn),
     places,
     ...(dayCount === undefined ? {} : { dayCount }),
   });
-  world.customerBrowser = attempt.browser;
+  rememberBrowser(world, CUSTOMER, attempt.browser);
   world.bookingWasTaken = attempt.wasBooked;
 };
 
@@ -101,7 +103,7 @@ export const expectStayCanBeBooked = async (
   who = guest(8),
   dayCount?: number,
 ): Promise<void> => {
-  const attempt = await visitorTriesToBook(stayListing(world, name), {
+  const attempt = await visitorTriesToBook(listingNamed(world, name), {
     ...who,
     day,
     ...(dayCount === undefined ? {} : { dayCount }),
@@ -215,17 +217,20 @@ When(
   async function (this: TicketsWorld, name: string): Promise<void> {
     // The page itself is kept too, so a later step can read what it said
     // beside the days — like how long each booking lasts.
-    const browser = await openBookingPage(stayListing(this, name));
-    this.customerBrowser = browser;
-    this.daysOffered ??= new Map();
-    this.daysOffered.set(name, daysOfferedOn(browser.currentHtml));
+    const browser = await openBookingPage(listingNamed(this, name));
+    rememberBrowser(this, CUSTOMER, browser);
+    this.things.remember(
+      "daysOffered",
+      name,
+      daysOfferedOn(browser.currentHtml),
+    );
     this.daysOfferedLastLook = name;
   },
 );
 
 /** The page the customer was looking at when they last looked. */
 const pageLookedAt = (world: TicketsWorld): string =>
-  requiredWorldValue(world.customerBrowser, "the page looked at").pageText;
+  browserSeenBy(world, CUSTOMER).pageText;
 
 Then(
   "they are told each booking reserves {int} days",
@@ -291,7 +296,10 @@ Then(
   "a {word} stay can still start the day after it ends",
   function (this: TicketsWorld, name: string): Promise<void> {
     // A stay of N days starting on day 0 ends on day N-1, so day N is free.
-    const day = addDays(stayStart(this), stayListing(this, name).duration_days);
+    const day = addDays(
+      stayStart(this),
+      listingNamed(this, name).duration_days,
+    );
     return expectStayCanBeBooked(this, name, day, true, guest(3));
   },
 );
@@ -301,7 +309,7 @@ Then(
   function (this: TicketsWorld, name: string): void {
     expectRefusedForWantOfRoom(
       {
-        browser: requiredWorldValue(this.customerBrowser, "the page shown"),
+        browser: browserSeenBy(this, CUSTOMER),
         wasBooked: this.bookingWasTaken === true,
       },
       name,
