@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
+import { paymentCaseDecisionTable } from "#shared/db/migrations/schema/payments/decisions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,
@@ -12,6 +13,25 @@ const aDecision = (values: string) =>
   `INSERT INTO payment_case_decisions
     (case_id, case_revision, claim, state, attempt_count, created_at)
     VALUES (${values})`;
+
+test("is what the owner's decision is made of", () => {
+  const [name, table] = paymentCaseDecisionTable;
+
+  expect(name).toBe("payment_case_decisions");
+  expect(table.columns.map(([held]) => held)).toEqual([
+    "id",
+    "case_id",
+    "case_revision",
+    "claim",
+    "decision",
+    "state",
+    "attempt_count",
+    "created_at",
+    "last_attempt_at",
+    "next_retry_at",
+    "last_error",
+  ]);
+});
 
 describeWithEnv("db > payment decision and message rules", { db: true }, () => {
   // What the owner was looking at, what was decided, and what went wrong are

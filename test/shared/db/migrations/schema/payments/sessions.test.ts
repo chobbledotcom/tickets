@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
+import { paymentSessionTable } from "#shared/db/migrations/schema/payments/sessions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,
@@ -16,6 +17,41 @@ const aPayment = (id: string, index: string, intent = "'enc:1:a:b'") =>
     VALUES ('${id}', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
       ${intent}, 'enc:1:a:b', '${index}', 'pending', 1, 1, 1,
       'none', 'none', 'none')`;
+
+test("is what a payment itself is made of", () => {
+  const [name, table] = paymentSessionTable;
+
+  expect(name).toBe("payment_sessions");
+  expect(table.columns.map(([held]) => held)).toEqual([
+    "id",
+    "origin",
+    "provider",
+    "mode",
+    "account_id",
+    "session_resource",
+    "session_reference_index",
+    "expected_amount",
+    "expected_currency",
+    "booking_intent",
+    "checkout_create",
+    "state",
+    "revision",
+    "created_at",
+    "updated_at",
+    "lease_token",
+    "lease_expires_at",
+    "next_reconcile_at",
+    "attendee_id",
+    "result_state",
+    "result",
+    "ticket_state",
+    "ticket_tokens",
+    "completion_state",
+    "completion",
+    "redacted_at",
+    "legacy_runtime",
+  ]);
+});
 
 describeWithEnv("db > payment session rules", { db: true }, () => {
   test("refuses a session with no id", async () => {

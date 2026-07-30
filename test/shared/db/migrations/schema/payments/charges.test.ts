@@ -1,4 +1,6 @@
+import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { paymentChargeTable } from "#shared/db/migrations/schema/payments/charges.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,
@@ -13,6 +15,34 @@ const aCharge = (paymentId: string, index: string, reference = "'enc:1:a:b'") =>
   `INSERT INTO payment_charges (${COLUMNS})
     VALUES ('${paymentId}', 'stripe', 'stripe_payment_intent', ${reference},
       '${index}', 100, 'GBP', 0, 'none', 1, 1, 1)`;
+
+test("is what the money actually taken is made of", () => {
+  const [name, table] = paymentChargeTable;
+
+  expect(name).toBe("payment_charges");
+  expect(table.columns.map(([held]) => held)).toEqual([
+    "id",
+    "payment_id",
+    "origin",
+    "provider",
+    "resource_kind",
+    "provider_reference",
+    "reference_index",
+    "captured_amount",
+    "currency",
+    "refunded_amount",
+    "refund_state",
+    "pending_refund_id",
+    "pending_refund_index",
+    "pending_refund_idempotency_key",
+    "pending_refund_key_index",
+    "provider_refunded_at",
+    "legacy_source",
+    "created_at",
+    "updated_at",
+    "observed_at",
+  ]);
+});
 
 describeWithEnv("db > payment charge rules", { db: true }, () => {
   // A provider's own name for the money is hidden either with this site's key

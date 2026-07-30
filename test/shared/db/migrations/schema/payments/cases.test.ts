@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
+import { paymentCaseTable } from "#shared/db/migrations/schema/payments/cases.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   expectAccepted,
@@ -14,6 +15,34 @@ const aCase = (
   columns = "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision",
   values = "'case-1', 'enc:1:a:b', 'case-1-index', 'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1",
 ) => `INSERT INTO payment_cases (${columns}) VALUES (${values})`;
+
+test("is what a problem for the owner is made of", () => {
+  const [name, table] = paymentCaseTable;
+
+  expect(name).toBe("payment_cases");
+  expect(table.columns.map(([held]) => held)).toEqual([
+    "id",
+    "payment_id",
+    "resource",
+    "resource_index",
+    "reason",
+    "state",
+    "first_observed_at",
+    "last_observed_at",
+    "next_reconcile_at",
+    "consecutive_count",
+    "alerted_at",
+    "alerted_revision",
+    "alert_sent_at",
+    "alert_sent_revision",
+    "alert_lease_token",
+    "alert_lease_expires_at",
+    "evidence",
+    "evidence_redacted_at",
+    "revision",
+    "resolved_at",
+  ]);
+});
 
 describeWithEnv("db > payment case rules", { db: true }, () => {
   // The one rule the table still keeps. A type says "string" while the value
