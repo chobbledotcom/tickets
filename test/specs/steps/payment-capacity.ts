@@ -180,7 +180,7 @@ Given(
       paymentIntent: "pi_spec_replay",
       sessionId,
     });
-    this.cleanup.push(
+    this.cleanup.add(
       () => retrieve.restore(),
       () => refund.restore(),
     );

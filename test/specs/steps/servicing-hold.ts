@@ -5,6 +5,10 @@ import { expect } from "@std/expect";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { submitRenderedAdminForm } from "#test/specs/support/browser.ts";
 import {
+  listingIdNamed,
+  rememberListing,
+} from "#test/specs/support/listings.ts";
+import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -75,7 +79,7 @@ Given(
       unitPrice: 2_800,
     });
     this.holdListingId = listing.id;
-    this.listingIds.set(STUDIO_LISTING, listing.id);
+    rememberListing(this, STUDIO_LISTING, listing);
   },
 );
 
@@ -83,7 +87,7 @@ When(
   "the organiser creates a two-day Studio floor treatment hold for four places",
   async function (this: TicketsWorld): Promise<void> {
     const listingId = requiredWorldValue(
-      this.listingIds.get(STUDIO_LISTING),
+      listingIdNamed(this, STUDIO_LISTING),
       "studio listing id",
     );
     const browser = await submitRenderedAdminForm(

@@ -7,7 +7,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { openAdminPage } from "#test/specs/support/browser.ts";
-import { stayListing } from "#test/specs/support/listings.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import type { BookingChoices } from "#test/specs/support/public-booking.ts";
 import type {
   ReadAboutOneThing,
@@ -18,7 +18,7 @@ import type {
 
 /** The listing's roster — where the add form and the download both live. */
 const rosterPath = (world: TicketsWorld, name: string): string =>
-  `/admin/listing/${stayListing(world, name).id}/attendees`;
+  `/admin/listing/${listingIdNamed(world, name)}/attendees`;
 
 /** The organiser adds a booking through the form on the listing's roster. Keeps
  * the page they land on, so a story can read what they were told. */

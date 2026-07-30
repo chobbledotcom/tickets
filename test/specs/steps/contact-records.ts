@@ -3,6 +3,11 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import {
+  browserSeenBy,
+  CUSTOMER,
+  rememberBrowser,
+} from "#test/specs/support/browser.ts";
+import {
   boxShows,
   contactWithHistory,
   openRecord,
@@ -10,10 +15,7 @@ import {
   saveRecord,
   unreadableRecord,
 } from "#test/specs/support/contact-records.ts";
-import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -27,7 +29,7 @@ const HAND_BOOKINGS = 2;
 
 /** The record page the organiser is looking at. */
 const recordPage = (world: TicketsWorld): TestBrowser =>
-  requiredWorldValue(world.customerBrowser, "the record page");
+  browserSeenBy(world, CUSTOMER);
 
 Given(
   "the site has seen {word} book {int} times and get in touch {int} times",
@@ -81,7 +83,7 @@ Given(
 When(
   "the organiser opens {word}'s record",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    this.customerBrowser = await openRecord(this, emailFor(who));
+    rememberBrowser(this, CUSTOMER, await openRecord(this, emailFor(who)));
   },
 );
 
@@ -92,9 +94,13 @@ When(
     who: string,
     messages: number,
   ): Promise<void> {
-    this.customerBrowser = await saveRecord(this, emailFor(who), {
-      messages: String(messages),
-    });
+    rememberBrowser(
+      this,
+      CUSTOMER,
+      await saveRecord(this, emailFor(who), {
+        messages: String(messages),
+      }),
+    );
   },
 );
 
@@ -106,19 +112,27 @@ When(
     booked: number,
     note: string,
   ): Promise<void> {
-    this.customerBrowser = await saveRecord(this, emailFor(who), {
-      bookedThroughTheSite: String(booked),
-      note,
-    });
+    rememberBrowser(
+      this,
+      CUSTOMER,
+      await saveRecord(this, emailFor(who), {
+        bookedThroughTheSite: String(booked),
+        note,
+      }),
+    );
   },
 );
 
 When(
   "the organiser leaves {word}'s site bookings blank",
   async function (this: TicketsWorld, who: string): Promise<void> {
-    this.customerBrowser = await saveRecord(this, emailFor(who), {
-      bookedThroughTheSite: "",
-    });
+    rememberBrowser(
+      this,
+      CUSTOMER,
+      await saveRecord(this, emailFor(who), {
+        bookedThroughTheSite: "",
+      }),
+    );
   },
 );
 
@@ -133,7 +147,11 @@ When(
     // pressing Save on the repaired form actually sends.
     const page = recordPage(this);
     expect(page.currentHtml).toContain('name="admin_notes"');
-    this.customerBrowser = await saveRecord(this, emailFor(who), { note });
+    rememberBrowser(
+      this,
+      CUSTOMER,
+      await saveRecord(this, emailFor(who), { note }),
+    );
   },
 );
 

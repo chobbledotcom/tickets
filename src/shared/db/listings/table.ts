@@ -8,7 +8,6 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
@@ -107,7 +106,7 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
 export type ListingOption = Pick<Listing, "active" | "id" | "name">;
 
 /** The shared narrow listing shape used by listing and attribute pickers. */
-export const listingOptionColumns = chooseColumns(rawListingsTable, [
+export const listingOptionColumns = rawListingsTable.read.pick([
   "id",
   "name",
   "active",

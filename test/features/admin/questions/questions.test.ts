@@ -268,7 +268,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify the question was updated
       const { questionsTable } = await import("#shared/db/questions/tables.ts");
-      const updated = await questionsTable.findById(id);
+      const updated = await questionsTable.read.one({ id: id });
       expect(updated!.text).toBe("After edit");
     });
 
@@ -287,7 +287,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
           });
         }),
       ).rejects.toThrow("feature enable failed");
-      expect((await questionsTable.findById(question.id))?.text).toBe(
+      expect((await questionsTable.read.one({ id: question.id }))?.text).toBe(
         "Before?",
       );
     });
@@ -336,7 +336,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${q.id}`,
         "Question updated",
       )(response);
-      const updated = await questionsTable.findById(q.id);
+      const updated = await questionsTable.read.one({ id: q.id });
       expect(updated!.display_type).toBe("free_text");
       expect(updated!.text).toBe("Notes updated");
     });
@@ -348,7 +348,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "free_text",
         text: "Colour?",
       });
-      const updated = await questionsTable.findById(id);
+      const updated = await questionsTable.read.one({ id: id });
       expect(updated!.display_type).toBe("radio");
     });
 

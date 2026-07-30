@@ -168,25 +168,22 @@ describeWithEnv(
           name: "Listing For Delete Err",
         });
 
-        // Spy on listingsTable.findById: return the row on first call (so requireExists passes),
-        // but also delete the listing from DB so getListingWithCount (raw SQL) returns null.
-        const originalFindById = listingsTable.findById.bind(listingsTable);
-        const findByIdStub = stub(
-          listingsTable,
-          "findById",
-          async (id: unknown) => {
-            const row = await originalFindById(id as number);
-            if (row) {
-              // Delete the listing from DB so getListingWithCount returns null
-              await getDb().execute({
-                args: [id as number],
-                sql: "DELETE FROM listings WHERE id = ?",
-              });
-              invalidateListingsCache();
-            }
-            return row;
-          },
-        );
+        // Spy on the listing read: return the row on first call (so requireExists
+        // passes), but also delete the listing from DB so getListingWithCount
+        // (raw SQL) returns null.
+        const originalRead = listingsTable.read.one.bind(listingsTable.read);
+        const readStub = stub(listingsTable.read, "one", async (filter) => {
+          const row = await originalRead(filter);
+          if (row) {
+            // Delete the listing from DB so getListingWithCount returns null
+            await getDb().execute({
+              args: [row.id],
+              sql: "DELETE FROM listings WHERE id = ?",
+            });
+            invalidateListingsCache();
+          }
+          return row;
+        });
 
         try {
           // Send an update with empty name to trigger validation error
@@ -198,11 +195,11 @@ describeWithEnv(
               name: "",
             },
           );
-          // requireExists sees the row (first findById). Validation fails (empty name).
+          // requireExists sees the row (first read). Validation fails (empty name).
           // listingErrorPage calls getListingWithCount, but listing was deleted, so returns 404.
           expect(response.status).toBe(404);
         } finally {
-          findByIdStub.restore();
+          readStub.restore();
         }
       });
     });
@@ -215,10 +212,10 @@ describeWithEnv(
         });
 
         // handleAdminListingEditPost calls getListingWithCount (raw SQL), then
-        // updateResource.update which checks the nullable table.findById result.
+        // updateResource.update which checks the nullable by-key read.
         // Return null to simulate the listing being deleted
         // between the initial check and the update.
-        const findByIdStub2 = stub(listingsTable, "findById", () =>
+        const readStub2 = stub(listingsTable.read, "one", () =>
           Promise.resolve(null),
         );
 
@@ -234,7 +231,7 @@ describeWithEnv(
           );
           expect(response.status).toBe(404);
         } finally {
-          findByIdStub2.restore();
+          readStub2.restore();
         }
       });
     });

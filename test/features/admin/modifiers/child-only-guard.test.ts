@@ -155,9 +155,9 @@ describeWithEnv(
         'value="optional" selected',
         'value="Becomes add-on"',
       );
-      expect((await modifiersTable.findById(modifier.id))!.trigger).toBe(
-        "automatic",
-      );
+      expect(
+        (await modifiersTable.read.one({ id: modifier.id }))!.trigger,
+      ).toBe("automatic");
     });
 
     test("allows editing an active NON-opt-in child-scoped modifier (not an add-on)", async () => {
@@ -186,7 +186,7 @@ describeWithEnv(
         "Modifier updated",
         true,
       )(response);
-      expect((await modifiersTable.findById(modifier.id))!.name).toBe(
+      expect((await modifiersTable.read.one({ id: modifier.id }))!.name).toBe(
         "Auto child surcharge renamed",
       );
     });
@@ -215,9 +215,9 @@ describeWithEnv(
         "Modifier updated",
         true,
       )(response);
-      expect((await modifiersTable.findById(modifier.id))!.trigger).toBe(
-        "optional",
-      );
+      expect(
+        (await modifiersTable.read.one({ id: modifier.id }))!.trigger,
+      ).toBe("optional");
     });
 
     test("blocks scoping an opt-in add-on to a group of only children", async () => {

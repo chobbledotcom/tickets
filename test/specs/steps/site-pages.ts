@@ -6,6 +6,7 @@ import { t } from "#i18n";
 import {
   ownerMovesPageUp,
   ownerTakesPageDown,
+  ownerTriesToTakePageDown,
   ownerWritesPage,
   ownerWritesPages,
   pageIsOfferedAMoveUp,
@@ -147,7 +148,7 @@ When(
     name: string,
     typed: string,
   ): Promise<void> {
-    this.sitePageTold = await ownerTakesPageDown(this, name, typed);
+    await ownerTriesToTakePageDown(this, name, typed);
   },
 );
 

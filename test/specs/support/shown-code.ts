@@ -10,8 +10,8 @@ import { expect } from "@std/expect";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
 import {
-  rememberStayListing,
-  stayListing,
+  listingIdNamed,
+  rememberListing,
 } from "#test/specs/support/listings.ts";
 import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -37,7 +37,7 @@ export const somethingForSale = async (
 ): Promise<void> => {
   await enablePublicSite();
   await setupStripe();
-  rememberStayListing(
+  rememberListing(
     world,
     name,
     await createTestListing({
@@ -70,7 +70,7 @@ export const organiserShowsCode = async (
 ): Promise<CodeOnScreen> => {
   const browser = await openAdminPage(
     world,
-    `/admin/listing/${stayListing(world, name).id}/qr`,
+    `/admin/listing/${listingIdNamed(world, name)}/qr`,
   );
   await browser.submitForm(
     {
@@ -255,7 +255,7 @@ export const meddledWith = (link: string): string => {
 /** The organiser takes something off sale after the codes are printed. */
 export const takeOffSale: ActOnOneThing = async (world, name) => {
   const { listingsTable } = await import("#shared/db/listings/records.ts");
-  await listingsTable.update(stayListing(world, name).id, { active: false });
+  await listingsTable.update(listingIdNamed(world, name), { active: false });
 };
 
 /** Nothing at all was booked, whatever the page said. */
@@ -263,5 +263,5 @@ export const expectNothingBooked: ActOnOneThing = async (world, name) => {
   const { getAttendeesRaw } = await import(
     "#test-utils/db-helpers/attendees.ts"
   );
-  expect(await getAttendeesRaw(stayListing(world, name).id)).toEqual([]);
+  expect(await getAttendeesRaw(listingIdNamed(world, name))).toEqual([]);
 };

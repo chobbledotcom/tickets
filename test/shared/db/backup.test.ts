@@ -14,7 +14,6 @@ import {
 } from "#shared/db/backup.ts";
 import { exportTable } from "#shared/db/backup-snapshot.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import {
@@ -24,7 +23,10 @@ import {
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  storedListingNames,
+} from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("backup", { db: true }, () => {
   describe("splitStatements", () => {
@@ -243,9 +245,7 @@ describeWithEnv("backup", { db: true }, () => {
           await dumpWithFutureMigrations(["2099-01-01_from_the_future"]),
         ),
       ).rejects.toThrow("2099-01-01_from_the_future");
-      expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
-        "Still here",
-      ]);
+      expect(await storedListingNames()).toEqual(["Still here"]);
     });
 
     test("explains every future migration and how to proceed", async () => {
@@ -281,9 +281,7 @@ describeWithEnv("backup", { db: true }, () => {
       const zip = await createBackupZip();
       const progress: Array<{ stage: string; statementCount: number }> = [];
       await restoreFromZip(zip, (event) => progress.push(event));
-      const listings = await listingsTable.findAll();
-      expect(listings.length).toBe(1);
-      expect(listings[0]!.name).toBe("Zip Restore Test");
+      expect(await storedListingNames()).toEqual(["Zip Restore Test"]);
       expect(progress.map(({ stage }) => stage)).toEqual([
         "checking",
         "resetting",
@@ -355,9 +353,7 @@ describeWithEnv("backup", { db: true }, () => {
           `Backup contains data for tables this app cannot restore: ${names}`,
         );
       }
-      expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
-        "Still here",
-      ]);
+      expect(await storedListingNames()).toEqual(["Still here"]);
     });
 
     const sqlOf = (stmt: string | { sql: string }): string =>
@@ -397,9 +393,7 @@ describeWithEnv("backup", { db: true }, () => {
         executeStub.restore();
       }
 
-      const listings = await listingsTable.findAll();
-      expect(listings.length).toBe(1);
-      expect(listings[0]!.name).toBe("Stale Read Survivor");
+      expect(await storedListingNames()).toEqual(["Stale Read Survivor"]);
     });
 
     test("succeeds even when a schema snapshot still shows the pre-wipe tables", async () => {
@@ -447,9 +441,7 @@ describeWithEnv("backup", { db: true }, () => {
         batchStub.restore();
       }
 
-      const listings = await listingsTable.findAll();
-      expect(listings.length).toBe(1);
-      expect(listings[0]!.name).toBe("Snapshot Lag Survivor");
+      expect(await storedListingNames()).toEqual(["Snapshot Lag Survivor"]);
     });
   });
 });

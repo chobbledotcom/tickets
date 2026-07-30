@@ -9,7 +9,7 @@ import {
   daysTheApiOffers,
   openTheApi,
 } from "#test/specs/support/booking-api.ts";
-import { stayListing } from "#test/specs/support/listings.ts";
+import { listingNamed } from "#test/specs/support/listings.ts";
 import { guest, newestStayOn, staysOn } from "#test/specs/support/stays.ts";
 import {
   requiredWorldValue,
@@ -52,7 +52,7 @@ Given(
     const { addDays } = await import("#shared/dates.ts");
     const middle = addDays(await firstDayOffered(this, name), 1);
     // A one-day booking, so only the middle day of the coming stay is full.
-    const booked = await bookAttendee(stayListing(this, name), {
+    const booked = await bookAttendee(listingNamed(this, name), {
       date: middle,
       durationDays: 1,
       quantity: places,

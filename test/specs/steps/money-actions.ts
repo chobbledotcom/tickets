@@ -13,6 +13,7 @@ import {
 } from "#shared/accounting/queries.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   askForRefund,
   bookFreePlace,
@@ -20,7 +21,6 @@ import {
   buyOnePlace,
   correctIncomeTo,
   expectRefundMessage,
-  listingIdFor,
   minorUnits,
   sellPlacesAt,
   timesProviderWasAsked,
@@ -73,7 +73,7 @@ Then(
     expect(
       (await transfersByAccount(attendeeAccount(bookingId(this)))).length,
     ).toBe(0);
-    expect(await incomeOf(listingIdFor(this, FREE_MEETUP))).toBe(0);
+    expect(await incomeOf(listingIdNamed(this, FREE_MEETUP))).toBe(0);
   },
 );
 
@@ -94,7 +94,9 @@ Given(
     listing: string,
   ): Promise<void> {
     await buyOnePlace(this, listing, price, `${listing} Buyer`);
-    expect(await incomeOf(listingIdFor(this, listing))).toBe(minorUnits(price));
+    expect(await incomeOf(listingIdNamed(this, listing))).toBe(
+      minorUnits(price),
+    );
   },
 );
 
@@ -120,7 +122,7 @@ Then(
 Then(
   "the Show has still earned 45.00 and no money was handed back",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await incomeOf(listingIdFor(this, SHOW))).toBe(4500);
+    expect(await incomeOf(listingIdNamed(this, SHOW))).toBe(4500);
     expect(await owedBy(bookingId(this))).toBe(0);
     const legs = await transfersByAccount(attendeeAccount(bookingId(this)));
     expect(legsOfKind(legs, "refund_cash").length).toBe(0);
@@ -132,7 +134,7 @@ Then(
 When(
   "the same payment message arrives again",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = listingIdFor(this, REPEAT);
+    const listingId = listingIdNamed(this, REPEAT);
     // An already-handled payment is a no-op, so the page just renders again.
     await withStripeSuccess(
       {
@@ -153,7 +155,9 @@ When(
 Then(
   "there is still one booking and one sale",
   async function (this: TicketsWorld): Promise<void> {
-    expect((await getAttendeesRaw(listingIdFor(this, REPEAT))).length).toBe(1);
+    expect((await getAttendeesRaw(listingIdNamed(this, REPEAT))).length).toBe(
+      1,
+    );
     expect(
       kindsOf(await transfersByAccount(attendeeAccount(bookingId(this)))),
     ).toEqual(["payment", "sale"]);
@@ -164,7 +168,7 @@ Then(
 When(
   "the organiser sets the Repeat income to 40.00 twice",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = listingIdFor(this, REPEAT);
+    const listingId = listingIdNamed(this, REPEAT);
     await correctIncomeTo(this, listingId, "40.00");
     await correctIncomeTo(this, listingId, "40.00");
   },
@@ -173,7 +177,7 @@ When(
 Then(
   "the Repeat has earned 40.00 from a single correction",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = listingIdFor(this, REPEAT);
+    const listingId = listingIdNamed(this, REPEAT);
     expect(await incomeOf(listingId)).toBe(4000);
     // The second save works out a change of nothing, so it records nothing.
     const corrections = legsOfKind(
@@ -187,7 +191,7 @@ Then(
 Given(
   "the organiser corrected the Reconciled income to 40.00",
   function (this: TicketsWorld): Promise<void> {
-    return correctIncomeTo(this, listingIdFor(this, RECONCILED), "40.00");
+    return correctIncomeTo(this, listingIdNamed(this, RECONCILED), "40.00");
   },
 );
 
@@ -195,7 +199,7 @@ Then(
   "the Reconciled page breaks the money down line by line",
   async function (this: TicketsWorld): Promise<void> {
     const breakdown = incomeLedgerArticle(
-      await adminPageHtml(`/admin/listing/${listingIdFor(this, RECONCILED)}`),
+      await adminPageHtml(`/admin/listing/${listingIdNamed(this, RECONCILED)}`),
     );
     expect(breakdown).toContain("Money in and out");
     // Each figure is read from its own row: the 50.00 sale, the 10.00 taken off
@@ -219,7 +223,7 @@ Then(
 Then(
   "the breakdown links to the Reconciled money record",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = listingIdFor(this, RECONCILED);
+    const listingId = listingIdNamed(this, RECONCILED);
     expect(
       incomeLedgerArticle(await adminPageHtml(`/admin/listing/${listingId}`)),
     ).toContain(`/admin/ledger?listing=${listingId}`);

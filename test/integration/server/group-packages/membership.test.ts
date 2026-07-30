@@ -23,6 +23,7 @@ import {
   editFields,
   expectAddListingRejected,
   expectPackageAccepted,
+  expectPackageRefused,
   expectPackageRejected,
   member,
 } from "./helpers.ts";
@@ -65,14 +66,8 @@ describeWithEnv(
           is_package: "1",
         },
       );
-      await expectFlashRedirect(
-        `/admin/groups/${group.id}/edit`,
-        expect.stringContaining("Packages cannot contain"),
-        false,
-      )(response);
-      expect(
-        (await groups.table.findById(group.id))!.hide_package_listings,
-      ).toBe(false);
+      const refused = await expectPackageRefused(group, response);
+      expect(refused.hide_package_listings).toBe(false);
     });
 
     test("edit POST rejects is_package on a group whose member is another listing's child", async () => {

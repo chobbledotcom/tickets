@@ -15,7 +15,11 @@ import { expect } from "@std/expect";
 import { bookingError } from "#shared/booking/form.ts";
 import type { Listing } from "#shared/types.ts";
 // jscpd:ignore-start
-import { openAsNewcomer } from "#test/specs/support/browser.ts";
+import {
+  CUSTOMER,
+  openAsNewcomer,
+  rememberBrowser,
+} from "#test/specs/support/browser.ts";
 import {
   optionsOffered,
   whyValueCannotBeSent,
@@ -163,7 +167,7 @@ export const visitorBooks = async (
 ): Promise<TestBrowser> => {
   const { browser, wasBooked } = await visitorTriesToBook(listing, choices);
   expect(wasBooked).toBe(true);
-  world.customerBrowser = browser;
+  rememberBrowser(world, CUSTOMER, browser);
   world.attendeeName = choices.who;
   return browser;
 };
