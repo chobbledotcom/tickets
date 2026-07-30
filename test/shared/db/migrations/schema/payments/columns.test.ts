@@ -48,6 +48,15 @@ describe("the kinds of column a payment record is built from", () => {
     );
   });
 
+  test("a column given no floor may hold nothing but not less", () => {
+    // Times are counted from the epoch, so nothing is a real value for one.
+    // Floored at one instead, the earliest moment a site can record would be
+    // turned away.
+    expect(wholeNumberOrNull("alerted_at")).toBe(
+      "INTEGER CHECK (alerted_at IS NULL OR (typeof(alerted_at) = 'integer' AND alerted_at >= 0))",
+    );
+  });
+
   test("money is kept inside the largest number that stays exact", () => {
     expect(amountOrNull("expected_amount", 0)).toBe(
       `INTEGER CHECK (expected_amount IS NULL OR (typeof(expected_amount) = 'integer' AND expected_amount BETWEEN 0 AND ${Number.MAX_SAFE_INTEGER}))`,
