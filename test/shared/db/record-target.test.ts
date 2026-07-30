@@ -64,6 +64,13 @@ describe("a record named by its kind and its id", () => {
 });
 
 describe("asking for a record's rows", () => {
+  test("uses item_type/item_id where rows hang off any record", () => {
+    const where = tablelessTargets.one({ id: 8, kind: "listing" });
+
+    expect(whereSql(where)).toBe(" WHERE item_type = ? AND item_id = ?");
+    expect(clauseArgs(where)).toEqual(["listing", 8]);
+  });
+
   test("asks by both of its parts", () => {
     const where = targets.one({ id: 4, kind: "attendee" });
 
