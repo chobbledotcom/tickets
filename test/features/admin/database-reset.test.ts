@@ -57,6 +57,8 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
         "Reset Database",
         "confirm_phrase",
         RESET_DATABASE_PHRASE,
+        "Confirmation phrase",
+        'autocomplete="off"',
       );
     });
 
@@ -138,7 +140,9 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       const response = await submitDemoResetForm({
         confirm_phrase: "wrong phrase",
       });
+      // Back to the reset page itself, with the mismatch error.
       expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("/demo/reset");
       expectFlash(
         response,
         expect.stringContaining(RESET_PHRASE_MISMATCH_ERROR),

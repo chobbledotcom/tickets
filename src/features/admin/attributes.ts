@@ -363,10 +363,10 @@ const handleListingAttributesPost = createListingChoicePost({
   fieldName: "option_ids",
   label: "Attributes",
   noun: "option",
-  readIds: async (form) =>
+  readIds: async (form, fieldName) =>
     pruneInvalidAttributeOptionIds(
       await getAllAttributeOptionIds(),
-      form.getNumberArray("option_ids"),
+      form.getNumberArray(fieldName),
     ),
   saveIds: listingAttributeOptions.setIds,
   tab: "attributes",

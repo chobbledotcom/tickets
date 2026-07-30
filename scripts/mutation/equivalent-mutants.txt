@@ -1007,3 +1007,4 @@ src/shared/rebrand.ts:138:26  false → true   # stepTag's tagIsCode reset after
 # extra no-op character and returns the same index with the same quote state.
 src/shared/rebrand.ts:152:36  + → *   # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
 src/shared/rebrand.ts:152:39  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
+src/features/admin/attributes.ts:210:55  0 → 1   # option insert's sortOrder is a placeholder: the same transaction's append overwrites it before commit, and a failed append rolls the row back — no committed state can carry the inserted value

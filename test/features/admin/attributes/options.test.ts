@@ -112,9 +112,17 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         `/admin/attributes/${id}`,
         "Option updated",
       )(edited.response);
-      await adminFormPost(
+      expect(await activityMessages()).toContain(
+        "Attribute option 'In-person' updated in Format",
+      );
+      const moved = await adminFormPost(
         `/admin/attributes/${id}/options/${second.id}/move-up`,
       );
+      await expectFlashRedirect(
+        `/admin/attributes/${id}`,
+        "Option moved",
+        true,
+      )(moved.response);
 
       const after = (await getAttributeWithOptions(id))!;
       expect(after.options.map((option) => option.text)).toEqual([
