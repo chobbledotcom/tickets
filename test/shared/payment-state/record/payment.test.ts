@@ -80,6 +80,11 @@ describe("what a stored payment may be", () => {
       "The money a payment asks for cannot be less than nothing",
     ],
     [
+      "its lookup code is nothing but spaces",
+      { sessionReferenceIndex: "   " },
+      "A payment's lookup code and worker's claim must say something",
+    ],
+    [
       "it carries an old payment's record",
       { legacyRuntime: "enc:1:a:b" },
       "A payment made here has no old record to carry",

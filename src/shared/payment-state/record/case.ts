@@ -7,6 +7,7 @@ import type { PaymentCaseState } from "#shared/payment-state/lifecycle.ts";
 import type { Fault } from "#shared/payment-state/record/fault.ts";
 import {
   absent,
+  allSaySomething,
   firstFault,
   present,
 } from "#shared/payment-state/record/fault.ts";
@@ -22,6 +23,7 @@ export type StoredCase = {
   alertSentAt: number | null;
   alertSentRevision: number | null;
   alertLeaseToken: string | null;
+  alertLeaseExpiresAt: number | null;
   revision: number;
 };
 
@@ -72,7 +74,16 @@ export const caseStateAgreesWithItsWork = (problem: StoredCase): Fault => {
       ],
     ],
   };
-  return firstFault(byState[problem.state]);
+  return firstFault([
+    [
+      // The owner's claim on a problem carries this version, and a claim is
+      // only valid from one. A version below it could never produce a claim,
+      // so the owner could never be asked to decide.
+      problem.revision >= 1,
+      "A problem's version counts up from one",
+    ],
+    ...byState[problem.state],
+  ]);
 };
 
 /**
@@ -93,6 +104,16 @@ export const mayClaimTheAlert = (problem: StoredCase): Fault =>
       // a send that never happened, and the owner never hears about it.
       present(problem.alertSentAt) === present(problem.alertSentRevision),
       "An alert says both when it went and which version it was for",
+    ],
+    [
+      // A claim with no end never goes stale, so a worker that dies part-way
+      // through telling the owner would hold the alert for good.
+      present(problem.alertLeaseToken) === present(problem.alertLeaseExpiresAt),
+      "A claim on telling the owner says when it runs out",
+    ],
+    [
+      allSaySomething([problem.alertLeaseToken]),
+      "A claim on telling the owner must say something",
     ],
     [
       problem.alertSentRevision !== problem.revision,

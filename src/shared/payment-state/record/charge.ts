@@ -8,6 +8,7 @@ import type { Fault } from "#shared/payment-state/record/fault.ts";
 import {
   absent,
   allAbsent,
+  allSaySomething,
   firstFault,
   firstOf,
   present,
@@ -188,6 +189,14 @@ const theMoneyItselfMakesSense = (charge: StoredCharge): Fault =>
     [
       charge.refundedAmount === null || charge.refundedAmount >= 0,
       "Money gone back cannot be less than nothing",
+    ],
+    [
+      allSaySomething([
+        charge.referenceIndex,
+        charge.pendingRefundIndex,
+        charge.pendingRefundKeyIndex,
+      ]),
+      "A charge's lookup codes must say something",
     ],
   ]);
 

@@ -9,6 +9,7 @@ import type { Fault } from "#shared/payment-state/record/fault.ts";
 import {
   absent,
   allAbsent,
+  allSaySomething,
   firstFault,
   present,
 } from "#shared/payment-state/record/fault.ts";
@@ -67,6 +68,10 @@ const paymentBookkeepingHolds = (
     // newer one.
     payment.revision >= 1,
     "A payment's version counts up from one",
+  ],
+  [
+    allSaySomething([payment.sessionReferenceIndex, payment.leaseToken]),
+    "A payment's lookup code and worker's claim must say something",
   ],
 ];
 

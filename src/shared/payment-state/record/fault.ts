@@ -19,5 +19,14 @@ export const firstOf = (...faults: Fault[]): Fault =>
 
 export const present = (value: unknown): boolean =>
   value !== null && value !== undefined;
+
+/**
+ * Whether every value here either is not there at all, or is text with
+ * something in it. A code made only of spaces, tabs or newlines looks like a
+ * value to every check that asks whether one is there, but nothing can ever
+ * be found by it and no worker's claim on it means anything.
+ */
+export const allSaySomething = (values: (string | null)[]): boolean =>
+  values.every((value) => value === null || value.trim() !== "");
 export const absent = (value: unknown): boolean => !present(value);
 export const allAbsent = (values: unknown[]): boolean => values.every(absent);

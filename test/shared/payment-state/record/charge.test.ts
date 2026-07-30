@@ -65,6 +65,11 @@ describe("what a stored charge may be", () => {
       "Money taken here must be named the way its own provider names it",
     ],
     [
+      "its lookup code is nothing but tabs",
+      { referenceIndex: "\t\t" },
+      "A charge's lookup codes must say something",
+    ],
+    [
       "it took nothing at all",
       { capturedAmount: 0 },
       "Money taken must be at least a penny",

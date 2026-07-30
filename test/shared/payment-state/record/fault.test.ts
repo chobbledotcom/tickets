@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   absent,
   allAbsent,
+  allSaySomething,
   firstFault,
   firstOf,
   present,
@@ -88,4 +89,22 @@ describe("whether a value is there", () => {
   test("says an empty list is all missing", () => {
     expect(allAbsent([])).toBe(true);
   });
+});
+
+describe("whether a value says anything", () => {
+  // A code of only spaces passes every check that asks whether a value is
+  // there, but nothing can ever be found by it.
+  for (const [name, values, expected] of [
+    ["a value with real text in it", ["idx"], true],
+    ["a value that is not there at all", [null], true],
+    ["nothing to check", [], true],
+    ["spaces only", ["   "], false],
+    ["tabs and newlines only", ["\t\n"], false],
+    ["an empty string", [""], false],
+    ["one good value and one blank", ["idx", " "], false],
+  ] as const) {
+    test(`${expected ? "accepts" : "refuses"} ${name}`, () => {
+      expect(allSaySomething([...values])).toBe(expected);
+    });
+  }
 });

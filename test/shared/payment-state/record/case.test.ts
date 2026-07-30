@@ -10,6 +10,7 @@ describe("what a stored problem may be", () => {
   const retrying: StoredCase = {
     alertedAt: null,
     alertedRevision: null,
+    alertLeaseExpiresAt: null,
     alertLeaseToken: null,
     alertSentAt: null,
     alertSentRevision: null,
@@ -31,6 +32,12 @@ describe("what a stored problem may be", () => {
     resolvedAt: 9,
     state: "resolved",
   };
+
+  test("refuses a problem whose version counts from nothing", () => {
+    expect(caseStateAgreesWithItsWork({ ...retrying, revision: 0 })).toBe(
+      "A problem's version counts up from one",
+    );
+  });
 
   test("accepts each state held the way that state allows", () => {
     for (const problem of [retrying, needsOwner, settled]) {
@@ -146,6 +153,23 @@ describe("what a stored problem may be", () => {
       "An alert says both when it went and which version it was for",
     );
   });
+
+  for (const [name, broken, fault] of [
+    [
+      "a claim with no end to it",
+      { alertLeaseToken: "w1" },
+      "A claim on telling the owner says when it runs out",
+    ],
+    [
+      "a claim made of nothing but spaces",
+      { alertLeaseExpiresAt: 9, alertLeaseToken: "   " },
+      "A claim on telling the owner must say something",
+    ],
+  ] as const) {
+    test(`refuses ${name}`, () => {
+      expect(mayClaimTheAlert({ ...needsOwner, ...broken })).toBe(fault);
+    });
+  }
 
   test("refuses a claim on a problem the owner is not waiting on", () => {
     expect(mayClaimTheAlert(retrying)).toBe(
