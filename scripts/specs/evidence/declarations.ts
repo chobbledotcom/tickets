@@ -34,8 +34,10 @@ const brandedMobileCapture = <Id extends string>(
     presentation: "branded" as const,
     profiles: ["mobile" as const],
   };
-  v.parse(EvidenceCaptureDeclarationSchema, declaration);
-  return declaration;
+  const checked = v.parse(EvidenceCaptureDeclarationSchema, declaration);
+  // The checked values are the ones to keep; the id is put back only to hold
+  // on to its own name in the type, and checking never changes an id.
+  return { ...checked, id };
 };
 
 export const EVIDENCE_CAPTURES = [

@@ -6,7 +6,7 @@ import {
   evidencePagePath,
   leaveEvidencePage,
 } from "#scripts/specs/evidence/pages.ts";
-import { PAYMENT_RESULT_CAPTURE as declaration } from "./evidence-fixture.ts";
+import { PAYMENT_RESULT_CAPTURE as declaration } from "#test/scripts/specs/evidence-fixture.ts";
 
 const emptyWorld = (): EvidencePages => ({
   evidencePages: new Map<EvidenceCaptureId, string>(),

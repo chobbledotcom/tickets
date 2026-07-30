@@ -17,11 +17,8 @@ export interface EvidencePages {
   evidencePages: Map<EvidenceCaptureId, string>;
 }
 
-/**
- * The story says which page it has left for a screenshot to take. Naming the
- * screenshots means the page and the declaration are tied together, so a
- * screenshot cannot be pointed at a page nobody set up.
- */
+/** Naming the screenshots is what ties a page to a declared capture: a name
+ * nothing declares does not compile. */
 export const leaveEvidencePage = (
   world: EvidencePages,
   captureIds: readonly EvidenceCaptureId[],

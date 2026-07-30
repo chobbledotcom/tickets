@@ -49,6 +49,7 @@ describe("Cucumber evidence schema", () => {
   test("rejects invalid or duplicate capture declarations", () => {
     const invalid = [
       [[{ ...declaration, id: "Not Stable" }], "capture id"],
+      [[{ ...declaration, id: " payment-result " }], "capture id"],
       [[{ ...declaration, path: "admin/payments" }], "path"],
       [
         [{ ...declaration, path: "/admin/payments/{paymentId}" }],

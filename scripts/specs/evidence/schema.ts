@@ -15,8 +15,11 @@ const TrimmedNonEmptyTextSchema = v.pipe(TrimmedTextSchema, v.nonEmpty());
 const matchingText = (pattern: RegExp, message?: string) =>
   v.pipe(TrimmedNonEmptyTextSchema, v.regex(pattern, message));
 
+/** A stable id is refused rather than tidied when it carries stray spaces: a
+ * capture id is used as a key, so a tidied one would no longer be the id the
+ * code that named it was written with. */
 const stableId = (label: string) =>
-  matchingText(STABLE_ID_PATTERN, `Invalid ${label}`);
+  v.pipe(v.string(), v.regex(STABLE_ID_PATTERN, `Invalid ${label}`));
 
 const PositiveIntegerSchema = integerAtLeast(1);
 
