@@ -90,6 +90,18 @@ export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
     "#attendee-money",
   ),
   brandedMobileCapture(
+    "booking.group-page-journey",
+    "group-booking-arrives",
+    "/admin/listing/{groupBookingListingId}/attendees",
+    "main",
+  ),
+  brandedMobileCapture(
+    "payment.place-lost",
+    "place-lost-while-paying",
+    "/admin/attendees/{lostPlaceAttendeeId}",
+    ".system-note-alert",
+  ),
+  brandedMobileCapture(
     "door.someone-still-to-arrive-can-be-picked",
     "qr-code-check-in",
     "/admin/listing/{doorListingId}/scanner",

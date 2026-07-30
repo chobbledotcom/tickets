@@ -66,7 +66,10 @@ const paymentEvent = (
 
 const setSoldOutListing = async (world: TicketsWorld): Promise<void> => {
   await setupStripe();
-  const listing = await fillSoleCapacityListing();
+  // Named, because this story leaves behind a record that gets published: a
+  // screenshot of somebody losing a place reads as one only if the thing they
+  // lost has a name.
+  const listing = await fillSoleCapacityListing(1000, "Harvest Supper");
   world.listingId = listing.id;
 };
 
@@ -135,6 +138,9 @@ Then(
     const listingId = requiredWorldValue(this.listingId, "listing id");
     const attendee = await findKeptPlaceholder(listingId);
     this.placeholderId = attendee.id;
+    // The record the site kept for somebody whose payment arrived too late,
+    // which is the page that shows an organiser what happened to them.
+    this.evidenceValues.set("lostPlaceAttendeeId", String(attendee.id));
     expect((await getAttendeesRaw(listingId)).length).toBe(2);
   },
 );
@@ -189,6 +195,9 @@ Given(
     this.firstBody = await response.text();
     const attendee = await findKeptPlaceholder(listingId);
     this.placeholderId = attendee.id;
+    // The record the site kept for somebody whose payment arrived too late,
+    // which is the page that shows an organiser what happened to them.
+    this.evidenceValues.set("lostPlaceAttendeeId", String(attendee.id));
     this.attendeeIds = (await getAttendeesRaw(listingId)).map(({ id }) => id);
     const record = await isSessionProcessed(sessionId);
     if (!record?.failure_data)
