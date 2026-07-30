@@ -29,7 +29,9 @@ describe("admin field schemas", () => {
         autocomplete: "username",
         label: "Username",
         name: "username",
+        pattern: "[a-zA-Z0-9_\\-]+",
         required: true,
+        title: "Letters, numbers, hyphens, and underscores only",
         type: "text",
       },
       {
@@ -300,7 +302,9 @@ describe("admin field schemas", () => {
         hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
         label: "Username",
         name: "username",
+        pattern: "[a-zA-Z0-9_\\-]+",
         required: true,
+        title: "Letters, numbers, hyphens, and underscores only",
         type: "text",
       },
       {

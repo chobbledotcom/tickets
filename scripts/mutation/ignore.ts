@@ -21,6 +21,7 @@
  */
 
 import { join } from "@std/path";
+import { namesInDirectory } from "#scripts/not-found.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
 import { type MutantResult, rel } from "./summary.ts";
@@ -39,15 +40,10 @@ export const EQUIVALENT_MUTANTS_DIR_PATH =
 export const listRegistryFiles = async (
   dir: string | URL = EQUIVALENT_MUTANTS_DIR,
 ): Promise<(string | URL)[]> => {
-  const names: string[] = [];
-  try {
-    for await (const item of Deno.readDir(dir)) {
-      if (item.isFile && item.name.endsWith(".txt")) names.push(item.name);
-    }
-  } catch {
-    // Absence is the documented empty case, matching loadIgnoreList.
-    return [];
-  }
+  const names = await namesInDirectory(
+    dir,
+    (item) => item.isFile && item.name.endsWith(".txt"),
+  );
   names.sort();
   return names.map((name) =>
     typeof dir === "string" ? join(dir, name) : new URL(name, dir),

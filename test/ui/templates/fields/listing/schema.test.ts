@@ -185,10 +185,13 @@ const LISTING_FIELDS = [
     type: "checkbox-group",
   },
   {
+    inputmode: "decimal",
     label: "Ticket Price (leave empty for free)",
     name: "unit_price",
+    pattern: "\\d+(\\.\\d{1,2})?",
     placeholder: "e.g. 10.00",
     section: "tickets",
+    title: "A non-negative number (e.g. 10.00)",
     type: "text",
   },
   {
@@ -205,11 +208,15 @@ const LISTING_FIELDS = [
     type: "checkbox-group",
   },
   {
+    defaultValue: "100.00",
     hint: "The maximum price attendees can pay. Must be at least £1 more than the ticket price.",
+    inputmode: "decimal",
     label: "Maximum Price (for pay more)",
     name: "max_price",
+    pattern: "\\d+(\\.\\d{1,2})?",
     placeholder: "e.g. 100.00",
     section: "tickets",
+    title: "A non-negative number (e.g. 100.00)",
     type: "text",
   },
   {
@@ -354,8 +361,10 @@ const SLUG_FIELD = {
   hint: "URL-friendly identifier (lowercase letters, numbers, hyphens, and underscores). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
   label: "Slug",
   name: "slug",
+  pattern: "[a-z0-9_\\-]+",
   required: true,
   section: "advanced",
+  title: "Lowercase letters, numbers, hyphens, and underscores only",
   type: "text",
 };
 
@@ -375,6 +384,28 @@ describe("listing field schemas", () => {
     expect(
       getListingForm({ logistics: true, storage: true }).fields.map(shape),
     ).toEqual(revealed);
+  });
+
+  test("the builder view only reveals the built-site boxes", () => {
+    const revealed = LISTING_FIELDS.map((field) =>
+      ["months_per_unit", "initial_site_months", "assign_built_site"].includes(
+        field.name,
+      )
+        ? { ...field, visible: true }
+        : field,
+    );
+    expect(getListingForm({ builder: true }).fields.map(shape)).toEqual(
+      revealed,
+    );
+  });
+
+  test("the autofocus view puts the cursor in the name box and changes nothing else", () => {
+    const focused = LISTING_FIELDS.map((field) =>
+      field.name === "name" ? { autofocus: true, ...field } : field,
+    );
+    expect(getListingForm({ nameAutofocus: true }).fields.map(shape)).toEqual(
+      focused,
+    );
   });
 
   test("the edit form is the listing form plus the slug box", () => {

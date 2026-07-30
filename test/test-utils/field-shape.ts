@@ -17,6 +17,10 @@ export const fieldShape = (field: Field): Record<string, unknown> => {
     "step",
     "visible",
     "autofocus",
+    "inputmode",
+    "pattern",
+    "title",
+    "defaultValue",
   ] as const) {
     const value = (field as Record<string, unknown>)[key];
     if (value !== undefined) out[key] = value;
