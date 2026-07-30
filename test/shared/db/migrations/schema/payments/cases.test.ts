@@ -1,6 +1,12 @@
+import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectRefused } from "./refuses.ts";
+import {
+  expectAccepted,
+  expectRefused,
+  expectRefusedAsRepeat,
+} from "./refuses.ts";
 
 describeWithEnv("db > payment case rules", { db: true }, () => {
   test("refuses a case alerted before the problem was first seen", async () => {
@@ -97,5 +103,86 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
        consecutive_count, evidence, revision)
       VALUES ('spaces', 'enc:1:a:b', '   ', 'network_error', 'retrying',
         1, 1, 1, 1, 'enc:1:a:b', 1)`);
+  });
+
+  test("refuses a problem that has never once failed", async () => {
+    // A case is written because something went wrong, so it has failed at
+    // least once. A count of none is what turns "try again" into "ask the
+    // owner" too early, or never.
+    await expectRefused(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, consecutive_count, evidence,
+       revision)
+      VALUES ('never-failed', 'enc:1:a:b', 'never-failed-index',
+        'network_error', 'needs_action', 1, 1, 0, 'enc:1:a:b', 1)`);
+  });
+
+  test("refuses an alert about a version of the problem before its first", async () => {
+    // Versions count from one, so an alert at version nothing names no
+    // version the owner could ever have been shown.
+    await expectRefused(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, consecutive_count, evidence,
+       revision, alerted_at, alerted_revision)
+      VALUES ('alert-at-nothing', 'enc:1:a:b', 'alert-at-nothing-index',
+        'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1, 1, 0)`);
+  });
+
+  test("refuses a problem whose own version counts from nothing", async () => {
+    await expectRefused(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, consecutive_count, evidence,
+       revision)
+      VALUES ('version-nothing', 'enc:1:a:b', 'version-nothing-index',
+        'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 0)`);
+  });
+
+  test("starts a problem at version one when the write does not say", async () => {
+    // The version is what an owner settles against, so a row written without
+    // one still has to be at a version they can be shown.
+    await expectAccepted(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, consecutive_count, evidence)
+      VALUES ('no-version-given', 'enc:1:a:b', 'no-version-given-index',
+        'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b')`);
+    const saved = await getDb().execute(
+      `SELECT revision FROM payment_cases WHERE payment_id = 'no-version-given'`,
+    );
+    expect(Number(saved.rows[0]?.revision)).toBe(1);
+  });
+
+  test("keeps a settled time as a number, even when written as text", async () => {
+    // The column says INTEGER, so SQLite turns a written number into one on
+    // the way in. Without that the rules demanding a real time would refuse
+    // every settled case a caller wrote as text.
+    await expectAccepted(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, consecutive_count, evidence,
+       revision, resolved_at)
+      VALUES ('settled-as-text', 'enc:1:a:b', 'settled-as-text-index',
+        'network_error', 'resolved', 1, 1, 1, 'enc:1:a:b', 1, '100')`);
+    const saved = await getDb().execute(
+      `SELECT typeof(resolved_at) AS kind, resolved_at FROM payment_cases
+        WHERE payment_id = 'settled-as-text'`,
+    );
+    expect(saved.rows[0]?.kind).toBe("integer");
+    expect(Number(saved.rows[0]?.resolved_at)).toBe(100);
+  });
+
+  test("refuses a second problem about the same thing on one payment", async () => {
+    // Seeing the same problem again has to update the one row, or an owner
+    // is asked to settle the same thing over and over.
+    await expectAccepted(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, consecutive_count, evidence,
+       revision)
+      VALUES ('seen-twice', 'enc:1:a:b', 'seen-twice-index', 'network_error',
+        'needs_action', 1, 1, 1, 'enc:1:a:b', 1)`);
+    await expectRefusedAsRepeat(`INSERT INTO payment_cases
+      (payment_id, resource, resource_index, reason, state,
+       first_observed_at, last_observed_at, consecutive_count, evidence,
+       revision)
+      VALUES ('seen-twice', 'enc:1:a:b', 'seen-twice-index', 'timeout',
+        'retrying', 2, 2, 2, 'enc:1:a:b', 2)`);
   });
 });

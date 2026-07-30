@@ -1,10 +1,21 @@
 import { expect } from "@std/expect";
 import { getDb } from "#shared/db/client.ts";
 
-/** Runs a write the tables are meant to turn away, and says so if it got in. */
-export const expectRefused = async (sql: string): Promise<void> => {
-  await expect(getDb().execute(sql)).rejects.toThrow("CHECK constraint failed");
-};
+/** Runs a write the tables are meant to turn away, naming the kind of rule
+ *  that has to be the one turning it away. */
+const refusedBy =
+  (kind: string) =>
+  async (sql: string): Promise<void> => {
+    await expect(getDb().execute(sql)).rejects.toThrow(
+      `${kind} constraint failed`,
+    );
+  };
+
+/** Turned away because the row breaks a rule about what it may say. */
+export const expectRefused = refusedBy("CHECK");
+
+/** Turned away because the same thing is already written down. */
+export const expectRefusedAsRepeat = refusedBy("UNIQUE");
 
 /** Runs a write the tables are meant to accept. */
 export const expectAccepted = async (sql: string): Promise<void> => {

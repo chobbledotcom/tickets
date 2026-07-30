@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { expectAccepted, expectRefused } from "./refuses.ts";
+import {
+  expectAccepted,
+  expectRefused,
+  expectRefusedAsRepeat,
+} from "./refuses.ts";
 
 describeWithEnv("db > payment session rules", { db: true }, () => {
   test("refuses a session with no id", async () => {
@@ -114,4 +118,79 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
           'none', 'none', 'none')`);
     });
   }
+
+  test("accepts a payment that asks for no money", async () => {
+    // A free booking still opens a payment, so the amount asked for has a
+    // floor of nothing rather than a penny.
+    await expectAccepted(`INSERT INTO payment_sessions
+      (id, origin, provider, mode, account_id, expected_amount,
+       expected_currency, booking_intent, session_resource,
+       session_reference_index, state, revision, created_at, updated_at,
+       result_state, ticket_state, completion_state)
+      VALUES ('asks-nothing', 'current', 'stripe', 'test', 'acct', 0, 'GBP',
+        'enc:1:a:b', 'enc:1:a:b', 'asks-nothing-index', 'pending', 1, 1, 1,
+        'none', 'none', 'none')`);
+  });
+
+  test("refuses a payment whose version counts from nothing", async () => {
+    await expectRefused(`INSERT INTO payment_sessions
+      (id, origin, provider, mode, account_id, expected_amount,
+       expected_currency, booking_intent, session_resource,
+       session_reference_index, state, revision, created_at, updated_at,
+       result_state, ticket_state, completion_state)
+      VALUES ('version-nothing', 'current', 'stripe', 'test', 'acct', 100,
+        'GBP', 'enc:1:a:b', 'enc:1:a:b', 'version-nothing-index', 'pending',
+        0, 1, 1, 'none', 'none', 'none')`);
+  });
+
+  test("starts a payment at version one when the write does not say", async () => {
+    // Two workers tell each other apart by the version, so a payment written
+    // without one still has to start somewhere they can both see.
+    await expectAccepted(`INSERT INTO payment_sessions
+      (id, origin, provider, mode, account_id, expected_amount,
+       expected_currency, booking_intent, session_resource,
+       session_reference_index, state, created_at, updated_at,
+       result_state, ticket_state, completion_state)
+      VALUES ('no-version-given', 'current', 'stripe', 'test', 'acct', 100,
+        'GBP', 'enc:1:a:b', 'enc:1:a:b', 'no-version-given-index', 'pending',
+        1, 1, 'none', 'none', 'none')`);
+    const saved = await getDb().execute(
+      `SELECT revision FROM payment_sessions WHERE id = 'no-version-given'`,
+    );
+    expect(Number(saved.rows[0]?.revision)).toBe(1);
+  });
+
+  test("refuses a payment pointed at a booking that cannot exist", async () => {
+    // Bookings are numbered from one, so a payment claiming booking nothing
+    // points at no booking at all.
+    await expectRefused(`INSERT INTO payment_sessions
+      (id, origin, provider, mode, account_id, expected_amount,
+       expected_currency, booking_intent, session_resource,
+       session_reference_index, state, revision, created_at, updated_at,
+       attendee_id, result_state, ticket_state, completion_state)
+      VALUES ('booking-nothing', 'current', 'stripe', 'test', 'acct', 100,
+        'GBP', 'enc:1:a:b', 'enc:1:a:b', 'booking-nothing-index', 'pending',
+        1, 1, 1, 0, 'none', 'none', 'none')`);
+  });
+
+  test("refuses a second payment found by the same lookup code", async () => {
+    // The provider's callback finds its payment by this code, so two payments
+    // sharing one would each answer to the other's money.
+    await expectAccepted(`INSERT INTO payment_sessions
+      (id, origin, provider, mode, account_id, expected_amount,
+       expected_currency, booking_intent, session_resource,
+       session_reference_index, state, revision, created_at, updated_at,
+       result_state, ticket_state, completion_state)
+      VALUES ('first-of-code', 'current', 'stripe', 'test', 'acct', 100,
+        'GBP', 'enc:1:a:b', 'enc:1:a:b', 'shared-code', 'pending', 1, 1, 1,
+        'none', 'none', 'none')`);
+    await expectRefusedAsRepeat(`INSERT INTO payment_sessions
+      (id, origin, provider, mode, account_id, expected_amount,
+       expected_currency, booking_intent, session_resource,
+       session_reference_index, state, revision, created_at, updated_at,
+       result_state, ticket_state, completion_state)
+      VALUES ('second-of-code', 'current', 'stripe', 'test', 'acct', 100,
+        'GBP', 'enc:1:a:b', 'enc:1:a:b', 'shared-code', 'pending', 1, 1, 1,
+        'none', 'none', 'none')`);
+  });
 });
