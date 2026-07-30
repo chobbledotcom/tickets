@@ -1010,3 +1010,11 @@ src/shared/db/migrations/schema/payments/charges.ts:63:40  TEXT → ""   # pendi
 src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
 src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
 src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
+
+# The "or nothing was wrong" tail on the two fault finders. Both differ from
+# `||` only when the value found is the empty string, and a Fault is either
+# null or a rule's message — every one of which is a non-empty literal, since
+# a rule whose message said nothing could not tell an operator what it
+# refused. So no record can distinguish the two operators.
+src/shared/payment-state/record/fault.ts:14:40  ?? → ||   # the found value is a rule's message, never the empty string
+src/shared/payment-state/record/fault.ts:18:41  ?? → ||   # find already excludes null, so the value is a rule's message, never the empty string
