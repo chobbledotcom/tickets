@@ -1,9 +1,12 @@
 #!/usr/bin/env -S deno run --allow-all
 
-import { fromFileUrl, relative, resolve } from "@std/path";
+import { relative, resolve } from "@std/path";
 import { splitFlagValues } from "#scripts/flag-values.ts";
 import { auditEquivalentMutants } from "#scripts/mutation/equivalent-audit.ts";
-import { listRegistryFiles } from "#scripts/mutation/ignore.ts";
+import {
+  listRegistryFiles,
+  registryFilePath,
+} from "#scripts/mutation/ignore.ts";
 import { runInSnapshot } from "#scripts/mutation/isolation.ts";
 import {
   isSnapshotChild,
@@ -77,7 +80,7 @@ const runAudit = async (options: AuditOptions): Promise<number> => {
  * audit can carry each pruned file back to the live checkout. */
 const registryCopyBackPaths = async (): Promise<string[]> =>
   (await listRegistryFiles()).map((file) =>
-    relative(projectRoot, typeof file === "string" ? file : fromFileUrl(file)),
+    relative(projectRoot, registryFilePath(file)),
   );
 
 if (import.meta.main) {

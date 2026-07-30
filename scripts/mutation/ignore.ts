@@ -20,7 +20,7 @@
  * real surviving mutant, so a stale/redundant/duplicate entry fails the run.
  */
 
-import { join } from "@std/path";
+import { fromFileUrl, join } from "@std/path";
 import { namesInDirectory, rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
@@ -33,6 +33,10 @@ const EQUIVALENT_MUTANTS_DIR = new URL(
 
 /** Every registry file in the directory, in name order so loads are stable.
  * A checkout without the directory simply has no records, so it reads empty. */
+/** A registry file as a plain path, whichever form the listing produced. */
+export const registryFilePath = (file: string | URL): string =>
+  typeof file === "string" ? file : fromFileUrl(file);
+
 export const listRegistryFiles = async (
   dir: string | URL = EQUIVALENT_MUTANTS_DIR,
 ): Promise<(string | URL)[]> => {

@@ -8,6 +8,7 @@ import {
   listRegistryFiles,
   loadIgnoreList,
   mutantKey,
+  registryFilePath,
 } from "#scripts/mutation/ignore.ts";
 import type { MutantResult } from "#scripts/mutation/summary.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -205,5 +206,17 @@ describe("mutation ignore list", () => {
     ).toEqual([
       `redundant (a test kills this mutant, not a survivor): ${redundant}`,
     ]);
+  });
+
+  test("registryFilePath keeps a plain path as it is", () => {
+    expect(registryFilePath("scripts/mutation/equivalent-mutants/a.txt")).toBe(
+      "scripts/mutation/equivalent-mutants/a.txt",
+    );
+  });
+
+  test("registryFilePath turns a file URL into its path", () => {
+    expect(registryFilePath(new URL("file:///tmp/registry/a.txt"))).toBe(
+      "/tmp/registry/a.txt",
+    );
   });
 });
