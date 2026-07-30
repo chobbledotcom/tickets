@@ -5,6 +5,7 @@
  */
 
 // jscpd:ignore-start
+import { parse } from "@std/csv/parse";
 import { expect } from "@std/expect";
 import {
   adminBrowser,
@@ -126,7 +127,8 @@ export const visitorBooksAnswering = async (
   answer: string,
 ): Promise<void> => {
   const browser = await visitorOpensBooking(world, listingName);
-  await browser.submitForm(
+  await fillInAndSend(
+    browser,
     {
       email: "buyer@example.com",
       name: "Casey Buyer",
@@ -148,10 +150,10 @@ export const answerInListDownload = async (
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${listing.id}/attendees`);
   await browser.clickLink("Export CSV");
-  const [headerLine, dataLine] = browser.currentHtml.split("\n");
-  const columns = requiredWorldValue(headerLine, "list download header").split(
-    ",",
-  );
+  // A real CSV parse, so an answer holding a comma or a quote still lands in
+  // its own column rather than spilling into the next one.
+  const rows = parse(browser.currentHtml);
+  const columns = requiredWorldValue(rows[0], "list download header");
   const question = askedQuestion(world);
   const answerColumn = columns.findIndex((column) =>
     column.includes(question.text),
@@ -159,7 +161,7 @@ export const answerInListDownload = async (
   if (answerColumn === -1) {
     throw new Error(`The list download has no column for "${question.text}"`);
   }
-  const values = requiredWorldValue(dataLine, "list download row").split(",");
+  const values = requiredWorldValue(rows[1], "list download row");
   return requiredWorldValue(
     values[answerColumn],
     `the answer to "${question.text}"`,

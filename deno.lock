@@ -11,6 +11,7 @@
     "jsr:@std/cli@^1.0.30": "1.0.30",
     "jsr:@std/collections@^1.1.3": "1.2.0",
     "jsr:@std/collections@^1.2.0": "1.2.0",
+    "jsr:@std/csv@^1.0.6": "1.0.6",
     "jsr:@std/data-structures@^1.0.10": "1.0.10",
     "jsr:@std/dotenv@~0.225.7": "0.225.7",
     "jsr:@std/encoding@1": "1.0.10",
@@ -141,6 +142,9 @@
     },
     "@std/collections@1.2.0": {
       "integrity": "47627a21d3a13138b77fd0e4d790ba9d2e603c3510b686cde6b132fe9aa98a88"
+    },
+    "@std/csv@1.0.6": {
+      "integrity": "52ef0e62799a0028d278fa04762f17f9bd263fad9a8e7f98c14fbd371d62d9fd"
     },
     "@std/data-structures@1.0.10": {
       "integrity": "f574f86b0e07c69b9edc555fcc814b57d29258bad39fd5a34ba8a80ecf033cfe"
@@ -2399,6 +2403,7 @@
       "jsr:@std/assert@^1.0.19",
       "jsr:@std/cli@^1.0.30",
       "jsr:@std/collections@^1.2.0",
+      "jsr:@std/csv@^1.0.6",
       "jsr:@std/dotenv@~0.225.7",
       "jsr:@std/expect@^1.0.18",
       "jsr:@std/http@^1.1.1",

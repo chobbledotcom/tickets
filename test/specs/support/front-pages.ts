@@ -12,12 +12,8 @@ import {
   type PageRead,
   submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
-import {
-  fillInAndSend,
-  whyValueCannotBeSent,
-} from "#test/specs/support/form-controls.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { adminFormPost } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -52,8 +48,8 @@ export const ownerWritesContactPage = (
   writesFrontPage(world, "/admin/site/contact", { contact_page_text: text });
 
 /** The owner turns the order page on and writes its introduction. The page
- * carries two saves — the switch and the words — and both go through what the
- * served page really offers. */
+ * carries two forms behind the same Save wording; each send goes through the
+ * form that really renders the field being filled in. */
 export const ownerTurnsOrderPageOn = async (
   world: TicketsWorld,
   intro: string,
@@ -62,20 +58,12 @@ export const ownerTurnsOrderPageOn = async (
   const browser = await openAdminPage(world, "/admin/site/order");
   await fillInAndSend(browser, { order_enabled: "true" }, "Save");
   expect(browser.pageText).toContain("Order page enabled");
-  // The introduction lives in the page's second form, behind the same Save
-  // wording as the switch, so it is sent the way the served form describes it
-  // rather than through a button the harness cannot tell apart.
-  expect(
-    whyValueCannotBeSent(browser.currentHtml, "order_intro_text", intro),
-  ).toBeNull();
-  const { response } = await adminFormPost("/admin/site/order", {
-    order_intro_text: intro,
-  });
-  expect(response.status).toBe(302);
+  await fillInAndSend(browser, { order_intro_text: intro }, "Save");
+  expect(browser.pageText).toContain("Order page updated");
 };
 
-/** What a visitor on one of the front pages is shown. */
-export const visitorOnFrontPage = async (path: string): Promise<PageRead> => {
-  await enablePublicSite();
-  return newcomerReading(path);
-};
+/** What a visitor on one of the front pages is shown — nothing more. The
+ * scenario's own setup decides whether the site is on, so a save that broke
+ * the site would fail here rather than being quietly repaired. */
+export const visitorOnFrontPage = (path: string): Promise<PageRead> =>
+  newcomerReading(path);

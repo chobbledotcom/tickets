@@ -284,6 +284,8 @@
   "fields.validation.duration_whole": "Booking duration (days) must be a whole number.",
   "fields.validation.duration_min": "Booking duration (days) must be at least 1.",
   "fields.validation.duration_max": "Booking duration (days) must be at most {max}.",
+  "error.months_per_unit_needs_flags": "Months per unit requires No check-in and Hidden listing to be enabled.",
+  "error.initial_site_months_required": "Initial site months is required when a site is assigned.",
   "error.customisable_days_with_pay_more": "Customisable days cannot be combined with Allow pay more. Customisable days set a price for each day count. Allow pay more lets the visitor choose the price. Only one of them can decide what to charge. Turn one off.",
   "error.slug_in_use": "Slug is already in use by another listing",
   "error.name_in_use": "Name is already in use by another listing or group",

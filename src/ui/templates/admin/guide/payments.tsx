@@ -2,6 +2,7 @@
  * Admin guide — Payments sections.
  */
 
+import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
@@ -88,12 +89,13 @@ export const paymentsSections = (): GuideSection[] => [
         "booking_duration_field",
         <>
           <p>
-            For daily listings, <strong>Booking duration (days)</strong> sets
-            how many consecutive days a single booking reserves &mdash; useful
-            for multi-night stays or multi-day passes. Leave it at 1 for a
-            normal single-day booking, or set it up to {MAX_DURATION_DAYS} days.
-            The attendee picks a start date and their booking spans that many
-            days from it.
+            For daily listings,{" "}
+            <strong>{t("fields.listing.duration_days")}</strong> sets how many
+            consecutive days a single booking reserves &mdash; useful for
+            multi-night stays or multi-day passes. Leave it at 1 for a normal
+            single-day booking, or set it up to {MAX_DURATION_DAYS} days. The
+            attendee picks a start date and their booking spans that many days
+            from it.
           </p>
           <p>
             Capacity is checked for <strong>every</strong> day the booking
