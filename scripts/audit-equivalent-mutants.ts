@@ -86,6 +86,11 @@ if (import.meta.main) {
   if (isSnapshotChild()) {
     Deno.exit(await runSnapshotChild(() => runAudit(options)));
   }
+  // The manifest is the parent's to build: a hand-passed file would be
+  // audited in the snapshot yet never copied back, so refuse it outright.
+  if (options.registry.length > 0) {
+    throw new Error(`--registry is internal to the audit\n\n${usage}`);
+  }
   // One shard list serves the audit and the copy-back alike, so a shard added
   // while the snapshot is being made can never be pruned and then lost.
   const registry = await registryCopyBackPaths();
