@@ -21,10 +21,7 @@
  */
 
 import { join } from "@std/path";
-import {
-  namesInDirectory,
-  rethrowUnlessNotFound,
-} from "#scripts/not-found.ts";
+import { namesInDirectory, rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
 import { type MutantResult, rel } from "./summary.ts";
