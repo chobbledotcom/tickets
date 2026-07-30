@@ -204,11 +204,14 @@ export const expectHtmlContains = (
   return html;
 };
 
-/** The one input tag on a page with the given name, so a test can check the
- * exact attributes a form serves (default, bounds, required). */
+/** The one form control tag on a page with the given name — input, textarea,
+ * or select — so a test can check the exact attributes a form serves
+ * (default, bounds, required). */
 export const inputNamed = (html: string, name: string): string => {
-  const tag = html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0];
-  if (!tag) throw new Error(`No input named ${name} on the page`);
+  const tag = html.match(
+    new RegExp(`<(?:input|textarea|select)[^>]*name="${name}"[^>]*>`),
+  )?.[0];
+  if (!tag) throw new Error(`No control named ${name} on the page`);
   return tag;
 };
 

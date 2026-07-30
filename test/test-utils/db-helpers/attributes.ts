@@ -6,6 +6,8 @@ import {
   attributesTable,
   listingAttributeOptions,
 } from "#shared/db/attributes.ts";
+import { expectRedirect } from "#test-utils/assertions.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 export const createTestAttribute = async (
   name = "Test attribute",
@@ -52,9 +54,27 @@ export const assignTestAttributeOptions = (
 export const createAttributeViaRoute = async (
   name: string,
 ): Promise<number> => {
-  const { adminFormPost } = await import("#test-utils/session.ts");
-  const { expectRedirect } = await import("#test-utils/assertions.ts");
   const { response } = await adminFormPost("/admin/attributes", { name });
   const location = expectRedirect(response, /^\/admin\/attributes\/\d+/);
   return Number(new URL(location, "http://localhost").pathname.split("/")[3]);
+};
+
+/** Make every sort_order write on the table fail, run the work, then clean up. */
+export const withFailingOrderTrigger = async (
+  table: "attribute_options" | "attributes",
+  run: () => Promise<void>,
+): Promise<void> => {
+  const { execute } = await import("#shared/db/client.ts");
+  await execute(`
+    CREATE TRIGGER fail_${table}_order
+    BEFORE UPDATE OF sort_order ON ${table}
+    BEGIN
+      SELECT RAISE(ABORT, 'order write failed');
+    END
+  `);
+  try {
+    await run();
+  } finally {
+    await execute(`DROP TRIGGER IF EXISTS fail_${table}_order`);
+  }
 };

@@ -8,6 +8,7 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  inputNamed,
 } from "#test-utils/assertions.ts";
 import { requireJoinCsrfToken, submitJoinForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -32,11 +33,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       expect(html).toContain("Password");
       expect(html).toContain("Confirm Password");
       expect(html).toContain("Minimum 8 characters");
-      const password = html.slice(0, html.indexOf('name="password_confirm"'));
+      const password = inputNamed(html, "password");
       expect(password).toContain('minlength="8"');
       expect(password).toContain('autocomplete="new-password"');
       expect(password).toContain("required");
-      const confirm = html.slice(html.indexOf('name="password_confirm"') - 300);
+      const confirm = inputNamed(html, "password_confirm");
       expect(confirm).toContain('autocomplete="new-password"');
       expect(confirm).toContain("required");
     });

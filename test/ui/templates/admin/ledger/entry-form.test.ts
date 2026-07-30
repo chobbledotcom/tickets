@@ -11,9 +11,20 @@ import {
   type LedgerEntryAddOption,
   ledgerEntryForm,
 } from "#templates/admin/ledger/entry-form.ts";
+import { inputNamed } from "#test-utils/assertions.ts";
 import { testWithSetting } from "#test-utils/settings.ts";
 
 describe("ledger entry forms", () => {
+  // The expected bounds and flags are written out here so a changed form
+  // definition fails this test instead of moving the expectation along.
+  test("serves the amount and date boxes as required, with a zero floor", () => {
+    const html = ledgerEntryForm.render();
+    const amount = inputNamed(html, "amount");
+    expect(amount).toContain('min="0"');
+    expect(amount).toContain("required");
+    expect(inputNamed(html, "occurred_at")).toContain("required");
+  });
+
   test("preselects the posted entry type when redisplaying the add form", () => {
     const options: LedgerEntryAddOption[] = [
       {
@@ -43,6 +54,8 @@ describe("ledger entry forms", () => {
       entry_type: MANUAL_ATTENDEE_CHARGE,
       occurred_at: "2026-06-22T09:30",
     });
+    // The type choice itself is a required control.
+    expect(inputNamed(html, "entry_type")).toContain("required");
     expect(html).toContain(
       '<option value="manual_attendee_charge" selected>Charge</option>',
     );

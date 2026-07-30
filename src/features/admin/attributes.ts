@@ -44,12 +44,12 @@ import {
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
 } from "#shared/db/attributes.ts";
-import { type TxScope, withTransaction } from "#shared/db/client.ts";
+import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import {
   flatCollectionSwap,
+  insertScopedOrderedRow,
   scopedCollectionSwap,
 } from "#shared/db/ordered-collection.ts";
-import { writeTableRow } from "#shared/db/table.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineTextForm } from "#shared/forms/definition.ts";
 import {
@@ -96,22 +96,21 @@ const handleAttributesPost = createAuthedFormRoute({
   onValid: async ({ values: { name } }) => {
     // One transaction: an attribute must never exist without its order entry
     // or its log line.
-    const attribute = await withTransaction(async (transaction) => {
-      const created = await writeTableRow(transaction, attributesTable, {
-        input: { name },
-        kind: "insert",
-      });
-      await attributesOrder.append({ key: created.id, transaction });
-      await logActivity(
-        `Attribute '${name}' created`,
-        undefined,
-        undefined,
-        transaction,
-      );
-      return created;
-    });
+    const attributeId = await writeRowInTransaction(
+      await attributesTable.insertStatement!({ name }),
+      null,
+      async (transaction, id) => {
+        await attributesOrder.append({ key: id, transaction });
+        await logActivity(
+          `Attribute '${name}' created`,
+          undefined,
+          undefined,
+          transaction,
+        );
+      },
+    );
     return redirect(
-      `/admin/attributes/${attribute.id}`,
+      `/admin/attributes/${attributeId}`,
       "Attribute created",
       true,
     );
@@ -193,6 +192,12 @@ const handleAttributeEdit = createAuthedFormRoute<
     }),
 });
 
+/** Insert an option and place it in its attribute's order, atomically. */
+const addOptionRow = insertScopedOrderedRow(
+  attributeOptionsTable,
+  attributeOptionsOrder,
+);
+
 const handleAddOption = createAuthedFormRoute<
   { text: string },
   AttributeParams
@@ -205,23 +210,12 @@ const handleAddOption = createAuthedFormRoute<
       // One transaction: an option must never exist without its place in the
       // order or its log line. The inserted sortOrder is a placeholder the
       // append overwrites before anything can read it.
-      await withTransaction(async (transaction) => {
-        const option = await writeTableRow(transaction, attributeOptionsTable, {
-          input: { attributeId: params.id, sortOrder: 0, text },
-          kind: "insert",
-        });
-        await attributeOptionsOrder.append({
-          key: option.id,
-          scope: params.id,
-          transaction,
-        });
-        await logAttributeOptionActivity(
-          text,
-          "added to",
-          attribute,
-          transaction,
-        );
-      });
+      await addOptionRow(
+        params.id,
+        { attributeId: params.id, sortOrder: 0, text },
+        (transaction) =>
+          logAttributeOptionActivity(text, "added to", attribute, transaction),
+      );
       return redirect(`/admin/attributes/${params.id}`, "Option added", true);
     }),
 });

@@ -11,6 +11,7 @@ import {
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
+  inputNamed,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
@@ -32,23 +33,22 @@ describeWithEnv("server (admin site)", { db: true }, () => {
     test("serves the home form boxes with their labels and hints", async () => {
       const { siteHomeForm } = await import("#routes/admin/site.ts");
       const html = siteHomeForm.render();
-      expect(html).toContain('name="website_title"');
       expect(html).toContain("Website Title");
-      expect(html).toContain('autocomplete="off"');
       expect(html).toContain(
         "Displayed as the main heading on all public pages (max 128 characters).",
       );
-      expect(html).toContain('name="homepage_text"');
+      expect(inputNamed(html, "website_title")).toContain('autocomplete="off"');
       expect(html).toContain("Homepage Text");
-      expect(html).toContain('placeholder="Welcome to our site..."');
+      const homepage = inputNamed(html, "homepage_text");
+      expect(homepage).toContain('placeholder="Welcome to our site..."');
       // markdown: true wires the preview affordance to the textarea.
-      expect(html).toContain("data-markdown-preview");
+      expect(homepage).toContain("data-markdown-preview");
     });
 
     test("serves the contact form box with its label", async () => {
       const { siteContactForm } = await import("#routes/admin/site.ts");
       const html = siteContactForm.render();
-      expect(html).toContain('name="contact_page_text"');
+      inputNamed(html, "contact_page_text");
       expect(html).toContain("Contact Page Text");
     });
   });

@@ -9,7 +9,6 @@ import {
   getAllAttributesWithOptions,
   getAttributeWithOptions,
 } from "#shared/db/attributes.ts";
-import { execute } from "#shared/db/client.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -23,6 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createAttributeViaRoute,
   createTestAttributeWithOptions,
+  withFailingOrderTrigger,
 } from "#test-utils/db-helpers/attributes.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
@@ -113,20 +113,11 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
     test("a failed order write leaves no half-made attribute behind", async () => {
       // Fail the append's sort_order write: the insert and the append run in
       // one transaction, so the attribute must roll back with it.
-      await execute(`
-        CREATE TRIGGER fail_attribute_order
-        BEFORE UPDATE OF sort_order ON attributes
-        BEGIN
-          SELECT RAISE(ABORT, 'order write failed');
-        END
-      `);
-      try {
+      await withFailingOrderTrigger("attributes", async () => {
         await expect(
           adminFormPost("/admin/attributes", { name: "Ghost" }),
         ).rejects.toThrow("order write failed");
-      } finally {
-        await execute("DROP TRIGGER IF EXISTS fail_attribute_order");
-      }
+      });
       expect(await getAllAttributesWithOptions()).toEqual([]);
     });
 
@@ -224,7 +215,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
 
       await expectFlashRedirect(
         `/admin/attributes/${attribute.id}/delete`,
-        expect.stringContaining("Attribute name does not match"),
+        "Attribute name does not match. Please type the exact attribute name to confirm deletion.",
         false,
       )(response);
       expect(await getAttributeWithOptions(attribute.id)).not.toBeNull();

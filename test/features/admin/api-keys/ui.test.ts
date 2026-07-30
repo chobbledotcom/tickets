@@ -12,6 +12,7 @@ import {
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
+  inputNamed,
 } from "#test-utils/assertions.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -53,9 +54,8 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       // definition fails this test instead of moving the expectation along.
       const { apiKeyForm } = await import("#routes/admin/api-keys.ts");
       const html = apiKeyForm.render();
-      expect(html).toContain('name="name"');
       expect(html).toContain("Name");
-      const input = html.slice(html.indexOf('name="name"') - 200);
+      const input = inputNamed(html, "name");
       expect(input).toContain('maxlength="100"');
       expect(input).toContain('placeholder="e.g. CI Pipeline"');
       expect(input).toContain("required");

@@ -15,6 +15,7 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { setTouchOverride } from "#shared/test-overrides.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestApiKeyFull } from "#test-utils/session.ts";
 
@@ -132,12 +133,31 @@ describeWithEnv("API key records", { db: true }, () => {
     test("getApiKeyForUser throws for wrong user", async () => {
       const { id } = await createTestApiKeyFull("Wrong User");
 
-      await expect(getApiKeyForUser(id, 999)).rejects.toThrow();
+      await expect(getApiKeyForUser(id, 999)).rejects.toThrow(
+        `API key ${id} not found for user 999`,
+      );
     });
 
     test("lists empty array for user with no keys", async () => {
       const keys = await getApiKeysForUser(999);
       expect(keys).toHaveLength(0);
     });
+  });
+
+  test("touchApiKeyLastUsed surfaces the test-override error to its caller", async () => {
+    // The fire-and-forget swallowing happens at the request layer; the
+    // function itself must still throw so that layer has something to catch.
+    setTouchOverride(new Error("touch failed"));
+    try {
+      await expect(touchApiKeyLastUsed(1)).rejects.toThrow("touch failed");
+    } finally {
+      setTouchOverride(null);
+    }
+  });
+
+  test("getApiKeyForUser throws a not-found error for an unknown key", async () => {
+    await expect(getApiKeyForUser(999_999, 1)).rejects.toThrow(
+      "API key 999999 not found for user 1",
+    );
   });
 });

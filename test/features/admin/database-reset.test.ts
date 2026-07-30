@@ -142,7 +142,9 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       });
       // Back to the reset page itself, with the mismatch error.
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/demo/reset");
+      expect(
+        new URL(response.headers.get("location")!, "http://localhost").pathname,
+      ).toBe("/demo/reset");
       expectFlash(
         response,
         expect.stringContaining(RESET_PHRASE_MISMATCH_ERROR),

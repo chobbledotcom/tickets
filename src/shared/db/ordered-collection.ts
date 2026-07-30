@@ -4,6 +4,7 @@ import {
   resultRows,
   type TxScope,
   useTransaction,
+  writeRowInTransaction,
 } from "#shared/db/client.ts";
 
 type Columns = string | readonly [string, ...string[]];
@@ -194,3 +195,39 @@ export const defineOrderedCollection = <
 
   return { append, next, nextMany, swap };
 };
+
+/**
+ * Insert a child row and give it the next place in its scoped order — one
+ * transaction, with any extra writes (like the log line) riding along. A
+ * failed order write or log rolls the insert back with it.
+ */
+export const insertScopedOrderedRow =
+  <Input>(
+    table: {
+      insertStatement?: (input: Input) => Promise<{
+        args: InValue[];
+        sql: string;
+      }>;
+    },
+    order: {
+      append: (operation: {
+        key: number;
+        scope: number;
+        transaction: TxScope;
+      }) => Promise<void>;
+    },
+  ) =>
+  (
+    scope: number,
+    input: Input,
+    log: (transaction: TxScope) => Promise<unknown>,
+  ): Promise<number> =>
+    (async () =>
+      writeRowInTransaction(
+        await table.insertStatement!(input),
+        null,
+        async (transaction, id) => {
+          await order.append({ key: id, scope, transaction });
+          await log(transaction);
+        },
+      ))();

@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttributeWithOptions } from "#shared/db/attributes.ts";
-import { execute } from "#shared/db/client.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -12,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createAttributeViaRoute,
   createTestAttributeWithOptions,
+  withFailingOrderTrigger,
 } from "#test-utils/db-helpers/attributes.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -60,22 +60,13 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
       // one transaction, so the option must roll back with it instead of
       // surviving with its placeholder order.
       const attribute = await createTestAttributeWithOptions("Fragile", []);
-      await execute(`
-        CREATE TRIGGER fail_option_order
-        BEFORE UPDATE OF sort_order ON attribute_options
-        BEGIN
-          SELECT RAISE(ABORT, 'order write failed');
-        END
-      `);
-      try {
+      await withFailingOrderTrigger("attribute_options", async () => {
         await expect(
           adminFormPost(`/admin/attributes/${attribute.id}/options`, {
             text: "Ghost",
           }),
         ).rejects.toThrow("order write failed");
-      } finally {
-        await execute("DROP TRIGGER IF EXISTS fail_option_order");
-      }
+      });
       expect((await getAttributeWithOptions(attribute.id))?.options).toEqual(
         [],
       );

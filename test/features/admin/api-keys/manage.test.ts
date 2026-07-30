@@ -13,32 +13,39 @@ import {
 } from "#test-utils/session.ts";
 
 describeWithEnv("API key manage page", { db: true }, () => {
+  /** GET the key's manage page as the owner, assert 200, return its HTML. */
+  const getManagePage = async (id: number): Promise<string> => {
+    const cookie = await testCookie();
+    const response = await handleRequest(
+      mockRequest(`/admin/api-keys/${id}`, { headers: { cookie } }),
+    );
+    expect(response.status).toBe(200);
+    return response.text();
+  };
+
   describe("per-key pages", () => {
     test("GET /admin/api-keys/:id shows the summary and canonical tab links", async () => {
       const { id } = await createTestApiKeyFull("Managed Key");
-      const cookie = await testCookie();
 
       // A never-used key shows the "Never" placeholder for last used.
-      const first = await handleRequest(
-        mockRequest(`/admin/api-keys/${id}`, { headers: { cookie } }),
-      );
-      expect(first.status).toBe(200);
-      const firstHtml = await first.text();
-      expect(firstHtml).toContain("Managed Key");
-      expect(firstHtml).toContain(`href="/admin/api-keys/${id}"`);
-      expect(firstHtml).toContain(`href="/admin/api-keys/${id}/actions"`);
-      expect(firstHtml).not.toContain(`/admin/api-keys/${id}/delete`);
-      expect(firstHtml).toContain("Never");
+      const html = await getManagePage(id);
+      expect(html).toContain("Managed Key");
+      expect(html).toContain(`href="/admin/api-keys/${id}"`);
+      expect(html).toContain(`href="/admin/api-keys/${id}/actions"`);
+      expect(html).not.toContain(`/admin/api-keys/${id}/delete`);
+      expect(html).toContain("Never");
       // The manage page lights up the API keys entry in the admin nav.
-      expect(firstHtml).toContain('<a class="active" href="/admin/api-keys">');
+      expect(html).toContain('<a class="active" href="/admin/api-keys">');
+    });
 
-      // Once used, the summary renders the formatted last-used date.
+    test("GET /admin/api-keys/:id shows the last-used date once the key is used", async () => {
+      const { id } = await createTestApiKeyFull("Managed Key");
+
       await touchApiKeyLastUsed(id);
-      const second = await handleRequest(
-        mockRequest(`/admin/api-keys/${id}`, { headers: { cookie } }),
-      );
-      const secondHtml = await second.text();
-      expect(secondHtml).not.toContain("Never");
+      const html = await getManagePage(id);
+      expect(html).not.toContain("Never");
+      // The touch just happened, so the rendered date carries this year.
+      expect(html).toContain(String(new Date().getFullYear()));
     });
 
     test("GET /admin/api-keys/:id/actions shows the delete action", async () => {

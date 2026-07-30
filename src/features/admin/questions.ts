@@ -43,6 +43,7 @@ import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
   flatCollectionSwap,
+  insertScopedOrderedRow,
   scopedCollectionSwap,
 } from "#shared/db/ordered-collection.ts";
 import {
@@ -174,17 +175,22 @@ const handleQuestionsPost = createAuthedFormRoute({
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
   onValid: async ({ values: { display_type, text } }) => {
     const displayType = requireQuestionDisplayType(display_type);
-    const question = await questionsTable.insert({
-      displayType,
-      text,
-    });
-    await questionsOrder.append({ key: question.id });
-    await logActivity(`Question '${text}' created`);
-    return redirect(
-      `/admin/questions/${question.id}`,
-      "Question created",
-      true,
+    // One transaction: a question must never exist without its order entry
+    // or its log line.
+    const questionId = await writeRowInTransaction(
+      await questionsTable.insertStatement!({ displayType, text }),
+      null,
+      async (transaction, id) => {
+        await questionsOrder.append({ key: id, transaction });
+        await logActivity(
+          `Question '${text}' created`,
+          undefined,
+          undefined,
+          transaction,
+        );
+      },
     );
+    return redirect(`/admin/questions/${questionId}`, "Question created", true);
   },
 });
 
@@ -284,16 +290,26 @@ const handleAddAnswer = createAuthedFormRoute<
         "Free-text questions don't have answer options",
       );
     }
-    const answer = await answersTable.insert({
-      questionId: params.id,
-      sortOrder: 0,
-      text,
-    });
-    await answersOrder.append({ key: answer.id, scope: params.id });
-    await logActivity(`Answer '${text}' added to question ${params.id}`);
+    // One transaction: an answer must never exist without its place in the
+    // order or its log line. The inserted sortOrder is a placeholder the
+    // append overwrites before anything can read it.
+    await addAnswerRow(
+      params.id,
+      { questionId: params.id, sortOrder: 0, text },
+      (transaction) =>
+        logActivity(
+          `Answer '${text}' added to question ${params.id}`,
+          undefined,
+          undefined,
+          transaction,
+        ),
+    );
     return redirect(`/admin/questions/${params.id}`, "Answer added", true);
   },
 });
+
+/** Insert an answer and place it in its question's order, atomically. */
+const addAnswerRow = insertScopedOrderedRow(answersTable, answersOrder);
 
 /** Confirmed-delete handlers for questions */
 const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
