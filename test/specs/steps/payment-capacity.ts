@@ -12,7 +12,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
-import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
+import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withExpectedError } from "#test-utils/mocks.ts";
@@ -66,10 +66,19 @@ const paymentEvent = (
 
 const setSoldOutListing = async (world: TicketsWorld): Promise<void> => {
   await setupStripe();
-  // Named, because this story leaves behind a record that gets published: a
-  // screenshot of somebody losing a place reads as one only if the thing they
-  // lost has a name.
-  const listing = await fillSoleCapacityListing(1000, "Harvest Supper");
+  // Filled here rather than through the shared helper, because this story
+  // leaves behind a record that gets published: a screenshot of somebody
+  // losing a place reads as one only if the thing they lost has a name.
+  const listing = await createTestListing({
+    maxAttendees: 1,
+    name: "Harvest Supper",
+    unitPrice: 1000,
+  });
+  await bookAttendee(listing, {
+    email: "first@example.com",
+    name: "First",
+    paymentId: "pi_first",
+  });
   world.listingId = listing.id;
 };
 

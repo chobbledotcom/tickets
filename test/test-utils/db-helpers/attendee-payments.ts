@@ -107,13 +107,8 @@ export const bookAttendee = async (
  *  that then try to book (or refund) a second, over-capacity purchase. */
 export const fillSoleCapacityListing = async (
   unitPrice = 1000,
-  name?: string,
 ): Promise<Listing> => {
-  const listing = await createTestListing({
-    maxAttendees: 1,
-    unitPrice,
-    ...(name === undefined ? {} : { name }),
-  });
+  const listing = await createTestListing({ maxAttendees: 1, unitPrice });
   await bookAttendee(listing, {
     email: "first@example.com",
     name: "First",
