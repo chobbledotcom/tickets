@@ -15,6 +15,7 @@ const madeHere: StoredPayment = {
   completionState: "none",
   expectedAmount: 100,
   expectedCurrency: "GBP",
+  id: "pay_1",
   leaseExpiresAt: null,
   leaseToken: null,
   legacyRuntime: null,
@@ -22,6 +23,7 @@ const madeHere: StoredPayment = {
   nextReconcileAt: null,
   origin: "current",
   provider: "stripe",
+  redactedAt: null,
   result: null,
   resultState: "none",
   revision: 1,
@@ -30,6 +32,7 @@ const madeHere: StoredPayment = {
   state: "pending",
   ticketState: "none",
   ticketTokens: null,
+  updatedAt: 5,
 };
 
 /** The same payment, copied across when the site upgraded. */
@@ -82,7 +85,17 @@ describe("what a stored payment may be", () => {
     [
       "its lookup code is nothing but spaces",
       { sessionReferenceIndex: "   " },
-      "A payment's lookup code and worker's claim must say something",
+      "A payment's name, lookup code and worker's claim must say something",
+    ],
+    [
+      "its own name is nothing but spaces",
+      { id: " " },
+      "A payment's name, lookup code and worker's claim must say something",
+    ],
+    [
+      "it was cleared before its last change",
+      { redactedAt: 1, updatedAt: 5 },
+      "A payment cleared of buyer details was cleared after its last change",
     ],
     [
       "it carries an old payment's record",

@@ -24,6 +24,7 @@ import type { PaymentProviderType } from "#shared/types.ts";
 
 /** A stored payment, in the shape the tables hold it. */
 export type StoredPayment = {
+  id: string;
   origin: RecordOrigin;
   provider: PaymentProviderType | null;
   mode: PaymentMode | null;
@@ -46,6 +47,8 @@ export type StoredPayment = {
   completionState: CompletionState;
   completion: string | null;
   legacyRuntime: string | null;
+  updatedAt: number;
+  redactedAt: number | null;
 };
 
 /** Tickets and the work after payment are held the same way either side. */
@@ -70,8 +73,19 @@ const paymentBookkeepingHolds = (
     "A payment's version counts up from one",
   ],
   [
-    allSaySomething([payment.sessionReferenceIndex, payment.leaseToken]),
-    "A payment's lookup code and worker's claim must say something",
+    allSaySomething([
+      payment.id,
+      payment.sessionReferenceIndex,
+      payment.leaseToken,
+    ]),
+    "A payment's name, lookup code and worker's claim must say something",
+  ],
+  [
+    // Clearing is found by this marker alone, and any marker at all reads as
+    // already done. One older than the last write would hide buyer details
+    // written after it, for good.
+    payment.redactedAt === null || payment.redactedAt >= payment.updatedAt,
+    "A payment cleared of buyer details was cleared after its last change",
   ],
 ];
 

@@ -14,6 +14,7 @@ describe("what a stored problem may be", () => {
     alertLeaseToken: null,
     alertSentAt: null,
     alertSentRevision: null,
+    consecutiveCount: 0,
     nextReconcileAt: 9,
     resolvedAt: null,
     revision: 1,
@@ -32,6 +33,12 @@ describe("what a stored problem may be", () => {
     resolvedAt: 9,
     state: "resolved",
   };
+
+  test("refuses a problem that failed fewer than nothing times", () => {
+    expect(
+      caseStateAgreesWithItsWork({ ...retrying, consecutiveCount: -1 }),
+    ).toBe("A problem cannot have failed fewer than nothing times in a row");
+  });
 
   test("refuses a problem whose version counts from nothing", () => {
     expect(caseStateAgreesWithItsWork({ ...retrying, revision: 0 })).toBe(

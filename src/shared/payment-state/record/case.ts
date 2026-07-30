@@ -23,6 +23,7 @@ export type StoredCase = {
   alertSentAt: number | null;
   alertSentRevision: number | null;
   alertLeaseToken: string | null;
+  consecutiveCount: number;
   alertLeaseExpiresAt: number | null;
   revision: number;
 };
@@ -81,6 +82,12 @@ export const caseStateAgreesWithItsWork = (problem: StoredCase): Fault => {
       // so the owner could never be asked to decide.
       problem.revision >= 1,
       "A problem's version counts up from one",
+    ],
+    [
+      // This counter is what decides when repeated failures become the
+      // owner's problem, so one below nothing quietly puts that off.
+      problem.consecutiveCount >= 0,
+      "A problem cannot have failed fewer than nothing times in a row",
     ],
     ...byState[problem.state],
   ]);
