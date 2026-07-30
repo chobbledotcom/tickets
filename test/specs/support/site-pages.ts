@@ -31,9 +31,11 @@ const PAGES_LIST = "/admin/site/pages";
 
 /** Wording that appears on one page and nowhere else. Every page's name is in
  * the navigation on every page, so a check that only looked for the name would
- * pass against any page at all. */
+ * pass against any page at all. Written as a sentence a visitor could really
+ * be reading, because one of these stories leaves a page behind that is
+ * published as a screenshot. */
 export const wordsOnlyOn = (name: string): string =>
-  `The body of ${name}, and of nothing else.`;
+  `Everything this site has to say about ${name} is on this page.`;
 
 /** The owner opens their list of pages, ready to write one. A page is no use
  * unless the public site is on, so a story that wrote one nobody could read
@@ -58,6 +60,9 @@ export const ownerWritesPage = async (
     t("site.pages.create_submit"),
   );
   world.sitePageTold = browser.pageText;
+  // The address the owner chose, so a capture can open the page the way a
+  // visitor would rather than being told the address a second time.
+  world.evidenceValues.set("sitePageAddress", address);
   return browser.pageText;
 };
 
