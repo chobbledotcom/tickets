@@ -16,12 +16,12 @@ import {
 } from "#shared/db/migrations/lock.ts";
 import { MIGRATION_LOCK_KEY } from "#shared/db/migrations/schema/version.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import {
   freshLockStamp,
   LONG_EXPIRED_LOCK_STAMP,
   takeMigrationLock,
 } from "#test-utils/migrations.ts";
+import { stubNtfyFetch } from "#test-utils/mocks.ts";
 
 describeWithEnv("db > migrations > lock", { db: true }, () => {
   const heldLock = async (): Promise<string | null> => {
