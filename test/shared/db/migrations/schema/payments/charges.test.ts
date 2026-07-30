@@ -182,12 +182,12 @@ describeWithEnv("db > payment charge rules", { db: true }, () => {
        refunded_amount, refund_state, legacy_source, created_at, updated_at,
        observed_at)
       VALUES ('copied-twice', 'legacy', 'hyb:1:a:b:c', 100, 'GBP', 0,
-        'unknown', 'old_payments', 1, 1, 1)`);
+        'unknown', 'processed_payments', 1, 1, 1)`);
     await expectRefusedAsRepeat(`INSERT INTO payment_charges
       (payment_id, origin, provider_reference, captured_amount, currency,
        refunded_amount, refund_state, legacy_source, created_at, updated_at,
        observed_at)
       VALUES ('copied-twice', 'legacy', 'hyb:1:d:e:f', 200, 'GBP', 0,
-        'unknown', 'old_payments', 2, 2, 2)`);
+        'unknown', 'processed_payments', 2, 2, 2)`);
   });
 });

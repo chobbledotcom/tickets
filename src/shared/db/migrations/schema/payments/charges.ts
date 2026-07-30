@@ -1,5 +1,6 @@
 /* jscpd:ignore-start -- imports */
 import {
+  LEGACY_SOURCES,
   RECORD_ORIGINS,
   REFUND_STATES,
   RESOURCE_KIND_BY_PROVIDER,
@@ -69,10 +70,11 @@ export const paymentChargeTable = paymentRecord("payment_charges", {
       "provider_refunded_at",
       wholeNumberOrNull("provider_refunded_at", "observed_at"),
     ],
-    // Only one charge may be copied from a given old table per payment, so a
-    // blank name here would be a second, distinct "nowhere" that the unique
-    // index happily accepts.
-    ["legacy_source", wordsOrNull("legacy_source")],
+    // Named outright rather than left as any words at all: only one charge may
+    // be copied from a given old table per payment, so anything the upgrade
+    // does not know about would be a second, distinct "nowhere" that the
+    // unique index happily accepts.
+    ["legacy_source", oneOfOrNull("legacy_source", LEGACY_SOURCES)],
     ...madeAndTouched,
     ["observed_at", aboutTheCharge("INTEGER NOT NULL")],
   ],
