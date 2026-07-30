@@ -990,3 +990,6 @@ src/shared/crypto/encryption.ts:120:5  false → true   # importKey is module-pr
 src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
 src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
 src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
+
+# Seeds form: a definition id no code reads back.
+src/features/admin/seeds.ts:43:7  seeds → ""   # defineForm only stores config.id on the returned object; seedsForm.render() emits fields alone, the seeds template's SaveForm never reads seedsForm.id, and no other code reads a form definition's id — no rendered byte or route behaviour carries it

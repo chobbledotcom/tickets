@@ -9,6 +9,7 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import { t } from "#shared/i18n.ts";
 import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 /* jscpd:ignore-end */
@@ -67,14 +68,13 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
     );
     try {
       const result = await createSeeds(listingCount, attendeesPerListing);
-      const message = `Created ${result.listingsCreated} listing(s) with ${result.attendeesCreated} attendee(s) total.`;
+      const message = t("admin.seeds.created", {
+        attendees: result.attendeesCreated,
+        listings: result.listingsCreated,
+      });
       return redirect("/admin/seeds", message, true);
     } catch {
-      return redirect(
-        "/admin/seeds",
-        "Failed to create seed data. Ensure setup is complete.",
-        false,
-      );
+      return redirect("/admin/seeds", t("admin.seeds.failed"), false);
     }
   });
 

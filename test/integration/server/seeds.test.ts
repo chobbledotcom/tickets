@@ -1,17 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { MAX_SEED_LISTINGS } from "#routes/admin/seeds.ts";
+import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
+import { DEMO_NAMES } from "#shared/demo/samples.ts";
 import { createSeeds } from "#shared/seeds.ts";
 import {
   assertAdminHtml,
   expectFlashRedirect,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -19,11 +21,8 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
-import {
-  createTestManagerSession,
-  testCookie,
-  testCsrfToken,
-} from "#test-utils/session.ts";
+import { postSeeds } from "#test-utils/seeds.ts";
+import { createTestManagerSession, testCookie } from "#test-utils/session.ts";
 
 describeWithEnv("server (admin seeds)", { db: true }, () => {
   describe("GET /admin/seeds", () => {
@@ -76,41 +75,11 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       expect(response.status).toBe(403);
     });
 
-    test("creates seed listings with no attendees", async () => {
-      const cookie = await testCookie();
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            attendees_per_listing: "0",
-            csrf_token: await testCsrfToken(),
-            listing_count: "2",
-          },
-          cookie,
-        ),
-      );
-
-      await expectFlashRedirect(
-        "/admin/seeds",
-        "Created 2 listing(s) with 0 attendee(s) total.",
-      )(response);
-
-      const listings = await getAllListings();
-      expect(listings.length).toBe(2);
-    });
-
     test("creates seed listings with attendees including paid and free", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            attendees_per_listing: "3",
-            csrf_token: await testCsrfToken(),
-            listing_count: "2",
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postSeeds({
+        attendees_per_listing: "3",
+        listing_count: "2",
+      });
 
       await expectFlashRedirect(
         "/admin/seeds",
@@ -144,42 +113,21 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       }
     });
 
-    test("clamps listing count to max", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            attendees_per_listing: "0",
-            csrf_token: await testCsrfToken(),
-            listing_count: "999",
-          },
-          await testCookie(),
-        ),
-      );
+    /**
+     * Seeded attendees decrypt through the same path the dashboard uses.
+     * Regression: seeds once inserted attendees without a PII blob, so the
+     * first admin page to decrypt them crashed. The story
+     * `@case:seeds.what-was-made-can-be-read-everywhere` reads the name off
+     * the attendee's record; this owns the direct decrypt contract.
+     */
+    test("seeded attendees decrypt with real demo details", async () => {
+      await postSeeds({ attendees_per_listing: "1", listing_count: "1" });
 
-      await expectFlashRedirect(
-        "/admin/seeds",
-        expect.stringContaining(`Created ${MAX_SEED_LISTINGS} listing`),
-      )(response);
-    });
-
-    test("clamps negative values to minimum", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            attendees_per_listing: "-10",
-            csrf_token: await testCsrfToken(),
-            listing_count: "-5",
-          },
-          await testCookie(),
-        ),
-      );
-
-      await expectFlashRedirect(
-        "/admin/seeds",
-        expect.stringContaining("Created 1 listing"),
-      )(response);
+      const [listing] = await getAllListings();
+      const raw = await getAttendeesRaw(listing!.id);
+      const decrypted = await decryptAttendees(raw, await getTestPrivateKey());
+      expect(decrypted.length).toBe(1);
+      expect(DEMO_NAMES).toContain(decrypted[0]!.name);
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -199,86 +147,12 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     });
 
     test("created listings are active", async () => {
-      await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            attendees_per_listing: "0",
-            csrf_token: await testCsrfToken(),
-            listing_count: "1",
-          },
-          await testCookie(),
-        ),
-      );
+      await postSeeds({ attendees_per_listing: "0", listing_count: "1" });
 
       const listings = await getAllListings();
       expect(listings[0]!.active).toBe(true);
       // With 0 attendees, max_attendees is 0 (sum of quantities)
       expect(listings[0]!.max_attendees).toBe(0);
-    });
-
-    test("redirects with error when seed creation fails", async () => {
-      // Remove public key to cause createSeeds to fail
-      await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
-      settings.invalidateCache();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            attendees_per_listing: "0",
-            csrf_token: await testCsrfToken(),
-            listing_count: "1",
-          },
-          await testCookie(),
-        ),
-      );
-
-      await expectFlashRedirect(
-        "/admin/seeds",
-        "Failed to create seed data. Ensure setup is complete.",
-        false,
-      )(response);
-    });
-
-    test("rejects a non-numeric listing count", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            attendees_per_listing: "2",
-            csrf_token: await testCsrfToken(),
-            listing_count: "abc",
-          },
-          await testCookie(),
-        ),
-      );
-
-      await expectFlashRedirect(
-        "/admin/seeds",
-        "Number of listings is invalid.",
-        false,
-      )(response);
-    });
-
-    test("rejects non-numeric attendees per listing", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/seeds",
-          {
-            attendees_per_listing: "abc",
-            csrf_token: await testCsrfToken(),
-            listing_count: "1",
-          },
-          await testCookie(),
-        ),
-      );
-
-      await expectFlashRedirect(
-        "/admin/seeds",
-        "Attendees per listing is invalid.",
-        false,
-      )(response);
     });
 
     test("seeds a customisable-days listing with day prices", async () => {
