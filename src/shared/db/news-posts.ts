@@ -55,6 +55,7 @@ import type {
   NewsPostCard,
   NewsPostSummary,
 } from "#shared/types.ts";
+import { isInstant } from "#shared/validation/timestamp.ts";
 
 /** Create/update input (camelCase keys → snake_case columns). `created`, `slug`,
  * and `slugIndex` are computed in {@link createNewsPost}, never posted by the
@@ -193,6 +194,11 @@ export const createNewsPost = async (
   transaction?: TxScope,
 ): Promise<NewsPost> => {
   const created = input.created ?? nowIso();
+  // The permalink is built from this date and can never be rebuilt, so a caller
+  // that pins a date it made up gets an error rather than a broken /news link.
+  if (!isInstant(created)) {
+    throw new Error(`News post created is not a real timestamp: "${created}"`);
+  }
   return useTransaction(transaction, async (tx) => {
     const { slug, slugIndex } = await uniqueSlugFromBase({
       base: newsSlugBase(created, input.name),

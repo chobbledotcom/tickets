@@ -992,7 +992,6 @@ src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get re
 src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
 src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
 
-# News post reads and writes: the card query names a single table, and no caller
-# can hand createNewsPost a blank created date.
-src/shared/db/news-posts.ts:147:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
-src/shared/db/news-posts.ts:195:32  ?? → ||   # the two differ only for a blank created, which no caller produces: the admin write builds its input through newsContentInput, which has no created field at all, and a restore passes the timestamp it stored
+# The news card query names a single table, so its columns need no alias to
+# resolve.
+src/shared/db/news-posts.ts:148:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
