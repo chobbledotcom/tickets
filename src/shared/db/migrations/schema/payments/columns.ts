@@ -58,7 +58,17 @@ export const amountOrNull = (name: string, floor: number): string =>
     ),
   );
 
-const saysSomething = (name: string): string => `length(trim(${name})) > 0`;
+/**
+ * Really text, not bytes that read like it. TEXT affinity leaves a blob
+ * alone, while trim() and GLOB both coerce one while they look at it — so
+ * bytes spelling "p1" would pass every rule below and be stored as bytes. A
+ * later lookup binding the same value as a string never matches those bytes,
+ * so the row is written, looks attached, and can never be found again.
+ */
+const isText = (name: string): string => `typeof(${name}) = 'text'`;
+
+const saysSomething = (name: string): string =>
+  `${isText(name)} AND length(trim(${name})) > 0`;
 
 /** Text that says something, rather than being blank or only spaces. */
 export const words = (name: string): string =>
@@ -81,7 +91,7 @@ const sealed = (name: string, prefix: string, parts: number): string =>
   // GLOB's ?* happily swallows more separators, so a value with an extra part
   // would pass while nothing could read it back. The second half refuses one
   // separator more than the envelope has.
-  `(${name} GLOB '${prefix}${":?*".repeat(parts)}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
+  `(${isText(name)} AND ${name} GLOB '${prefix}${":?*".repeat(parts)}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
 
 /** Hidden with this site's own key: a starting block, then the hidden text. */
 const ownSealed = (name: string): string => sealed(name, "enc:1", 2);

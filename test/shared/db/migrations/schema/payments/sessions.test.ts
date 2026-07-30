@@ -119,6 +119,63 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
     });
   }
 
+  // SQLite leaves bytes as bytes in a TEXT column, while trim() and GLOB both
+  // turn them into text just long enough to look at them — so bytes spelling
+  // a real value would pass every rule and be stored as bytes. Nothing
+  // binding the same value as a string would ever find that row again.
+  for (const [name, column, bytes] of [
+    ["whose id is", "id", "bytes-id"],
+    ["whose lookup code is", "session_reference_index", "bytes-index"],
+    ["whose buyer's details are", "booking_intent", "enc:1:a:b"],
+  ] as const) {
+    test(`refuses a payment ${name} bytes that only read like text`, async () => {
+      const columns = [
+        "id",
+        "origin",
+        "provider",
+        "mode",
+        "account_id",
+        "expected_amount",
+        "expected_currency",
+        "booking_intent",
+        "session_resource",
+        "session_reference_index",
+        "state",
+        "revision",
+        "created_at",
+        "updated_at",
+        "result_state",
+        "ticket_state",
+        "completion_state",
+      ];
+      const values: Record<string, unknown> = {
+        account_id: "acct",
+        booking_intent: "enc:1:a:b",
+        completion_state: "none",
+        created_at: 1,
+        expected_amount: 100,
+        expected_currency: "GBP",
+        id: "bytes-row",
+        mode: "test",
+        origin: "current",
+        provider: "stripe",
+        result_state: "none",
+        revision: 1,
+        session_reference_index: "bytes-row-index",
+        session_resource: "enc:1:a:b",
+        state: "pending",
+        ticket_state: "none",
+        updated_at: 1,
+      };
+      values[column] = new TextEncoder().encode(bytes);
+      await expectRefused({
+        args: columns.map((key) => values[key] as never),
+        sql: `INSERT INTO payment_sessions (${columns.join(", ")})
+          VALUES (${columns.map(() => "?").join(", ")})`,
+      });
+    });
+  }
+
   test("accepts a payment that asks for no money", async () => {
     // A free booking still opens a payment, so the amount asked for has a
     // floor of nothing rather than a penny.

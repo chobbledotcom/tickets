@@ -65,17 +65,17 @@ describe("the kinds of column a payment record is built from", () => {
 
   test("text has to say something, not just hold spaces", () => {
     expect(words("payment_id")).toBe(
-      "TEXT NOT NULL CHECK (length(trim(payment_id)) > 0)",
+      "TEXT NOT NULL CHECK (typeof(payment_id) = 'text' AND length(trim(payment_id)) > 0)",
     );
     expect(wordsOrNull("lease_token")).toBe(
-      "TEXT CHECK (lease_token IS NULL OR length(trim(lease_token)) > 0)",
+      "TEXT CHECK (lease_token IS NULL OR typeof(lease_token) = 'text' AND length(trim(lease_token)) > 0)",
     );
   });
 
   test("the record's own name cannot be nothing", () => {
     // A text primary key does not stop SQLite keeping NULL, so it is said here.
     expect(keyWords("id")).toBe(
-      "TEXT PRIMARY KEY NOT NULL CHECK (length(trim(id)) > 0)",
+      "TEXT PRIMARY KEY NOT NULL CHECK (typeof(id) = 'text' AND length(trim(id)) > 0)",
     );
   });
 
@@ -101,13 +101,13 @@ describe("the kinds of column a payment record is built from", () => {
     // GLOB's ?* swallows extra separators, so the second half refuses one
     // separator more than the envelope has.
     expect(encryptedPaymentColumn("evidence")).toBe(
-      "TEXT NOT NULL CHECK ((evidence GLOB 'enc:1:?*:?*' AND evidence NOT GLOB 'enc:1:*:*:*'))",
+      "TEXT NOT NULL CHECK ((typeof(evidence) = 'text' AND evidence GLOB 'enc:1:?*:?*' AND evidence NOT GLOB 'enc:1:*:*:*'))",
     );
   });
 
   test("a hidden value that may be missing is checked only when it is there", () => {
     expect(encryptedPaymentColumnOrNull("decision")).toBe(
-      "(decision IS NULL OR (decision GLOB 'enc:1:?*:?*' AND decision NOT GLOB 'enc:1:*:*:*'))",
+      "(decision IS NULL OR (typeof(decision) = 'text' AND decision GLOB 'enc:1:?*:?*' AND decision NOT GLOB 'enc:1:*:*:*'))",
     );
   });
 
@@ -161,7 +161,10 @@ describe("the kinds of column a payment record is built from", () => {
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
       // The payment it belongs to must say something: a record hanging off a
       // blank one belongs to no payment anybody can find.
-      ["payment_id", "TEXT NOT NULL CHECK (length(trim(payment_id)) > 0)"],
+      [
+        "payment_id",
+        "TEXT NOT NULL CHECK (typeof(payment_id) = 'text' AND length(trim(payment_id)) > 0)",
+      ],
       ["captured_amount", "INTEGER"],
     ]);
     expect(table.indexes).toEqual([
