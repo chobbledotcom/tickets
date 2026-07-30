@@ -25,12 +25,10 @@ describe("the messages sent after a payment", () => {
     expect(column("data")).toContain("TEXT NOT NULL");
   });
 
-  test("names the message with something, not a blank", () => {
-    expect(column("delivery_key")).toContain("length(trim(delivery_key)) > 0");
-  });
-
-  test("lets a message wait, and says when it was sent", () => {
-    expect(column("completed_at")).toContain("completed_at IS NULL OR");
+  test("lets a message wait until it has been sent", () => {
+    // Empty until it goes out, which is what makes "which messages are still
+    // waiting?" a cheap question.
+    expect(column("completed_at")).toBe("INTEGER");
   });
 
   test("cannot send the same message for a payment twice", () => {

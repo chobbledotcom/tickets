@@ -18,20 +18,14 @@ describe("the work done after a payment", () => {
     ]);
   });
 
-  test("names the work with something, not a blank", () => {
-    expect(column("effect")).toContain("length(trim(effect)) > 0");
-  });
-
   test("only records work that has been done", () => {
     // Unlike a message waiting to be sent, a piece of work is written down
     // once it has happened, so its time is always there.
-    expect(column("completed_at")).toContain("INTEGER NOT NULL");
-    expect(column("completed_at")).toContain("typeof(completed_at)");
+    expect(column("completed_at")).toBe("INTEGER NOT NULL");
   });
 
-  test("points at a real row when it points at one at all", () => {
-    expect(column("record_id")).toContain("record_id IS NULL OR");
-    expect(column("record_id")).toContain("record_id >= 1");
+  test("may point at the row the work made, or at nothing yet", () => {
+    expect(column("record_id")).toBe("INTEGER");
   });
 
   test("cannot do the same piece of work for a payment twice", () => {

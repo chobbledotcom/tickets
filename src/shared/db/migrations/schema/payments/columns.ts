@@ -1,97 +1,55 @@
 import type { Table } from "#shared/db/migrations/schema/types.ts";
 
 /**
- * The kinds of column a payment record is built from, each in a "must be
- * there" and a "may be missing" form.
+ * The kinds of column a payment record is built from.
  *
- * SQLite is why they exist: a rule comparing against a missing value passes
- * rather than fails, and any column will hold text where a number was meant,
- * so both have to be said outright on every column. Saying them here once
- * means a new column cannot arrive weaker than the one beside it.
+ * These say only what a column *is* — its type, whether it may be missing,
+ * what it starts as. What a payment may say, and how it may behave, is the
+ * record layer's to enforce in TypeScript, where a broken rule names itself,
+ * can be unit tested without a database, and can be changed without rebuilding
+ * a table already full of real money.
+ *
+ * The one exception is anything holding the buyer's details. That rule checks
+ * what actually landed in the column rather than what the code meant to put
+ * there, which is the one thing TypeScript cannot see: a type says `string`
+ * while the value is bytes. It stays here, at the last point before the data
+ * comes to rest.
  */
-
-/** Lets a rule pass when the value is not there at all. */
-const orMissing = (name: string, rule: string): string =>
-  `${name} IS NULL OR ${rule}`;
-
-const column = (type: string, rule: string): string =>
-  `${type} CHECK (${rule})`;
-
-const withDefault = (type: string, fallback: string | number | undefined) =>
-  `${type}${fallback === undefined ? "" : ` DEFAULT ${fallback}`}`;
 
 /** Joins rules of which one must hold. */
 export const anyOf = (rules: string[]): string => `(${rules.join(" OR ")})`;
 
-/**
- * The smallest a number may be: a fixed floor, or the name of another column
- * on the same row — the moment a time is measured from, such as when the
- * payment was created.
- */
-type Floor = number | string;
+const withDefault = (type: string, fallback: string | number | undefined) =>
+  `${type}${fallback === undefined ? "" : ` DEFAULT ${fallback}`}`;
 
-const realNumber = (name: string, floor: Floor): string =>
-  // A floor naming another column has to be there before it can be compared
-  // with: SQLite passes a rule that compares against a missing value.
-  `typeof(${name}) = 'integer'${
-    typeof floor === "string" ? ` AND ${floor} IS NOT NULL` : ""
-  } AND ${name} >= ${floor}`;
+export const wholeNumber = (fallback?: number): string =>
+  withDefault("INTEGER NOT NULL", fallback);
 
-/** A whole number that is really a number and not below its floor. */
-export const wholeNumber = (
-  name: string,
-  floor: Floor = 0,
-  fallback?: number,
-): string =>
-  column(withDefault("INTEGER NOT NULL", fallback), realNumber(name, floor));
+export const wholeNumberOrNull = (): string => "INTEGER";
 
-export const wholeNumberOrNull = (name: string, floor: Floor = 0): string =>
-  column("INTEGER", orMissing(name, `(${realNumber(name, floor)})`));
+export const words = (fallback?: string): string =>
+  withDefault("TEXT NOT NULL", fallback && `'${fallback}'`);
 
-/** A whole number with a top as well, for the columns holding money. */
-export const amountOrNull = (name: string, floor: number): string =>
-  column(
-    "INTEGER",
-    orMissing(
-      name,
-      `(typeof(${name}) = 'integer' AND ${name} BETWEEN ${floor} AND ${Number.MAX_SAFE_INTEGER})`,
-    ),
-  );
-
-/**
- * Really text, not bytes that read like it. TEXT affinity leaves a blob
- * alone, while trim() and GLOB both coerce one while they look at it — so
- * bytes spelling "p1" would pass every rule below and be stored as bytes. A
- * later lookup binding the same value as a string never matches those bytes,
- * so the row is written, looks attached, and can never be found again.
- */
-const isText = (name: string): string => `typeof(${name}) = 'text'`;
-
-const saysSomething = (name: string): string =>
-  `${isText(name)} AND length(trim(${name})) > 0`;
-
-/** Text that says something, rather than being blank or only spaces. */
-export const words = (name: string): string =>
-  column("TEXT NOT NULL", saysSomething(name));
-
-export const wordsOrNull = (name: string): string =>
-  column("TEXT", orMissing(name, saysSomething(name)));
+export const wordsOrNull = (): string => "TEXT";
 
 /** The payment's own name, which SQLite would otherwise let hold nothing. */
-export const keyWords = (name: string): string =>
-  column("TEXT PRIMARY KEY NOT NULL", saysSomething(name));
+export const keyWords = (): string => "TEXT PRIMARY KEY NOT NULL";
 
 /**
  * Text hidden behind a whole envelope, not just its front. A value counts as
- * hidden only if it says how it was hidden and then carries every part needed
- * to read it back, so a bare prefix with the buyer's details after it is
- * refused — as it would have to be, since nothing could read it back either.
+ * hidden only if it is really text, says how it was hidden, and then carries
+ * every part needed to read it back — so a bare prefix with the buyer's
+ * details after it is refused, as it would have to be, since nothing could
+ * read it back either.
+ *
+ * Really text matters as much as the shape: SQLite leaves bytes alone in a
+ * TEXT column while GLOB turns them into text just long enough to look at
+ * them, so bytes spelling an envelope would otherwise pass and be stored as
+ * bytes. GLOB's ?* also swallows more separators, so the second half refuses
+ * one separator more than the envelope has.
  */
 const sealed = (name: string, prefix: string, parts: number): string =>
-  // GLOB's ?* happily swallows more separators, so a value with an extra part
-  // would pass while nothing could read it back. The second half refuses one
-  // separator more than the envelope has.
-  `(${isText(name)} AND ${name} GLOB '${prefix}${":?*".repeat(parts)}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
+  `(typeof(${name}) = 'text' AND ${name} GLOB '${prefix}${":?*".repeat(parts)}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
 
 /** Hidden with this site's own key: a starting block, then the hidden text. */
 const ownSealed = (name: string): string => sealed(name, "enc:1", 2);
@@ -103,49 +61,23 @@ const legacySealed = (name: string): string => sealed(name, "hyb:1", 3);
  *  in the older wrapped form a copied record uses. Which one it is depends on
  *  where the record came from; that it is one of them never does. */
 export const sealedEitherWay = (name: string): string =>
-  `TEXT NOT NULL CHECK (${saysSomething(name)} AND ${anyOf([ownSealed(name), legacySealed(name)])})`;
+  `TEXT NOT NULL CHECK (${anyOf([ownSealed(name), legacySealed(name)])})`;
 
 export const encryptedPaymentColumn = (name: string): string =>
-  column("TEXT NOT NULL", ownSealed(name));
+  `TEXT NOT NULL CHECK (${ownSealed(name)})`;
 
 export const encryptedPaymentColumnOrNull = (name: string): string =>
-  `(${orMissing(name, ownSealed(name))})`;
+  `(${name} IS NULL OR ${ownSealed(name)})`;
 
-const oneOfWords = (name: string, allowed: readonly string[]): string =>
-  `${name} IN (${allowed.map((word) => `'${word}'`).join(", ")})`;
-
-/** One of a fixed set of words, and nothing else. */
-export const oneOf = (
-  name: string,
-  allowed: readonly string[],
-  fallback?: string,
-): string =>
-  column(
-    withDefault("TEXT NOT NULL", fallback && `'${fallback}'`),
-    oneOfWords(name, allowed),
-  );
-
-export const oneOfOrNull = (name: string, allowed: readonly string[]): string =>
-  column("TEXT", orMissing(name, oneOfWords(name, allowed)));
-
-/** Three capital letters, the shape every currency is written in. */
-export const currencyOrNull = (name: string): string =>
-  column(
-    "TEXT",
-    orMissing(name, `${isText(name)} AND ${name} GLOB '[A-Z][A-Z][A-Z]'`),
-  );
-
-/** When a row was made and last touched. Every payment record carries both,
- *  and the touch can never come before the making. */
+/** When a row was made and last touched. Every payment record carries both. */
 export const madeAndTouched: [string, string][] = [
-  ["created_at", wholeNumber("created_at")],
-  ["updated_at", wholeNumber("updated_at", "created_at")],
+  ["created_at", wholeNumber()],
+  ["updated_at", wholeNumber()],
 ];
 
 /**
  * Rules about the row as a whole, hung on its last column because that is the
- * only place SQLite lets a table say them — so they read as one list of what a
- * record may never be, rather than being scattered over the columns.
+ * only place SQLite lets a table say them.
  */
 export const alsoAbout =
   (theRow: string[]): ((base: string) => string) =>
@@ -168,7 +100,7 @@ export const paymentRecord = (
   {
     columns: [
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-      ["payment_id", words("payment_id")],
+      ["payment_id", words()],
       ...parts.columns,
     ],
     indexes: parts.indexes,

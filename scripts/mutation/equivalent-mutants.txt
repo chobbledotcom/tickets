@@ -987,26 +987,7 @@ src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is b
 scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
 src/features/api/payment-processing/cancel.ts:63:40  ?? → ||   # a line's listing id is a positive whole number, so the only value reaching the fallback is undefined, which both operators send to the same 0
 src/shared/crypto/encryption.ts:120:5  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable
-src/shared/db/migrations/schema/payments/cases.ts:42:70  1 → 0   # alert_sent_revision can never be 0 while it is there: the row rule "alert_sent_revision IS NULL OR (alerted_revision IS NOT NULL AND alert_sent_revision = alerted_revision)" ties it to alerted_revision, whose own floor is 1, so the value is either missing (both floors pass) or at least 1
 
-# The bare "TEXT" on a payment column whose value must be encrypted. Each of
-# these columns carries a row rule of the form
-# "<col> IS NULL OR (<col> GLOB 'enc:1:?*:?*' AND <col> NOT GLOB 'enc:1:*:*:*')",
-# so the only values it can ever hold are NULL or text starting "enc:1:".
-# TEXT affinity only changes what happens to a number written into the column,
-# and a number can never satisfy that GLOB — it is refused with the affinity
-# and without it. Text and blobs are left alone by TEXT affinity, so no value
-# of any storage class tells the two declarations apart. Contrast the same
-# mutants where a column has no value rule: those are killable, and are killed.
-src/shared/db/migrations/schema/payments/sessions.ts:56:28  TEXT → ""   # session_resource is GLOB-locked to encrypted text by aboutThePayment
-src/shared/db/migrations/schema/payments/sessions.ts:60:26  TEXT → ""   # booking_intent is GLOB-locked to encrypted text by aboutThePayment
-src/shared/db/migrations/schema/payments/sessions.ts:61:27  TEXT → ""   # checkout_create is GLOB-locked to encrypted text by aboutThePayment
-src/shared/db/migrations/schema/payments/sessions.ts:75:18  TEXT → ""   # result is GLOB-locked to encrypted text by aboutThePayment
-src/shared/db/migrations/schema/payments/sessions.ts:77:25  TEXT → ""   # ticket_tokens is GLOB-locked to encrypted text by aboutThePayment
-src/shared/db/migrations/schema/payments/sessions.ts:82:22  TEXT → ""   # completion is GLOB-locked to encrypted text by aboutThePayment
-src/shared/db/migrations/schema/payments/sessions.ts:87:42  TEXT → ""   # legacy_runtime is GLOB-locked to encrypted text by aboutThePayment
-src/shared/db/migrations/schema/payments/charges.ts:62:27  TEXT → ""   # pending_refund_id is GLOB-locked to encrypted text by aboutTheCharge
-src/shared/db/migrations/schema/payments/charges.ts:64:40  TEXT → ""   # pending_refund_idempotency_key is GLOB-locked to encrypted text by aboutTheCharge
 src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
 src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
 src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []

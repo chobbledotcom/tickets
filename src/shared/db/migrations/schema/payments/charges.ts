@@ -1,80 +1,48 @@
-/* jscpd:ignore-start -- imports */
-import {
-  LEGACY_SOURCES,
-  RECORD_ORIGINS,
-  REFUND_STATES,
-  RESOURCE_KIND_BY_PROVIDER,
-  RESOURCE_KINDS,
-} from "#shared/payment-state/words.ts";
-import { PaymentProviderSchema } from "#shared/types.ts";
 import {
   alsoAbout,
-  amountOrNull,
-  anyOf,
-  currencyOrNull,
   encryptedPaymentColumnOrNull,
   madeAndTouched,
-  oneOf,
-  oneOfOrNull,
   paymentRecord,
   sealedEitherWay,
   wholeNumberOrNull,
+  words,
   wordsOrNull,
 } from "./columns.ts";
 
 /* jscpd:ignore-end */
 
-const PROVIDERS = PaymentProviderSchema.options;
-
 /** Each provider names its money its own way, so when a charge says both, the
  *  two have to agree. Which name goes with which provider does not change. */
-const providerMatchesKind = anyOf(
-  Object.entries(RESOURCE_KIND_BY_PROVIDER).map(
-    ([provider, kind]) =>
-      `(provider = '${provider}' AND resource_kind = '${kind}')`,
-  ),
-);
-
-/** What a charge may never be, whatever else is true of it. */
+/** The only rule the table keeps: the buyer's details really are hidden. */
 const aboutTheCharge = alsoAbout([
-  `typeof(observed_at) = 'integer' AND observed_at >= 0`,
-  // Money can never be given back beyond what was taken. This holds whatever
-  // the refund is doing, so it belongs with the money rather than the runtime.
-  "refunded_amount IS NULL OR captured_amount IS NULL OR refunded_amount BETWEEN 0 AND captured_amount",
-  `provider IS NULL OR resource_kind IS NULL OR ${providerMatchesKind}`,
-  "(pending_refund_id IS NULL) = (pending_refund_index IS NULL)",
-  "(pending_refund_idempotency_key IS NULL) = (pending_refund_key_index IS NULL)",
   encryptedPaymentColumnOrNull("pending_refund_id"),
   encryptedPaymentColumnOrNull("pending_refund_idempotency_key"),
 ]);
 
 export const paymentChargeTable = paymentRecord("payment_charges", {
   columns: [
-    ["origin", oneOf("origin", RECORD_ORIGINS, "current")],
-    ["provider", oneOfOrNull("provider", PROVIDERS)],
-    ["resource_kind", oneOfOrNull("resource_kind", RESOURCE_KINDS)],
+    ["origin", words("current")],
+    ["provider", wordsOrNull()],
+    ["resource_kind", wordsOrNull()],
     ["provider_reference", sealedEitherWay("provider_reference")],
-    ["reference_index", wordsOrNull("reference_index")],
-    ["captured_amount", amountOrNull("captured_amount", 1)],
-    ["currency", currencyOrNull("currency")],
-    ["refunded_amount", wholeNumberOrNull("refunded_amount")],
-    ["refund_state", oneOf("refund_state", REFUND_STATES, "none")],
+    ["reference_index", wordsOrNull()],
+    ["captured_amount", wholeNumberOrNull()],
+    ["currency", wordsOrNull()],
+    ["refunded_amount", wholeNumberOrNull()],
+    ["refund_state", words("none")],
     ["pending_refund_id", "TEXT"],
-    ["pending_refund_index", wordsOrNull("pending_refund_index")],
+    ["pending_refund_index", wordsOrNull()],
     ["pending_refund_idempotency_key", "TEXT"],
-    ["pending_refund_key_index", wordsOrNull("pending_refund_key_index")],
+    ["pending_refund_key_index", wordsOrNull()],
     // A time, like every other time here, so it can be compared with them.
     // SQLite sorts numbers before text whatever they say, so one time kept
     // as words would always read as later than one kept as a number.
-    [
-      "provider_refunded_at",
-      wholeNumberOrNull("provider_refunded_at", "observed_at"),
-    ],
+    ["provider_refunded_at", wholeNumberOrNull()],
     // Named outright rather than left as any words at all: only one charge may
     // be copied from a given old table per payment, so anything the upgrade
     // does not know about would be a second, distinct "nowhere" that the
     // unique index happily accepts.
-    ["legacy_source", oneOfOrNull("legacy_source", LEGACY_SOURCES)],
+    ["legacy_source", wordsOrNull()],
     ...madeAndTouched,
     ["observed_at", aboutTheCharge("INTEGER NOT NULL")],
   ],

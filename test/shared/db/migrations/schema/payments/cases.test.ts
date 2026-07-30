@@ -8,181 +8,68 @@ import {
   expectRefusedAsRepeat,
 } from "./refuses.ts";
 
+/** A problem the table is happy with. What a problem may *say* is the record
+ *  layer's to judge, so these rows only have to be the right shape. */
+const aCase = (
+  columns = "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision",
+  values = "'case-1', 'enc:1:a:b', 'case-1-index', 'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1",
+) => `INSERT INTO payment_cases (${columns}) VALUES (${values})`;
+
 describeWithEnv("db > payment case rules", { db: true }, () => {
-  test("refuses a case alerted before the problem was first seen", async () => {
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision, alerted_at, alerted_revision)
-      VALUES ('early-alert', 'enc:1:a:b', 'early-alert-index', 'network_error',
-        'needs_action', 100, 100, 1, 'enc:1:a:b', 1, 1, 1)`);
-  });
+  // The one rule the table still keeps. A type says "string" while the value
+  // is bytes, which is the thing no TypeScript check can see.
+  for (const [name, resource] of [
+    ["in plain words", "Jane Smith"],
+    ["behind an upper-case envelope", "ENC:1:a:b"],
+    ["wearing an envelope with nothing in it", "enc:1:Jane Smith"],
+  ] as const) {
+    test(`refuses a problem whose evidence is held ${name}`, async () => {
+      await expectRefused(
+        aCase(
+          "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision",
+          `'plain', 'enc:1:a:b', 'plain-index', 'network_error', 'needs_action', 1, 1, 1, '${resource}', 1`,
+        ),
+      );
+    });
+  }
 
-  test("refuses case alert bookkeeping that is not a real time or revision", async () => {
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision, alerted_at, alerted_revision)
-      VALUES ('bad-alert', 'enc:1:a:b', 'bad-alert-index', 'network_error',
-        'needs_action', 1, 1, 1, 'enc:1:a:b', 1, 'bad', 0)`);
-  });
-
-  test("refuses a sent alert on a case that was never alerted", async () => {
-    // Saying an alert went out for a revision nothing was alerted at can stop
-    // the owner ever being told, once the case does need them.
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, next_reconcile_at,
-       consecutive_count, evidence, revision,
-       alert_sent_at, alert_sent_revision)
-      VALUES ('sent-never-alerted', 'enc:1:a:b', 'sent-index',
-        'network_error', 'retrying', 1, 1, 1, 1, 'enc:1:a:b', 1, 1, 1)`);
-  });
-
-  test("refuses an alert sent before it was decided on", async () => {
-    // The sent version is what stops that version going out again, so a sent
-    // time earlier than the alert itself can silence the real message.
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision, alerted_at, alerted_revision, alert_sent_at,
-       alert_sent_revision)
-      VALUES ('sent-early', 'enc:1:a:b', 'sent-early-index',
-        'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1,
-        100, 1, 1, 1)`);
-  });
-
-  test("refuses an empty claim on sending a case alert", async () => {
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision, alerted_at, alerted_revision, alert_lease_token,
-       alert_lease_expires_at)
-      VALUES ('empty-alert-claim', 'enc:1:a:b', 'empty-alert-index',
-        'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1, 1, 1,
-        '', 9)`);
-  });
-
-  test("refuses a claim on sending an alert that had already run out", async () => {
-    // Spent on arrival, so a second worker can send the owner the same
-    // message while the first still believes it holds the claim.
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision, alerted_at, alerted_revision, alert_lease_token,
-       alert_lease_expires_at)
-      VALUES ('stale-alert-claim', 'enc:1:a:b', 'stale-alert-index',
-        'network_error', 'needs_action', 100, 100, 1, 'enc:1:a:b', 1, 100, 1,
-        'worker-1', 1)`);
-  });
-
-  test("refuses clearing a problem's evidence before it is settled", async () => {
-    // Comparing against a settled time that is not there passes in SQLite, so
-    // the settled time has to be demanded outright.
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, next_reconcile_at,
-       consecutive_count, evidence, revision, evidence_redacted_at)
-      VALUES ('cleared-early', 'enc:1:a:b', 'cleared-early-index',
-        'network_error', 'retrying', 1, 1, 1, 1, 'enc:1:a:b', 1, 100)`);
-  });
-
-  test("refuses a problem booked to be looked at before its newest reading", async () => {
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, next_reconcile_at,
-       consecutive_count, evidence, revision)
-      VALUES ('look-too-soon', 'enc:1:a:b', 'look-soon-index',
-        'network_error', 'retrying', 1, 100, 1, 1, 'enc:1:a:b', 1)`);
-  });
-
-  test("refuses a case whose lookup code is only spaces", async () => {
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, next_reconcile_at,
-       consecutive_count, evidence, revision)
-      VALUES ('spaces', 'enc:1:a:b', '   ', 'network_error', 'retrying',
-        1, 1, 1, 1, 'enc:1:a:b', 1)`);
-  });
-
-  test("refuses a problem that has never once failed", async () => {
-    // A case is written because something went wrong, so it has failed at
-    // least once. A count of none is what turns "try again" into "ask the
-    // owner" too early, or never.
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision)
-      VALUES ('never-failed', 'enc:1:a:b', 'never-failed-index',
-        'network_error', 'needs_action', 1, 1, 0, 'enc:1:a:b', 1)`);
-  });
-
-  test("refuses an alert about a version of the problem before its first", async () => {
-    // Versions count from one, so an alert at version nothing names no
-    // version the owner could ever have been shown.
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision, alerted_at, alerted_revision)
-      VALUES ('alert-at-nothing', 'enc:1:a:b', 'alert-at-nothing-index',
-        'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 1, 1, 0)`);
-  });
-
-  test("refuses a problem whose own version counts from nothing", async () => {
-    await expectRefused(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision)
-      VALUES ('version-nothing', 'enc:1:a:b', 'version-nothing-index',
-        'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b', 0)`);
+  test("refuses evidence that is bytes only reading like an envelope", async () => {
+    // SQLite leaves bytes alone in a TEXT column while GLOB turns them into
+    // text just long enough to look at them, so bytes spelling an envelope
+    // would pass and be stored as bytes that nothing can read back.
+    await expectRefused({
+      args: [new TextEncoder().encode("enc:1:a:b")],
+      sql: `INSERT INTO payment_cases
+        (payment_id, resource, resource_index, reason, state,
+         first_observed_at, last_observed_at, consecutive_count, evidence,
+         revision)
+        VALUES ('bytes', ?, 'bytes-index', 'network_error', 'needs_action',
+          1, 1, 1, 'enc:1:a:b', 1)`,
+    });
   });
 
   test("starts a problem at version one when the write does not say", async () => {
-    // The version is what an owner settles against, so a row written without
-    // one still has to be at a version they can be shown.
-    await expectAccepted(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence)
-      VALUES ('no-version-given', 'enc:1:a:b', 'no-version-given-index',
-        'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b')`);
+    await expectAccepted(
+      aCase(
+        "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence",
+        "'no-version', 'enc:1:a:b', 'no-version-index', 'network_error', 'needs_action', 1, 1, 1, 'enc:1:a:b'",
+      ),
+    );
     const saved = await getDb().execute(
-      `SELECT revision FROM payment_cases WHERE payment_id = 'no-version-given'`,
+      "SELECT revision FROM payment_cases WHERE payment_id = 'no-version'",
     );
     expect(Number(saved.rows[0]?.revision)).toBe(1);
   });
 
-  test("keeps a settled time as a number, even when written as text", async () => {
-    // The column says INTEGER, so SQLite turns a written number into one on
-    // the way in. Without that the rules demanding a real time would refuse
-    // every settled case a caller wrote as text.
-    await expectAccepted(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision, resolved_at)
-      VALUES ('settled-as-text', 'enc:1:a:b', 'settled-as-text-index',
-        'network_error', 'resolved', 1, 1, 1, 'enc:1:a:b', 1, '100')`);
-    const saved = await getDb().execute(
-      `SELECT typeof(resolved_at) AS kind, resolved_at FROM payment_cases
-        WHERE payment_id = 'settled-as-text'`,
-    );
-    expect(saved.rows[0]?.kind).toBe("integer");
-    expect(Number(saved.rows[0]?.resolved_at)).toBe(100);
-  });
-
   test("refuses a second problem about the same thing on one payment", async () => {
-    // Seeing the same problem again has to update the one row, or an owner
-    // is asked to settle the same thing over and over.
-    await expectAccepted(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision)
-      VALUES ('seen-twice', 'enc:1:a:b', 'seen-twice-index', 'network_error',
-        'needs_action', 1, 1, 1, 'enc:1:a:b', 1)`);
-    await expectRefusedAsRepeat(`INSERT INTO payment_cases
-      (payment_id, resource, resource_index, reason, state,
-       first_observed_at, last_observed_at, consecutive_count, evidence,
-       revision)
-      VALUES ('seen-twice', 'enc:1:a:b', 'seen-twice-index', 'timeout',
-        'retrying', 2, 2, 2, 'enc:1:a:b', 2)`);
+    // Seeing the same problem again has to update the one row, or an owner is
+    // asked to settle the same thing over and over.
+    await expectAccepted(aCase());
+    await expectRefusedAsRepeat(
+      aCase(
+        "payment_id, resource, resource_index, reason, state, first_observed_at, last_observed_at, consecutive_count, evidence, revision",
+        "'case-1', 'enc:1:a:b', 'case-1-index', 'timeout', 'retrying', 2, 2, 2, 'enc:1:a:b', 2",
+      ),
+    );
   });
 });

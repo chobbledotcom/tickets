@@ -9,9 +9,9 @@ export const paymentCompletionEffectsTable = paymentRecord(
   "payment_completion_effects",
   {
     columns: [
-      ["effect", words("effect")],
-      ["record_id", wholeNumberOrNull("record_id", 1)],
-      ["completed_at", wholeNumber("completed_at")],
+      ["effect", words()],
+      ["record_id", wholeNumberOrNull()],
+      ["completed_at", wholeNumber()],
     ],
     indexes: [
       {

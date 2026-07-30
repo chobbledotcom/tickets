@@ -9,11 +9,11 @@ export const paymentCompletionDeliveriesTable = paymentRecord(
   "payment_completion_deliveries",
   {
     columns: [
-      ["delivery_key", words("delivery_key")],
+      ["delivery_key", words()],
       // The message carries the buyer's name, email, phone and address, so the
       // table demands it be hidden rather than trusting every writer to.
       ["data", encryptedPaymentColumn("data")],
-      ["completed_at", wholeNumberOrNull("completed_at")],
+      ["completed_at", wholeNumberOrNull()],
     ],
     indexes: [
       {

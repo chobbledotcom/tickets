@@ -2,15 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   alsoAbout,
-  amountOrNull,
   anyOf,
-  currencyOrNull,
   encryptedPaymentColumn,
   encryptedPaymentColumnOrNull,
   keyWords,
   madeAndTouched,
-  oneOf,
-  oneOfOrNull,
   paymentRecord,
   sealedEitherWay,
   wholeNumber,
@@ -20,86 +16,32 @@ import {
 } from "#shared/db/migrations/schema/payments/columns.ts";
 
 describe("the kinds of column a payment record is built from", () => {
-  test("a whole number must really be a number, not text that looks like one", () => {
-    // SQLite will happily keep "12" in an INTEGER column, so the type is
-    // checked outright rather than trusted.
-    expect(wholeNumber("revision")).toBe(
-      "INTEGER NOT NULL CHECK (typeof(revision) = 'integer' AND revision >= 0)",
-    );
+  // These say what a column is, and nothing about what a payment may say —
+  // that is the record layer's job, in TypeScript, where a broken rule names
+  // itself and can be changed without rebuilding a table full of real money.
+  test("says a column's type and whether it may be missing, and no more", () => {
+    expect(wholeNumber()).toBe("INTEGER NOT NULL");
+    expect(wholeNumberOrNull()).toBe("INTEGER");
+    expect(words()).toBe("TEXT NOT NULL");
+    expect(wordsOrNull()).toBe("TEXT");
   });
 
-  test("a whole number can be given a floor and a starting value", () => {
-    expect(wholeNumber("revision", 1, 1)).toBe(
-      "INTEGER NOT NULL DEFAULT 1 CHECK (typeof(revision) = 'integer' AND revision >= 1)",
-    );
-  });
-
-  test("a floor naming another column is checked to be there first", () => {
-    // A comparison against a missing value passes in SQLite, so the column the
-    // floor names has to exist before the comparison means anything.
-    expect(wholeNumberOrNull("redacted_at", "created_at")).toBe(
-      "INTEGER CHECK (redacted_at IS NULL OR (typeof(redacted_at) = 'integer' AND created_at IS NOT NULL AND redacted_at >= created_at))",
-    );
-  });
-
-  test("a fixed floor needs no such check", () => {
-    expect(wholeNumberOrNull("attendee_id", 1)).toBe(
-      "INTEGER CHECK (attendee_id IS NULL OR (typeof(attendee_id) = 'integer' AND attendee_id >= 1))",
-    );
-  });
-
-  test("a column given no floor may hold nothing but not less", () => {
-    // Times are counted from the epoch, so nothing is a real value for one.
-    // Floored at one instead, the earliest moment a site can record would be
-    // turned away.
-    expect(wholeNumberOrNull("alerted_at")).toBe(
-      "INTEGER CHECK (alerted_at IS NULL OR (typeof(alerted_at) = 'integer' AND alerted_at >= 0))",
-    );
-  });
-
-  test("money is kept inside the largest number that stays exact", () => {
-    expect(amountOrNull("expected_amount", 0)).toBe(
-      `INTEGER CHECK (expected_amount IS NULL OR (typeof(expected_amount) = 'integer' AND expected_amount BETWEEN 0 AND ${Number.MAX_SAFE_INTEGER}))`,
-    );
-  });
-
-  test("text has to say something, not just hold spaces", () => {
-    expect(words("payment_id")).toBe(
-      "TEXT NOT NULL CHECK (typeof(payment_id) = 'text' AND length(trim(payment_id)) > 0)",
-    );
-    expect(wordsOrNull("lease_token")).toBe(
-      "TEXT CHECK (lease_token IS NULL OR typeof(lease_token) = 'text' AND length(trim(lease_token)) > 0)",
-    );
+  test("carries a starting value where a column has one", () => {
+    expect(wholeNumber(1)).toBe("INTEGER NOT NULL DEFAULT 1");
+    expect(words("none")).toBe("TEXT NOT NULL DEFAULT 'none'");
   });
 
   test("the record's own name cannot be nothing", () => {
-    // A text primary key does not stop SQLite keeping NULL, so it is said here.
-    expect(keyWords("id")).toBe(
-      "TEXT PRIMARY KEY NOT NULL CHECK (typeof(id) = 'text' AND length(trim(id)) > 0)",
-    );
+    // A text primary key does not stop SQLite keeping NULL, so it is said
+    // here: a payment with no id could never be looked up again.
+    expect(keyWords()).toBe("TEXT PRIMARY KEY NOT NULL");
   });
 
-  test("only the listed words are allowed, with an optional starting one", () => {
-    expect(oneOf("origin", ["current", "legacy"])).toBe(
-      "TEXT NOT NULL CHECK (origin IN ('current', 'legacy'))",
-    );
-    expect(oneOf("state", ["none", "ready"], "none")).toBe(
-      "TEXT NOT NULL DEFAULT 'none' CHECK (state IN ('none', 'ready'))",
-    );
-    expect(oneOfOrNull("mode", ["test", "live"])).toBe(
-      "TEXT CHECK (mode IS NULL OR mode IN ('test', 'live'))",
-    );
-  });
-
-  test("a currency is three capital letters", () => {
-    expect(currencyOrNull("expected_currency")).toBe(
-      "TEXT CHECK (expected_currency IS NULL OR typeof(expected_currency) = 'text' AND expected_currency GLOB '[A-Z][A-Z][A-Z]')",
-    );
-  });
-
-  test("a hidden value must carry every part needed to read it back", () => {
-    // GLOB's ?* swallows extra separators, so the second half refuses one
-    // separator more than the envelope has.
+  // The one rule the tables keep. It checks what actually landed in the
+  // column rather than what the code meant to put there — the one thing
+  // TypeScript cannot see, since a type says "string" while the value is
+  // bytes.
+  test("a hidden value must really be text, and carry every part", () => {
     expect(encryptedPaymentColumn("evidence")).toBe(
       "TEXT NOT NULL CHECK ((typeof(evidence) = 'text' AND evidence GLOB 'enc:1:?*:?*' AND evidence NOT GLOB 'enc:1:*:*:*'))",
     );
@@ -117,7 +59,7 @@ describe("the kinds of column a payment record is built from", () => {
     expect(rule).toContain("provider_reference GLOB 'enc:1:?*:?*'");
     expect(rule).toContain("provider_reference GLOB 'hyb:1:?*:?*:?*'");
     expect(rule).toContain("provider_reference NOT GLOB 'hyb:1:*:*:*:*'");
-    expect(rule).toContain("length(trim(provider_reference)) > 0");
+    expect(rule).toContain("typeof(provider_reference) = 'text'");
   });
 
   test("joins rules of which one must hold", () => {
@@ -125,17 +67,9 @@ describe("the kinds of column a payment record is built from", () => {
   });
 
   test("every record says when it was made and last touched", () => {
-    // Both rules in full: each names the column it is about, so a rule that
-    // lost that name would compare against nothing and let anything through.
     expect(madeAndTouched).toEqual([
-      [
-        "created_at",
-        "INTEGER NOT NULL CHECK (typeof(created_at) = 'integer' AND created_at >= 0)",
-      ],
-      [
-        "updated_at",
-        "INTEGER NOT NULL CHECK (typeof(updated_at) = 'integer' AND created_at IS NOT NULL AND updated_at >= created_at)",
-      ],
+      ["created_at", "INTEGER NOT NULL"],
+      ["updated_at", "INTEGER NOT NULL"],
     ]);
   });
 
@@ -159,12 +93,7 @@ describe("the kinds of column a payment record is built from", () => {
     expect(name).toBe("payment_charges");
     expect(table.columns).toEqual([
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-      // The payment it belongs to must say something: a record hanging off a
-      // blank one belongs to no payment anybody can find.
-      [
-        "payment_id",
-        "TEXT NOT NULL CHECK (typeof(payment_id) = 'text' AND length(trim(payment_id)) > 0)",
-      ],
+      ["payment_id", "TEXT NOT NULL"],
       ["captured_amount", "INTEGER"],
     ]);
     expect(table.indexes).toEqual([
