@@ -62,5 +62,6 @@
   "questions.assign_all_listings": "Assign to all listings",
   "questions.linked_all_listings": "Linked {type} (all):",
   "questions.save_listings": "Save Listings",
-  "fields.answer.times_selected": "Times Selected"
+  "fields.answer.times_selected": "Times Selected",
+  "questions.answers.free_text_no_options": "Free-text questions don't have answer options."
 }

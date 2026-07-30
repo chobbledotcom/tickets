@@ -101,7 +101,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining(
-          "Free-text questions don't have answer options",
+          "Free-text questions don't have answer options.",
         ),
         false,
       );

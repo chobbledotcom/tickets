@@ -313,13 +313,13 @@ describe("listing form duration_days", () => {
     });
   }
   const invalid: [value: string, error: string][] = [
-    ["0", "Booking duration (days) must be at least 1"],
-    ["-5", "Booking duration (days) must be at least 1"],
+    ["0", "Booking duration (days) must be at least 1."],
+    ["-5", "Booking duration (days) must be at least 1."],
     [
       String(MAX_DURATION_DAYS + 1),
-      `Booking duration (days) must be at most ${MAX_DURATION_DAYS}`,
+      `Booking duration (days) must be at most ${MAX_DURATION_DAYS}.`,
     ],
-    ["1.5", "Booking duration (days) must be a whole number"],
+    ["1.5", "Booking duration (days) must be a whole number."],
   ];
   for (const [value, error] of invalid) {
     test(`rejects ${JSON.stringify(value)}`, () => {

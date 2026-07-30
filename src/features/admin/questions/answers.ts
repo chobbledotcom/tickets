@@ -77,7 +77,7 @@ export const handleAddAnswer: ParamsRoute<QuestionIdParams> =
       if (question.display_type === "free_text") {
         return errorRedirect(
           `/admin/questions/${params.id}`,
-          "Free-text questions don't have answer options",
+          t("questions.answers.free_text_no_options"),
         );
       }
       // One transaction: an answer must never exist without its place in the
