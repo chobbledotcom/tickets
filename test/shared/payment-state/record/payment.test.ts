@@ -49,6 +49,14 @@ const copiedPayment: StoredPayment = {
 };
 
 describe("what a stored payment may be", () => {
+  test("accepts a payment that asks for nothing", () => {
+    // A free booking still opens a payment, so the floor has to let nothing
+    // through — only less than nothing is wrong.
+    expect(
+      paymentKnowsWhereItCameFrom({ ...madeHere, expectedAmount: 0 }),
+    ).toBe(null);
+  });
+
   test("accepts a payment made here and one copied across", () => {
     expect(paymentKnowsWhereItCameFrom(madeHere)).toBe(null);
     expect(paymentKnowsWhereItCameFrom(copiedPayment)).toBe(null);
@@ -66,6 +74,11 @@ describe("what a stored payment may be", () => {
       KNOWS_ITS_MONEY,
     ],
     ["it names no account", { accountId: null }, KNOWS_ITS_MONEY],
+    [
+      "it asks for less than nothing",
+      { expectedAmount: -1 },
+      "The money a payment asks for cannot be less than nothing",
+    ],
     [
       "it carries an old payment's record",
       { legacyRuntime: "enc:1:a:b" },

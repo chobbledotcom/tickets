@@ -28,6 +28,13 @@ export const decisionStateAgreesWithItsTries = (
 ): Fault =>
   firstFault([
     [
+      // Checked in every state, not just the ones with a floor of one: a
+      // count below nothing climbs to nothing on the next try, which then
+      // reads as "never tried" while a last try is still written down.
+      decision.attemptCount >= 0,
+      "A decision cannot have been tried fewer than nothing times",
+    ],
+    [
       (decision.state === "retrying") === present(decision.nextRetryAt),
       "A decision is booked to try again exactly when it is waiting to",
     ],

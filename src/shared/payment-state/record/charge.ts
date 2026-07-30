@@ -45,6 +45,20 @@ export type StoredCharge = {
  */
 export const refundHandlesMatchState = (charge: StoredCharge): Fault => {
   const { pendingRefundId: id, pendingRefundIdempotencyKey: key } = charge;
+  // Each hidden handle travels with the plain code that finds it. Without its
+  // code a refund callback cannot reach the row it belongs to; without its
+  // handle the code points at a refund that has finished.
+  const handlePairing = firstFault([
+    [
+      present(id) === present(charge.pendingRefundIndex),
+      "A refund's name is kept with the code that finds it again",
+    ],
+    [
+      present(key) === present(charge.pendingRefundKeyIndex),
+      "A refund's key is kept with the code that finds it again",
+    ],
+  ]);
+  if (handlePairing !== null) return handlePairing;
   if (charge.refundState === "requested") {
     return present(id)
       ? "A refund only asked for cannot already name the provider's refund"

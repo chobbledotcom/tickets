@@ -132,6 +132,13 @@ export const paymentKnowsWhereItCameFrom = (payment: StoredPayment): Fault => {
       "A payment made here knows who takes the money, how much, and what for",
     ],
     [
+      // Nothing is allowed — a free booking still opens a payment — but less
+      // than nothing is money owed the wrong way, and no reading of the
+      // provider could ever match it.
+      payment.expectedAmount === null || payment.expectedAmount >= 0,
+      "The money a payment asks for cannot be less than nothing",
+    ],
+    [
       absent(payment.checkoutCreate) ||
         (absent(payment.sessionResource) && payment.state === "created"),
       "What the provider was asked to build is kept only until it exists",

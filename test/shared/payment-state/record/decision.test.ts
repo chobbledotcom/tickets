@@ -56,6 +56,11 @@ describe("what a stored decision may be", () => {
       "The next try comes after the try it follows",
     ],
     [
+      "tried fewer than nothing times",
+      { ...waiting, attemptCount: -1 },
+      "A decision cannot have been tried fewer than nothing times",
+    ],
+    [
       "waiting to try again with no reason kept",
       { ...waiting, lastError: null },
       "A decision keeps why it failed exactly when it is waiting to try again",

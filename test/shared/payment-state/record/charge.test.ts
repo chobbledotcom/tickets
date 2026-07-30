@@ -154,6 +154,7 @@ describe("what a stored charge may be", () => {
       "a refund asked for keeps its key",
       {
         pendingRefundIdempotencyKey: "enc:1:a:b",
+        pendingRefundKeyIndex: "key-idx",
         refundState: "requested" as const,
       },
       null,
@@ -163,6 +164,8 @@ describe("what a stored charge may be", () => {
       {
         pendingRefundId: "enc:1:a:b",
         pendingRefundIdempotencyKey: "enc:1:a:b",
+        pendingRefundIndex: "idx",
+        pendingRefundKeyIndex: "key-idx",
         refundState: "requested" as const,
       },
       "A refund only asked for cannot already name the provider's refund",
@@ -179,12 +182,16 @@ describe("what a stored charge may be", () => {
     ],
     [
       "a settled charge still holds a handle",
-      { pendingRefundId: "enc:1:a:b" },
+      { pendingRefundId: "enc:1:a:b", pendingRefundIndex: "idx" },
       "A charge with no refund in progress cannot hold a refund's handles",
     ],
     [
       "a failed refund still names a refund in progress",
-      { pendingRefundId: "enc:1:a:b", refundState: "failed" as const },
+      {
+        pendingRefundId: "enc:1:a:b",
+        pendingRefundIndex: "idx",
+        refundState: "failed" as const,
+      },
       "A refund that failed cannot still name a refund in progress",
     ],
   ] as const) {
@@ -200,6 +207,7 @@ describe("what a stored charge may be", () => {
       "nothing is left to give back",
       {
         pendingRefundIdempotencyKey: "enc:1:a:b",
+        pendingRefundKeyIndex: "key-idx",
         refundedAmount: 100,
         refundState: "requested" as const,
       },
@@ -251,10 +259,47 @@ describe("refund handles a charge may hold", () => {
         ...takenHere,
         pendingRefundId: "enc:1:a:b",
         pendingRefundIdempotencyKey: "enc:1:a:b",
+        pendingRefundIndex: "idx",
+        pendingRefundKeyIndex: "key-idx",
         refundState: "failed",
       }),
     ).toBe("A refund that failed cannot still name a refund in progress");
   });
+
+  // A hidden handle cannot be searched for, so each one is stored beside a
+  // plain code that can. One without the other breaks the lookup either way.
+  for (const [name, broken, fault] of [
+    [
+      "a refund's name with no code to find it",
+      { pendingRefundId: "enc:1:a:b" },
+      "A refund's name is kept with the code that finds it again",
+    ],
+    [
+      "a code for a refund name that is not there",
+      { pendingRefundIndex: "idx" },
+      "A refund's name is kept with the code that finds it again",
+    ],
+    [
+      "a refund's key with no code to find it",
+      { pendingRefundIdempotencyKey: "enc:1:a:b" },
+      "A refund's key is kept with the code that finds it again",
+    ],
+    [
+      "a code for a refund key that is not there",
+      { pendingRefundKeyIndex: "key-idx" },
+      "A refund's key is kept with the code that finds it again",
+    ],
+  ] as const) {
+    test(`refuses ${name}`, () => {
+      expect(
+        chargeKnowsWhereItCameFrom({
+          ...takenHere,
+          ...broken,
+          refundState: "requested",
+        }),
+      ).toBe(fault);
+    });
+  }
 
   test("accepts a failed refund that holds no refund in progress", () => {
     expect(
