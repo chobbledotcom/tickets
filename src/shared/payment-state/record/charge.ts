@@ -12,12 +12,13 @@ import {
   firstOf,
   present,
 } from "#shared/payment-state/record/fault.ts";
+import type { RecordOrigin } from "#shared/payment-state/words.ts";
 import { LEGACY_SOURCES } from "#shared/payment-state/words.ts";
 /* jscpd:ignore-end */
 
 /** A stored charge, in the shape the tables hold it. */
 export type StoredCharge = {
-  origin: "current" | "legacy";
+  origin: RecordOrigin;
   provider: string | null;
   resourceKind: string | null;
   referenceIndex: string | null;

@@ -30,9 +30,9 @@ export const paymentChargeTable = paymentRecord("payment_charges", {
     ["currency", wordsOrNull()],
     ["refunded_amount", wholeNumberOrNull()],
     ["refund_state", words("none")],
-    ["pending_refund_id", "TEXT"],
+    ["pending_refund_id", wordsOrNull()],
     ["pending_refund_index", wordsOrNull()],
-    ["pending_refund_idempotency_key", "TEXT"],
+    ["pending_refund_idempotency_key", wordsOrNull()],
     ["pending_refund_key_index", wordsOrNull()],
     // A time, like every other time here, so it can be compared with them.
     // SQLite sorts numbers before text whatever they say, so one time kept

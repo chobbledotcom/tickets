@@ -39,12 +39,12 @@ export const paymentSessionTable: [name: string, table: Table] = [
       ["provider", wordsOrNull()],
       ["mode", wordsOrNull()],
       ["account_id", wordsOrNull()],
-      ["session_resource", "TEXT"],
+      ["session_resource", wordsOrNull()],
       ["session_reference_index", wordsOrNull()],
       ["expected_amount", wholeNumberOrNull()],
       ["expected_currency", wordsOrNull()],
-      ["booking_intent", "TEXT"],
-      ["checkout_create", "TEXT"],
+      ["booking_intent", wordsOrNull()],
+      ["checkout_create", wordsOrNull()],
       ["state", words()],
       ["revision", wholeNumber(1)],
       ...madeAndTouched,
@@ -55,16 +55,16 @@ export const paymentSessionTable: [name: string, table: Table] = [
       ["next_reconcile_at", wholeNumberOrNull()],
       ["attendee_id", wholeNumberOrNull()],
       ["result_state", words("none")],
-      ["result", "TEXT"],
+      ["result", wordsOrNull()],
       ["ticket_state", words("none")],
-      ["ticket_tokens", "TEXT"],
+      ["ticket_tokens", wordsOrNull()],
       ["completion_state", words("none")],
-      ["completion", "TEXT"],
+      ["completion", wordsOrNull()],
       // Floored on when the payment was made, not when it last changed:
       // clearing the buyer's details does not freeze the money record, so a
       // later refund moves updated_at past a redaction that already happened.
       ["redacted_at", wholeNumberOrNull()],
-      ["legacy_runtime", aboutThePayment("TEXT")],
+      ["legacy_runtime", aboutThePayment(wordsOrNull())],
     ],
     indexes: [
       {

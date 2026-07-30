@@ -12,12 +12,18 @@ import {
   firstFault,
   present,
 } from "#shared/payment-state/record/fault.ts";
+import type {
+  CompletionState,
+  RecordOrigin,
+  ResultState,
+  TicketState,
+} from "#shared/payment-state/words.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** A stored payment, in the shape the tables hold it. */
 export type StoredPayment = {
-  origin: "current" | "legacy";
+  origin: RecordOrigin;
   provider: PaymentProviderType | null;
   mode: PaymentMode | null;
   accountId: string | null;
@@ -30,11 +36,11 @@ export type StoredPayment = {
   state: PaymentSessionState;
   nextReconcileAt: number | null;
   leaseToken: string | null;
-  resultState: "none" | "succeeded" | "failed";
+  resultState: ResultState;
   result: string | null;
-  ticketState: "none" | "ready" | "consumed";
+  ticketState: TicketState;
   ticketTokens: string | null;
-  completionState: "none" | "pending" | "completed" | "legacy_unknown";
+  completionState: CompletionState;
   completion: string | null;
   legacyRuntime: string | null;
 };

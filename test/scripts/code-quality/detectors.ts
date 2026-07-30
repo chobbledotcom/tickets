@@ -235,8 +235,10 @@ export const isUsedInSameFile = (
     }
     // Count usages: function calls, property access, or object shorthand
     // Matches: name(, name., name, (in objects), name: (with type),
-    // and name } (when symbol is the trailing entry of an object literal)
-    const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(,:}]`);
+    // name } (when symbol is the trailing entry of an object literal), and
+    // name ) — the last argument of a call, and the shape a list derives its
+    // own type with: `type Thing = (typeof THINGS)[number]`
+    const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(,:})]`);
     if (usagePattern.test(line)) {
       usageCount++;
     }

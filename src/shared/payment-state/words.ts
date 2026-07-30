@@ -48,9 +48,11 @@ export const DECISION_STATES = [
 
 /** How a payment turned out. */
 export const RESULT_STATES = ["none", "succeeded", "failed"] as const;
+export type ResultState = (typeof RESULT_STATES)[number];
 
 /** Whether tickets are ready, and whether they have been used. */
 export const TICKET_STATES = ["none", "ready", "consumed"] as const;
+export type TicketState = (typeof TICKET_STATES)[number];
 
 /** Whether the work after payment is still going. */
 export const COMPLETION_STATES = [
@@ -59,9 +61,11 @@ export const COMPLETION_STATES = [
   "completed",
   "legacy_unknown",
 ] as const;
+export type CompletionState = (typeof COMPLETION_STATES)[number];
 
 /** Whether a record was made here or copied across when the site upgraded. */
 export const RECORD_ORIGINS = ["current", "legacy"] as const;
+export type RecordOrigin = (typeof RECORD_ORIGINS)[number];
 
 /** Whether a payment was real money or a test. */
 export const PAYMENT_MODES = ["test", "live"] as const;
@@ -74,8 +78,6 @@ export const RESOURCE_KIND_BY_PROVIDER = {
   stripe: "stripe_payment_intent",
   sumup: "sumup_transaction",
 } as const satisfies Record<PaymentProviderType, string>;
-
-export const RESOURCE_KINDS = Object.values(RESOURCE_KIND_BY_PROVIDER);
 
 /** Which old table a copied charge came from. */
 export const LEGACY_SOURCES = [

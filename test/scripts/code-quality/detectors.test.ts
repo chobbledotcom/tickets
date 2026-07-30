@@ -539,6 +539,17 @@ describe("isUsedInSameFile", () => {
     );
   });
 
+  test("detects a list used to derive its own type", () => {
+    // A vocabulary read only as `(typeof FOO)[number]` is used, not dead, so
+    // the list and the type it names can live together.
+    expect(
+      isUsedInSameFile(
+        "FOO",
+        'export const FOO = ["a"] as const;\nexport type Foo = (typeof FOO)[number];',
+      ),
+    ).toBe(true);
+  });
+
   test("returns false when only the definition line mentions the symbol", () => {
     expect(isUsedInSameFile("foo", "export const foo = 1;")).toBe(false);
   });

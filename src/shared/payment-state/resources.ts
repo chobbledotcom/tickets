@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { sumOf } from "#fp";
+import { RESOURCE_KIND_BY_PROVIDER } from "#shared/payment-state/words.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 
@@ -47,14 +48,16 @@ export type ProviderSessionResource = v.InferOutput<
   typeof ProviderSessionResourceSchema
 >;
 
+// The kind names come from the vocabulary rather than being written again
+// here, so a provider cannot end up with two names for the money it took.
 export const ProviderChargeResourceSchema = v.union([
-  providerResource("stripe", "stripe_payment_intent", {
+  providerResource("stripe", RESOURCE_KIND_BY_PROVIDER.stripe, {
     parentId: ResourceIdSchema,
   }),
-  providerResource("square", "square_payment", {
+  providerResource("square", RESOURCE_KIND_BY_PROVIDER.square, {
     parentId: ResourceIdSchema,
   }),
-  providerResource("sumup", "sumup_transaction", {
+  providerResource("sumup", RESOURCE_KIND_BY_PROVIDER.sumup, {
     parentId: ResourceIdSchema,
   }),
 ]);

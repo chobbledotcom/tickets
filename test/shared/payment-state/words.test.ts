@@ -10,7 +10,6 @@ import {
   RECORD_ORIGINS,
   REFUND_STATES,
   RESOURCE_KIND_BY_PROVIDER,
-  RESOURCE_KINDS,
   RESULT_STATES,
   TICKET_STATES,
 } from "#shared/payment-state/words.ts";
@@ -109,9 +108,5 @@ describe("what each provider calls the money it took", () => {
       stripe: "stripe_payment_intent",
       sumup: "sumup_transaction",
     });
-  });
-
-  test("takes the list of names from that same map", () => {
-    expect(RESOURCE_KINDS).toEqual(Object.values(RESOURCE_KIND_BY_PROVIDER));
   });
 });
