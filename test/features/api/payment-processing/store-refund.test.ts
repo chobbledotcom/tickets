@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
   datelessGhostBookings,
   placeholderBookings,
@@ -14,10 +15,11 @@ import {
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
 import { processBooking } from "#shared/booking.ts";
-import type { BookingItem } from "#shared/booking-intent.ts";
+import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 
@@ -27,15 +29,15 @@ const line = (listingId: number, groupId?: number): BookingItem =>
     ? { e: listingId, p: 500, q: 1 }
     : { e: listingId, k: "p", p: 500, q: 1, r: groupId }) as BookingItem;
 
-// deno-lint-ignore no-explicit-any
-const listingOf = (id: number): any => ({ id, listing_type: "standard" });
+/** The validated cart lines `placeholderBookings` works from. */
+const itemsFor = (items: BookingItem[]): ValidatedItem[] =>
+  items.map((item) => ({
+    expectedPrice: item.p,
+    item,
+    listing: testListingWithCount({ id: item.e }),
+  }));
 
-// deno-lint-ignore no-explicit-any
-const itemsFor = (items: BookingItem[]): any =>
-  items.map((item) => ({ item, listing: listingOf(item.e) }));
-
-// deno-lint-ignore no-explicit-any
-const INTENT: any = { date: null, dayCount: null };
+const INTENT: BookingIntent = bookingIntent([]);
 
 describe("placeholder bookings for a payment we could not honour", () => {
   describe("what each ghost row holds", () => {
@@ -158,13 +160,13 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
     const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
     const session = paymentSession(id, 1000, intent);
     const bookings = placeholderBookings(
-      [{ item: intent.items[0], listing }] as never,
+      [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
       intent,
     );
     const result = await storeRefundedBooking(
       session,
       intent,
-      bookings as never,
+      bookings,
       specFor("listing full"),
     );
     return { listing, result };
@@ -346,14 +348,14 @@ describeWithEnv(
 
       const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
       const bookings = placeholderBookings(
-        [{ item: intent.items[0], listing }] as never,
+        [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
         intent,
       );
 
       const result = await storeRefundedBooking(
         paymentSession("cs_full", 1000, intent),
         intent,
-        bookings as never,
+        bookings,
         specForFailure({
           detail: "full",
           ok: false,

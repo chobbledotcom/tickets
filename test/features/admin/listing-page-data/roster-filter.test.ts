@@ -8,9 +8,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { rosterFilterFromQuery } from "#routes/admin/listing-page-data.ts";
 import type { ListingType, ListingWithCount } from "#shared/types.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 const listingOfType = (listing_type: ListingType): ListingWithCount =>
-  ({ id: 1, listing_type }) as ListingWithCount;
+  testListingWithCount({ listing_type });
 
 const DAILY = listingOfType("daily");
 const STANDARD = listingOfType("standard");
