@@ -1,18 +1,22 @@
 import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
+import type { MigrationLease } from "#shared/db/migrations/lock.ts";
 import {
   acquireMigrationLock,
   executeWhileMigrationLockOwned,
+  migrationLockHeldError,
   releaseAfterMigrationFailure,
   releaseMigrationLock,
+  storedLease,
   whileMigrationLockOwned,
 } from "#shared/db/migrations/lock.ts";
 import { MIGRATION_LOCK_KEY } from "#shared/db/migrations/schema/version.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import {
   freshLockStamp,
   LONG_EXPIRED_LOCK_STAMP,
@@ -200,6 +204,90 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
         : execute(statement),
     );
   };
+
+  test("the held-lock message says how long a crashed lock is honoured", () => {
+    using _fetch = stubNtfyFetch({}).fetchStub;
+
+    expect(migrationLockHeldError().message).toContain(
+      "reclaimed automatically after 2 minutes",
+    );
+  });
+
+  /** The held-lock error's ntfy notification bodies. */
+  const heldLockNotifications = (dbUrl: string | undefined): string[] => {
+    const { fetchStub, restore } = stubNtfyFetch({ DB_URL: dbUrl });
+    using _env = restore;
+    using _fetch = fetchStub;
+    migrationLockHeldError();
+    return fetchStub.calls.map((call) =>
+      String((call.args[1] as { body?: string })?.body),
+    );
+  };
+
+  test("a held lock tells the operator which database it is", () => {
+    expect(heldLockNotifications("libsql://named.example")).toEqual([
+      "E_DB_MIGRATION_LOCK libsql://named.example",
+    ]);
+  });
+
+  test("a held lock calls an unset database unknown", () => {
+    expect(heldLockNotifications(undefined)).toEqual([
+      "E_DB_MIGRATION_LOCK unknown",
+    ]);
+  });
+
+  test("a held lock reports a blank database name as blank", () => {
+    // An empty DB_URL is a real, if odd, setting — it is not missing, so it is
+    // not reported as "unknown".
+    expect(heldLockNotifications("")).toEqual(["E_DB_MIGRATION_LOCK "]);
+  });
+
+  describe("taking the lock again once the settings table is there", () => {
+    const PHANTOM: MigrationLease = { stored: false, token: "phantom" };
+
+    test("keeps a lease a row already backs, rather than taking a second", async () => {
+      const stored: MigrationLease = { stored: true, token: "mine" };
+
+      expect(await storedLease(stored, false)).toBe(stored);
+    });
+
+    test("keeps the unstored lease while the table is still missing", async () => {
+      expect(await storedLease(PHANTOM, true)).toBe(PHANTOM);
+    });
+
+    test("takes a real lease once the table is there", async () => {
+      try {
+        const retaken = await storedLease(PHANTOM, false);
+
+        expect(retaken.stored).toBe(true);
+        expect(await heldLock()).toBe(retaken.token);
+      } finally {
+        await clearLock();
+      }
+    });
+
+    test("stands aside when another request holds the lock", async () => {
+      using _fetch = stubNtfyFetch({}).fetchStub;
+      try {
+        await holdFreshLock();
+
+        await expect(storedLease(PHANTOM, false)).rejects.toThrow(
+          "Database migration is already in progress",
+        );
+      } finally {
+        await clearLock();
+      }
+    });
+
+    test("does not shrug off a settings table that has gone missing", async () => {
+      using _execute = failLockWriteWith("no such table: settings");
+
+      // The caller only reaches here because a probe just found the table.
+      await expect(storedLease(PHANTOM, false)).rejects.toThrow(
+        "no such table: settings",
+      );
+    });
+  });
 
   test("a missing settings table is only tolerated when it is expected", async () => {
     using _execute = failLockWriteWith("no such table: settings");
