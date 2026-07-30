@@ -49,7 +49,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Booking duration");
+    expect(html.toLowerCase()).not.toContain("booking duration");
   });
 
   test("shows the customisable-days prices on a customisable listing", () => {
@@ -111,7 +111,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Customisable days");
+    expect(html.toLowerCase()).not.toContain("customisable days");
   });
 });
 

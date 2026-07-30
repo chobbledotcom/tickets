@@ -80,6 +80,7 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
         "Option text is required",
         false,
       )((await adminFormPost(`/admin/attributes/${id}/options`)).response);
+      expect((await getAttributeWithOptions(id))?.options).toEqual([]);
     });
   });
 
@@ -162,6 +163,11 @@ describeWithEnv("server (admin attribute options)", { db: true }, () => {
           )
         ).response,
       );
+      expect(
+        (await getAttributeWithOptions(attribute.id))?.options.map(
+          (row) => row.text,
+        ),
+      ).toEqual(["Only"]);
     });
   });
 

@@ -5,6 +5,7 @@ import { defineRoutes } from "#routes/router.ts";
  * Owner-only access, gated behind CAN_BUILD_SITES=true env var
  */
 
+import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -90,11 +91,11 @@ export const builderForm = defineForm({
     }),
     {
       ...builtSiteBox("db_url", "db_url", "url" as const),
-      hint: "Leave blank to auto-provision a database",
+      hint: t("fields.built_site.auto_provision_hint"),
     },
     {
       ...builtSiteBox("db_token", "db_token", "password" as const),
-      hint: "Leave blank to auto-provision a database",
+      hint: t("fields.built_site.auto_provision_hint"),
     },
   ] as const,
 });

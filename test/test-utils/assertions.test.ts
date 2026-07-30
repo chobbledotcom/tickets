@@ -46,4 +46,10 @@ describe("inputNamed", () => {
       "No control named a on the page",
     );
   });
+
+  test("rejects a longer tag that merely starts with a control name", () => {
+    expect(() => inputNamed('<input-widget name="a">', "a")).toThrow(
+      "No control named a on the page",
+    );
+  });
 });

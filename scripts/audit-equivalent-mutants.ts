@@ -31,7 +31,9 @@ interface AuditOptions {
 const parseOptions = (args: string[]): AuditOptions => {
   const { rest, values } = splitFlagValues(args, "--registry");
   const registry = values.map((path) => {
-    if (!path) throw new Error(`--registry needs a path\n\n${usage}`);
+    if (!path || path.startsWith("--")) {
+      throw new Error(`--registry needs a path\n\n${usage}`);
+    }
     return path;
   });
   if (rest.length === 1 && ["-h", "--help"].includes(rest[0]!)) {
