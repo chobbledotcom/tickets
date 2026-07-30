@@ -81,7 +81,6 @@ const stubBuildAndCapture = () => {
 };
 
 test("builder form defines every field and option exactly", () => {
-  expect(builderForm.id).toBe("builder");
   expect(JSON.parse(JSON.stringify(builderForm.fields))).toEqual([
     {
       label: "Site Name",

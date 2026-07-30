@@ -1856,18 +1856,3 @@ of the row that was made, rather than falling through to the generic 503.
 Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
-
----
-
-## Remove the unused `id` on `defineForm` definitions
-
-`defineForm` (`src/shared/forms/definition.ts`) requires an `id` in every
-form's config and stores it on the returned definition — but nothing reads it
-back: `render()` emits fields alone, and no caller reads `<form>.id` (the
-`CsrfForm` flash-matching id in `src/shared/forms/csrf-form.tsx` is that JSX
-component's own prop, not the definition's). Mutation testing surfaced this:
-blanking the seeds form's id changes nothing observable (recorded in
-`scripts/mutation/equivalent-mutants.txt`). If that holds for every form,
-the field is dead plumbing: drop `id` from the config type, the returned
-object, and every `defineForm` call site. Start by re-checking for dynamic
-readers (spreads into JSX, computed access) before deleting.

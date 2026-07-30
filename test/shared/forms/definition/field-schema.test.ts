@@ -6,7 +6,7 @@ import type { Field } from "#shared/forms/field.ts";
 import { renderField } from "#shared/forms/rendering.tsx";
 import { ensureMessageGroups } from "#shared/i18n.ts";
 
-const singleActionSelect = (id: string, invalidMessage?: string) =>
+const singleActionSelect = (invalidMessage?: string) =>
   defineForm({
     fields: [
       {
@@ -17,7 +17,6 @@ const singleActionSelect = (id: string, invalidMessage?: string) =>
         type: "select",
       },
     ] as const,
-    id,
   });
 
 describe("form field schema", () => {
@@ -67,7 +66,7 @@ describe("form field schema", () => {
   });
 
   test("uses the shared invalid message when a choice has no custom message", () => {
-    const form = singleActionSelect("default-choice-message");
+    const form = singleActionSelect();
 
     expect(form.validate(new FormParams({ action: "refund" }))).toEqual({
       error: "Action is invalid.",
@@ -100,7 +99,7 @@ describe("form field schema", () => {
   });
 
   test("normalizes an empty select value to null", () => {
-    const form = singleActionSelect("empty-select-value");
+    const form = singleActionSelect();
 
     expect(form.validate(new FormParams())).toEqual({
       valid: true,

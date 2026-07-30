@@ -40,7 +40,7 @@ const getLoginFields = () =>
 type LoginForm = FormDefinition<ReturnType<typeof getLoginFields>>;
 
 export const getLoginForm = (): LoginForm =>
-  defineForm({ fields: getLoginFields(), id: "login" });
+  defineForm({ fields: getLoginFields() });
 
 /**
  * Holiday form field definitions (per-request builder)
@@ -74,7 +74,7 @@ const getHolidayFields = () =>
 type HolidayForm = FormDefinition<ReturnType<typeof getHolidayFields>>;
 
 export const getHolidayForm = (): HolidayForm =>
-  defineForm({ fields: getHolidayFields(), id: "holiday" });
+  defineForm({ fields: getHolidayFields() });
 
 /**
  * Built site form field definitions (per-request builder)
@@ -159,7 +159,7 @@ const getBuiltSiteFields = () =>
 type BuiltSiteForm = FormDefinition<ReturnType<typeof getBuiltSiteFields>>;
 
 export const getBuiltSiteForm = (): BuiltSiteForm =>
-  defineForm({ fields: getBuiltSiteFields(), id: "built-site" });
+  defineForm({ fields: getBuiltSiteFields() });
 
 /** Password field with new-password autocomplete (reused across setup, change password, and join forms) */
 const newPasswordField = <TName extends string>(
@@ -212,7 +212,7 @@ const getSetupFields = () =>
 type SetupForm = FormDefinition<ReturnType<typeof getSetupFields>>;
 
 export const getSetupForm = (): SetupForm =>
-  defineForm({ fields: getSetupFields(), id: "setup" });
+  defineForm({ fields: getSetupFields() });
 
 /**
  * Change password form field definitions (per-request builder)
@@ -239,7 +239,7 @@ type ChangePasswordForm = FormDefinition<
 >;
 
 export const getChangePasswordForm = (): ChangePasswordForm =>
-  defineForm({ fields: getChangePasswordFields(), id: "change-password" });
+  defineForm({ fields: getChangePasswordFields() });
 
 /** A required payment-provider credential field: never autofilled, always
  * carries a hint, and (when given) a placeholder. `type` is "password" for
@@ -358,6 +358,6 @@ const getInviteUserFields = () =>
 type InviteUserForm = FormDefinition<ReturnType<typeof getInviteUserFields>>;
 
 export const getInviteUserForm = (): InviteUserForm =>
-  defineForm({ fields: getInviteUserFields(), id: "invite-user" });
+  defineForm({ fields: getInviteUserFields() });
 
 export type InviteUserFormValues = FormValues<InviteUserForm>;

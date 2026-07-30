@@ -130,7 +130,6 @@ export const questionTextForm = defineForm({
       type: "select",
     },
   ] as const,
-  id: "questionText",
 });
 
 export const answerTextForm = defineForm({
@@ -143,7 +142,6 @@ export const answerTextForm = defineForm({
       type: "text",
     },
   ] as const,
-  id: "answerText",
 });
 
 /** Handle GET /admin/questions */

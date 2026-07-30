@@ -26,7 +26,6 @@ export const { createForm: newsPostForm, editForm: newsPostEditForm } =
         type: "textarea",
       },
     ] as const,
-    id: "newsPost",
     nameLabel: t("news.field.name"),
     publicLinkPath: (slug) => `/news/${slug}`,
   });

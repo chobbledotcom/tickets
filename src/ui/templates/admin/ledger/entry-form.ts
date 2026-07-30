@@ -43,7 +43,6 @@ const LEDGER_ENTRY_FIELDS = [
 
 export const ledgerEntryForm = defineForm({
   fields: LEDGER_ENTRY_FIELDS,
-  id: "ledger-entry",
 });
 
 const ledgerEntryAddFields = (options: LedgerEntryAddOption[]) =>
@@ -74,5 +73,4 @@ export const defineLedgerEntryAddForm = (
 ): FormDefinition<LedgerEntryAddFields> =>
   defineForm({
     fields: ledgerEntryAddFields(options),
-    id: "ledger-entry-add",
   });

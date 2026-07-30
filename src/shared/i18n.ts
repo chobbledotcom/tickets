@@ -5,6 +5,14 @@
  * rides the request scope instead of being threaded through every function.
  */
 
+import {
+  isLiteralElement,
+  isPluralElement,
+  isSelectElement,
+  type MessageFormatElement,
+  parse,
+} from "@formatjs/icu-messageformat-parser";
+import { printAST } from "@formatjs/icu-messageformat-parser/printer";
 import { IntlMessageFormat } from "intl-messageformat";
 import { lazyRef } from "#fp";
 import {
@@ -130,6 +138,17 @@ export const withMessageGroups = async <T>(
 
 // --- Operator-configurable copy replacements (I18N_REPLACEMENTS) ---
 
+/**
+ * A message with neither a `{` (an ICU placeholder) nor a `'` (ICU quote
+ * escaping, where `''` renders as a single `'` and a lone `'` before a syntax
+ * char starts a literal region) is passed through ICU unchanged — its formatted
+ * output is the string itself. So we can skip building an `IntlMessageFormat`
+ * for it entirely. Every other syntax character (`}`, `#`, `|`) is already
+ * literal outside a placeholder, so this test is exact, not a heuristic.
+ */
+const needsIcu = (msg: string): boolean =>
+  msg.includes("{") || msg.includes("'");
+
 /** Rewrites the translatable copy of a message template. */
 type Replacer = (template: string) => string;
 
@@ -154,6 +173,23 @@ const titleCase = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
 const PROTECTED_SPAN = /(<code\b[^>]*>[\s\S]*?<\/code>|<[^>]+>)/gi;
 
 /**
+ * Rebrand every literal copy node in an ICU template's parse tree, walking into
+ * each plural/select branch. Argument names and keywords are other node kinds,
+ * so they can never be rewritten.
+ */
+const rebrandIcuNodes = (
+  nodes: MessageFormatElement[],
+  rebrandCopy: (copy: string) => string,
+): void => {
+  for (const node of nodes) {
+    if (isLiteralElement(node)) node.value = rebrandCopy(node.value);
+    else if (isPluralElement(node) || isSelectElement(node))
+      for (const branch of Object.values(node.options))
+        rebrandIcuNodes(branch.value, rebrandCopy);
+  }
+};
+
+/**
  * Build a replacer from an `I18N_REPLACEMENTS` spec like `"foo|bar,baz|bee"`.
  *
  * It rewrites the *translatable copy* of a message: matching is case-insensitive
@@ -162,11 +198,15 @@ const PROTECTED_SPAN = /(<code\b[^>]*>[\s\S]*?<\/code>|<[^>]+>)/gi;
  * `"bar"`) or title-case (`"Foo"` → `"Bar"`) occur in real copy, so the first
  * character decides which.
  *
- * It deliberately leaves three things alone: HTML tags/attributes (so link
- * hrefs survive), `<code>` examples (literal route/CLI text), and — because it
+ * It deliberately leaves four things alone: HTML tags/attributes (so link
+ * hrefs survive), `<code>` examples (literal route/CLI text), the ICU syntax
+ * of a message — argument names, `plural`/`select` keywords and selectors —
+ * because the handler supplies values under those exact names, and — since it
  * runs on the message template before ICU formatting (see `resolveMessage`) —
- * interpolated values such as a stored listing name. Avoid terms that collide
- * with ICU keywords/placeholder names (`name`, `count`, `plural`, …).
+ * interpolated values such as a stored listing name. An ICU template is parsed
+ * and only its literal copy rebranded, so `listing|event` still turns
+ * `one {# listing}` into `one {# event}` without ever touching the
+ * `{listings, plural, …}` argument that names it.
  *
  * Parsing and regex compilation happen once here, and `resolveMessage` compiles and
  * caches the rebranded template, so rendering stays a plain ICU format with no
@@ -202,11 +242,18 @@ export const buildReplacer = (raw: string | undefined): Replacer => {
     });
 
   // Rewrite only the prose between protected spans, leaving tags/code verbatim.
-  return (template) =>
-    template
+  const rebrandCopy = (copy: string): string =>
+    copy
       .split(PROTECTED_SPAN)
       .map((segment, i) => (i % 2 === 0 ? rebrandProse(segment) : segment))
       .join("");
+
+  return (template) => {
+    if (!needsIcu(template)) return rebrandCopy(template);
+    const nodes = parse(template, { ignoreTag: true });
+    rebrandIcuNodes(nodes, rebrandCopy);
+    return printAST(nodes);
+  };
 };
 
 /** Compiled replacer, built once from the env on first use (resettable in tests). */
@@ -224,17 +271,6 @@ export const resetI18nForTest = (resetMessages = false): void => {
   clearFormatCache();
   if (resetMessages) setI18nState(null);
 };
-
-/**
- * A message with neither a `{` (an ICU placeholder) nor a `'` (ICU quote
- * escaping, where `''` renders as a single `'` and a lone `'` before a syntax
- * char starts a literal region) is passed through ICU unchanged — its formatted
- * output is the string itself. So we can skip building an `IntlMessageFormat`
- * for it entirely. Every other syntax character (`}`, `#`, `|`) is already
- * literal outside a placeholder, so this test is exact, not a heuristic.
- */
-const needsIcu = (msg: string): boolean =>
-  msg.includes("{") || msg.includes("'");
 
 const resolveMessage = (locale: string, key: string): Resolved | null => {
   const cacheKey = `${locale}\0${key}`;

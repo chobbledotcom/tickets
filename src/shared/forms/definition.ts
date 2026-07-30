@@ -71,7 +71,6 @@ export type FormDefinition<
   TFields extends FormFieldDefinitions,
   TContext = undefined,
 > = {
-  id: string;
   fields: TFields;
   render: (values?: FormRenderValuesFor<TFields>) => string;
   renderField: (name: TFields[number]["name"], value?: string) => string;
@@ -91,7 +90,6 @@ export const defineForm = <
   TFields extends FormFieldDefinitions,
   TContext = undefined,
 >(config: {
-  id: string;
   fields: TFields;
   validate?: (
     values: FormValuesFor<TFields>,
@@ -153,7 +151,6 @@ export const defineForm = <
 
   return {
     fields: config.fields,
-    id: config.id,
     render,
     renderField: (name, value = "") => renderField(fieldByName(name), value),
     section,

@@ -81,6 +81,8 @@
     "#scripts/": "./scripts/",
     "@libsql/client": "npm:@libsql/client@^0.17.2",
     "fast-check": "npm:fast-check@^3.23.0",
+    "@formatjs/icu-messageformat-parser": "npm:@formatjs/icu-messageformat-parser@^2.11",
+    "@formatjs/icu-messageformat-parser/printer": "npm:@formatjs/icu-messageformat-parser@^2.11/printer.js",
     "intl-messageformat": "npm:intl-messageformat@^10",
     "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@^0.11.1",
     "@std/dotenv": "jsr:@std/dotenv@^0.225.7",

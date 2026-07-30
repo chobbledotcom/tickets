@@ -10,7 +10,11 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { t } from "#shared/i18n.ts";
-import { createSeeds, SEED_MAX_ATTENDEES } from "#shared/seeds.ts";
+import {
+  createSeeds,
+  SEED_MAX_ATTENDEES,
+  type SeedResult,
+} from "#shared/seeds.ts";
 import { adminSeedsPage } from "#templates/admin/seeds.tsx";
 /* jscpd:ignore-end */
 
@@ -40,7 +44,6 @@ export const seedsForm = defineForm({
       type: "number",
     },
   ] as const,
-  id: "seeds",
 });
 
 /** Handle GET /admin/seeds (show seed form) */
@@ -66,16 +69,20 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
       0,
       SEED_MAX_ATTENDEES,
     );
+    let result: SeedResult;
     try {
-      const result = await createSeeds(listingCount, attendeesPerListing);
-      const message = t("admin.seeds.created", {
-        attendees: result.attendeesCreated,
-        listings: result.listingsCreated,
-      });
-      return redirect("/admin/seeds", message, true);
+      result = await createSeeds(listingCount, attendeesPerListing);
     } catch {
+      // Expected on a site that hasn't finished setup: there is no key to
+      // encrypt attendees with yet. Only the create is caught, so a failure
+      // after the records exist can never be reported as "could not create".
       return redirect("/admin/seeds", t("admin.seeds.failed"), false);
     }
+    const message = t("admin.seeds.created", {
+      attendees: result.attendeesCreated,
+      listings: result.listingsCreated,
+    });
+    return redirect("/admin/seeds", message, true);
   });
 
 /** Seeds routes */

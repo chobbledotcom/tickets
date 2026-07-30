@@ -1,8 +1,8 @@
 {
-  "admin.seeds.title": "Seed Data",
-  "admin.seeds.heading": "Seed Data",
+  "admin.seeds.title": "Seed data",
+  "admin.seeds.heading": "Seed data",
   "admin.seeds.intro": "Create sample listings and attendees from demo data. Useful for testing and development.",
-  "admin.seeds.submit": "Create Seed Data",
+  "admin.seeds.submit": "Create seed data",
   "admin.seeds.back": "Back to dashboard",
   "admin.seeds.created": "Created {listings, plural, one {# listing} other {# listings}} with {attendees, plural, one {# attendee} other {# attendees}}.",
   "admin.seeds.failed": "Could not create seed data. Finish setup first."

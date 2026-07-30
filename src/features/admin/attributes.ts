@@ -76,7 +76,6 @@ export const attributeNameForm = defineForm({
       type: "text",
     },
   ] as const,
-  id: "attributeName",
 });
 
 export const attributeOptionForm = defineForm({
@@ -89,7 +88,6 @@ export const attributeOptionForm = defineForm({
       type: "text",
     },
   ] as const,
-  id: "attributeOption",
 });
 
 const handleAttributesGet = ownerPage(async (session) => {

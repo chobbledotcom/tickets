@@ -37,7 +37,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     });
 
     test("renders seeds page when authenticated", async () => {
-      await assertAdminHtml("/admin/seeds", "Seed Data");
+      await assertAdminHtml("/admin/seeds", "Seed data");
     });
 
     test("contains form with listing count and attendees per listing fields", async () => {
@@ -45,7 +45,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         "/admin/seeds",
         "listing_count",
         "attendees_per_listing",
-        "Create Seed Data",
+        "Create seed data",
       );
     });
 
@@ -113,13 +113,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       }
     });
 
-    /**
-     * Seeded attendees decrypt through the same path the dashboard uses.
-     * Regression: seeds once inserted attendees without a PII blob, so the
-     * first admin page to decrypt them crashed. The story
-     * `@case:seeds.what-was-made-can-be-read-everywhere` reads the name off
-     * the attendee's record; this owns the direct decrypt contract.
-     */
+    // Owns the direct decrypt contract for seeded attendees; the story
+    // `@case:seeds.what-was-made-can-be-read-everywhere` covers the page.
     test("seeded attendees decrypt with real demo details", async () => {
       await postSeeds({ attendees_per_listing: "1", listing_count: "1" });
 

@@ -208,12 +208,61 @@ describe("i18n", () => {
       ).toBe("A event at <code>/ticket/listing-one+listing-two</code>");
     });
 
+    /** Render a rebranded template the way `t` would, to check it end to end. */
+    const format = (
+      template: string,
+      values: Record<string, number | string>,
+    ): string =>
+      String(
+        new IntlMessageFormat(template, "en", undefined, {
+          ignoreTag: true,
+        }).format(values),
+      );
+
     test("rebrands copy inside ICU plural sub-messages", () => {
-      expect(
-        buildReplacer("ticket|booking")(
-          "{count, plural, one {# ticket} other {# tickets}}",
-        ),
-      ).toBe("{count, plural, one {# booking} other {# bookings}}");
+      const rebranded = buildReplacer("ticket|booking")(
+        "{count, plural, one {# ticket} other {# tickets}}",
+      );
+      expect(format(rebranded, { count: 1 })).toBe("1 booking");
+      expect(format(rebranded, { count: 3 })).toBe("3 bookings");
+    });
+
+    test("never rebrands an ICU argument name, even when it matches a term", () => {
+      // The handler supplies the value under the argument's exact name, so a
+      // rebrand pair like "listing|event" must not touch `{listings, …}` —
+      // only the copy inside the branches.
+      const rebranded = buildReplacer("listing|event")(
+        "Created {listings, plural, one {# listing} other {# listings}}.",
+      );
+      expect(rebranded).toContain("{listings,");
+      expect(format(rebranded, { listings: 3 })).toBe("Created 3 events.");
+    });
+
+    test("rebrands a sub-message that is a single bare word", () => {
+      // "one {listing}" looks exactly like an argument reference, but it is
+      // copy inside a plural branch and must still be rebranded.
+      const rebranded = buildReplacer("listing|event")(
+        "{count, plural, one {listing} other {listings}}",
+      );
+      expect(format(rebranded, { count: 1 })).toBe("event");
+      expect(format(rebranded, { count: 2 })).toBe("events");
+    });
+
+    test("rebrands select branches while keeping the selector working", () => {
+      const rebranded = buildReplacer("ticket|booking")(
+        "{kind, select, single {A ticket} other {Some tickets}}",
+      );
+      expect(format(rebranded, { kind: "single" })).toBe("A booking");
+      expect(format(rebranded, { kind: "bulk" })).toBe("Some bookings");
+    });
+
+    test("keeps a plain argument intact while rebranding the copy around it", () => {
+      const rebranded = buildReplacer("attendee|guest")(
+        "The attendee {attendee} checked in.",
+      );
+      expect(format(rebranded, { attendee: "Alice" })).toBe(
+        "The guest Alice checked in.",
+      );
     });
   });
 
