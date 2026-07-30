@@ -264,6 +264,36 @@ describeWithEnv(
       expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     });
 
+    test("losing the race for that second lock refuses before migrating", async () => {
+      await markMigrationsForRerun();
+      // The request that created the table is still holding the lock.
+      const otherLease = new Date(Date.now() - 30_000).toISOString();
+      await getDb().execute({
+        args: ["migration_lock", otherLease],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      });
+      const { fetchStub, restore } = stubNtfyFetch({});
+      try {
+        using _env = restore;
+        using _fetch = fetchStub;
+        using _execute = hideSettings(1, 1);
+
+        await expect(initDb({ allowMissingSettings: true })).rejects.toThrow(
+          "Database migration is already in progress",
+        );
+
+        // The other request keeps its lease, and nothing was migrated past it.
+        expect(await settingsValueOrNull("migration_lock")).toBe(otherLease);
+        expect(await settingsValueOrNull("db_schema_hash")).toBe("stale");
+      } finally {
+        await getDb().execute(
+          "DELETE FROM settings WHERE key = 'migration_lock'",
+        );
+        invalidateInitDbCache();
+        await initDb();
+      }
+    });
+
     test("taking that lock again is not allowed to shrug off a missing table", async () => {
       await markMigrationsForRerun();
       try {
