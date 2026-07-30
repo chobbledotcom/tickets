@@ -189,6 +189,28 @@ describe("buildReplacer", () => {
     );
   });
 
+  test("a <code> opener split before its > still protects the example", () => {
+    // The argument sits inside the opening tag itself, so the scanner only
+    // learns the tag is <code> once its > arrives in a later node.
+    const rebranded = buildReplacer("listing|event")(
+      'Use <code data-n="{n}">ls listings</code> to list listings.',
+    );
+    expect(format(rebranded, { n: 2 })).toBe(
+      'Use <code data-n="2">ls listings</code> to list events.',
+    );
+  });
+
+  test("a tag split across three nodes keeps its middle part verbatim", () => {
+    // Two arguments inside one href leave a literal that is entirely inside
+    // the tag — no < or > of its own — and it must not be rebranded.
+    const rebranded = buildReplacer("listing|event")(
+      'Open <a href="/listings/{a}/listings/{b}">the listing</a>.',
+    );
+    expect(format(rebranded, { a: 1, b: 2 })).toBe(
+      'Open <a href="/listings/1/listings/2">the event</a>.',
+    );
+  });
+
   test("a branch closing a <code> span does not unprotect its siblings", () => {
     // Each branch closes the code span itself, so the copy after the close
     // rebrands inside every branch — including the later ones, which must
