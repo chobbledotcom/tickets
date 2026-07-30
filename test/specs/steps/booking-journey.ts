@@ -3,13 +3,21 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
+import {
+  adminBrowser,
+  browserOf,
+  CUSTOMER as CUSTOMERS_OWN_BROWSER,
+} from "#test/specs/support/browser.ts";
+import {
+  listingIdNamed,
+  rememberListingById,
+} from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { linePlacesOnPage, openAttendeeEditor } from "#test-utils/e2e.ts";
-import { ALL_CHECKBOXES, TestBrowser } from "#test-utils/test-browser.ts";
+import { ALL_CHECKBOXES, type TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -23,13 +31,11 @@ const CUSTOMER_EMAIL = "jane@example.com";
 
 /** The customer is a member of the public: their own browser, never signed in
  * as the organiser, so the journey proves what a real visitor can do. */
-const customerBrowser = (world: TicketsWorld): TestBrowser => {
-  world.customerBrowser ??= new TestBrowser();
-  return world.customerBrowser;
-};
+const customerBrowser = (world: TicketsWorld): TestBrowser =>
+  browserOf(world, CUSTOMERS_OWN_BROWSER);
 
 const listingId = (world: TicketsWorld): number =>
-  requiredWorldValue(world.listingIds.get(LISTING), `${LISTING} listing id`);
+  listingIdNamed(world, LISTING);
 
 /** Build the listing the way an organiser does: pick the type from the
  * template chooser, then fill in the advanced form. */
@@ -103,7 +109,7 @@ Given(
   async function (this: TicketsWorld): Promise<void> {
     const browser = await adminBrowser(this);
     const id = await createListingThroughChooser(browser);
-    this.listingIds.set(LISTING, id);
+    await rememberListingById(this, LISTING, id);
     await askSizeQuestion(browser, id);
     this.bookingPath = await groupTheListing(browser);
   },

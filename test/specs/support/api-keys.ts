@@ -59,13 +59,12 @@ export const ownerMakesKey: ActOnOneThing = async (world, name) => {
     /<pre><code>([A-Za-z0-9_-]+)<\/code><\/pre>/,
   );
   if (!shown) throw new Error(`The owner was shown no ${name} key to copy`);
-  world.apiKeys ??= new Map();
-  world.apiKeys.set(name, shown[1]!);
+  world.things.remember("key", name, shown[1]!);
 };
 
 /** The key the story handed to one system. */
 export const keyNamed = (world: TicketsWorld, name: string): string =>
-  requiredWorldValue(world.apiKeys?.get(name), `the ${name} key`);
+  world.things.require("key", name);
 
 /** The owner's keys page as words on a screen, or as the whole response the
  * site sent. A key hidden in a link or an attribute is still a key anybody

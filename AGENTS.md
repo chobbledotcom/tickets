@@ -694,6 +694,8 @@ logging and table-scoped cache invalidation stay automatic.
 ## Scripts
 
 - `deno task start` - Run the server
+- `deno task dev` - Run the server with `--watch`, restarting it whenever a source file changes. `build:static` runs once at the start, so an edit to a static asset still needs the task restarted. With `DB_URL=:memory:` each restart begins with an empty database, so pass `DB_URL=file:./local.db` to keep one across edits
+- `deno task serve` - The bare server command that `start` and `dev` both call, so the permissions and entry point live in one place. `dev` sets `SERVE_WATCH=--watch` to add the watcher. Prefer `start` or `dev`, which build the static assets first
 - `deno task test` - Run the full suite
 - `deno task test:coverage` - Run the full suite with coverage
 - `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (makes sure the static assets are current, starts stripe-mock, cleans up after)

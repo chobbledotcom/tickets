@@ -12,11 +12,11 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { settings } from "#shared/db/settings.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   bookingId,
   buyPlaceWithExtra,
   expectMoneyHandedBack,
-  listingIdFor,
   sellPlacesAt,
   soleBookingOn,
 } from "#test/specs/support/money.ts";
@@ -72,7 +72,7 @@ When(
 Then(
   "the Fee Day place has earned 50.00 and the booking fee has earned 5.00",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await incomeOf(listingIdFor(this, FEE_DAY))).toBe(5000);
+    expect(await incomeOf(listingIdNamed(this, FEE_DAY))).toBe(5000);
     expect(await accountBalance(BOOKING_FEE_INCOME)).toBe(500);
     expect(await worldBalance()).toBe(-5500);
     // The fee is its own line on the booking, not part of the ticket's price.
@@ -103,7 +103,7 @@ Given(
 Then(
   "the Fee Day place and the booking fee have both earned nothing",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await incomeOf(listingIdFor(this, FEE_DAY))).toBe(0);
+    expect(await incomeOf(listingIdNamed(this, FEE_DAY))).toBe(0);
     expect(await accountBalance(BOOKING_FEE_INCOME)).toBe(0);
     const handedBackFee = await attendeeLegsOfKind(
       bookingId(this),
@@ -135,7 +135,7 @@ Given(
 When(
   "a customer pays for one Talk place",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = listingIdFor(this, TALK);
+    const listingId = listingIdNamed(this, TALK);
     const modifierId = requiredWorldValue(this.modifierId, "modifier id");
     await runStripeSuccess({
       email: "svc@example.com",
@@ -156,7 +156,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const modifierId = requiredWorldValue(this.modifierId, "modifier id");
     expect(await accountBalance(modifierAccount(modifierId))).toBe(500);
-    expect(await incomeOf(listingIdFor(this, TALK))).toBe(5000);
+    expect(await incomeOf(listingIdNamed(this, TALK))).toBe(5000);
     expect(await owedBy(bookingId(this))).toBe(0);
     // The charge is its own line, paid to the charge itself.
     const legs = await transfersByAccount(attendeeAccount(bookingId(this)));

@@ -13,8 +13,9 @@ import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
-  rememberStayListing,
-  stayListing,
+  listingIdNamed,
+  listingNamed,
+  rememberListing,
 } from "#test/specs/support/listings.ts";
 import { visitorBooks } from "#test/specs/support/public-booking.ts";
 import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
@@ -42,7 +43,7 @@ const listingPath = (
   world: TicketsWorld,
   listing: string,
   page: string,
-): string => `/admin/listing/${stayListing(world, listing).id}/${page}`;
+): string => `/admin/listing/${listingIdNamed(world, listing)}/${page}`;
 
 /** Someone with a ticket for one of the story's listings. Both the listing and
  * the ticket are kept under the names the story uses for them. */
@@ -58,7 +59,7 @@ export const personWithTicket = async (
     { name: listing, nonTransferable: options.needsIdChecked ?? false },
     options.places ?? 1,
   );
-  rememberStayListing(world, listing, created);
+  rememberListing(world, listing, created);
   // The door this person belongs to, so a screenshot capture can open it.
   leaveEvidencePage(
     world,
@@ -74,8 +75,7 @@ const rememberTicket = (
   who: string,
   ticket: string,
 ): void => {
-  world.doorTickets ??= new Map();
-  world.doorTickets.set(who, ticket);
+  world.things.remember("ticket", who, ticket);
 };
 
 /** Someone who booked a stay of several days through the listing's own page.
@@ -88,7 +88,7 @@ export const personWithStayTicket = async (
   days: number,
 ): Promise<void> => {
   await openStayListing(world, listing, days, 5);
-  await visitorBooks(world, stayListing(world, listing), {
+  await visitorBooks(world, listingNamed(world, listing), {
     day: dayFromToday(world, 10),
     email: `${who.toLowerCase()}@example.com`,
     who,
@@ -102,7 +102,7 @@ export const personWithStayTicket = async (
 
 /** Another listing running its own door, with nobody booked on it yet. */
 export const otherListing: ActOnOneThing = async (world, listing) => {
-  rememberStayListing(
+  rememberListing(
     world,
     listing,
     await createTestListing({ maxAttendees: 10, name: listing }),
@@ -110,11 +110,8 @@ export const otherListing: ActOnOneThing = async (world, listing) => {
 };
 
 /** The ticket code the story gave this person. */
-export const ticketOf = (world: TicketsWorld, who: string): string => {
-  const token = world.doorTickets?.get(who);
-  if (!token) throw new Error(`${who} was never given a ticket`);
-  return token;
-};
+export const ticketOf = (world: TicketsWorld, who: string): string =>
+  world.things.require("ticket", who);
 
 /** Their money is given back, so the ticket should no longer let them in. */
 export const refundTicket = async (
@@ -126,7 +123,7 @@ export const refundTicket = async (
   if (!attendee) throw new Error(`${who}'s ticket is not on any booking`);
   await postAttendeeRefund({
     attendeeId: attendee.id,
-    listingId: stayListing(world, listing).id,
+    listingId: listingIdNamed(world, listing),
   });
 };
 

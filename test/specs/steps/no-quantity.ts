@@ -3,6 +3,10 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import {
+  listingIdNamed,
+  rememberListing,
+} from "#test/specs/support/listings.ts";
+import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -22,9 +26,6 @@ const WORKSHOP = "Workshop";
 const REAL_SHOW = "RealShow";
 const GHOST_SHOW = "GhostShow";
 
-const listingIdFor = (world: TicketsWorld, name: string): number =>
-  requiredWorldValue(world.listingIds.get(name), `${name} listing id`);
-
 const ticketToken = (world: TicketsWorld): string =>
   requiredWorldValue(world.ticketToken, "ticket token");
 
@@ -37,7 +38,7 @@ const addListing = async (
     maxQuantity: 5,
     name,
   });
-  world.listingIds.set(name, listing.id);
+  rememberListing(world, name, listing);
   return listing.id;
 };
 
@@ -81,7 +82,7 @@ const changeListingLines = async (
   change: (line: AttendeeLineInput) => AttendeeLineInput,
 ): Promise<void> => {
   const attendeeId = requiredWorldValue(world.attendeeId, "attendee id");
-  const listingId = listingIdFor(world, listingName);
+  const listingId = listingIdNamed(world, listingName);
   const lines = await existingAttendeeLines(attendeeId);
   if (!lines.some((line) => line.eventId === listingId)) {
     throw new Error(`${listingName} attendee line was not found`);
@@ -106,7 +107,7 @@ const attendeeList = async (
   listingName: string,
 ): Promise<string> => {
   const response = await awaitTestRequest(
-    `/admin/listing/${listingIdFor(world, listingName)}/attendees`,
+    `/admin/listing/${listingIdNamed(world, listingName)}/attendees`,
     { cookie: await testCookie() },
   );
   expect(response.status).toBe(200);
@@ -216,7 +217,7 @@ When(
     const attendeeId = requiredWorldValue(this.attendeeId, "attendee id");
     await saveLines(this, [
       ...(await existingAttendeeLines(attendeeId)),
-      { eventId: listingIdFor(this, GHOST_SHOW), noQuantity: true },
+      { eventId: listingIdNamed(this, GHOST_SHOW), noQuantity: true },
     ]);
   },
 );

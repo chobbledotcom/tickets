@@ -12,9 +12,9 @@ import type { Attendee, Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls.ts";
 import {
+  listingIdNamed,
   organiserSavesListing,
-  rememberStayListing,
-  stayListing,
+  rememberListing,
 } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -32,7 +32,7 @@ export const guest = (order: number): { email: string; who: string } => ({
 export const staysOn = (
   world: TicketsWorld,
   name: string,
-): Promise<Attendee[]> => getAttendeesRaw(stayListing(world, name).id);
+): Promise<Attendee[]> => getAttendeesRaw(listingIdNamed(world, name));
 
 /** The stay booked most recently on a listing — the highest id, so the answer
  * does not depend on the order the rows come back in. Fails loudly when nothing
@@ -93,7 +93,7 @@ export const openStayListing = async (
         }
       : {}),
   });
-  return rememberStayListing(world, name, listing);
+  return rememberListing(world, name, listing);
 };
 
 /** Change how many days each new stay covers, through the listing's own edit

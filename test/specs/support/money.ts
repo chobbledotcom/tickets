@@ -27,10 +27,6 @@ import {
 import { setupStripe } from "#test-utils/settings.ts";
 // jscpd:ignore-end
 
-/** The id of a listing the story put on sale, by the name it used. */
-export const listingIdFor = (world: TicketsWorld, name: string): number =>
-  requiredWorldValue(world.listingIds.get(name), `${name} listing id`);
-
 /** The booking the story is about. */
 export const bookingId = (world: TicketsWorld): number =>
   requiredWorldValue(world.attendeeId, "attendee id");
@@ -107,7 +103,8 @@ export const buyPlaceWithExtra = async (
   // The story may already have put this listing on sale (with its extra charge
   // attached), so reuse it rather than selling a second one of the same name.
   const listingId =
-    world.listingIds.get(name) ?? (await sellPlacesAt(world, name, pounds)).id;
+    world.things.recall("listing", name)?.id ??
+    (await sellPlacesAt(world, name, pounds)).id;
   const price = minorUnits(pounds);
   await runStripeSuccess({
     email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,
