@@ -3,22 +3,27 @@
  *
  * A table already declares its columns, their types, and how to open them. A
  * read of that table should not have to say any of it again — so it doesn't:
- * name the table and the reader knows what to select, what shape comes back,
- * and how to decrypt it.
+ * `table.read` knows what to select, what shape comes back, and how to decrypt
+ * it. Every ordinary read of a table's own rows goes through it.
  *
  * The filter is the row's own shape, so a column that does not exist, or a
  * value of the wrong type, is a mistake the compiler catches rather than the
  * database. A read that joins, or that selects something SQL invents, has no
- * table to infer from — those say their read with `readRows` instead.
+ * table to infer from — those say their read with `readRows` instead, and open
+ * their rows with the same chosen set (`table.read.pick([...])`).
  */
 
 import type { InValue } from "@libsql/client";
 import {
   type ChosenColumns,
+  type ChosenRow,
   type ColumnNames,
   chooseColumns,
+  type ReadableTable,
+  type StoredRowOf,
 } from "#shared/db/chosen-columns.ts";
-import type { Table, TableSchema } from "#shared/db/table.ts";
+import { type Read, readOneRow, readRows } from "#shared/db/read.ts";
+import type { TableSchema } from "#shared/db/table.ts";
 import { equals, inList, type WhereClause } from "#shared/db/where-clauses.ts";
 
 /**
@@ -35,8 +40,17 @@ export type RowFilter<Row> = {
     : never;
 };
 
-/** The rest of a read: how the rows come back, and how many. */
+/** The rest of a read: which other rows to keep, how they come back, and how
+ * many. */
 export type RowOptions = {
+  /**
+   * Filters the row shape cannot say — a subquery, a comparison, a condition
+   * built from settings. Written with the shared clause helpers in
+   * `#shared/db/where-clauses.ts`, and combined with the row filter by AND.
+   */
+  where?: WhereClause[];
+  /** Table alias, when the clauses or the order qualify their columns. */
+  alias?: string;
   /** An `ORDER BY` body without the keyword. Omit for no ordering. */
   order?: string;
   /** A row cap. Omit for no limit. */
@@ -55,6 +69,7 @@ export type RowOptions = {
 const filterClauses = <Row>(
   table: { name: string; schema: TableSchema<Row> },
   filter: RowFilter<Row>,
+  alias: string | undefined,
 ): WhereClause[] =>
   Object.entries(filter).flatMap(([column, value]) => {
     if (table.schema[column as keyof Row]?.write !== undefined) {
@@ -62,9 +77,10 @@ const filterClauses = <Row>(
         `Cannot filter ${table.name} by ${column}: it is stored in a different form from the value you have. Filter on the column holding its one-way code instead.`,
       );
     }
+    const named = alias ? `${alias}.${column}` : column;
     return Array.isArray(value)
-      ? inList(column, value as readonly InValue[])
-      : equals(column, value as Exclude<InValue, null>);
+      ? inList(named, value as readonly InValue[])
+      : equals(named, value as Exclude<InValue, null>);
   });
 
 /**
@@ -82,53 +98,93 @@ export type Rows<Row, Selected = Row> = {
   ) => Promise<Selected | null>;
 };
 
-/** Reading a table: its whole row, or just the columns a caller names. */
+/**
+ * A named set of a table's columns: it reads them, and it opens the rows a
+ * join read for it. One set, so a join and a plain read can never disagree
+ * about which columns they mean.
+ */
+export type Selection<Row, Columns extends ColumnNames<Row>> = ChosenColumns<
+  Row,
+  Columns
+> &
+  Rows<Row, Pick<Row, Columns[number]>>;
+
+/**
+ * Reading a table: its whole stored row, or just the columns a caller names.
+ *
+ * "Whole" means every column the table stores. A table that works some of its
+ * values out from other tables — a listing's first image, say — does not carry
+ * those here, and cannot: they are not columns, so `pick` refuses to name them
+ * too. A read that wants them says so in its own SQL.
+ */
 export type TableReader<Row> = Rows<Row> & {
   /** The same reads over a narrower set of columns — nothing else is selected,
    * so nothing else is fetched or decrypted. */
   pick: <const Columns extends ColumnNames<Row>>(
     columns: Columns,
-  ) => Rows<Row, Pick<Row, Columns[number]>>;
+  ) => Selection<Row, Columns>;
 };
 
-const rowsOf = <Row, Input, Columns extends ColumnNames<Row>>(
-  table: Table<Row, Input>,
+/**
+ * The filter naming one row by its own key. Code that works over any table —
+ * the CRUD resources — cannot spell a key column it does not know the name of,
+ * so the one place that has to is here.
+ */
+export const byPrimaryKey = <Row>(
+  table: { primaryKey: keyof Row & string },
+  key: InValue,
+): RowFilter<Row> => ({ [table.primaryKey]: key }) as RowFilter<Row>;
+
+const selectionOf = <Row, Columns extends ColumnNames<Row>>(
+  table: ReadableTable<Row>,
   chosen: ChosenColumns<Row, Columns>,
-): Rows<Row, Pick<Row, Columns[number]>> => ({
-  many: (filter = {}, options = {}) =>
-    chosen.select({ ...options, where: filterClauses(table, filter) }),
-  one: (filter = {}, options = {}) =>
-    chosen.selectOne({ ...options, where: filterClauses(table, filter) }),
-});
+): Selection<Row, Columns> => {
+  /** The chosen set supplies the columns and the table; the caller supplies
+   * the rest of the read. */
+  const readFor = (
+    filter: RowFilter<Row>,
+    { alias, limit, order, where = [] }: RowOptions,
+  ): Read => ({
+    columns: chosen.readColumnsSql(alias),
+    from: alias ? `${table.name} AS ${alias}` : table.name,
+    limit,
+    order,
+    where: [...filterClauses(table, filter, alias), ...where],
+  });
+
+  const rowsOf = async (read: Read): Promise<ChosenRow<Row, Columns>[]> =>
+    chosen.readAll(await readRows<StoredRowOf<Row, Columns>>(read));
+
+  const rowOf = async (read: Read): Promise<ChosenRow<Row, Columns> | null> => {
+    const row = await readOneRow<StoredRowOf<Row, Columns>>(read);
+    return row === null ? null : chosen.read(row);
+  };
+
+  // The read is built before anything is awaited, so a filter the table refuses
+  // fails at the call rather than in a rejected promise later.
+  return {
+    ...chosen,
+    many: (filter = {}, options = {}) => rowsOf(readFor(filter, options)),
+    one: (filter = {}, options = {}) => rowOf(readFor(filter, options)),
+  };
+};
 
 /**
  * The reader for a table. `pick` narrows the columns; calling the reader's own
  * `one`/`many` reads the whole row.
  */
-export const readerFor = <Row, Input>(
-  table: Table<Row, Input>,
-): TableReader<Row> => {
-  // A whole-row read can only promise the whole row when the row IS its stored
-  // columns. A table that works some of its values out from other tables has
-  // more in its row than it stores, so those reads must name their columns.
-  const workedOut = Object.keys(table.schema).filter(
-    (column) => table.schema[column as keyof Row]?.projected,
-  );
-  if (workedOut.length > 0) {
-    throw new Error(
-      `${table.name} has values that are not stored columns (${workedOut.join(", ")}), so a whole-row read cannot return them. Choose the columns you want with chooseColumns instead.`,
-    );
-  }
-
+export const readerFor = <Row>(table: ReadableTable<Row>): TableReader<Row> => {
   const pick = <const Columns extends ColumnNames<Row>>(
     columns: Columns,
-  ): Rows<Row, Pick<Row, Columns[number]>> =>
-    rowsOf(table, chooseColumns(table, columns));
+  ): Selection<Row, Columns> =>
+    selectionOf(table, chooseColumns(table, columns));
+
   // A table's declared columns are exactly the keys of its row, and a table
-  // with no columns cannot be declared — so this is the whole row.
+  // with no columns cannot be declared — so this is the whole stored row.
   const whole = pick(table.columns as unknown as ColumnNames<Row>) as Rows<
     Row,
     Row
   >;
+
   return { ...whole, pick };
 };

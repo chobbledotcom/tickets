@@ -184,7 +184,7 @@ describeWithEnv("built-site storage", { db: true }, () => {
       "bunny",
       TEST_SCHEDULED_KEY,
     );
-    const site = await builtSitesCrudTable.findById(row.id);
+    const site = await builtSitesCrudTable.read.one({ id: row.id });
     expect(site?.scheduledTaskKey).toBe(TEST_SCHEDULED_KEY);
   });
 
@@ -215,6 +215,8 @@ describeWithEnv("built-site storage", { db: true }, () => {
         v: 1,
       }),
     });
-    expect((await builtSitesCrudTable.findById(row.id))?.renewalToken).toBe("");
+    expect(
+      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalToken,
+    ).toBe("");
   });
 });

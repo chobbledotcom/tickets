@@ -37,7 +37,7 @@ export const getAllRawEmailTemplates = (): Promise<RawEmailTemplate[]> =>
 
 export const getRawEmailTemplate = (
   id: number,
-): Promise<RawEmailTemplate | null> => emailTemplatesTable.findById(id);
+): Promise<RawEmailTemplate | null> => emailTemplatesTable.read.one({ id });
 
 export const countEmailTemplates = (): Promise<number> =>
   countRows("email_templates");

@@ -499,7 +499,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       await deleteTestBuiltSite(site.id);
 
       const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
-      const found = await builtSitesCrudTable.findById(site.id);
+      const found = await builtSitesCrudTable.read.one({ id: site.id });
       expect(found).toBeNull();
     });
 
@@ -519,18 +519,18 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       );
 
       const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
-      const found = await builtSitesCrudTable.findById(site.id);
+      const found = await builtSitesCrudTable.read.one({ id: site.id });
       expect(found).not.toBeNull();
     });
 
-    test("table lookups preserve missing rows", async () => {
+    test("a list filter reads back only the sites that exist", async () => {
       const site = await createTestBuiltSite({ name: "Lookup Site" });
       const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
       expect(
-        (await builtSitesCrudTable.findByIds([site.id, 999_999])).map(
-          (row) => row?.id ?? null,
+        (await builtSitesCrudTable.read.many({ id: [site.id, 999_999] })).map(
+          (row) => row.id,
         ),
-      ).toEqual([site.id, null]);
+      ).toEqual([site.id]);
     });
 
     test("name confirmation is case-insensitive", async () => {
@@ -644,7 +644,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       );
       expect(response.status).toBe(302);
       const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
-      const updated = await builtSitesCrudTable.findById(site.id);
+      const updated = await builtSitesCrudTable.read.one({ id: site.id });
       expect(updated!.name).toBe("Keep Beta Renamed");
       expect(updated!.updates).toBe("beta");
     });

@@ -5,14 +5,12 @@
  */
 
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { attributesTable } from "#shared/db/attributes.ts";
-import { rawListingsTable } from "#shared/db/listings/table.ts";
-import { readerFor } from "#shared/db/table-reader.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
-describeWithEnv("db > table reader", { db: true }, () => {
-  const attributes = readerFor(attributesTable);
+describeWithEnv("db > table reader > filters", { db: true }, () => {
+  const attributes = attributesTable.read;
   const add = (name: string, sortOrder = 0) =>
     attributesTable.insert({ name, sortOrder });
 
@@ -94,16 +92,6 @@ describeWithEnv("db > table reader", { db: true }, () => {
     // refused as the call is made, before any query is built.
     expect(() => attributes.one({ name: "Sealed" })).toThrow(
       "Cannot filter attributes by name: it is stored in a different form",
-    );
-  });
-});
-
-describe("readerFor guards", () => {
-  test("refuses a table whose row is more than its stored columns", () => {
-    // listings works its image and day-price values out from other tables, so a
-    // whole-row read cannot return a whole Listing.
-    expect(() => readerFor(rawListingsTable)).toThrow(
-      "listings has values that are not stored columns",
     );
   });
 });

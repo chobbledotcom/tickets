@@ -32,9 +32,9 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
     );
     expect(raw?.site_data).not.toContain(TEST_SCHEDULED_KEY);
     expect(JSON.stringify(raw)).not.toContain(TEST_SCHEDULED_KEY);
-    expect((await builtSitesCrudTable.findById(row.id))?.scheduledTaskKey).toBe(
-      TEST_SCHEDULED_KEY,
-    );
+    expect(
+      (await builtSitesCrudTable.read.one({ id: row.id }))?.scheduledTaskKey,
+    ).toBe(TEST_SCHEDULED_KEY);
   });
 
   test("fails loudly when the built site does not exist", async () => {
@@ -54,7 +54,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
     expect(first).toBe(second);
     expect(isScheduledTaskKey(first)).toBe(true);
     expect(
-      (await builtSitesCrudTable.findById(site.id))?.scheduledTaskKey,
+      (await builtSitesCrudTable.read.one({ id: site.id }))?.scheduledTaskKey,
     ).toBe(first);
   });
 
@@ -66,7 +66,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
       builtSitesCrudTable.update(site.id, { name: "Edited child" }),
     ]);
 
-    const updated = await builtSitesCrudTable.findById(site.id);
+    const updated = await builtSitesCrudTable.read.one({ id: site.id });
     expect(updated?.name).toBe("Edited child");
     expect(isScheduledTaskKey(updated?.scheduledTaskKey ?? "")).toBe(true);
   });
@@ -83,7 +83,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
       }),
     ]);
 
-    const updated = await builtSitesCrudTable.findById(site.id);
+    const updated = await builtSitesCrudTable.read.one({ id: site.id });
     expect(updated?.readOnlyFrom).toBe("2026-08-01T00:00:00.000Z");
     expect(updated?.renewalToken).toBe("renewal-token");
     expect(updated?.renewalTokenIndex).toBe("renewal-index");

@@ -9,7 +9,6 @@ import {
 } from "#shared/db/backup.ts";
 import { exportTable } from "#shared/db/backup-snapshot.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
-import { listingsTable } from "#shared/db/listings/records.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
@@ -18,7 +17,10 @@ import {
   bookTestAttendee,
   decryptFirstAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  storedListingNames,
+} from "#test-utils/db-helpers/listings.ts";
 
 /**
  * Regression tests for restoring a backup taken before a column-dropping
@@ -167,7 +169,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       "Backup without a manifest is missing required data for tables: settings, schema_migrations, attendee_statuses",
     );
 
-    expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
+    expect(await storedListingNames()).toEqual([
       "From partial backup",
       "Must stay",
     ]);
@@ -183,9 +185,7 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
     }).catch((caught: unknown) => caught);
 
     expect(error).toEqual(new Error("progress stopped"));
-    expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
-      "From backup",
-    ]);
+    expect(await storedListingNames()).toEqual(["From backup"]);
   });
 
   describe("backups taken before a column-dropping migration", () => {

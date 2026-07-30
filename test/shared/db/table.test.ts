@@ -193,7 +193,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(await table.readColumn("id", 7)).toBe(7);
   });
 
-  test("defineTable.findAll returns all rows", async () => {
+  test("defineTable reads back every row", async () => {
     const { col, defineTable } = await import("#shared/db/table.ts");
     const testTable = buildListingsTestTable<{ name: string }>(
       col,
@@ -211,30 +211,30 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
 
-    const rows = await testTable.findAll();
+    const rows = await testTable.read.many();
     expect(rows.length).toBe(2);
   });
 
-  test("defineTable resolves one id through the ordered many-id lookup", async () => {
+  test("defineTable reads one id and a list of them the same way", async () => {
     const { col, defineTable } = await import("#shared/db/table.ts");
     const first = await createTestListing({ name: "First" });
     const second = await createTestListing({ name: "Second" });
     const table = buildListingsTestTable<{ name: string }>(col, defineTable);
 
-    expect((await table.findById(second.id))?.id).toBe(second.id);
+    expect((await table.read.one({ id: second.id }))?.id).toBe(second.id);
     expect(
-      (await table.findByIds([second.id, first.id, second.id])).map(
-        (row) => row?.id,
-      ),
-    ).toEqual([second.id, first.id, second.id]);
+      (await table.read.many({ id: [second.id, first.id] }))
+        .map((row) => row.id)
+        .toSorted(),
+    ).toEqual([first.id, second.id].toSorted());
   });
 
   test("defineTable keeps optional misses nullable", async () => {
     const { col, defineTable } = await import("#shared/db/table.ts");
     const table = buildListingsTestTable<{ name: string }>(col, defineTable);
-    expect(await table.findById(999_999)).toBeNull();
+    expect(await table.read.one({ id: 999_999 })).toBeNull();
     expect(await table.findByIdPrimary!(999_999)).toBeNull();
-    expect(await table.findByIds([])).toEqual([]);
+    expect(await table.read.many({ id: [] })).toEqual([]);
   });
 
   test("defineTable.update with no changes returns existing row", async () => {
@@ -311,7 +311,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(row.unit_price).toBe(0);
     expect(row.webhook_url).toBeNull();
 
-    const fromDb = await testTable.findById(row.id);
+    const fromDb = await testTable.read.one({ id: row.id });
     expect(fromDb?.slug).toBe("test-listing");
   });
 
@@ -344,7 +344,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(row.key).toBe("test-key");
     expect(row.value).toBe("test-value");
 
-    const fetched = await kvTable.findById("test-key");
+    const fetched = await kvTable.read.one({ key: "test-key" });
     expect(fetched).not.toBeNull();
     expect(fetched?.value).toBe("test-value");
   });

@@ -16,10 +16,11 @@
  *   return redirect('/admin/');
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
+/* jscpd:ignore-start */
+import { byPrimaryKey } from "#shared/db/table-reader.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
@@ -192,7 +193,9 @@ export const defineResource = <
     id: InValue,
     fn: () => Promise<Outcome>,
   ): Promise<Outcome | NotFoundResult> =>
-    (await table.findById(id)) ? fn() : { notFound: true, ok: false };
+    (await table.read.one(byPrimaryKey(table, id)))
+      ? fn()
+      : { notFound: true, ok: false };
 
   /** Parse + validate the form, write the row (transactionally when
    * `afterWrite` is set, else the plain insert/update `fallback`), then run the
@@ -270,7 +273,7 @@ export const defineResource = <
     create,
     delete: deleteRow,
     fields: schema.fields,
-    loadOrNull: table.findById,
+    loadOrNull: (id) => table.read.one(byPrimaryKey(table, id)),
     parseInput,
     table,
     update,

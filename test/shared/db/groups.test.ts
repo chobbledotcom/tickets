@@ -82,13 +82,13 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
 
   describe("CRUD", () => {
-    test("groups.table create, update, findById, deleteById", async () => {
+    test("groups.table create, update, read, deleteById", async () => {
       const created = await createTestGroup({
         name: "DB Group",
         slug: "db-group",
       });
 
-      const fetched = await groups.table.findById(created.id);
+      const fetched = await groups.table.read.one({ id: created.id });
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("DB Group");
       expect(fetched?.slug).toBe("db-group");
@@ -101,7 +101,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(updated?.terms_and_conditions).toBe("Terms");
 
       await groups.table.deleteById(created.id);
-      expect(await groups.table.findById(created.id)).toBeNull();
+      expect(await groups.table.read.one({ id: created.id })).toBeNull();
     });
 
     test("getAllGroups returns decrypted groups ordered by id", async () => {
