@@ -23,3 +23,10 @@ src/ui/templates/admin/attributes.tsx:173:61  ?? → ||   # `data.listingCounts.
 src/ui/templates/admin/questions.tsx:270:50  ?? → ||   # `answerCounts?.get(a.id) ?? 0`: answerCounts is Map<number,number>|undefined, so the left side is a number or undefined. The only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0; undefined maps to 0 under both — no input distinguishes them (same class as attributes.tsx:173:61 and checkout-pricing.ts:85:35)
 # cache-registry table sets: invalidatorsByTable.get() is Set|undefined, and a
 # Set object is always truthy, so `?? new Set()` and `|| new Set()` agree.
+
+# questions list page (ui/templates/admin/questions.tsx) — column keys the page
+# never reads back, and a Map.get fallback over always-truthy arrays.
+src/ui/templates/admin/questions.tsx:87:50  ?? → ||   # `listingNames.get(question.id) ?? []`: listingNames is Map<number, string[]>, so the left side is an array (always truthy) or undefined — no falsy-non-null value exists, and ?? and || agree on every input (same class as questions.tsx:270:50)
+src/ui/templates/admin/questions.tsx:170:14  question → ""   # a column `key` is read only by renderTable's columnKeys/hiddenKeys lookups and saved-filter value rendering; reorderableListPage renders the questions table with only reorder options — no columnKeys, hiddenKeys, or filter — so this key is never read
+src/ui/templates/admin/questions.tsx:176:14  answers → ""   # same as questions.tsx:170:14 — the questions list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
+src/ui/templates/admin/questions.tsx:187:14  listings → ""   # same as questions.tsx:170:14 — the questions list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read

@@ -29,6 +29,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
         "Displayed as the main heading on all public pages (max 128 characters).",
       );
       expect(inputNamed(html, "website_title")).toContain('autocomplete="off"');
+      // The id ties the label to the field; an emptied id breaks that link.
+      expect(inputNamed(html, "website_title")).toContain('id="website_title"');
       expect(html).toContain("Homepage text");
       const homepage = inputNamed(html, "homepage_text");
       expect(homepage).toContain('placeholder="Welcome to our site..."');

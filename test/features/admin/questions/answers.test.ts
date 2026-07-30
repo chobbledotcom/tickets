@@ -6,6 +6,7 @@ import {
   addAnswer,
   createQuestion,
 } from "#test/test-utils/questions/helpers.ts";
+import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -212,6 +213,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
+      expect(await activityMessages()).toContain(
+        `Answer 'Goodbye Answer' deleted from question ${qId}`,
+      );
     });
 
     test("rejects deletion with wrong text", async () => {

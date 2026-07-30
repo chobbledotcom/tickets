@@ -29,9 +29,13 @@ describe("payments guide schema", () => {
   test("explains the booking fee with worked example prices", () => {
     const html = String(renderGuideSections([sectionByTitle("payments")]));
     expect(html).toContain(t("guide.q.what_is_booking_fee"));
-    expect(html).toContain(formatCurrency(1000));
-    expect(html).toContain(formatCurrency(1020));
-    expect(html).toContain("<strong>Booking Fee</strong>");
+    // The full phrases, not bare amounts: "£10" alone also matches inside
+    // "£10.20", so a mutated example price could hide behind the other one.
+    expect(html).toContain(`on a ${formatCurrency(1000)} ticket`);
+    expect(html).toContain(`pays ${formatCurrency(1020)} in total`);
+    expect(html).toContain(
+      '<a href="/admin/settings">Settings</a> under <strong>Booking Fee</strong>',
+    );
   });
 
   test("names the booking duration field the way the listing form does", () => {
@@ -39,7 +43,9 @@ describe("payments guide schema", () => {
       renderGuideSections([sectionByTitle("daily_listings_and_holidays")]),
     );
     expect(html).toContain(t("guide.q.booking_duration_field"));
-    expect(html).toContain("<strong>Booking duration (days)</strong>");
+    expect(html).toContain(
+      "For daily listings, <strong>Booking duration (days)</strong>",
+    );
     expect(html).toContain(`up to ${MAX_DURATION_DAYS} days`);
   });
 });

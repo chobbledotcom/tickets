@@ -23,6 +23,14 @@ describe("question/answer form field rendering", () => {
     expect(html).toContain("data-markdown-preview");
   });
 
+  test("questionTextForm requires both of its fields", () => {
+    const html = questionTextForm.render();
+    // A question without text, or without a display type, must be refused by
+    // the browser itself — dropping either `required` would let one through.
+    expect(html).toMatch(/<textarea[^>]* required>/);
+    expect(html).toMatch(/<select[^>]* required>/);
+  });
+
   test("questionTextForm renders the display-type select with mapped labels", () => {
     const html = questionTextForm.render();
     expect(html).toContain("Display as");
@@ -36,6 +44,7 @@ describe("question/answer form field rendering", () => {
 
   test("answerTextForm renders a text input with its placeholder", () => {
     const html = answerTextForm.render();
+    expect(html).toContain("Answer text");
     expect(html).toContain('type="text"');
     expect(html).toContain('placeholder="e.g. Medium"');
   });

@@ -164,17 +164,22 @@ describeWithEnv(
         expect(html).toContain("Botpoison is active");
       });
 
+      // The full note, not just "Set a business email": the settings nag says
+      // that much on its own, so the short phrase can't tell the two apart.
+      const businessEmailNote =
+        "Set a business email on the Settings page to receive contact form";
+
       test("warns when no business email is set", async () => {
         const response = await adminGet("/admin/site/contact");
         const html = await response.text();
-        expect(html).toContain("Set a business email");
+        expect(html).toContain(businessEmailNote);
       });
 
       test("hides the business-email warning once one is set", async () => {
         await settings.update.businessEmail("owner@example.com");
         const response = await adminGet("/admin/site/contact");
         const html = await response.text();
-        expect(html).not.toContain("Set a business email");
+        expect(html).not.toContain(businessEmailNote);
       });
 
       test("reflects the enabled state in the checkbox", async () => {
