@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb, resultRows } from "#shared/db/client.ts";
 import {
   listingOptionColumns,
   rawListingsTable,
@@ -99,6 +100,22 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
       ).toBeNull();
       expect(getQueryLog()).toEqual([]);
     });
+  });
+
+  test("hands out the same read as a statement, to run elsewhere", async () => {
+    const wanted = await createTestListing({ name: "Batched" });
+    await createTestListing({ name: "Other" });
+
+    // A caller inside its own transaction runs the statement itself, and opens
+    // the rows with the very same chosen set — so it cannot drift from what
+    // `many` would have read.
+    const statement = listingOptionColumns.statement({ id: wanted.id });
+    const rows = await listingOptionColumns.readAll(
+      resultRows(await getDb().execute(statement)),
+    );
+
+    expect(rows).toEqual(await listingOptionColumns.many({ id: wanted.id }));
+    expect(rows.map(({ id }) => id)).toEqual([wanted.id]);
   });
 
   test("clauses the row shape cannot say narrow the read too", async () => {

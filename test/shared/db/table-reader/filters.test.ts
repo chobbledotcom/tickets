@@ -7,7 +7,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attributesTable } from "#shared/db/attributes.ts";
+import { rawListingsTable } from "#shared/db/listings/table.ts";
+import { col, defineTable } from "#shared/db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > table reader > filters", { db: true }, () => {
   const attributes = attributesTable.read;
@@ -84,6 +87,13 @@ describeWithEnv("db > table reader > filters", { db: true }, () => {
     expect(row).toEqual({ name: "Filtered" });
   });
 
+  test("existence is a yes-or-no, not a row", async () => {
+    const made = await add("There");
+
+    expect(await attributes.exists({ id: made.id })).toBe(true);
+    expect(await attributes.exists({ id: made.id + 1000 })).toBe(false);
+  });
+
   test("refuses to filter on a column stored in another form", async () => {
     await add("Sealed");
 
@@ -95,3 +105,59 @@ describeWithEnv("db > table reader > filters", { db: true }, () => {
     );
   });
 });
+
+describeWithEnv(
+  "db > table reader > a table with worked-out values",
+  { db: true },
+  () => {
+    // listings works its image values out from other tables: they are in a
+    // Listing, but they are not columns of `listings`.
+    test("refuses even a single worked-out value", () => {
+      // One is enough to make a whole-row read a lie, so the refusal must not
+      // wait for a second.
+      const oneWorkedOut = defineTable<
+        { id: number; worked_out: string },
+        never
+      >({
+        name: "attributes",
+        primaryKey: "id",
+        schema: {
+          id: col.generated<number>(),
+          worked_out: col.projected<string>(() => "from elsewhere"),
+        },
+      });
+
+      expect(() => oneWorkedOut.read.many()).toThrow(
+        "attributes has values that are not stored columns (worked_out)",
+      );
+    });
+
+    test("refuses a whole-row read it could not answer honestly", () => {
+      // Every value it could not have returned is named, and named apart, so
+      // the reader is told exactly what to ask for instead.
+      const refusal =
+        "listings has values that are not stored columns (image_alt_text, image_thumb_url, image_url, day_prices)";
+
+      expect(() => rawListingsTable.read.many()).toThrow(refusal);
+      expect(() => rawListingsTable.read.one({ id: 1 })).toThrow(refusal);
+    });
+
+    test("refuses a filter naming a value it does not store", () => {
+      // Without this the read would reach the database as
+      // `WHERE image_url = ?` and fail there on a column listings has never
+      // had — a mistake worth catching as the call is made.
+      expect(() =>
+        rawListingsTable.read.pick(["id"]).many({ image_url: "x" }),
+      ).toThrow(
+        "Cannot filter listings by image_url: it is not one of its columns",
+      );
+    });
+
+    test("still answers whether a row is there", async () => {
+      const listing = await createTestListing({ name: "Findable" });
+
+      expect(await rawListingsTable.read.exists({ id: listing.id })).toBe(true);
+      expect(await rawListingsTable.read.exists({ id: 999_999 })).toBe(false);
+    });
+  },
+);

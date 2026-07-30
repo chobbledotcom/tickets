@@ -274,16 +274,11 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
+      // The confirm page still loads the group; by the time the delete itself
+      // checks the row is there, it has gone.
       const { groups } = await import("#shared/db/groups.ts");
-      const original = groups.table.read.one.bind(groups.table.read);
-      let calls = 0;
-      const readStub = stub(
-        groups.table.read,
-        "one",
-        (...args: Parameters<typeof original>) => {
-          calls++;
-          return calls === 1 ? original(...args) : Promise.resolve(null);
-        },
+      const readStub = stub(groups.table.read, "exists", () =>
+        Promise.resolve(false),
       );
 
       try {

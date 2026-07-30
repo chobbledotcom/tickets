@@ -14,6 +14,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { once } from "#fp";
 import {
   type ChosenColumns,
   type ChosenRow,
@@ -22,7 +23,13 @@ import {
   type ReadableTable,
   type StoredRowOf,
 } from "#shared/db/chosen-columns.ts";
-import { type Read, readOneRow, readRows } from "#shared/db/read.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
+import {
+  type Read,
+  readOneRow,
+  readRows,
+  readStatement,
+} from "#shared/db/read.ts";
 import type { TableSchema } from "#shared/db/table.ts";
 import { equals, inList, type WhereClause } from "#shared/db/where-clauses.ts";
 
@@ -60,18 +67,25 @@ export type RowOptions = {
 /**
  * Turn a filter written as a row into the shared clause vocabulary.
  *
- * A column stored in a different form from the value the caller holds — an
- * encrypted one — cannot be compared against that value: the database would
- * match plaintext against ciphertext and quietly find nothing. That is refused
- * rather than answered wrongly. Such a value is found by the column that
- * carries its one-way code, which is stored as it is written.
+ * Two kinds of column are refused rather than answered wrongly. One the table
+ * does not store — a value worked out from another table — is not there to be
+ * compared against, so the database would fail on a column it has never heard
+ * of. One stored in a different form from the value the caller holds — an
+ * encrypted one — would match plaintext against ciphertext and quietly find
+ * nothing; such a value is found by the column carrying its one-way code,
+ * which is stored as it is written.
  */
 const filterClauses = <Row>(
-  table: { name: string; schema: TableSchema<Row> },
+  table: { columns: readonly string[]; name: string; schema: TableSchema<Row> },
   filter: RowFilter<Row>,
   alias: string | undefined,
 ): WhereClause[] =>
   Object.entries(filter).flatMap(([column, value]) => {
+    if (!table.columns.includes(column)) {
+      throw new Error(
+        `Cannot filter ${table.name} by ${column}: it is not one of its columns. A value worked out from another table cannot be compared against.`,
+      );
+    }
     if (table.schema[column as keyof Row]?.write !== undefined) {
       throw new Error(
         `Cannot filter ${table.name} by ${column}: it is stored in a different form from the value you have. Filter on the column holding its one-way code instead.`,
@@ -96,6 +110,11 @@ export type Rows<Row, Selected = Row> = {
     filter?: RowFilter<Row>,
     options?: RowOptions,
   ) => Promise<Selected | null>;
+  /** The same read as a statement, for a caller that must run it somewhere
+   * this reader cannot reach: inside an open transaction, or as one leg of a
+   * batch. The rows it returns are opened with {@link ChosenColumns.readAll},
+   * the same way this reader opens its own. */
+  statement: (filter?: RowFilter<Row>, options?: RowOptions) => SqlStatement;
 };
 
 /**
@@ -118,6 +137,15 @@ export type Selection<Row, Columns extends ColumnNames<Row>> = ChosenColumns<
  * too. A read that wants them says so in its own SQL.
  */
 export type TableReader<Row> = Rows<Row> & {
+  /**
+   * Whether any row passes the filter, read as narrowly as that question
+   * allows: the row's own key, capped at one row. Nothing else is fetched, so
+   * nothing else is decrypted to answer a yes-or-no — and unlike a whole-row
+   * read, a table that works some of its values out from other tables can
+   * still answer it.
+   */
+  exists: (filter?: RowFilter<Row>, options?: RowOptions) => Promise<boolean>;
+
   /** The same reads over a narrower set of columns — nothing else is selected,
    * so nothing else is fetched or decrypted. */
   pick: <const Columns extends ColumnNames<Row>>(
@@ -166,6 +194,8 @@ const selectionOf = <Row, Columns extends ColumnNames<Row>>(
     ...chosen,
     many: (filter = {}, options = {}) => rowsOf(readFor(filter, options)),
     one: (filter = {}, options = {}) => rowOf(readFor(filter, options)),
+    statement: (filter = {}, options = {}) =>
+      readStatement(readFor(filter, options)),
   };
 };
 
@@ -179,12 +209,39 @@ export const readerFor = <Row>(table: ReadableTable<Row>): TableReader<Row> => {
   ): Selection<Row, Columns> =>
     selectionOf(table, chooseColumns(table, columns));
 
-  // A table's declared columns are exactly the keys of its row, and a table
-  // with no columns cannot be declared — so this is the whole stored row.
-  const whole = pick(table.columns as unknown as ColumnNames<Row>) as Rows<
-    Row,
-    Row
-  >;
+  // A whole-row read can only promise the whole row when the row IS the
+  // table's stored columns. A table that works some of its values out from
+  // other tables has more in its row than it stores, so a read of every column
+  // would still be missing some and the promise would be a lie. Only the
+  // whole-row reads are refused — `pick` is how such a table is read — so the
+  // check waits until a whole-row read is actually asked for.
+  const whole = once((): Rows<Row, Row> => {
+    const workedOut = Object.keys(table.schema).filter(
+      (column) => table.schema[column as keyof Row]?.projected,
+    );
+    if (workedOut.length > 0) {
+      throw new Error(
+        `${table.name} has values that are not stored columns (${workedOut.join(", ")}), so a whole-row read cannot return them. Name the columns you want with read.pick instead.`,
+      );
+    }
+    // A table's declared columns are exactly the keys of its row, and a table
+    // with no columns cannot be declared — so this is the whole stored row.
+    return pick(table.columns as unknown as ColumnNames<Row>) as Rows<Row, Row>;
+  });
 
-  return { ...whole, pick };
+  // Every existence check reads the same one column, so the set is built once.
+  const key = once(() =>
+    pick([table.primaryKey] as unknown as ColumnNames<Row>),
+  );
+
+  return {
+    // Reading one row already caps the read at one, so this asks for nothing
+    // beyond the key column itself.
+    exists: async (filter, options) =>
+      (await key().one(filter, options)) !== null,
+    many: (filter, options) => whole().many(filter, options),
+    one: (filter, options) => whole().one(filter, options),
+    pick,
+    statement: (filter, options) => whole().statement(filter, options),
+  };
 };
