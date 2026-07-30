@@ -23,6 +23,25 @@ import {
 } from "#test-utils/mocks.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
+  describe("the join form", () => {
+    // The expected labels, hints, and bounds are written out here so a
+    // changed form definition fails this test instead of moving along.
+    test("serves both password boxes with their labels, hints, and bounds", async () => {
+      const { joinForm } = await import("#routes/join.ts");
+      const html = joinForm.render();
+      expect(html).toContain("Password");
+      expect(html).toContain("Confirm Password");
+      expect(html).toContain("Minimum 8 characters");
+      const password = html.slice(0, html.indexOf('name="password_confirm"'));
+      expect(password).toContain('minlength="8"');
+      expect(password).toContain('autocomplete="new-password"');
+      expect(password).toContain("required");
+      const confirm = html.slice(html.indexOf('name="password_confirm"') - 300);
+      expect(confirm).toContain('autocomplete="new-password"');
+      expect(confirm).toContain("required");
+    });
+  });
+
   describe("login flow", () => {
     test("login with username and password", async () => {
       const response = await handleRequest(

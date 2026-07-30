@@ -53,6 +53,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       // definition fails this test instead of moving the expectation along.
       const { apiKeyForm } = await import("#routes/admin/api-keys.ts");
       const html = apiKeyForm.render();
+      expect(html).toContain('name="name"');
       expect(html).toContain("Name");
       const input = html.slice(html.indexOf('name="name"') - 200);
       expect(input).toContain('maxlength="100"');
@@ -120,7 +121,14 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       // appear — the split runs on position 0, which is a found position.
       const html = await getApiKeysHtml(flashCookieHeader("\nBARE-KEY-123"));
       expect(html).toContain("Copy your API key now");
-      expect(html).toContain("BARE-KEY-123");
+      // The key sits in its code block, exactly, with no stray newline.
+      expect(html).toContain("<code>BARE-KEY-123</code>");
+      // The page's own message is empty, so the only flash on the page is
+      // the layout backstop's — which sits first inside <main>. A non-empty
+      // page message would render inside the page body instead.
+      expect(html).toContain(
+        '<main id="main-content" tabindex="-1"><div class="success"',
+      );
     });
   });
 
@@ -154,7 +162,12 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const locationUrl = new URL(location, "http://localhost");
       locationUrl.searchParams.delete("flash");
       expect(locationUrl.pathname).toBe("/admin/api-keys");
-      expectFlash(response, expect.stringContaining("API key created\n"));
+      // The whole flash is the fixed sentence plus the bare key — a corrupted
+      // key (e.g. an "undefined" prefix) fails the exact shape.
+      expectFlash(
+        response,
+        expect.stringMatching(/^API key created\n[A-Za-z0-9_-]+$/),
+      );
 
       // Follow the redirect and verify the key is shown
       const flashCookie = response.headers

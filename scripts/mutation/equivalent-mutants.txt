@@ -995,3 +995,15 @@ src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns Li
 # resolve.
 src/shared/db/news-posts.ts:148:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
 src/features/admin/api-keys.ts:147:75  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
+
+# rebrand scanner — four provably-equivalent survivors.
+# tagIsCode is read in exactly one place: stepTag's close, reachable only while
+# inTag is true — and every assignment of inTag=true (stepProse's unfinished
+# tag) also assigns tagIsCode. So a stale tagIsCode value can never be read.
+src/shared/rebrand.ts:66:14  false → true   # freshScan's tagIsCode: inTag starts false, so stepTag cannot run before stepProse has overwritten tagIsCode — the initial value is never read
+src/shared/rebrand.ts:138:26  false → true   # stepTag's tagIsCode reset after closing: inTag is false from here, and the next inTag=true assignment rewrites tagIsCode first — the residual value is never read
+# scanTagEnd treats "<" as an inert character (it is neither a quote nor ">"),
+# so starting the scan at the "<" itself instead of one past it visits one
+# extra no-op character and returns the same index with the same quote state.
+src/shared/rebrand.ts:152:36  + → *   # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
+src/shared/rebrand.ts:152:39  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
