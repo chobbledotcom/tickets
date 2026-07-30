@@ -12,7 +12,10 @@ import {
   type PageRead,
   submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import {
+  fillInAndSend,
+  requireCheckboxOffered,
+} from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -56,6 +59,9 @@ export const ownerTurnsOrderPageOn = async (
 ): Promise<void> => {
   await enablePublicSite();
   const browser = await openAdminPage(world, "/admin/site/order");
+  // The tick only counts if the page's own box really sends "true" — the
+  // value the route reads — not a value the story made up.
+  requireCheckboxOffered(browser.currentHtml, "order_enabled", "true");
   await fillInAndSend(browser, { order_enabled: "true" }, "Save");
   expect(browser.pageText).toContain("Order page enabled");
   await fillInAndSend(browser, { order_intro_text: intro }, "Save");

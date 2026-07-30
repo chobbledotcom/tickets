@@ -2,6 +2,7 @@ import { isAbsolute, relative, resolve, SEPARATOR } from "@std/path";
 import { createStaticGates, type StaticGate } from "./execution.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
 import { mutantKeyForPath, parseIgnoreLine } from "./ignore.ts";
+import { writeWholeOrNotAtAll } from "./write-whole.ts";
 
 interface PhysicalEntry {
   chunk: string;
@@ -208,7 +209,7 @@ const pruneKilledEntries = async (
     if ((await Deno.readTextFile(file)) !== original) {
       throw new Error("Equivalent-mutant file changed during the audit.");
     }
-    await Deno.writeTextFile(file, kept);
+    await writeWholeOrNotAtAll(file, kept);
   }
 };
 

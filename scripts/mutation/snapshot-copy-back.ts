@@ -7,6 +7,7 @@
  */
 
 import { join } from "@std/path";
+import { writeWholeOrNotAtAll } from "#scripts/mutation/write-whole.ts";
 import { errorMessage } from "#shared/error-message.ts";
 
 /** One file to bring back, and what it held when the run started. */
@@ -40,18 +41,6 @@ const assertUnchanged = async (
   }
 };
 
-/** Write through a sibling temp file and rename it into place, so a write
- * that dies part-way (a full disk, a killed process) can never leave the
- * live file truncated — it holds either the old text or the new. */
-const writeWholeOrNotAtAll = async (
-  path: string,
-  text: string,
-): Promise<void> => {
-  const temp = `${path}.writing`;
-  await Deno.writeTextFile(temp, text);
-  await Deno.rename(temp, path);
-};
-
 /** One file this run wrote back, with the text before and after the write. */
 export interface WrittenFile {
   after: string;
@@ -73,7 +62,7 @@ export const putBackOwnWrites = async (
   for (const { after, before, file } of written) {
     try {
       if ((await Deno.readTextFile(join(root, file))) === after) {
-        await Deno.writeTextFile(join(root, file), before);
+        await writeWholeOrNotAtAll(join(root, file), before);
         console.log(`Put back ${file}`);
       }
     } catch (error) {
