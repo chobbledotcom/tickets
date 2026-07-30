@@ -239,8 +239,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
   });
 
   describe("getNewsPostSummaries", () => {
-    // The RSS feed and the admin list both read this projection in the order it
-    // returns, so the newest-first ordering is part of its contract.
+    // The news feed and the admin news page both show these summaries in the
+    // order they come back, so newest-first is part of what this returns.
     test("lists newest first, most recently created of a shared day first", async () => {
       await createTestNewsPost("Oldest", {
         created: "2026-07-01T10:00:00.000Z",

@@ -111,17 +111,18 @@ src/fp.ts:452:17  ++ → --   # either direction changes generation and invalida
 src/fp.ts:455:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
 
 # Table inputs make these operators equivalent: nullable query results exclude
-# undefined, paired null checks already reject both nullish values, optional
-# conditions/dependencies are objects or arrays, and non-generated primary keys
-# are overwritten from the input-column fold in either initial-row branch.
-src/shared/db/table.ts:521:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
-src/shared/db/table.ts:561:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:733:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+# undefined, paired null checks already reject both nullish values, and optional
+# conditions/dependencies are objects or arrays.
+src/shared/db/table.ts:441:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:488:71  ?? → ||   # a found row is a truthy object, and a miss is undefined, so both operators give the row or null
+src/shared/db/table.ts:492:31  ?? → ||   # findByIds's element is a truthy row, null, or undefined, and all three agree
+src/shared/db/table.ts:580:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:613:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
 src/shared/db/login-attempts.ts:46:39  ?? → ||
-src/shared/db/users.ts:263:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/db/users.ts:264:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
 src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
 src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
 src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
@@ -990,3 +991,8 @@ src/shared/crypto/encryption.ts:120:5  false → true   # importKey is module-pr
 src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
 src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
 src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
+
+# News post reads and writes: the card query names a single table, and no caller
+# can hand createNewsPost a blank created date.
+src/shared/db/news-posts.ts:147:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
+src/shared/db/news-posts.ts:195:32  ?? → ||   # the two differ only for a blank created, which no caller produces: the admin write builds its input through newsContentInput, which has no created field at all, and a restore passes the timestamp it stored
