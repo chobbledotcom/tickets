@@ -63,7 +63,7 @@ describeWithEnv(
         true,
       )(response);
 
-      const saved = (await groups.table.findById(group.id))!;
+      const saved = (await groups.table.read.one({ id: group.id }))!;
       expect(saved.is_package).toBe(true);
       const prices = await getTestPackagePrices(group.id);
       expect(prices.get(a.id)).toBe(1250);
@@ -161,7 +161,7 @@ describeWithEnv(
         is_package: "1",
       });
       expect(
-        (await groups.table.findById(group.id))!.hide_package_listings,
+        (await groups.table.read.one({ id: group.id }))!.hide_package_listings,
       ).toBe(true);
     });
 
@@ -231,14 +231,16 @@ describeWithEnv(
         is_package: "1",
         [`package_price_${a.id}`]: "9.00",
       });
-      expect((await groups.table.findById(group.id))!.is_package).toBe(true);
+      expect((await groups.table.read.one({ id: group.id }))!.is_package).toBe(
+        true,
+      );
 
       // Re-submit without the checkbox: flag clears and overrides reset to 0.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("Clr", "clr"),
         [`package_price_${a.id}`]: "9.00",
       });
-      const saved = (await groups.table.findById(group.id))!;
+      const saved = (await groups.table.read.one({ id: group.id }))!;
       expect(saved.is_package).toBe(false);
       expect((await getTestPackagePrices(group.id)).size).toBe(0);
     });

@@ -19,7 +19,6 @@ import {
 import {
   execute,
   insertedRowId,
-  queryAll,
   queryOne,
   queryOnePrimary,
   resultRows,
@@ -27,6 +26,11 @@ import {
   type TxScope,
 } from "#shared/db/client.ts";
 import { queryAndMap } from "#shared/db/query.ts";
+import {
+  byPrimaryKey,
+  readerFor,
+  type TableReader,
+} from "#shared/db/table-reader.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
@@ -106,16 +110,10 @@ export interface Table<Row, Input> {
   /** Delete a row by primary key */
   deleteById: (id: InValue) => Promise<void>;
 
-  /** Find all rows */
-  findAll: () => Promise<Row[]>;
-
-  /** Find a row by primary key, or null when it does not exist. */
-  findById: (id: InValue) => Promise<Row | null>;
-
   /**
    * Find a row by primary key, pinned to the primary (read-your-writes). Use
    * when reading a row back immediately after committing its own write: a plain
-   * {@link findById} runs in "read" mode, which Turso may serve from a replica
+   * {@link read} runs in "read" mode, which Turso may serve from a replica
    * that lags behind the just-committed write and so miss the row (returning
    * null). This reads on the primary, which always reflects the write.
    *
@@ -124,9 +122,6 @@ export interface Table<Row, Input> {
    * façade table that never takes that path may omit it.
    */
   findByIdPrimary?: (id: InValue) => Promise<Row | null>;
-
-  /** Find rows in input order, retaining nulls for missing primary keys. */
-  findByIds: (ids: InValue[]) => Promise<(Row | null)[]>;
 
   /** Transform a row from DB (apply read transforms) */
   fromDb: (row: Row) => Promise<Row>;
@@ -144,6 +139,12 @@ export interface Table<Row, Input> {
   ) => Promise<SqlStatement>;
   name: string;
   primaryKey: keyof Row & string;
+
+  /**
+   * Every ordinary read of this table's rows: the whole row, or the columns a
+   * caller names. See `#shared/db/table-reader.ts`.
+   */
+  read: TableReader<Row>;
 
   readColumn: ReadColumn<Row>;
 
@@ -317,6 +318,16 @@ export const defineTable = <Row, Input = Row>(
     return value;
   };
 
+  /** The table's own rows, read by the shared reader. */
+  const table = {
+    columns: physicalColumns,
+    name,
+    primaryKey,
+    readColumn,
+    schema,
+  };
+  const read = readerFor<Row>(table);
+
   // The columns whose stored value has to be turned back into its real value
   // (decrypted, parsed, looked up). Every other column is copied straight
   // across, so a wide table does not pay for an await per column.
@@ -469,56 +480,28 @@ export const defineTable = <Row, Input = Row>(
     id: InValue,
     input: Partial<Input>,
   ): Promise<Row | null> => {
-    if (getProvidedColumns(input).length === 0) return findById(id);
+    if (getProvidedColumns(input).length === 0) {
+      return read.one(byPrimaryKey(table, id));
+    }
     const { args, sql } = await updateStatement(id, input);
     const row = await queryOne<Row>(sql, args);
     return row ? fromDb(row) : null;
   };
 
-  // Find by ID via the given single-row query — a plain "read" (findById) or the
-  // primary read-your-writes read (findByIdPrimary), for reading a row back right
-  // after its own write (see Table.findByIdPrimary).
-  const findByIdVia = async (
-    query: (sql: string, args: InValue[]) => Promise<Row | null>,
-    id: InValue,
-  ): Promise<Row | null> => {
-    const row = await query(
+  /** Read one row back on the primary, right after its own write — the one
+   * read that cannot go through {@link read}, which runs where a replica may
+   * still be behind the write (see {@link Table.findByIdPrimary}). */
+  const findByIdPrimary = async (id: InValue): Promise<Row | null> => {
+    const row = await queryOnePrimary<Row>(
       `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} = ?`,
       [id],
     );
     return row ? fromDb(row) : null;
   };
 
-  const findByIds = async (ids: InValue[]): Promise<(Row | null)[]> => {
-    if (ids.length === 0) return [];
-    const rows = await queryAll<Row>(
-      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} IN (${ids.map(() => "?").join(", ")})`,
-      ids,
-    );
-    const readRows = await mapParallel(fromDb)(rows);
-    const rowsById = new Map(
-      readRows.map((row) => [row[primaryKey], row] as const),
-    );
-    return ids.map((id) => rowsById.get(id as Row[keyof Row & string]) ?? null);
-  };
-
-  const findById = async (id: InValue): Promise<Row | null> =>
-    (await findByIds([id]))[0] ?? null;
-
-  const findByIdPrimary = (id: InValue): Promise<Row | null> =>
-    findByIdVia(queryOnePrimary, id);
-
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
     await execute(`DELETE FROM ${name} WHERE ${primaryKey} = ?`, [id]);
-  };
-
-  // Find all implementation
-  const findAll = async (): Promise<Row[]> => {
-    const rows = await queryAll<Row>(
-      `SELECT ${physicalColumnsSql} FROM ${name}`,
-    );
-    return mapParallel(fromDb)(rows);
   };
 
   // Row → Input: copy input-eligible columns from a row, translating
@@ -543,16 +526,14 @@ export const defineTable = <Row, Input = Row>(
   return {
     columns: physicalColumns,
     deleteById,
-    findAll,
-    findById,
     findByIdPrimary,
-    findByIds,
     fromDb,
     inputKeyMap,
     insert,
     insertStatement,
     name,
     primaryKey,
+    read,
     readColumn,
     rowToInput,
     schema,

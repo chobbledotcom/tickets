@@ -70,6 +70,6 @@ export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
   extraTabs: [renewalTab, maintenanceTab, secretsTab, updateTab],
   guard: requireOwnerOr,
   guideFooter: () => Promise.resolve(<BuiltSitesGuideFooter />),
-  load: (id) => builtSitesCrudTable.findById(id),
+  load: (id) => builtSitesCrudTable.read.one({ id }),
   navActive: "/admin/built-sites",
 });

@@ -16,20 +16,24 @@ import {
 } from "#shared/db/listings/records.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
+  browserSeenBy,
+  EDITOR,
   type OpensAPage,
   openAdminPage,
   openAsNewcomer,
   opensPagesAs,
+  rememberBrowser,
 } from "#test/specs/support/browser.ts";
 import {
   expectCanReallySend,
   fillInAndSend,
 } from "#test/specs/support/form-controls.ts";
 import {
+  listingIdNamed,
+  listingNamed,
   organiserSavesListing,
-  rememberStayListing,
+  rememberListing,
   saveListingEdit,
-  stayListing,
 } from "#test/specs/support/listings.ts";
 
 import {
@@ -118,7 +122,7 @@ export const editorFollowsInvite = async (
     { password: CHOSEN_PASSWORD, password_confirm: CHOSEN_PASSWORD },
     t("join.set_password.submit"),
   );
-  world.editorBrowser = browser;
+  rememberBrowser(world, EDITOR, browser);
 };
 
 /** The editor logs in the ordinary way, and stays logged in for the rest of
@@ -130,7 +134,7 @@ export const editorLogsIn: ActOnOnePerson = async (world, who) => {
     { password: CHOSEN_PASSWORD, username: who },
     t("login.submit"),
   );
-  world.editorBrowser = browser;
+  rememberBrowser(world, EDITOR, browser);
 };
 
 /** Somebody who is already an editor and already logged in. Saying it twice of
@@ -138,7 +142,7 @@ export const editorLogsIn: ActOnOnePerson = async (world, who) => {
  * one editor is ever signed in and every later step would quietly be taken by
  * the first one. */
 export const signedInEditor: ActOnOnePerson = async (world, who) => {
-  if (world.editorBrowser) {
+  if (world.things.recall("browser", EDITOR)) {
     if (world.signedInEditorName !== who) {
       throw new Error(
         `${world.signedInEditorName} is already the signed-in editor, so ${who} cannot be as well`,
@@ -154,7 +158,7 @@ export const signedInEditor: ActOnOnePerson = async (world, who) => {
 
 /** The editor's own browser, once the story has signed them in. */
 export const editorBrowser = (world: TicketsWorld): TestBrowser =>
-  requiredWorldValue(world.editorBrowser, "the editor's browser");
+  browserSeenBy(world, EDITOR);
 
 /** The editor opens one of their own pages. */
 const openAsEditor: OpensAPage = opensPagesAs(editorBrowser);
@@ -165,7 +169,7 @@ export const somethingForSale = async (
   name: string,
   options: { forwardingTo?: string } = {},
 ): Promise<void> => {
-  rememberStayListing(
+  rememberListing(
     world,
     name,
     await createTestListing({
@@ -187,7 +191,7 @@ export const TAKINGS = 37.5;
  * figure to show — or to keep from an editor. */
 export const somethingSoldAndPaidFor: ActOnOneThing = async (world, name) => {
   await somethingForSale(world, name);
-  const listing = stayListing(world, name);
+  const listing = listingNamed(world, name);
   const buyer = await createTestAttendee(
     listing.id,
     listing.slug,
@@ -234,7 +238,7 @@ export const forwardingAddressOrNull = async (
   world: TicketsWorld,
   name: string,
 ): Promise<string | null> => {
-  const found = await getListingWithCount(stayListing(world, name).id);
+  const found = await getListingWithCount(listingIdNamed(world, name));
   return stillThere(found, name).webhook_url;
 };
 
@@ -248,7 +252,7 @@ export const editorRenames: ChangeOneThing<string> = async (
 ) => {
   await saveListingEdit(
     editorBrowser(world),
-    stayListing(world, from).id,
+    listingIdNamed(world, from),
     (served) => {
       expectCanReallySend(served, { name: to });
       return { name: to };
@@ -267,7 +271,7 @@ export const editorCraftsForwardingTo: ChangeOneThing<string> = (
   // The save being accepted is what organiserSavesListing checks for us. A whole edit
   // turned away would leave the address alone too, and prove nothing about this
   // one field.
-  saveListingEdit(editorBrowser(world), stayListing(world, name).id, () => ({
+  saveListingEdit(editorBrowser(world), listingIdNamed(world, name), () => ({
     webhook_url: address,
   }));
 
@@ -288,6 +292,6 @@ export const ownerSetsForwardingTo: ChangeOneThing<string> = async (
 export const editorOpensListing: ActOnOneThing = async (world, name) => {
   await openAsEditor(
     world,
-    `/admin/listing/${stayListing(world, name).id}/edit`,
+    `/admin/listing/${listingIdNamed(world, name)}/edit`,
   );
 };

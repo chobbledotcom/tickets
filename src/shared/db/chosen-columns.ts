@@ -1,19 +1,30 @@
 /**
- * Reading a chosen set of a table's columns.
+ * Opening a chosen set of a table's columns.
  *
  * A chosen set names the columns a read wants and reuses the table's own read
  * transforms to open them, so a narrow read decrypts and converts exactly what
- * it selected. Paired with the shared filters it also knows how to fetch
- * itself — {@link ChosenColumns.select} — so an ordinary single-table read
- * needs no SQL of its own.
+ * it selected. It says which columns a read must select and turns the values
+ * that come back into a row — nothing more. Running the read is the reader's
+ * job (`#shared/db/table-reader.ts` for a table's own rows, `readRows` for a
+ * join), and both of them open their rows with this.
  */
 
 import { mapParallel } from "#fp";
-import { type Read, readOneRow, readRows } from "#shared/db/read.ts";
-import type { Table } from "#shared/db/table.ts";
-import type { WhereClause } from "#shared/db/where-clauses.ts";
+import type { ReadColumn, TableSchema } from "#shared/db/table.ts";
 
 type TableColumn<Row> = keyof Row & string;
+
+/** What reading a table's own rows needs to know about it: which columns it
+ * has, what to call them, and how to open a stored value. Every defined table
+ * is one of these — naming the part a read uses keeps a reader from depending
+ * on the write half of a table. */
+export type ReadableTable<Row> = {
+  columns: readonly string[];
+  name: string;
+  primaryKey: keyof Row & string;
+  readColumn: ReadColumn<Row>;
+  schema: TableSchema<Row>;
+};
 
 /** One or more of a row's own column names — a read must select something. */
 export type ColumnNames<Row> = readonly [
@@ -28,30 +39,16 @@ export type StoredRowOf<Row, Columns extends ColumnNames<Row>> = {
   [Column in Columns[number]]: unknown;
 };
 
-type ChosenRow<Row, Columns extends ColumnNames<Row>> = Pick<
+/** The row a chosen set hands back: exactly the columns it named. */
+export type ChosenRow<Row, Columns extends ColumnNames<Row>> = Pick<
   Row,
   Columns[number]
 >;
 
-/**
- * A read declared rather than written. The chosen set already knows its table
- * and columns, so this is the whole of an ordinary single-table read; one that
- * joins or carries a subquery says so with {@link readRows} instead, passing
- * this set's {@link ChosenColumns.columnsSql} as its columns.
- */
-export type ReadRequest = {
-  /** The filters, from `#shared/db/where-clauses.ts`. Absent keeps every row. */
-  where?: WhereClause[];
-  /** An `ORDER BY` body without the keyword. Omit for no ordering. */
-  order?: string;
-  /** A row cap. Omit for no limit. */
-  limit?: number;
-  /** Table alias, when the clauses qualify their columns with one. */
-  alias?: string;
-};
-
 export interface ChosenColumns<Row, Columns extends ColumnNames<Row>> {
   readonly columns: Columns;
+  /** The chosen columns as a SELECT list — what a join must select for this set
+   * to open its rows. */
   columnsSql: (alias?: string) => string;
   read: (
     row: StoredRowOf<Row, Columns>,
@@ -60,21 +57,17 @@ export interface ChosenColumns<Row, Columns extends ColumnNames<Row>> {
   readAll: (
     rows: StoredRowOf<Row, Columns>[],
   ) => Promise<ChosenRow<Row, Columns>[]>;
-  /** Run a declared read and return every matching row. A filter that cannot
-   * match anything skips the round-trip. */
-  select: (query?: ReadRequest) => Promise<ChosenRow<Row, Columns>[]>;
-  /** Run a declared read for at most one row. */
-  selectOne: (query?: ReadRequest) => Promise<ChosenRow<Row, Columns> | null>;
+  /** The same list a read of this table's own rows must select: the chosen
+   * columns, plus the row's own key when it was not chosen. A column's read
+   * transform may name the row a bad value came from, and it can only do that
+   * if the key came back too. */
+  readColumnsSql: (alias?: string) => string;
 }
 
 /** Choose an explicit set of a table's own columns and reuse its read
  * transforms without loading or decrypting the rest of the row. */
-export const chooseColumns = <
-  Row,
-  Input,
-  const Columns extends ColumnNames<Row>,
->(
-  table: Table<Row, Input>,
+export const chooseColumns = <Row, const Columns extends ColumnNames<Row>>(
+  table: ReadableTable<Row>,
   columns: Columns,
 ): ChosenColumns<Row, Columns> => {
   const missingColumn = columns.find(
@@ -124,38 +117,10 @@ export const chooseColumns = <
   const columnsSql = (alias?: string): string =>
     columns.map((column) => qualified(column, alias)).join(", ");
 
-  /** What a declared read actually selects: the chosen columns, plus the row's
-   * own key when it was not chosen. A column's read transform may name the row
-   * a bad value came from, and it can only do that if the key came back too.
-   * The key is dropped again before the row is handed back. */
   const readColumnsSql = (alias?: string): string =>
     columns.some((column) => column === table.primaryKey)
       ? columnsSql(alias)
       : `${columnsSql(alias)}, ${qualified(table.primaryKey, alias)}`;
 
-  /** The chosen set supplies the columns and the table; the caller supplies
-   * the rest of the read. */
-  const readFor = (query: ReadRequest): Read => ({
-    ...query,
-    columns: readColumnsSql(query.alias),
-    from: query.alias ? `${table.name} AS ${query.alias}` : table.name,
-  });
-
-  /** The stored rows a declared read selects, before the read transforms. */
-  const storedRowsFor = (
-    query: ReadRequest,
-  ): Promise<StoredRowOf<Row, Columns>[]> =>
-    readRows<StoredRowOf<Row, Columns>>(readFor(query));
-
-  return {
-    columns,
-    columnsSql,
-    read,
-    readAll,
-    select: async (query = {}) => readAll(await storedRowsFor(query)),
-    selectOne: async (query = {}) => {
-      const row = await readOneRow<StoredRowOf<Row, Columns>>(readFor(query));
-      return row === null ? null : read(row);
-    },
-  };
+  return { columns, columnsSql, read, readAll, readColumnsSql };
 };

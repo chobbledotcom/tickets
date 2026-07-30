@@ -9,7 +9,7 @@
 import { expect } from "@std/expect";
 import { settings } from "#shared/db/settings.ts";
 
-import { stayListing } from "#test/specs/support/listings.ts";
+import { listingNamed } from "#test/specs/support/listings.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
@@ -50,7 +50,7 @@ export const daysTheApiOffers = async (
   name: string,
 ): Promise<string[]> => {
   const { body, status } = await ask(
-    `/api/listings/${stayListing(world, name).slug}`,
+    `/api/listings/${listingNamed(world, name).slug}`,
   );
   expect(status).toBe(200);
   const { availableDates } = (body.listing ?? {}) as Record<string, unknown>;
@@ -71,7 +71,7 @@ export const apiSaysThereIsRoom = async (
   name: string,
   day: string,
 ): Promise<boolean> => {
-  const slug = stayListing(world, name).slug;
+  const slug = listingNamed(world, name).slug;
   const { body, status } = await ask(
     `/api/listings/${slug}/availability?date=${day}&quantity=1`,
   );
@@ -93,7 +93,7 @@ export const apiBooks = async (
   day: string,
   who: string,
 ): Promise<ApiAnswer> =>
-  ask(`/api/listings/${stayListing(world, name).slug}/book`, {
+  ask(`/api/listings/${listingNamed(world, name).slug}/book`, {
     body: {
       date: day,
       email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,

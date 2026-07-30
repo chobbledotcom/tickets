@@ -32,7 +32,9 @@ export const updateTestHoliday = async (
   updates: Partial<HolidayInput>,
 ): Promise<Holiday> => {
   const { holidays } = await import("#shared/db/holidays.ts");
-  const existing = (await holidays.table.findById(holidayId)) as Holiday;
+  const existing = (await holidays.table.read.one({
+    id: holidayId,
+  })) as Holiday;
 
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/edit`,
@@ -42,7 +44,7 @@ export const updateTestHoliday = async (
       start_date: updates.startDate ?? existing.start_date,
     },
     async () => {
-      const updated = await holidays.table.findById(holidayId);
+      const updated = await holidays.table.read.one({ id: holidayId });
       return updated as Holiday;
     },
     "update holiday",
@@ -51,7 +53,9 @@ export const updateTestHoliday = async (
 
 export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
   const { holidays } = await import("#shared/db/holidays.ts");
-  const existing = (await holidays.table.findById(holidayId)) as Holiday;
+  const existing = (await holidays.table.read.one({
+    id: holidayId,
+  })) as Holiday;
 
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/delete`,

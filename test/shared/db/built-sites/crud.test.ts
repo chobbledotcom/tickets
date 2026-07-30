@@ -36,10 +36,30 @@ const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
 });
 
 describeWithEnv("built-sites CRUD table", { db: true }, () => {
-  test("findAll returns all built sites", async () => {
+  test("reads back every built site", async () => {
     await insertBuiltSite("Site A", "a.bunny.run");
     await insertBuiltSite("Site B", "b.bunny.run");
-    expect(await builtSitesCrudTable.findAll()).toHaveLength(2);
+    expect(await builtSitesCrudTable.read.many()).toHaveLength(2);
+  });
+
+  test("refuses to filter on fields kept inside the blob", () => {
+    // A site's name lives in the encrypted blob, not in a column, so no read
+    // can find a site by it — saying so is better than reading every site.
+    // Every such field is named, so the message is not a guessing game.
+    expect(() =>
+      builtSitesCrudTable.read.many({ name: "Site A", siteUrl: "a.example" }),
+    ).toThrow("Cannot filter built sites by name, siteUrl:");
+    // One such field is refused just the same — it must never fall through and
+    // quietly read every site.
+    expect(() => builtSitesCrudTable.read.many({ name: "Site A" })).toThrow(
+      "Cannot filter built sites by name:",
+    );
+  });
+
+  test("refuses to pick out some of a site's fields", () => {
+    expect(() => builtSitesCrudTable.read.pick(["name"])).toThrow(
+      "stored in one encrypted blob",
+    );
   });
 
   test("fromDb returns the row unchanged", async () => {
@@ -237,7 +257,7 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       builtSitesCrudTable.update(site.id, { name: "Renamed" }),
       builtSitesCrudTable.update(site.id, { siteUrl: "moved.bunny.run" }),
     ]);
-    expect(await builtSitesCrudTable.findById(site.id)).toMatchObject({
+    expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject({
       name: "Renamed",
       siteDataRevision: 2,
       siteUrl: "moved.bunny.run",

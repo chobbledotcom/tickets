@@ -1,13 +1,11 @@
 /**
- * Tests for a declared read (`select` / `selectOne` in
- * `src/shared/db/chosen-columns.ts`), which puts the chosen columns and their
- * table together with the shared filters, so an ordinary single-table read
- * needs no SQL of its own.
+ * Tests for the reads a table's reader runs (`src/shared/db/table-reader.ts`),
+ * which put the chosen columns and their table together with the shared
+ * filters, so an ordinary single-table read needs no SQL of its own.
  */
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import {
   listingOptionColumns,
   rawListingsTable,
@@ -17,16 +15,15 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { equals, inList } from "#shared/db/where-clauses.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
-describeWithEnv("db > chosen columns > declared reads", { db: true }, () => {
+describeWithEnv("db > table reader > reads", { db: true }, () => {
   test("reads every row when nothing is asked of it", async () => {
     const first = await createTestListing({ name: "Alpha" });
     const second = await createTestListing({ name: "Beta" });
 
-    const rows = await listingOptionColumns.select({ alias: "listing" });
+    const rows = await listingOptionColumns.many({}, { alias: "listing" });
 
     expect(rows.map(({ id }) => id).toSorted()).toEqual(
       [first.id, second.id].toSorted(),
@@ -37,10 +34,10 @@ describeWithEnv("db > chosen columns > declared reads", { db: true }, () => {
     const wanted = await createTestListing({ name: "Wanted" });
     await createTestListing({ name: "Unwanted" });
 
-    const rows = await listingOptionColumns.select({
-      alias: "listing",
-      where: equals("listing.id", wanted.id),
-    });
+    const rows = await listingOptionColumns.many(
+      { id: wanted.id },
+      { alias: "listing" },
+    );
 
     expect(rows.map(({ name }) => name)).toEqual(["Wanted"]);
   });
@@ -49,11 +46,10 @@ describeWithEnv("db > chosen columns > declared reads", { db: true }, () => {
     const first = await createTestListing({ name: "First" });
     const second = await createTestListing({ name: "Second" });
 
-    const rows = await listingOptionColumns.select({
-      alias: "listing",
-      limit: 1,
-      order: "listing.id DESC",
-    });
+    const rows = await listingOptionColumns.many(
+      {},
+      { alias: "listing", limit: 1, order: "listing.id DESC" },
+    );
 
     expect(rows.map(({ id }) => id)).toEqual([Math.max(first.id, second.id)]);
   });
@@ -62,16 +58,10 @@ describeWithEnv("db > chosen columns > declared reads", { db: true }, () => {
     const listing = await createTestListing({ name: "Only" });
 
     expect(
-      await listingOptionColumns.selectOne({
-        alias: "listing",
-        where: equals("listing.id", listing.id),
-      }),
+      await listingOptionColumns.one({ id: listing.id }, { alias: "listing" }),
     ).toMatchObject({ id: listing.id, name: "Only" });
     expect(
-      await listingOptionColumns.selectOne({
-        alias: "listing",
-        where: equals("listing.id", 999_999),
-      }),
+      await listingOptionColumns.one({ id: 999_999 }, { alias: "listing" }),
     ).toBeNull();
   });
 
@@ -80,14 +70,14 @@ describeWithEnv("db > chosen columns > declared reads", { db: true }, () => {
     // it can only do if the key came back with it — but the key is not part of
     // what the caller asked for, so it must not be handed back either.
     const listing = await createTestListing({ name: "Keyed" });
-    const nameOnly = chooseColumns(rawListingsTable, ["name"]);
+    const nameOnly = rawListingsTable.read.pick(["name"]);
 
     await runWithQueryLogContext(async () => {
       enableQueryLog();
-      const rows = await nameOnly.select({
-        alias: "listing",
-        where: equals("listing.id", listing.id),
-      });
+      const rows = await nameOnly.many(
+        { id: listing.id },
+        { alias: "listing" },
+      );
 
       // Only the selected columns count — the filter names the key too.
       const sql = getQueryLog()[0]?.sql ?? "";
@@ -102,18 +92,40 @@ describeWithEnv("db > chosen columns > declared reads", { db: true }, () => {
     await runWithQueryLogContext(async () => {
       enableQueryLog();
       expect(
-        await listingOptionColumns.select({
-          alias: "listing",
-          where: inList("listing.id", []),
-        }),
+        await listingOptionColumns.many({ id: [] }, { alias: "listing" }),
       ).toEqual([]);
       expect(
-        await listingOptionColumns.selectOne({
-          alias: "listing",
-          where: inList("listing.id", []),
-        }),
+        await listingOptionColumns.one({ id: [] }, { alias: "listing" }),
       ).toBeNull();
       expect(getQueryLog()).toEqual([]);
     });
+  });
+
+  test("clauses the row shape cannot say narrow the read too", async () => {
+    const wanted = await createTestListing({ name: "Wanted" });
+    const other = await createTestListing({ name: "Other" });
+
+    // Both must hold: the filter written as the row, and the clause written by
+    // hand. A read that dropped either would keep a listing it was not asked
+    // for, so each is checked by the read that only it rules out.
+    const bothHold = await listingOptionColumns.many(
+      { id: [wanted.id, other.id] },
+      {
+        alias: "listing",
+        where: [{ args: [wanted.id], clause: "listing.id = ?" }],
+      },
+    );
+    const clauseRulesOutEveryRow = await listingOptionColumns.many(
+      { id: [wanted.id, other.id] },
+      { alias: "listing", where: [{ args: [], clause: "listing.active = 0" }] },
+    );
+    const filterRulesOutTheRest = await listingOptionColumns.many(
+      { id: [wanted.id] },
+      { alias: "listing", where: [{ args: [], clause: "listing.active = 1" }] },
+    );
+
+    expect(bothHold.map(({ id }) => id)).toEqual([wanted.id]);
+    expect(clauseRulesOutEveryRow).toEqual([]);
+    expect(filterRulesOutTheRest.map(({ id }) => id)).toEqual([wanted.id]);
   });
 });

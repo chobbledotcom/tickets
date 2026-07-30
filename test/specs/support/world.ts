@@ -1,10 +1,13 @@
 // jscpd:ignore-start
 import type { World } from "@cucumber/cucumber";
-import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
-import type { Group, Listing } from "#shared/types.ts";
+import type { CleanupTask } from "#scripts/cleanup.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";
+import type {
+  PutsThingsBack,
+  RemembersThings,
+} from "#test/specs/support/memory.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
 import type {
   CodeOnScreen,
@@ -14,7 +17,6 @@ import type {
   JourneyCatalogSpec,
   OrderJourneyCtx,
 } from "#test-utils/order-journey.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
 /** Something a story does, told which one to do it to. The three below differ
@@ -93,7 +95,6 @@ export interface TicketsWorld extends World {
   apiKeyAnswer?: { answered: number; said: string };
   apiKeyPageAnswer?: number;
   apiKeyShownOnce?: string;
-  apiKeys?: Map<string, string>;
   apiKeyTakeBack?: string;
   apiKeyWrite?: number;
   apiListing?: string;
@@ -109,23 +110,18 @@ export interface TicketsWorld extends World {
   bundleBookingPage?: string;
   bundleOutcome?: string;
   bundleParts?: ThingForSale[];
-  bundles?: Map<string, Group>;
   bundleTicketPath?: string;
   buyerQuestion?: { id: number; text: string };
   cashBefore?: number;
-  cleanup: Array<() => void | Promise<void>>;
+  cleanup: PutsThingsBack;
   closedDayOn?: string;
   codeLedTo?: WhereTheCodeLed;
   confirmName?: string;
-  customerBrowser?: TestBrowser;
-  daysOffered?: Map<string, string[]>;
   daysOfferedLastLook?: string;
   doorAnswer?: DoorAnswer;
-  doorTickets?: Map<string, string>;
   duplicateId?: number;
   duplicateToken?: string;
   editorAnswer?: number;
-  editorBrowser?: TestBrowser;
   editorInvite?: string;
   evidenceValues: Map<string, string>;
   firstBody?: string;
@@ -134,11 +130,9 @@ export interface TicketsWorld extends World {
   firstStatus?: number;
   groupSlug?: string;
   holdListingId?: number;
-  latecomerBrowser?: TestBrowser;
   lengthChangeMessage?: string;
   listingDetail?: { id: number; name: string };
   listingId?: number;
-  listingIds: Map<string, number>;
   mergeOutcome?: { applied: boolean; message: string };
   mergePreviewHtml?: string;
   messagesOut?: {
@@ -161,30 +155,22 @@ export interface TicketsWorld extends World {
   secondStatus?: number;
   servicingEventId?: number;
   sessionId?: string;
-  setUpTold?: string;
   sharedDayLimit?: number;
   sharedDayOver?: string;
   shownCode?: CodeOnScreen;
   signedInEditorName?: string;
-  sitePageTold?: string;
-  stayListings?: Map<string, Listing>;
   stayStartsOn?: string;
-  testBrowser?: TestBrowser;
+  things: RemembersThings;
   ticketToken?: string;
-  visitorTold?: string;
   writeoffBefore?: number;
 }
-
-export const cleanupWorld = (
-  world: Pick<TicketsWorld, "cleanup">,
-): Promise<void> => runCleanups(world.cleanup.reverse());
 
 export const addDatabaseCleanup = (
   world: Pick<TicketsWorld, "cleanup">,
   cleanupDb: CleanupTask,
   clearEncryptionKey: CleanupTask,
 ): void => {
-  world.cleanup.push(clearEncryptionKey, cleanupDb);
+  world.cleanup.add(clearEncryptionKey, cleanupDb);
 };
 
 export const requiredWorldValue = <Value>(

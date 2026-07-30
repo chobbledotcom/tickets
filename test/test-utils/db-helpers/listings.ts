@@ -1,5 +1,8 @@
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import {
+  getListingWithCount,
+  listingsTable,
+} from "#shared/db/listings/records.ts";
 import type { Listing, ListingWithCount } from "#shared/types.ts";
 import {
   resolveTestGroupIds,
@@ -171,3 +174,10 @@ export const bookableStartDates = async (
     await getActiveHolidays(),
   );
 };
+
+/** The name of every listing now in the database. What a backup or restore test
+ * checks to see which listings survived. */
+export const storedListingNames = async (): Promise<string[]> =>
+  (await listingsTable.read.pick(["id", "name"]).many()).map(
+    ({ name }) => name,
+  );

@@ -156,7 +156,7 @@ export const getActiveModifiers = (): Promise<Modifier[]> =>
 /** Get a single modifier by id, decrypted, with its ledger-projected
  * total_revenue — the single-row read the admin edit/recalculate pages use, so
  * they see the projected figure rather than the dropped column (the bare
- * `modifiersTable.findById` returns only the stored {@link ModifierRow}). */
+ * a plain read of the table returns only the stored {@link ModifierRow}). */
 export const getModifier = async (id: number): Promise<Modifier | null> => {
   const parts = equals("id", id);
   const row = await queryOne<Modifier>(

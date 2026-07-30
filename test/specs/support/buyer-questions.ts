@@ -13,7 +13,10 @@ import {
   takesDownFromOwnPage,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { stayListing, tickOnListingTab } from "#test/specs/support/listings.ts";
+import {
+  listingNamed,
+  tickOnListingTab,
+} from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -98,7 +101,7 @@ export const visitorOpensBooking = async (
   world: TicketsWorld,
   listingName: string,
 ): Promise<TestBrowser> =>
-  openAsNewcomer(`/ticket/${stayListing(world, listingName).slug}`);
+  openAsNewcomer(`/ticket/${listingNamed(world, listingName).slug}`);
 
 /** The field the served page offers for this question, or a loud failure —
  * asserting on a page that stopped asking would prove nothing. */
@@ -123,7 +126,7 @@ export const visitorBooksAnswering = async (
     {
       email: "buyer@example.com",
       name: "Casey Buyer",
-      [`quantity_${stayListing(world, listingName).id}`]: "1",
+      [`quantity_${listingNamed(world, listingName).id}`]: "1",
       [questionFieldOn(world, browser)]: answer,
     },
     "Continue",
@@ -137,7 +140,7 @@ export const answerInListDownload = async (
   world: TicketsWorld,
   listingName: string,
 ): Promise<string> => {
-  const listing = stayListing(world, listingName);
+  const listing = listingNamed(world, listingName);
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${listing.id}/attendees`);
   await browser.clickLink("Export CSV");

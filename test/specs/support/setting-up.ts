@@ -7,10 +7,7 @@ import {
   checkboxValueOffered,
   fillInAndSend,
 } from "#test/specs/support/form-controls.ts";
-import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -65,6 +62,10 @@ const sendSetup = (
     t("setup.submit"),
   );
 
+/** Whoever is doing the setting up — the story only ever has one of them, and
+ * what they are told is read back a step later. */
+const SETTER = "the setter";
+
 /** Somebody opens the setup page and sets the site up. */
 export const somebodySetsUp = async (
   world: TicketsWorld,
@@ -73,7 +74,7 @@ export const somebodySetsUp = async (
 ): Promise<string> => {
   const browser = await openSetup();
   await sendSetup(browser, { ...CHOSEN, password }, confirmation);
-  world.setUpTold = browser.pageText;
+  world.things.remember("told", SETTER, browser.pageText);
   return browser.pageText;
 };
 
@@ -90,7 +91,7 @@ export const latecomerSendsSetup = async (
 export const GOOD_PASSWORD = CHOSEN.password;
 
 export const whatSetterWasTold = (world: TicketsWorld): string =>
-  requiredWorldValue(world.setUpTold, "what the setter was told");
+  world.things.require("told", SETTER);
 
 /** Whether somebody can sign in with a name and password. Proving the ceremony
  * finished means using it, not reading a page that says it did. */

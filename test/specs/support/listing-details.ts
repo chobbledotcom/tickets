@@ -13,7 +13,10 @@ import {
   takesDownFromOwnPage,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { stayListing, tickOnListingTab } from "#test/specs/support/listings.ts";
+import {
+  listingNamed,
+  tickOnListingTab,
+} from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -87,7 +90,7 @@ export const visitorReadsListingPage = async (
   world: TicketsWorld,
   listingName: string,
 ): Promise<string> =>
-  (await openAsNewcomer(`/ticket/${stayListing(world, listingName).slug}`))
+  (await openAsNewcomer(`/ticket/${listingNamed(world, listingName).slug}`))
     .pageText;
 
 /** The owner removes the detail from its own page, typing a name to confirm,
