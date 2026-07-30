@@ -110,11 +110,12 @@ describe("what a story puts back", () => {
     sayWhatToPutBack(cleanup, (what) => () => {
       done.push(what);
     });
-    const raised = await cleanup.runAll().then(
-      () => null,
-      (error: unknown) => error,
-    );
-    return { done, raised };
+    try {
+      await cleanup.runAll();
+      return { done, raised: null };
+    } catch (raised) {
+      return { done, raised };
+    }
   };
 
   /** Each way a story can say what to put back, and what running them all
@@ -147,7 +148,10 @@ describe("what a story puts back", () => {
       does: "waits for a task that takes a moment",
       ran: ["later"],
       say: (cleanup, note) =>
-        cleanup.add(() => Promise.resolve().then(note("later"))),
+        cleanup.add(async () => {
+          await Promise.resolve();
+          note("later")();
+        }),
     },
   ];
 
