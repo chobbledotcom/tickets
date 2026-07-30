@@ -200,7 +200,7 @@ export const organiserRevealsParts: ActOnOneThing = async (world, name) => {
 
 /** The bundle as the site has it now, or nothing if it is gone. */
 const storedBundleOrNull = (world: TicketsWorld, name: string) =>
-  groups.table.findById(bundleNamed(world, name).id);
+  groups.table.read.one({ id: bundleNamed(world, name).id });
 
 /** Whether the site is still selling this as one bundle. */
 export const isStillABundle = async (

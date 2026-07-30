@@ -199,7 +199,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       );
 
       expect(response.status).toBe(503);
-      expect((await logisticsAgents.table.findById(id))!.name).toBe(
+      expect((await logisticsAgents.table.read.one({ id: id }))!.name).toBe(
         "Atomic van",
       );
       expect(await agentUsers.getIds(id)).toEqual([]);
@@ -244,7 +244,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         "/admin/logistics",
         "Logistics agent deleted",
       )(response);
-      expect(await logisticsAgents.table.findById(id)).toBeNull();
+      expect(await logisticsAgents.table.read.one({ id: id })).toBeNull();
     });
 
     test("deleting an agent clears its booking references", async () => {

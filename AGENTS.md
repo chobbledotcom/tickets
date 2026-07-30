@@ -649,7 +649,7 @@ Some reads legitimately need the full row — these are the exceptions, not the 
 
 - **An entity cache that also backs single-record reads.** When one request-scoped cache serves both the collection view and the `getById`/`getByKey` detail/auth reads (listings, users, groups, holidays, built-sites, attendee-statuses), it loads the full entity once so the detail, edit, and login paths it feeds have every column. Narrowing the cache load would break those reads. (`getAllListings`' `SELECT listing.*` is deliberately wide — it also carries the trigger-maintained `booked_quantity`/`income`/`tickets_count` aggregate columns.)
 - **Full-table backup/restore** (`backup.ts`) — a dump needs every column to round-trip.
-- **The generic `Table.findById`/`findAll` helpers** (`table.ts`) — they `SELECT *` by design and feed edit pages that need the whole row; specific tables narrow at the cache `fetchAll` layer instead.
+- **A table's whole-row read** (`table.read.one`/`read.many` with no columns named, in `table-reader.ts`) — it selects every stored column by design and feeds edit pages that need the whole row; a read that wants less names its columns with `read.pick`, and specific tables narrow at the cache `fetchAll` layer instead.
 
 Even when a caller genuinely needs many columns, list them explicitly rather than `SELECT *`, so adding a column later doesn't silently widen every read.
 

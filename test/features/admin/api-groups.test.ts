@@ -185,11 +185,11 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("still creates when the read-back replica lags the just-committed write", async () => {
       // Regression (JSON API, shared crud write-back): after committing the row in
       // a transaction on the primary, the API read it back with a plain "read"-mode
-      // `findById`, which Turso can serve from a replica lagging the commit —
+      // plain read, which Turso can serve from a replica lagging the commit —
       // returning null and crashing on `row.id`. The read-back now uses the
       // primary-pinned `findByIdPrimary`. Stub the optional replica read to
       // miss the row — the create must still succeed.
-      const findByIdStub = stub(groups.table, "findById", () =>
+      const readStub = stub(groups.table.read, "one", () =>
         Promise.resolve(null),
       );
       try {
@@ -205,7 +205,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           },
         );
       } finally {
-        findByIdStub.restore();
+        readStub.restore();
       }
     });
 
@@ -494,7 +494,9 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         },
       );
 
-      expect((await groups.table.findById(group.id))?.max_attendees).toBe(12);
+      expect(
+        (await groups.table.read.one({ id: group.id }))?.max_attendees,
+      ).toBe(12);
     });
 
     test("returns 404 for non-existent group", async () => {
@@ -577,7 +579,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         },
       );
 
-      const row = await groups.table.findById(group.id);
+      const row = await groups.table.read.one({ id: group.id });
       expect(row).toBeDefined();
     });
 

@@ -63,7 +63,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify it's gone
       const { questionsTable } = await import("#shared/db/questions/tables.ts");
-      const found = await questionsTable.findById(id);
+      const found = await questionsTable.read.one({ id: id });
       expect(found).toBeNull();
     });
 
@@ -83,7 +83,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       const { questionsTable } = await import("#shared/db/questions/tables.ts");
-      expect(await questionsTable.findById(id)).toBeNull();
+      expect(await questionsTable.read.one({ id: id })).toBeNull();
     });
 
     test("rejects deletion with wrong text", async () => {
@@ -103,7 +103,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify still exists
       const { questionsTable } = await import("#shared/db/questions/tables.ts");
-      const found = await questionsTable.findById(id);
+      const found = await questionsTable.read.one({ id: id });
       expect(found).not.toBeNull();
     });
 

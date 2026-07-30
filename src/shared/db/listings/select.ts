@@ -6,7 +6,7 @@
  * The whole record is read on purpose: every caller here builds a
  * `ListingWithCount`, which needs the money, day-price and image values. A read
  * that does not need them should select its own narrow column list with
- * `chooseColumns` instead, as `catalog.ts` and the group-membership
+ * `table.read.pick` instead, as `catalog.ts` and the group-membership
  * picker in `groups.ts` do.
  */
 

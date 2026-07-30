@@ -63,6 +63,6 @@ export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
     },
     editSlug: "",
     guard: requireOwnerOr,
-    load: (id) => logisticsAgents.table.findById(id),
+    load: (id) => logisticsAgents.table.read.one({ id }),
     navActive: { section: "/admin/logistics" },
   });
