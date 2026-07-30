@@ -50,31 +50,31 @@ export interface RecordTargetConfig<Kind extends string> {
 
 /** The vocabulary one domain gets for naming and querying its records. */
 export interface RecordTargets<Kind extends string> {
-  /** Delete one record's rows from `table` (a trusted constant). */
-  deleteFrom: (table: string) => (target: RecordTarget<Kind>) => SqlStatement;
-  /** Delete the rows of the records another query names. */
-  deleteSelectedBy: (
+  /** Delete the rows of the records another query chooses. */
+  deleteChosenBy: (
     table: string,
   ) => (kind: Kind, idsQuery: SqlStatement) => SqlStatement;
+  /** Delete one record's rows from `table` (a trusted constant). */
+  deleteFrom: (table: string) => (target: RecordTarget<Kind>) => SqlStatement;
   /** A condition that only holds while the record itself still exists, to fold
    *  into a write so a stale request cannot leave a link to nothing. */
   exists: (target: RecordTarget<Kind>) => SqlStatement;
-  /** The stable key for one record. */
-  key: (target: RecordTarget<Kind>) => RecordTargetKey<Kind>;
-  /** Ask for several records of one kind. Asking for none of them is a
-   *  question no row can answer, which the reader sees and skips. */
-  many: (kind: Kind, ids: number[], alias?: string) => WhereClause[];
-  /** Name records of one kind: `of("listing")(7)`. */
-  of: (kind: Kind) => (id: number) => RecordTarget<Kind>;
-  /** Ask for one record's rows. Pass a table alias when the read joins. */
-  one: (target: RecordTarget<Kind>, alias?: string) => WhereClause[];
   /** The record a key names. Refuses a key this domain could not have minted,
    *  because a key that names no record of ours is a bug, not a miss. */
-  parseKey: (key: RecordTargetKey<Kind>) => RecordTarget<Kind>;
-  /** Ask for the records of one kind that another query names. */
-  selectedBy: (kind: Kind, idsQuery: SqlStatement) => WhereClause[];
+  fromKey: (key: RecordTargetKey<Kind>) => RecordTarget<Kind>;
+  /** The stable key for one record. */
+  key: (target: RecordTarget<Kind>) => RecordTargetKey<Kind>;
+  /** Name records of one kind: `of("listing")(7)`. */
+  of: (kind: Kind) => (id: number) => RecordTarget<Kind>;
   /** The same records with repeats dropped, keeping the first of each. */
   unique: (targets: readonly RecordTarget<Kind>[]) => RecordTarget<Kind>[];
+  /** Ask for one record's rows. Pass a table alias when the read joins. */
+  where: (target: RecordTarget<Kind>, alias?: string) => WhereClause[];
+  /** Ask for the records of one kind that another query chooses. */
+  whereChosenBy: (kind: Kind, idsQuery: SqlStatement) => WhereClause[];
+  /** Ask for several records of one kind. Asking for none of them is a
+   *  question no row can answer, which the reader sees and skips. */
+  whereMany: (kind: Kind, ids: number[], alias?: string) => WhereClause[];
 }
 
 /** The columns a table uses when its rows hang off any record — the spelling
@@ -100,7 +100,7 @@ export const defineRecordTarget = <Kind extends string>({
   const key = (target: RecordTarget<Kind>): RecordTargetKey<Kind> =>
     `${target.kind}:${target.id}`;
 
-  const selectedBy = (kind: Kind, idsQuery: SqlStatement): WhereClause[] => [
+  const whereChosenBy = (kind: Kind, idsQuery: SqlStatement): WhereClause[] => [
     ...ofKind(undefined, kind),
     {
       args: idsQuery.args,
@@ -108,15 +108,15 @@ export const defineRecordTarget = <Kind extends string>({
     },
   ];
 
-  const one = (target: RecordTarget<Kind>, alias?: string): WhereClause[] => [
+  const where = (target: RecordTarget<Kind>, alias?: string): WhereClause[] => [
     ...ofKind(alias, target.kind),
     ...equals(column(alias, columns.id), target.id),
   ];
 
   return {
-    deleteFrom: (table) => (target) => deleteWhere(table)(one(target)),
-    deleteSelectedBy: (table) => (kind, idsQuery) =>
-      deleteWhere(table)(selectedBy(kind, idsQuery)),
+    deleteChosenBy: (table) => (kind, idsQuery) =>
+      deleteWhere(table)(whereChosenBy(kind, idsQuery)),
+    deleteFrom: (table) => (target) => deleteWhere(table)(where(target)),
     exists: (target) => {
       if (!tables) {
         throw new Error(
@@ -128,14 +128,7 @@ export const defineRecordTarget = <Kind extends string>({
         sql: `EXISTS (SELECT 1 FROM ${tables[target.kind]} WHERE id = ?)`,
       };
     },
-    key,
-    many: (kind, ids, alias) => [
-      ...ofKind(alias, kind),
-      ...inList(column(alias, columns.id), ids),
-    ],
-    of: (kind) => (id) => ({ id, kind }),
-    one,
-    parseKey: (stored) => {
+    fromKey: (stored) => {
       const divider = stored.indexOf(":");
       const kind = kinds.find(
         (allowed) => allowed === stored.slice(0, divider),
@@ -146,9 +139,16 @@ export const defineRecordTarget = <Kind extends string>({
       }
       return { id, kind };
     },
-    selectedBy,
+    key,
+    of: (kind) => (id) => ({ id, kind }),
     unique: (targets) => [
       ...new Map(targets.map((target) => [key(target), target])).values(),
+    ],
+    where,
+    whereChosenBy,
+    whereMany: (kind, ids, alias) => [
+      ...ofKind(alias, kind),
+      ...inList(column(alias, columns.id), ids),
     ],
   };
 };

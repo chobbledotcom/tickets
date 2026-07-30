@@ -20,7 +20,7 @@ describe("what a note is about", () => {
   });
 
   test("asks for a note's record by the columns notes store it in", () => {
-    const where = noteTargets.one(attendeeNotes(4));
+    const where = noteTargets.where(attendeeNotes(4));
     expect(whereSql(where)).toBe(" WHERE entity_type = ? AND entity_id = ?");
     expect(clauseArgs(where)).toEqual(["attendee", 4]);
   });

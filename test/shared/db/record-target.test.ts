@@ -32,17 +32,17 @@ describe("a record named by its kind and its id", () => {
     const key = targets.key({ id: 42, kind: "listing" });
 
     expect(key).toBe("listing:42");
-    expect(targets.parseKey(key)).toEqual({ id: 42, kind: "listing" });
+    expect(targets.fromKey(key)).toEqual({ id: 42, kind: "listing" });
   });
 
   test("refuses a name of a kind this domain does not have", () => {
-    expect(() => targets.parseKey("group:9" as never)).toThrow(
+    expect(() => targets.fromKey("group:9" as never)).toThrow(
       "Not the name of a record here: group:9",
     );
   });
 
   test("refuses a name whose id is not a whole number", () => {
-    expect(() => targets.parseKey("listing:seven" as never)).toThrow(
+    expect(() => targets.fromKey("listing:seven" as never)).toThrow(
       "Not the name of a record here: listing:seven",
     );
   });
@@ -65,21 +65,21 @@ describe("a record named by its kind and its id", () => {
 
 describe("asking for a record's rows", () => {
   test("uses item_type/item_id where rows hang off any record", () => {
-    const where = tablelessTargets.one({ id: 8, kind: "listing" });
+    const where = tablelessTargets.where({ id: 8, kind: "listing" });
 
     expect(whereSql(where)).toBe(" WHERE item_type = ? AND item_id = ?");
     expect(clauseArgs(where)).toEqual(["listing", 8]);
   });
 
   test("asks by both of its parts", () => {
-    const where = targets.one({ id: 4, kind: "attendee" });
+    const where = targets.where({ id: 4, kind: "attendee" });
 
     expect(whereSql(where)).toBe(" WHERE entity_type = ? AND entity_id = ?");
     expect(clauseArgs(where)).toEqual(["attendee", 4]);
   });
 
   test("names the table when the read joins", () => {
-    const where = targets.one({ id: 4, kind: "attendee" }, "note");
+    const where = targets.where({ id: 4, kind: "attendee" }, "note");
 
     expect(whereSql(where)).toBe(
       " WHERE note.entity_type = ? AND note.entity_id = ?",
@@ -87,7 +87,7 @@ describe("asking for a record's rows", () => {
   });
 
   test("asks for several records of one kind in one go", () => {
-    const where = targets.many("attendee", [4, 5]);
+    const where = targets.whereMany("attendee", [4, 5]);
 
     expect(whereSql(where)).toBe(
       " WHERE entity_type = ? AND entity_id IN (?, ?)",
@@ -96,7 +96,7 @@ describe("asking for a record's rows", () => {
   });
 
   test("names the table for several records too", () => {
-    expect(whereSql(targets.many("attendee", [4], "note"))).toBe(
+    expect(whereSql(targets.whereMany("attendee", [4], "note"))).toBe(
       " WHERE note.entity_type = ? AND note.entity_id IN (?)",
     );
   });
@@ -105,17 +105,20 @@ describe("asking for a record's rows", () => {
     // The reader sees this and skips the round trip, rather than building
     // `IN ()` — SQL no database accepts.
     let asked = false;
-    const rows = await rowsUnlessNoneMatch(targets.many("attendee", []), () => {
-      asked = true;
-      return Promise.resolve([{ id: 1 }]);
-    });
+    const rows = await rowsUnlessNoneMatch(
+      targets.whereMany("attendee", []),
+      () => {
+        asked = true;
+        return Promise.resolve([{ id: 1 }]);
+      },
+    );
 
     expect(rows).toEqual([]);
     expect(asked).toBe(false);
   });
 
   test("keeps another query's own arguments after the kind", () => {
-    const where = targets.selectedBy("attendee", {
+    const where = targets.whereChosenBy("attendee", {
       args: [12],
       sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
     });
@@ -140,7 +143,7 @@ describe("deleting a record's rows", () => {
 
   test("deletes the rows of the records another query names", () => {
     expect(
-      targets.deleteSelectedBy("system_notes")("attendee", {
+      targets.deleteChosenBy("system_notes")("attendee", {
         args: [12],
         sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
       }),

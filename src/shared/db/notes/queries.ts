@@ -68,7 +68,8 @@ const noteRowsWhere = (where: WhereClause[]): Promise<SystemNoteRow[]> =>
 export const getNoteRows = (
   entity: NoteEntity,
   ids: number[],
-): Promise<SystemNoteRow[]> => noteRowsWhere(noteTargets.many(entity, ids));
+): Promise<SystemNoteRow[]> =>
+  noteRowsWhere(noteTargets.whereMany(entity, ids));
 
 /**
  * The still-sealed rows for every real (`kind = 'attendee'`) attendee booked
@@ -80,7 +81,7 @@ export const getNoteRowsForListing = (
   listingId: number,
 ): Promise<SystemNoteRow[]> =>
   noteRowsWhere(
-    noteTargets.selectedBy("attendee", {
+    noteTargets.whereChosenBy("attendee", {
       args: [listingId],
       sql: `SELECT listingAttendee.attendee_id
               FROM listing_attendees AS listingAttendee
@@ -137,7 +138,7 @@ export const loadNotesForListing: NotesLoader<number> = notesLoaderVia(
  *  another record's note. */
 const noteOfTarget = (target: NoteTarget, noteId: number): WhereClause[] => [
   ...equals("id", noteId),
-  ...noteTargets.one(target),
+  ...noteTargets.where(target),
 ];
 
 /** A delete over the notes the clauses select. */
@@ -176,4 +177,4 @@ export const deleteNotes = (
 export const noteDeleteStatement: (
   entity: NoteEntity,
   idsQuery: SqlStatement,
-) => SqlStatement = noteTargets.deleteSelectedBy("system_notes");
+) => SqlStatement = noteTargets.deleteChosenBy("system_notes");

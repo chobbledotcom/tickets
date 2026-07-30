@@ -51,7 +51,7 @@ const itemOnPage = (
   target: SitePageItemTarget,
 ): WhereClause[] => [
   ...equals("page_id", pageId),
-  ...sitePageItemTargets.one(target),
+  ...sitePageItemTargets.where(target),
 ];
 
 /**

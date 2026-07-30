@@ -208,7 +208,7 @@ const anchorPageId = (
   current: TargetKey | null,
 ): number | null => {
   if (current === null) return null;
-  const { kind, id } = sitePageItemTargets.parseKey(current);
+  const { kind, id } = sitePageItemTargets.fromKey(current);
   if (kind === "page") return forest.byId.has(id) ? id : null;
   // A leaf may sit under several pages. Pick by the occurrence's own edge
   // `sort_order` (its meaningful position — not the parent page's root order,
@@ -244,7 +244,7 @@ export const buildNavModel = (
   const activeRootId = chain[0] ?? null;
   const deepest = chain.length - 1;
   const currentIsLeaf =
-    current !== null && sitePageItemTargets.parseKey(current).kind !== "page";
+    current !== null && sitePageItemTargets.fromKey(current).kind !== "page";
 
   // The single node key to highlight in level `i`: the next chain page for the
   // levels above the deepest, and the current leaf in the deepest level itself.

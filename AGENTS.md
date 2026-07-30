@@ -319,8 +319,9 @@ mechanisms to copy:
 - **One vocabulary for "attached to any record".** `defineRecordTarget`
   (`src/shared/db/record-target.ts`): a domain says which kinds of record it
   accepts and which two columns hold the kind and the id, and gets back the
-  naming (`of("listing")(7)`), a stable key, the one/many/subquery clauses, the
-  deletes, and an existence check. Notes
+  naming (`of("listing")(7)`), a stable `key`/`fromKey` pair, the
+  `where`/`whereMany`/`whereChosenBy` clauses, the matching deletes, and an
+  existence check. Notes
   (`src/shared/db/notes/target.ts`), image links (`src/shared/db/images.ts`),
   and site page items (`src/shared/site-pages/target.ts`) all use it — a fourth
   "attach something to any record" feature declares its kinds, it does not

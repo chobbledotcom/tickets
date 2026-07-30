@@ -139,7 +139,10 @@ const imagesOfItem = (
   columns,
   from: "image_uses AS imageUse JOIN images AS image ON image.id = imageUse.image_id",
   order: "imageUse.sort_order ASC, imageUse.image_id ASC",
-  where: imageUseTargets.one(imageUseTargets.of(itemType)(itemId), "imageUse"),
+  where: imageUseTargets.where(
+    imageUseTargets.of(itemType)(itemId),
+    "imageUse",
+  ),
 });
 
 export const getImageFilenamesForItem = async (
@@ -276,7 +279,7 @@ const clearStaleImageUseTargetsStatement = (
   imageId: number,
   targets: readonly ImageUseTarget[],
 ): SqlStatement => {
-  const kept = targets.map((target) => imageUseTargets.one(target));
+  const kept = targets.map((target) => imageUseTargets.where(target));
   return {
     args: [
       imageId,

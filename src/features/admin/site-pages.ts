@@ -180,8 +180,8 @@ const rootPageOrder = createOrderedCollectionHandlers({
   redirectPath: () => LIST_PATH,
   swap: (first, second) =>
     sitePageOrder.swap({
-      first: sitePageItemTargets.parseKey(first).id,
-      second: sitePageItemTargets.parseKey(second).id,
+      first: sitePageItemTargets.fromKey(first).id,
+      second: sitePageItemTargets.fromKey(second).id,
     }),
   target: ({ params }: { params: IdParam }) =>
     sitePageItemTargets.key(pageTarget(params.id)),
@@ -280,8 +280,8 @@ const pageItemOrder = createOrderedCollectionHandlers({
   movedMessage: t("site.pages.moved"),
   redirectPath: ({ params }) => itemsPath(params.id),
   swap: (first, second, { params }) => {
-    const firstRef = sitePageItemTargets.parseKey(first);
-    const secondRef = sitePageItemTargets.parseKey(second);
+    const firstRef = sitePageItemTargets.fromKey(first);
+    const secondRef = sitePageItemTargets.fromKey(second);
     return sitePageItemOrder.swap({
       first: [firstRef.kind, firstRef.id],
       scope: params.id,
