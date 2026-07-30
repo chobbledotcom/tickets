@@ -102,6 +102,48 @@ export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
     ".system-note-alert",
   ),
   brandedMobileCapture(
+    "site-pages.moved-into-order",
+    "site-pages-in-order",
+    "/admin/site/pages",
+    ".page-regions.admin-page",
+  ),
+  brandedMobileCapture(
+    "add-ons.it-appears-in-the-list-with-its-own-link",
+    "add-on-in-the-list",
+    "/listings",
+    "main",
+  ),
+  brandedMobileCapture(
+    "stay-length.the-length-is-on-the-listing-page",
+    "stay-length-on-the-page",
+    "/admin/listing/{stayLengthListingId}",
+    "main",
+  ),
+  brandedMobileCapture(
+    "pay-more.the-chosen-price-is-the-income",
+    "paid-more-than-asked",
+    "/admin/ledger/revenue/{payMoreListingId}",
+    ".page-regions.admin-page",
+  ),
+  brandedMobileCapture(
+    "door.the-day-is-written-down",
+    "checked-in-on-the-day",
+    "/admin/listing/{checkedInListingId}/activity",
+    "main",
+  ),
+  brandedMobileCapture(
+    "contact-record.correcting-the-counts-and-the-note",
+    "record-put-right",
+    "/admin/history/{contactCode}",
+    "#contact-history-form",
+  ),
+  brandedMobileCapture(
+    "contact-record.repairing-an-unreadable-record",
+    "record-repaired",
+    "/admin/history/{contactCode}",
+    "#contact-history-form",
+  ),
+  brandedMobileCapture(
     "door.someone-still-to-arrive-can-be-picked",
     "qr-code-check-in",
     "/admin/listing/{doorListingId}/scanner",
