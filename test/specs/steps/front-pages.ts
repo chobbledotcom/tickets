@@ -2,13 +2,14 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
 import {
   ownerTurnsOrderPageOn,
   ownerWritesContactPage,
   ownerWritesHomepage,
   visitorOnFrontPage,
 } from "#test/specs/support/front-pages.ts";
-import { ownerLastTold, type TicketsWorld } from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end

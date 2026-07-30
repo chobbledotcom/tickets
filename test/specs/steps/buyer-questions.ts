@@ -7,13 +7,14 @@ import {
   askedQuestion,
   ownerAsksChoiceQuestion,
   ownerAsksWrittenQuestion,
+  ownerLastTold,
   ownerTakesQuestionDown,
   questionFieldOn,
   questionPageOffersChoices,
   visitorBooksAnswering,
   visitorOpensBooking,
 } from "#test/specs/support/buyer-questions.ts";
-import { ownerLastTold, type TicketsWorld } from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 

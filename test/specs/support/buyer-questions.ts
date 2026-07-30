@@ -25,6 +25,10 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
+/** What the owner was last told, or a loud failure when nothing was said. */
+export const ownerLastTold = (world: TicketsWorld): string =>
+  requiredWorldValue(world.ownerTold, "what the owner was told");
+
 /** The question this story asked, or a loud failure when it never asked one. */
 export const askedQuestion = (
   world: TicketsWorld,

@@ -2,13 +2,14 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
 import {
   ownerKeepsDetail,
   ownerMarksListing,
   ownerRemovesDetail,
   visitorReadsListingPage,
 } from "#test/specs/support/listing-details.ts";
-import { ownerLastTold, type TicketsWorld } from "#test/specs/support/world.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
