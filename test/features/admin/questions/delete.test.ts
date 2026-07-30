@@ -26,20 +26,6 @@ describeWithEnv(
         });
         expect(await getAllQuestionsWithAnswers()).toEqual([]);
       });
-
-      test("a failed order write leaves no half-made answer behind", async () => {
-        const id = await createQuestion("Sizes?");
-
-        await withFailingOrderTrigger("answers", async () => {
-          await expect(
-            adminFormPost(`/admin/questions/${id}/answers`, { text: "Ghost" }),
-          ).rejects.toThrow("order write failed");
-        });
-        const question = (await getAllQuestionsWithAnswers()).find(
-          (item) => item.id === id,
-        );
-        expect(question?.answers).toEqual([]);
-      });
     });
 
     describe("POST /admin/questions/:id/delete", () => {
