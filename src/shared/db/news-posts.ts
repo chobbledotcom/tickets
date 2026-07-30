@@ -18,6 +18,7 @@ import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { chooseColumns, type StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
+  insertedRowId,
   queryAll,
   resultRows,
   type TxScope,
@@ -221,7 +222,7 @@ export const createNewsPost = async (
     return {
       content: input.content,
       created,
-      id: Number(result.lastInsertRowid),
+      id: insertedRowId(result),
       meta_description: input.metaDescription,
       meta_title: input.metaTitle,
       name: input.name,

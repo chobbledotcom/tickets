@@ -771,16 +771,11 @@ export const useTransaction = <T>(
   transaction === undefined ? withTransaction(work) : work(transaction);
 
 /**
- * The row id an INSERT reported, or a loud failure.
- *
- * `lastInsertRowid` is optional on a libsql result, and a driver that leaves it
- * out (or reports 0) used to become `Number(undefined)` = NaN here — which the
- * join writes were then written against, and which the row read-back afterwards
- * could only report as a missing row, long after the transaction had committed.
- * Every row this is used for has a positive integer key, so anything else means
- * the write cannot be finished and must roll back.
+ * The row id an INSERT reported. Every generated key is a positive integer, so
+ * anything else (`lastInsertRowid` is optional on a libsql result) means nothing
+ * downstream can be keyed on this row and the write must fail here.
  */
-const insertedRowId = (result: ResultSet): number => {
+export const insertedRowId = (result: ResultSet): number => {
   const id = Number(result.lastInsertRowid);
   if (Number.isInteger(id) && id > 0) return id;
   throw new Error(

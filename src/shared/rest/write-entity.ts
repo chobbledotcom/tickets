@@ -50,17 +50,12 @@ export interface EntityWrite<Row extends { id: number }> {
 }
 
 /**
- * Read the just-committed row back, or fail loudly on a create.
- *
- * A create's INSERT has already committed here, so finding nothing means the
- * read-back could not see its own write — a lagging replica, or an insert id
- * that isn't the row's. That is never a normal outcome, and returning null for
- * it strands the caller with a row-shaped null whose first field read
- * ("Cannot read properties of null (reading 'name')") lands nowhere near this
- * line. An update legitimately finds nothing: its row can be deleted between
- * the caller's lookup and the commit.
+ * Read the just-committed row back. Null only for an update, whose row can be
+ * deleted between the caller's lookup and the commit; a create's row is one it
+ * just inserted, so not finding it is a broken database rather than an outcome
+ * to hand back.
  */
-const readBackWritten = async <Row extends { id: number }>(
+const readBackWrittenOrNull = async <Row extends { id: number }>(
   { existingId, readBack, tableName }: EntityWrite<Row>,
   id: number,
 ): Promise<Row | null> => {
@@ -77,14 +72,14 @@ const readBackWritten = async <Row extends { id: number }>(
  * `afterCommit`. Returns the committed row, or null when the read-back finds
  * nothing — which only an update can legitimately do (its row was deleted before
  * the commit); a create that can't read its own row back throws
- * ({@link readBackWritten}).
+ * ({@link readBackWrittenOrNull}).
  */
 export const writeEntity = async <Row extends { id: number }>(
   write: EntityWrite<Row>,
 ): Promise<Row | null> => {
   const row =
     write.joinWrites.length > 0
-      ? await readBackWritten(
+      ? await readBackWrittenOrNull(
           write,
           await writeRowInTransaction(
             await write.buildStatement(),
