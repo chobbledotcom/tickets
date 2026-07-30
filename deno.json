@@ -6,8 +6,9 @@
     "e2e-payments"
   ],
   "tasks": {
-    "start": "deno task build:static && deno run --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
-    "dev": "deno task build:static && deno run --watch --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
+    "serve": "deno run $SERVE_WATCH --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
+    "start": "deno task build:static && deno task serve",
+    "dev": "deno task build:static && SERVE_WATCH=--watch deno task serve",
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
     "build:edge": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-edge.ts",
     "bundle:report": "deno task build:edge && deno run -A scripts/bench/bundle-composition/report.ts",
