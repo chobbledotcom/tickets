@@ -151,6 +151,7 @@ describe("bringing files back out of a snapshot", () => {
       });
 
       expect(run.logs).toEqual([]);
+      expect(run.errors).toEqual([]);
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe("newer\n");
     });
   });
@@ -162,16 +163,17 @@ describe("bringing files back out of a snapshot", () => {
       await Deno.writeTextFile(join(roots.root, KEPT), "one\n");
 
       const run = await captureConsole(async () => {
-        await expect(
-          putBackOwnWrites(roots.root, [
-            { after: "x\n", before: "y\n", file: "missing.txt" },
-            { after: "one\n", before: "one\ntwo\n", file: KEPT },
-          ]),
-        ).rejects.toThrow("missing.txt");
+        await putBackOwnWrites(roots.root, [
+          { after: "x\n", before: "y\n", file: "missing.txt" },
+          { after: "one\n", before: "one\ntwo\n", file: KEPT },
+        ]);
         return 0;
       });
 
       expect(run.logs).toEqual([`Put back ${KEPT}`]);
+      expect(run.errors.join("\n")).toContain(
+        "Could not put back every file:\nmissing.txt:",
+      );
       expect(await Deno.readTextFile(join(roots.root, KEPT))).toBe(
         "one\ntwo\n",
       );

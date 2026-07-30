@@ -50,7 +50,9 @@ export interface WrittenFile {
 /** Undo this run's own writes after a failure. A file that no longer holds
  * what this run wrote was edited again meanwhile — that edit stays. Every
  * file gets its restore attempt even when an earlier one fails, so one bad
- * path cannot leave the rest of the run's writes applied. */
+ * path cannot leave the rest of the run's writes applied; what could not be
+ * put back is reported rather than thrown, so the failure that triggered the
+ * undo stays the one the caller rethrows. */
 export const putBackOwnWrites = async (
   root: string,
   written: WrittenFile[],
@@ -67,7 +69,7 @@ export const putBackOwnWrites = async (
     }
   }
   if (problems.length > 0) {
-    throw new Error(`Could not put back every file:\n${problems.join("\n")}`);
+    console.error(`Could not put back every file:\n${problems.join("\n")}`);
   }
 };
 
@@ -97,13 +99,8 @@ export const bringFilesBack = async (
       }
     } catch (error) {
       // A failure part-way through must not leave a half-applied result: put
-      // back what was already written, then report the original failure. An
-      // undo problem is reported too, but never hides what stopped the copy.
-      try {
-        await putBackOwnWrites(root, written);
-      } catch (undoProblem) {
-        console.error(errorMessage(undoProblem));
-      }
+      // back what was already written, then report the original failure.
+      await putBackOwnWrites(root, written);
       throw error;
     }
     return 0;
