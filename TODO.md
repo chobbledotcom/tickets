@@ -204,7 +204,11 @@ has been checked against the code or given a regression test yet.*
 - `src/shared/db/payments/legacy.ts:300`
 - `src/shared/db/payments/completion-deliveries.ts:40`
 - `src/shared/payment-runtime/provider-refund.ts:65`
-- `src/shared/sumup.ts:85`
+- `src/shared/sumup.ts:85` — the throw itself is in
+  `src/shared/sumup/boundary.ts:230`, where an allowed but unmapped refund
+  state (`SCHEDULED`) raises a plain error that the transport turns into
+  "cannot reach the provider", so a permanent answer is asked again every
+  minute and no case is ever opened.
 
 ---
 
@@ -340,9 +344,10 @@ file and line — each group is one finding.
 sections above has been fixed or given a regression test. The three worth doing
 first, because each one stops something dead rather than degrading it:
 
-- `src/shared/db/payments/legacy.ts:59` — a payment whose listing was deleted
-  fails the copy, and the same row fails again on every retry, so the site
-  never finishes upgrading.
+- `src/shared/db/payments/legacy.ts:59` (the same shape is rejected at
+  `src/shared/db/migrations/2026-07-26_payment_aggregate.ts:84`) — a payment
+  whose listing was deleted fails the copy, and the same row fails again on
+  every retry, so the site never finishes upgrading.
 - `src/shared/db/payments/redaction-values.ts:66` — one completed balance
   payment makes redaction throw, and takes all payment-history redaction and
   the tidying behind it down with it, on every run.
