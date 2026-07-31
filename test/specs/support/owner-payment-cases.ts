@@ -24,7 +24,7 @@ export const prepareRefundableOwnerPaymentCase = async (
   reason = "partial_refund",
 ): Promise<void> => {
   const target = await createRefundablePaymentCase(reason);
-  world.cleanup.push(() => settings.clearTestOverrides());
+  world.cleanup.add(() => settings.clearTestOverrides());
   saveOwnerPaymentCase(world, target.paymentCase);
 };
 

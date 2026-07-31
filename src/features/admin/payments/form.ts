@@ -115,7 +115,7 @@ export const createPaymentDecisionForm = (
       type: "hidden",
     },
   ];
-  return defineForm({ fields, id: "payment-case-decision" });
+  return defineForm({ fields });
 };
 
 export const paymentSelectionFromValue = (

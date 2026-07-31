@@ -12,6 +12,7 @@ import { WORLD } from "#shared/accounting/accounts.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
+import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import {
   completePaidOrder,
   runStripeSuccess,
@@ -22,7 +23,6 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   type RefundBehavior,
   withRefundMock,
@@ -36,33 +36,6 @@ export const bookingId = (world: TicketsWorld): number =>
 /** Pounds as the minor units the ledger stores, so a story can say "45.00". */
 export const minorUnits = (pounds: string): number =>
   Math.round(Number(pounds) * 100);
-
-/** Something the site sells at a price, remembered under the name the story
- * calls it. The listing a money story starts from, so its price and its id are
- * in one place rather than set up slightly differently each time. */
-export const sellSomethingAt = async (
-  world: TicketsWorld,
-  name: string,
-  price: string,
-  options: { canPayMore?: boolean; keepThankYouPage?: boolean } = {},
-): Promise<Listing> => {
-  const listing = await createTestListing({
-    maxAttendees: 50,
-    name,
-    // A listing that lets a customer pay more than it asks needs a ceiling to
-    // pay up to, or there is nothing to be generous within.
-    ...(options.canPayMore
-      ? { canPayMore: true, maxPrice: minorUnits("100.00") }
-      : {}),
-    // Keeping the site's own thank-you page lets a story read what the customer
-    // is shown, rather than being sent off to another site.
-    ...(options.keepThankYouPage ? { thankYouUrl: "" } : {}),
-    unitPrice: minorUnits(price),
-  });
-  world.listingIds.set(name, listing.id);
-  world.listingId = listing.id;
-  return listing;
-};
 
 /** A listing that sells places at the given price, remembered by name. Money
  * stories read what the customer is shown, so they keep the site's own

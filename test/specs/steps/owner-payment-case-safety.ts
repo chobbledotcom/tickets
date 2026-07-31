@@ -69,7 +69,7 @@ Given(
     const provider = stub(stripePaymentProvider, "refundCharge", () => {
       throw new Error("A stale owner decision called the provider");
     });
-    this.cleanup.push(() => provider.restore());
+    this.cleanup.add(() => provider.restore());
     this.paymentProviderCalls = () => provider.calls.length;
   },
 );

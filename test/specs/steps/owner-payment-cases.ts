@@ -36,7 +36,7 @@ Given(
         status: "completed" as const,
       }),
     );
-    this.cleanup.push(() => provider.restore());
+    this.cleanup.add(() => provider.restore());
     this.paymentProviderCalls = () => provider.calls.length;
   },
 );
@@ -93,7 +93,7 @@ Given(
       square_location_id: "location-one",
       square_sandbox: true,
     });
-    this.cleanup.push(() => settings.clearTestOverrides());
+    this.cleanup.add(() => settings.clearTestOverrides());
     const paymentCase = await createLegacyAttendeePaymentCase(
       "square-payment-spec",
     );
@@ -110,7 +110,7 @@ Given(
         },
       }),
     );
-    this.cleanup.push(() => read.restore());
+    this.cleanup.add(() => read.restore());
   },
 );
 
