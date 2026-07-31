@@ -169,15 +169,23 @@ export const addDatabaseCleanup = (
   world.cleanup.add(clearEncryptionKey, cleanupDb);
 };
 
+/** Something a story does to the site: told the world it works in and
+ * whatever else that journey needs, answering with words — a price summary,
+ * what the site said — or with nothing at all. */
+export type StoryJourney<Args extends unknown[], Answer> = (
+  world: TicketsWorld,
+  ...args: Args
+) => Promise<Answer>;
+
 /** Wrap a journey that answers with words, so the answer is kept under the
  * name the story reads it back by. The journey itself stays about doing the
  * thing; remembering what came back is this one step's job. */
 export const keepsAnswerAs =
   <Args extends unknown[]>(
     name: string,
-    journey: (world: TicketsWorld, ...args: Args) => Promise<string>,
-  ) =>
-  async (world: TicketsWorld, ...args: Args): Promise<void> => {
+    journey: StoryJourney<Args, string>,
+  ): StoryJourney<Args, void> =>
+  async (world, ...args) => {
     world.things.remember("told", name, await journey(world, ...args));
   };
 

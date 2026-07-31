@@ -18,6 +18,7 @@ import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import {
   keepsAnswerAs,
   requiredWorldValue,
+  type StoryJourney,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { completePaidCheckout } from "#test-utils/order-journey.ts";
@@ -109,15 +110,20 @@ const askForTotal = async (
   return browser.currentHtml;
 };
 
+/** What every customer journey here is told: which listing, and the code the
+ * customer typed into the box (empty when they typed none). */
+type APlaceAndACode = [listingName: string, code: string];
+
 /** What the site answers when a place's price is asked for with a code — or,
  * with the code left empty, without one. */
-export const quoteFor = fromBookingPage((_world, browser, code) =>
-  askForTotal(browser, code),
+export const quoteFor: StoryJourney<APlaceAndACode, string> = fromBookingPage(
+  (_world, browser, code) => askForTotal(browser, code),
 );
 
 /** The customer asks what a place costs with the code they hold, and keeps
  * the answer for the story to read. */
-export const customerAsksPrice = keepsAnswerAs("price summary", quoteFor);
+export const customerAsksPrice: StoryJourney<APlaceAndACode, void> =
+  keepsAnswerAs("price summary", quoteFor);
 
 /** The summary the customer was last shown. */
 export const priceSummary = (world: TicketsWorld): string =>
@@ -135,8 +141,8 @@ export const summaryTotal = (world: TicketsWorld): string => {
 /** The customer books with a code and pays. The booking page's own form
  * builds the checkout, and the payment completes through the provider — so
  * the code the customer typed is the one the books record. */
-export const customerPaysWithCode = fromBookingPage(
-  async (_world, browser, code) => {
+export const customerPaysWithCode: StoryJourney<APlaceAndACode, void> =
+  fromBookingPage(async (_world, browser, code) => {
     const captured: { intent: unknown } = { intent: null };
     const sessionId = "cs_discount_code";
     const checkoutStub = stub(
@@ -166,8 +172,7 @@ export const customerPaysWithCode = fromBookingPage(
       captured.intent as Parameters<typeof completePaidCheckout>[0],
       sessionId,
     );
-  },
-);
+  });
 
 /** The exact money words the story's own numbers come to, e.g. "£9.00". */
 export const asMoney = (pounds: string): string =>

@@ -19,6 +19,7 @@ import {
   type AsksAboutOneThing,
   asksIfThereIs,
   keepsAnswerAs,
+  type StoryJourney,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -172,10 +173,10 @@ export const ownerTakesPageDown: TakesOneThingDown = takesDownFromList(
 
 /** The owner tries to take a page down, and what they were told is kept for
  * the step that reads it back. */
-export const ownerTriesToTakePageDown = keepsAnswerAs(
-  OWNER,
-  ownerTakesPageDown,
-);
+export const ownerTriesToTakePageDown: StoryJourney<
+  [name: string, typed: string],
+  void
+> = keepsAnswerAs(OWNER, ownerTakesPageDown);
 
 /** What the owner was told the last time they wrote a page. */
 export const whatOwnerWasTold = (world: TicketsWorld): string =>
