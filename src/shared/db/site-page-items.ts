@@ -13,7 +13,6 @@ import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   execute,
   executeBatch,
-  inPlaceholders,
   queryAll,
   resultRows,
   type SqlStatement,
@@ -25,6 +24,7 @@ import {
   imageUseTargets,
 } from "#shared/db/images.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
+import { existingSitePageIdsStatement } from "#shared/db/site-pages.ts";
 import {
   clauseArgs,
   deleteWhere,
@@ -148,10 +148,7 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     ...new Set([pageId, ...(itemType === "page" ? [itemId] : [])]),
   ];
   const pageRows = resultRows<{ id: number }>(
-    await tx.execute({
-      args: requiredIds,
-      sql: `SELECT id FROM site_pages WHERE id IN (${inPlaceholders(requiredIds)})`,
-    }),
+    await tx.execute(existingSitePageIdsStatement(requiredIds)),
   );
   if (pageRows.length !== requiredIds.length) return false;
   // Duplicate edge (the unique (page_id, item_type, item_id) key): checked

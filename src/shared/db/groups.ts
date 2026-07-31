@@ -22,7 +22,6 @@ import {
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import {
   execute,
   executeBatch,
@@ -53,7 +52,7 @@ import {
   type ListingRecordRow,
   listingReader,
 } from "#shared/db/listings/select.ts";
-import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
+import { envNameSource, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
@@ -91,28 +90,18 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...projectCatalogFields(groupCatalogFields, "columns", {}),
 });
 
-const packageDisplayColumns = chooseColumns(rawGroupsTable, [
+const packageDisplayColumns = rawGroupsTable.read.pick([
   "id",
   "hide_package_listings",
   "name",
 ]);
 
 /** Execute a query and decrypt the resulting group rows */
-const queryGroups = queryAndMap<Group, Group>((row) =>
-  rawGroupsTable.fromDb(row),
-);
-const GROUP_COLUMNS = rawGroupsTable.columns
-  .map((column) => `groupRecord.${column}`)
-  .join(", ");
-
 export const groups = cachedEntityTable<Group, GroupInput>(
   "groups",
   rawGroupsTable,
   {
-    fetchAll: () =>
-      queryGroups(
-        `SELECT ${GROUP_COLUMNS} FROM groups AS groupRecord ORDER BY groupRecord.id ASC`,
-      ),
+    fetchAll: () => rawGroupsTable.read.many({}, { order: "id ASC" }),
     idOf: (g) => g.id,
     keyOf: (g) => g.slug_index,
     ttlMs: GROUPS_CACHE_TTL_MS,
@@ -140,7 +129,7 @@ export const listingGroups = {
 };
 
 /** Every group keyed by id, from the request-cached set — the batched
- * alternative to one findById per id when resolving or validating many groups
+ * alternative to one read per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
   mapById(identity<Group>)(await groups.cache.getAll());
@@ -149,6 +138,12 @@ export const getGroupsById = async (): Promise<Map<number, Group>> =>
  * pickers/labels that must not load the whole groups cache. */
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
   envNameSource("groups", "groupRecord").all();
+
+/** One group by id, read straight from the table: a group about to be shown,
+ * edited or acted on must be the stored row, not a cached copy. Null when no
+ * group has that id. */
+export const getGroupById = (id: number): Promise<Group | null> =>
+  rawGroupsTable.read.one({ id });
 
 /**
  * Get a single group by slug_index (from cache)
@@ -453,16 +448,19 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
-  const packageGroups = await packageDisplayColumns.select({
-    alias: "groupRecord",
-    where: [
-      ...inList(
-        "groupRecord.id",
-        [...new Set(groupIds)].filter((groupId) => groupId > 0),
-      ),
-      ...equals("groupRecord.is_package", 1),
-    ],
-  });
+  const packageGroups = await packageDisplayColumns.many(
+    {},
+    {
+      alias: "groupRecord",
+      where: [
+        ...inList(
+          "groupRecord.id",
+          [...new Set(groupIds)].filter((groupId) => groupId > 0),
+        ),
+        ...equals("groupRecord.is_package", 1),
+      ],
+    },
+  );
   return new Map(
     packageGroups.map((group) => [
       group.id,

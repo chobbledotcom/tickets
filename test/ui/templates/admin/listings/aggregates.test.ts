@@ -60,9 +60,9 @@ describe("ListingAggregateMismatchNotice", () => {
     );
     // booked_quantity drifted (expected 4, got 9); tickets_count matched.
     expect(html).toContain(
-      "<strong>Total Attendees Ever</strong>: expected <strong>4</strong>, got <strong>9</strong>",
+      "<strong>Total attendees ever</strong>: expected <strong>4</strong>, got <strong>9</strong>",
     );
-    expect(html).not.toContain("Total Ticket Records");
+    expect(html).not.toContain("Total ticket records");
   });
 
   test("renders no notice when there is no recalculation", () => {
@@ -107,7 +107,7 @@ describe("ListingAggregateMismatchRow", () => {
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
     expect(html).toContain("Review and recalculate totals");
     expect(html).toContain(
-      "<strong>Total Attendees Ever</strong>: expected <strong>4</strong>, got <strong>9</strong>",
+      "<strong>Total attendees ever</strong>: expected <strong>4</strong>, got <strong>9</strong>",
     );
   });
 

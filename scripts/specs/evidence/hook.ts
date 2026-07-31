@@ -10,7 +10,7 @@ export interface EvidenceWorld {
     data: Buffer,
     options: { fileName: string; mediaType: "image/png" },
   ): void | Promise<void>;
-  evidenceValues: Map<string, string>;
+  evidencePages: ReadonlyMap<string, string>;
 }
 
 export interface EvidenceHookCase {

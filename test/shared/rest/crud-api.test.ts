@@ -31,7 +31,7 @@ const makeRoutes = (
   config: Partial<CrudApiConfig<Row, Input>> = {},
 ): Record<string, unknown> =>
   defineCrudApi<Row, Input>({
-    getAll: () => table.findAll(),
+    getAll: () => table.read.many(),
     name: "widgets",
     nameField: "name",
     singular: "Widget",
@@ -139,7 +139,7 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
     expect(await response.json()).toEqual({
       widget: { hydrated: "row:1", id: 1 },
     });
-    expect(await table.findById(1)).toEqual({ id: 1, name: "Created" });
+    expect(await table.read.one({ id: 1 })).toEqual({ id: 1, name: "Created" });
     expect(hydrationCalls).toEqual([[1]]);
     const entry = (await getAllActivityLog()).find(
       (item) => item.message === "Widget 'Created' created",
@@ -201,7 +201,7 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
     expect(await response.json()).toEqual({
       widget: { id: row.id, name: "Updated" },
     });
-    expect(await table.findById(row.id)).toEqual({
+    expect(await table.read.one({ id: row.id })).toEqual({
       id: row.id,
       name: "Updated",
     });
@@ -221,7 +221,7 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "ok" });
-    expect(await table.findById(row.id)).toBeNull();
+    expect(await table.read.one({ id: row.id })).toBeNull();
     expect(await wasActivityLogged("Widget 'Delete me' deleted")).toBe(true);
   });
 
@@ -247,7 +247,7 @@ describeWithEnv("defineCrudApi", { db: true }, () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "ok" });
     expect(deleted).toEqual([row.id]);
-    expect(await table.findById(row.id)).toBeNull();
+    expect(await table.read.one({ id: row.id })).toBeNull();
   });
 
   test("PUT returns 404 when the row vanishes before its write reads back", async () => {

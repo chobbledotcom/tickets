@@ -28,7 +28,6 @@ import type {
 } from "#shared/crypto/sealed.ts";
 import {
   execute,
-  queryAll,
   queryBatch,
   resultRows,
   type TxScope,
@@ -36,10 +35,8 @@ import {
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import { listingReader } from "#shared/db/listings/select.ts";
-import { readRows } from "#shared/db/read.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
-import { equals } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -94,6 +91,17 @@ export const activityLogTable = defineTable<
 });
 const ACTIVITY_LOG_COLUMNS = activityLogTable.columns.join(", ");
 
+/** The whole stored entry — what every log read selects. */
+const logEntries = activityLogTable.read;
+
+/**
+ * Newest first, by id rather than by created: id is AUTOINCREMENT so it rises
+ * with created (newest row = highest id) but, being the rowid, it is served
+ * straight from the primary key / idx_activity_log_listing_id without a sort
+ * over the unbounded log table.
+ */
+const NEWEST_FIRST = { order: "id DESC" };
+
 /**
  * Decrypt a stored log message, routing by format prefix: owner-key (hybrid)
  * rows need the session private key; legacy env-key rows decrypt without it.
@@ -143,7 +151,7 @@ export const logActivity = async (
   attendeeId?: number | null,
   transaction?: TxScope,
 ): Promise<ActivityLogEntry> => {
-  const statement = await activityLogTable.insertStatement!(
+  const statement = await activityLogTable.insertStatement(
     {
       attendeeId: attendeeId ?? null,
       listingId: toListingId(listing),
@@ -187,18 +195,11 @@ const queryActivityLog = async (
   limit: number,
 ): Promise<ActivityLogEntry[]> =>
   decryptLogRows(
-    await readRows<StoredActivityLogEntry>({
-      columns: ACTIVITY_LOG_COLUMNS,
-      from: "activity_log",
-      limit,
-      // Order by id DESC, not created DESC: id is AUTOINCREMENT so it is
-      // co-monotonic with created (newest row = highest id) but, being the
-      // rowid, it is served straight from the primary key /
-      // idx_activity_log_listing_id without a sort over the unbounded log table.
-      order: "id DESC",
+    await logEntries.many(
       // A null listing means "every listing", which is no filter at all.
-      where: equals("listing_id", listingId ?? undefined),
-    }),
+      listingId === null ? {} : { listing_id: listingId },
+      { ...NEWEST_FIRST, limit },
+    ),
   );
 
 /**
@@ -224,9 +225,9 @@ export const getAttendeeActivityLog = async (
   limit = 100,
 ): Promise<ActivityLogEntry[]> =>
   decryptLogRows(
-    await queryAll<StoredActivityLogEntry>(
-      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE attendee_id = ? ORDER BY id DESC LIMIT ?`,
-      [attendeeId, limit],
+    await logEntries.many(
+      { attendee_id: attendeeId },
+      { ...NEWEST_FIRST, limit },
     ),
   );
 
@@ -246,10 +247,7 @@ export const getListingWithActivityLogOrNull = async (
 ): Promise<ListingWithActivityLog | null> => {
   const results = await queryBatch([
     listingReader.statement({ where: { ids: [listingId] } }),
-    {
-      args: [listingId, limit],
-      sql: `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE listing_id = ? ORDER BY id DESC LIMIT ?`,
-    },
+    logEntries.statement({ listing_id: listingId }, { ...NEWEST_FIRST, limit }),
   ]);
 
   const listingRow = resultRows<ListingWithCount>(results[0]!)[0];

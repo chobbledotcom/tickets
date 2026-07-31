@@ -37,7 +37,7 @@ describeWithEnv(
         const q = await createQuestion("Favourite colour?");
         expect(q.id).toBeGreaterThan(0);
 
-        const found = await questionsTable.findById(q.id);
+        const found = await questionsTable.read.one({ id: q.id });
         expect(found).not.toBeNull();
         expect(found!.text).toBe("Favourite colour?");
       });
@@ -45,7 +45,7 @@ describeWithEnv(
       test("updates a question", async () => {
         const q = await createQuestion("Old text");
         await questionsTable.update(q.id, { text: "New text" });
-        const found = await questionsTable.findById(q.id);
+        const found = await questionsTable.read.one({ id: q.id });
         expect(found!.text).toBe("New text");
       });
 
@@ -61,7 +61,7 @@ describeWithEnv(
 
         await deleteQuestion(q.id);
 
-        expect(await questionsTable.findById(q.id)).toBeNull();
+        expect(await questionsTable.read.one({ id: q.id })).toBeNull();
         expect(await getQuestionsForListing(listing.id)).toEqual([]);
         const answers = await getAttendeeAnswersBatch([attendee.id], {
           texts: false,

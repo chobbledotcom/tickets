@@ -1,3 +1,4 @@
+import { splitFlagValues } from "#scripts/flag-values.ts";
 import { isFeaturePath, isSpecPath } from "./paths.ts";
 
 export interface SpecCliOptions {
@@ -57,18 +58,12 @@ const directArgumentCount = (args: string[], index: number): number => {
 };
 
 export const parseSpecArgs = (args: string[]): SpecCliOptions => {
-  const paths: string[] = [];
-  let tags: string | undefined;
-  const remaining = [...args];
-  while (remaining.length > 0) {
-    const value = remaining.shift()!;
-    if (value === "--tags") {
-      tags = tagExpression(remaining.shift());
-    } else if (value.startsWith("--")) {
-      throw new Error(`Unknown specs option ${value}`);
-    } else paths.push(value);
-  }
-  return { paths, ...(tags === undefined ? {} : { tags }) };
+  const { rest, values } = splitFlagValues(args, "--tags");
+  const unknown = rest.find((value) => value.startsWith("--"));
+  if (unknown) throw new Error(`Unknown specs option ${unknown}`);
+  // Every occurrence is checked, and like repeated flags anywhere, the last wins.
+  const tags = values.map(tagExpression).at(-1);
+  return { paths: rest, ...(tags === undefined ? {} : { tags }) };
 };
 
 export const focusedTargets = (args: string[]): FocusedTargets => {

@@ -9,7 +9,7 @@ describe("RenewalTierSummary", () => {
     const html = String(<RenewalTierSummary tiers={[]} />);
 
     expect(html).toBe(
-      '<section><h2>Renewal tiers</h2><div class="error">No renewal tier listing is configured. Customers won\'t be able to renew their sites until you create one (a no-check-in, hidden listing with &lt;em&gt;Months Per Unit&lt;/em&gt; &gt; 0).</div></section>',
+      '<section><h2>Renewal tiers</h2><div class="error">No renewal tier listing is configured. Customers won\'t be able to renew their sites until you create one (a no-check-in, hidden listing with &lt;em&gt;Months per unit&lt;/em&gt; &gt; 0).</div></section>',
     );
   });
 

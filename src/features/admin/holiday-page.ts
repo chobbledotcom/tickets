@@ -24,6 +24,6 @@ export const holidayPage: EditEntityPage<Holiday> = defineEditEntityPage({
       HolidayEditPanel({ holiday, ...submittedValueProps(rejected) }),
     ),
   guard: requireOwnerOr,
-  load: (id) => holidays.table.findById(id),
+  load: (id) => holidays.table.read.one({ id }),
   navActive: "/admin/holidays",
 });

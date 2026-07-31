@@ -248,4 +248,36 @@ describe("buildReplacer", () => {
       "<code>ls -a</code> lists all events",
     );
   });
+
+  test("the closing bracket of a split tag is markup, never copy", () => {
+    // With a replacement term of ">" the bracket would be rewritten if it
+    // ever passed through the prose path; it must stay part of the tag.
+    const rebranded = buildReplacer(">|]")('Text <b data-n="{n}">bold');
+    expect(format(rebranded, { n: 1 })).toBe('Text <b data-n="1">bold');
+  });
+
+  test("copy after a plural whose branches close a span uses the first branch's exit", () => {
+    // Every branch closes the <code> span, so the copy after the plural is
+    // prose again and must rebrand.
+    const rebranded = buildReplacer("listing|event")(
+      "<code>{kind, select, ls {ls</code>} other {dir</code>}} lists listings",
+    );
+    expect(format(rebranded, { kind: "ls" })).toBe(
+      "<code>ls</code> lists events",
+    );
+    expect(format(rebranded, { kind: "x" })).toBe(
+      "<code>dir</code> lists events",
+    );
+  });
+
+  test("branches that disagree resolve to the first branch's exit state", () => {
+    // Branch "a" opens a code span it never closes; "other" opens nothing.
+    // The first branch's exit carries forward, so the trailing copy stays
+    // protected whichever branch the value picks.
+    const rebranded = buildReplacer("listing|event")(
+      "{kind, select, a {<code>x} other {y}} listings",
+    );
+    expect(format(rebranded, { kind: "a" })).toBe("<code>x listings");
+    expect(format(rebranded, { kind: "other" })).toBe("y listings");
+  });
 });

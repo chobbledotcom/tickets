@@ -1,6 +1,6 @@
 /**
  * The attendee Logistics tab, part two: demo-mode masking, the failed save
- * keeping the submitted selectors, the Other Attendees list, and the booked
+ * keeping the submitted selectors, the Other attendees list, and the booked
  * window helpers. The tab's core GET/POST behaviour lives in `page.test.ts`.
  */
 
@@ -146,7 +146,7 @@ describeWithEnv(
 );
 
 describeWithEnv(
-  "attendee Logistics tab — Other Attendees",
+  "attendee Logistics tab — Other attendees",
   { db: true },
   () => {
     test("lists overlapping attendees with links to their Logistics tabs", async () => {
@@ -162,7 +162,7 @@ describeWithEnv(
       ]);
 
       const html = await logisticsTabHtml(current);
-      expect(html).toContain("Other Attendees");
+      expect(html).toContain("Other attendees");
       expect(html).toContain("Overlap Person");
       expect(html).toContain(`/admin/attendees/${overlapping}/logistics`);
       expect(html).not.toContain("Far Away Person");
@@ -229,7 +229,7 @@ describeWithEnv(
         { date: "2030-01-10", durationDays: 1, listingId: daily.id },
       ]);
       const html = await logisticsTabHtml(alone);
-      expect(html).not.toContain("Other Attendees");
+      expect(html).not.toContain("Other attendees");
     });
 
     test("the section is hidden for a date-less booking", async () => {
@@ -242,7 +242,7 @@ describeWithEnv(
         { listingId: listing.id },
       ]);
       const html = await logisticsTabHtml(dateless);
-      expect(html).not.toContain("Other Attendees");
+      expect(html).not.toContain("Other attendees");
     });
   },
 );

@@ -19,6 +19,23 @@ export const nullIfNotFound = <Found>(
     return null;
   });
 
+/** The entry names in a directory that the keep-filter accepts, or none when
+ * the directory itself is not there. */
+export const namesInDirectory = async (
+  dir: string | URL,
+  keep: (entry: Deno.DirEntry) => boolean,
+): Promise<string[]> => {
+  const names: string[] = [];
+  try {
+    for await (const entry of Deno.readDir(dir)) {
+      if (keep(entry)) names.push(entry.name);
+    }
+  } catch (error) {
+    rethrowUnlessNotFound(error);
+  }
+  return names;
+};
+
 /** What one of Deno's look-at-a-path calls says, or `null` when nothing is there. */
 const infoOrNull =
   (look: "lstat" | "stat") =>

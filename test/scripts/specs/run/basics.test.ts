@@ -12,9 +12,9 @@ import {
   shouldCheckUnusedSteps,
   shouldRunFocusedSpecs,
 } from "#scripts/specs/options.ts";
+import { putsThingsBack } from "#test/specs/support/memory.ts";
 import {
   addDatabaseCleanup,
-  cleanupWorld,
   requiredWorldValue,
 } from "#test/specs/support/world.ts";
 
@@ -122,29 +122,10 @@ describe("Cucumber runner", () => {
     expect(shouldCheckUnusedSteps({ tags: "@risk:high" })).toBe(false);
   });
 
-  test("runs every scenario cleanup after one fails", async () => {
-    const calls: string[] = [];
-    const restoreError = new Error("restore failed");
-    const error = await cleanupWorld({
-      cleanup: [
-        () => {
-          calls.push("database");
-        },
-        () => {
-          calls.push("provider");
-          throw restoreError;
-        },
-      ],
-    }).catch((error) => error);
-
-    expect(calls).toEqual(["provider", "database"]);
-    expect(error).toBe(restoreError);
-  });
-
   test("clears the encryption key after database cleanup fails", async () => {
     const calls: string[] = [];
     const databaseError = new Error("database cleanup failed");
-    const world = { cleanup: [] };
+    const world = { cleanup: putsThingsBack() };
     addDatabaseCleanup(
       world,
       () => {
@@ -156,7 +137,7 @@ describe("Cucumber runner", () => {
       },
     );
 
-    const error = await cleanupWorld(world).catch((error) => error);
+    const error = await world.cleanup.runAll().catch((error: unknown) => error);
     expect(calls).toEqual(["database", "encryption key"]);
     expect(error).toBe(databaseError);
   });

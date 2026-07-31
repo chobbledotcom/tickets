@@ -39,10 +39,10 @@ export const setupAndLogin = async (browser: TestBrowser): Promise<void> => {
       admin_username: "admin",
       country: "GB",
     },
-    "Complete Setup",
+    "Complete setup",
   );
   invalidateAllCaches();
-  await browser.clickLink("Log In");
+  await browser.clickLink("Log in");
   await browser.submitForm(
     { password: "password", username: "admin" },
     "Login",

@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   askForRefund,
   bookingId,
@@ -9,7 +10,6 @@ import {
   buyOnePlace,
   expectMoneyHandedBack,
   expectRefundMessage,
-  listingIdFor,
   timesProviderWasAsked,
 } from "#test/specs/support/money.ts";
 import {
@@ -49,7 +49,7 @@ Then(
 Then(
   "the Concert has earned nothing and the customer owes nothing",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = listingIdFor(this, CONCERT);
+    const listingId = listingIdNamed(this, CONCERT);
     expect(await incomeOf(listingId)).toBe(0);
     expect(await owedBy(bookingId(this))).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);

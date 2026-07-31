@@ -1225,43 +1225,6 @@ proves they create the attendee and ledger rows exactly once.
 
 ---
 
-## Stale equivalent-mutant line numbers across recent refactors
-
-*Origin: running `deno task mutation:audit-equivalents` while hardening
-`src/shared/square.ts` for the confirmed-Square-refunds job.*
-
-`scripts/mutation/equivalent-mutants.txt` carries several entries whose
-`file:line:col` no longer points at a generated mutant, so
-`deno task mutation:audit-equivalents` aborts with "No generated mutant matches".
-The mutants are still real and equivalent; only the code moved. Confirmed stale
-entries span at least:
-- `src/shared/uptime-kuma/socket.ts` (lines 107, 130, 167, 187 — `===`/`!==`↔loose)
-- `src/shared/uptime-kuma/monitors.ts` (lines 87, 101, 116, 119, 138, 193, 227,
-  250, 306, 325 — `===`/`!==`↔loose and `1000→1001`)
-- `src/shared/scheduled-access.ts:16:20 ??→||`
-- `src/shared/storage.ts:376:18 application/octet-stream→""`
-- `src/ui/templates/admin/images.tsx:84:28` and `:85:20 ??→||`
-- `src/features/app/routes.ts:235:14 →"mutated"`
-
-These most likely drifted when the Uptime Kuma modules were split into
-one-concept-per-file (#1906) and other recent move/refactor PRs. The audit is a
-standalone task (`mutation:audit-equivalents`, not part of `deno task
-precommit`), so CI doesn't gate on it; it surfaced here only because the
-Square-refunds job ran exhaustive mutation and used the audit to validate its
-own equivalent entries. The `square.ts` entries in the equivalent-mutants
-registry have been refreshed in place (they drift as the source shifts lines —
-the audit command's own output lists every stale `file:line:col`);
-
-Fix: for each stale entry, re-run `deno task mutation <file> '<tests>'
---exhaustive`, locate the surviving equivalent mutant's current `file:line:col`
-from the report, and update the line/col in `equivalent-mutants.txt` (or remove
-the entry if the static gates now kill it — `mutation:audit-equivalents --write`
-does this automatically for entries the lint/type-check gates catch). Then
-re-run the audit until it reports no stale entries. Starting point: the audit's
-own output lists every stale `file:line:col`.
-
----
-
 ## Square PENDING refunds — propagate a pending result, not a plain false
 
 *Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread
@@ -1334,7 +1297,7 @@ a malformed response throws rather than being silently cast. Starting point:
 Direct tests at `test/features/api/folded-booking.test.ts` and
 `test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
 Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
-`scripts/mutation/equivalent-mutants.txt` with proofs — no unsuppressed survivors remain.
+`scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors remain.
 
 ## Split `render-selector.test.ts` by what each case actually checks
 

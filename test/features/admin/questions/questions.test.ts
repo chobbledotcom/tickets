@@ -215,6 +215,25 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
   });
 
+  describe("POST /admin/questions/:id/move-down", () => {
+    test("moves the question and returns to the list saying so", async () => {
+      const firstId = await createQuestion("First question?");
+      await createQuestion("Second question?");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${firstId}/move-down`,
+      );
+
+      await expectFlashRedirect("/admin/questions", "Question moved")(response);
+      const { getAllQuestionsWithAnswers } = await import(
+        "#shared/db/questions/queries.ts"
+      );
+      expect(
+        (await getAllQuestionsWithAnswers()).map((question) => question.text),
+      ).toEqual(["Second question?", "First question?"]);
+    });
+  });
+
   describe("GET /admin/questions/:id", () => {
     testRequiresAuth("/admin/questions/1", {
       setup: async () => {
@@ -268,7 +287,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify the question was updated
       const { questionsTable } = await import("#shared/db/questions/tables.ts");
-      const updated = await questionsTable.findById(id);
+      const updated = await questionsTable.read.one({ id: id });
       expect(updated!.text).toBe("After edit");
     });
 
@@ -287,7 +306,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
           });
         }),
       ).rejects.toThrow("feature enable failed");
-      expect((await questionsTable.findById(question.id))?.text).toBe(
+      expect((await questionsTable.read.one({ id: question.id }))?.text).toBe(
         "Before?",
       );
     });
@@ -336,7 +355,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${q.id}`,
         "Question updated",
       )(response);
-      const updated = await questionsTable.findById(q.id);
+      const updated = await questionsTable.read.one({ id: q.id });
       expect(updated!.display_type).toBe("free_text");
       expect(updated!.text).toBe("Notes updated");
     });
@@ -348,7 +367,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "free_text",
         text: "Colour?",
       });
-      const updated = await questionsTable.findById(id);
+      const updated = await questionsTable.read.one({ id: id });
       expect(updated!.display_type).toBe("radio");
     });
 
@@ -384,7 +403,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
       // The answers table shows the stored selection total (0 with no bookings).
-      expect(body).toContain('<th class="col-quantity">Times Selected</th>');
+      expect(body).toContain('<th class="col-quantity">Times selected</th>');
       expect(body).toContain('<td class="col-quantity">0</td>');
     });
   });

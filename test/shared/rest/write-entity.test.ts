@@ -64,7 +64,7 @@ describe("writeEntity", () => {
     expect(joinIds).toEqual([1]);
     // afterCommit ran once with the written row's id, after the read-back.
     expect(afterCommitIds).toEqual([1]);
-    expect(await table.findById(1)).toEqual({ id: 1, name: "row" });
+    expect(await table.read.one({ id: 1 })).toEqual({ id: 1, name: "row" });
   });
 
   test("runs every join write in order, all inside the one transaction", async () => {
@@ -111,7 +111,7 @@ describe("writeEntity", () => {
 
     // The row write rolled back with the failed join write; nothing persisted,
     // and the post-commit hook never ran.
-    expect(await table.findById(1)).toBeNull();
+    expect(await table.read.one({ id: 1 })).toBeNull();
     expect(afterCommitRan).toBe(false);
   });
 

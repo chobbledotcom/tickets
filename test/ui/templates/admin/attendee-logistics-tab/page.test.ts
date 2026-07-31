@@ -1,7 +1,7 @@
 /**
  * The attendee Logistics tab: rendering (address form, pin inputs, map) and
  * saving (address + pin into the PII blob, selectors onto booking rows),
- * including validation failures re-rendering in place. The Other Attendees
+ * including validation failures re-rendering in place. The Other attendees
  * list, demo mode, and the failed-save selector behaviour live in
  * `others.test.ts`.
  */

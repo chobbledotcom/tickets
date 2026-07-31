@@ -12,7 +12,10 @@ type ListingChoicePostConfig = {
   fieldName: string;
   label: string;
   noun: string;
-  readIds?: (form: FormParams) => number[] | Promise<number[]>;
+  readIds?: (
+    form: FormParams,
+    fieldName: string,
+  ) => number[] | Promise<number[]>;
   saveIds: (listingId: number, ids: number[]) => Promise<void>;
   tab: string;
 };
@@ -35,7 +38,7 @@ export const createListingChoicePost = ({
     async (listing, _session, form, _request, { id }) => {
       if (!settings.features[feature]) return notFoundResponse();
       const ids = readIds
-        ? await readIds(form)
+        ? await readIds(form, fieldName)
         : form.getNumberArray(fieldName);
       await saveIds(id, ids);
       await logActivity(

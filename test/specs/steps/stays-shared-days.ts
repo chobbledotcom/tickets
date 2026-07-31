@@ -2,7 +2,12 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
-import { stayListing } from "#test/specs/support/listings.ts";
+import {
+  browserSeenBy,
+  CUSTOMER,
+  rememberBrowser,
+} from "#test/specs/support/browser.ts";
+import { listingNamed } from "#test/specs/support/listings.ts";
 import {
   visitorBooks,
   visitorTriesToBook,
@@ -71,7 +76,7 @@ const bookPlaces = async (
   startsIn: number,
   order: number,
 ): Promise<void> => {
-  await visitorBooks(world, stayListing(world, name), {
+  await visitorBooks(world, listingNamed(world, name), {
     ...guest(order),
     day: dayFromToday(world, startsIn),
     places,
@@ -110,12 +115,12 @@ When(
     places: number,
     startsIn: number,
   ): Promise<void> {
-    const attempt = await visitorTriesToBook(stayListing(this, "Saturday"), {
+    const attempt = await visitorTriesToBook(listingNamed(this, "Saturday"), {
       ...guest(3),
       day: dayFromToday(this, startsIn),
       places,
     });
-    this.customerBrowser = attempt.browser;
+    rememberBrowser(this, CUSTOMER, attempt.browser);
     this.bookingWasTaken = attempt.wasBooked;
   },
 );
@@ -146,12 +151,12 @@ When(
     const attempt = await visitorTriesToOrder(
       `/ticket/${slug}`,
       [
-        { listing: stayListing(this, "Short"), places: onShort },
-        { listing: stayListing(this, "Long"), places: onLong },
+        { listing: listingNamed(this, "Short"), places: onShort },
+        { listing: listingNamed(this, "Long"), places: onLong },
       ],
       { ...guest(5), day: dayFromToday(this, 10) },
     );
-    this.customerBrowser = attempt.browser;
+    rememberBrowser(this, CUSTOMER, attempt.browser);
     this.bookingWasTaken = attempt.wasBooked;
   },
 );
@@ -161,7 +166,9 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     expect(this.bookingWasTaken).toBe(false);
     // Refused for want of room, not for some unrelated reason.
-    expect(this.customerBrowser?.pageText).toContain("enough spots available");
+    expect(browserSeenBy(this, CUSTOMER).pageText).toContain(
+      "enough spots available",
+    );
     // Neither half of the order may be taken — a partly-booked order would
     // leave the customer paying for a stay they cannot use.
     expect((await staysOn(this, "Short")).length).toBe(0);

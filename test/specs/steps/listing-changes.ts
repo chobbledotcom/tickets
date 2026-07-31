@@ -7,7 +7,7 @@ import {
   stopOpeningOn,
   weekdayOf,
 } from "#test/specs/support/listing-changes.ts";
-import { stayListing } from "#test/specs/support/listings.ts";
+import { listingNamed } from "#test/specs/support/listings.ts";
 import {
   daysOfferedFor,
   expectRefusedForWantOfRoom,
@@ -59,7 +59,7 @@ Then(
   ): Promise<void> {
     // A stay reaching a day the listing no longer takes cannot start at all,
     // so the day drops off the chooser the customer is shown.
-    expect(await daysOfferedFor(stayListing(this, name))).not.toContain(
+    expect(await daysOfferedFor(listingNamed(this, name))).not.toContain(
       dayFromToday(this, startsIn),
     );
   },
@@ -90,7 +90,7 @@ When(
     name: string,
     startsIn: number,
   ): Promise<void> {
-    const listing = stayListing(this, name);
+    const listing = listingNamed(this, name);
     const day = dayFromToday(this, startsIn);
     // Both customers fill the form in first. Only once both are waiting do they
     // press Continue, so one cannot quietly finish before the other starts and

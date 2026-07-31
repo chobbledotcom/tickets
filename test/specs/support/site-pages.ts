@@ -3,8 +3,9 @@
  * opened by somebody never signed in, because that is who these pages are for.
  */
 
-// jscpd:ignore-start
 import { t } from "#i18n";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import {
   newcomerReading,
@@ -17,7 +18,6 @@ import {
   type ActOnOneThing,
   type AsksAboutOneThing,
   asksIfThereIs,
-  requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -28,6 +28,10 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** The owner's own list of the site's pages. */
 const PAGES_LIST = "/admin/site/pages";
+
+/** Whose reading of the site's own pages the story keeps: the owner writes
+ * them, so the owner is who each answer was told to. */
+const OWNER = "the owner";
 
 /** Wording that appears on one page and nowhere else. Every page's name is in
  * the navigation on every page, so a check that only looked for the name would
@@ -59,10 +63,10 @@ export const ownerWritesPage = async (
     { content: wordsOnlyOn(name), name, slug: address },
     t("site.pages.create_submit"),
   );
-  world.sitePageTold = browser.pageText;
+  world.things.remember("told", OWNER, browser.pageText);
   // The address the owner chose, so a capture can open the page the way a
   // visitor would rather than being told the address a second time.
-  world.evidenceValues.set("sitePageAddress", address);
+  leaveEvidencePage(world, ["page-anybody-can-read"], `/page/${address}`);
   return browser.pageText;
 };
 
@@ -165,6 +169,20 @@ export const ownerTakesPageDown: TakesOneThingDown = takesDownFromList(
   },
 );
 
+/** The owner tries to take a page down, and what they were told is kept for
+ * the step that reads it back. */
+export const ownerTriesToTakePageDown = async (
+  world: TicketsWorld,
+  name: string,
+  typed: string,
+): Promise<void> => {
+  world.things.remember(
+    "told",
+    OWNER,
+    await ownerTakesPageDown(world, name, typed),
+  );
+};
+
 /** What the owner was told the last time they wrote a page. */
 export const whatOwnerWasTold = (world: TicketsWorld): string =>
-  requiredWorldValue(world.sitePageTold, "what the owner was told");
+  world.things.require("told", OWNER);

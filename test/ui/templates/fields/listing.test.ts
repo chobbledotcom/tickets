@@ -25,7 +25,7 @@ const listingForm = (overrides: TestFormValues = {}): TestFormValues => ({
 describe("listing form required fields", () => {
   test("rejects missing listing name", () => {
     const { name: _, ...withoutName } = baseListingForm;
-    expectInvalid("Listing Name is required")(
+    expectInvalid("Listing name is required")(
       getListingForm().fields,
       withoutName,
     );
@@ -292,7 +292,7 @@ describe("listing form listing_type", () => {
         listingForm({ listing_type: value }),
       );
     }
-    expectInvalid("Listing Type must be standard or daily")(
+    expectInvalid("Listing type must be standard or daily.")(
       getListingForm().fields,
       listingForm({ listing_type: "weekly" }),
     );
@@ -313,13 +313,13 @@ describe("listing form duration_days", () => {
     });
   }
   const invalid: [value: string, error: string][] = [
-    ["0", "Booking Duration (days) must be at least 1"],
-    ["-5", "Booking Duration (days) must be at least 1"],
+    ["0", "Booking duration (days) must be at least 1."],
+    ["-5", "Booking duration (days) must be at least 1."],
     [
       String(MAX_DURATION_DAYS + 1),
-      `Booking Duration (days) must be at most ${MAX_DURATION_DAYS}`,
+      `Booking duration (days) must be at most ${MAX_DURATION_DAYS}.`,
     ],
-    ["1.5", "Booking Duration (days) must be a whole number"],
+    ["1.5", "Booking duration (days) must be a whole number."],
   ];
   for (const [value, error] of invalid) {
     test(`rejects ${JSON.stringify(value)}`, () => {
@@ -403,15 +403,15 @@ describe("holiday form", () => {
   });
 
   test("rejects missing name, start_date, or end_date", () => {
-    expectInvalid("Holiday Name is required")(
+    expectInvalid("Holiday name is required")(
       getHolidayForm().fields,
       holidayForm({ name: "" }),
     );
-    expectInvalid("Start Date is required")(
+    expectInvalid("Start date is required")(
       getHolidayForm().fields,
       holidayForm({ start_date: "" }),
     );
-    expectInvalid("End Date is required")(
+    expectInvalid("End date is required")(
       getHolidayForm().fields,
       holidayForm({ end_date: "" }),
     );

@@ -10,6 +10,11 @@ import { queryAll, queryOne, rowExistsForIdList } from "#shared/db/client.ts";
 import { retryWrite } from "#shared/db/retry-write.ts";
 import type { Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
+import type {
+  RowFilter,
+  RowOptions,
+  TableReader,
+} from "#shared/db/table-reader.ts";
 import {
   blobToSiteFields,
   buildSiteDataBlobFromInput,
@@ -110,9 +115,61 @@ const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
   return sites;
 };
 
-const findBuiltSiteById = async (id: InValue): Promise<BuiltSite | null> => {
-  const row = await rawBuiltSitesTable.findById(id);
-  return row ? rowToBuiltSite(row) : null;
+/**
+ * The façade's reads. A built site is assembled from the raw row's encrypted
+ * blob, so every read goes through the raw table's reader and is opened here.
+ *
+ * A filter therefore names the one column a caller reads sites by, `id`. The
+ * site's other fields live inside the blob, so no read of any kind can filter
+ * on them, and `pick` has no narrower set of columns to offer.
+ */
+const rawFilter = (
+  filter: RowFilter<BuiltSite> = {},
+): RowFilter<BuiltSiteRow> => {
+  const { id, ...notAColumn } = filter;
+  const named = Object.keys(notAColumn);
+  if (named.length > 0) {
+    throw new Error(
+      `Cannot filter built sites by ${named.join(", ")}: a site's fields are stored inside one encrypted blob, not as columns. Filter by id.`,
+    );
+  }
+  return id === undefined ? {} : { id };
+};
+
+/** Read built sites through the raw table and open each one's blob. One site is
+ * this same read capped at one row, so there is no second path for it. */
+const readSites = async (
+  filter: RowFilter<BuiltSiteRow>,
+  options: RowOptions | undefined,
+): Promise<BuiltSite[]> =>
+  (await rawBuiltSitesTable.read.many(filter, options)).map(rowToBuiltSite);
+
+const firstOf = async <Item>(items: Promise<Item[]>): Promise<Item | null> => {
+  const [first = null] = await items;
+  return first;
+};
+
+/** A built site is only ever handed back whole and already opened: its fields
+ * live in one encrypted blob, so there is no half of a site to give out and no
+ * raw row a caller could make sense of. */
+const refuseUnopened = (): never => {
+  throw new Error(
+    "A built site's fields are stored in one encrypted blob, so a read can only hand back whole, opened sites. Read the whole site.",
+  );
+};
+
+const builtSiteReads: TableReader<BuiltSite> = {
+  exists: (filter, options) =>
+    rawBuiltSitesTable.read.exists(rawFilter(filter), options),
+  // The filter is checked before anything is awaited, so a field that is not a
+  // column fails at the call rather than in a rejected promise later.
+  many: (filter, options) => readSites(rawFilter(filter), options),
+  one: (filter, options) =>
+    firstOf(readSites(rawFilter(filter), { ...options, limit: 1 })),
+  // Both of these would hand back something that is not an opened site — some
+  // of its columns, or rows nobody has parsed the blob out of.
+  pick: refuseUnopened,
+  statement: refuseUnopened,
 };
 
 export const findBuiltSiteByIdPrimary = async (
@@ -127,7 +184,7 @@ export const updateBuiltSite = (
   id: InValue,
   changesFor: (existing: BuiltSite) => BuiltSiteUpdate | null,
 ): Promise<BuiltSite | null> => {
-  const updateStatement = rawBuiltSitesTable.updateStatement!;
+  const updateStatement = rawBuiltSitesTable.updateStatement;
   return retryWrite(`Could not update built site ${String(id)}`, async () => {
     const existing = await findBuiltSiteByIdPrimary(id);
     if (!existing) return { value: null };
@@ -159,15 +216,6 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   columns: rawBuiltSitesTable.columns,
   deleteById: (id: InValue): Promise<void> => builtSites.table.deleteById(id),
 
-  findAll: (): Promise<BuiltSite[]> => builtSites.getAll(),
-
-  findById: findBuiltSiteById,
-
-  findByIds: async (ids: InValue[]): Promise<(BuiltSite | null)[]> =>
-    (await rawBuiltSitesTable.findByIds(ids)).map((row) =>
-      row === null ? null : rowToBuiltSite(row),
-    ),
-
   // findByIdPrimary is intentionally omitted: it is optional on Table (like
   // insertStatement/updateStatement) and only used on the transactional
   // afterWrite write-back path, which this façade resource never takes.
@@ -181,6 +229,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   },
   name: "built_sites",
   primaryKey: "id",
+  read: builtSiteReads,
   // The façade's rows are already decrypted (its fromDb is identity), so a
   // single column's stored value is already its readable value.
   readColumn: <K extends keyof BuiltSite & string>(

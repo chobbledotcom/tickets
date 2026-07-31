@@ -42,7 +42,7 @@ const insertMinimalGroup = async (name: string) => {
 describeWithEnv("db > group storage contracts", { db: true }, () => {
   test("omitted group flags default to false", async () => {
     const inserted = await insertMinimalGroup("Default Flags");
-    expect(await groups.table.findById(inserted.id)).toMatchObject({
+    expect(await groups.table.read.one({ id: inserted.id })).toMatchObject({
       hidden: false,
       hide_package_listings: false,
       is_package: false,

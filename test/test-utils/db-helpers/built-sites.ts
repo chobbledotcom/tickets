@@ -84,7 +84,9 @@ export const updateTestBuiltSite = async (
   updates: Partial<BuiltSiteFormInput>,
 ): Promise<BuiltSite> => {
   const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
-  const existing = (await builtSitesCrudTable.findById(siteId)) as BuiltSite;
+  const existing = (await builtSitesCrudTable.read.one({
+    id: siteId,
+  })) as BuiltSite;
 
   const assignable = updates.assignable ?? existing.assignable;
   return withBuilderEnabled(() =>
@@ -100,7 +102,7 @@ export const updateTestBuiltSite = async (
         ...(assignable ? { assignable: "1" } : {}),
       },
       async () => {
-        const updated = await builtSitesCrudTable.findById(siteId);
+        const updated = await builtSitesCrudTable.read.one({ id: siteId });
         return updated as BuiltSite;
       },
       "update built site",
@@ -110,7 +112,9 @@ export const updateTestBuiltSite = async (
 
 export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
   const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
-  const existing = (await builtSitesCrudTable.findById(siteId)) as BuiltSite;
+  const existing = (await builtSitesCrudTable.read.one({
+    id: siteId,
+  })) as BuiltSite;
 
   return withBuilderEnabled(() =>
     doAuthenticatedFormRequest(

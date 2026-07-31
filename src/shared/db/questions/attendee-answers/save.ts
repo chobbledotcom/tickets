@@ -18,6 +18,7 @@ import {
   internStringRows,
   prepareStringRows,
 } from "#shared/db/questions/strings.ts";
+import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 
 export type AttendeeAnswerSet = {
   answerIds: number[];
@@ -41,10 +42,11 @@ const questionIdsByAnswerIdTx = async (
 ): Promise<Map<number, number>> => {
   if (answerIds.length === 0) return new Map();
   const rows = resultRows<{ id: number; question_id: number }>(
-    await tx.execute({
-      args: answerIds,
-      sql: `SELECT answer.id, answer.question_id FROM answers AS answer WHERE answer.id IN (${inPlaceholders(answerIds)})`,
-    }),
+    await tx.execute(
+      answersTable.read
+        .pick(["id", "question_id"])
+        .statement({ id: answerIds }),
+    ),
   );
   return fieldById("question_id")(rows);
 };
@@ -91,10 +93,9 @@ const existingQuestionIdsTx = async (
 ): Promise<Set<number>> => {
   if (questionIds.length === 0) return new Set();
   const rows = resultRows<{ id: number }>(
-    await tx.execute({
-      args: questionIds,
-      sql: `SELECT id FROM questions WHERE id IN (${inPlaceholders(questionIds)})`,
-    }),
+    await tx.execute(
+      questionsTable.read.pick(["id"]).statement({ id: questionIds }),
+    ),
   );
   return new Set(rows.map((row) => row.id));
 };

@@ -1,5 +1,6 @@
 /** Assembles the ordered schema and computes its identity hash. */
 
+import { paymentTables } from "./payments/index.ts";
 import { attendeeTables } from "./tables-attendees.ts";
 import { catalogTables } from "./tables-catalog.ts";
 import { contentTables } from "./tables-content.ts";
@@ -18,6 +19,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   ...catalogTables,
   ...questionTables,
   ...contentTables,
+  ...paymentTables,
 ];
 
 /** Ordered table names — matches FK dependency order (parents before children) */

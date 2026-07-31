@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { chooseColumns, type StoredRowOf } from "#shared/db/chosen-columns.ts";
+import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
   type SqlStatement,
@@ -78,7 +78,7 @@ export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   name: col.encryptedText(encrypt, decrypt),
 });
 
-const imageColumns = chooseColumns(imagesTable, [
+const imageColumns = imagesTable.read.pick([
   "id",
   "name",
   "filename",
@@ -86,7 +86,7 @@ const imageColumns = chooseColumns(imagesTable, [
   "alt_text",
 ]);
 
-const imageFileColumns = chooseColumns(imagesTable, [
+const imageFileColumns = imagesTable.read.pick([
   "id",
   "filename",
   "filename_thumb",
@@ -94,10 +94,10 @@ const imageFileColumns = chooseColumns(imagesTable, [
 ]);
 
 export const getAllImages = (): Promise<Image[]> =>
-  imageColumns.select({ order: "id DESC" });
+  imageColumns.many({}, { order: "id DESC" });
 
 export const getImageById = (id: number): Promise<Image | null> =>
-  imagesTable.findById(id);
+  imagesTable.read.one({ id });
 
 export const imageFilenameSubquery = (
   itemType: ImageUseItemType,

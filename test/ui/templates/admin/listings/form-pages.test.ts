@@ -35,7 +35,7 @@ describe("adminListingNewPage", () => {
     expect(html).toContain('name="max_attendees"');
     expect(html).toContain('name="thank_you_url"');
     expect(html).toContain('name="unit_price"');
-    expect(html).toContain("Ticket Price");
+    expect(html).toContain("Ticket price");
   });
 
   test("renders breadcrumb back link", () => {

@@ -8,6 +8,7 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
+  inputNamed,
 } from "#test-utils/assertions.ts";
 import { requireJoinCsrfToken, submitJoinForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -23,6 +24,26 @@ import {
 } from "#test-utils/mocks.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
+  describe("the join form", () => {
+    // The expected labels, hints, and bounds are written out here so a
+    // changed form definition fails this test instead of moving along.
+    test("serves both password boxes with their labels, hints, and bounds", async () => {
+      const { joinForm } = await import("#routes/join.ts");
+      const html = joinForm.render();
+      expect(html).toContain("Password");
+      expect(html).toContain("Confirm password");
+      expect(html).toContain("Minimum 8 characters");
+      const password = inputNamed(html, "password");
+      expect(password).toContain('minlength="8"');
+      expect(password).toContain('autocomplete="new-password"');
+      expect(password).toContain("required");
+      const confirm = inputNamed(html, "password_confirm");
+      expect(confirm).toContain('minlength="8"');
+      expect(confirm).toContain('autocomplete="new-password"');
+      expect(confirm).toContain("required");
+    });
+  });
+
   describe("login flow", () => {
     test("login with username and password", async () => {
       const response = await handleRequest(
@@ -88,9 +109,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("GET /join/complete shows confirmation page", async () => {
       await assertPublicHtml(
         "/join/complete",
-        "Password Set",
+        "Password set",
         'href="/admin/login"',
-        "Log In",
+        "Log in",
       );
     });
 

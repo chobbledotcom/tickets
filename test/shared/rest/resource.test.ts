@@ -77,7 +77,7 @@ const expectRowExists = async (
   id: number,
   exists: boolean,
 ): Promise<void> => {
-  const row = await resource.table.findById(id);
+  const row = await resource.table.read.one({ id: id });
   exists ? expect(row).not.toBeNull() : expect(row).toBeNull();
 };
 
@@ -345,7 +345,7 @@ describeWithEnv("rest/resource - additional coverage", { db: true }, () => {
       expect(deletedId).toBe(1);
 
       // Verify row was actually deleted
-      const row = await table.findById(1);
+      const row = await table.read.one({ id: 1 });
       expect(row).toBeNull();
     });
   });

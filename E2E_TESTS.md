@@ -118,6 +118,9 @@ Execution is equally strict:
   separate stable capture ID. Its public contract is
   `reports/evidence/manifest.json` with files under `reports/evidence/assets/`;
   raw Cucumber Messages stay generated and private.
+- A capture that is always at one address declares it. A capture of a page the
+  story only finds an address for while it runs declares no address, and the
+  story hands the finished one over by capture ID with `leaveEvidencePage`.
 - A Cucumber journey never supplies the only coverage of a production line or
   branch. Keep 100% direct Deno coverage, and run direct tests before Cucumber
   integration tests in mutation runs.

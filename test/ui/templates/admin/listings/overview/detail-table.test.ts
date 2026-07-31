@@ -34,7 +34,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Booking Duration");
+    expect(html).toContain("Booking duration");
     expect(html).toContain("3 day(s)");
   });
 
@@ -49,7 +49,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Booking Duration");
+    expect(html.toLowerCase()).not.toContain("booking duration");
   });
 
   test("shows the customisable-days prices on a customisable listing", () => {
@@ -64,7 +64,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).toContain("Customisable Days");
+    expect(html).toContain("Customisable days");
     expect(html).toContain("1 day:");
     expect(html).toContain("2 days:");
   });
@@ -111,7 +111,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expect(html).not.toContain("Customisable Days");
+    expect(html.toLowerCase()).not.toContain("customisable days");
   });
 });
 

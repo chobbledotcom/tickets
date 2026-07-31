@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { dirname, join } from "@std/path";
-import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { namesInDirectory } from "#scripts/not-found.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { readJsonOrNull } from "#scripts/read-json.ts";
 /* jscpd:ignore-end */
@@ -60,19 +60,8 @@ export const recordInRunDirectory = (
 
 /** Every folder under .mutation-runs, ours or not. Callers that go on to act on
  * a folder pick out the ones this runner named with `isRunId` first. */
-export const runDirectoryNames = async (
-  root = projectRoot,
-): Promise<string[]> => {
-  const names: string[] = [];
-  try {
-    for await (const entry of Deno.readDir(runsRoot(root))) {
-      if (entry.isDirectory) names.push(entry.name);
-    }
-  } catch (error) {
-    rethrowUnlessNotFound(error);
-  }
-  return names;
-};
+export const runDirectoryNames = (root = projectRoot): Promise<string[]> =>
+  namesInDirectory(runsRoot(root), (entry) => entry.isDirectory);
 
 /**
  * The runs this runner made, newest first. Folders it did not name are left out

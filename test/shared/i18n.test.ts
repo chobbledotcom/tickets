@@ -2,13 +2,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { IntlMessageFormat } from "intl-messageformat";
 import {
+  ensureMessageGroups,
   getLocale,
   getRegisteredLocales,
   parseAcceptLanguage,
   resetI18nForTest,
   runWithLocale,
   t,
+  withMessageGroups,
 } from "#i18n";
+import {
+  ENGLISH_MESSAGE_LOADERS,
+  type MessageLoader,
+} from "#locales/manifest.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 
@@ -276,6 +282,115 @@ describe("i18n", () => {
 
     test("falls back to en for unregistered locales", () => {
       expect(parseAcceptLanguage("xx-YY", REG)).toBe("en");
+    });
+  });
+
+  describe("message group loading", () => {
+    const GROUP = "seed-data" as const;
+    const KEY = "admin.seeds.title";
+
+    /** Swap the group's loader for the test, then restore it and the state. */
+    const withLoader = async (
+      loader: MessageLoader,
+      fn: () => Promise<void>,
+    ): Promise<void> => {
+      const original = ENGLISH_MESSAGE_LOADERS[GROUP];
+      ENGLISH_MESSAGE_LOADERS[GROUP] = loader;
+      resetI18nForTest(true);
+      try {
+        await fn();
+      } finally {
+        ENGLISH_MESSAGE_LOADERS[GROUP] = original;
+        resetI18nForTest(true);
+      }
+    };
+
+    test("refuses a message that is not a string", async () => {
+      const broken = { bad: 5 } as unknown as Readonly<Record<string, string>>;
+      await withLoader(
+        () => Promise.resolve(broken),
+        async () => {
+          await expect(ensureMessageGroups([GROUP])).rejects.toThrow(
+            'message "bad" is not a string',
+          );
+        },
+      );
+    });
+
+    test("refuses a key that two groups both claim", async () => {
+      // The system group already owns this key; a second group offering it
+      // must fail loudly instead of silently overwriting the copy.
+      await withLoader(
+        () => Promise.resolve({ "common.demo_mode_notice": "clash" }),
+        async () => {
+          await expect(ensureMessageGroups([GROUP])).rejects.toThrow(
+            "belongs to both",
+          );
+        },
+      );
+    });
+
+    test("asks the loader once, even when ensured twice", async () => {
+      let calls = 0;
+      await withLoader(
+        () => {
+          calls += 1;
+          return Promise.resolve({ [KEY]: "Example data" });
+        },
+        async () => {
+          await ensureMessageGroups([GROUP]);
+          await ensureMessageGroups([GROUP]);
+          expect(calls).toBe(1);
+        },
+      );
+    });
+
+    test("asks the loader once for two overlapping requests", async () => {
+      let calls = 0;
+      let release = (): void => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await withLoader(
+        async () => {
+          calls += 1;
+          await gate;
+          return { [KEY]: "Example data" };
+        },
+        async () => {
+          const first = ensureMessageGroups([GROUP]);
+          const second = ensureMessageGroups([GROUP]);
+          release();
+          await Promise.all([first, second]);
+          expect(calls).toBe(1);
+        },
+      );
+    });
+
+    test("a failed load can be tried again", async () => {
+      let calls = 0;
+      await withLoader(
+        () => {
+          calls += 1;
+          return calls === 1
+            ? Promise.reject(new Error("load failed"))
+            : Promise.resolve({ [KEY]: "Example data" });
+        },
+        async () => {
+          await expect(ensureMessageGroups([GROUP])).rejects.toThrow(
+            "load failed",
+          );
+          await ensureMessageGroups([GROUP]);
+          expect(calls).toBe(2);
+        },
+      );
+    });
+
+    test("withMessageGroups loads the group before running the work", async () => {
+      resetI18nForTest(true);
+      const message = await withMessageGroups([GROUP], () => t(KEY));
+      expect(message).toBe("Example data");
+      resetI18nForTest(true);
     });
   });
 });

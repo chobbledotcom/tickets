@@ -9,15 +9,52 @@ import { TestBrowser } from "#test-utils/test-browser.ts";
 import type { TicketsWorld } from "./world.ts";
 // jscpd:ignore-end
 
-export const scenarioBrowser = (world: TicketsWorld): TestBrowser => {
-  world.testBrowser ??= new TestBrowser();
-  return world.testBrowser;
-};
+/** Whose browser each story keeps. The organiser's is the story's own, so a
+ * step that does not say who is doing something is the organiser doing it. */
+export const ORGANISER = "the organiser";
+export const CUSTOMER = "the customer";
+export const EDITOR = "the editor";
+export const LATECOMER = "the latecomer";
+
+/** Keep the window somebody is looking at, so the next step can read the page
+ * they really ended on. */
+export const rememberBrowser = (
+  world: TicketsWorld,
+  who: string,
+  browser: TestBrowser,
+): TestBrowser => world.things.remember("browser", who, browser);
+
+/** The window somebody is already looking at. A story that never gave them one
+ * has nothing to read, so it says so rather than opening a fresh window and
+ * reporting on a page nobody was ever shown. */
+export const browserSeenBy = (world: TicketsWorld, who: string): TestBrowser =>
+  world.things.require("browser", who);
+
+export const browserOf = (world: TicketsWorld, who: string): TestBrowser =>
+  world.things.orMake("browser", who, () => new TestBrowser());
+
+export const scenarioBrowser = (world: TicketsWorld): TestBrowser =>
+  browserOf(world, ORGANISER);
+
+/** Take a thing down from its own page: follow its delete link, type a name
+ * to confirm, and keep what the site said for the story to read. Curried on
+ * the page and the link, so each kind of thing declares itself in one line. */
+export const takesDownFromOwnPage =
+  (
+    openPage: (world: TicketsWorld) => Promise<TestBrowser>,
+    deleteLabel: string,
+  ): ((world: TicketsWorld, typed: string) => Promise<void>) =>
+  async (world: TicketsWorld, typed: string): Promise<void> => {
+    const browser = await openPage(world);
+    await browser.clickLink(deleteLabel);
+    await fillInAndSend(browser, { confirm_identifier: typed }, deleteLabel);
+    world.ownerTold = browser.pageText;
+  };
 
 /** Forget the Scenario's browser, so the next ask starts a fresh one. Use this
  * after the site itself is replaced and the old session can no longer work. */
 export const resetScenarioBrowser = (world: TicketsWorld): void => {
-  delete world.testBrowser;
+  world.things.forget("browser", ORGANISER);
 };
 
 export const adminBrowser = async (
@@ -37,12 +74,16 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
+/** One read of a page: how the site answered, and what it said. */
+export interface PageRead {
+  answered: number;
+  said: string;
+}
+
 /** What somebody who was never signed in is shown at an address, and how the
  * site answered. Both come from the one visit, so they always describe the page
  * the visitor really ended on rather than two separate answers. */
-export const newcomerReading = async (
-  path: string,
-): Promise<{ answered: number; said: string }> => {
+export const newcomerReading = async (path: string): Promise<PageRead> => {
   const browser = new TestBrowser();
   const answered = await browser.visit(path);
   return { answered, said: browser.pageText };

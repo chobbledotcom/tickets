@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+import type { InValue } from "@libsql/client";
 import { defineRoutes } from "#routes/router.ts";
 
 /**
@@ -27,6 +28,7 @@ import {
   assignListingsToGroup,
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
+  getGroupById,
   getListingsByGroupId,
   groups,
   hasPackageBookings,
@@ -238,9 +240,7 @@ const extractGroupEditInput = async (
 };
 
 /** Delete a group and reset its listings to ungrouped */
-export const deleteGroup = async (
-  id: Parameters<typeof groups.table.findById>[0],
-) => {
+export const deleteGroup = async (id: InValue) => {
   const groupId = Number(id);
   await resetGroupListings(groupId);
   // Clear site-page membership edges atomically with the group row: a failed
@@ -335,7 +335,7 @@ const staffCrud = createCrudHandlers({
 });
 
 /** Look up group by id, return 404 if not found */
-export const withGroup = withEntityLoader(groups.table.findById);
+export const withGroup = withEntityLoader((id: number) => getGroupById(id));
 
 /**
  * POST handler factory: CSRF-validated form + loaded group.
@@ -347,7 +347,7 @@ export const groupFormPost = (
 ): TypedRouteHandler<"POST /admin/groups/:id"> =>
   createAuthedHandler<{ id: number }, Group>({
     handle: ({ context, form }) => handler(context, form),
-    loadContext: ({ id }) => groups.table.findById(id),
+    loadContext: ({ id }) => getGroupById(id),
   });
 
 /** Validate that all listing types match the group; returns error message or
@@ -403,7 +403,7 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
 const groupImageHandlers = createItemImageHandlers({
   disabledPath: (id) => `/admin/groups/${id}/edit`,
   itemType: "group",
-  load: groups.table.findById,
+  load: (id) => getGroupById(id),
   nameOf: (group) => group.name,
   path: (id) => `/admin/groups/${id}/images`,
 });

@@ -261,16 +261,16 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
 });
 
 describeWithEnv("validateListingInput renewal config", { db: true }, () => {
-  test("rejects months-per-unit without No Check-In and Hidden", async () => {
+  test("rejects months-per-unit without No check-in and Hidden", async () => {
     const error = await validateListingInput(
       inputFor({ monthsPerUnit: 1, name: "Renewal One" }),
     );
     expect(error).toBe(
-      "Months per unit requires No Check-In and Hidden to be enabled",
+      "Months per unit requires No check-in and Hidden listing to be enabled.",
     );
   });
 
-  test("accepts months-per-unit with No Check-In and Hidden", async () => {
+  test("accepts months-per-unit with No check-in and Hidden", async () => {
     const error = await validateListingInput(
       inputFor({
         hidden: true,
