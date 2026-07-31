@@ -233,3 +233,17 @@ src/shared/rebrand.ts:152:36  + → *   # `open + 1` → `open * 1` = open: the 
 src/shared/rebrand.ts:152:39  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
 src/features/admin/attributes.ts:215:46  0 → 1   # option insert's sortOrder is a placeholder: the same transaction's append overwrites it before commit, and a failed append rolls the row back — no committed state can carry the inserted value
 
+
+# Carried over from the payment aggregate base branch.
+src/shared/payment-runtime/current.ts:63:21  ?? → ||   # getPaymentSessions returns a PaymentSession object or null for each requested id; every PaymentSession object is truthy
+src/shared/payment-runtime/process.ts:181:33  ?? → ||   # a validated createdAt is undefined or a non-empty timestamp, so only undefined reaches the fallback
+src/shared/rest/crud-api.ts:342:31  ?? → ||   # policy is an AuthPolicy object or undefined
+src/shared/rest/crud-api.ts:346:18  ?? → ||   # lookup is a function or undefined
+src/shared/rest/crud-api.ts:353:28  ?? → ||   # lookupAfterWrite is a function or undefined
+src/shared/rest/crud-api.ts:363:31  ?? → ||   # hydrated map values are records or undefined; records are truthy
+src/shared/rest/crud-api.ts:573:27  ?? → ||   # extraRoutes is a route object or undefined
+src/shared/rest/resource.ts:157:25  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
+src/shared/payment-helpers.ts:115:26  true → false   # safeAsync's getValue is () => true only to pass the value === null guard; the fn callback ignores the value so false is equivalent
+src/shared/payment-helpers.ts:204:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:584:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:643:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0

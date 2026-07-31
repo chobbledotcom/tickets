@@ -84,9 +84,25 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
       ["id", "pii_blob"],
     );
 
-    const payments = await client.execute("SELECT * FROM processed_payments");
+    const payments = await client.execute(`SELECT attendee_id, state,
+      result_state, ticket_state, completion_state
+      FROM payment_sessions WHERE origin = 'legacy'`);
     expect(payments.rows.length).toBe(1);
     expect(payments.rows[0]!.attendee_id).toBe(1);
+    expect(payments.rows[0]!.state).toBe("completed");
+    expect(payments.rows[0]!.result_state).toBe("succeeded");
+    expect(payments.rows[0]!.ticket_state).toBe("consumed");
+    expect(payments.rows[0]!.completion_state).toBe("legacy_unknown");
+    // The old payment table is drained into payment_sessions and then dropped,
+    // even though this upgrade could not turn foreign keys off.
+    expect(
+      (
+        await client.execute(
+          `SELECT name FROM sqlite_master
+             WHERE type = 'table' AND name = 'processed_payments'`,
+        )
+      ).rows,
+    ).toEqual([]);
   });
 
   test("skips table recreation when attendees already matches schema", async () => {

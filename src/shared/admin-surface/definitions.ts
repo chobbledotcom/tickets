@@ -39,6 +39,7 @@ export const ADMIN_SURFACE_AREAS = {
   markdownPreview: ["markdown-preview"],
   modifiers: ["modifiers"],
   news: ["site"],
+  payments: ["payments"],
   privacy: ["privacy"],
   questions: ["listing", "questions"],
   scanner: ["listing"],
@@ -85,6 +86,11 @@ export const ADMIN_SECTIONS = [
     visible: featureVisible("servicing"),
   },
   { id: "attendees", labelKey: "terms.attendees", landing: "attendees" },
+  {
+    id: "payments",
+    labelKey: "nav.payments",
+    landing: "payments",
+  },
   { id: "users", labelKey: "terms.users", landing: "users" },
   {
     detailPath: "/admin/groups/:id",

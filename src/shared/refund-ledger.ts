@@ -30,12 +30,15 @@ import {
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransferGroups } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
-import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
+import {
+  attemptLedgerPost,
+  reportLedgerPostFailure,
+} from "#shared/ledger/safe-post.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
+import type { RefundPaymentReference } from "#shared/payment-refund-reference.ts";
 
 type RefundReferences = readonly Pick<RefundPaymentReference, "sessionIds">[];
 type ComputedRefund = {
@@ -164,29 +167,6 @@ const computeAttendeeRefund = async (
 };
 
 /**
- * Run one attendee's ledger posting without ever throwing: `post` reports
- * whether the ledger records the refund, and any error it throws is logged
- * (as "`<label>` failed for attendee N") and reported as `{ posted: false }`
- * instead — the provider refund has already settled by the time we post, so a
- * ledger write must not turn it into a 500.
- */
-const postWithoutThrowing = async (
-  label: string,
-  attendeeId: number,
-  post: () => Promise<boolean>,
-): Promise<{ posted: boolean }> => {
-  try {
-    return { posted: await post() };
-  } catch (error) {
-    logError({
-      code: ErrorCode.LEDGER_POST,
-      detail: `${label} failed for attendee ${attendeeId}: ${error}`,
-    });
-    return { posted: false };
-  }
-};
-
-/**
  * Post the ledger legs reversing one attendee's booking and report whether the
  * ledger records the refund. `{ posted: true }` when it posts the reversal — or
  * when the attendee is already refunded, so an idempotent re-submit is a no-op
@@ -199,7 +179,10 @@ export const recordAttendeeRefund = (
   references: RefundReferences,
   memo?: string,
 ): Promise<{ posted: boolean }> =>
-  postWithoutThrowing("refund ledger post", attendeeId, async () => {
+  attemptLedgerPost(
+    "refund ledger post",
+    attendeeId,
+  )(async () => {
     const { posted, groups } = await computeAttendeeRefund(
       attendeeId,
       references,
@@ -219,7 +202,7 @@ export const recordAttendeeRefund = (
  * committed by the time we post: if one group fails (a reference conflict, a
  * transient write error) — or even a single attendee's read/mapping throws while
  * computing — the whole batch rolls back, and a later retry sees those payments
- * as already-refunded (`refundPayment` returns false) and never re-posts them, so
+ * as already refunded and never request the money twice, so
  * they'd be stranded without a `refund_cash` leg forever. So on *any* fast-path
  * failure we fall back to recording each attendee on its own through the
  * never-throw {@link recordAttendeeRefund}: the clean refunds still land and only
@@ -248,10 +231,9 @@ export const recordAttendeeRefundsBatch = async (
     if (groups.length > 0) await postTransferGroups(groups);
     return new Map(computed.map((entry) => [entry.id, entry.posted]));
   } catch (error) {
-    logError({
-      code: ErrorCode.LEDGER_POST,
-      detail: `bulk refund batch failed, falling back to per-attendee (${attendees.length}): ${error}`,
-    });
+    reportLedgerPostFailure(
+      `bulk refund batch failed, falling back to per-attendee (${attendees.length}): ${error}`,
+    );
     // Record each attendee independently so one failure never strands the rest:
     // recordAttendeeRefund opens its own transaction, is idempotent (an
     // already-posted refund replays as a no-op), and never throws.
@@ -307,33 +289,32 @@ export const recordPlaceholderRefund = (
   memo: string,
   refunded: boolean,
 ): Promise<{ posted: boolean }> =>
-  postWithoutThrowing(
+  attemptLedgerPost(
     "placeholder refund ledger post",
     facts.attendeeId,
-    async () => {
-      // Gross 0 drops the sale leg, leaving just the payment. The refund mapper
-      // only needs the leg's money identity, so it can map the reversal before
-      // either group is stored and the batch can commit both or neither.
-      const payment = await mapBooking({
-        amountPaid: facts.amount,
-        attendeeId: facts.attendeeId,
-        bookingFee: 0,
-        eventId: facts.eventId,
-        lines: [{ gross: 0, listingId: facts.listingId }],
-        modifiers: [],
-        occurredAt: facts.occurredAt,
-      });
-      const groups = refunded
-        ? [
-            payment,
-            await mapRefund({
-              memo,
-              occurredAt: facts.occurredAt,
-              orderLegs: asOrderLegs(payment, facts.occurredAt),
-            }),
-          ]
-        : [payment];
-      await postTransferGroups(groups);
-      return true;
-    },
-  );
+  )(async () => {
+    // Gross 0 drops the sale leg, leaving just the payment. The refund mapper
+    // only needs the leg's money identity, so it can map the reversal before
+    // either group is stored and the batch can commit both or neither.
+    const payment = await mapBooking({
+      amountPaid: facts.amount,
+      attendeeId: facts.attendeeId,
+      bookingFee: 0,
+      eventId: facts.eventId,
+      lines: [{ gross: 0, listingId: facts.listingId }],
+      modifiers: [],
+      occurredAt: facts.occurredAt,
+    });
+    const groups = refunded
+      ? [
+          payment,
+          await mapRefund({
+            memo,
+            occurredAt: facts.occurredAt,
+            orderLegs: asOrderLegs(payment, facts.occurredAt),
+          }),
+        ]
+      : [payment];
+    await postTransferGroups(groups);
+    return true;
+  });

@@ -10,6 +10,8 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
+  expectKeptAtQuantityZero,
+  expectRefundNote,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   stubRefundPayment,
@@ -49,10 +51,13 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_closed"),
         );
+        // The money was returned, so the page tells the buyer that and points
+        // them at the organiser. Why it happened is kept on the booking's
+        // note for the organiser, not shown to the buyer.
         await expectHtmlResponse(
           response,
-          410,
-          "registration closed",
+          200,
+          "saved your details",
           "refunded",
         );
       } finally {
@@ -82,9 +87,9 @@ describeWithEnv(
           sessionId: "cs_closed_wh",
         }),
         "re_closed",
-        "registration closed",
         "sig_closed",
       );
+      await expectRefundNote(listing.id, "registration closed");
     });
 
     test("webhook refunds when multi-ticket listing registration has closed", async () => {
@@ -116,16 +121,11 @@ describeWithEnv(
           sessionId: "cs_multi_closed",
         }),
         "re_multi_closed",
-        ["registration for", "closed"],
         "sig_multi_closed",
       );
+      await expectRefundNote(listing2.id, "registration closed");
 
-      // Verify listing1 attendee was rolled back
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      expect(attendees1.length).toBe(0);
+      await expectKeptAtQuantityZero(listing1.id);
     });
 
     test("multi-ticket webhook passes date to daily listings only", async () => {

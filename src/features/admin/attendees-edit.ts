@@ -8,8 +8,8 @@
  * `refund_cash` leg is what the per-row `refunded` projection now reads.
  */
 
-import { chunk } from "#fp";
 import { t } from "#i18n";
+import { paymentProviderIsConfigured } from "#routes/admin/require-provider.ts";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
@@ -28,22 +28,20 @@ import {
   getNotesFor,
 } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import {
-  getRefundPaymentReferencesForAttendee,
-  markPaymentReferencesProviderRefunded,
-  type RefundPaymentReference,
-} from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
-import type { PaymentProvider } from "#shared/payments.ts";
+import type { RefundPaymentReference } from "#shared/payment-refund-reference.ts";
+import { refundPaymentTargets } from "#shared/payment-runtime/refund.ts";
+import {
+  getAttendeePaymentRefundOrNull,
+  type PaymentRefundTarget,
+} from "#shared/payment-runtime/refund-targets.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 /* jscpd:ignore-start */
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
+
 /* jscpd:ignore-end */
-import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
-import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider.ts";
-import { requirePaymentProvider } from "./require-provider.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
@@ -76,38 +74,6 @@ const loadRefreshContext = async (
   if (!firstBooking) return null;
   return { attendee, listingId: firstBooking.listing_id };
 };
-
-const refreshProviderRefunds = async (
-  provider: Pick<PaymentProvider, "isPaymentRefunded">,
-  references: readonly RefundPaymentReference[],
-): Promise<RefundPaymentReference[]> => {
-  const refreshed: RefundPaymentReference[] = [];
-  // Chunk the provider status checks by charge-reference count — a merged
-  // attendee can carry many charges, and an unbounded fan-out would blow the
-  // edge subrequest budget before the ledger is marked. Same bound the
-  // bulk-refund path uses.
-  for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)([...references])) {
-    refreshed.push(
-      ...(await Promise.all(
-        group.map(async (reference) =>
-          reference.providerRefunded
-            ? reference
-            : {
-                ...reference,
-                providerRefunded: await provider.isPaymentRefunded(
-                  reference.reference,
-                ),
-              },
-        ),
-      )),
-    );
-  }
-  return refreshed;
-};
-
-const hasProviderRefund = (
-  reference: Pick<RefundPaymentReference, "providerRefunded">,
-): boolean => reference.providerRefunded;
 
 /** After the provider confirms the refund, record it in the ledger and add a
  *  resolving note if the attendee is a quantity-0 placeholder. Returns null on
@@ -169,14 +135,11 @@ const cleanupStaleManualRefundNote = async (
   privateKey: CryptoKey,
 ): Promise<void> => {
   const notes = await getNotesFor(attendeeNotes(attendeeId), privateKey);
-  const stale = notes.filter(
-    (note) =>
-      note.type === "system" && note.note.includes("could NOT be refunded"),
-  );
-  await deleteNotes(
-    attendeeNotes(attendeeId),
-    stale.map((note) => note.id),
-  );
+  for (const note of notes) {
+    if (note.type === "system" && note.note.includes("could NOT be refunded")) {
+      await deleteNotes(attendeeNotes(attendeeId), [note.id]);
+    }
+  }
 };
 
 /** Load the attendee, listing, and payment references for a refresh. Returns
@@ -191,7 +154,7 @@ const loadRefreshState = async (
       attendee: Attendee;
       listingId: number;
       privateKey: CryptoKey;
-      provider: PaymentProvider;
+      targets: PaymentRefundTarget[];
       references: readonly RefundPaymentReference[];
     }
 > => {
@@ -199,11 +162,8 @@ const loadRefreshState = async (
   if (!ctx) return htmlResponse("", 404);
   const { attendee, listingId } = ctx;
   const privateKey = await requireRequestPrivateKey();
-  const references = await getRefundPaymentReferencesForAttendee(
-    attendee,
-    privateKey,
-  );
-  if (references.length === 0) {
+  const refund = await getAttendeePaymentRefundOrNull(attendeeId);
+  if (refund === null) {
     return redirect(
       `/admin/attendees/${attendeeId}`,
       t("error.no_payment_to_refresh"),
@@ -211,11 +171,72 @@ const loadRefreshState = async (
       { form },
     );
   }
-  const provider = await requirePaymentProvider(() =>
-    errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR),
+  // There is a payment to chase, so the site needs a provider to ask.
+  if (!(await paymentProviderIsConfigured())) {
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      t("payment.error.provider_not_configured"),
+      false,
+      { form },
+    );
+  }
+  return { attendee, listingId, privateKey, ...refund };
+};
+
+type LoadedRefreshState = Exclude<
+  Awaited<ReturnType<typeof loadRefreshState>>,
+  Response
+>;
+
+const refreshLoadedPayment = async (
+  attendeeId: number,
+  form: FormParams,
+  state: LoadedRefreshState,
+): Promise<Response> => {
+  const { attendee, listingId, privateKey, references, targets } = state;
+  // Refreshing only finishes a refund the site already asked for. A charge
+  // that came back part-refunded, or whose refund failed, needs the operator
+  // to decide — refreshing must never move more money on its own.
+  const incomplete = targets.filter((target) =>
+    target.charges.some(
+      (charge) =>
+        charge.refundState === "requested" || charge.refundState === "pending",
+    ),
   );
-  if (provider instanceof Response) return provider;
-  return { attendee, listingId, privateKey, provider, references };
+  const outcomes = await refundPaymentTargets(incomplete);
+  const allRefunded =
+    outcomes.length > 0 &&
+    outcomes.every((outcome) => outcome.status === "completed");
+  if (!allRefunded) {
+    // Nothing new came back, but the money may already be returned from an
+    // earlier refresh whose note cleanup did not finish. The "could NOT be
+    // refunded" note is wrong once it has, so clear it either way.
+    if (attendee.refunded) {
+      await cleanupStaleManualRefundNote(attendeeId, privateKey);
+    }
+    return redirect(
+      `/admin/attendees/${attendeeId}`,
+      t("success.payment_status_current"),
+      true,
+      { form },
+    );
+  }
+  const error = await recordConfirmedRefund(
+    attendee,
+    attendeeId,
+    listingId,
+    references,
+    privateKey,
+  );
+  if (error) return error;
+  return redirect(
+    `/admin/attendees/${attendeeId}`,
+    attendee.refunded
+      ? t("success.payment_status_current")
+      : t("success.payment_status_refunded"),
+    true,
+    { form },
+  );
 };
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
@@ -226,44 +247,5 @@ export const handleRefreshPayment: TypedRouteHandler<
     const form = _form as FormParams;
     const state = await loadRefreshState(attendeeId, form);
     if (state instanceof Response) return state;
-    const { attendee, listingId, privateKey, provider, references } = state;
-
-    const refreshedReferences = await refreshProviderRefunds(
-      provider,
-      references,
-    );
-    await markPaymentReferencesProviderRefunded(
-      refreshedReferences.filter(hasProviderRefund),
-    );
-    const allRefunded = refreshedReferences.every(hasProviderRefund);
-    if (allRefunded) {
-      // Always run the confirmed-refund handler when the provider says
-      // refunded — the ledger post is idempotent (already-posted → no-op),
-      // and the stale-note cleanup must be retryable even when
-      // attendee.refunded was already true (the note could have survived a
-      // failed cleanup on a previous refresh).
-      const error = await recordConfirmedRefund(
-        attendee,
-        attendeeId,
-        listingId,
-        refreshedReferences,
-        privateKey,
-      );
-      if (error) return error;
-      return redirect(
-        `/admin/attendees/${attendeeId}`,
-        attendee.refunded
-          ? t("success.payment_status_current")
-          : t("success.payment_status_refunded"),
-        true,
-        { form },
-      );
-    }
-
-    return redirect(
-      `/admin/attendees/${attendeeId}`,
-      t("success.payment_status_current"),
-      true,
-      { form },
-    );
+    return refreshLoadedPayment(attendeeId, form, state);
   });

@@ -11,7 +11,7 @@ import {
 } from "#shared/booking/price-tree.ts";
 import { bookedSpanDays } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import { loadPackageMemberPricing } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
@@ -19,16 +19,11 @@ import { errorMessage } from "#shared/error-message.ts";
 /* jscpd:ignore-start */
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 /* jscpd:ignore-end */
+import { applyRenewalsForEntries } from "#shared/renewal.ts";
 import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
-import {
-  addMonthsToRenewalDeadline,
-  assignAndNotifyBuiltSites,
-  isQualifyingTierListing,
-  syncReadOnlyFrom,
-} from "#shared/site-assignment.ts";
+import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
 import {
   type ContactInfo,
@@ -107,6 +102,12 @@ export type RegistrationEntry = {
   attendee: WebhookAttendee;
 };
 
+export interface RegistrationWebhookRequest {
+  listingId: number;
+  payload: WebhookPayload;
+  url: string;
+}
+
 /** One package group's pricing for the payload: each member's flat override (a
  * positive amount or an explicit free `0`; members with no override are absent)
  * and each customisable member's per-day overrides (day count → minor units) —
@@ -123,7 +124,7 @@ type PackageOverrides = ReadonlyMap<number, PackageGroupPricing>;
 /** Load the package price overrides for every package group in `entries`, so a
  * package member's full unit price can be reported from its configured override
  * rather than the amount collected. */
-const loadPackageOverrides = async (
+export const loadPackageOverrides = async (
   entries: RegistrationEntry[],
 ): Promise<PackageOverrides> => {
   const groupIds = unique(
@@ -240,11 +241,7 @@ export const sendWebhook = async (
     return;
   }
   try {
-    const { ok, status } = await fetchTextFollowingSafeRedirects(webhookUrl, {
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
+    const { ok, status } = await postRegistrationWebhook(webhookUrl, payload);
     if (!ok) {
       const listingName = payload.tickets.map((t) => t.listing_name).join(", ");
       logError({
@@ -262,6 +259,40 @@ export const sendWebhook = async (
   }
 };
 
+export const postRegistrationWebhook = (
+  webhookUrl: string,
+  payload: WebhookPayload,
+): ReturnType<typeof fetchTextFollowingSafeRedirects> =>
+  fetchTextFollowingSafeRedirects(webhookUrl, {
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+
+export const registrationWebhookRequests = async (
+  entries: RegistrationEntry[],
+  currency: string,
+): Promise<RegistrationWebhookRequest[]> => {
+  const first = entries[0];
+  if (first === undefined) return [];
+  const urls = unique(
+    mapNotNullish(
+      (entry: RegistrationEntry) => entry.listing.webhook_url || null,
+    )(entries),
+  );
+  if (urls.length === 0) return [];
+  const payload = buildWebhookPayload(
+    entries,
+    currency,
+    await loadPackageOverrides(entries),
+  );
+  return urls.map((url) => ({
+    listingId: first.listing.id,
+    payload,
+    url,
+  }));
+};
+
 /**
  * Send consolidated webhook to all unique webhook URLs for the given entries
  */
@@ -269,108 +300,38 @@ export const sendRegistrationWebhooks = async (
   entries: RegistrationEntry[],
   currency: string,
 ): Promise<void> => {
-  const webhookUrls = unique(
-    mapNotNullish((e: RegistrationEntry) => e.listing.webhook_url || null)(
-      entries,
+  const requests = await registrationWebhookRequests(entries, currency);
+  await Promise.allSettled(
+    requests.map(({ listingId, payload, url }) =>
+      sendWebhook(url, payload, listingId),
     ),
   );
-  if (webhookUrls.length === 0) return;
-
-  const payload = buildWebhookPayload(
-    entries,
-    currency,
-    await loadPackageOverrides(entries),
-  );
-  const firstListingId = entries[0]?.listing.id;
-  await Promise.allSettled(
-    webhookUrls.map((url) => sendWebhook(url, payload, firstListingId)),
-  );
 };
 
-/**
- * Apply renewal deadline bumps for a completed payment.
- * If siteTokenIndex is present, look up the built site and bump its READ_ONLY_FROM.
- *
- * The index is the HMAC of the plain renewal token. Free reservations compute
- * it from `ctx.siteToken`; paid checkouts read it back from session metadata
- * (where the provider only ever sees the hashed form).
- */
-export const applyRenewalsForEntries = async (
+/** Store every registration activity, optionally inside a wider idempotent
+ * payment-effect transaction. */
+export const logRegistrationActivities = async (
   entries: EmailEntry[],
-  siteTokenIndex: string | undefined,
-): Promise<void> => {
-  if (!siteTokenIndex) return;
-
-  const invalidEntry = entries.find(
-    ({ listing }) => !isQualifyingTierListing(listing),
-  );
-  if (invalidEntry) {
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `Renewal rejected: listing ${invalidEntry.listing.id} is not an active hidden purchase-only renewal tier`,
-      listingId: invalidEntry.listing.id,
-    });
-    return;
-  }
-
-  const site = await getBuiltSiteByRenewalTokenIndex(siteTokenIndex);
-  if (!site) {
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `Renewal site not found for token index ${siteTokenIndex.slice(
-        0,
-        8,
-      )}...`,
-    });
-    return;
-  }
-
-  const renewalEntries = entries
-    .map((entry) => ({
-      entry,
-      months: entry.attendee.quantity * entry.listing.months_per_unit,
-    }))
-    .filter(({ months }) => months > 0);
-  const totalMonths = sumOf((r: { months: number }) => r.months)(
-    renewalEntries,
-  );
-
-  const result = await syncReadOnlyFrom(
-    site,
-    addMonthsToRenewalDeadline(site, totalMonths),
-  );
-  if (result.ok) {
-    await logActivity(
-      `Renewal of '${site.name}' for ${totalMonths} month(s)`,
-      renewalEntries[0]!.entry.listing.id,
-    );
-  } else {
-    logError({
-      code: ErrorCode.CDN_REQUEST,
-      detail: `Failed to push READ_ONLY_FROM for renewal of '${site.name}': ${result.error}`,
-    });
-    sendNtfyError("CDN_REQUEST");
-  }
-};
-
-/**
- * Log attendee registration and send consolidated webhook
- * Used for single-listing registrations
- *
- * Webhook sends are queued as pending work so they run in the background
- * but complete before the edge runtime tears down the request context.
- */
-export const logAndNotifyRegistration = async (
-  entries: EmailEntry[],
-  siteTokenIndex?: string,
+  transaction?: TxScope,
 ): Promise<void> => {
   for (const { listing, attendee } of entries) {
     await logActivity(
       `Attendee registered for '${listing.name}'`,
       listing,
       attendee.id,
+      transaction,
     );
   }
+};
+
+/** Log a non-payment registration and queue its external notifications. Paid
+ * completion calls each external function directly and awaits it so its durable
+ * plan can mark only the delivery that returned. */
+export const logAndNotifyRegistration = async (
+  entries: EmailEntry[],
+  siteTokenIndex?: string,
+): Promise<void> => {
+  await logRegistrationActivities(entries);
   const currency = settings.currency;
   addPendingWork(sendRegistrationWebhooks(entries, currency));
   addPendingWork(sendRegistrationEmails(entries, currency));

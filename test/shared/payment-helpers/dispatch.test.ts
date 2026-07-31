@@ -7,12 +7,9 @@ import {
   createWithClient,
   hasRequiredSessionMetadata,
   PaymentUserError,
-  parseWebhookPayload,
   safeAsync,
   toCheckoutResult,
-  validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
-import type { SessionMetadata } from "#shared/payments.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describe("payment-helpers", () => {
@@ -241,25 +238,5 @@ describe("payment-helpers", () => {
         "[Stripe] Checkout result missing session ID or URL",
       );
     });
-  });
-
-  test("validatedPaymentSession includes a supplied creation time", () => {
-    const createdAt = "2026-07-19T12:00:00.000Z";
-    const session = validatedPaymentSession({
-      amountTotal: 1000,
-      createdAt,
-      id: "session-1",
-      metadata: { items: "[]", name: "Alice" } as SessionMetadata,
-      paymentReference: "payment-1",
-      paymentStatus: "paid",
-    });
-
-    expect(session.createdAt).toBe(createdAt);
-  });
-
-  test("parseWebhookPayload returns the invalid JSON error", () => {
-    expect(parseWebhookPayload("not JSON", ErrorCode.PAYMENT_CHECKOUT)).toEqual(
-      { error: "Invalid JSON payload", valid: false },
-    );
   });
 });

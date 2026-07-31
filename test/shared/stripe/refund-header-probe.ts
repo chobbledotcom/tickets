@@ -1,5 +1,6 @@
 import type { StripeClient } from "#shared/stripe/client.ts";
 import { createStripeClient } from "#shared/stripe/client.ts";
+import { stripeRefund } from "#test/test-utils/stripe/fixtures.ts";
 
 /**
  * Build a Stripe client whose fetch records the Idempotency-Key header sent
@@ -19,9 +20,7 @@ export const refundHeaderProbe = (
   const client = createStripeClient(secretKey, {
     fetch: (_input, init = {}) => {
       key = new Headers(init.headers).get("idempotency-key");
-      return Promise.resolve(
-        Response.json({ id: "re_1", status: "succeeded" }),
-      );
+      return Promise.resolve(Response.json(stripeRefund({ id: "re_1" })));
     },
     maxNetworkRetries: 1,
   });

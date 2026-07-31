@@ -44,7 +44,6 @@ import {
   listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
-import { hasRefundPaymentReference } from "#shared/db/payment-references.ts";
 import type {
   QuestionWithAnswers,
   SelectedQuestionAnswers,
@@ -53,6 +52,8 @@ import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
 } from "#shared/db/questions/attendee-answers/reads.ts";
+import { hasRemainingPaymentMoney } from "#shared/payment-runtime/refund.ts";
+import { getPaymentRefundTargets } from "#shared/payment-runtime/refund-targets.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
@@ -76,7 +77,10 @@ const canRefundAttendee = async (attendee: Attendee): Promise<boolean> => {
   if (!(await hasActiveBookingLine(attendee.id, attendee.listing_id))) {
     return false;
   }
-  return hasRefundPaymentReference(attendee, await requireRequestPrivateKey());
+  const targets = await getPaymentRefundTargets([attendee.id]);
+  return (targets.get(attendee.id) ?? []).some((target) =>
+    hasRemainingPaymentMoney(target.charges),
+  );
 };
 
 /** Load an attendee + all its lines, or null (→ 404) when it doesn't exist. */

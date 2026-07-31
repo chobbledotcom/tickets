@@ -1,8 +1,82 @@
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postListingSale } from "#test-utils/ledger.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+
+type CreateRefundableTestAttendee = (
+  listingId: number,
+  name: string,
+  email: string,
+  paymentId: string,
+  pricePaid?: number,
+) => Promise<Attendee>;
+
+const attachRefundableAggregate = async (
+  attendee: Attendee,
+  listingId: number,
+  name: string,
+  email: string,
+  paymentId: string,
+  pricePaid: number,
+): Promise<void> => {
+  await createAggregatePayment({
+    accountId: await hmacHash(
+      JSON.stringify(["stripe", "test", "acct_admin_refunds"]),
+    ),
+    attendeeId: attendee.id,
+    bookingIntent: {
+      address: "",
+      date: null,
+      email,
+      items: [{ e: listingId, p: pricePaid, q: 1 }],
+      modifiers: [],
+      name,
+      phone: "",
+      special_instructions: "",
+    },
+    charges: [{ amount: pricePaid, reference: paymentId }],
+    paymentId,
+  });
+};
+
+const makeRefundableTestAttendee =
+  (recordLedgerSale: boolean): CreateRefundableTestAttendee =>
+  async (listingId, name, email, paymentId, pricePaid = 500) => {
+    const attendee = await createPaidAttendeeWithoutLedger(
+      listingId,
+      name,
+      email,
+      paymentId,
+      pricePaid,
+    );
+    if (recordLedgerSale) {
+      await postListingSale({
+        attendeeId: attendee.id,
+        eventId: paymentId,
+        gross: pricePaid,
+        listingId,
+      });
+    }
+    await attachRefundableAggregate(
+      attendee,
+      listingId,
+      name,
+      email,
+      paymentId,
+      pricePaid,
+    );
+    return attendee;
+  };
+
+export const createRefundableTestAttendee: CreateRefundableTestAttendee =
+  makeRefundableTestAttendee(true);
+
+export const createRefundableTestAttendeeWithoutLedger: CreateRefundableTestAttendee =
+  makeRefundableTestAttendee(false);
 
 /** Seed `count` paid attendees with payment-intent ids `${piPrefix}<i>`. */
 export const seedBatchAttendees = async (
@@ -11,7 +85,7 @@ export const seedBatchAttendees = async (
   count = 32,
 ): Promise<void> => {
   for (let i = 0; i < count; i++) {
-    await createPaidTestAttendee(
+    await createRefundableTestAttendee(
       listing.id,
       `User ${i}`,
       `user${i}@example.com`,
@@ -36,7 +110,7 @@ export const setupRefundTest = async (
   paymentId: string,
 ): Promise<RefundCtx> => {
   const listing = await createPaidListing();
-  const attendee = await createPaidTestAttendee(
+  const attendee = await createRefundableTestAttendee(
     listing.id,
     "John Doe",
     "john@example.com",

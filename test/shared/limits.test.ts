@@ -5,7 +5,7 @@ import {
   ADDRESS_CACHE_MS,
   ADDRESS_LOOKUP_LOCKOUT_MS,
   ATTACHMENT_URL_MAX_AGE_S,
-  assertPaymentsRetentionSafe,
+  assertPaymentHistoryRedactionSafe,
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,
   FORM_STASH_TTL_MS,
@@ -23,20 +23,18 @@ import {
   MAX_IMAGE_SIZE,
   MAX_LOGIN_ATTEMPTS,
   MAX_TEXTAREA_LENGTH,
+  PAYMENT_HISTORY_REDACTION_DAYS,
+  PAYMENT_PROVIDER_RETRY_WINDOW_DAYS,
   PRUNE_CONTACTS_RETENTION_DAYS,
   PRUNE_INTERVAL_HOURS,
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_DAYS,
-  PRUNE_PAYMENTS_RETENTION_DAYS,
   PRUNE_SESSIONS_RETENTION_DAYS,
-  PRUNE_SUMUP_RETENTION_HOURS,
   PRUNE_UNUSED_STRINGS_RETENTION_DAYS,
   parsePositiveInt,
   readLimit,
   SCANNER_CSRF_MAX_AGE_S,
   SESSION_MAX_AGE_S,
-  STALE_RESERVATION_MS,
-  WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -92,38 +90,34 @@ describe("limits", () => {
     });
   });
 
-  describe("assertPaymentsRetentionSafe", () => {
-    test("uses the providers' three-day webhook retry window", () => {
-      expect(WEBHOOK_RETRY_WINDOW_DAYS).toBe(3);
+  describe("assertPaymentHistoryRedactionSafe", () => {
+    test("uses the providers' three-day retry window", () => {
+      expect(PAYMENT_PROVIDER_RETRY_WINDOW_DAYS).toBe(3);
     });
 
-    test("returns the value when it meets the webhook-retry floor", () => {
-      expect(assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS)).toBe(
-        WEBHOOK_RETRY_WINDOW_DAYS,
-      );
-      expect(assertPaymentsRetentionSafe(90)).toBe(90);
+    test("returns the value when it meets the provider-retry floor", () => {
+      expect(
+        assertPaymentHistoryRedactionSafe(PAYMENT_PROVIDER_RETRY_WINDOW_DAYS),
+      ).toBe(PAYMENT_PROVIDER_RETRY_WINDOW_DAYS);
+      expect(assertPaymentHistoryRedactionSafe(90)).toBe(90);
     });
 
-    test("throws when retention is below the webhook-retry window", () => {
-      // A retention shorter than the provider retry window could prune a
-      // payment's idempotency row while a retry can still arrive, re-processing
-      // the paid session and risking a duplicate refund — so it must fail loudly.
+    test("throws when retention is below the provider-retry window", () => {
       expect(() =>
-        assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS - 1),
+        assertPaymentHistoryRedactionSafe(
+          PAYMENT_PROVIDER_RETRY_WINDOW_DAYS - 1,
+        ),
       ).toThrow(
-        "PRUNE_PAYMENTS_RETENTION_DAYS=2 is below the 3-day provider " +
-          "webhook-retry window. A shorter retention can prune a payment's " +
-          "idempotency row while the provider is still retrying its webhook, " +
-          "which would re-process the session and risk a duplicate refund. " +
+        "PAYMENT_HISTORY_REDACTION_DAYS=2 is below the 3-day provider " +
+          "retry window. Redacting payment evidence sooner could remove facts " +
+          "while the provider is still retrying a payment or refund. " +
           "Set it to at least 3 (the default is 90).",
       );
     });
 
     test("the live retention constant satisfies its own floor", () => {
-      // PRUNE_PAYMENTS_RETENTION_DAYS is validated at import; pin the invariant
-      // so a future default change can't silently drop below the floor.
-      expect(PRUNE_PAYMENTS_RETENTION_DAYS).toBeGreaterThanOrEqual(
-        WEBHOOK_RETRY_WINDOW_DAYS,
+      expect(PAYMENT_HISTORY_REDACTION_DAYS).toBeGreaterThanOrEqual(
+        PAYMENT_PROVIDER_RETRY_WINDOW_DAYS,
       );
     });
   });
@@ -164,18 +158,16 @@ describe("limits", () => {
         "MAX_IMAGE_SIZE",
         "MAX_LOGIN_ATTEMPTS",
         "MAX_TEXTAREA_LENGTH",
+        "PAYMENT_HISTORY_REDACTION_DAYS",
         "MAX_TOKEN_404S",
         "PRUNE_CONTACTS_RETENTION_DAYS",
         "PRUNE_INTERVAL_HOURS",
         "PRUNE_LOGINS_RETENTION_DAYS",
-        "PRUNE_PAYMENTS_RETENTION_DAYS",
         "PRUNE_SESSIONS_RETENTION_DAYS",
-        "PRUNE_SUMUP_RETENTION_HOURS",
         "PRUNE_TOKENS_RETENTION_DAYS",
         "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
         "SCANNER_CSRF_MAX_AGE_S",
         "SESSION_MAX_AGE_S",
-        "STALE_RESERVATION_MS",
         "SUPPORT_FORM_NAG_DAYS",
         "TOKEN_LOCKOUT_MS",
         "TOKEN_WINDOW_MS",
@@ -199,16 +191,13 @@ describe("limits", () => {
       expect(currentByKey.get("SCANNER_CSRF_MAX_AGE_S")).toBe(
         SCANNER_CSRF_MAX_AGE_S,
       );
-      expect(currentByKey.get("STALE_RESERVATION_MS")).toBe(
-        STALE_RESERVATION_MS,
-      );
       expect(currentByKey.get("MAX_LOGIN_ATTEMPTS")).toBe(MAX_LOGIN_ATTEMPTS);
       expect(currentByKey.get("LOGIN_LOCKOUT_MS")).toBe(LOGIN_LOCKOUT_MS);
       expect(currentByKey.get("MAINTENANCE_PRUNE_BATCH")).toBe(
         MAINTENANCE_PRUNE_BATCH,
       );
-      expect(currentByKey.get("PRUNE_PAYMENTS_RETENTION_DAYS")).toBe(
-        PRUNE_PAYMENTS_RETENTION_DAYS,
+      expect(currentByKey.get("PAYMENT_HISTORY_REDACTION_DAYS")).toBe(
+        PAYMENT_HISTORY_REDACTION_DAYS,
       );
       expect(currentByKey.get("PRUNE_SESSIONS_RETENTION_DAYS")).toBe(
         PRUNE_SESSIONS_RETENTION_DAYS,
@@ -218,9 +207,6 @@ describe("limits", () => {
       );
       expect(currentByKey.get("PRUNE_INTERVAL_HOURS")).toBe(
         PRUNE_INTERVAL_HOURS,
-      );
-      expect(currentByKey.get("PRUNE_SUMUP_RETENTION_HOURS")).toBe(
-        PRUNE_SUMUP_RETENTION_HOURS,
       );
       expect(currentByKey.get("PRUNE_UNUSED_STRINGS_RETENTION_DAYS")).toBe(
         PRUNE_UNUSED_STRINGS_RETENTION_DAYS,

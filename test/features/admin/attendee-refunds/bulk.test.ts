@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
 import { handleRequest } from "#routes";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
-import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
+import { BULK_REFUND_FOREGROUND_REFERENCE_LIMIT } from "#shared/subrequest-budget.ts";
 import {
   createPaidListing,
+  createRefundableTestAttendee,
+  createRefundableTestAttendeeWithoutLedger,
   seedBatchAttendees,
   setupRefundTest,
 } from "#test/features/admin/refunds-helpers.ts";
@@ -16,10 +18,6 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createPaidAttendeeWithoutLedger,
-  createPaidTestAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -72,7 +70,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     test("shows refund all confirmation page with refundable count", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Paid User",
         "paid@example.com",
@@ -179,25 +177,25 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       )(response);
     });
 
-    test("returns error when no payment provider configured", async () => {
+    test("reports a stored provider error when no active provider is configured", async () => {
       const ctx = await setupRefundTest("pi_noprov_all");
       const response = await submitRefundAll(ctx);
       await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/refund-all`,
-        expect.stringContaining("No payment provider configured"),
+        "0 refunds succeeded. There was 1 failure. There was 1 error. Check the activity log for details. Some payments may have already been refunded.",
         false,
       )(response);
     });
 
     test("successfully refunds all attendees", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "User One",
         "one@example.com",
         "pi_all_1",
       );
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "User Two",
         "two@example.com",
@@ -220,13 +218,13 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     test("counts a refund the ledger could not record as errored, not refunded", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Ledgered",
         "ledgered@example.com",
         "pi_mixed_ledgered",
       );
-      await createPaidAttendeeWithoutLedger(
+      await createRefundableTestAttendeeWithoutLedger(
         listing.id,
         "Unledgered",
         "unledgered@example.com",
@@ -245,33 +243,41 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     test("caps refunds to preserve the edge subrequest budget", async () => {
       const listing = await createPaidListing({ maxAttendees: 500 });
-      await seedBatchAttendees(listing, "pi_batch_", BULK_REFUND_LIMIT + 1);
+      await seedBatchAttendees(
+        listing,
+        "pi_batch_",
+        BULK_REFUND_FOREGROUND_REFERENCE_LIMIT + 1,
+      );
       await withRefundMock(true, async (mockRefund) => {
         const response = await postRefundAll(listing);
-        expect(mockRefund.calls.length).toBe(BULK_REFUND_LIMIT);
+        expect(mockRefund.calls.length).toBe(
+          BULK_REFUND_FOREGROUND_REFERENCE_LIMIT,
+        );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          `${BULK_REFUND_LIMIT} refunds succeeded. 1 refund remains. Submit again to continue.`,
+          `${BULK_REFUND_FOREGROUND_REFERENCE_LIMIT} refunds succeeded. 1 refund will continue in the background.`,
         )(response);
       });
 
       const log = (await getListingActivityLog(listing.id)).find((entry) =>
-        entry.message.includes(`Bulk refund: ${BULK_REFUND_LIMIT} of`),
+        entry.message.includes(
+          `Bulk refund: ${BULK_REFUND_FOREGROUND_REFERENCE_LIMIT} of`,
+        ),
       );
       expect(log?.message).toContain(
-        `Bulk refund: ${BULK_REFUND_LIMIT} of ${BULK_REFUND_LIMIT + 1} refunded`,
+        `Bulk refund: ${BULK_REFUND_FOREGROUND_REFERENCE_LIMIT} of ${BULK_REFUND_FOREGROUND_REFERENCE_LIMIT + 1} refunded`,
       );
     });
 
     const remainingFailureCases = [
       {
         count: 1,
-        expected: `0 refunds succeeded. There were ${BULK_REFUND_LIMIT} failures. 1 refund remains. Submit again to continue.`,
+        expected: `0 refunds succeeded. There were ${BULK_REFUND_FOREGROUND_REFERENCE_LIMIT} failures. 1 refund will continue in the background.`,
         label: "one refund remaining",
       },
       {
         count: 2,
-        expected: `0 refunds succeeded. There were ${BULK_REFUND_LIMIT} failures. 2 refunds remain. Submit again to continue.`,
+        expected: `0 refunds succeeded. There were ${BULK_REFUND_FOREGROUND_REFERENCE_LIMIT} failures. 2 refunds will continue in the background.`,
         label: "multiple refunds remaining",
       },
     ];
@@ -281,7 +287,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         await seedBatchAttendees(
           listing,
           `pi_batchfail_${count}_`,
-          BULK_REFUND_LIMIT + count,
+          BULK_REFUND_FOREGROUND_REFERENCE_LIMIT + count,
         );
         await withRefundMock(false, async () => {
           await expectFlashRedirect(
@@ -295,13 +301,13 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     test("applies copy replacements to a completed partial-refund result", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Good User",
         "good@example.com",
         "pi_partial_ok",
       );
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Bad User",
         "bad@example.com",
@@ -333,13 +339,13 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     test("catches thrown refund errors and reports them in the flash", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Good User",
         "good@example.com",
         "pi_throw_ok",
       );
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Throw User",
         "throw@example.com",
@@ -365,13 +371,13 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     test("uses plural error copy when multiple refunds throw", async () => {
       const listing = await createPaidListing();
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Throw One",
         "throw-one@example.com",
         "pi_throw_one",
       );
-      await createPaidTestAttendee(
+      await createRefundableTestAttendee(
         listing.id,
         "Throw Two",
         "throw-two@example.com",

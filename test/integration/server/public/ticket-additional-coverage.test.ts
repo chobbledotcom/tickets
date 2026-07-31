@@ -131,15 +131,22 @@ describeWithEnv(
           "#shared/square-provider.ts"
         );
         let capturedIntent:
-          | import("#shared/payments.ts").CheckoutIntent
+          | import("#shared/payment-checkout.ts").PaymentCheckoutCreateSnapshot
           | undefined;
         const checkout = stub(
           squarePaymentProvider,
-          "createCheckoutSession",
-          (intent: import("#shared/payments.ts").CheckoutIntent) => {
-            capturedIntent = intent;
+          "createCheckout",
+          (
+            checkout: import("#shared/payment-checkout.ts").PaymentCheckoutCreateSnapshot,
+          ) => {
+            capturedIntent = checkout;
             return Promise.resolve({
               checkoutUrl: "https://square.example/checkout",
+              session: {
+                id: "square_order_123",
+                kind: "square_order" as const,
+                provider: "square" as const,
+              },
               sessionId: "square_order_123",
             });
           },
@@ -153,7 +160,7 @@ describeWithEnv(
           });
 
           expectCheckoutRedirect(response);
-          expect(capturedIntent?.email).toBe("john@example.com");
+          expect(capturedIntent?.bookingIntent.email).toBe("john@example.com");
         } finally {
           checkout.restore();
         }

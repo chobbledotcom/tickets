@@ -74,6 +74,28 @@ export const sellSomethingAt = async (
   return listing;
 };
 
+/** Put a thing on sale at this price and book the named people onto it, each
+ * made the way `book` says. Stories differ in who they book — one person who
+ * owes for their place, or several who have paid — but they all start here,
+ * so the selling and the booking loop live in one place. */
+export const soldWithPeopleOnIt = async (
+  world: TicketsWorld,
+  at: { name: string; price: string },
+  who: readonly string[],
+  book: (
+    listing: Listing,
+    person: string,
+    index: number,
+  ) => Promise<{ id: number }>,
+): Promise<{ ids: number[]; listing: Listing }> => {
+  const listing = await sellSomethingAt(world, at.name, at.price);
+  const ids: number[] = [];
+  for (const [index, person] of who.entries()) {
+    ids.push((await book(listing, person, index)).id);
+  }
+  return { ids, listing };
+};
+
 /** Tick one box on a listing's own admin tab and save, checking the site
  * confirms it. Both the questions and the attributes tab work this way. */
 export const tickOnListingTab = async (

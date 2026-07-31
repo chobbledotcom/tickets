@@ -14,14 +14,78 @@ import {
   specForFailure,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
+import type { PaymentWork } from "#routes/api/webhook-types.ts";
 import { processBooking } from "#shared/booking.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
+import {
+  applyPaymentSessionClaim,
+  requirePaymentSessionClaim,
+} from "#shared/db/payments/claims.ts";
+import { bookingCompletion } from "#shared/payment-completion.ts";
+import {
+  CHARGE_RESOURCE,
+  PAYMENT_TIME,
+  paymentSessionInput,
+  READY_RESULT,
+  SESSION_RESOURCE,
+  sessionProgress,
+} from "#test/shared/db/payments/fixtures.ts";
+import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
+import { withRefundMock } from "#test-utils/refund-routes.ts";
+import { required } from "#test-utils/required.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
+
+/** A stored payment that has been paid for, ready to finish a booking against.
+ *  These stories only read the payment's id, the money it took and the order it
+ *  was for, so everything else comes from the shared paid-payment fixture. */
+const workFor = async (
+  id: string,
+  amountTotal: number,
+  intent: BookingIntent,
+): Promise<PaymentWork> => {
+  // The stored payment has to be for the same order the story finishes, or
+  // the booking it writes names a listing that was never made.
+  await createPendingPayment({
+    ...paymentSessionInput(id),
+    bookingIntent: intent,
+  });
+  // The payment has to have started being worked on: the writes that finish
+  // one are fenced on its lease and its state, so a payment still sitting at
+  // pending matches no rows and the booking quietly fails to store.
+  const started = await applyPaymentSessionClaim(
+    await requirePaymentSessionClaim(id, 60_000),
+    sessionProgress({ state: "processing" }),
+  );
+  // Money really was taken: a refused booking hands a charge back, and a
+  // payment with no charge has nothing to give.
+  await savePaymentCharges(
+    id,
+    SESSION_RESOURCE,
+    [
+      {
+        captured: { amount: amountTotal, currency: "GBP" },
+        confirmedRefunded: { amount: 0, currency: "GBP" },
+        refunds: [],
+        resource: CHARGE_RESOURCE,
+      },
+    ],
+    PAYMENT_TIME,
+  );
+  const claim = await requirePaymentSessionClaim(id, 60_000);
+  return {
+    claim,
+    intent,
+    payment: started,
+    resolution: READY_RESULT,
+    session: paymentSession(id, amountTotal),
+  };
+};
 
 /** A signed cart line: `e` is the listing, `k`/`r` mark a package path. */
 const line = (listingId: number, groupId?: number): BookingItem =>
@@ -150,24 +214,43 @@ describe("the refund reason for a booking we could not honour", () => {
   });
 });
 
+/** One place bought on this listing, refused for `spec`, with the provider
+ *  standing in and saying whether it hands the money back. Answers with what
+ *  was stored. */
+const storeWithRefund = async (
+  listing: Awaited<ReturnType<typeof createTestListing>>,
+  id: string,
+  spec: Parameters<typeof storeRefundedBooking>[2],
+  moneyComesBack = true,
+): Promise<Awaited<ReturnType<typeof storeRefundedBooking>>> => {
+  const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
+  const bookings = placeholderBookings(
+    [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
+    intent,
+  );
+  const work = await workFor(id, 1000, intent);
+  let stored: Awaited<ReturnType<typeof storeRefundedBooking>> | undefined;
+  await withRefundMock(moneyComesBack, async () => {
+    stored = await storeRefundedBooking(work, bookings, spec);
+  });
+  return required(stored, "the stored refund result");
+};
+
 describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   const specFor = (detail: string) =>
     specForFailure({ detail, ok: false, reason: "capacity_exceeded" });
 
-  /** Store a placeholder for a paid-for booking on a real listing. */
-  const storeFor = async (id: string) => {
+  /** Store a placeholder for a paid-for booking on a real listing, saying
+   *  whether the provider hands the money back. Making a payment to work from
+   *  configures a provider, so whether the money comes back is said here
+   *  rather than left to whether one happens to be set up. */
+  const storeFor = async (id: string, moneyComesBack = true) => {
     const listing = await createTestListing({});
-    const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
-    const session = paymentSession(id, 1000, intent);
-    const bookings = placeholderBookings(
-      [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
-      intent,
-    );
-    const result = await storeRefundedBooking(
-      session,
-      intent,
-      bookings,
+    const result = await storeWithRefund(
+      listing,
+      id,
       specFor("listing full"),
+      moneyComesBack,
     );
     return { listing, result };
   };
@@ -177,28 +260,28 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       await setupStripe();
       const { result } = await storeFor("cs_refunded");
       expect(result.error).toBe(
-        "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.",
+        "We could not complete your booking. We saved your details so the organiser can help you book again.",
       );
     });
 
     test("records that the refund happened", async () => {
       await setupStripe();
       const { result } = await storeFor("cs_refunded_flag");
-      expect(result.refunded).toBe(true);
+      expect(result.refund?.status).toBe("completed");
     });
   });
 
   describe("when the money could not be sent back", () => {
     test("tells the customer a refund is being arranged", async () => {
-      const { result } = await storeFor("cs_unrefunded");
+      const { result } = await storeFor("cs_unrefunded", false);
       expect(result.error).toBe(
-        "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook. Your refund is being arranged — please contact us if it does not arrive.",
+        "We could not complete your booking. We saved your details so the organiser can help you book again. Your refund is being arranged. Contact the organiser if it does not arrive.",
       );
     });
 
     test("does not claim the refund happened", async () => {
-      const { result } = await storeFor("cs_unrefunded_flag");
-      expect(result.refunded).toBeUndefined();
+      const { result } = await storeFor("cs_unrefunded_flag", false);
+      expect(result.refund?.status).toBe("failed");
     });
   });
 
@@ -264,8 +347,24 @@ describeWithEnv(
       const intent = bookingIntent([{ e: listingId, p: amount, q: 1 }], {
         balanceAttendeeId: attendeeId,
       });
-      const session = paymentSession(sessionId, amount, intent);
-      return await settleBalanceSession(sessionId, session, intent);
+      const work = await workFor(sessionId, amount, intent);
+      let settled: Awaited<ReturnType<typeof settleBalanceSession>> | undefined;
+      await withRefundMock(true, async () => {
+        settled = await settleBalanceSession(
+          work,
+          bookingCompletion(
+            intent,
+            {
+              flow: "balance",
+              listingId,
+              occurredAt: "2026-07-26T12:00:00.000Z",
+              promos: [],
+            },
+            ["ticket-one"],
+          ),
+        );
+      });
+      return required(settled, "the settled balance result");
     };
 
     describe("when the balance changed while they were paying", () => {
@@ -346,16 +445,9 @@ describeWithEnv(
         [listing.id],
       );
 
-      const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
-      const bookings = placeholderBookings(
-        [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
-        intent,
-      );
-
-      const result = await storeRefundedBooking(
-        paymentSession("cs_full", 1000, intent),
-        intent,
-        bookings,
+      const result = await storeWithRefund(
+        listing,
+        "cs_full",
         specForFailure({
           detail: "full",
           ok: false,

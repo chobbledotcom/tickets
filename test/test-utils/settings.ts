@@ -202,6 +202,24 @@ export const enablePublicSite = async (): Promise<void> => {
   await enableFeature("site");
 };
 
+type ProviderNotice =
+  import("#shared/payment-state/observation.ts").ProviderNotice;
+type ProviderRead = import("#shared/payment-state/observation.ts").ProviderRead;
+type PaymentSession = import("#shared/db/payments/types.ts").PaymentSession;
+type ProviderResource =
+  import("#shared/payment-state/resources.ts").ProviderResource;
+
+export interface ProviderNoticeFixture {
+  notice: ProviderNotice | null;
+  /** What the buyer paid, so a refund answered for this session can return the
+   *  same money the charge carries. */
+  paidAmount?: number;
+  read: (
+    payment: PaymentSession | null,
+    requested: ProviderResource,
+  ) => Promise<ProviderRead>;
+}
+
 /** The address the site both sends from and delivers contact messages to. */
 export const CONTACT_OWNER_EMAIL = "owner@example.com";
 
@@ -216,13 +234,23 @@ export const activateContactForm = async (): Promise<void> => {
   await settings.update.email.apiKey("re_test_key");
 };
 
-export const stubWebhookVerify = async (listingData: {
-  id: string;
-  type: string;
-  data: { object: Record<string, unknown> };
-}) => {
+export const stubWebhookVerify = async (
+  fixture: ProviderNotice | ProviderNoticeFixture | null,
+): Promise<{ restore: () => void }> => {
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
-    Promise.resolve({ listing: listingData, valid: true as const }),
+  const notice =
+    fixture !== null && "notice" in fixture ? fixture.notice : fixture;
+  const read =
+    fixture !== null && "notice" in fixture
+      ? stub(stripePaymentProvider, "readPayment", fixture.read)
+      : null;
+  const verify = stub(stripePaymentProvider, "verifyWebhookSignature", () =>
+    Promise.resolve({ notice, valid: true as const }),
   );
+  return {
+    restore: () => {
+      verify.restore();
+      read?.restore();
+    },
+  };
 };

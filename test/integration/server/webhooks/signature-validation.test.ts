@@ -18,7 +18,9 @@ describeWithEnv("server webhooks > signature validation", { db: true }, () => {
         { "stripe-signature": "sig_test" },
       ),
     );
-    await expectHtmlResponse(response, 400, "Payment provider not configured");
+    // Verification cannot run without the signing secret, and the reply
+    // says exactly that.
+    await expectHtmlResponse(response, 400, "Webhook secret not configured");
   });
 
   test("returns 400 when signature header is missing", async () => {
@@ -27,7 +29,8 @@ describeWithEnv("server webhooks > signature validation", { db: true }, () => {
     const response = await handleRequest(
       mockWebhookRequest({ type: "checkout.session.completed" }),
     );
-    await expectHtmlResponse(response, 400, "Missing signature");
+    // An unsigned request is rejected as an unusable payload.
+    await expectHtmlResponse(response, 400, "Invalid webhook payload");
   });
 
   test("handles trailing slash on webhook URL (body buffered correctly)", async () => {

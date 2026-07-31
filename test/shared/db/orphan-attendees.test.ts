@@ -17,7 +17,6 @@ import {
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
-import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -142,29 +141,12 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
           question_id: 1,
         }),
       );
-      await getDb().execute(
-        insert("processed_payments", {
-          attendee_id: id,
-          payment_session_id: `ps-orphan-${id}`,
-          processed_at: nowIso(),
-        }),
-      );
       await createSystemNote(attendeeNotes(id), "orphan note");
 
       await purgeOrphanedAttendees(nowIso());
 
       expect(await childCount("attendee_answers", id)).toBe(0);
-      expect(await childCount("processed_payments", id)).toBe(0);
       expect(await getNoteRows("attendee", [id])).toEqual([]);
-    });
-
-    test("removes the orphan's checkout stage", async () => {
-      const id = await insertOrphan(daysAgoIso(365));
-      await insertCheckoutStage(id, "stage-orphan-purge");
-
-      await purgeOrphanedAttendees(nowIso());
-
-      expect(await childCount("checkout_stages", id)).toBe(0);
     });
   });
 });

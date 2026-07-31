@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import { resetEffectiveDomain } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { resetHostEmailConfig } from "#shared/email.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 import { type EnvScope, withEnv } from "./env.ts";
@@ -104,4 +104,22 @@ export const expectSendNoop = async (
   sandbox.stubFetch(rejectedFetch);
   expect(await sendFn()).toBe(false);
   expect(sandbox.fetchStub?.calls.length).toBe(0);
+};
+
+/** Save an email provider in the site settings and reload them, so anything
+ *  that asks for the active email config finds this one. */
+export const saveTestEmailConfig = async ({
+  apiKey = "test-key",
+  fromAddress = "from@test.com",
+  provider = "resend",
+}: {
+  apiKey?: string;
+  fromAddress?: string;
+  provider?: string;
+} = {}): Promise<void> => {
+  await settings.update.email.provider(provider);
+  await settings.update.email.apiKey(apiKey);
+  await settings.update.email.fromAddress(fromAddress);
+  settings.invalidateCache();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
 };

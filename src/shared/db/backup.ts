@@ -21,6 +21,10 @@ import {
   pruneOldBackups,
 } from "#shared/db/backup-storage.ts";
 import { execute, executeBatch } from "#shared/db/client.ts";
+import {
+  LEGACY_PAYMENT_TABLE_NAMES,
+  legacyPaymentRestoreStatements,
+} from "#shared/db/migrations/legacy-payment-schema.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   RESTORE_DEFERRED_INDEXES,
@@ -246,6 +250,7 @@ const readManifestOrNull = (
 
 interface InspectedSqlFile {
   statementCount: number;
+  statements: string[];
   table: string;
 }
 
@@ -277,7 +282,12 @@ const inspectSqlFiles = ({ decoder, files }: OpenBackup): InspectedSqlFile[] =>
         );
       }
       const table = name.slice(0, -4);
-      if (SCHEMA_TABLE_NAMES.includes(table)) {
+      if (
+        SCHEMA_TABLE_NAMES.includes(table) ||
+        LEGACY_PAYMENT_TABLE_NAMES.includes(
+          table as (typeof LEGACY_PAYMENT_TABLE_NAMES)[number],
+        )
+      ) {
         const wrongTable = statements
           .map((statement) => insertTable(statement, name))
           .find((target) => target !== table);
@@ -287,20 +297,33 @@ const inspectSqlFiles = ({ decoder, files }: OpenBackup): InspectedSqlFile[] =>
           );
         }
       }
-      return { statementCount: statements.length, table };
+      return { statementCount: statements.length, statements, table };
     });
 
 const inspectOpenBackup = (backup: OpenBackup): BackupInspection => {
   const sqlFiles = inspectSqlFiles(backup);
+  const migrationState = dumpMigrationState(
+    sqlFiles.flatMap((file) => file.statements),
+    MIGRATION_IDS,
+  );
   const unsupported = sqlFiles
     .filter(
       ({ statementCount, table }) =>
-        statementCount > 0 && !SCHEMA_TABLE_NAMES.includes(table),
+        statementCount > 0 &&
+        !SCHEMA_TABLE_NAMES.includes(table) &&
+        !(
+          migrationState.hasPending &&
+          LEGACY_PAYMENT_TABLE_NAMES.includes(
+            table as (typeof LEGACY_PAYMENT_TABLE_NAMES)[number],
+          )
+        ),
     )
     .map(({ table }) => table);
   if (unsupported.length > 0) {
     throw new Error(
-      `Backup contains data for tables this app cannot restore: ${unsupported.join(", ")}`,
+      `Backup contains data for tables this app cannot restore: ${unsupported.join(
+        ", ",
+      )}`,
     );
   }
 
@@ -360,7 +383,9 @@ export const restoreFromSql = async (
   if (migrations.fromNewerBuild.length > 0) {
     throw new Error(
       "Backup is from a newer version of the app: it records migration(s) " +
-        `newer than this build knows (${migrations.fromNewerBuild.join(", ")}). ` +
+        `newer than this build knows (${migrations.fromNewerBuild.join(
+          ", ",
+        )}). ` +
         "Update the site to that version or newer, then restore this backup.",
     );
   }
@@ -395,6 +420,9 @@ export const restoreFromSql = async (
       `DELETE FROM ${RESTORE_CORE_TABLES[0]}`,
       ...RESTORE_CORE_TABLES.slice(1).map((table) => `DELETE FROM ${table}`),
       ...(migrations.hasPending ? legacyColumnRestores(statements) : []),
+      ...(migrations.hasPending
+        ? legacyPaymentRestoreStatements(statements)
+        : []),
       ...statements,
     ];
     for (const batch of restoreBatches(restoreStatements)) {
@@ -431,7 +459,9 @@ export const restoreFromZip = async (
   const { decoder, files } = backup;
   // Iterate in SCHEMA order for FK safety.
   const allSql = compact(
-    SCHEMA_TABLE_NAMES.map((table) => files[`${table}.sql`]),
+    [...SCHEMA_TABLE_NAMES, ...LEGACY_PAYMENT_TABLE_NAMES].map(
+      (table) => files[`${table}.sql`],
+    ),
   ).map((content) => decoder.decode(content));
 
   // Every generated table file ends its statements with semicolons, so no

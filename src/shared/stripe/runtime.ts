@@ -1,15 +1,22 @@
 import { mapNotNullish } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
+import { type ErrorCodeType, logError } from "#shared/logger.ts";
 import {
   cachedClientFactory,
   createWithClient,
 } from "#shared/payment-helpers.ts";
+import {
+  makeProviderTransportReader,
+  type ProviderTransportResult,
+  transportIssueForError,
+} from "#shared/provider-transport.ts";
 import { createStripeClient, type StripeClient } from "./client.ts";
 import { stripeMock } from "./mock.ts";
 import {
   STRIPE_MAX_NETWORK_RETRIES,
   STRIPE_TIMEOUT_MS,
+  StripeApiError,
   type StripeClientConfig,
   StripeProtocolError,
 } from "./request.ts";
@@ -101,5 +108,26 @@ const run = createWithClient(get, {
   shouldPropagate: (error) => error instanceof StripeProtocolError,
 });
 
+export type StripeLookupResult<Value> = ProviderTransportResult<
+  Value,
+  "invalid"
+>;
+
+const lookup = makeProviderTransportReader<
+  StripeClient,
+  "invalid",
+  ErrorCodeType
+>({
+  classifyError: (error) =>
+    transportIssueForError(
+      error,
+      (caught) => caught instanceof StripeApiError && caught.statusCode === 404,
+      error instanceof StripeProtocolError ? "invalid" : "unavailable",
+    ),
+  getClient: get,
+  reportError: (error, code) =>
+    logError({ code, detail: sanitizeStripeError(error) }),
+});
+
 /** Shared Stripe client lifecycle for payment and endpoint operations. */
-export const stripeClientRuntime = { create, get, run };
+export const stripeClientRuntime = { create, get, lookup, run };

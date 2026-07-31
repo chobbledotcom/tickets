@@ -4,12 +4,14 @@
 
 import {
   deleteByFieldStatement,
-  executeBatch,
   queryAll,
   type SqlStatement,
+  withTransaction,
 } from "#shared/db/client.ts";
 import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
 import { noteDeleteStatement } from "#shared/db/notes/queries.ts";
+import { paymentSessionAttendeeChangeStatement } from "#shared/db/payments/attendee.ts";
+import { requireNoPendingAttendeePaymentCompletion } from "#shared/db/payments/completion-fence.ts";
 
 type DeleteAttendeeOptions = { releaseBookings?: boolean };
 type ListingContribution = {
@@ -54,14 +56,7 @@ const restoreListingContributions = (
 
 /** The tables holding an attendee's dependent rows, each with the column that
  * links it to the attendee. Deleted (in this order) before the attendee row. */
-const CHECKOUT_STAGE_ROWS = {
-  field: "attendee_id",
-  table: "checkout_stages",
-} as const;
-
 const DEPENDENT_ROW_TARGETS = [
-  CHECKOUT_STAGE_ROWS,
-  { field: "attendee_id", table: "processed_payments" },
   { field: "attendee_id", table: "attendee_answers" },
   { field: "attendee_id", table: "listing_attendees" },
   { field: "servicing_attendee_id", table: "service_costs" },
@@ -75,20 +70,15 @@ const dependentDeleteStatement = (
   sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
 });
 
-/** Delete checkout stages for one or many attendee ids. */
-export const checkoutStageDeleteStatement = (
-  attendeeIds: SqlStatement,
-): SqlStatement => dependentDeleteStatement(CHECKOUT_STAGE_ROWS, attendeeIds);
-
-/** Build the common dependent-row deletes for one or many attendee ids. */
+/** Build the common dependent-row deletes for one or many attendee ids. Notes
+ *  are asked for by the notes module: a note names the kind of record it is
+ *  about, so it is not found by an attendee column like the others. */
 export const attendeeDependentDeleteStatements = (
   attendeeIds: SqlStatement,
 ): SqlStatement[] => [
   ...DEPENDENT_ROW_TARGETS.map((target) =>
     dependentDeleteStatement(target, attendeeIds),
   ),
-  // Notes are named by the kind of record they are about, so the notes module
-  // builds this one rather than the plain "column = id" shape above.
   noteDeleteStatement("attendee", attendeeIds),
 ];
 
@@ -97,19 +87,24 @@ const purgeAttendee = (
   attendeeId: number,
   contributions: ListingContribution[],
 ): Promise<void> =>
-  executeBatch([
-    ...attendeeDependentDeleteStatements({ args: [attendeeId], sql: "?" }),
-    ...restoreListingContributions(contributions),
-    deleteByFieldStatement({
-      field: "id",
-      table: "attendees",
-      value: attendeeId,
-    }),
-  ]);
+  withTransaction(async (transaction) => {
+    await requireNoPendingAttendeePaymentCompletion(transaction, attendeeId);
+    await transaction.batch([
+      paymentSessionAttendeeChangeStatement(
+        { args: [attendeeId], sql: "?" },
+        null,
+      ),
+      ...attendeeDependentDeleteStatements({ args: [attendeeId], sql: "?" }),
+      ...restoreListingContributions(contributions),
+      deleteByFieldStatement({
+        field: "id",
+        table: "attendees",
+        value: attendeeId,
+      }),
+    ]);
+  });
 
-/**
- * Delete an attendee and all its listing links, payments, and answers.
- */
+/** Delete an attendee and its dependent data, retaining detached payments. */
 export const deleteAttendee = async (
   attendeeId: number,
   { releaseBookings = true }: DeleteAttendeeOptions = {},

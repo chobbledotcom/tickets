@@ -2,17 +2,18 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
+  expectRefundPaymentCall,
   stubRefundPayment,
 } from "#test-utils/webhooks.ts";
 
@@ -33,7 +34,7 @@ const findRefundActivityEntry = async (listingId: number) => {
 };
 
 describeWithEnv("server webhooks > refund logging", { db: true }, () => {
-  test("tryRefund logs success message when refund succeeds", async () => {
+  test("records an automatic refund against the listing that caused it", async () => {
     await setupStripe();
 
     const listing = await createTestListing({
@@ -61,32 +62,21 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
 
     const mockRefund = stubRefundPayment("re_log");
 
-    const debugLogs: string[] = [];
-    const origDebug = console.debug;
-    setSuppressDebugLogs(false);
-    console.debug = (...args: unknown[]) => {
-      debugLogs.push(args.join(" "));
-    };
-
     try {
       const response = await handleRequest(
         mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
       );
       expect(response.status).toBe(200);
-      expect(mockRefund.calls[0]!.args).toEqual(["pi_refund_log"]);
-
-      // Verify refund success was logged to console
-      const refundLog = debugLogs.find((log) => log.includes("Refund issued"));
-      expect(refundLog).toBeDefined();
+      // The refund and its activity entry are finished by maintenance.
+      await settleDeferredPaymentWork();
+      expectRefundPaymentCall(mockRefund, "pi_refund_log");
 
       // Verify refund was logged to activity log tagged to listing
+      // The entry names why the money went back and that the booking stayed.
       const refundEntry = await findRefundActivityEntry(listing.id);
-      expect(refundEntry.message).toContain(
-        "no longer accepting registrations",
-      );
+      expect(refundEntry.message).toContain("registration_closed");
+      expect(refundEntry.message).toContain("kept at quantity 0");
     } finally {
-      console.debug = origDebug;
-      setSuppressDebugLogs(null);
       mockVerify.restore();
       mockRefund.restore();
     }
@@ -117,13 +107,15 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
       }),
     );
 
-    const mockRefund = stubRefundPayment("re_activity");
+    const mockRefund = stubRefundPayment("re_activity", 500);
 
     try {
       const response = await handleRequest(
         mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
       );
       expect(response.status).toBe(200);
+      // The refund and its activity entry are finished by maintenance.
+      await settleDeferredPaymentWork();
 
       const refundEntry = await findRefundActivityEntry(listing.id);
       expect(refundEntry.message).toContain("price");

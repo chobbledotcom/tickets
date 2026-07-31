@@ -15,6 +15,7 @@ export const NonEmptyStringSchema = v.pipe(
   v.brand("NonEmptyString"),
 );
 export const OptionalStringSchema = v.optional(v.string());
+export const UrlSchema = v.pipe(v.string(), v.url());
 
 /** A piece of text that may be left out, but has to pass the test when it is
  *  there. */

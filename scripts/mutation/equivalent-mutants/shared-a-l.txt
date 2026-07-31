@@ -218,3 +218,12 @@ src/shared/dates.ts:431:30  1 → 0    # bookedRangeLabel's `fallbackDurationDay
 
 # Logger (logger.ts) — a provably-equivalent survivor from the logger suites.
 src/shared/logger.ts:300:69  ?? → ||   # context.listingId is number|undefined and listing ids are positive autoincrement integers, so the LHS is never a falsy non-null value — ?? and || agree on every input
+
+# Carried over from the payment aggregate base branch.
+src/shared/accounting/store.ts:202:60  ?? → ||    # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
+src/shared/accounting/store.ts:225:42  ?? → ||    # planGroup originalsById.get(): Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/rows.ts:116:21  ?? → ||    # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts:117:21  ?? → ||    # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts:250:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/rows.ts:136:72  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
+src/shared/accounting/queries.ts:166:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide

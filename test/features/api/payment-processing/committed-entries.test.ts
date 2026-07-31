@@ -2,13 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { committedEntries } from "#routes/api/payment-processing/committed-entries.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
+import type { BookingPayment } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { webhookMeta } from "#test-utils/factories.ts";
 
 /** The buyer's details, exactly as the checkout signed them. */
 const intent = (): BookingIntent => ({
@@ -33,12 +32,11 @@ const checkedLine = async (listingId: number): Promise<ValidatedItem[]> => {
 
 /** The checkout the money was taken through. Only the payment it was taken
  *  under is read here, but it is built whole so nothing is pretended. */
-const session = (): ValidatedPaymentSession => ({
+const session = (): BookingPayment => ({
   amountTotal: 1000,
+  createdAt: "2026-07-01T09:00:00.000Z",
   id: "cs_committed",
-  metadata: webhookMeta({ name: "Signed Buyer" }),
   paymentReference: "pi_committed",
-  paymentStatus: "paid",
 });
 
 describeWithEnv(

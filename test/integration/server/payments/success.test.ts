@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { fillSoldOutListing } from "#test/integration/server/payments/_shared-setup.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -14,7 +15,10 @@ import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectRefundedWithNote,
+  expectRefundPaymentCall,
   expectSessionFailed,
+  expectUnreadableSessionRejected,
+  expectUnrecognisedPayment,
   findKeptPlaceholder,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
@@ -26,7 +30,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/success", () => {
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/success"));
-      await expectHtmlResponse(response, 400, "Invalid payment callback");
+      await expectHtmlResponse(
+        response,
+        400,
+        t("payment.error.invalid_callback"),
+      );
     });
 
     test("returns error when no provider configured", async () => {
@@ -36,7 +44,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       await expectHtmlResponse(
         response,
         400,
-        "Payment provider not configured",
+        t("payment.error.provider_not_configured"),
       );
     });
 
@@ -46,7 +54,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_invalid"),
       );
-      await expectHtmlResponse(response, 400, "Payment session not found");
+      await expectUnrecognisedPayment(response);
     });
 
     test("returns error when payment not verified", async () => {
@@ -75,35 +83,54 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
           );
-          await expectHtmlResponse(
-            response,
-            400,
-            "Payment verification failed",
-          );
+          await expectUnrecognisedPayment(response);
         },
       );
     });
 
     test("returns error for invalid session metadata", async () => {
       await setupStripe();
+      await expectUnreadableSessionRejected("/payment/success", "cs_test");
+    });
 
+    /** Confirm a paid checkout the listing can no longer take: the buyer is
+     *  told their details were saved and their money returned, and the refund
+     *  goes out once against the payment named here. `body` continues with
+     *  whatever else the scenario proves. */
+    const expectConfirmationRefunded = async (
+      buyer: { email: string; name: string },
+      listingId: number,
+      paymentIntent: string,
+      body: (mockRefund: ReturnType<typeof stubRefundPayment>) => Promise<void>,
+    ): Promise<void> => {
       await withMocks(
-        () =>
-          stubRetrieveCheckoutSession({
-            amountTotal: 0,
-            metadata: {}, // Missing required fields
-            paymentIntent: "pi_test",
+        () => ({
+          mockRefund: stubRefundPayment(),
+          mockRetrieve: stubRetrieveCheckoutSession({
+            amountTotal: 1000,
+            email: buyer.email,
+            items: singleItem(listingId, 1, 1000),
+            name: buyer.name,
+            paymentIntent,
             sessionId: "cs_test",
           }),
-        async () => {
+        }),
+        async ({ mockRefund }) => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
           );
-          // Provider returns null for invalid metadata, so routes report "not found"
-          await expectHtmlResponse(response, 400, "Payment session not found");
+          await expectHtmlResponse(
+            response,
+            200,
+            "saved your details",
+            "automatically refunded",
+          );
+          expect(mockRefund.calls.length).toBe(1);
+          expectRefundPaymentCall(mockRefund, paymentIntent);
+          await body(mockRefund);
         },
       );
-    });
+    };
 
     test("rejects payment for inactive listing and refunds", async () => {
       await setupStripe();
@@ -117,32 +144,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       // Deactivate the listing
       await deactivateTestListing(listing.id);
 
-      await withMocks(
-        () => ({
-          mockRefund: stubRefundPayment(),
-          mockRetrieve: stubRetrieveCheckoutSession({
-            amountTotal: 1000,
-            email: "john@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "John",
-            paymentIntent: "pi_test_123",
-            sessionId: "cs_test",
-          }),
-        }),
-        async ({ mockRefund }) => {
-          const response = await handleRequest(
-            mockRequest("/payment/success?session_id=cs_test"),
-          );
-          await expectHtmlResponse(
-            response,
-            410,
-            "no longer accepting registrations",
-          );
-
-          // Verify exactly one refund was issued, for the right intent.
-          expect(mockRefund.calls.length).toBe(1);
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
-        },
+      await expectConfirmationRefunded(
+        { email: "john@example.com", name: "John" },
+        listing.id,
+        "pi_test_123",
+        () => Promise.resolve(),
       );
     });
 
@@ -150,36 +156,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       // A sold-out listing: confirmation must refund because no spot remains.
       const listing = await fillSoldOutListing();
 
-      await withMocks(
-        () => ({
-          mockRefund: stubRefundPayment(),
-          mockRetrieve: stubRetrieveCheckoutSession({
-            amountTotal: 1000,
-            email: "second@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Second",
-            paymentIntent: "pi_second",
-            sessionId: "cs_test",
-          }),
-        }),
-        async ({ mockRefund }) => {
-          const response = await handleRequest(
-            mockRequest("/payment/success?session_id=cs_test"),
-          );
-          // Signed by us → the late buyer is not dropped: the booking is kept as
-          // a quantity-0 placeholder and refunded, and the customer sees the
-          // generic saved-details message (HTTP 200, a fully-handled outcome).
-          await expectHtmlResponse(
-            response,
-            200,
-            "saved your details",
-            "automatically refunded",
-          );
-
-          // Verify exactly one refund was issued, for the right intent.
-          expect(mockRefund.calls.length).toBe(1);
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_second"]);
-
+      await expectConfirmationRefunded(
+        { email: "second@example.com", name: "Second" },
+        listing.id,
+        "pi_second",
+        async (mockRefund) => {
           // The placeholder is kept alongside the original (sold-out) attendee,
           // with a system note recording the reason, and the session is filed
           // as a terminal failure (placeholder kept, no ticket attendee).

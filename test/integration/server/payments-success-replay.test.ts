@@ -1,10 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse, followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -13,6 +11,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -27,24 +26,19 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 500,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          id: "cs_single_thankyou",
-          metadata: signMeta(
-            {
-              email: "single@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "Single",
-            },
-            500,
-          ),
-          payment_intent: "pi_single_thankyou",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 500,
+        metadata: signMeta(
+          {
+            email: "single@example.com",
+            items: singleItem(listing.id, 1, 500),
+            name: "Single",
+          },
+          500,
+        ),
+        paymentIntent: "pi_single_thankyou",
+        sessionId: "cs_single_thankyou",
+      });
 
       try {
         const redirectResponse = await handleRequest(
@@ -80,29 +74,24 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 500,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          id: "cs_hidden_pkg",
-          metadata: signedMeta(
-            {
-              email: "concealed@example.com",
-              // A package member carries its package edge tag (k:"p", r:group)
-              // so the webhook's tree revalidation resolves it as a package
-              // member rather than a standalone listing.
-              items: JSON.stringify([
-                { e: listing.id, k: "p", p: 500, q: 1, r: group.id },
-              ]),
-              name: "Concealed Buyer",
-            },
-            500,
-          ),
-          payment_intent: "pi_hidden_pkg",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 500,
+        metadata: signedMeta(
+          {
+            email: "concealed@example.com",
+            // A package member carries its package edge tag (k:"p", r:group)
+            // so the webhook's tree revalidation resolves it as a package
+            // member rather than a standalone listing.
+            items: JSON.stringify([
+              { e: listing.id, k: "p", p: 500, q: 1, r: group.id },
+            ]),
+            name: "Concealed Buyer",
+          },
+          500,
+        ),
+        paymentIntent: "pi_hidden_pkg",
+        sessionId: "cs_hidden_pkg",
+      });
 
       try {
         const { redirectResponse, response, html } =
@@ -135,28 +124,23 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 700,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 700,
-          id: "cs_hidden_replay",
-          metadata: signedMeta(
-            {
-              email: "replay@example.com",
-              // Package member tagged with its edge (k:"p", r:group) so the
-              // webhook's tree revalidation resolves it as a package member.
-              items: JSON.stringify([
-                { e: listing.id, k: "p", p: 700, q: 1, r: group.id },
-              ]),
-              name: "Replay Buyer",
-            },
-            700,
-          ),
-          payment_intent: "pi_hidden_replay",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 700,
+        metadata: signedMeta(
+          {
+            email: "replay@example.com",
+            // Package member tagged with its edge (k:"p", r:group) so the
+            // webhook's tree revalidation resolves it as a package member.
+            items: JSON.stringify([
+              { e: listing.id, k: "p", p: 700, q: 1, r: group.id },
+            ]),
+            name: "Replay Buyer",
+          },
+          700,
+        ),
+        paymentIntent: "pi_hidden_replay",
+        sessionId: "cs_hidden_replay",
+      });
 
       try {
         // First request redirects with tokens (no stored tokens — a hidden package
@@ -165,14 +149,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_hidden_replay"),
         );
         expect(response1.status).toBe(302);
-        // Replay finds the session already processed with no stored tokens, so it
-        // renders directly via the single-listing fallback — which must suppress
-        // the concealed member's thank-you URL too.
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_hidden_replay"),
-        );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
+        // Replaying gives the buyer the same ticket link again, and must still
+        // suppress the concealed member's thank-you URL.
+        const { html, redirectResponse: response2 } =
+          await renderPaymentSuccess("cs_hidden_replay");
+        expect(response2.status).toBe(302);
         expect(html).toContain("Thank you for your order");
         expect(html).not.toContain("https://example.com/concealed-replay");
       } finally {
@@ -189,24 +170,19 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1000,
-          id: "cs_dupe_session",
-          metadata: signMeta(
-            {
-              email: "dupe@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Dupe",
-            },
-            1000,
-          ),
-          payment_intent: "pi_dupe",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        metadata: signMeta(
+          {
+            email: "dupe@example.com",
+            items: singleItem(listing.id, 1, 1000),
+            name: "Dupe",
+          },
+          1000,
+        ),
+        paymentIntent: "pi_dupe",
+        sessionId: "cs_dupe_session",
+      });
 
       try {
         // First request should redirect with tokens
@@ -215,13 +191,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response1.status).toBe(302);
 
-        // Second request (replay) renders directly — redirect path doesn't store tokens,
-        // so replay has no tokens to redirect with
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_dupe_session"),
-        );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
+        // Replaying the same session gives the buyer the same ticket link
+        // again, rather than a second booking.
+        const { html, redirectResponse: response2 } =
+          await renderPaymentSuccess("cs_dupe_session");
+        expect(response2.status).toBe(302);
         expect(html).toContain("Thank you for your order");
 
         // Should still only have one attendee
@@ -245,24 +219,19 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 800,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 800,
-          id: "cs_cart_single",
-          metadata: signMeta(
-            {
-              email: "cartsingle@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 800, q: 1 }]),
-              name: "Cart Single Buyer",
-            },
-            800,
-          ),
-          payment_intent: "pi_cart_single",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 800,
+        metadata: signMeta(
+          {
+            email: "cartsingle@example.com",
+            items: JSON.stringify([{ e: listing.id, p: 800, q: 1 }]),
+            name: "Cart Single Buyer",
+          },
+          800,
+        ),
+        paymentIntent: "pi_cart_single",
+        sessionId: "cs_cart_single",
+      });
 
       try {
         // First request: process and redirect with tokens
@@ -277,12 +246,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         // Single-listing cart: token path resolves one unique listing → shows thank_you_url
         expect(tokenHtml).toContain("redirected");
 
-        // Replay (no tokens stored): renders directly via items.length === 1 branch
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_cart_single"),
-        );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
+        // Replaying gives the buyer the same ticket link again.
+        const { html, redirectResponse: response2 } =
+          await renderPaymentSuccess("cs_cart_single");
+        expect(response2.status).toBe(302);
         expect(html).toContain("Thank you for your order");
         // Single-item cart replay also shows thank_you_url
         expect(html).toContain("redirected");
@@ -305,27 +272,22 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 1500,
-          id: "cs_multi_dupe",
-          metadata: signMeta(
-            {
-              email: "multireplay@example.com",
-              items: JSON.stringify([
-                { e: listing1.id, p: 500, q: 1 },
-                { e: listing2.id, p: 1000, q: 1 },
-              ]),
-              name: "Multi Replay",
-            },
-            1500,
-          ),
-          payment_intent: "pi_multi_dupe",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1500,
+        metadata: signMeta(
+          {
+            email: "multireplay@example.com",
+            items: JSON.stringify([
+              { e: listing1.id, p: 500, q: 1 },
+              { e: listing2.id, p: 1000, q: 1 },
+            ]),
+            name: "Multi Replay",
+          },
+          1500,
+        ),
+        paymentIntent: "pi_multi_dupe",
+        sessionId: "cs_multi_dupe",
+      });
 
       try {
         // First request should redirect with tokens
@@ -334,13 +296,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         );
         expect(response1.status).toBe(302);
 
-        // Second request (replay) renders directly — redirect path doesn't store tokens,
-        // so replay has no tokens to redirect with
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_multi_dupe"),
-        );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
+        // Replaying gives the buyer the same ticket link again.
+        const { html, redirectResponse: response2 } =
+          await renderPaymentSuccess("cs_multi_dupe");
+        expect(response2.status).toBe(302);
         expect(html).toContain("Thank you for your order");
       } finally {
         mockRetrieve.restore();

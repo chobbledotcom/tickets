@@ -1,6 +1,9 @@
-import type { ErrorCodeType } from "#shared/logger.ts";
-import { parseWebhookPayload } from "#shared/payment-helpers.ts";
-import type { WebhookVerifyResult } from "#shared/payments.ts";
+import { errorMessage } from "#shared/error-message.ts";
+import { type ErrorCodeType, logError } from "#shared/logger.ts";
+
+export type VerifiedWebhookPayload =
+  | { valid: true; value: unknown }
+  | { error: string; valid: false };
 
 /** Turn a signature check outcome into the standard verify result: a plain
  * failure when the signature did not match, or the parsed event when it did.
@@ -11,7 +14,17 @@ export const finishWebhookVerification = (
   matched: boolean,
   payload: string,
   errorCode: ErrorCodeType,
-): WebhookVerifyResult =>
-  matched
-    ? parseWebhookPayload(payload, errorCode)
-    : { error: "Signature verification failed", valid: false };
+): VerifiedWebhookPayload => {
+  if (!matched) return { error: "Signature verification failed", valid: false };
+  try {
+    return { valid: true, value: JSON.parse(payload) };
+  } catch (error) {
+    // The signature matched, so this really is the provider talking and we
+    // still cannot read it. Say so, or the payment goes missing in silence.
+    logError({
+      code: errorCode,
+      detail: `invalid JSON: ${errorMessage(error)}`,
+    });
+    return { error: `Invalid webhook JSON (${errorCode})`, valid: false };
+  }
+};

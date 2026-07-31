@@ -1,9 +1,31 @@
+import { beforeEach } from "@std/testing/bdd";
+import type { BuildSiteResult, PreparedBuildSite } from "#shared/builder.ts";
 import type {
   BuiltSite,
   BuiltSiteFormInput,
 } from "#shared/db/built-sites/types.ts";
+import type { SiteAssignmentDelivery } from "#shared/payment-completion-delivery.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { required } from "#test-utils/required.ts";
+import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
+
+/** What a successful build hands back to the app. */
+export const BUILT_SITE_RESULT = {
+  dbProvider: "bunny",
+  dbToken: "database-token",
+  dbUrl: "libsql://built-site.test",
+  defaultHostname: "00001.example.test",
+  hostingId: "123",
+  hostingProvider: "bunny",
+  ok: true,
+} satisfies BuildSiteResult;
+
+/** The same site, as handed to the app to write down before it is finished. */
+export const PREPARED_BUILT_SITE = {
+  ...BUILT_SITE_RESULT,
+  scheduledTaskKey: TEST_SCHEDULED_KEY,
+} satisfies PreparedBuildSite;
 
 /** The built-sites admin routes 404 unless CAN_BUILD_SITES is on (the feature
  * is hidden otherwise), so a helper that drives those routes to make test data
@@ -124,4 +146,56 @@ export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
       "delete built site",
     ),
   );
+};
+
+/** Run a paid site assignment and hand back what it wrote down, so a test can
+ * replay it or check the site it reserved. */
+export const runSiteAssignment = async (
+  delivery: SiteAssignmentDelivery,
+): Promise<SiteAssignmentDelivery> => {
+  const { applyPaidSiteAssignment } = await import(
+    "#shared/site-assignment-paid.ts"
+  );
+  let stored = delivery;
+  await applyPaidSiteAssignment(delivery, (next) => {
+    stored = next;
+    return Promise.resolve();
+  });
+  return stored;
+};
+
+/** Handing out a site is only offered when there is a renewal tier to sell,
+ *  so register one for each test in the suite that calls this. */
+export const useRenewalTier = (): void => {
+  beforeEach(async () => {
+    const { createTestListing } = await import(
+      "#test-utils/db-helpers/listings.ts"
+    );
+    await createTestListing({
+      hidden: true,
+      monthsPerUnit: 2,
+      purchaseOnly: true,
+    });
+  });
+};
+
+/** A built site ready to be renewed: it has a renewal token and a date it
+ *  goes read-only, which is what a paid renewal pushes forward. */
+export const setupRenewalSite = async (
+  readOnlyFrom: string,
+  name = "Renewal Site",
+): Promise<{ site: BuiltSite; tokenIndex: string }> => {
+  const { builtSites, insertBuiltSite } = await import(
+    "#shared/db/built-sites.ts"
+  );
+  await insertBuiltSite(name, "renewal.b-cdn.net", "", "", false, "5001");
+  const sites = await builtSites.getAll();
+  const site = required(
+    sites.find((candidate) => candidate.name === name),
+    "the renewal site",
+  );
+  const { tokenIndex } = await provisionTestBuiltSite(site.id, {
+    readOnlyFrom,
+  });
+  return { site, tokenIndex };
 };

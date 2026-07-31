@@ -14,7 +14,6 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import { nonStandalonePair, packageParentOrder } from "./helpers.ts";
 
 const pricesFor = async (
@@ -22,10 +21,7 @@ const pricesFor = async (
   amount: number,
   intent: BookingIntent,
 ): Promise<Array<number | null>> => {
-  const result = await validateAllItems(
-    paymentSession(id, amount, intent),
-    intent,
-  );
+  const result = await validateAllItems(paymentSession(id, amount), intent);
   if (!("ok" in result) || !result.ok) {
     throw new Error(`Expected validated items, got ${JSON.stringify(result)}`);
   }
@@ -41,21 +37,19 @@ describeWithEnv("paid item validation boundaries", { db: true }, () => {
       unitPrice: 400,
     });
     const intent = bookingIntent([{ e: listing.id, p: 400, q: 1 }]);
-    using refund = stubRefundPayment("re_items_single_closed");
 
     expect(
       await validateAllItems(
-        paymentSession("cs_items_single_closed", 400, intent),
+        paymentSession("cs_items_single_closed", 400),
         intent,
       ),
     ).toEqual({
-      detail: undefined,
+      detail:
+        "Post-payment listing validation failed (session=cs_items_single_closed)",
       error: "Sorry, registration closed while you were completing payment.",
-      refunded: true,
       status: 410,
       success: false,
     });
-    expect(refund.calls).toHaveLength(1);
   });
 
   test("fails one standalone listing that joined a hidden package", async () => {

@@ -125,16 +125,13 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
       } finally {
         checkout.restore();
       }
-      const intent = getCaptured();
-      expect(intent?.date).toBe(null);
-      expect(intent?.items).toEqual([
-        {
-          listingId: listing.id,
-          name: listing.name,
-          quantity: 2,
-          slug: listing.slug,
-          unitPrice: 1500,
-        },
+      const capturedCheckout = getCaptured();
+      expect(capturedCheckout?.bookingIntent.date).toBe(null);
+      expect(capturedCheckout?.bookingIntent.items).toEqual([
+        { e: listing.id, p: 3000, q: 2 },
+      ]);
+      expect(capturedCheckout?.order.lines).toEqual([
+        { amount: 1500, name: listing.name, quantity: 2 },
       ]);
     });
 
@@ -222,7 +219,7 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
       } finally {
         checkout.restore();
       }
-      expect(getCaptured()?.items[0]?.unitPrice).toBe(2000);
+      expect(getCaptured()?.order.lines[0]?.amount).toBe(2000);
     });
   });
 

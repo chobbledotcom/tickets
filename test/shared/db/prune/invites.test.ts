@@ -39,7 +39,7 @@ describeWithEnv("db > expired invite pruning", { db: true }, () => {
   test("rejects an invalid saved scan position", async () => {
     for (const checkpoint of ["not-an-id", "0"]) {
       await expect(runDatabasePruning(checkpoint)).rejects.toThrow(
-        `Invalid invite pruning checkpoint: ${checkpoint}`,
+        `Invalid database pruning checkpoint: ${checkpoint}`,
       );
     }
   });

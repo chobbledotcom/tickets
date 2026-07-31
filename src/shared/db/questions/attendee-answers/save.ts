@@ -11,7 +11,7 @@ import {
   inPlaceholders,
   resultRows,
   type TxScope,
-  withTransaction,
+  useTransaction,
 } from "#shared/db/client.ts";
 import type { TextAnswer, TextAnswerId } from "#shared/db/question-types.ts";
 import {
@@ -146,6 +146,7 @@ const existingQuestionIdsTx = async (
  */
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
+  transaction?: TxScope,
 ): Promise<void> => {
   const normalized = new Map<
     number,
@@ -178,7 +179,7 @@ export const saveAttendeeAnswers = async (
       set.textAnswers.map((a) => a.text),
     ),
   );
-  await withTransaction(async (tx) => {
+  await useTransaction(transaction, async (tx) => {
     // Delete every attendee's existing answers in one statement. SQLite
     // triggers fire per affected row (there is no statement-level trigger
     // form), so strings.used_count is decremented once per row whether the

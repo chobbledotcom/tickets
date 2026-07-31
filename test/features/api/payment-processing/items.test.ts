@@ -15,7 +15,6 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRefundPayment } from "#test-utils/webhooks.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 import {
   listingPair,
@@ -58,10 +57,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     const intent = bookingIntent([{ e: listing.id, p: 400, q: 1 }]);
 
     const items = validatedItems(
-      await validateAllItems(
-        paymentSession("cs_items_days", 400, intent),
-        intent,
-      ),
+      await validateAllItems(paymentSession("cs_items_days", 400), intent),
     );
     expect(items).toHaveLength(1);
     expect(items[0]?.expectedPrice).toBe(400);
@@ -73,20 +69,18 @@ describeWithEnv("paid item validation", { db: true }, () => {
 
     expect(
       failureResult(
-        await validateAllItems(
-          paymentSession("cs_items_missing", 500, intent),
-          intent,
-        ),
+        await validateAllItems(paymentSession("cs_items_missing", 500), intent),
       ),
     ).toEqual({
-      detail: "Post-payment listing not found (session=cs_items_missing)",
+      detail:
+        "Post-payment listing validation failed (session=cs_items_missing)",
       error: "Listing not found",
       status: 404,
       success: false,
     });
   });
 
-  test("refunds an inactive single listing without exposing its name", async () => {
+  test("reports an inactive single listing without exposing its name", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 5,
@@ -95,23 +89,21 @@ describeWithEnv("paid item validation", { db: true }, () => {
     });
     await deactivateTestListing(listing.id);
     const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
-    using refund = stubRefundPayment("re_items_inactive");
 
     expect(
       failureResult(
         await validateAllItems(
-          paymentSession("cs_items_inactive", 500, intent),
+          paymentSession("cs_items_inactive", 500),
           intent,
         ),
       ),
     ).toEqual({
-      detail: undefined,
+      detail:
+        "Post-payment listing validation failed (session=cs_items_inactive)",
       error: "This listing is no longer accepting registrations.",
-      refunded: true,
       status: 410,
       success: false,
     });
-    expect(refund.calls[0]?.args).toEqual(["pi_cs_items_inactive"]);
   });
 
   test("names the listing that closed in a visible multi-listing order", async () => {
@@ -127,19 +119,14 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { e: open.id, p: 300, q: 1 },
       { e: closed.id, p: 400, q: 1 },
     ]);
-    using refund = stubRefundPayment("re_items_closed");
 
     expect(
       failureResult(
-        await validateAllItems(
-          paymentSession("cs_items_closed", 700, intent),
-          intent,
-        ),
+        await validateAllItems(paymentSession("cs_items_closed", 700), intent),
       ).error,
     ).toBe(
       "Sorry, registration for Evening class closed while you were completing payment.",
     );
-    expect(refund.calls).toHaveLength(1);
   });
 
   test("conceals an inactive member name in a hidden package", async () => {
@@ -163,17 +150,12 @@ describeWithEnv("paid item validation", { db: true }, () => {
       { e: first.id, k: "p", p: 300, q: 1, r: group.id },
       { e: second.id, k: "p", p: 400, q: 1, r: group.id },
     ]);
-    using refund = stubRefundPayment("re_hidden_package");
 
     expect(
       failureResult(
-        await validateAllItems(
-          paymentSession("cs_items_hidden", 700, intent),
-          intent,
-        ),
+        await validateAllItems(paymentSession("cs_items_hidden", 700), intent),
       ).error,
     ).toBe("This listing is no longer accepting registrations.");
-    expect(refund.calls).toHaveLength(1);
   });
 
   test("conceals a stale standalone member and fails the order closed", async () => {
@@ -197,23 +179,21 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_stale_hidden", 700, intent),
+          paymentSession("cs_items_stale_hidden", 700),
           intent,
         ),
       ).map((item) => item.expectedPrice),
     ).toEqual([null, null]);
 
     await deactivateTestListing(member.id);
-    using refund = stubRefundPayment("re_stale_hidden");
     expect(
       failureResult(
         await validateAllItems(
-          paymentSession("cs_items_stale_hidden_closed", 700, intent),
+          paymentSession("cs_items_stale_hidden_closed", 700),
           intent,
         ),
       ).error,
     ).toBe("This listing is no longer accepting registrations.");
-    expect(refund.calls).toHaveLength(1);
   });
 
   test("accepts a fully folded child whose standalone flag was cleared", async () => {
@@ -221,10 +201,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
 
     expect(
       validatedItems(
-        await validateAllItems(
-          paymentSession("cs_items_folded", 800, intent),
-          intent,
-        ),
+        await validateAllItems(paymentSession("cs_items_folded", 800), intent),
       ).map((item) => item.expectedPrice),
     ).toEqual([600, 200]);
   });
@@ -245,7 +222,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_child_surplus", 1000, intent),
+          paymentSession("cs_items_child_surplus", 1000),
           intent,
         ),
       ).map((item) => item.expectedPrice),
@@ -274,7 +251,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_package_child", 150, intent),
+          paymentSession("cs_items_package_child", 150),
           intent,
         ),
       )[0]?.expectedPrice,
@@ -305,7 +282,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_bundle_drift", 300, intent),
+          paymentSession("cs_items_bundle_drift", 300),
           intent,
         ),
       )[0]?.expectedPrice,
@@ -322,7 +299,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     expect(
       validatedItems(
         await validateAllItems(
-          paymentSession("cs_items_edge_drift", 500, intent),
+          paymentSession("cs_items_edge_drift", 500),
           intent,
         ),
       )[0]?.expectedPrice,

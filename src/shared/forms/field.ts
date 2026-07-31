@@ -56,6 +56,7 @@ export type InputFieldType =
   | "date"
   | "datetime"
   | "datetime-local"
+  | "hidden"
   | "money";
 
 interface FieldBase<

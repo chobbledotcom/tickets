@@ -2,7 +2,7 @@
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -16,14 +16,12 @@ describeWithEnv(
   "server webhooks > acknowledging edge-case sessions",
   { db: true },
   () => {
-    test("acknowledges non-checkout listings", async () => {
+    // An event we have nothing to act on (any type the provider does not turn
+    // into a payment notice) is acknowledged so the provider stops retrying.
+    test("acknowledges an event that carries no payment notice", async () => {
       await setupStripe();
 
-      await expectWebhookIgnored({
-        data: { object: {} },
-        id: "evt_test",
-        type: "payment_intent.created",
-      });
+      await expectWebhookIgnored(null);
     });
 
     test("acknowledges webhook with unrecognized session metadata", async () => {
@@ -35,6 +33,7 @@ describeWithEnv(
           amountTotal: 0,
           eventId: "evt_test",
           metadata: {}, // Missing required fields — not our session
+          paymentIntent: "pi_unrecognized",
           sessionId: "cs_test",
         }),
       );
@@ -52,30 +51,21 @@ describeWithEnv(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_test",
-          metadata: webhookMeta({
-            email: "john@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "John",
-          }),
+          // Signed, so the checkout is provably ours and its unpaid state is
+          // what decides the outcome.
+          metadata: signedMeta(
+            {
+              email: "john@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "John",
+            },
+            1000,
+          ),
           paymentIntent: "pi_test",
           paymentStatus: "unpaid",
           sessionId: "cs_test",
         }),
       );
-    });
-
-    test("webhook handles non-checkout listing type by acknowledging", async () => {
-      await setupStripe();
-
-      await expectWebhookIgnored({
-        data: {
-          object: {
-            id: "pi_test",
-          },
-        },
-        id: "evt_other_type",
-        type: "payment_intent.succeeded",
-      });
     });
   },
 );

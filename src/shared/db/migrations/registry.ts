@@ -382,6 +382,9 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-22_maintenance_completion",
     () => import("./2026-07-22_maintenance_completion.ts"),
   ),
+  // Notes move to their own tables before the payment work below: applying
+  // the schema walks every declared table, and adding a NOT NULL column to a
+  // table that already has rows is refused, so this has to land first.
   entry(
     "2026-07-28_note_entities",
     () => import("./2026-07-28_note_entities.ts"),
@@ -396,6 +399,22 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
   entry(
     "2026-07-26_payment_records",
     () => import("./2026-07-26_payment_records.ts"),
+  ),
+  // Mark each built site with the handing-over it belongs to.
+  entry(
+    "2026-07-26_payment_completion",
+    () => import("./2026-07-26_payment_completion.ts"),
+  ),
+  // Fill the tables above from the old payment rows. It has to follow them,
+  // and to come before the old tables are taken away.
+  entry(
+    "2026-07-26_payment_aggregate",
+    () => import("./2026-07-26_payment_aggregate.ts"),
+  ),
+  // Remove the write-blocked staging tables after their verified aggregate copy.
+  entry(
+    "2026-07-26_retire_legacy_payment_tables",
+    () => import("./2026-07-26_retire_legacy_payment_tables.ts"),
   ),
 ];
 /* jscpd:ignore-end */

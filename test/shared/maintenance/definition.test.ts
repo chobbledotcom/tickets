@@ -10,6 +10,11 @@ import {
   maintenanceStartupCalls,
   maintenanceTaskByName,
 } from "#shared/maintenance/definition.ts";
+import {
+  PAYMENT_CASE_ALERT_TASK_BUDGET,
+  PAYMENT_MAINTENANCE_TASK_BUDGET,
+  PAYMENT_RECONCILIATION_TASK_BUDGET,
+} from "#shared/payment-runtime/maintenance-budget.ts";
 import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
 import { maintenanceDeclaration } from "./fixtures.ts";
 
@@ -53,6 +58,18 @@ describe("maintenance task declarations", () => {
       8,
     );
     expect(MAINTENANCE_RELEASE_HEADROOM_MS).toBe(1_000);
+    expect(
+      PAYMENT_RECONCILIATION_TASK_BUDGET.database +
+        PAYMENT_RECONCILIATION_TASK_BUDGET.external,
+    ).toBe(MAINTENANCE_TASK_CALL_LIMIT - 1);
+    expect(
+      PAYMENT_CASE_ALERT_TASK_BUDGET.database +
+        PAYMENT_CASE_ALERT_TASK_BUDGET.external,
+    ).toBe(12);
+    expect(
+      PAYMENT_MAINTENANCE_TASK_BUDGET.database +
+        PAYMENT_MAINTENANCE_TASK_BUDGET.external,
+    ).toBe(MAINTENANCE_TASK_CALL_LIMIT);
   });
 
   test("rejects a name that cannot be stored as a task key", () => {

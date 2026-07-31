@@ -102,6 +102,15 @@ export const ADMIN_NAV_ROUTES = [
     "create",
   ),
   view(
+    "payments",
+    "payments",
+    "payments",
+    "/admin/payments",
+    OWNER_AUDIENCE,
+    "nav.payments",
+    "landing",
+  ),
+  view(
     "users",
     "users",
     "users",

@@ -98,9 +98,10 @@ const incompleteRowPredicate = (paid: boolean): string => {
     )}` +
     " AND event_group = listingAttendee.ledger_event_group)";
   const hasProviderReference =
-    "EXISTS (SELECT 1 FROM processed_payments AS payment" +
+    "EXISTS (SELECT 1 FROM payment_sessions AS payment" +
+    " JOIN payment_charges AS charge ON charge.payment_id = payment.id" +
     " WHERE payment.attendee_id = listingAttendee.attendee_id" +
-    " AND payment.payment_reference != '')";
+    " AND charge.provider_reference IS NOT NULL)";
   const nothingOwed = `${attendeeOwedSubquery(
     "listingAttendee.attendee_id",
   )} <= 0`;
@@ -133,9 +134,10 @@ const incompleteSales = async (listingId: number): Promise<number> => {
     " AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id" +
     " AND paymentLeg.event_group = saleLeg.event_group)";
   const noProviderReference =
-    "NOT EXISTS (SELECT 1 FROM processed_payments AS payment" +
+    "NOT EXISTS (SELECT 1 FROM payment_sessions AS payment" +
+    " JOIN payment_charges AS charge ON charge.payment_id = payment.id" +
     " WHERE payment.attendee_id = CAST(saleLeg.source_id AS INTEGER)" +
-    " AND payment.payment_reference != '')";
+    " AND charge.provider_reference IS NOT NULL)";
   const nothingOwed = `${attendeeOwedSubquery(
     "CAST(saleLeg.source_id AS INTEGER)",
   )} <= 0`;

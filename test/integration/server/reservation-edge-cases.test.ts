@@ -1,14 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import {
   bookFreeOrder,
   bookPaidReservation,
@@ -23,13 +21,14 @@ import {
   setupReservationListing,
   stubPaidSession,
 } from "#test/test-utils/reservation/helpers.ts";
-import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { captureCheckoutSnapshot } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+import { stubRefundPayment } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -89,9 +88,7 @@ describeWithEnv(
         reservationAmount: "10%",
       });
       const addOn = await createProgrammeCharge({ stock: 0 });
-      const refund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_addon", status: "succeeded" } as never),
-      );
+      const refund = stubRefundPayment("re_addon", 150);
       const session = stubPaidSession(
         "cs_addon_sold",
         {
@@ -119,14 +116,13 @@ describeWithEnv(
           "pi_cs_addon_sold",
           await response.text(),
         );
-        // The session is recorded as a terminal failure (placeholder kept, no
-        // ticket attendee): attendee_id stays null and failure_data is set.
-        const { isSessionProcessed } = await import(
-          "#shared/db/processed-payments.ts"
+        const { requirePaymentAggregateByProviderSession } = await import(
+          "#test-utils/payment-aggregate.ts"
         );
-        const record = await isSessionProcessed("cs_addon_sold");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
+        const payment =
+          await requirePaymentAggregateByProviderSession("cs_addon_sold");
+        expect(payment.completion?.kind).toBe("placeholder_refund");
+        expect(payment.state).toBe("fully_refunded");
       } finally {
         session.restore();
         refund.restore();
@@ -140,7 +136,7 @@ describeWithEnv(
         "UPDATE attendee_statuses SET is_public_default = 0",
       );
       attendeeStatuses.invalidate();
-      await expect(captureCheckoutIntent(listing)).rejects.toThrow(
+      await expect(captureCheckoutSnapshot(listing)).rejects.toThrow(
         "No attendee status has the required is_public_default flag",
       );
     });

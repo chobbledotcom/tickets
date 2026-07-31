@@ -182,6 +182,9 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/db/settings.ts:getCurrentSettingsVersion",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
+  // Resuming a checkout is reached in production only through the whole-module
+  // lazy import in payment-runtime/maintenance.ts, which this scan cannot see.
+  "shared/payment-runtime/create.ts:resumePaymentCheckout",
   // (settings.ts functions now accessed via settings namespace, not individual exports)
   // Reset cached I18N_REPLACEMENTS replacer + compiled formats between tests
   "shared/i18n.ts:resetI18nForTest",
@@ -192,25 +195,22 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/db/backup.ts:BACKUP_FRESHNESS_WINDOW_MS",
   // Attendees page size used in production (same-file) but test pattern doesn't detect same-file usage
   "shared/db/attendees/queries.ts:ATTENDEES_PAGE_SIZE",
-  // Payments-retention floor guard used in production (same-file: validates
-  // PRUNE_PAYMENTS_RETENTION_DAYS at import) but test pattern doesn't detect same-file usage
-  "shared/limits.ts:assertPaymentsRetentionSafe",
+  // Payment-history floor guard used in production (same-file: validates
+  // PAYMENT_HISTORY_REDACTION_DAYS at import) but test pattern misses same-file usage.
+  "shared/limits.ts:assertPaymentHistoryRedactionSafe",
   // Retention *_DAYS / *_HOURS constants used in production (same-file: derive
   // the *_MS derivatives that prune.ts imports) but the pattern can't detect
   // same-file arithmetic (`X * DAY_MS` — `*` isn't in its usage character class).
-  "shared/limits.ts:PRUNE_PAYMENTS_RETENTION_DAYS",
+  "shared/limits.ts:PAYMENT_HISTORY_REDACTION_DAYS",
   "shared/limits.ts:PRUNE_SESSIONS_RETENTION_DAYS",
   "shared/limits.ts:PRUNE_LOGINS_RETENTION_DAYS",
   "shared/limits.ts:PRUNE_TOKENS_RETENTION_DAYS",
-  "shared/limits.ts:PRUNE_SUMUP_RETENTION_HOURS",
   "shared/limits.ts:PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
   "shared/limits.ts:PRUNE_CONTACTS_RETENTION_DAYS",
   "shared/limits.ts:ADDRESS_CACHE_DAYS",
   "shared/limits.ts:PRUNE_INTERVAL_HOURS",
-  // Reset cached Square client between tests
-  "shared/square.ts:resetSquareClient",
   // Test helper for creating signed Square webhook payloads
-  "shared/square.ts:constructTestWebhookEvent",
+  "shared/square-webhook.ts:constructTestSquareWebhook",
   // Raw attendee fetch for testing encrypted data (production uses batched getListingWithAttendeesRaw)
   "shared/db/attendees/queries.ts:getAttendeesRaw",
   // Single attendee fetch for tests (production uses batched getListingWithAttendeeRaw)

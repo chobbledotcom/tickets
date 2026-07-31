@@ -15,7 +15,6 @@ import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectWebhookIgnored,
-  postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -24,7 +23,7 @@ describeWithEnv(
   "server webhooks > refund skip conditions",
   { db: true },
   () => {
-    test("webhook refund returns false when payment reference is null", async () => {
+    test("paid Stripe webhook without a payment intent requests retry", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -33,35 +32,46 @@ describeWithEnv(
         unitPrice: 500,
       });
       await deactivateTestListing(listing.id);
+      const amount = 500;
+      const metadata = signedMeta(
+        {
+          email: "noref@example.com",
+          items: singleItem(listing.id, 1, amount),
+          name: "No Ref",
+        },
+        amount,
+      );
 
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
-          amountTotal: 500,
+          amountTotal: amount,
           eventId: "evt_noref",
-          metadata: signedMeta(
-            {
-              email: "noref@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "No Ref",
-            },
-            500,
-          ),
+          metadata,
+          paymentIntent: null,
           sessionId: "cs_noref",
         }),
       );
 
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        200,
-        (json) => {
-          expect(json.error).toContain("no longer accepting");
-        },
-      );
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        // A payment with no charge behind it is a case for the owner, not a
+        // booking and not a refund.
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({
+          received: true,
+          status: "needs_action",
+        });
+      } finally {
+        mockVerify.restore();
+      }
     });
 
-    test("tryRefund logs error when no payment provider is configured", async () => {
+    // The booking cannot be honoured and the money must go back, but the
+    // provider refuses the refund. Acknowledging would leave the buyer charged
+    // with nobody looking, so the callback asks to be sent again.
+    test("asks for redelivery when the refund cannot go through", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -71,20 +81,15 @@ describeWithEnv(
       });
       await deactivateTestListing(listing.id);
 
-      // Mock paymentsApi.getConfiguredProvider to return "stripe" on first call
-      // (for webhook handler's initial check) then null on second call (for tryRefund).
-      // This covers lines 135-141 where tryRefund has a payment reference but no provider.
-      const { paymentsApi } = await import("#shared/payments.ts");
-      const origGetConfigured = paymentsApi.getConfiguredProvider;
-      let callCount = 0;
-      const mockGetConfigured = stub(
-        paymentsApi,
-        "getConfiguredProvider",
-        () => {
-          callCount++;
-          // First call: webhook handler needs provider; second call: tryRefund should get null
-          return callCount <= 1 ? origGetConfigured() : null;
-        },
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      using _refund = stub(stripePaymentProvider, "refundCharge", (charge) =>
+        Promise.resolve({
+          amount: charge.refunded,
+          reason: "provider_failed" as const,
+          status: "failed" as const,
+        }),
       );
 
       const mockVerify = await stubWebhookVerify(
@@ -108,14 +113,10 @@ describeWithEnv(
         const response = await handleRequest(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
-        // The payment has a reference but the refund couldn't go through (no
-        // provider), so it is retryable: 5xx for the provider to re-deliver once
-        // reconfigured, rather than ack a still-charged customer.
         expect(response.status).toBe(503);
-        expect(await response.text()).toContain("no longer accepting");
+        expect(await response.json()).toEqual({ status: "retry" });
       } finally {
         mockVerify.restore();
-        mockGetConfigured.restore();
       }
     });
 
@@ -129,7 +130,7 @@ describeWithEnv(
       });
       // listing2 does not exist (id 99999) — validation fails before any attendees are created
 
-      const mockRefund = spy(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "requestRefund");
 
       // Unsigned session (no valid price proof): ignored (200 ack) without
       // processing, without a refund, and without creating any attendee.

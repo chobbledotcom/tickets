@@ -1,11 +1,16 @@
 import { assertExists } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import type { CheckoutItem, WebhookEvent } from "#shared/payments.ts";
+import type { CheckoutItem } from "#shared/payments.ts";
 import type { StripeClient } from "#shared/stripe/client.ts";
 import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
+import type {
+  StripeCharge,
+  StripeCheckoutSession,
+  StripeExpandedPaymentIntent,
+  StripeRefund,
+} from "#shared/stripe/schemas.ts";
 import type { Listing } from "#shared/types.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -30,11 +35,61 @@ export const stripeCheckoutSession = (
 ): StripeCheckoutSession => ({
   amount_total: 1000,
   created: 123,
+  currency: "gbp",
   id: "cs_test",
+  livemode: false,
   metadata: {},
   payment_intent: "pi_test",
   payment_status: "paid",
+  status: "complete",
   url: "https://checkout.stripe.com/c/pay/cs_test",
+  ...overrides,
+});
+
+/** A complete captured charge with a cumulative partial refund. */
+export const stripeCharge = (
+  overrides: Partial<StripeCharge> = {},
+): StripeCharge => ({
+  amount: 1000,
+  amount_captured: 1000,
+  amount_refunded: 400,
+  captured: true,
+  created: 125,
+  currency: "gbp",
+  id: "ch_test",
+  livemode: false,
+  paid: true,
+  payment_intent: "pi_test",
+  refunded: false,
+  ...overrides,
+});
+
+/** A succeeded PaymentIntent with its latest charge expanded. */
+export const stripePaymentIntent = (
+  overrides: Partial<StripeExpandedPaymentIntent> = {},
+): StripeExpandedPaymentIntent => ({
+  amount: 1000,
+  amount_received: 1000,
+  created: 124,
+  currency: "gbp",
+  id: "pi_test",
+  latest_charge: stripeCharge(),
+  livemode: false,
+  status: "succeeded",
+  ...overrides,
+});
+
+/** A complete refund response for the latest charge. */
+export const stripeRefund = (
+  overrides: Partial<StripeRefund> = {},
+): StripeRefund => ({
+  amount: 1000,
+  charge: "ch_test",
+  created: 126,
+  currency: "gbp",
+  id: "re_test_1",
+  payment_intent: "pi_test_1",
+  status: "succeeded",
   ...overrides,
 });
 
@@ -101,7 +156,7 @@ export const signedHeader = async (
 
 /** Ask stripe-node to serialize and sign a test webhook event. */
 export const signedWebhook = async (
-  event: WebhookEvent,
+  event: unknown,
   secret: string,
 ): Promise<{ payload: string; signature: string }> => {
   const payload = JSON.stringify(event);

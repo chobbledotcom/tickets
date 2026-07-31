@@ -7,8 +7,8 @@
  */
 
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
 import { formatCurrency } from "#shared/currency.ts";
+import { PAYMENT_PROVIDER_RESOURCES } from "#shared/payment-runtime/current.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
@@ -16,6 +16,8 @@ import { listingNamed } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { stubProviderCheckout } from "#test-utils/checkout.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -119,18 +121,15 @@ export const summaryTotal = (world: TicketsWorld): string => {
  * the code the customer typed is the one the books record. */
 export const customerPaysWithCode = fromBookingPage(
   async (_world, browser, code) => {
-    const captured: { intent: unknown } = { intent: null };
     const sessionId = "cs_discount_code";
-    const checkoutStub = stub(
-      stripePaymentProvider,
-      "createCheckoutSession",
-      (intent) => {
-        captured.intent = intent;
-        return Promise.resolve({
-          checkoutUrl: "https://spec.test/checkout",
-          sessionId,
-        });
-      },
+    // The provider is stood in for and the exact checkout it was handed is
+    // kept, so the payment can be finished as the app actually signed it.
+    const checkoutStub = stubProviderCheckout(stripePaymentProvider, () =>
+      Promise.resolve({
+        checkoutUrl: "https://spec.test/checkout",
+        session: PAYMENT_PROVIDER_RESOURCES.stripe.session(sessionId),
+        sessionId,
+      }),
     );
     try {
       await fillInAndSend(
@@ -139,15 +138,12 @@ export const customerPaysWithCode = fromBookingPage(
         "Continue",
       );
     } finally {
-      checkoutStub.restore();
+      checkoutStub.checkout.restore();
     }
-    if (captured.intent === null) {
-      throw new Error("Pressing Continue never reached the payment provider");
-    }
-    await completePaidCheckout(
-      captured.intent as Parameters<typeof completePaidCheckout>[0],
-      sessionId,
-    );
+    await completePaidCheckout(checkoutStub.requireCaptured(), sessionId);
+    // The activity log entry for the code is written after the buyer is sent
+    // on their way, so the story waits for that work the way the site does.
+    await settleDeferredPaymentWork();
   },
 );
 

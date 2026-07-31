@@ -1,9 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
 import { bookPaidReservation } from "#test/integration/server/_shared-setup.ts";
 import {
   createOptionalAddOn,
@@ -14,13 +12,14 @@ import {
   setupReservationListing,
   stubPaidSession,
 } from "#test/test-utils/reservation/helpers.ts";
-import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { captureCheckoutSnapshot } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+import { stubRefundPayment } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
@@ -56,9 +55,9 @@ describeWithEnv(
         reservationAmount: "10%",
       });
       await createProgrammeCharge();
-      const captured = await captureCheckoutIntent(listing);
-      expect(captured?.reservationAmount).toBe("10%");
-      expect(captured?.modifiers).toHaveLength(1);
+      const captured = await captureCheckoutSnapshot(listing);
+      expect(captured?.bookingIntent.reservationAmount).toBe("10%");
+      expect(captured?.bookingIntent.modifiers).toHaveLength(1);
     });
 
     test("free listing with a selected add-on uses paid reservation checkout", async () => {
@@ -68,13 +67,13 @@ describeWithEnv(
         unitPrice: 0,
       });
       const addOn = await createOptionalAddOn();
-      const captured = await captureCheckoutIntent(listing, {
+      const captured = await captureCheckoutSnapshot(listing, {
         [`addon_${addOn.id}`]: "1",
       });
-      expect(captured?.items[0]?.unitPrice).toBe(0);
-      expect(captured?.reservationAmount).toBe("10%");
-      expect(captured?.modifiers?.[0]?.id).toBe(addOn.id);
-      expect(captured?.modifiers?.[0]?.quantity).toBe(1);
+      expect(captured?.order.lines[0]?.amount).toBe(50);
+      expect(captured?.bookingIntent.reservationAmount).toBe("10%");
+      expect(captured?.bookingIntent.modifiers[0]?.i).toBe(addOn.id);
+      expect(captured?.bookingIntent.modifiers[0]?.q).toBe(1);
     });
 
     test("reservation with a positive add-on stores the modified balance", async () => {
@@ -111,9 +110,7 @@ describeWithEnv(
         unitPrice: 0,
       });
       const addOn = await createProgrammeCharge();
-      const refund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_free_addon", status: "succeeded" } as never),
-      );
+      const refund = stubRefundPayment("re_free_addon", 40);
       const session = stubPaidSession(
         "cs_free_addon_bad",
         {

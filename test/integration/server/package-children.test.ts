@@ -3,7 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -15,6 +14,10 @@ import {
   submitPackageBooking,
 } from "#test-utils/packages.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import {
+  stubRefundPayment,
+  stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks.ts";
 
 /** The REAL booking rows for a listing (a refunded order's quantity-0
  * placeholder is not a booking), newest first, with their parent allocation. */
@@ -64,16 +67,15 @@ const packageWithChild = async (name: string, slug: string) => {
   return { child, childB, group, other, parent };
 };
 
-/** A retrieved-session stub for one paid package+child order (members 1000 +
- * 500, one 300 child folded under the first member). */
-const packageChildSession = (
+/** Stand in for one paid package+child order (members 1000 + 500, one 300
+ * child folded under the first member). */
+const stubPackageChildSession = (
   ids: { child: number; group: number; other: number; parent: number },
   sessionId: string,
   intentId: string,
 ) =>
-  ({
-    amount_total: 1800,
-    id: sessionId,
+  stubRetrieveCheckoutSession({
+    amountTotal: 1800,
     metadata: signMeta(
       {
         allocations: JSON.stringify([
@@ -89,11 +91,9 @@ const packageChildSession = (
       },
       1800,
     ),
-    payment_intent: intentId,
-    payment_status: "paid",
-  }) as unknown as Awaited<
-    ReturnType<typeof stripeApi.retrieveCheckoutSession>
-  >;
+    paymentIntent: intentId,
+    sessionId,
+  });
 
 /** Cap the two add-ons at 2 and 1 units — a 3-bundle child-side ceiling. */
 const capAddonsAtThree = async (childId: number, childBId: number) => {
@@ -268,22 +268,15 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       "Paid Kit",
       "paid-kit-pkg",
     );
-    const mockRetrieve = (await import("@std/testing/mock")).stub(
-      stripeApi,
-      "retrieveCheckoutSession",
-      () =>
-        Promise.resolve(
-          packageChildSession(
-            {
-              child: child.id,
-              group: group.id,
-              other: other.id,
-              parent: parent.id,
-            },
-            "cs_pkg_child_paid",
-            "pi_pkg_child_paid",
-          ),
-        ),
+    const mockRetrieve = stubPackageChildSession(
+      {
+        child: child.id,
+        group: group.id,
+        other: other.id,
+        parent: parent.id,
+      },
+      "cs_pkg_child_paid",
+      "pi_pkg_child_paid",
     );
 
     try {
@@ -301,30 +294,20 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
 
   test("a child edge removed mid-checkout refunds instead of booking a stale bundle", async () => {
     await setupStripe();
-    const { stub } = await import("@std/testing/mock");
     const { child, group, other, parent } = await packageWithChild(
       "Drift Kit",
       "drift-kit-pkg",
     );
-    const mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({
-        id: "re_drift",
-        status: "succeeded",
-      } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-    );
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve(
-        packageChildSession(
-          {
-            child: child.id,
-            group: group.id,
-            other: other.id,
-            parent: parent.id,
-          },
-          "cs_pkg_child_drift",
-          "pi_pkg_child_drift",
-        ),
-      ),
+    const mockRefund = stubRefundPayment("re_drift", 1800);
+    const mockRetrieve = stubPackageChildSession(
+      {
+        child: child.id,
+        group: group.id,
+        other: other.id,
+        parent: parent.id,
+      },
+      "cs_pkg_child_drift",
+      "pi_pkg_child_drift",
     );
 
     try {
@@ -347,7 +330,6 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
 
   test("a child edge added mid-checkout refunds instead of booking without the add-on", async () => {
     await setupStripe();
-    const { stub } = await import("@std/testing/mock");
     const { createTestGroup } = await import(
       "#test-utils/db-helpers/groups.ts"
     );
@@ -369,32 +351,22 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       name: "Grown Addon",
       unitPrice: 300,
     });
-    const mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({
-        id: "re_grown",
-        status: "succeeded",
-      } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-    );
-    const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1000,
-        id: "cs_pkg_grown",
-        metadata: signMeta(
-          {
-            email: "grown@example.com",
-            items: JSON.stringify([
-              { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
-            ]),
-            name: "Grown Buyer",
-          },
-          1000,
-        ),
-        payment_intent: "pi_pkg_grown",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const mockRefund = stubRefundPayment("re_grown", 1000);
+    const mockRetrieve = stubRetrieveCheckoutSession({
+      amountTotal: 1000,
+      metadata: signMeta(
+        {
+          email: "grown@example.com",
+          items: JSON.stringify([
+            { e: member.id, k: "p", p: 1000, q: 1, r: group.id },
+          ]),
+          name: "Grown Buyer",
+        },
+        1000,
+      ),
+      paymentIntent: "pi_pkg_grown",
+      sessionId: "cs_pkg_grown",
+    });
 
     try {
       // The operator gives the member a required add-on while the customer is

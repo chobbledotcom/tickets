@@ -1,17 +1,23 @@
-/**
- * Payment provider abstraction layer
- *
- * Defines a provider-agnostic interface for payment operations.
- * Admins choose a provider (e.g. Stripe) in settings; routes use
- * this interface so they never depend on a specific provider.
- */
-
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
+import type {
+  PaymentCharge,
+  PaymentSession,
+} from "#shared/db/payments/types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
+import type {
+  ProviderNotice,
+  ProviderRead,
+} from "#shared/payment-state/observation.ts";
+import type {
+  ProviderResource,
+  ProviderSessionResource,
+  RefundResolution,
+} from "#shared/payment-state/resources.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -118,10 +124,7 @@ export type CheckoutIntent = CheckoutIntentBase & {
   feeSubtotal?: number;
 };
 
-/** Result of creating a checkout session.
- * - Success: { sessionId, checkoutUrl }
- * - User-facing error (e.g. invalid phone): { error }
- * - Internal/unknown failure: null */
+/** Result of creating a checkout session. */
 export type CheckoutSessionResult =
   | {
       sessionId: string;
@@ -132,53 +135,18 @@ export type CheckoutSessionResult =
     }
   | null;
 
-/**
- * Metadata attached to a validated payment session.
- *
- * All fields are guaranteed to be strings after extraction.
- * Empty string ("") is the canonical representation for "not provided" —
- * payment providers store metadata as string key-value pairs, so null/undefined
- * are normalized to "" by extractSessionMetadata. Domain types (e.g.
- * RegistrationIntent.date) may use null for "not provided"; conversion
- * between "" and null happens at the extraction boundary.
- *
- * This is the *logical* shape. On the Square wire, several small fields are
- * collapsed into a single packed entry to fit its 10-entry metadata cap (see
- * packMetadata); Stripe/SumUp store the fields top-level. extractSessionMetadata
- * unpacks the Square form back to this shape, so no consumer beyond that boundary
- * needs to know which form was used.
- */
-export type SessionMetadata = ContactInfo & {
-  _origin: string;
-  items: string;
-  date: string;
-  day_count: string;
-  answer_ids: string;
-  text_answer_ids: string;
-  site_token_index: string;
-  /** Attendee id when this session settles an outstanding balance ("" if not). */
-  balance_attendee_id: string;
-  /** Reservation-amount snapshot when the items are deposit-priced ("" if not). */
-  reservation_amount: string;
-  /** JSON array of applied modifier references ("" when none applied). */
-  modifiers: string;
-  /** Explicit thank-you redirect a parent booking carries so a folded child
-   * doesn't drop it ("" when the default single-listing derivation applies). */
-  thank_you_url: string;
-  /** JSON-encoded ChildAllocation[] from the fold, carried through the paid
-   * round-trip so the webhook can expand child bookings into per-parent rows.
-   * "" when no children were folded. */
-  allocations: string;
-  /** The agreed order total (minor units) the buyer was charged, packed with a
-   * server HMAC over the price/booking fields as `total.sig` in a single key —
-   * one entry rather than two, to stay within providers' metadata-entry caps
-   * (Square allows only 10). "" only on legacy/unsigned sessions. */
-  price_proof: string;
-};
+/** A provider checkout plus both identities needed after creation. The redirect
+ * id may differ from the provider resource id (SumUp uses the local payment id). */
+export type ProviderCheckoutResult =
+  | {
+      checkoutUrl: string;
+      session: ProviderSessionResource;
+      sessionId: string;
+    }
+  | { error: string }
+  | null;
 
-/** Schema for valid payment status values. "failed" is a terminal non-payment
- * (declined or expired checkout) — distinct from "unpaid", which may still
- * complete. */
+/** Valid payment status value */
 export const PaymentStatusSchema = v.picklist([
   "paid",
   "unpaid",
@@ -209,19 +177,39 @@ export type ValidatedPaymentSession = {
   createdAt?: string | undefined;
 };
 
+/** Logical provider metadata after provider-specific packing is removed. */
+export type SessionMetadata = ContactInfo & {
+  _origin: string;
+  items: string;
+  date: string;
+  day_count: string;
+  answer_ids: string;
+  text_answer_ids: string;
+  site_token_index: string;
+  /** Attendee id when this session settles an outstanding balance ("" if not). */
+  balance_attendee_id: string;
+  /** Reservation-amount snapshot when the items are deposit-priced ("" if not). */
+  reservation_amount: string;
+  /** JSON array of applied modifier references ("" when none applied). */
+  modifiers: string;
+  /** Explicit thank-you redirect a parent booking carries so a folded child
+   * doesn't drop it ("" when the default single-listing derivation applies). */
+  thank_you_url: string;
+  /** JSON-encoded ChildAllocation[] from the fold, carried through the paid
+   * round-trip so the webhook can expand child bookings into per-parent rows.
+   * "" when no children were folded. */
+  allocations: string;
+  /** The agreed order total (minor units) the buyer was charged, packed with a
+   * server HMAC over the price/booking fields as `total.sig` in a single key —
+   * one entry rather than two, to stay within providers' metadata-entry caps
+   * (Square allows only 10). "" only on legacy/unsigned sessions. */
+  price_proof: string;
+};
+
 /** Result of webhook signature verification */
 export type WebhookVerifyResult =
-  | { valid: true; listing: WebhookEvent }
+  | { valid: true; notice: ProviderNotice | null }
   | { valid: false; error: string };
-
-/** Provider-agnostic webhook event */
-export type WebhookEvent = {
-  id: string;
-  type: string;
-  data: {
-    object: Record<string, unknown>;
-  };
-};
 
 /** Result of webhook endpoint setup */
 export type WebhookSetupResult =
@@ -241,60 +229,34 @@ export type SetupWebhookEndpoint = (
 /**
  * Payment provider interface.
  *
- * Each provider (Stripe, Square, etc.) implements this interface.
- * Routes call these methods without knowing which provider is active.
+ * Each provider (Stripe, Square, etc.) implements this interface. The payment
+ * runtime is the only checkout creator; later resolution remains provider-wide.
  */
 export interface PaymentProvider {
-  /** The webhook event type name that indicates a completed checkout */
-  readonly checkoutCompletedEventType: string;
+  /** Submit one already-priced and persisted checkout to this provider. */
+  createCheckout(
+    checkout: PaymentCheckoutCreateSnapshot,
+  ): Promise<ProviderCheckoutResult>;
 
-  /**
-   * Create a checkout session for one or more listings.
-   * Returns a session ID and hosted checkout URL, or null on failure.
-   */
-  createCheckoutSession(
-    intent: CheckoutIntent,
-    baseUrl: string,
-  ): Promise<CheckoutSessionResult>;
+  /** Read provider facts for a persisted payment, or for one signed legacy
+   * checkout that has not yet been adopted into the aggregate. */
+  readPayment(
+    payment: PaymentSession | null,
+    requested: ProviderResource,
+  ): Promise<ProviderRead>;
 
-  /**
-   * Check if a payment has been refunded via the provider API.
-   * Used to refresh refund status from the edit attendee page.
-   * @param paymentReference - provider-specific payment reference
-   * @returns true if the payment has been refunded
-   */
-  isPaymentRefunded(paymentReference: string): Promise<boolean>;
-
-  /**
-   * Refund a completed payment.
-   * @param paymentReference - provider-specific payment reference (e.g. Stripe payment_intent ID)
-   * @returns true if refund succeeded, false otherwise
-   */
-  refundPayment(paymentReference: string): Promise<boolean>;
+  /** Request or re-check one persisted charge refund. A pending charge carries
+   * its exact provider refund resource, so this method checks rather than posts. */
+  refundCharge(
+    charge: PaymentCharge,
+    idempotencyKey: string,
+  ): Promise<RefundResolution>;
 
   /** Whether incoming webhooks carry a verifiable signature. Providers that
    * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
    * unsigned requests. Providers whose webhooks are unsigned (SumUp) set this
    * false and instead establish authenticity by re-fetching from the API. */
   readonly requiresWebhookSignature: boolean;
-
-  /**
-   * Resolve a validated session from a webhook event.
-   * Each provider knows how to extract/fetch session data from its own
-   * event structure, so the webhook handler stays provider-agnostic.
-   *
-   * @returns the session, "skip" if the event should be acknowledged
-   *          without processing (e.g. pending payment), or null on error.
-   */
-  resolveWebhookSession(
-    listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null>;
-
-  /**
-   * Retrieve and validate a completed checkout session by ID.
-   * Returns the validated session or null if not found / invalid.
-   */
-  retrieveSession(sessionId: string): Promise<ValidatedPaymentSession | null>;
 
   /**
    * Set up a webhook endpoint for this provider.
@@ -335,6 +297,10 @@ const providerLoaders: Record<
     (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
 };
 
+export const getPaymentProvider = (
+  provider: PaymentProviderType,
+): Promise<PaymentProvider> => providerLoaders[provider]();
+
 export const getActivePaymentProvider =
   async (): Promise<PaymentProvider | null> => {
     const providerType = paymentsApi.getConfiguredProvider();
@@ -344,5 +310,5 @@ export const getActivePaymentProvider =
     }
 
     logDebug("Payment", `Resolving payment provider: ${providerType}`);
-    return await providerLoaders[providerType]();
+    return await getPaymentProvider(providerType);
   };

@@ -20,6 +20,7 @@ import {
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  type EmailMessage,
   getEmailConfig,
   getHostEmailConfig,
   sendEmail,
@@ -35,7 +36,7 @@ import { buildAssignableSite } from "#shared/site-build.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /** Entry with the fields needed for site assignment */
-type SiteAssignmentEntry = {
+export type SiteAssignmentEntry = {
   listing: {
     id: number;
     name: string;
@@ -46,7 +47,7 @@ type SiteAssignmentEntry = {
 };
 
 /** Info about an assigned site for email rendering */
-type SiteAssignment = {
+export type SiteAssignment = {
   siteUrl: string;
   listingName: string;
 };
@@ -164,7 +165,10 @@ export const addMonthsToRenewalDeadline = (
 export const renewalUrlFor = (token: string): string =>
   `https://${getEffectiveDomain()}/renew/?t=${encodeURIComponent(token)}`;
 
-const logRenewalCdnError = (errorContext: string, error: string): void => {
+export const reportSiteSecretError = (
+  errorContext: string,
+  error: string,
+): void => {
   logError({
     code: ErrorCode.CDN_REQUEST,
     detail: `${errorContext}: ${error}`,
@@ -173,7 +177,7 @@ const logRenewalCdnError = (errorContext: string, error: string): void => {
 };
 
 /** Push a subset of site secrets to the hosting provider. Pure I/O — no DB writes. */
-const pushSiteSecrets = async (
+export const pushSiteSecrets = async (
   site: BuiltSite,
   secrets: { readOnlyFrom?: string; renewalUrl?: string },
 ): Promise<CdnPushResult> => {
@@ -226,7 +230,7 @@ const pushAndPersist =
     if (pushResult.ok) {
       await updateBuiltSiteRenewalState(site.id, onSuccess);
     } else {
-      logRenewalCdnError(errorContext, pushResult.error);
+      reportSiteSecretError(errorContext, pushResult.error);
     }
     return pushResult;
   };
@@ -339,6 +343,13 @@ const sendSiteAssignmentEmail = async (
   const config = getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
+  await sendEmail(config, siteAssignmentEmailMessage(to, assignments));
+};
+
+export const siteAssignmentEmailMessage = (
+  to: ValidEmail,
+  assignments: SiteAssignment[],
+): EmailMessage => {
   const plural = assignments.length > 1;
   const subject = plural
     ? `Your ${assignments.length} new sites are ready`
@@ -361,13 +372,13 @@ const sendSiteAssignmentEmail = async (
     .join("\n");
 
   const replyTo = parseEmail(settings.businessEmail) ?? undefined;
-  await sendEmail(config, {
+  return {
     html: `<p>${greeting}</p><p>${activationNote}</p><ul>${htmlList}</ul>`,
     replyTo,
     subject,
     text: `${greeting}\n\n${activationNote}\n\n${textList}`,
     to,
-  });
+  };
 };
 
 /** Assign sites and send notification email. Designed to be called via addPendingWork.

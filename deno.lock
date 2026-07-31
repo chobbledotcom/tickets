@@ -64,6 +64,7 @@
     "npm:@sentry/core@10.60.0": "10.60.0",
     "npm:@sentry/core@^10.60.0": "10.60.0",
     "npm:@sentry/deno@^10.60.0": "10.60.0",
+    "npm:@sumup/sdk@0.1.6": "0.1.6",
     "npm:@sumup/sdk@~0.1.6": "0.1.6",
     "npm:@types/leaflet@^1.9.20": "1.9.21",
     "npm:@types/node@*": "24.2.0",

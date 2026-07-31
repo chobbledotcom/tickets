@@ -1,11 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
 import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { bookPaidReservation } from "#test/integration/server/_shared-setup.ts";
 import {
   setPublicReservation,
@@ -15,6 +13,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRefundPayment } from "#test-utils/webhooks.ts";
 
 describeWithEnv(
   "server (reservation deposit at checkout)",
@@ -138,9 +137,7 @@ describeWithEnv(
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
-      const refund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_1", status: "succeeded" } as never),
-      );
+      const refund = stubRefundPayment("re_1", 150);
       // Expected total is 200 (deposit 100 + fee 100); charge a wrong 150.
       const session = stubPaidSession(
         "cs_bad",

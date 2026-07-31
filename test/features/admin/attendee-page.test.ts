@@ -14,6 +14,7 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 const sessionAt = (adminLevel: AuthSession["adminLevel"]): AuthSession => ({
@@ -165,6 +166,13 @@ describeWithEnv("the attendee page", { db: true }, () => {
         "paid@example.com",
         "pi_page_refund",
       );
+      // The offer is made from the payment record and the money on it, so the
+      // booking needs one behind it, not only a payment name on the row.
+      await createAggregatePayment({
+        attendeeId: attendee.id,
+        charges: [{ amount: 500, reference: "pi_page_refund" }],
+        paymentId: "cs_page_refund",
+      });
       const html = await tabHtml(attendee.id, "actions");
       expect(html).toContain(`/admin/attendees/${attendee.id}/refund`);
       // Named, not just linked — the label is what the operator reads.

@@ -11,31 +11,31 @@ import type {
   BookingItem,
   ModifierRef,
 } from "#shared/booking-intent.ts";
-import type {
-  ExtraLine,
-  PricedLine,
-  PricedOrder,
-} from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { parseDateMs } from "#shared/dates.ts";
-import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
-import { logDebug, logError } from "#shared/logger.ts";
+import {
+  type ErrorCodeType,
+  type LogCategory,
+  logDebug,
+  logError,
+} from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import {
   PAYMENT_PROVIDERS,
   type PaymentProviderMeta,
 } from "#shared/payment-providers.ts";
 import { signPrice } from "#shared/payment-signature.ts";
+import type { ProviderSessionResource } from "#shared/payment-state/resources.ts";
 import type {
   CheckoutIntent,
   CheckoutSessionResult,
+  ProviderCheckoutResult,
   SessionMetadata,
-  ValidatedPaymentSession,
-  WebhookEvent,
-  WebhookVerifyResult,
 } from "#shared/payments.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 /**
  * Normalise a provider timestamp to the ledger's canonical ISO 8601 form
@@ -158,16 +158,25 @@ export const cachedClientFactory = <Config, Client>(opts: {
  * Square built by hand before.
  */
 export const buildProviderLineItems = <Item>(
-  order: PricedOrder,
-  currency: string,
+  checkout: Pick<PaymentCheckoutCreateSnapshot, "expected" | "order">,
   render: {
-    line: (line: PricedLine, currency: string) => Item;
-    extra: (extra: ExtraLine, currency: string) => Item;
+    line: (
+      line: PaymentCheckoutCreateSnapshot["order"]["lines"][number],
+      currency: string,
+    ) => Item;
+    extra: (
+      extra: PaymentCheckoutCreateSnapshot["order"]["extras"][number],
+      currency: string,
+    ) => Item;
   },
-): Item[] => [
-  ...order.lines.map((line) => render.line(line, currency)),
-  ...order.extras.map((extra) => render.extra(extra, currency)),
-];
+  formatCurrency: (currency: string) => string = (currency) => currency,
+): Item[] => {
+  const currency = formatCurrency(checkout.expected.currency);
+  return [
+    ...checkout.order.lines.map((line) => render.line(line, currency)),
+    ...checkout.order.extras.map((extra) => render.extra(extra, currency)),
+  ];
+};
 
 /** Run an operation with the lazily-resolved client. Returns null when the
  * client is unconfigured or the operation fails (unless the error should
@@ -205,6 +214,27 @@ export const toBookingItems = (intent: CheckoutIntent): BookingItem[] => {
       ...signedEdgeFor(i.packageGroupId, foldedChildIds.has(i.listingId)),
     }),
   )(intent.items);
+};
+
+/** Convert the public checkout shape to the one canonical intent persisted and
+ * signed for payment processing. Plain renewal tokens never cross this boundary. */
+export const toBookingIntent = async (
+  intent: CheckoutIntent,
+): Promise<BookingIntent> => {
+  const {
+    feeSubtotal: _feeSubtotal,
+    items: _items,
+    modifiers,
+    siteToken,
+    ...shared
+  } = intent;
+  const siteTokenIndex = siteToken ? await hmacHash(siteToken) : undefined;
+  return {
+    ...shared,
+    items: toBookingItems(intent),
+    modifiers: toModifierRefs(modifiers) ?? [],
+    ...(siteTokenIndex === undefined ? {} : { siteTokenIndex }),
+  };
 };
 
 /**
@@ -251,10 +281,7 @@ export const singleListingAnswerIds = (
   answerIds?.length ? { [String(listingId)]: answerIds } : undefined;
 
 /**
- * Build checkout metadata from a CheckoutIntent (converts items to compact form).
- *
- * Hashes the plain `siteToken` into `site_token_index` before storing so the
- * provider never sees a value that can be used at /renew.
+ * Build checkout metadata from the canonical compact booking intent.
  *
  * `total` is the agreed order total the provider is billing for. The caller
  * prices the order once and passes that same total here, so the signed proof
@@ -292,43 +319,36 @@ export const singleListingAnswerIds = (
 const thankYouUrlFits = (
   thankYouUrl: string | undefined,
   withoutUrl: Record<string, string>,
-  caps: { maxValueLength: number; maxEntries?: number | undefined },
+  caps: {
+    maxValueLength: number;
+    maxEntries?: number | undefined;
+    reservedEntries: number;
+  },
 ): boolean => {
   if (!thankYouUrl || thankYouUrl.length > caps.maxValueLength) return false;
   if (caps.maxEntries === undefined) return true;
   // +1 for the URL's own top-level entry, +1 for the price_proof entry added
   // after signing; both are counted against the *packed* baseline the wire uses.
-  const wireEntries = Object.keys(packMetadata(withoutUrl)).length + 1 + 1;
+  const wireEntries =
+    Object.keys(packMetadata(withoutUrl)).length + 1 + 1 + caps.reservedEntries;
   return wireEntries <= caps.maxEntries;
 };
 
 export const buildItemsMetadata = async (
-  intent: CheckoutIntent,
+  intent: BookingIntent,
   total: number,
   maxValueLength: number,
   maxEntries?: number,
+  reservedEntries = 0,
 ): Promise<Record<string, string>> => {
   // Build the metadata without the optional thank-you URL once; this is also the
   // baseline whose entry count decides whether the URL can be added back below.
-  const modifiers = toModifierRefs(intent.modifiers);
-  const siteTokenIndex = intent.siteToken
-    ? await hmacHash(intent.siteToken)
-    : undefined;
-  const {
-    thankYouUrl: _thankYouUrl,
-    modifiers: _modifiers,
-    siteToken: _siteToken,
-    ...intentRest
-  } = intent;
-  const withoutUrl = buildMetadata({
-    ...intentRest,
-    items: toBookingItems(intent),
-    ...(modifiers !== undefined ? { modifiers } : {}),
-    ...(siteTokenIndex !== undefined ? { siteTokenIndex } : {}),
-  });
+  const { thankYouUrl: _thankYouUrl, ...intentRest } = intent;
+  const withoutUrl = buildMetadata(intentRest);
   const base = thankYouUrlFits(intent.thankYouUrl, withoutUrl, {
     maxEntries,
     maxValueLength,
+    reservedEntries,
   })
     ? { ...withoutUrl, thank_you_url: intent.thankYouUrl! }
     : withoutUrl;
@@ -348,28 +368,34 @@ export const buildItemsMetadata = async (
  * the caps read from the provider registry: build the logical shape within the
  * per-value and entry caps, pack the small fields into one entry when the
  * provider needs that to fit, and enforce the caps on the shape that reaches
- * the wire. SumUp's caps are unbounded (its metadata is stored locally, never
- * sent to the provider), which makes the enforcement a no-op for it.
+ * the wire. SumUp's caps are unbounded because its metadata remains in the
+ * payment aggregate instead of being sent to the provider.
  */
-export const assembleCheckoutMetadata = async (
-  providerType: PaymentProviderType,
-  intent: CheckoutIntent,
-  total: number,
-): Promise<Record<string, string>> => {
-  const caps: PaymentProviderMeta["metadata"] =
-    PAYMENT_PROVIDERS[providerType].metadata;
-  const built = await buildItemsMetadata(
-    intent,
-    total,
-    caps.maxValueLength,
-    caps.maxEntries,
-  );
-  return enforceMetadataLimits(
-    caps.packs ? packMetadata(built) : built,
-    caps.maxValueLength,
-    caps.maxEntries,
-  );
-};
+export const assembleCheckoutMetadata =
+  (
+    providerType: PaymentProviderType,
+    total: number,
+    additionalMetadata: Record<string, string> = {},
+  ): ((intent: BookingIntent) => Promise<Record<string, string>>) =>
+  async (intent) => {
+    const caps: PaymentProviderMeta["metadata"] =
+      PAYMENT_PROVIDERS[providerType].metadata;
+    const built = await buildItemsMetadata(
+      intent,
+      total,
+      caps.maxValueLength,
+      caps.maxEntries,
+      Object.keys(additionalMetadata).length,
+    );
+    return enforceMetadataLimits(
+      {
+        ...(caps.packs ? packMetadata(built) : built),
+        ...additionalMetadata,
+      },
+      caps.maxValueLength,
+      caps.maxEntries,
+    );
+  };
 
 /**
  * Compact the resolved modifier specs to id/quantity references for metadata.
@@ -455,29 +481,35 @@ export const toCheckoutResult = (
 };
 
 /**
- * Build a provider's `createCheckoutSession`: call the provider's own create
+ * Build a provider's internal checkout submission: call its create
  * function, read the session id and URL off whatever shape it returns, and map
  * that to a shared CheckoutSessionResult — all inside the standard checkout
  * error guard. Each provider only supplies its create call, how to read the
  * id/url, and its display label.
  */
-export const makeCreateCheckoutSession =
+export const makeProviderCheckout =
   <Result>(
     label: LogCategory,
-    create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result>,
-    readResult: (result: Result) => {
-      id: string | undefined;
+    create: (checkout: PaymentCheckoutCreateSnapshot) => Promise<Result>,
+    readResult: (
+      result: Result,
+      checkout: PaymentCheckoutCreateSnapshot,
+    ) => {
+      session: ProviderSessionResource | undefined;
+      sessionId: string | undefined;
       url: string | undefined | null;
     },
   ): ((
-    intent: CheckoutIntent,
-    baseUrl: string,
-  ) => Promise<CheckoutSessionResult>) =>
-  (intent, baseUrl) =>
+    checkout: PaymentCheckoutCreateSnapshot,
+  ) => Promise<ProviderCheckoutResult>) =>
+  (checkout) =>
     withCheckoutError(async () => {
-      const result = await create(intent, baseUrl);
-      const { id, url } = readResult(result);
-      return toCheckoutResult(id, url, label);
+      const result = await create(checkout);
+      const { session, sessionId, url } = readResult(result, checkout);
+      const publicResult = toCheckoutResult(sessionId, url, label);
+      return publicResult === null || session === undefined
+        ? null
+        : { ...publicResult, session };
     });
 
 /**
@@ -485,8 +517,8 @@ export const makeCreateCheckoutSession =
  * and swallowing unexpected errors as null. Used by both provider adapters.
  */
 export const withCheckoutError = async (
-  op: () => Promise<CheckoutSessionResult>,
-): Promise<CheckoutSessionResult> => {
+  op: () => Promise<ProviderCheckoutResult>,
+): Promise<ProviderCheckoutResult> => {
   try {
     return await op();
   } catch (err) {
@@ -652,14 +684,18 @@ export const enforceMetadataLimits = (
 /**
  * Validate that every metadata value is text and required fields are present.
  */
-const ProviderMetadataSchema = v.record(v.string(), v.string());
+export const ProviderMetadataSchema = v.objectWithRest(
+  {
+    items: NonEmptyTextSchema,
+    name: NonEmptyTextSchema,
+  },
+  v.string(),
+);
+export type ProviderMetadata = v.InferOutput<typeof ProviderMetadataSchema>;
 
 export const hasRequiredSessionMetadata = (
   metadata: Record<string, string | undefined> | null | undefined,
-): metadata is SessionMetadata => {
-  if (!v.is(ProviderMetadataSchema, metadata)) return false;
-  return !!metadata.name && !!metadata.items;
-};
+): metadata is ProviderMetadata => v.is(ProviderMetadataSchema, metadata);
 
 /**
  * Normalize validated session metadata into the canonical SessionMetadata shape.
@@ -673,8 +709,8 @@ export const hasRequiredSessionMetadata = (
  * a malformed `b`) normalize to "".
  */
 export const extractSessionMetadata = (
-  metadata: SessionMetadata,
-): ValidatedPaymentSession["metadata"] => {
+  metadata: ProviderMetadata | SessionMetadata,
+): SessionMetadata => {
   const raw = (metadata as { [PACKED_FIELD]?: string })[PACKED_FIELD];
   const packed = raw ? parsePackedFields(raw) : {};
   const get = (key: keyof SessionMetadata): string =>
@@ -701,29 +737,6 @@ export const extractSessionMetadata = (
   };
 };
 
-/**
- * Assemble the one ValidatedPaymentSession shape every provider adapter
- * returns. Owns the createdAt rule — the key is left out entirely when the
- * provider gave no usable timestamp — and normalizes the guarded wire metadata
- * into the canonical shape. `metadata` must already have passed
- * hasRequiredSessionMetadata (or come from our own staged checkout row).
- */
-export const validatedPaymentSession = (fields: {
-  amountTotal: number;
-  createdAt: string | undefined;
-  id: string;
-  metadata: SessionMetadata;
-  paymentReference: string;
-  paymentStatus: ValidatedPaymentSession["paymentStatus"];
-}): ValidatedPaymentSession => ({
-  amountTotal: fields.amountTotal,
-  ...(fields.createdAt !== undefined ? { createdAt: fields.createdAt } : {}),
-  id: fields.id,
-  metadata: extractSessionMetadata(fields.metadata),
-  paymentReference: fields.paymentReference,
-  paymentStatus: fields.paymentStatus,
-});
-
 /** The payload/signature pair a test POSTs to a provider webhook route. */
 export type SignedTestWebhook = { payload: string; signature: string };
 
@@ -738,17 +751,4 @@ export const signedTestWebhook = async (
 ): Promise<SignedTestWebhook> => {
   const payload = JSON.stringify(listing);
   return { payload, signature: await sign(payload) };
-};
-
-export const parseWebhookPayload = (
-  payload: string,
-  errorCode: ErrorCodeType,
-): WebhookVerifyResult => {
-  try {
-    const listing = JSON.parse(payload) as WebhookEvent;
-    return { listing, valid: true };
-  } catch (err) {
-    logError({ code: errorCode, detail: `invalid JSON: ${err}` });
-    return { error: "Invalid JSON payload", valid: false };
-  }
 };

@@ -11,6 +11,7 @@ import {
   executeBatch,
   insert,
   type SqlStatement,
+  type TxScope,
 } from "#shared/db/client.ts";
 import { readOneRow, readRows } from "#shared/db/read.ts";
 import {
@@ -29,7 +30,11 @@ const NOTE_COLUMNS = "id, entity_type, entity_id, type, note, created";
  *  way that kind is sealed, then stores it against the record it is about. */
 const noteWriterOf =
   (type: SystemNoteType) =>
-  async (target: NoteTarget, note: string): Promise<void> => {
+  async (
+    target: NoteTarget,
+    note: string,
+    transaction?: TxScope,
+  ): Promise<number | null> => {
     const { sql, args } = insert("system_notes", {
       created: nowIso(),
       entity_id: target.id,
@@ -37,7 +42,13 @@ const noteWriterOf =
       note: await sealNote(type, note),
       type,
     });
-    await execute(sql, args);
+    // Written inside the caller's transaction when it has one, so the note and
+    // the work it describes stand or fall together.
+    const result = await (transaction === undefined
+      ? execute(`${sql} RETURNING id`, args)
+      : transaction.execute({ args, sql: `${sql} RETURNING id` }));
+    const row = result.rows[0];
+    return row === undefined ? null : Number(row.id);
   };
 
 /**
@@ -46,6 +57,21 @@ const noteWriterOf =
  * dump plus that key), and exists so a path with no owner session can write it.
  */
 export const createSystemNote = noteWriterOf("system");
+
+/** Rewrite a note the app wrote earlier, in the same breath as the work it
+ *  describes. A refund that has gone through replaces the note saying it was
+ *  on its way, rather than leaving both standing for the owner to reconcile. */
+export const updateSystemNote = async (
+  target: NoteTarget,
+  noteId: number,
+  note: string,
+  transaction: TxScope,
+): Promise<void> => {
+  await transaction.execute({
+    args: [await sealNote("system", note), noteId, target.id, target.kind],
+    sql: "UPDATE system_notes SET note = ? WHERE id = ? AND entity_id = ? AND entity_type = ?",
+  });
+};
 
 /** Record an operator's note, sealed with the owner public key. */
 export const createOwnerNote = noteWriterOf("owner");

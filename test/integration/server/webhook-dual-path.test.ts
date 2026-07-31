@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -13,7 +11,10 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
-import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
+import {
+  checkoutSessionEvent,
+  stubRefundPayment,
+} from "#test-utils/webhooks.ts";
 
 /**
  * Paid orders booking the SAME listing through two paths at once — a package
@@ -62,12 +63,7 @@ const paidSession = async (
       sessionId: `cs_${ref}`,
     }),
   );
-  const mockRefund = stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({
-      id: `re_${ref}`,
-      status: "succeeded",
-    } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-  );
+  const mockRefund = stubRefundPayment(`re_${ref}`, total);
   return { mockRefund, mockVerify };
 };
 
@@ -139,8 +135,10 @@ const expectSavedAndRefunded = () =>
     handleRequest(mockWebhookRequest({}, { "stripe-signature": "sig_valid" })),
     200,
     (json) => {
+      // The booking is kept and the money went back, which the webhook
+      // reports as its own outcome rather than as an error.
       expect(json.processed).toBe(false);
-      expect(json.error).toContain("saved your details");
+      expect(json.status).toBe("fully_refunded");
     },
   );
 

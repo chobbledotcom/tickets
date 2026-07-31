@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import {
-  type StripeWebhookEvent,
-  verifyWebhookSignature,
-} from "#shared/stripe/webhook.ts";
+import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
 import {
   signedHeader,
   signedWebhook,
@@ -56,7 +53,7 @@ describeStripe("stripe", () => {
       await activateStripe(TEST_SECRET, "we_test_ts");
 
       // Create listing with proper signature
-      const listing: StripeWebhookEvent = {
+      const listing = {
         data: { object: { id: "cs_test" } },
         id: "evt_ts_test",
         type: "checkout.session.completed",

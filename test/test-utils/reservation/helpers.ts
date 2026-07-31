@@ -18,7 +18,10 @@ import {
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
+import {
+  expectRefundPaymentCall,
+  stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks.ts";
 
 /** Turn the seeded public-default status into a reservation charging `amount`. */
 export const setPublicReservation = async (amount: string): Promise<number> => {
@@ -231,13 +234,18 @@ export const expectRefundedPlaceholder = async (
   responseText: string,
 ): Promise<Array<{ id: number }>> => {
   expect(responseText).toContain("saved your details");
+  // The note is written a moment later by scheduled work, as on the site.
+  const { settleDeferredPaymentWork } = await import(
+    "#test-utils/maintenance.ts"
+  );
+  await settleDeferredPaymentWork();
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listing.id);
   expect(attendees.length).toBe(1);
   // The placeholder posts no sale leg, so the still-sold-out add-on is not
   // consumed.
   expect(await modifierUsageCount(addOnId)).toBe(0);
-  expect(refund.calls[0]!.args).toEqual([paymentIntentId]);
+  expectRefundPaymentCall(refund, paymentIntentId);
   expect(refund.calls.length).toBe(1);
   const { getNoteRows } = await import("#shared/db/notes/queries.ts");
   expect((await getNoteRows("attendee", [attendees[0]!.id])).length).toBe(1);

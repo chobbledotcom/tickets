@@ -180,7 +180,7 @@
   "admin.attendees.refund_all_result_refunds": "{count, plural, one {# refund succeeded.} other {# refunds succeeded.}}",
   "admin.attendees.refund_all_result_failures": "{count, plural, one {There was # failure.} other {There were # failures.}}",
   "admin.attendees.refund_all_result_errors": "{count, plural, one {There was # error.} other {There were # errors.}} Check the activity log for details.",
-  "admin.attendees.refund_all_result_remaining": "{count, plural, one {# refund remains.} other {# refunds remain.}} Submit again to continue.",
+  "admin.attendees.refund_all_result_remaining": "{count, plural, one {# refund will continue in the background.} other {# refunds will continue in the background.}}",
   "admin.attendees.refund_all_result_complete": "Some payments may have already been refunded.",
   "admin.attendees.payment_details": "Payment Details",
   "admin.attendees.payment_id": "Payment ID:",

@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   createReserved,
@@ -67,12 +67,12 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     });
     const token = await signBalanceToken(attendeeId);
     // Capture the intent the balance POST hands the provider, then stop the flow.
-    let captured: CheckoutIntent | undefined;
+    let captured: PaymentCheckoutCreateSnapshot | undefined;
     const checkoutStub = stub(
       stripePaymentProvider,
-      "createCheckoutSession",
-      (intent) => {
-        captured = intent;
+      "createCheckout",
+      (checkout) => {
+        captured = checkout;
         return Promise.resolve({ error: "captured" });
       },
     );
@@ -83,24 +83,21 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     }
     // A single "Remaining balance" line at the outstanding amount, no booking
     // fee, no PII — the exact contract the customer is charged against.
-    expect(captured).toEqual({
+    expect(captured?.bookingIntent).toEqual({
       address: "",
       balanceAttendeeId: attendeeId,
       date: null,
       email: "",
-      feeSubtotal: 0,
-      items: [
-        {
-          listingId,
-          name: "Remaining balance",
-          quantity: 1,
-          slug: "balance",
-          unitPrice: 1500,
-        },
-      ],
+      items: [{ e: listingId, p: 1500, q: 1 }],
+      modifiers: [],
       name: "Balance payment",
       phone: "",
       special_instructions: "",
+    });
+    expect(captured?.expected).toEqual({ amount: 1500, currency: "GBP" });
+    expect(captured?.order).toEqual({
+      extras: [],
+      lines: [{ amount: 1500, name: "Remaining balance", quantity: 1 }],
     });
   });
 
@@ -135,10 +132,8 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
     const token = await signBalanceToken(attendeeId);
-    const checkoutStub = stub(
-      stripePaymentProvider,
-      "createCheckoutSession",
-      () => Promise.resolve({ error: "boom" }),
+    const checkoutStub = stub(stripePaymentProvider, "createCheckout", () =>
+      Promise.resolve({ error: "boom" }),
     );
     try {
       const response = await postPay(token);

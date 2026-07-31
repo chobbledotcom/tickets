@@ -33,3 +33,6 @@ src/shared/booking/signed-metadata.ts:120:59  ?? → ||    # allocations come fr
 src/shared/booking/signed-metadata.ts:142:37  ?? → ||    # foldedQty values are positive allocation totals; absent and present values behave identically with either zero fallback
 src/shared/catalog-fields/definition.ts:166:38  1 → 0    # a missing column becomes selected by its non-empty database name, but the columns projection still returns undefined and drops it; present columns are selected either way
 src/shared/booking/capacity-tree.ts:38:45  ?? → ||    # groupIdsByListingId.get(): number[]|undefined — an array is always truthy, undefined→[] either way
+
+# Carried over from the payment aggregate base branch.
+test/test-utils/test-browser.ts:460:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input

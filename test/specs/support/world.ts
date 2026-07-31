@@ -18,6 +18,7 @@ import type {
   JourneyCatalogSpec,
   OrderJourneyCtx,
 } from "#test-utils/order-journey.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
 /** Something a story does, told which one to do it to. The three below differ
@@ -141,6 +142,12 @@ export interface TicketsWorld extends World, EvidencePages {
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
   ownerTold?: string;
+  paymentBrowser?: TestBrowser;
+  paymentCaseId?: number;
+  paymentCaseRevision?: number;
+  paymentManagerHome?: string;
+  paymentManagerListStatus?: number;
+  paymentProviderCalls?: () => number;
   placeholderId?: number;
   questionId?: number;
   raceListing?: string;

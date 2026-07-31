@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import {
@@ -8,9 +8,7 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import { execute } from "#shared/db/client.ts";
-import { runDatabasePruning } from "#shared/db/prune.ts";
-import { stripeApi } from "#shared/stripe.ts";
+import { getOpenPaymentCases } from "#shared/db/payments/cases.ts";
 import {
   createReserved,
   expectSettled,
@@ -19,14 +17,16 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import {
+  expectRefundPaymentCall,
+  stubRefundPayment,
+  stubRetrieveCheckoutSession,
+} from "#test-utils/webhooks.ts";
 
-// Stubs the Stripe refund call to report a refund with the given id.
-const stubRefund = (id: string) =>
-  stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id, status: "succeeded" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
-  );
+// Stand in for the Stripe refund call, reporting a refund of `amount` that
+// belongs to whichever charge was asked about.
+const stubRefund = (id: string, amount: number) =>
+  stubRefundPayment(id, amount);
 
 describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
   test("an unsigned balance webhook is ignored, leaving the balance outstanding", async () => {
@@ -34,26 +34,23 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     // No price proof: we cannot prove this balance session is ours, so it is
     // ignored — neither settled nor refunded.
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        id: "cs_balance_unsigned",
-        metadata: {
-          balance_attendee_id: String(attendeeId),
-          items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-          name: "Balance payment",
-        },
-        payment_intent: "pi_balance",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
+    const session = stubRetrieveCheckoutSession({
+      amountTotal: 1500,
+      metadata: {
+        balance_attendee_id: String(attendeeId),
+        items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+        name: "Balance payment",
+      },
+      paymentIntent: "pi_balance",
+      sessionId: "cs_balance_unsigned",
+    });
     try {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_balance_unsigned"),
       );
-      expect(await response.text()).toContain("not recognized");
+      expect(await response.text()).toContain(
+        t("payment.error.session_not_recognized"),
+      );
       // The balance is untouched — nothing was settled.
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);
@@ -73,7 +70,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
     }
   });
 
-  test("a pruned balance replay is recovered, not refunded", async () => {
+  test("a completed balance payment replays without another refund", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
     // First delivery settles the balance and posts its payment leg.
@@ -84,17 +81,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       first.restore();
     }
 
-    // Prune the idempotency row; the balance payment leg stays in the ledger.
-    await execute(
-      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
-      ["2000-01-01T00:00:00.000Z", "cs_balance_replay"],
-    );
-    await runDatabasePruning();
-
-    // The replay: the balance is already paid (owed 0), so without the ledger
-    // preflight settleAttendeeBalance reports nothing_owed and refunds the
-    // already-paid customer. The preflight replays success instead.
-    const refund = stubRefund("re_x");
+    const refund = stubRefund("re_x", 1500);
     const second = stubBalanceSession(attendeeId, 1500, "cs_balance_replay");
     try {
       const response = await handleRequest(
@@ -150,7 +137,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
   test("a balance checkout with a tampered signature is ignored, not settled", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    const refund = stubRefund("re_bal");
+    const refund = stubRefund("re_bal", 1500);
     // Valid total, wrong digest — an invalid proof, so the session is ignored:
     // not settled, and not refunded (we can't prove it is ours).
     const session = stubBalanceSession(
@@ -197,14 +184,14 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
     // lowered the live balance to 500. The stale 1500 callback must refund and
     // leave the balance untouched rather than clear the wrong amount.
     const attendeeId = await createReserved(500);
-    const refund = stubRefund("re_bal");
+    const refund = stubRefund("re_bal", 1500);
     const session = stubBalanceSession(attendeeId, 1500, "cs_bal_stale");
     try {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_bal_stale"),
       );
       // The stale payment is refunded, not applied.
-      expect(refund.calls[0]!.args).toEqual(["pi_bal_stale"]);
+      expectRefundPaymentCall(refund, "pi_bal_stale");
       const html = await response.text();
       expect(html).toContain("balance for this booking changed");
       // The live balance is untouched — still outstanding.
@@ -216,12 +203,13 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
     }
   });
 
-  test("refunds when the provider charged a different amount than the checkout", async () => {
+  test("raises a case when the provider charged a different amount", async () => {
     await setupStripe();
     // The checkout was signed for 1500, but the provider reports charging only
-    // 1000 — a charge/signed-total mismatch, refunded before any settlement.
+    // 1000. The site cannot tell on its own which figure is right, so it puts
+    // the payment in front of the owner instead of moving money by guesswork.
     const attendeeId = await createReserved(1500);
-    const refund = stubRefund("re_amt");
+    const refund = stubRefund("re_amt", 1000);
     const session = stubBalanceSession(attendeeId, 1500, "cs_bal_amt", {
       chargedAmount: 1000,
     });
@@ -229,10 +217,13 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_bal_amt"),
       );
-      expect(refund.calls[0]!.args).toEqual(["pi_bal_amt"]);
-      expect(await response.text()).toContain("price for this listing changed");
+      expect(response.status).toBe(409);
+      // No money moved on its own.
+      expect(refund.calls.length).toBe(0);
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);
+      // The owner has something to decide.
+      expect(await getOpenPaymentCases()).toHaveLength(1);
     } finally {
       session.restore();
       refund.restore();

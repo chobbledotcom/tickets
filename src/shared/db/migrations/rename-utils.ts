@@ -2,10 +2,9 @@ import { countRows, getDb } from "#shared/db/client.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import {
   currentSchemaColumnsPresentIn,
-  getExistingColumns,
   rebuildTableWithColumns,
   runMigration,
-  tableExists,
+  snapshotLiveSchema,
 } from "./schema-sync.ts";
 
 export type LegacyTableRename = readonly [legacy: string, target: string];
@@ -46,22 +45,12 @@ const applyDirectRename = async (
   return true;
 };
 
-const tableRenameState = async (
-  legacy: string,
-  target: string,
-): Promise<RenameState> => {
-  const [legacyExists, targetExists] = await Promise.all([
-    tableExists(legacy),
-    tableExists(target),
-  ]);
-  return renameState(legacyExists, targetExists);
-};
-
 const repairLegacyTableRename = async (
   legacy: string,
   target: string,
+  liveTables: ReadonlySet<string>,
 ): Promise<void> => {
-  const state = await tableRenameState(legacy, target);
+  const state = renameState(liveTables.has(legacy), liveTables.has(target));
   if (
     await applyDirectRename(state, `ALTER TABLE ${legacy} RENAME TO ${target}`)
   ) {
@@ -150,12 +139,10 @@ const columnHasForeignKey = async (
   return result.rows.some((row) => String(row.from) === column);
 };
 
-const repairLegacyColumnRename = async ({
-  table,
-  legacy,
-  target,
-}: ColumnRename): Promise<void> => {
-  const existingColumns = await getExistingColumns(table);
+const repairLegacyColumnRename = async (
+  { table, legacy, target }: ColumnRename,
+  existingColumns: Set<string>,
+): Promise<void> => {
   if (existingColumns.size === 0) return;
 
   const state = columnRenameState(existingColumns, legacy, target);
@@ -206,10 +193,23 @@ const repairLegacyColumnRename = async ({
 export const repairLegacyRenames = async (
   plan: LegacyRenamePlan,
 ): Promise<void> => {
+  // One read tells us every table and column that is really there. Asking per
+  // table instead would spend most of an upgrade's fifty-call budget before a
+  // single migration ran — and on a database with nothing left to repair, which
+  // is every database after the first upgrade, that is the whole cost.
+  let live = await snapshotLiveSchema();
   for (const [legacy, target] of plan.tableRenames) {
-    await repairLegacyTableRename(legacy, target);
+    await repairLegacyTableRename(legacy, target, new Set(live.tables.keys()));
+  }
+  // A repaired table rename moves columns with it, so read again before the
+  // column pass — but only when a rename actually happened.
+  if (plan.tableRenames.some(([legacy]) => live.tables.has(legacy))) {
+    live = await snapshotLiveSchema();
   }
   for (const [table, legacy, target] of plan.columnRenames) {
-    await repairLegacyColumnRename({ legacy, table, target });
+    await repairLegacyColumnRename(
+      { legacy, table, target },
+      live.tables.get(table) ?? new Set(),
+    );
   }
 };

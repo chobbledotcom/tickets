@@ -1,15 +1,13 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
-import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectWebhookIgnored,
-  postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -101,53 +99,6 @@ describeWithEnv(
           paymentIntent: "pi_no_items",
           sessionId: "cs_no_items",
         }),
-      );
-    });
-
-    test("webhook ignores retrieved session when items is missing from metadata", async () => {
-      await setupStripe();
-
-      // Session with missing items carries no valid price proof, so it can't be
-      // proven ours and is ignored: acknowledged (200) without processing.
-      const mockVerify = await stubWebhookVerify(
-        checkoutSessionEvent({
-          amountTotal: 0,
-          eventId: "evt_no_eid",
-          metadata: {},
-          sessionId: "cs_no_listing_id",
-        }),
-      );
-
-      const { stripePaymentProvider } = await import(
-        "#shared/stripe-provider.ts"
-      );
-      const mockRetrieveSession = stub(
-        stripePaymentProvider,
-        "retrieveSession",
-        () =>
-          Promise.resolve({
-            amountTotal: 0,
-            id: "cs_no_listing_id",
-            metadata: webhookMeta({
-              email: "nolistingid@example.com",
-              name: "No ListingId",
-              // items missing — invalid session data
-            }),
-            paymentReference: "pi_no_listing_id",
-            paymentStatus: "paid" as const,
-          }),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-          mockRetrieveSession.restore();
-        },
-        200,
-        (json) => {
-          expect(json.received).toBe(true);
-          expect(json.processed).toBeUndefined();
-        },
       );
     });
 

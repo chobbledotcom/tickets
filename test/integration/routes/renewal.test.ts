@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { postExpectingNoCheckout } from "#test/integration/routes/_shared-checkout.ts";
@@ -247,12 +248,15 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         );
         expect(response.status).toBe(302);
 
-        const intent = getCaptured()!;
-        expect(intent.siteToken).toBe(token);
-        expect(intent.items).toHaveLength(1);
-        expect(intent.items[0]!.listingId).toBe(tier.id);
-        expect(intent.items[0]!.quantity).toBe(3);
-        expect(intent.items[0]!.unitPrice).toBe(500);
+        const checkout = getCaptured()!;
+        expect(checkout.bookingIntent.siteTokenIndex).toBe(
+          await hmacHash(token),
+        );
+        expect(JSON.stringify(checkout)).not.toContain(token);
+        expect(checkout.bookingIntent.items).toEqual([
+          { e: tier.id, p: 1500, q: 3 },
+        ]);
+        expect(checkout.order.lines[0]?.amount).toBe(500);
       } finally {
         checkout.restore();
       }
@@ -298,9 +302,12 @@ describeWithEnv("routes > renewal", { db: true }, () => {
             [`quantity_${annual.id}`]: "1",
           }),
         );
-        const intent = getCaptured()!;
-        expect(intent.siteToken).toBe(token);
-        const ids = intent.items.map((i) => i.listingId).sort();
+        const checkout = getCaptured()!;
+        expect(checkout.bookingIntent.siteTokenIndex).toBe(
+          await hmacHash(token),
+        );
+        expect(JSON.stringify(checkout)).not.toContain(token);
+        const ids = checkout.bookingIntent.items.map((item) => item.e).sort();
         expect(ids).toEqual([monthly.id, annual.id].sort());
       } finally {
         checkout.restore();

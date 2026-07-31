@@ -34,6 +34,26 @@ export type PaymentProviderMeta = {
   };
 };
 
+/** The currencies accepted by SumUp's checkout API. */
+export const SUMUP_CURRENCIES = [
+  "BGN",
+  "BRL",
+  "CHF",
+  "CLP",
+  "COP",
+  "CZK",
+  "DKK",
+  "EUR",
+  "GBP",
+  "HRK",
+  "HUF",
+  "NOK",
+  "PLN",
+  "RON",
+  "SEK",
+  "USD",
+] as const;
+
 /** Provider metadata keyed by identifier. Declaration order drives the settings
  * radio list, so keep it in the order operators should see. */
 export const PAYMENT_PROVIDERS = {
@@ -53,25 +73,7 @@ export const PAYMENT_PROVIDERS = {
     webhookSignatureHeader: "stripe-signature",
   },
   sumup: {
-    // Mirrors the SumUp SDK's Currency union.
-    currencies: new Set([
-      "BGN",
-      "BRL",
-      "CHF",
-      "CLP",
-      "COP",
-      "CZK",
-      "DKK",
-      "EUR",
-      "GBP",
-      "HRK",
-      "HUF",
-      "NOK",
-      "PLN",
-      "RON",
-      "SEK",
-      "USD",
-    ]),
+    currencies: new Set<string>(SUMUP_CURRENCIES),
     label: "SumUp",
     // SumUp carries no provider metadata: the booking fields are stored
     // locally (db/sumup-checkouts.ts), so nothing is capped or packed.

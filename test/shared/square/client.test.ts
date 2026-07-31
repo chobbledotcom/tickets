@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import {
-  getSquareClient,
-  resetSquareClient,
-  testSquareConnection,
-} from "#shared/square.ts";
+import { squareApi } from "#shared/square.ts";
 import {
   configureSquare,
   oneLocation,
@@ -13,12 +9,13 @@ import {
 } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describeSquare(() => {
+  const debug = useDebugLogSpy();
+
   describe("getSquareClient", () => {
-    const debugLog = useDebugLogSpy();
     let calledUrl = "";
 
     /** Install one fetch stub for this test that records the URL it was given. */
@@ -30,64 +27,66 @@ describeSquare(() => {
 
     /** Drive one request through the client and return the host it called. */
     const hostFor = async (
-      client: NonNullable<Awaited<ReturnType<typeof getSquareClient>>>,
+      client: NonNullable<
+        Awaited<ReturnType<typeof squareApi.getSquareClient>>
+      >,
     ): Promise<string> => {
       await client.locations.list();
       return new URL(calledUrl).host;
     };
 
     test("returns null when access token not set", async () => {
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       expect(client).toBeNull();
-      expect(debugMessages(debugLog())).toEqual([
+      expect(debug().calls.at(-1)?.args).toEqual([
         "[Square] No access token configured, cannot create client",
       ]);
     });
 
     test("returns client when access token is set in database", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       expect(client).not.toBeNull();
-      expect(debugLog().calls.at(-1)?.args[0]).toBe(
-        "[Square] Creating new Square client (production)",
-      );
     });
 
     test("returns cached client on second call with same token", async () => {
       await settings.update.square.accessToken("EAAAl_cache_test");
-      const client1 = await getSquareClient();
+      const client1 = await squareApi.getSquareClient();
       expect(client1).not.toBeNull();
+      expect(debug().calls.at(-1)?.args).toEqual([
+        "[Square] Creating new Square client (production)",
+      ]);
 
       // Second call with same token returns the very same cached instance.
-      const client2 = await getSquareClient();
+      const client2 = await squareApi.getSquareClient();
       expect(client2).toBe(client1);
     });
 
     test("returns client in sandbox mode when sandbox setting enabled", async () => {
       await settings.update.square.accessToken("EAAAl_sandbox_123");
       await settings.update.square.sandbox(true);
-      const client = await getSquareClient();
+      const client = await squareApi.getSquareClient();
       expect(client).not.toBeNull();
       // Sandbox mode must route requests to the sandbox host.
       using _fetch = trackFetch();
       expect(await hostFor(client!)).toBe("connect.squareupsandbox.com");
-      expect(debugLog().calls.at(-1)?.args[0]).toBe(
-        "[Square] Creating new Square client (sandbox)",
-      );
     });
 
     test("recreates client when sandbox setting changes", async () => {
       await settings.update.square.accessToken("EAAAl_sandbox_toggle");
       await settings.update.square.sandbox(false);
-      const client1 = await getSquareClient();
+      const client1 = await squareApi.getSquareClient();
       expect(client1).not.toBeNull();
       using _fetch = trackFetch();
       expect(await hostFor(client1!)).toBe("connect.squareup.com");
 
       // Toggling sandbox creates a new client configured for the sandbox host.
       await settings.update.square.sandbox(true);
-      const client2 = await getSquareClient();
+      const client2 = await squareApi.getSquareClient();
       expect(client2).not.toBe(client1);
+      expect(debug().calls.at(-1)?.args).toEqual([
+        "[Square] Creating new Square client (sandbox)",
+      ]);
       expect(await hostFor(client2!)).toBe("connect.squareupsandbox.com");
     });
   });
@@ -95,20 +94,22 @@ describeSquare(() => {
   describe("resetSquareClient", () => {
     test("resets client state after token removed from db", async () => {
       await settings.update.square.accessToken("EAAAl_test_123");
-      const client1 = await getSquareClient();
+      const client1 = await squareApi.getSquareClient();
       expect(client1).not.toBeNull();
 
-      resetSquareClient();
+      squareApi.resetSquareClient();
       resetDb();
       await createTestDb();
 
-      const client2 = await getSquareClient();
+      const client2 = await squareApi.getSquareClient();
       expect(client2).toBeNull();
     });
   });
 
   describe("testSquareConnection", () => {
-    type ConnectionResult = Awaited<ReturnType<typeof testSquareConnection>>;
+    type ConnectionResult = Awaited<
+      ReturnType<typeof squareApi.testSquareConnection>
+    >;
 
     /** Run an assertion only when the test named a value for it. */
     const when = <T>(value: T | undefined, assert: (value: T) => void) => {
@@ -133,9 +134,7 @@ describeSquare(() => {
     ) => {
       when(want.ok, (ok) => expect(result.ok).toBe(ok));
       when(want.tokenValid, (v) => expect(result.accessToken.valid).toBe(v));
-      when(want.tokenError, (e) =>
-        expect(result.accessToken.error).toContain(e),
-      );
+      when(want.tokenError, (e) => expect(result.accessToken.error).toBe(e));
       when(want.mode, (mode) => expect(result.accessToken.mode).toBe(mode));
       when(want.locationConfigured, (c) =>
         expect(result.location.configured).toBe(c),
@@ -146,7 +145,7 @@ describeSquare(() => {
       when(want.webhookConfigured, (c) =>
         expect(result.webhook.configured).toBe(c),
       );
-      when(want.webhookError, (e) => expect(result.webhook.error).toContain(e));
+      when(want.webhookError, (e) => expect(result.webhook.error).toBe(e));
     };
 
     /** Store settings, stub locations.list, run the checks, assert the result. */
@@ -157,19 +156,17 @@ describeSquare(() => {
     ) => {
       await configureSquare(config);
       await withSquareClient({ locationsList }, async () => {
-        assert(await testSquareConnection());
+        assert(await squareApi.testSquareConnection());
       });
     };
 
     test("returns error when no access token configured", async () => {
-      expect(await testSquareConnection()).toEqual({
-        accessToken: {
-          error: "No Square access token configured",
-          valid: false,
-        },
-        location: { configured: false },
+      expectConnection(await squareApi.testSquareConnection(), {
+        locationConfigured: false,
         ok: false,
-        webhook: { configured: false },
+        tokenError: "No Square access token configured",
+        tokenValid: false,
+        webhookConfigured: false,
       });
     });
 
@@ -274,19 +271,12 @@ describeSquare(() => {
         { locationId: "L_test_123" },
         () => Promise.resolve(oneLocation("L_test_123", "Test Store")),
         (result) =>
-          expect(result).toEqual({
-            accessToken: { mode: "production", valid: true },
-            location: {
-              configured: true,
-              locationId: "L_test_123",
-              name: "Test Store",
-              status: "ACTIVE",
-            },
+          expectConnection(result, {
+            locationConfigured: true,
             ok: false,
-            webhook: {
-              configured: false,
-              error: "No webhook signature key configured",
-            },
+            tokenValid: true,
+            webhookConfigured: false,
+            webhookError: "No webhook signature key configured",
           }),
       );
     });

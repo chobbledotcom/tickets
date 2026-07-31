@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import {
   bookForToken,
   bookListing,
@@ -32,9 +32,9 @@ describePublicApi(() => {
     /** Book `slug` through the shared checkout stub (asserting the order is
      *  taken) and return the intent the route handed the provider so a folded
      *  field can be asserted. */
-    const captureBookingIntent = async (
+    const captureBookingCheckout = async (
       slug: string,
-    ): Promise<CheckoutIntent | undefined> => {
+    ): Promise<PaymentCheckoutCreateSnapshot | undefined> => {
       const { checkout, getCaptured } = stubCheckout("sess_test");
       try {
         const { response } = await bookListing(slug);
@@ -114,8 +114,8 @@ describePublicApi(() => {
         children: [{ maxAttendees: 10, unitPrice: 500 }],
         parent: { maxAttendees: 10, unitPrice: 1000 },
       });
-      const intent = await captureBookingIntent(parent.slug);
-      expect(intent?.allocations).toEqual([
+      const checkout = await captureBookingCheckout(parent.slug);
+      expect(checkout?.bookingIntent.allocations).toEqual([
         { childId: child.id, parentId: parent.id, qty: 1 },
       ]);
     });
@@ -248,8 +248,10 @@ describePublicApi(() => {
           unitPrice: 0,
         },
       });
-      const intent = await captureBookingIntent(parent.slug);
-      expect(intent?.thankYouUrl).toBe("https://example.com/thanks");
+      const checkout = await captureBookingCheckout(parent.slug);
+      expect(checkout?.bookingIntent.thankYouUrl).toBe(
+        "https://example.com/thanks",
+      );
     });
 
     test("omits the thank-you URL when the parent has none", async () => {
@@ -257,8 +259,8 @@ describePublicApi(() => {
       // success handler's default single-listing rule still applies otherwise.
       await setupStripe();
       const parent = await parentWithPaidChild();
-      const intent = await captureBookingIntent(parent.slug);
-      expect(intent?.thankYouUrl).toBeUndefined();
+      const checkout = await captureBookingCheckout(parent.slug);
+      expect(checkout?.bookingIntent.thankYouUrl).toBeUndefined();
     });
   });
 });

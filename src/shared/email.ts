@@ -20,6 +20,10 @@ import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import type {
+  PreparedPaymentCompletionDelivery,
+  RegistrationEmailDelivery,
+} from "#shared/payment-completion-delivery.ts";
 import { generateSvgTicket, type SvgTicketData } from "#shared/svg-ticket.ts";
 import { buildCheckinUrl, buildTicketUrl } from "#shared/ticket-url.ts";
 import {
@@ -307,20 +311,23 @@ const sendRequest = (
 ): Promise<FetchResult> => postBody(...request);
 
 /** Send a single email via the configured provider. Logs errors, never throws. Returns HTTP status or undefined on non-HTTP errors. */
+const sendEmailResult = (
+  config: EmailConfig,
+  msg: EmailMessage,
+): Promise<FetchResult> => {
+  const buildRequest = PROVIDERS[config.provider];
+  if (!buildRequest) {
+    throw new Error(`Unknown email provider: ${config.provider}`);
+  }
+  return sendRequest(buildRequest(config, msg));
+};
+
 export const sendEmail = async (
   config: EmailConfig,
   msg: EmailMessage,
 ): Promise<number | undefined> => {
-  const buildRequest = PROVIDERS[config.provider];
-  if (!buildRequest) {
-    logError({
-      code: ErrorCode.EMAIL_SEND,
-      detail: `unknown provider: ${config.provider}`,
-    });
-    return;
-  }
   try {
-    const { ok, status } = await sendRequest(buildRequest(config, msg));
+    const { ok, status } = await sendEmailResult(config, msg);
     if (!ok) {
       logError({
         code: ErrorCode.EMAIL_SEND,
@@ -334,6 +341,18 @@ export const sendEmail = async (
       detail: errorMessage(error),
     });
     return;
+  }
+};
+
+/** Send one paid-completion email. Unlike the free-booking wrapper, every
+ * transport and non-success response propagates so the durable row stays due. */
+export const sendEmailStrict = async (
+  config: EmailConfig,
+  msg: EmailMessage,
+): Promise<void> => {
+  const result = await sendEmailResult(config, msg);
+  if (!result.ok) {
+    throw new Error(`Email delivery failed with status ${result.status}`);
   }
 };
 
@@ -413,18 +432,18 @@ export const buildTicketAttachments = async (
  * Silently skips if email is not configured.
  * Attaches one SVG ticket per entry to the confirmation email.
  */
-export const sendRegistrationEmails = async (
+const registrationEmailMessages = async (
   entries: EmailEntry[],
   currency: string,
-): Promise<void> => {
+): Promise<{ config: EmailConfig; messages: EmailMessage[] } | null> => {
   const config = getActiveEmailConfig();
-  if (!config) return;
+  if (!config) return null;
 
   const attendeeRaw = entries[0]?.attendee.email;
   const attendeeEmail = attendeeRaw ? parseEmail(attendeeRaw) : null;
   const businessEmail = parseEmail(settings.businessEmail);
   const ticketUrl = buildTicketUrl(entries);
-  const promises: Promise<number | undefined>[] = [];
+  const messages: EmailMessage[] = [];
 
   if (attendeeEmail) {
     const replyTo = businessEmail || undefined;
@@ -442,31 +461,101 @@ export const sendRegistrationEmails = async (
       renderEmailContent("confirmation", data),
       buildTicketAttachments(groups, currency),
     ]);
-    promises.push(
-      sendEmail(config, {
-        to: attendeeEmail,
-        ...confirmation,
-        attachments,
-        replyTo,
-      }),
-    );
+    messages.push({
+      to: attendeeEmail,
+      ...confirmation,
+      attachments,
+      replyTo,
+    });
   }
 
   if (businessEmail) {
     // The admin notification always shows package members, even when hidden.
     const data = await buildTemplateData(entries, currency, ticketUrl);
     const notification = await renderEmailContent("admin", data);
-    promises.push(
-      sendEmail(config, {
-        to: businessEmail,
-        ...notification,
-        replyTo: attendeeEmail || undefined,
-      }),
-    );
+    messages.push({
+      to: businessEmail,
+      ...notification,
+      replyTo: attendeeEmail || undefined,
+    });
   }
 
-  await Promise.allSettled(promises);
+  return { config, messages };
 };
+
+const withRegistrationEmailMessages = async <T>(
+  entries: EmailEntry[],
+  currency: string,
+  whenMissing: () => T,
+  use: (prepared: {
+    config: EmailConfig;
+    messages: EmailMessage[];
+  }) => Promise<T>,
+): Promise<T> => {
+  const prepared = await registrationEmailMessages(entries, currency);
+  return prepared === null ? whenMissing() : use(prepared);
+};
+
+export const prepareRegistrationEmailDeliveries = async (
+  entries: EmailEntry[],
+  currency: string,
+): Promise<PreparedPaymentCompletionDelivery[]> =>
+  withRegistrationEmailMessages(
+    entries,
+    currency,
+    () => [],
+    (prepared) =>
+      Promise.resolve(
+        prepared.messages.map((message, index) => ({
+          data: {
+            config: {
+              fromAddress: prepared.config.fromAddress,
+              provider: prepared.config.provider,
+            },
+            kind: "registration_email" as const,
+            message,
+          },
+          key: `registration-email:${index}`,
+        })),
+      ),
+  );
+
+export const requireMatchingEmailConfig = (
+  expected: Pick<EmailConfig, "fromAddress"> & { provider: string },
+): EmailConfig => {
+  const config = getActiveEmailConfig();
+  if (
+    config === null ||
+    config.provider !== expected.provider ||
+    config.fromAddress !== expected.fromAddress
+  ) {
+    throw new Error("Email settings changed after payment completion started");
+  }
+  return config;
+};
+
+export const sendPreparedRegistrationEmail = (
+  delivery: RegistrationEmailDelivery,
+): Promise<void> =>
+  sendEmailStrict(
+    requireMatchingEmailConfig(delivery.config),
+    delivery.message,
+  );
+
+export const sendRegistrationEmails = (
+  entries: EmailEntry[],
+  currency: string,
+): Promise<void> =>
+  withRegistrationEmailMessages(
+    entries,
+    currency,
+    () => {},
+    async (prepared) => {
+      await Promise.allSettled(
+        prepared.messages.map((message) => sendEmail(prepared.config, message)),
+      );
+    },
+  );
 
 // ---------------------------------------------------------------------------
 // Bulk sending

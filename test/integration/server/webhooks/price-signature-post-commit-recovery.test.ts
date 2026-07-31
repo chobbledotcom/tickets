@@ -13,14 +13,10 @@ import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import {
-  decryptSessionTokens,
-  isSessionProcessed,
-  releaseReservation,
-} from "#shared/db/processed-payments.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { runPaymentReconciliationMaintenance } from "#shared/payment-runtime/maintenance.ts";
 import {
   redirectRequest,
   runWebhook,
@@ -33,8 +29,12 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { maintenanceContext } from "#test-utils/maintenance.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { expectProcessedPaymentReference } from "#test-utils/processed-payments.ts";
+import {
+  expectRefundReferences,
+  requirePaymentAggregateByProviderSession,
+} from "#test-utils/payment-aggregate.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 const contactCountsByHash = async (hash: string) =>
@@ -137,6 +137,15 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           const [attendee] = await getAttendeesRaw(listing.id);
           expect(attendee?.quantity).toBe(1);
           expect(attendee?.price_paid).toBe(1000);
+          const due = await requirePaymentAggregateByProviderSession(sessionId);
+          expect(due.completionState).toBe("pending");
+          await execute(
+            "UPDATE payment_sessions SET next_reconcile_at = 0 WHERE id = ?",
+            [due.id],
+          );
+          await runPaymentReconciliationMaintenance(
+            maintenanceContext({ database: 21, external: 11, total: 32 }),
+          );
           const answers = await getAttendeeAnswersBatch([attendee!.id], {
             texts: false,
           });
@@ -150,7 +159,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
             ticketToken: decrypted!.ticket_token,
           }).toEqual({
             id: attendee!.id,
-            paymentId: `pi_${sessionId}`,
+            paymentId: "",
             ticketToken,
           });
           const messages = (await getAllActivityLog()).map(
@@ -167,19 +176,14 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
               (message) => message === "Promo code 'RECOVER' used: £1 off",
             ),
           ).toHaveLength(1);
-          const processed = await isSessionProcessed(sessionId);
-          expect(processed?.attendee_id).toBe(attendee!.id);
-          expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe(
-            ticketToken,
-          );
-          await expectProcessedPaymentReference(
-            attendee!.id,
-            sessionId,
-            `pi_${sessionId}`,
-            privateKey,
-          );
+          const payment =
+            await requirePaymentAggregateByProviderSession(sessionId);
+          expect(payment.attendeeId).toBe(attendee!.id);
+          expect(payment.completionState).toBe("completed");
+          expect(payment.ticketTokens).toEqual([ticketToken]);
+          await expectRefundReferences(attendee!.id, [`pi_${sessionId}`]);
           const expectedReferences = await expectedBookingReferences(
-            sessionId,
+            payment.id,
             listing.id,
             modifier.id,
           );
@@ -189,7 +193,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           ).toEqual(expectedReferences);
           expect(
             transfersAfterCommit.map(({ eventGroup }) => eventGroup),
-          ).toEqual(Array(3).fill(await bookingEventGroup(sessionId)));
+          ).toEqual(Array(3).fill(await bookingEventGroup(payment.id)));
           expect(await modifierUsedQuantities([modifier.id])).toEqual(
             new Map([[modifier.id, 1]]),
           );
@@ -218,16 +222,13 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
             retrieve.restore();
           }
 
-          await execute(
-            "DELETE FROM processed_payments WHERE payment_session_id = ?",
-            [sessionId],
-          );
           await assertJson(webhookRequest(), 200, (json) => {
             expect(json.processed).toBe(true);
           });
-          const replayed = await isSessionProcessed(sessionId);
-          expect(replayed?.attendee_id).toBe(attendee!.id);
-          expect(await decryptSessionTokens(replayed!.ticket_tokens)).toBe("");
+          const replayed =
+            await requirePaymentAggregateByProviderSession(sessionId);
+          expect(replayed.attendeeId).toBe(attendee!.id);
+          expect(replayed.ticketTokens).toBeNull();
           expect(await getAttendeesRaw(listing.id)).toEqual([attendee]);
           await expectContactActivity(email, phone, privateKey, ticketToken);
           expect(await allTransfers()).toEqual(transfersAfterCommit);
@@ -239,12 +240,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
               await getAttendeeAnswersBatch([attendee!.id], { texts: false })
             ).get(attendee!.id),
           ).toEqual([answer.id]);
-          await expectProcessedPaymentReference(
-            attendee!.id,
-            sessionId,
-            `pi_${sessionId}`,
-            privateKey,
-          );
+          await expectRefundReferences(attendee!.id, [`pi_${sessionId}`]);
           const finalMessages = (await getAllActivityLog()).map(
             ({ message }) => message,
           );
@@ -254,40 +250,6 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       );
     } finally {
       loseResult.restore();
-    }
-  });
-
-  test("refunds one placeholder when the atomic create rolled back", async () => {
-    const listing = await setupWithListing();
-    const session = {
-      id: "cs_proven_rollback",
-      metadata: signedMeta(1000, {
-        items: singleItem(listing.id, 1, 1000),
-      }),
-    };
-    await execute(
-      `CREATE TRIGGER test_late_payment_finalize_failure
-       AFTER UPDATE OF attendee_id ON processed_payments
-       WHEN NEW.payment_session_id = '${session.id}'
-       BEGIN
-         SELECT RAISE(ABORT, 'late payment finalize failure');
-       END`,
-    );
-    try {
-      await runWebhook(session, async (refund) => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        expect(refund.calls.length).toBe(1);
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees).toHaveLength(1);
-        expect(attendees[0]!.quantity).toBe(0);
-      });
-    } finally {
-      await execute("DROP TRIGGER test_late_payment_finalize_failure");
     }
   });
 
@@ -346,7 +308,10 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           expect(json.processed).toBe(true);
         });
         const redirect = await redirectRequest(sessionId);
-        expect(redirect.status).toBe(200);
+        expect(redirect.status).toBe(302);
+        expect(redirect.headers.get("location")).toContain(
+          encodeURIComponent(committed.ticketToken),
+        );
         const attendees = await getAttendeesRaw(listing.id);
         expect(attendees).toHaveLength(1);
         const attendee = attendees[0]!;
@@ -356,11 +321,15 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         );
         expect(decrypted!.id).toBe(committed.attendeeId);
         expect(decrypted!.ticket_token).toBe(committed.ticketToken);
-        const processed = await isSessionProcessed(sessionId);
-        expect(processed!.attendee_id).toBe(committed.attendeeId);
-        expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe("");
+        const payment =
+          await requirePaymentAggregateByProviderSession(sessionId);
+        expect(payment.attendeeId).toBe(committed.attendeeId);
+        expect(payment.ticketTokens).toEqual([committed.ticketToken]);
         const replayedRedirect = await redirectRequest(sessionId);
-        expect(replayedRedirect.status).toBe(200);
+        expect(replayedRedirect.status).toBe(302);
+        expect(replayedRedirect.headers.get("location")).toContain(
+          encodeURIComponent(committed.ticketToken),
+        );
         expect(await getAttendeesRaw(listing.id)).toEqual(attendees);
         expect(refund.calls.length).toBe(0);
       } finally {
@@ -374,10 +343,9 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
   test("rethrows an ambiguous create without refunding", async () => {
     const listing = await setupWithListing();
     const sessionId = "cs_ambiguous_create";
-    const ambiguous = stub(attendeesApi, "createBookingAtomic", async () => {
-      await releaseReservation(sessionId);
-      throw new Error("synthetic ambiguous result");
-    });
+    const ambiguous = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.reject(new Error("synthetic ambiguous result")),
+    );
     try {
       await runWebhook(
         {

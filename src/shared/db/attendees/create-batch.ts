@@ -15,7 +15,7 @@ import {
   type ModifierUsage,
   usageInsert,
 } from "#shared/db/modifier-usage.ts";
-import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { requirePreviousWrite } from "#shared/db/write-helpers.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
@@ -34,20 +34,12 @@ export type LedgerPoster = (tx: TxScope, attendeeId: number) => Promise<void>;
 export type BookingBatchPlan = {
   usages: ModifierUsage[];
   legs: TransferInput[];
-  finalize?: { paymentReference: string; sessionId: string };
+  finalize?: SqlStatement[];
 };
 
 /** The newly inserted attendee is always found by its unique stable token. */
 export const ATTENDEE_BY_TOKEN_SQL =
   "(SELECT id FROM attendees WHERE ticket_token_index = ?)";
-
-/** Abort the batch if the immediately preceding guarded booking did not insert
- * exactly one row. The deliberate NOT NULL failure rolls back every write. */
-const bookingWriteGuard = (): SqlStatement => ({
-  args: [1],
-  sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-        SELECT NULL, NULL, 1 WHERE changes() != ?`,
-});
 
 const isRequiredColumnFailure =
   (column: string) =>
@@ -60,7 +52,7 @@ const isBookingWriteGuardFailure = isRequiredColumnFailure(
 );
 
 const guardedBookings = (statements: SqlStatement[]): SqlStatement[] =>
-  statements.flatMap((statement) => [statement, bookingWriteGuard()]);
+  statements.flatMap((statement) => [statement, requirePreviousWrite()]);
 
 const attendeeIdStatement = (tokenIndex: string): SqlStatement => ({
   args: [tokenIndex],
@@ -170,15 +162,7 @@ export const writeAsLedgerBatch = async (
                   WHERE attendee_id = ${ATTENDEE_BY_TOKEN_SQL}`,
           },
         ];
-  const finalize = plan.finalize
-    ? await batchFinalizeStatements(
-        plan.finalize.sessionId,
-        ATTENDEE_BY_TOKEN_SQL,
-        tokenIndex,
-        plan.finalize.paymentReference,
-        prepared.enc.ticketToken,
-      )
-    : [];
+  const finalize = plan.finalize ?? [];
   return runAtomicBatch(prepared, [
     ...usages,
     ...legs,

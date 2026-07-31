@@ -6,7 +6,6 @@
  * rather than a "contact support" error.
  */
 
-import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import {
   getVisibleGroupMembers,
@@ -15,10 +14,11 @@ import {
 import { lacksStandalonePublicPage } from "#routes/public/ticket-payment.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { lineGroupIds } from "#shared/booking/signed-metadata.ts";
+
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { getGroupById } from "#shared/db/groups.ts";
+
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
 
 /** The retry link for a cancelled checkout: the package group's page when the
@@ -56,15 +56,15 @@ const retryHrefFor = async (
 
 /** Render the payment-cancelled page for a session's first listing. */
 export const cancelPageResponse = async (
-  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+  paymentId: string,
   logFailure: (detail: string) => void,
 ): Promise<Response> => {
-  const intent = extractIntent(session);
-  const listingId = intent?.items[0]?.e ?? 0;
+  const listingId = intent.items[0]!.e;
   const listing = await getListingWithCount(listingId);
   if (!listing) {
     logFailure(
-      `Listing not found (session=${session.id}, listingId=${listingId})`,
+      `Listing not found (payment=${paymentId}, listingId=${listingId})`,
     );
     return paymentErrorResponse("Listing not found", 404);
   }
@@ -72,6 +72,6 @@ export const cancelPageResponse = async (
   // standalone page (which may hide members or use override prices/quantities).
   // A null intent reads listing id 0, which never resolves — so reaching here
   // proves the intent parsed.
-  const retryHref = await retryHrefFor(intent!, listing);
+  const retryHref = await retryHrefFor(intent, listing);
   return htmlResponse(paymentCancelPage(listing, retryHref));
 };

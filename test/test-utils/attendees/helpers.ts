@@ -120,18 +120,20 @@ export const submitDeleteIncomplete = async (
 export const refreshPaymentAsStripe = async (
   attendeeId: number,
   refunded: boolean,
-): Promise<{ response: Response; refundCheckArgs: unknown[] }> => {
+): Promise<{ response: Response; refundCheckArgs: string[] }> => {
   const { withRefreshPaymentProbe } = await import(
     "#test-utils/refund-routes.ts"
   );
-  let refundCheckArgs: unknown[] = [];
+  const refundCheckArgs: string[] = [];
   const response = await withRefreshPaymentProbe(
-    () => Promise.resolve(refunded),
-    async (mockRefunded) => {
+    (reference) => {
+      refundCheckArgs.push(reference);
+      return Promise.resolve(refunded);
+    },
+    async () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${attendeeId}/refresh-payment`,
       );
-      refundCheckArgs = mockRefunded.calls[0]!.args;
       return response;
     },
   );
@@ -283,4 +285,51 @@ export const expectAttendeeAdded = async (
   const attendees = await getAttendeesRaw(listingId);
   expect(attendees.length).toBe(1);
   return attendees[0]!;
+};
+
+/**
+ * Give an attendee a payment the site can chase: one charge whose refund has
+ * already been asked for. Refreshing only finishes refunds already requested,
+ * so a test that expects the provider to be asked needs this shape.
+ *
+ * Pass `ledger` to also record the money in the books, which is what lets a
+ * confirmed refund be posted. Leave it out to set up the case where the
+ * provider returns money the books cannot account for.
+ */
+export const attachRefundablePayment = async (
+  attendeeId: number,
+  paymentId: string,
+  reference: string,
+  amount: number,
+  ledger?: { listingId: number; gross: number },
+): Promise<void> => {
+  const { requestChargeRefund } = await import(
+    "#shared/db/payments/charges.ts"
+  );
+  const { createAggregatePayment } = await import(
+    "#test-utils/payment-aggregate.ts"
+  );
+  const { setupStripe } = await import("#test-utils/settings.ts");
+  await setupStripe();
+  if (ledger !== undefined) {
+    const { postPaymentLeg } = await import(
+      "#test-utils/db-helpers/payment-leg.ts"
+    );
+    await postPaymentLeg(
+      attendeeId,
+      amount,
+      paymentId,
+      ledger.listingId,
+      ledger.gross,
+    );
+  }
+  const payment = await createAggregatePayment({
+    attendeeId,
+    charges: [{ amount, reference }],
+    configuredAccount: true,
+    paymentId,
+  });
+  await Promise.all(
+    payment.charges.map((charge) => requestChargeRefund(charge.id)),
+  );
 };

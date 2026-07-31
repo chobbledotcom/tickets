@@ -21,6 +21,7 @@ import type {
   BookingBatchPlan,
   LedgerPoster,
 } from "#shared/db/attendees/create.ts";
+import type { SqlStatement } from "#shared/db/client.ts";
 import { type TxScope, update } from "#shared/db/client.ts";
 import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
 import { nowIso } from "#shared/now.ts";
@@ -42,7 +43,7 @@ const BATCH_LEG_ATTENDEE_PLACEHOLDER = 1;
 export const bookingBatchPlan = async (
   usages: ModifierUsage[],
   ledger: { pricedOrder: PricedOrder; occurredAt: string; eventId: string },
-  finalize?: { paymentReference: string; sessionId: string },
+  finalize?: SqlStatement[],
 ): Promise<BookingBatchPlan> => ({
   ...(finalize !== undefined ? { finalize } : {}),
   legs: await mapBooking(

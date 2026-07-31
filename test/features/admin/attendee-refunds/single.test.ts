@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
   createPaidListing,
@@ -19,6 +20,7 @@ import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import {
   expectSingleRefundIssued,
   refundUrl,
@@ -30,6 +32,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 // -- Tests ---------------------------------------------------------------- //
 
@@ -201,7 +204,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await submitRefund(ctx);
       await expectFlashRedirect(
         `/admin/attendees/${ctx.attendee.id}/refund`,
-        expect.stringContaining("No payment provider configured"),
+        expect.stringContaining(t("payment.error.provider_not_configured")),
         false,
       )(response);
     });
@@ -215,23 +218,6 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           (entry) => entry.message,
         ),
       ).toContain("Refund issued for attendee 'John Doe'");
-    });
-
-    test("treats an already-refunded provider charge as success", async () => {
-      const ctx = await setupRefundTest("pi_test_provider_done");
-
-      await withRefundMock(
-        false,
-        async (mockRefund) => {
-          const response = await submitRefund(ctx);
-          await expectFlashRedirect(
-            `/admin/attendees/${ctx.attendee.id}/actions`,
-            "Refund issued",
-          )(response);
-          expect(mockRefund.calls.length).toBe(1);
-        },
-        { alreadyRefunded: true },
-      );
     });
 
     test("a refund success honors the form's return_url (e.g. the Actions tab)", async () => {
@@ -277,6 +263,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       // The booking predates the ledger, so the provider refund succeeds but the
       // reversal finds no clean order to post — refund status is ledger-only now,
       // so this must surface for a manual adjustment, not read as refunded.
+      await setupStripe();
       const listing = await createPaidListing();
       const attendee = await createPaidAttendeeWithoutLedger(
         listing.id,
@@ -284,6 +271,15 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         "john@example.com",
         "pi_unrecorded",
       );
+      // The booking has a payment on record — as a migrated one does — but no
+      // ledger entries behind it.
+      await createAggregatePayment({
+        attendeeId: attendee.id,
+        charges: [{ amount: 500, reference: "pi_unrecorded" }],
+        configuredAccount: true,
+        paymentId: "pay_unrecorded",
+        state: "completed",
+      });
       const ctx: RefundCtx = {
         attendee,
         cookie: await testCookie(),

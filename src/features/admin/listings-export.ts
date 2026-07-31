@@ -11,7 +11,7 @@ import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
+import { getAttendeeIdsWithPayments } from "#shared/db/payments/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   completePaymentAttendees,
@@ -46,7 +46,7 @@ export const handleAdminListingExport: TypedRouteHandler<
       async ({ listing, dateFilter, filteredByDate }) => {
         const isDaily = listing.listing_type === "daily";
         const paymentReferenceAttendeeIds =
-          await getAttendeeIdsWithPaymentReference(filteredByDate);
+          await getAttendeeIdsWithPayments(filteredByDate);
         // Mirror the on-screen attendee table: drop the failed-payment rows
         // that are split into the Failed Payments section, then apply the
         // /in /out check-in filter.

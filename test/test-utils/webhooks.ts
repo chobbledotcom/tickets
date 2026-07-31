@@ -1,12 +1,22 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import * as v from "valibot";
+import { ProviderMetadataSchema } from "#shared/payment-helpers.ts";
+import { foundProviderPayment } from "#shared/payment-runtime/provider-read.ts";
+import { ObservedPaymentStatusSchema } from "#shared/payment-state/observation.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import type { Attendee } from "#shared/types.ts";
+import { required } from "#test-utils/required.ts";
 import { assertJson } from "./assertions.ts";
 import { signedMeta } from "./factories.ts";
 import { mockWebhookRequest } from "./mocks.ts";
-import { stubWebhookVerify } from "./settings.ts";
+import { type ProviderNoticeFixture, stubWebhookVerify } from "./settings.ts";
+import {
+  stripeCharge,
+  stripePaymentIntent,
+  stripeRefund,
+} from "./stripe/fixtures.ts";
 
 /**
  * The `checkout.session.completed` Stripe event shape almost every
@@ -21,30 +31,68 @@ export const checkoutSessionEvent = (opts: {
   sessionId: string;
   amountTotal: number;
   metadata: SessionMetadata | Record<string, string>;
-  paymentIntent?: string;
+  /** `null` means the provider says it is paid but has not attached the
+   *  payment yet, so the notice carries no charge. */
+  paymentIntent?: string | null;
   paymentStatus?: string;
   /** Stripe's `created` (Unix seconds) — the checkout's actual creation time,
    *  for tests asserting a webhook processed late still books against it. */
   created?: number;
-}): {
-  data: { object: Record<string, unknown> };
-  id: string;
-  type: "checkout.session.completed";
-} => ({
-  data: {
-    object: {
-      amount_total: opts.amountTotal,
-      created: opts.created ?? 1_700_000_000,
-      id: opts.sessionId,
-      metadata: opts.metadata,
-      payment_intent: opts.paymentIntent ?? null,
-      payment_status: opts.paymentStatus ?? "paid",
-      url: null,
+}): ProviderNoticeFixture => {
+  const session = {
+    id: opts.sessionId,
+    kind: "stripe_checkout_session" as const,
+    provider: "stripe" as const,
+  };
+  const paymentReference = opts.paymentIntent ?? `pi_${opts.sessionId}`;
+  const charges =
+    opts.amountTotal === 0 || opts.paymentIntent === null
+      ? undefined
+      : [
+          {
+            captured: { amount: opts.amountTotal, currency: "GBP" },
+            confirmedRefunded: { amount: 0, currency: "GBP" },
+            refunds: [],
+            resource: {
+              id: paymentReference,
+              kind: "stripe_payment_intent" as const,
+              parentId: opts.sessionId,
+              provider: "stripe" as const,
+            },
+          },
+        ];
+  const asked =
+    opts.paymentStatus ??
+    (opts.amountTotal === 0 ? "no_payment_required" : "paid");
+  // A status the system does not know reads as "not paid yet", which is how a
+  // test can hand the webhook a status Stripe would never send.
+  const paymentStatus = v.is(ObservedPaymentStatusSchema, asked)
+    ? asked
+    : "pending";
+  return {
+    notice: {
+      eventId: opts.eventId,
+      resource: session,
+      type: "checkout.session.completed",
     },
-  },
-  id: opts.eventId,
-  type: "checkout.session.completed",
-});
+    paidAmount: opts.amountTotal,
+    read: (payment, requested) =>
+      foundProviderPayment(
+        payment,
+        requested,
+        session,
+        { amount: opts.amountTotal, currency: "GBP" },
+        paymentStatus,
+        {
+          ...(charges === undefined ? {} : { charges }),
+          createdAt: new Date(
+            (opts.created ?? 1_700_000_000) * 1_000,
+          ).toISOString(),
+          metadata: v.parse(ProviderMetadataSchema, opts.metadata),
+        },
+      ),
+  };
+};
 
 /**
  * POST the standard signed webhook request and assert its JSON response,
@@ -71,25 +119,6 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
     );
   } finally {
     cleanup();
-  }
-};
-
-/** A signed Stripe event that violates its provider schema must reach the
- * request boundary and fail there instead of becoming an unpaid booking. */
-export const expectWebhookRejected = async (
-  event: Parameters<typeof stubWebhookVerify>[0],
-  message: string,
-): Promise<void> => {
-  const { handleRequest } = await import("#routes");
-  const verify = await stubWebhookVerify(event);
-  try {
-    await expect(
-      handleRequest(
-        mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-      ),
-    ).rejects.toThrow(message);
-  } finally {
-    verify.restore();
   }
 };
 
@@ -129,31 +158,31 @@ export const expectWebhookProcessed = async (
     expect(json.received).toBe(true);
     expect(json.processed).toBe(true);
   });
+  // The callback books the ticket and leaves the rest — answers, activity
+  // entries, outgoing messages — for scheduled maintenance, so finish that
+  // work here and leave the booking as the site has it a moment later.
+  const { settleDeferredPaymentWork } = await import("./maintenance.ts");
+  await settleDeferredPaymentWork();
 };
 
 /**
  * The "kept and refunded" webhook assertion: stub `verifyWebhookSignature` to
- * return `event` and `stripeApi.refundPayment` to succeed, POST the webhook,
- * and assert the standard price-mismatch response — acknowledged but not
- * processed, with an error containing `errorContains` (the generic
- * saved-your-details message by default; pass an override for a scenario with
- * its own message, e.g. an inactive/closed listing). Returns the refund stub
- * so the caller can assert on `mockRefund.calls.length` and continue with
- * scenario-specific checks (the quantity-0 placeholder, the system note, the
- * failed `processed_payments` record, ...).
+ * return `event` and `stripeApi.requestRefund` to succeed, POST the webhook,
+ * and assert the standard money-returned response: the notice is acknowledged,
+ * the booking was not processed, and the payment ends up fully refunded. The
+ * reason the money went back is not in this response — it is kept on the
+ * booking's system note, so a scenario that cares about the wording asserts it
+ * with `expectRefundNote`. Returns the refund stub so the caller can assert on
+ * `mockRefund.calls.length` and continue with scenario-specific checks (the
+ * quantity-0 placeholder, the system note, and the terminal payment aggregate).
  */
 export const expectWebhookKeptAndRefunded = async (
-  event: Parameters<typeof stubWebhookVerify>[0],
+  event: ProviderNoticeFixture,
   refundId = "re_test",
-  errorContains: string | string[] = "saved your details",
   signature?: string,
 ) => {
   const mockVerify = await stubWebhookVerify(event);
-  const mockRefund = stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
-  );
+  const mockRefund = stubRefundPayment(refundId, event.paidAmount);
   await postWebhookAndAssert(
     () => {
       mockVerify.restore();
@@ -163,11 +192,7 @@ export const expectWebhookKeptAndRefunded = async (
     (json) => {
       expect(json.received).toBe(true);
       expect(json.processed).toBe(false);
-      for (const substring of Array.isArray(errorContains)
-        ? errorContains
-        : [errorContains]) {
-        expect(json.error).toContain(substring);
-      }
+      expect(json.status).toBe("fully_refunded");
     },
     signature ?? "sig_valid",
   );
@@ -192,13 +217,71 @@ export const findKeptPlaceholder = async (
 
 /** A terminal payment failure has no ticket attendee and keeps its details. */
 export const expectSessionFailed = async (sessionId: string): Promise<void> => {
-  const { isSessionProcessed } = await import(
-    "#shared/db/processed-payments.ts"
+  const { requirePaymentAggregateByProviderSession } = await import(
+    "#test-utils/payment-aggregate.ts"
   );
-  const record = await isSessionProcessed(sessionId);
-  if (!record) throw new Error(`Processed payment ${sessionId} was not stored`);
-  expect(record.attendee_id).toBeNull();
-  expect(record.failure_data).not.toBe("");
+  const payment = await requirePaymentAggregateByProviderSession(sessionId);
+  expect(payment.attendeeId).not.toBeNull();
+  expect(payment.completion?.kind).toBe("placeholder_refund");
+  expect(payment.state).toBe("fully_refunded");
+};
+
+/**
+ * Assert a payment page turned the visitor away because the checkout could not
+ * be shown to be ours — an unsigned or unreadable one, or a session the
+ * provider does not know.
+ */
+export const expectUnrecognisedPayment = async (
+  response: Response,
+): Promise<void> => {
+  const { t } = await import("#i18n");
+  const { expectHtmlResponse } = await import("./assertions.ts");
+  await expectHtmlResponse(
+    response,
+    400,
+    t("payment.error.session_not_recognized"),
+  );
+};
+
+/**
+ * Drive a payment callback for a checkout whose stored details cannot be read,
+ * and assert the visitor is told it is not recognised. Shared by the success
+ * and cancel pages, which answer an unreadable checkout the same way.
+ */
+export const expectUnreadableSessionRejected = async (
+  path: string,
+  sessionId: string,
+): Promise<void> => {
+  const { handleRequest } = await import("#routes");
+  const { mockRequest, withMocks } = await import("./mocks.ts");
+  await withMocks(
+    () =>
+      stubRetrieveCheckoutSession({
+        amountTotal: 0,
+        metadata: {},
+        paymentIntent: null,
+        paymentStatus: "unpaid",
+        sessionId,
+      }),
+    async () => {
+      await expectUnrecognisedPayment(
+        await handleRequest(mockRequest(`${path}?session_id=${sessionId}`)),
+      );
+    },
+  );
+};
+
+/**
+ * Assert a listing kept exactly one booking, held at quantity 0 so it takes
+ * nobody's place while the money goes back.
+ */
+export const expectKeptAtQuantityZero = async (
+  listingId: number,
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const kept = await getAttendeesRaw(listingId);
+  expect(kept).toHaveLength(1);
+  expect(kept[0]!.quantity).toBe(0);
 };
 
 /**
@@ -212,16 +295,43 @@ export const expectRefundedWithNote = async (
   attendeeId: number,
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
+  const { settleDeferredPaymentWork } = await import("./maintenance.ts");
+  await settleDeferredPaymentWork();
   expect(mockRefund.calls.length).toBe(1);
   const { getNoteRows } = await import("#shared/db/notes/queries.ts");
   expect((await getNoteRows("attendee", [attendeeId])).length).toBe(1);
 };
 
 /**
+ * Assert why the money went back: the note kept on the listing's placeholder
+ * booking says so. The webhook reply only reports that the payment was
+ * refunded, so this is where a scenario checks the wording the operator reads.
+ */
+export const expectRefundNote = async (
+  listingId: number,
+  contains: string,
+): Promise<void> => {
+  const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
+  const { getNotesFor } = await import("#shared/db/notes/queries.ts");
+  const { attendeeNotes } = await import("#shared/db/notes/target.ts");
+  const { getTestPrivateKey } = await import("./crypto.ts");
+  const { settleDeferredPaymentWork } = await import("./maintenance.ts");
+  await settleDeferredPaymentWork();
+  const [attendee] = await getAttendeesRaw(listingId);
+  const kept = required(attendee, "a kept booking");
+  const notes = await getNotesFor(
+    attendeeNotes(kept.id),
+    await getTestPrivateKey(),
+  );
+  const text = notes.map((note) => note.note).join("\n");
+  expect(text).toContain(contains);
+};
+
+/**
  * Assert the standard "kept and refunded" aftermath: the order survives as a
  * single quantity-0 placeholder attendee on `listingId` (never dropped), the
  * refund fired exactly once with a system note (see `expectRefundedWithNote`),
- * and (see `expectSessionFailed`) the session is filed as a terminal failure.
+ * and (see `expectSessionFailed`) the payment is filed as fully refunded.
  */
 export const expectKeptAsQuantityZeroAndRefunded = async (
   listingId: number,
@@ -309,34 +419,82 @@ export const stubRetrieveCheckoutSession = (
   session: {
     sessionId: string;
     amountTotal: number;
+    /** When the checkout was made, in Unix seconds. */
+    created?: number;
     paymentIntent: string | null;
     paymentStatus?: string;
   } & (
     | { metadata: Record<string, unknown> }
     | { email: string; items: string; name: string }
   ),
-) =>
-  stub(stripeApi, "retrieveCheckoutSession", () =>
+) => stubSessionLookup(session);
+
+/** Stub both reads a paid Stripe session needs: the session itself and the
+ *  payment intent behind it. The intent mirrors the session's reference and
+ *  amount, so the money the provider reports matches what was paid. */
+const stubSessionLookup = (
+  session: Parameters<typeof stubRetrieveCheckoutSession>[0],
+) => {
+  const intent = stub(stripeApi, "lookupPaymentIntent", () =>
     Promise.resolve({
-      amount_total: session.amountTotal,
-      id: session.sessionId,
-      metadata:
-        "metadata" in session
-          ? session.metadata
-          : signedMeta(
-              {
-                email: session.email,
-                items: session.items,
-                name: session.name,
-              },
-              session.amountTotal,
-            ),
-      payment_intent: session.paymentIntent,
-      payment_status: session.paymentStatus ?? "paid",
+      status: "found" as const,
+      value: stripePaymentIntent({
+        amount: session.amountTotal,
+        amount_received: session.amountTotal,
+        id: required(session.paymentIntent, "the checkout's payment"),
+        latest_charge: stripeCharge({
+          amount: session.amountTotal,
+          amount_captured: session.amountTotal,
+          amount_refunded: 0,
+          payment_intent: required(
+            session.paymentIntent,
+            "the checkout's payment",
+          ),
+        }),
+      }),
+    } as unknown as Awaited<ReturnType<typeof stripeApi.lookupPaymentIntent>>),
+  );
+  const lookup = stub(stripeApi, "lookupCheckoutSession", () =>
+    Promise.resolve({
+      status: "found" as const,
+      value: {
+        amount_total: session.amountTotal,
+        created: session.created ?? 1_700_000_000,
+        currency: "gbp",
+        id: session.sessionId,
+        livemode: false,
+        metadata:
+          "metadata" in session
+            ? session.metadata
+            : signedMeta(
+                {
+                  email: session.email,
+                  items: session.items,
+                  name: session.name,
+                },
+                session.amountTotal,
+              ),
+        // A checkout that costs nothing never has a payment behind it.
+        payment_intent:
+          session.amountTotal === 0 ? null : session.paymentIntent,
+        payment_status:
+          session.paymentStatus ??
+          (session.amountTotal === 0 ? "no_payment_required" : "paid"),
+        status: "complete",
+        url: null,
+      },
     } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      ReturnType<typeof stripeApi.lookupCheckoutSession>
     >),
   );
+  return {
+    calls: lookup.calls,
+    restore: () => {
+      lookup.restore();
+      intent.restore();
+    },
+  };
+};
 
 /** Assert a listing has exactly one attendee recorded with the given
  *  `price_paid` — the tail check for a processed webhook whose test cares
@@ -367,16 +525,33 @@ export const expectAttendeeCreatedWithPiiBlob = async (
   return attendees[0]!;
 };
 
-/** Stub `stripeApi.refundPayment` to succeed with the given (or default)
+/** Stub `stripeApi.requestRefund` to succeed with the given (or default)
  *  provider refund id — the bare stub for tests that drive the refund
  *  through the `/payment/success` redirect path directly rather than through
  *  `expectWebhookKeptAndRefunded`. */
-export const stubRefundPayment = (refundId = "re_test") =>
-  stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
+/**
+ * Answer a refund request with a refund that genuinely belongs to the charge
+ * being refunded: the payment reference comes straight back from the request,
+ * so the provider check that a refund matches its charge is satisfied without
+ * every caller restating the id. `amount` must be what is left to refund on
+ * the charge, which is the full paid total unless the test refunded part of it
+ * already.
+ */
+export const stubRefundPayment = (refundId = "re_test", amount = 1000) =>
+  stub(stripeApi, "requestRefund", (intentId: string) =>
+    Promise.resolve(
+      stripeRefund({ amount, id: refundId, payment_intent: intentId }),
+    ),
   );
+
+/** Assert the provider received both the payment reference and a stable key. */
+export const expectRefundPaymentCall = (
+  refund: { calls: readonly { args: readonly unknown[] }[] },
+  paymentReference: string,
+): void => {
+  expect(refund.calls[0]?.args[0]).toBe(paymentReference);
+  expect(refund.calls[0]?.args[1]).toMatch(/^\S+$/u);
+};
 
 /**
  * A fourth webhook outcome alongside processed/kept-and-refunded/ignored: the

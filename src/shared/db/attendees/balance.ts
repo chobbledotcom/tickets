@@ -23,8 +23,6 @@ import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { formatCurrency } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { remainingBalanceFromLedger } from "#shared/db/attendees/select.ts";
@@ -174,7 +172,8 @@ export type SettleBalanceResult =
 
 /**
  * Mark an attendee as paid for an exact, verified amount: clear the remaining
- * balance, move reservations to the paid-default status, and log the payment.
+ * balance and move reservations to the paid-default status. The durable payment
+ * completion plan logs the payment after this atomic settlement commits.
  * The amount paid is no longer folded into a column — a booking row's amount
  * paid projects from its ledger sale leg, and the paying checkout posts its own
  * payment leg, so the balance settle only has to clear the receivable.
@@ -256,7 +255,7 @@ export const settleAttendeeBalance = async (
     return { reason: "amount_mismatch", settled: false };
   }
 
-  // The logged-activity / returned listing is the attendee's first real line.
+  // The completion activity / returned listing is the attendee's first real line.
   // A settle implies an owed balance, which implies a sale leg, which can only
   // sit on a quantity > 0 line (a paid line can't be marked no-quantity), so a
   // real line normally exists; the lookup stays nullable for a purely
@@ -266,12 +265,6 @@ export const settleAttendeeBalance = async (
     [attendeeId],
   );
   const listingId = firstListing ? firstListing.listing_id : null;
-
-  await logActivity(
-    `Reservation balance paid: ${formatCurrency(expectedAmount)}`,
-    listingId,
-    attendeeId,
-  );
 
   return { amount: expectedAmount, listingId, settled: true };
 };

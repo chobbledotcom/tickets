@@ -18,7 +18,6 @@
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
@@ -28,8 +27,7 @@ import {
   SELECT_PREFIX,
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
-import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -230,18 +228,16 @@ const selectionUrl = (
 };
 
 /** Complete the captured checkout through the provider webhook, exactly as
- * the app signed it: same intent, same metadata builder, same caps. */
+ * the app signed it: same money, same metadata, same session. */
 export const completePaidCheckout = async (
-  intent: CheckoutIntent,
+  checkout: PaymentCheckoutCreateSnapshot,
   sessionId: string,
 ): Promise<void> => {
-  const total = priceCheckout(intent).total;
-  const metadata = await assembleCheckoutMetadata("stripe", intent, total);
   const verifyStub = await stubWebhookVerify(
     checkoutSessionEvent({
-      amountTotal: total,
+      amountTotal: checkout.expected.amount,
       eventId: `evt_${sessionId}`,
-      metadata,
+      metadata: checkout.metadata,
       paymentIntent: `pi_${sessionId}`,
       sessionId,
     }),
@@ -297,13 +293,20 @@ export const runOrderJourney = async (spec: {
     name: "Journey Buyer",
     ...filled,
   };
-  const captured: { intent: CheckoutIntent | null } = { intent: null };
+  const captured: { checkout: PaymentCheckoutCreateSnapshot | null } = {
+    checkout: null,
+  };
   const sessionId = "cs_order_journey";
   const checkoutStub = spec.paid
-    ? stub(stripePaymentProvider, "createCheckoutSession", (intent) => {
-        captured.intent = intent;
+    ? stub(stripePaymentProvider, "createCheckout", (checkout) => {
+        captured.checkout = checkout;
         return Promise.resolve({
           checkoutUrl: "https://journey.test/checkout",
+          session: {
+            id: sessionId,
+            kind: "stripe_checkout_session" as const,
+            provider: "stripe" as const,
+          },
           sessionId,
         });
       })
@@ -314,8 +317,8 @@ export const runOrderJourney = async (spec: {
       // A free order books immediately.
       expect(browser.currentUrl).toBe("/ticket/reserved");
     } else {
-      expect(captured.intent).not.toBeNull();
-      await completePaidCheckout(captured.intent!, sessionId);
+      expect(captured.checkout).not.toBeNull();
+      await completePaidCheckout(captured.checkout!, sessionId);
     }
   } finally {
     checkoutStub?.restore();

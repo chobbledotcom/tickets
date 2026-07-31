@@ -2,8 +2,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -31,7 +31,7 @@ describeWithEnv(
   () => {
     test("missing terminal payment records fail loudly", async () => {
       await expect(expectSessionFailed("missing-session")).rejects.toThrow(
-        "Processed payment missing-session was not stored",
+        "Payment missing-session was not stored",
       );
     });
 
@@ -59,11 +59,10 @@ describeWithEnv(
         );
         const html = await expectHtmlResponse(
           response,
-          410,
-          "no longer accepting registrations",
+          400,
+          t("payment.error.session_not_recognized"),
         );
-        // Should show "contact support" since refund failed (no payment reference)
-        expect(html).toContain("contact support");
+        expect(html).not.toContain("contact support");
       } finally {
         mockRetrieve.restore();
       }
@@ -102,20 +101,17 @@ describeWithEnv(
 
       // This tests the case where result.refunded is undefined
       // This happens when validatePaidSession fails (no refund attempt)
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_plain_error",
-          metadata: {
-            email: "john@example.com",
-            items: singleItem(1, 1, 0),
-            name: "John",
-          },
-          payment_intent: "pi_test",
-          payment_status: "unpaid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 0,
+        metadata: {
+          email: "john@example.com",
+          items: singleItem(1, 1, 0),
+          name: "John",
+        },
+        paymentIntent: "pi_test",
+        paymentStatus: "unpaid",
+        sessionId: "cs_plain_error",
+      });
 
       try {
         const response = await handleRequest(
@@ -124,7 +120,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(
           response,
           400,
-          "Payment verification failed",
+          t("payment.error.session_not_recognized"),
         );
         // Should NOT contain refund-related text
         expect(html).not.toContain("refunded");
@@ -142,7 +138,7 @@ describeWithEnv(
       await expectHtmlResponse(
         response,
         400,
-        "Payment provider not configured",
+        t("payment.error.provider_not_configured"),
       );
     });
 
@@ -193,20 +189,16 @@ describeWithEnv(
       await setupStripe();
 
       // Mock empty items list (edge case where items parsed but empty after filtering)
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          id: "cs_multi_empty_items",
-          metadata: {
-            email: "empty@example.com",
-            items: "[]", // Empty array
-            name: "Empty Items",
-          },
-          payment_intent: "pi_multi_empty",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
+      const mockRetrieve = stubRetrieveCheckoutSession({
+        amountTotal: 0,
+        metadata: {
+          email: "empty@example.com",
+          items: "[]", // Empty array
+          name: "Empty Items",
+        },
+        paymentIntent: "pi_multi_empty",
+        sessionId: "cs_multi_empty_items",
+      });
 
       const mockRefund = stubRefundPayment();
 

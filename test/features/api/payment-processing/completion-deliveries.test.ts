@@ -1,0 +1,337 @@
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { deliverNextPaidCompletion } from "#routes/api/payment-processing/completion-deliveries.ts";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
+import {
+  applyPaymentSessionClaimKeepingLease,
+  requirePaymentSessionClaim,
+} from "#shared/db/payments/claims.ts";
+import {
+  getPaymentCompletionDeliveriesByKeys,
+  getPendingPaymentCompletionDeliveries,
+  storePaymentCompletionDeliveries,
+} from "#shared/db/payments/completion-deliveries.ts";
+import { runPaymentCompletionDbEffect } from "#shared/db/payments/completion-effects.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  prepareRegistrationEmailDeliveries,
+  resetHostEmailConfig,
+  setHostEmailConfigForTest,
+} from "#shared/email.ts";
+import type { PreparedPaymentCompletionDelivery } from "#shared/payment-completion-delivery.ts";
+import { paymentProgress } from "#shared/payment-runtime/progress.ts";
+import { paidRenewalDeliveriesFor } from "#shared/renewal.ts";
+import { preparePaidSiteAssignmentDeliveries } from "#shared/site-assignment-paid.ts";
+import { prepareRegistrationWebhookDeliveries } from "#shared/webhook-paid.ts";
+import { PAYMENT_ID } from "#test/shared/db/payments/fixtures.ts";
+import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  setupRenewalSite,
+  useRenewalTier,
+} from "#test-utils/db-helpers/built-sites.ts";
+import { saveTestEmailConfig, validEmail } from "#test-utils/email.ts";
+import { makeTestEntry } from "#test-utils/factories.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+
+const completionCurrent = async () => {
+  const payment = await createPendingPayment();
+  const claim = await requirePaymentSessionClaim(PAYMENT_ID, 60_000);
+  return applyPaymentSessionClaimKeepingLease(
+    claim,
+    paymentProgress(payment, {
+      nextReconcileAt: Date.now(),
+      state: payment.state,
+    }),
+  );
+};
+
+/** Save whatever deliveries the given prepare step produced, so the outbox has
+ *  real rows to hand out. */
+const storeRows = async (
+  current: Awaited<ReturnType<typeof completionCurrent>>,
+  deliveries: PreparedPaymentCompletionDelivery[],
+): Promise<void> => {
+  await runPaymentCompletionDbEffect(
+    current.claim,
+    "external_delivery_setup",
+    async (transaction) => {
+      await storePaymentCompletionDeliveries(
+        transaction,
+        current.payment.id,
+        deliveries,
+      );
+      return null;
+    },
+  );
+};
+
+const storeWebhookRows = async (
+  current: Awaited<ReturnType<typeof completionCurrent>>,
+  urls: string[],
+): Promise<void> => {
+  const deliveries = await prepareRegistrationWebhookDeliveries(
+    urls.map((webhookUrl, index) =>
+      makeTestEntry({ id: index + 1, webhook_url: webhookUrl }),
+    ),
+    "GBP",
+  );
+  await storeRows(current, deliveries);
+};
+
+describeWithEnv("paid completion delivery outbox", { db: true }, () => {
+  test("prepares no webhook when the payment bought nothing", async () => {
+    expect(await prepareRegistrationWebhookDeliveries([], "GBP")).toEqual([]);
+  });
+
+  test("prepares no webhook when no listing has one set up", async () => {
+    expect(
+      await prepareRegistrationWebhookDeliveries(
+        [makeTestEntry({ id: 1, webhook_url: "" })],
+        "GBP",
+      ),
+    ).toEqual([]);
+  });
+
+  test("delivers a bounded page without truncating webhook destinations", async () => {
+    const current = await completionCurrent();
+    await storeWebhookRows(current, [
+      "https://one.example.com/hook",
+      "https://two.example.com/hook",
+      "https://three.example.com/hook",
+    ]);
+    const fetch = stubFetch(() => new Response());
+    try {
+      expect(await deliverNextPaidCompletion(current)).toBe(false);
+      expect(fetch.calls).toHaveLength(1);
+      expect(await deliverNextPaidCompletion(current)).toBe(false);
+      expect(fetch.calls).toHaveLength(2);
+      expect(await deliverNextPaidCompletion(current)).toBe(true);
+      expect(fetch.calls).toHaveLength(3);
+      expect(
+        await getPendingPaymentCompletionDeliveries(current.payment.id),
+      ).toEqual([]);
+    } finally {
+      fetch.restore();
+    }
+  });
+
+  test("keeps a failed webhook row pending while the payment remains due", async () => {
+    const current = await completionCurrent();
+    await storeWebhookRows(current, ["https://failed.example.com/hook"]);
+    const fetch = stubFetch(() => new Response("failed", { status: 500 }));
+    try {
+      await expect(deliverNextPaidCompletion(current)).rejects.toThrow(
+        "Webhook delivery failed with status 500",
+      );
+
+      expect(
+        await getPendingPaymentCompletionDeliveries(current.payment.id),
+      ).toHaveLength(1);
+      expect(current.payment.nextReconcileAt).not.toBeNull();
+    } finally {
+      fetch.restore();
+    }
+  });
+
+  test("sends the buyer's confirmation email from the outbox", async () => {
+    const current = await completionCurrent();
+    await saveTestEmailConfig();
+    await storeRows(
+      current,
+      await prepareRegistrationEmailDeliveries(
+        [makeTestEntry({ id: 1 })],
+        "GBP",
+      ),
+    );
+    const fetch = stubFetch(() => new Response());
+    try {
+      expect(await deliverNextPaidCompletion(current)).toBe(true);
+
+      expect(fetch.calls).toHaveLength(1);
+      expect(
+        await getPendingPaymentCompletionDeliveries(current.payment.id),
+      ).toEqual([]);
+    } finally {
+      fetch.restore();
+      settings.clearTestOverrides();
+    }
+  });
+
+  test("refuses to send once the email settings have changed", async () => {
+    const current = await completionCurrent();
+    await saveTestEmailConfig();
+    await storeRows(
+      current,
+      await prepareRegistrationEmailDeliveries(
+        [makeTestEntry({ id: 1 })],
+        "GBP",
+      ),
+    );
+    await saveTestEmailConfig({ fromAddress: "someone-else@test.com" });
+    const fetch = stubFetch(() => new Response());
+    try {
+      await expect(deliverNextPaidCompletion(current)).rejects.toThrow(
+        "Email settings changed after payment completion started",
+      );
+
+      expect(fetch.calls).toHaveLength(0);
+    } finally {
+      fetch.restore();
+      settings.clearTestOverrides();
+    }
+  });
+
+  test("prepares nothing to email when no email provider is set up", async () => {
+    expect(
+      await prepareRegistrationEmailDeliveries(
+        [makeTestEntry({ id: 1 })],
+        "GBP",
+      ),
+    ).toEqual([]);
+  });
+
+  test("refuses to email about site assignments that are not there", async () => {
+    const current = await completionCurrent();
+    await saveTestEmailConfig();
+    await storeRows(current, [
+      {
+        data: {
+          assignmentKeys: ["site-assignment:0"],
+          config: {
+            fromAddress: validEmail("from@test.com"),
+            provider: "resend",
+          },
+          kind: "site_assignment_email",
+          recipient: validEmail("buyer@example.com"),
+        },
+        key: "site-assignment-email:0",
+      },
+    ]);
+
+    try {
+      await expect(deliverNextPaidCompletion(current)).rejects.toThrow(
+        "has missing site assignments",
+      );
+    } finally {
+      settings.clearTestOverrides();
+    }
+  });
+
+  test("refuses to email about a site assignment that has not finished", async () => {
+    const current = await completionCurrent();
+    await saveTestEmailConfig();
+    await storeRows(
+      current,
+      // The email row is stored first so the outbox hands it out before the
+      // assignment it is waiting on.
+      [
+        {
+          data: {
+            assignmentKeys: ["registration-email:0"],
+            config: {
+              fromAddress: validEmail("from@test.com"),
+              provider: "resend",
+            },
+            kind: "site_assignment_email",
+            recipient: validEmail("buyer@example.com"),
+          },
+          key: "site-assignment-email:0",
+        },
+        ...(await prepareRegistrationEmailDeliveries(
+          [makeTestEntry({ id: 1 })],
+          "GBP",
+        )),
+      ],
+    );
+
+    try {
+      await expect(deliverNextPaidCompletion(current)).rejects.toThrow(
+        "has unfinished site assignments",
+      );
+    } finally {
+      settings.clearTestOverrides();
+    }
+  });
+});
+
+describeWithEnv(
+  "paid completion delivery outbox with sites",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    useRenewalTier();
+
+    test("reserves a site through the outbox and writes down what it took", async () => {
+      const current = await completionCurrent();
+      setHostEmailConfigForTest(null);
+      await insertBuiltSite("Ready", "outbox.example.com", "", "", true, "91");
+      using _secrets = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      try {
+        await storeRows(
+          current,
+          await preparePaidSiteAssignmentDeliveries(current.payment.id, [
+            {
+              attendee: { email: "buyer@example.com", id: 41, quantity: 1 },
+              listing: {
+                assign_built_site: true,
+                id: 7,
+                initial_site_months: 3,
+                name: "Hosted ticket",
+              },
+            },
+          ]),
+        );
+
+        expect(await deliverNextPaidCompletion(current)).toBe(true);
+
+        const [stored] = await getPaymentCompletionDeliveriesByKeys(
+          current.payment.id,
+          ["site-assignment:41:7:0"],
+        );
+        expect(stored?.data).toMatchObject({
+          attendeeId: 41,
+          kind: "site_assignment",
+          listingId: 7,
+          site: { hostingId: "91" },
+        });
+      } finally {
+        resetHostEmailConfig();
+      }
+    });
+
+    test("a paid renewal pushes the site's read-only date out", async () => {
+      const current = await completionCurrent();
+      const { site, tokenIndex } = await setupRenewalSite("2026-09-01");
+      using secrets = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      await storeRows(
+        current,
+        await paidRenewalDeliveriesFor(tokenIndex)([
+          makeTestEntry(
+            {
+              active: true,
+              hidden: true,
+              id: 8,
+              months_per_unit: 2,
+              purchase_only: true,
+            },
+            { quantity: 1 },
+          ),
+        ]),
+      );
+
+      expect(await deliverNextPaidCompletion(current)).toBe(true);
+
+      expect(secrets.calls).toHaveLength(1);
+      const sites = await builtSites.getAll();
+      expect(sites.find((one) => one.id === site.id)?.readOnlyFrom).toBe(
+        "2026-11-01T00:00:00.000Z",
+      );
+    });
+  },
+);

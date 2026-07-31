@@ -108,5 +108,11 @@ export const countSubrequest = (
 export const countExternalSubrequest = (operation: string): void =>
   countSubrequest("external", operation);
 
-/** A refund uses several database calls plus one payment-provider request. */
-export const BULK_REFUND_LIMIT = 5;
+/** Measured foreground refund cost: auth/candidate/job/response work keeps 20
+ * calls, while each charge needs at most 9 database/provider/ledger calls. */
+const BULK_REFUND_FIXED_CALL_RESERVE = 20;
+const BULK_REFUND_CALLS_PER_REFERENCE = 9;
+export const BULK_REFUND_FOREGROUND_REFERENCE_LIMIT = Math.floor(
+  (BUNNY_SUBREQUEST_LIMIT - BULK_REFUND_FIXED_CALL_RESERVE) /
+    BULK_REFUND_CALLS_PER_REFERENCE,
+);

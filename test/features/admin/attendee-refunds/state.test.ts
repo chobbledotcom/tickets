@@ -12,6 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import {
   refundAllUrl,
   refundUrl,
@@ -52,13 +53,25 @@ describeWithEnv("server (admin refund state)", { db: true }, () => {
         "refunded@example.com",
         "pi_ra_1",
       );
-      await createPaidTestAttendee(
+      const notRefunded = await createPaidTestAttendee(
         listing.id,
         "Not Refunded",
         "notrefunded@example.com",
         "pi_ra_2",
       );
       await markAsRefunded(refundedAttendee.id);
+      // Both bookings were paid for, so both have a payment on record; only the
+      // one that has not been refunded should still be counted.
+      for (const [index, attendeeId] of [
+        refundedAttendee.id,
+        notRefunded.id,
+      ].entries()) {
+        await createAggregatePayment({
+          attendeeId,
+          charges: [{ amount: 500, reference: `pi_ra_${index + 1}` }],
+          paymentId: `pay_ra_${index + 1}`,
+        });
+      }
 
       const response = await awaitTestRequest(refundAllUrl(listing.id), {
         cookie: await testCookie(),

@@ -28,7 +28,7 @@ import {
 } from "#shared/qr-token.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { stubCheckout } from "#test-utils/checkout.ts";
+import { providerCheckoutResult, stubCheckout } from "#test-utils/checkout.ts";
 import { hasInputWithValue, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
@@ -49,6 +49,7 @@ const qrBookPath = (slug: string, token: string): string =>
 /** Stub Stripe as the active provider, capturing the checkout intent through
  *  the shared {@link stubCheckout}. */
 const stubStripe = () => {
+  settings.setForTest({ stripe_secret_key: "sk_test_qr" });
   const providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
     mockProviderType("stripe"),
   );
@@ -59,6 +60,7 @@ const stubStripe = () => {
     restore: () => {
       providerStub.restore();
       checkout.restore();
+      settings.clearTestOverride("stripe_secret_key");
     },
   };
 };
@@ -102,7 +104,7 @@ const expectStripeCheckoutAtPrice = (
   expectedUnitPrice: number,
 ): void => {
   expect(response.status).toBe(302);
-  expect(stripe.getCaptured()!.items[0]!.unitPrice).toBe(expectedUnitPrice);
+  expect(stripe.getCaptured()!.order.lines[0]!.amount).toBe(expectedUnitPrice);
 };
 
 /** Scan a listing's QR-book link (token built from `payload`) and return the response. */
@@ -135,15 +137,18 @@ const scanWithCheckoutResult = async (
   listing: { slug: string },
   result: CheckoutSessionResult,
 ): Promise<Response> => {
+  settings.setForTest({ stripe_secret_key: "sk_test_qr" });
   using _providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
     mockProviderType("stripe"),
   );
-  using _checkoutStub = stub(
-    stripePaymentProvider,
-    "createCheckoutSession",
-    () => Promise.resolve(result),
+  using _checkoutStub = stub(stripePaymentProvider, "createCheckout", () =>
+    Promise.resolve(providerCheckoutResult(result)),
   );
-  return await scanRequest(listing);
+  try {
+    return await scanRequest(listing);
+  } finally {
+    settings.clearTestOverride("stripe_secret_key");
+  }
 };
 
 describeWithEnv("qr-book scan handler", { db: true }, () => {
@@ -362,8 +367,8 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
           qrBookPath(listing.slug, token),
         );
         expect(response.status).toBe(302);
-        const intent = stripe.getCaptured()!;
-        expect(intent.date).toBe(tomorrow);
+        const checkout = stripe.getCaptured()!;
+        expect(checkout.bookingIntent.date).toBe(tomorrow);
       });
     });
 
@@ -411,8 +416,8 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         // Response is a 302 redirect to Stripe
         expect(response.status).toBe(302);
         expect(stripe.calls()).toBe(1);
-        const intent = stripe.getCaptured()!;
-        expect(intent.items[0]!.unitPrice).toBe(overridePrice);
+        const checkout = stripe.getCaptured()!;
+        expect(checkout.order.lines[0]!.amount).toBe(overridePrice);
       });
     });
 

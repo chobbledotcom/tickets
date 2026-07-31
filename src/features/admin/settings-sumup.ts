@@ -8,7 +8,7 @@ import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.t
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
-import { testSumupConnection } from "#shared/sumup.ts";
+import { sumupApi } from "#shared/sumup.ts";
 
 /* jscpd:ignore-end */
 
@@ -30,7 +30,7 @@ export const sumupRoutes = defineProviderCredentialsRoute<SumupFields>({
   secretField: "sumup_api_key",
   secretRequiredError: "SumUp API Key is required",
   successMessage: "SumUp credentials updated",
-  testFn: testSumupConnection,
+  testFn: () => sumupApi.testSumupConnection(),
   validate: ({ merchantCode }) => {
     if (isDemoMode()) return "Cannot configure SumUp in demo mode";
     const currencyBlock = providerCurrencyBlock("sumup", settings.currency);

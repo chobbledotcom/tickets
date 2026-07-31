@@ -2,10 +2,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 // jscpd:ignore-end
 import {
+  attachRefundablePayment,
   expectFlashPage,
   firstAttendee,
   refreshPaymentAsStripe,
@@ -213,6 +215,12 @@ describeWithEnv(
           "john@example.com",
           "pi_no_provider",
         );
+        await attachRefundablePayment(
+          attendee.id,
+          "cs_no_provider",
+          "pi_no_provider",
+          500,
+        );
         await withMocks(
           () => stub(paymentsApi, "getConfiguredProvider", () => null),
           async () => {
@@ -222,7 +230,7 @@ describeWithEnv(
             expect(response.status).toBe(302);
             expectFlash(
               response,
-              expect.stringContaining("payment provider"),
+              t("payment.error.provider_not_configured"),
               false,
             );
           },
@@ -231,11 +239,18 @@ describeWithEnv(
 
       test("marks as refunded when Stripe reports refund", async () => {
         const listing = await createTestListing(paidListing(500));
-        const attendee = await createPaidTestAttendee(
+        const attendee = await createPaidAttendeeWithoutLedger(
           listing.id,
           "John Doe",
           "john@example.com",
           "pi_refresh_refund",
+        );
+        await attachRefundablePayment(
+          attendee.id,
+          "cs_refresh_refund",
+          "pi_refresh_refund",
+          500,
+          { gross: 500, listingId: listing.id },
         );
         const { response, refundCheckArgs } = await refreshPaymentAsStripe(
           attendee.id,
@@ -261,6 +276,12 @@ describeWithEnv(
           "john@example.com",
           "pi_refresh_unrecorded",
         );
+        await attachRefundablePayment(
+          attendee.id,
+          "cs_refresh_unrecorded",
+          "pi_refresh_unrecorded",
+          500,
+        );
         const { response } = await refreshPaymentAsStripe(attendee.id, true);
         expect(response.status).toBe(302);
         expectFlash(
@@ -276,11 +297,18 @@ describeWithEnv(
 
       test("redirects without marking refunded when payment is not refunded", async () => {
         const listing = await createTestListing(paidListing(500));
-        const attendee = await createPaidTestAttendee(
+        const attendee = await createPaidAttendeeWithoutLedger(
           listing.id,
           "John Doe",
           "john@example.com",
           "pi_refresh_ok",
+        );
+        await attachRefundablePayment(
+          attendee.id,
+          "cs_refresh_ok",
+          "pi_refresh_ok",
+          500,
+          { gross: 500, listingId: listing.id },
         );
         const { response } = await refreshPaymentAsStripe(attendee.id, false);
         expect(response.status).toBe(302);

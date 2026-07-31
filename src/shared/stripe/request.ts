@@ -25,8 +25,8 @@ type ResponseSchema<T> = v.BaseSchema<unknown, T, v.BaseIssue<unknown>>;
 /**
  * Per-request options. `idempotencyKey` overrides the default per-POST retry
  * key so a caller can supply a stable, provider-and-payment-scoped key that
- * survives webhook redelivery (see `refundIdempotencyKey` in
- * `#shared/payment-idempotency.ts`).
+ * survives webhook redelivery. The payment charge stores the encrypted key and
+ * its blind index before the provider request starts.
  */
 export interface StripeRequestOptions {
   idempotencyKey?: string | undefined;

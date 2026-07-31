@@ -7,16 +7,17 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { execute } from "#shared/db/client.ts";
 import { createSystemNote, getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+import { requestChargeRefund } from "#shared/db/payments/charges.ts";
 import type { Attendee } from "#shared/types.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 /** Submit the refresh-payment route with a stubbed provider. */
 const submitRefreshPayment = async (
@@ -47,6 +48,7 @@ const setupPlaceholderForRefresh = async (
   paymentReference: string,
   beforeRefresh?: (listingId: number) => Promise<void>,
 ): Promise<Attendee> => {
+  await setupStripe();
   const listing = await createTestListing({
     maxAttendees: 50,
     unitPrice: 800,
@@ -62,12 +64,15 @@ const setupPlaceholderForRefresh = async (
   if (!created.success) throw new Error(`setup failed: ${created.reason}`);
   const attendee = created.attendees[0]!;
   await postPaymentLeg(attendee.id, 500, sessionId, listing.id, 0);
-  await reserveSession(sessionId);
-  await finalizeReservedPayment(
-    sessionId,
-    attendee.id,
-    "tok-placeholder",
-    paymentReference,
+  const payment = await createAggregatePayment({
+    attendeeId: attendee.id,
+    charges: [{ amount: 500, reference: paymentReference }],
+    configuredAccount: true,
+    paymentId: sessionId,
+    ticketTokens: ["tok-placeholder"],
+  });
+  await Promise.all(
+    payment.charges.map((charge) => requestChargeRefund(charge.id)),
   );
   if (beforeRefresh) await beforeRefresh(listing.id);
   return attendee;

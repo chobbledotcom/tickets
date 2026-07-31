@@ -55,10 +55,10 @@ describeWithEnv(
         // The order folded the child (two distinct listings) yet still carries
         // the parent's configured thank-you URL.
         const listingIds = new Set(
-          getCaptured()?.items.map((i) => i.listingId),
+          getCaptured()?.bookingIntent.items.map((item) => item.e),
         );
         expect(listingIds.size).toBe(2);
-        expect(getCaptured()?.thankYouUrl).toBe(
+        expect(getCaptured()?.bookingIntent.thankYouUrl).toBe(
           "https://example.com/thanks-parent",
         );
       } finally {

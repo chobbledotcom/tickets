@@ -4,10 +4,18 @@ import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square.ts";
 import { createMockClient } from "#test/test-utils/square/harness.ts";
+import { preparedCheckout } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 type MockImpls = Parameters<typeof createMockClient>[0];
 type SquareMock = ReturnType<typeof createMockClient>;
+
+/** Canonical metadata for a single-ticket Square checkout. */
+export const SQUARE_ORDER_META = {
+  email: "alice@example.com",
+  items: '[{"e":1,"q":1,"p":0}]',
+  name: "Alice",
+};
 
 /**
  * Runs the test body with a fake Square SDK client standing in for the real
@@ -32,7 +40,9 @@ export const expectNoLink = async (
   intent: CheckoutIntent,
   redirectUrl = "http://localhost",
 ): Promise<void> => {
-  const result = await squareApi.createPaymentLink(intent, redirectUrl);
+  const result = await squareApi.createCheckout(
+    await preparedCheckout(intent, "square", "square-test", redirectUrl),
+  );
   expect(result).toBeNull();
 };
 

@@ -15,7 +15,7 @@
  * - **Settings** — system configuration (currency, email, payment keys)
  * - **Holidays** — date exclusions for daily listings
  * - **Activity Log** — admin audit trail
- * - **Processed Payments** — idempotency tracking
+ * - **Payments** — durable callback replay, exact charge money, and refunds
  * - **Login Attempts** — rate limiting and lockout
  *
  * @module
@@ -72,7 +72,6 @@ export * from "#shared/db/listings/select.ts";
 export * from "#shared/db/listings/table.ts";
 export * from "#shared/db/login-attempts.ts";
 export * from "#shared/db/migrations.ts";
-export * from "#shared/db/processed-payments.ts";
 export * from "#shared/db/query.ts";
 export * from "#shared/db/query-log.ts";
 export * from "#shared/db/sessions.ts";

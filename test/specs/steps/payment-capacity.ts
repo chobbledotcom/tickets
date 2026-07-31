@@ -7,7 +7,7 @@ import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
+import { getPaymentSessionByResourceOrNull } from "#shared/db/payments/sessions.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -16,6 +16,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { mockRequest, withExpectedError } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
@@ -76,6 +77,13 @@ const returnedPayment = (sessionId: string): Promise<Response> =>
     handleRequest(mockRequest(`/payment/success?session_id=${sessionId}`)),
   );
 
+const storedPayment = (sessionId: string) =>
+  getPaymentSessionByResourceOrNull({
+    id: sessionId,
+    kind: "stripe_checkout_session",
+    provider: "stripe",
+  });
+
 Given(
   "a paid listing has one place left",
   async function (this: TicketsWorld): Promise<void> {
@@ -103,11 +111,11 @@ Then(
     const listingId = requiredWorldValue(this.listingId, "listing id");
     const sessionId = requiredWorldValue(this.sessionId, "session id");
     const attendee = await expectAttendeeCreatedWithPiiBlob(listingId);
-    const record = await isSessionProcessed(sessionId);
+    const record = await storedPayment(sessionId);
     if (!record)
       throw new Error(`Processed payment ${sessionId} was not stored`);
-    expect(record.attendee_id).toBe(attendee.id);
-    expect(record.ticket_tokens).not.toBe("");
+    expect(record.attendeeId).toBe(attendee.id);
+    expect(record.ticketTokens).not.toBeNull();
   },
 );
 
@@ -156,6 +164,10 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const attendeeId = requiredWorldValue(this.placeholderId, "placeholder id");
     const sessionId = requiredWorldValue(this.sessionId, "session id");
+    // The note is written by the scheduled work that finishes a refunded
+    // booking, moments after the customer is answered. Run it first, the way
+    // the site does, or the organiser's page is read too early.
+    await settleDeferredPaymentWork();
     const notes = await getNotesFor(
       attendeeNotes(attendeeId),
       await getTestPrivateKey(),
@@ -198,11 +210,13 @@ Given(
     const attendee = await findKeptPlaceholder(listingId);
     this.placeholderId = attendee.id;
     this.attendeeIds = (await getAttendeesRaw(listingId)).map(({ id }) => id);
-    const record = await isSessionProcessed(sessionId);
-    if (!record?.failure_data)
-      throw new Error("terminal failure was not stored");
-    this.firstFailureData = record.failure_data;
+    // Let the scheduled work finish the refunded booking before reading what
+    // was filed, so the record compared against the replay is the settled one.
     await expectRefundedWithNote(attendee.id, refund);
+    const record = await storedPayment(sessionId);
+    if (record?.state !== "fully_refunded")
+      throw new Error("terminal refund was not stored");
+    this.firstFailureData = JSON.stringify(record.completion);
   },
 );
 
@@ -242,10 +256,13 @@ Then(
     expect(firstBody).toContain("refunded");
     expect(firstBody).not.toContain("being processed");
     const sessionId = requiredWorldValue(this.sessionId, "session id");
-    const record = await isSessionProcessed(sessionId);
+    const record = await storedPayment(sessionId);
     if (!record)
       throw new Error(`Processed payment ${sessionId} was not stored`);
-    expect(record.attendee_id).toBeNull();
-    expect(record.failure_data).toBe(this.firstFailureData);
+    expect(record.attendeeId).toBe(
+      requiredWorldValue(this.placeholderId, "placeholder id"),
+    );
+    expect(record.state).toBe("fully_refunded");
+    expect(JSON.stringify(record.completion)).toBe(this.firstFailureData);
   },
 );

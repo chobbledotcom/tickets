@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { resetSquareClient, type SquareClient } from "#shared/square.ts";
+import { squareApi } from "#shared/square.ts";
+import type { SquareClient } from "#shared/square-client.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
 
@@ -13,7 +14,9 @@ export const createMockClient = (
     checkoutCreate?: MockFn;
     ordersGet?: MockFn;
     paymentsGet?: MockFn;
-    refundsRefundPayment?: MockFn;
+    paymentsList?: MockFn;
+    refundsGet?: MockFn;
+    refundsRequestRefund?: MockFn;
     locationsList?: MockFn;
   } = {},
 ) => {
@@ -22,7 +25,9 @@ export const createMockClient = (
   const checkoutCreate = asSpy(impls.checkoutCreate);
   const ordersGet = asSpy(impls.ordersGet);
   const paymentsGet = asSpy(impls.paymentsGet);
-  const refundsRefundPayment = asSpy(impls.refundsRefundPayment);
+  const paymentsList = asSpy(impls.paymentsList);
+  const refundsGet = asSpy(impls.refundsGet);
+  const refundsRequestRefund = asSpy(impls.refundsRequestRefund);
   const locationsList = asSpy(impls.locationsList);
 
   return {
@@ -31,13 +36,15 @@ export const createMockClient = (
       checkout: { paymentLinks: { create: checkoutCreate } },
       locations: { list: locationsList },
       orders: { get: ordersGet },
-      payments: { get: paymentsGet },
-      refunds: { refundPayment: refundsRefundPayment },
+      payments: { get: paymentsGet, list: paymentsList },
+      refunds: { get: refundsGet, requestRefund: refundsRequestRefund },
     } as unknown as SquareClient,
     locationsList,
     ordersGet,
     paymentsGet,
-    refundsRefundPayment,
+    paymentsList,
+    refundsGet,
+    refundsRequestRefund,
   };
 };
 
@@ -48,12 +55,12 @@ export const createMockClient = (
 export const describeSquare = (body: () => void): void => {
   describe("square", () => {
     beforeEach(async () => {
-      resetSquareClient();
+      squareApi.resetSquareClient();
       await createTestDb();
     });
 
     afterEach(() => {
-      resetSquareClient();
+      squareApi.resetSquareClient();
       resetDb();
     });
 

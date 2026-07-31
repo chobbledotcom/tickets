@@ -40,6 +40,13 @@ export const builtSitePlainColumns = [
     toInput: nullable<number>,
   },
   {
+    dbKey: "assignment_effect",
+    fromRow: nullable<string>,
+    schema: nullStrCol,
+    siteKey: "assignmentEffect",
+    toInput: nullable<string>,
+  },
+  {
     dbKey: "assigned_listing_id",
     fromRow: nullable<number>,
     schema: nullCol,

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
 import { log } from "#e2e/log.ts";
 import { sleep } from "#e2e/util.ts";
-import { squareRequestInit } from "#shared/square.ts";
+import { squareRequestInit } from "#shared/square-client.ts";
 import {
   configureProvider,
   exerciseAdminRefund,

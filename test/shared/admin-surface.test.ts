@@ -47,6 +47,7 @@ describe("admin surface paths", () => {
       "calendar",
       "servicing",
       "attendees",
+      "payments",
       "users",
       "groups",
       "images",

@@ -9,7 +9,6 @@ import {
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
-  PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
@@ -24,12 +23,10 @@ import {
   insertOrphanAttendee,
   insertString,
   insertStrings,
-  insertSumupCheckout,
   insertTokenAttempt,
   loginAttemptExists,
   oldOrphanIso,
   stringExists,
-  sumupCheckoutExists,
   tokenAttemptExists,
 } from "./helpers.ts";
 
@@ -60,9 +57,9 @@ describeWithEnv("db > table pruning", { db: true }, () => {
     const debugStub = stub(console, "debug");
     try {
       const old = new Date(
-        nowMs() - PRUNE_SUMUP_RETENTION_MS - 60_000,
+        nowMs() - PRUNE_UNUSED_STRINGS_RETENTION_MS - 60_000,
       ).toISOString();
-      await insertSumupCheckout("idx_only", old);
+      await insertString("log-only", old, 0);
 
       await runDatabasePruning();
 
@@ -75,28 +72,6 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       debugStub.restore();
       setSuppressDebugLogs(null);
     }
-  });
-
-  describe("pruneSumupCheckouts", () => {
-    test("deletes checkout metadata older than retention window", async () => {
-      const old = new Date(
-        nowMs() - PRUNE_SUMUP_RETENTION_MS - 60_000,
-      ).toISOString();
-      await insertSumupCheckout("idx_old", old);
-
-      await runDatabasePruning();
-
-      expect(await sumupCheckoutExists("idx_old")).toBe(false);
-    });
-
-    test("keeps checkout metadata within retention window", async () => {
-      const recent = new Date(nowMs() - 1000).toISOString();
-      await insertSumupCheckout("idx_recent", recent);
-
-      await runDatabasePruning();
-
-      expect(await sumupCheckoutExists("idx_recent")).toBe(true);
-    });
   });
 
   describe("pruneUnusedStrings", () => {

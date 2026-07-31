@@ -5,37 +5,17 @@ import { FakeTime } from "@std/testing/time";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
+import { builtSites } from "#shared/db/built-sites.ts";
+import { applyRenewalsForEntries } from "#shared/renewal.ts";
 import type { Listing } from "#shared/types.ts";
-import { applyRenewalsForEntries } from "#shared/webhook.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
+import { setupRenewalSite } from "#test-utils/db-helpers/built-sites.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 
 const NOW_MS = 1_700_000_000_000;
 const NOW_ISO = new Date(NOW_MS).toISOString();
-
-const setupRenewalSite = async (readOnlyFrom: string) => {
-  await insertBuiltSite(
-    "Renewal Site",
-    "renewal.b-cdn.net",
-    "",
-    "",
-    false,
-    "5001",
-  );
-  const sites = await builtSites.getAll();
-  const site = sites.find((s) => s.name === "Renewal Site")!;
-  // applyRenewalsForEntries takes the HMAC index (the same value that's stored
-  // in Stripe metadata after the boundary hashing); the plain token is unused
-  // in these tests.
-  const { tokenIndex } = await provisionTestBuiltSite(site.id, {
-    readOnlyFrom,
-  });
-  return { site, tokenIndex };
-};
 
 const makeRenewalEntry = (
   listing: { id: number; months_per_unit: number },

@@ -110,3 +110,20 @@ src/shared/db/processed-payments.ts:287:7  processed_payments.failure_data → "
 # resolve.
 src/shared/db/news-posts.ts:147:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
 src/features/admin/api-keys.ts:147:75  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
+
+# Carried over from the payment aggregate base branch.
+src/shared/db/table.ts:445:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:492:71  ?? → ||   # a found row is a truthy object, and a miss is undefined, so both operators give the row or null
+src/shared/db/table.ts:496:31  ?? → ||   # findByIds's element is a truthy row, null, or undefined, and all three agree
+src/shared/db/table.ts:584:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:617:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
+src/shared/db/groups.ts:84:58  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
+src/shared/db/groups.ts:238:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
+src/shared/db/groups.ts:504:55  groupRecord → ""   # columnsSql only qualifies a column when the alias is truthy, so "" selects the same bare column names, which are unambiguous in this single-table query
+src/shared/db/groups.ts:224:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
+src/shared/db/groups.ts:458:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
+src/shared/db/groups.ts:703:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts:836:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
+src/shared/db/attendees/select.ts:294:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts:379:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+src/shared/db/news-posts.ts:148:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column

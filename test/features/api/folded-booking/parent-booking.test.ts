@@ -7,7 +7,7 @@ import {
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { FormParams } from "#shared/form-data.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import { checkoutItem } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import type { BookResponseBody } from "#test/test-utils/api/helpers.ts";
@@ -101,7 +101,7 @@ const stubFoldedCheckout = async (
 ): Promise<{
   body: BookResponseBody;
   calls: () => number;
-  intent: CheckoutIntent | undefined;
+  checkout: PaymentCheckoutCreateSnapshot | undefined;
 }> => {
   await setupStripe();
   const { calls, checkout, getCaptured } = stubCheckout("sess_test");
@@ -111,7 +111,7 @@ const stubFoldedCheckout = async (
     return {
       body: (await response.json()) as BookResponseBody,
       calls,
-      intent: getCaptured(),
+      checkout: getCaptured(),
     };
   } finally {
     checkout.restore();
@@ -157,16 +157,18 @@ describeWithEnv("processParentApiBooking", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       },
     });
-    const { intent } = await stubFoldedCheckout(parent, parentBody(child));
-    expect(intent?.date).toBe(null);
-    expect(intent?.thankYouUrl).toBe("https://example.com/thanks");
-    expect(intent?.allocations).toEqual([
+    const { checkout } = await stubFoldedCheckout(parent, parentBody(child));
+    expect(checkout?.bookingIntent.date).toBe(null);
+    expect(checkout?.bookingIntent.thankYouUrl).toBe(
+      "https://example.com/thanks",
+    );
+    expect(checkout?.bookingIntent.allocations).toEqual([
       { childId: child.id, parentId: parent.id, qty: 1 },
     ]);
-    expectCapturedItemPriced(intent, parent, 1000);
-    expectCapturedItemPriced(intent, child, 500);
+    expectCapturedItemPriced(checkout, parent, 1000);
+    expectCapturedItemPriced(checkout, child, 500);
     // A non-customisable fold carries no dayCount on the intent.
-    expect("dayCount" in (intent ?? {})).toBe(false);
+    expect("dayCount" in (checkout?.bookingIntent ?? {})).toBe(false);
   });
 
   test("charges a pay-more parent's custom price on the folded checkout line", async () => {
@@ -179,26 +181,26 @@ describeWithEnv("processParentApiBooking", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       },
     });
-    const { intent } = await stubFoldedCheckout(
+    const { checkout } = await stubFoldedCheckout(
       parent,
       parentBody(child, { customPrice: 20 }),
     );
-    expectCapturedItemPriced(intent, parent, 2000);
-    expectCapturedItemPriced(intent, child, 500);
+    expectCapturedItemPriced(checkout, parent, 2000);
+    expectCapturedItemPriced(checkout, child, 500);
     // A parent with no configured thank-you URL omits it from the intent.
-    expect("thankYouUrl" in (intent ?? {})).toBe(false);
+    expect("thankYouUrl" in (checkout?.bookingIntent ?? {})).toBe(false);
   });
 
   test("carries the folded dayCount when a customisable child is folded in", async () => {
     const { parent, child } = await makeCustomisableDailyParent();
     const date = (await bookableStartDates(parent.id))[0]!;
-    const { intent } = await stubFoldedCheckout(
+    const { checkout } = await stubFoldedCheckout(
       parent,
       parentBody(child),
       date,
     );
-    expect(intent?.dayCount).toBe(3);
-    expectCapturedItemPriced(intent, child, 3000);
+    expect(checkout?.bookingIntent.dayCount).toBe(3);
+    expectCapturedItemPriced(checkout, child, 3000);
   });
 
   test("books a free folded order owing nothing when a provider is configured", async () => {

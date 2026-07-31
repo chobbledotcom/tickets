@@ -4,8 +4,10 @@ import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";
-import type { WebhookEvent, WebhookVerifyResult } from "#shared/payments.ts";
-import { finishWebhookVerification } from "#shared/webhook-verification.ts";
+import {
+  finishWebhookVerification,
+  type VerifiedWebhookPayload,
+} from "#shared/webhook-verification.ts";
 
 /* jscpd:ignore-end */
 
@@ -83,15 +85,14 @@ const parseSignatureHeader = (header: string): SignatureParseResult => {
   return values.ok ? validateSignatureValues(values) : values;
 };
 
-export type StripeWebhookEvent = WebhookEvent &
-  Pick<Stripe.Event, "id" | "type">;
+export type StripeWebhookEvent = Pick<Stripe.Event, "data" | "id" | "type">;
 
 /** Verify a Stripe webhook signature with edge-compatible Web Crypto. */
 export const verifyWebhookSignature = async (
   payload: string,
   signature: string,
   toleranceSeconds = DEFAULT_TOLERANCE_SECONDS,
-): Promise<WebhookVerifyResult> => {
+): Promise<VerifiedWebhookPayload> => {
   const secret = settings.stripe.webhookSecret;
   if (!secret) {
     logError({ code: ErrorCode.CONFIG_MISSING, detail: "webhook secret" });

@@ -1,8 +1,22 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
-import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
+import { type Stub, stub } from "@std/testing/mock";
+import { getPaymentSessions } from "#shared/db/payments/sessions.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
+import { preparePaymentCheckout } from "#shared/payment-runtime/create.ts";
+import { PAYMENT_PROVIDER_RESOURCES } from "#shared/payment-runtime/current.ts";
+import type {
+  CheckoutIntent,
+  CheckoutItem,
+  CheckoutSessionResult,
+  PaymentProvider,
+  ProviderCheckoutResult,
+} from "#shared/payments.ts";
+import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import type { PaymentProviderType } from "#shared/types.ts";
+import { required } from "#test-utils/required.ts";
 import { submitTicketForm } from "./csrf.ts";
+import { signedMeta } from "./factories.ts";
 import { stubRetrieveCheckoutSession } from "./webhooks.ts";
 
 /** A checkout line item with sensible defaults; override any field. */
@@ -31,10 +45,107 @@ export const checkoutIntent = (
   ...overrides,
 });
 
+/** Build the exact prepared value handed to an internal provider creator. */
+export const preparedCheckout = (
+  intent: CheckoutIntent = checkoutIntent(),
+  provider: PaymentProviderType = "stripe",
+  localPaymentId = "local-payment-test",
+  baseUrl = "http://localhost:3000",
+): Promise<PaymentCheckoutCreateSnapshot> =>
+  preparePaymentCheckout(provider, intent, baseUrl, localPaymentId);
+
+/** Add the provider resource required by the internal creation result. */
+export const providerCheckoutResult = (
+  result: CheckoutSessionResult,
+  provider: PaymentProviderType = "stripe",
+): ProviderCheckoutResult =>
+  result === null || "error" in result
+    ? result
+    : {
+        ...result,
+        session: PAYMENT_PROVIDER_RESOURCES[provider].session(result.sessionId),
+      };
+
 /** The checkout URL {@link stubCheckout} returns, so a test can assert a paid
  *  booking's response carries exactly the URL the stub produced (importing it
  *  keeps the stub's URL and the assertion in lockstep, not a magic string). */
 export const STUB_CHECKOUT_URL = "https://stripe.example/checkout";
+
+interface ProviderCheckoutStub {
+  calls: () => number;
+  checkout: Stub;
+  getCaptured: () => PaymentCheckoutCreateSnapshot | undefined;
+  requireCaptured: () => PaymentCheckoutCreateSnapshot;
+}
+
+type CheckoutResponse = (
+  checkout: PaymentCheckoutCreateSnapshot,
+  callNumber: number,
+) => Promise<ProviderCheckoutResult>;
+
+/** Stub one provider checkout method and keep the exact snapshot it receives. */
+export const stubProviderCheckout = (
+  provider: PaymentProvider,
+  respond: CheckoutResponse,
+): ProviderCheckoutStub => {
+  let captured: PaymentCheckoutCreateSnapshot | undefined;
+  let callNumber = 0;
+  const checkout = stub(provider, "createCheckout", (value) => {
+    captured = value;
+    callNumber += 1;
+    return respond(value, callNumber);
+  });
+  return {
+    calls: () => checkout.calls.length,
+    checkout,
+    getCaptured: () => captured,
+    requireCaptured: () => required(captured, "a provider checkout call"),
+  };
+};
+
+/** A Square checkout whose first provider response is lost. */
+export const stubUncertainSquareCheckout = (): ProviderCheckoutStub =>
+  stubProviderCheckout(squarePaymentProvider, () => Promise.resolve(null));
+
+interface BlockedSquareCheckoutStub extends ProviderCheckoutStub {
+  releaseRetry: () => void;
+  retryStarted: Promise<void>;
+}
+
+/** Lose the first Square response, then hold its successful retry in flight. */
+export const stubBlockedSquareCheckoutRetry = (
+  result: Extract<ProviderCheckoutResult, { sessionId: string }>,
+): BlockedSquareCheckoutStub => {
+  const retryStarted = Promise.withResolvers<void>();
+  const releaseRetry = Promise.withResolvers<void>();
+  const checkout = stubProviderCheckout(
+    squarePaymentProvider,
+    async (_value, callNumber) => {
+      if (callNumber === 1) return null;
+      retryStarted.resolve();
+      await releaseRetry.promise;
+      return result;
+    },
+  );
+  return {
+    ...checkout,
+    releaseRetry: () => releaseRetry.resolve(),
+    retryStarted: retryStarted.promise,
+  };
+};
+
+/** Assert that an uncertain provider response remains ready to reconcile. */
+export const expectPaymentCheckoutCreationDue = async (
+  paymentId: string,
+): Promise<void> => {
+  const stored = (await getPaymentSessions([paymentId]))[0];
+  expect(stored).toMatchObject({
+    checkoutCreate: expect.any(Object),
+    session: null,
+    state: "created",
+  });
+  expect(stored?.nextReconcileAt).not.toBeNull();
+};
 
 /** Stub the checkout-session provider and capture the intent it was called
  * with — the shared "inspect what checkout would have charged" fixture
@@ -43,34 +154,23 @@ export const STUB_CHECKOUT_URL = "https://stripe.example/checkout";
  * `checkout` (the mock, for `restore()`), `getCaptured()` (the intent handed
  * over), and `calls()` (how many times the provider was reached) so the
  * sold-out preflight case can assert it was never called. */
-export const stubCheckout = (sessionId = "cs_test") => {
-  let captured: CheckoutIntent | undefined;
-  const checkout = stub(
-    stripePaymentProvider,
-    "createCheckoutSession",
-    (intent: CheckoutIntent) => {
-      captured = intent;
-      return Promise.resolve({
-        checkoutUrl: STUB_CHECKOUT_URL,
-        sessionId,
-      });
-    },
+export const stubCheckout = (sessionId = "cs_test") =>
+  stubProviderCheckout(stripePaymentProvider, () =>
+    Promise.resolve({
+      checkoutUrl: STUB_CHECKOUT_URL,
+      session: PAYMENT_PROVIDER_RESOURCES.stripe.session(sessionId),
+      sessionId,
+    }),
   );
-  return {
-    calls: () => checkout.calls.length,
-    checkout,
-    getCaptured: () => captured,
-  };
-};
 
 /** Submit a buyer's ticket form through a stubbed checkout provider, assert
  * the redirect succeeded, and return the checkout intent it captured — the
  * shared "what would checkout have charged" flow behind every test that
  * inspects the outgoing intent rather than completing a paid session. */
-export const captureCheckoutIntent = async (
+export const captureCheckoutSnapshot = async (
   listing: { id: number; slug: string },
   fields: Record<string, string> = {},
-): Promise<CheckoutIntent | undefined> => {
+): Promise<PaymentCheckoutCreateSnapshot | undefined> => {
   const { checkout, getCaptured } = stubCheckout();
   try {
     const response = await submitTicketForm(listing.slug, {
@@ -106,11 +206,12 @@ export const johnCheckoutSession = (
   opts.paid === false
     ? stubRetrieveCheckoutSession({
         amountTotal: 0,
-        metadata: {
-          email: "john@example.com",
-          items: opts.items,
-          name: "John",
-        },
+        // Signed, so a cancelled checkout is still recognisably ours and the
+        // page can offer the way back to the listing.
+        metadata: signedMeta(
+          { email: "john@example.com", items: opts.items, name: "John" },
+          0,
+        ),
         paymentIntent: null,
         paymentStatus: "unpaid",
         sessionId,
@@ -130,10 +231,10 @@ export const johnCheckoutSession = (
  *  captured intent (`getCaptured()`), the listing whose price to check, and the
  *  expected unit price in the smallest currency unit (e.g. pence). */
 export const expectCapturedItemPriced = (
-  intent: CheckoutIntent | undefined,
-  listing: { id: number },
+  checkout: PaymentCheckoutCreateSnapshot | undefined,
+  listing: { name: string },
   unitPrice: number,
 ): void => {
-  const item = intent?.items.find((i) => i.listingId === listing.id);
-  expect(item?.unitPrice).toBe(unitPrice);
+  const line = checkout?.order.lines.find((item) => item.name === listing.name);
+  expect(line?.amount).toBe(unitPrice);
 };

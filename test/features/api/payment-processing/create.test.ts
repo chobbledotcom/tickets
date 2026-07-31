@@ -2,28 +2,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
-  alreadyProcessedResult,
   bookingSlot,
   createAttendeeForSession,
-  logPromoCodeModifiers,
   pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
+import type { PaymentWork } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { queryAll } from "#shared/db/client.ts";
-import type {
-  CheckoutIntent,
-  ValidatedPaymentSession,
-} from "#shared/payments.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { bookingCompletion } from "#shared/payment-completion.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
+import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A validated item carries a listing (the only field the pairing reads). */
 const item = (id: number) => ({ listing: testListingWithCount({ id }) });
@@ -84,6 +75,8 @@ test("builds standalone and package booking slots", () => {
     packageGroupId: 9,
   });
 });
+
+const PREPARATION_SESSION = "cs_preparation_failure";
 
 type PreparationOptions = {
   chargedUnitAmount?: number;
@@ -155,21 +148,39 @@ const preparationResult = (options: PreparationOptions) => {
     modifierApplications: [],
     total: options.total,
   };
-  const session: ValidatedPaymentSession = {
-    amountTotal: 1000,
-    id: "cs_preparation_failure",
-    metadata: webhookMeta({ name: "Buyer" }),
-    paymentReference: "pi_preparation_failure",
-    paymentStatus: "paid",
-  };
+  const completion = bookingCompletion(
+    intent,
+    {
+      flow: "registration",
+      listingId: listing.id,
+      occurredAt: "2026-07-01T12:00:00.000Z",
+      promos: [],
+    },
+    ["stable-ticket-token"],
+  );
+  // Preparation fails before anything is claimed or written, so the work only
+  // needs the paid session and the order it was taken for. The stored order
+  // has to be the one the completion carries, or booking refuses to go on.
+  const work = {
+    claim: { leaseToken: "lease", paymentId: PREPARATION_SESSION, revision: 1 },
+    intent,
+    payment: { bookingIntent: completion.input, id: PREPARATION_SESSION },
+    session: {
+      amountTotal: 1000,
+      createdAt: "2026-07-01T12:00:00.000Z",
+      id: PREPARATION_SESSION,
+      paymentReference: "pi_preparation_failure",
+    },
+  } as unknown as PaymentWork;
 
   return createAttendeeForSession(
-    session,
+    work,
     intent,
     [{ expectedPrice: 1000, item: bookingItem, listing }],
     pricingIntent,
     pricedOrder,
     "stable-ticket-token",
+    completion,
   );
 };
 
@@ -181,19 +192,19 @@ const stubSuccessfulBooking = () =>
     } as never),
   );
 
-test("reports a preparation error before the atomic write starts", async () => {
-  const result = await preparationResult({ total: Number.NaN });
-  expect(result).toEqual({
-    detail:
-      "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
-    ok: false,
-    reason: "unexpected_error",
-  });
-  if (result.ok !== false) throw new Error("Expected preparation to fail");
-  expect(specForFailure(result).code).toBe("unexpected_error");
-});
-
 describeWithEnv("payment booking lines", { db: true }, () => {
+  test("reports a preparation error before the atomic write starts", async () => {
+    const result = await preparationResult({ total: Number.NaN });
+    expect(result).toEqual({
+      detail:
+        "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
+      ok: false,
+      reason: "unexpected_error",
+    });
+    if (result.ok !== false) throw new Error("Expected preparation to fail");
+    expect(specForFailure(result).code).toBe("unexpected_error");
+  });
+
   test("reports a missing paid amount before the atomic write starts", async () => {
     using create = stubSuccessfulBooking();
 
@@ -259,90 +270,5 @@ describeWithEnv("payment booking lines", { db: true }, () => {
         reason: "capacity_exceeded",
       },
     );
-  });
-
-  // What a code did to the price, in the words the owner reads. A discount
-  // says how much came off rather than repeating the minus sign the amount
-  // carries; a code worth nothing is not called a discount at all.
-  for (const [name, code, delta, message] of [
-    ["a code worth nothing", "FREE", 0, "Promo code 'FREE' used: +£0"],
-    ["money off", "POUNDOFF", -100, "Promo code 'POUNDOFF' used: £1 off"],
-  ] as const) {
-    test(`writes down ${name}`, async () => {
-      const listing = await createTestListing();
-      const attendee = await bookTestAttendee(
-        [listing.id],
-        `${code} buyer`,
-        `${code.toLowerCase()}@example.com`,
-      );
-
-      await logPromoCodeModifiers(
-        [{ id: 1, name: code } as never],
-        [{ delta, modifierId: 1 } as never],
-        listing as never,
-        attendee.id,
-      );
-
-      const [row] = await queryAll<{ message: string }>(
-        "SELECT message FROM activity_log WHERE attendee_id = ?",
-        [attendee.id],
-      );
-      expect(
-        await decryptWithOwnerKey(
-          row!.message as never,
-          await getTestPrivateKey(),
-        ),
-      ).toBe(message);
-    });
-  }
-
-  // A buyer with several tickets has them kept as one joined-up value, so
-  // coming back to an already-finished checkout has to hand back each ticket
-  // separately rather than one run-together string.
-  for (const [name, tokens, expected] of [
-    ["several tickets", "tok_a+tok_b+tok_c", ["tok_a", "tok_b", "tok_c"]],
-    ["one ticket", "tok_only", ["tok_only"]],
-  ] as const) {
-    test(`hands back ${name} from a checkout already finished`, async () => {
-      const listing = await createTestListing();
-      const attendee = await bookTestAttendee(
-        [listing.id],
-        "Returning buyer",
-        `returning-${tokens}@example.com`,
-      );
-
-      expect(
-        await alreadyProcessedResult(listing.id, {
-          attendee_id: attendee.id,
-          ticket_tokens: await encrypt(tokens),
-        } as never),
-      ).toEqual({
-        attendee: { id: attendee.id },
-        listingId: listing.id,
-        success: true,
-        ticketTokens: expected,
-      });
-    });
-  }
-
-  test("hands back no tickets when the finished checkout kept none", async () => {
-    const listing = await createTestListing();
-    const attendee = await bookTestAttendee(
-      [listing.id],
-      "Tokenless buyer",
-      "tokenless@example.com",
-    );
-
-    expect(
-      await alreadyProcessedResult(listing.id, {
-        attendee_id: attendee.id,
-        ticket_tokens: "",
-      } as never),
-    ).toEqual({
-      attendee: { id: attendee.id },
-      listingId: listing.id,
-      success: true,
-      ticketTokens: [],
-    });
   });
 });

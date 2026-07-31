@@ -11,7 +11,7 @@ import {
   totalContactActivity,
 } from "#test/test-utils/reservation/helpers.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
-import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { captureCheckoutSnapshot } from "#test-utils/checkout.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -31,11 +31,11 @@ describeWithEnv(
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
-      const captured = await captureCheckoutIntent(listing);
+      const captured = await captureCheckoutSnapshot(listing);
       // Items keep their full price; the snapshot tells the provider/webhook to
       // charge and reconcile a 10% deposit.
-      expect(captured?.reservationAmount).toBe("10%");
-      expect(captured?.items[0]?.unitPrice).toBe(1000);
+      expect(captured?.bookingIntent.reservationAmount).toBe("10%");
+      expect(captured?.order.lines[0]?.amount).toBe(100);
     });
 
     test("a reservation public-default still resolves modifiers before checkout", async () => {
@@ -47,10 +47,10 @@ describeWithEnv(
         unitPrice: 1000,
       });
       await addServiceCharge();
-      const captured = await captureCheckoutIntent(listing);
-      expect(captured?.reservationAmount).toBe("10%");
-      expect(captured?.modifiers).toHaveLength(1);
-      expect(captured?.modifiers?.[0]?.value).toBe(10);
+      const captured = await captureCheckoutSnapshot(listing);
+      expect(captured?.bookingIntent.reservationAmount).toBe("10%");
+      expect(captured?.bookingIntent.modifiers).toHaveLength(1);
+      expect(captured?.expected.amount).toBe(110);
     });
 
     test("a non-reservation public-default carries no deposit amount", async () => {
@@ -60,9 +60,9 @@ describeWithEnv(
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
-      const captured = await captureCheckoutIntent(listing);
+      const captured = await captureCheckoutSnapshot(listing);
       // The seeded default is a full-payment status, so no deposit snapshot.
-      expect(captured?.reservationAmount).toBeUndefined();
+      expect(captured?.bookingIntent.reservationAmount).toBeUndefined();
     });
 
     test("carries resolved modifiers into a full-payment checkout", async () => {
@@ -73,9 +73,9 @@ describeWithEnv(
         unitPrice: 1000,
       });
       await addServiceCharge();
-      const captured = await captureCheckoutIntent(listing);
-      expect(captured?.modifiers).toHaveLength(1);
-      expect(captured?.modifiers?.[0]?.value).toBe(10);
+      const captured = await captureCheckoutSnapshot(listing);
+      expect(captured?.bookingIntent.modifiers).toHaveLength(1);
+      expect(captured?.order.extras[0]?.amount).toBe(100);
     });
 
     test("records clamped stock usage for zero-total modifier bookings", async () => {

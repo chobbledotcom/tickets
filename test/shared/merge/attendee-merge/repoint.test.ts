@@ -7,15 +7,16 @@ import {
   WORLD,
 } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
-import { reserveSession } from "#shared/db/processed-payments.ts";
+import { execute, queryAll } from "#shared/db/client.ts";
+import { createPaymentSession } from "#shared/db/payments/sessions.ts";
+import { paymentSessionInput } from "#test/shared/db/payments/fixtures.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import {
   createAttendee,
   getBookings,
@@ -82,28 +83,23 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
   test("repoints the source's provider payment references onto the target", async () => {
     const { source, target } = await createMergePair();
-    await reserveSession("source-paid-session");
-    await finalizeReservedPayment(
-      "source-paid-session",
+    await createPaymentSession(paymentSessionInput("source-paid-session"));
+    await execute("UPDATE payment_sessions SET attendee_id = ? WHERE id = ?", [
       source.id,
-      "",
-      "pi_source_paid",
-    );
+      "source-paid-session",
+    ]);
 
     const { result } = await runMerge({ source, target });
 
     expect(result.success).toBe(true);
     const rows = await queryAll<{
       attendee_id: number;
-      payment_session_id: string;
-    }>(
-      `SELECT attendee_id, payment_session_id
-         FROM processed_payments
-        WHERE payment_session_id = ?`,
-      ["source-paid-session"],
-    );
+      id: string;
+    }>("SELECT attendee_id, id FROM payment_sessions WHERE id = ?", [
+      "source-paid-session",
+    ]);
     expect(rows).toEqual([
-      { attendee_id: target.id, payment_session_id: "source-paid-session" },
+      { attendee_id: target.id, id: "source-paid-session" },
     ]);
   });
 
@@ -120,17 +116,34 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     });
 
     expect(result.success).toBe(true);
-    const references = await getRefundPaymentReferences(
-      [{ id: target.id, payment_id: "" }],
-      await getTestPrivateKey(),
+    const sessions = await queryAll<{ attendee_id: number; id: string }>(
+      `SELECT id, attendee_id FROM payment_sessions
+        WHERE id = ?`,
+      [`legacy:attendee:${source.id}`],
     );
-    expect(references.get(target.id)).toEqual([
+    expect(sessions).toEqual([
       {
-        providerRefunded: false,
-        reference: "pi_source_legacy",
-        sessionIds: [],
+        attendee_id: target.id,
+        id: `legacy:attendee:${source.id}`,
       },
     ]);
+    const charges = await queryAll<{
+      legacy_source: string;
+      provider_reference: OwnerKeyEncrypted;
+    }>(
+      `SELECT provider_reference, legacy_source FROM payment_charges
+        WHERE payment_id = ?`,
+      [`legacy:attendee:${source.id}`],
+    );
+    expect(charges.map((charge) => charge.legacy_source)).toEqual([
+      "attendee_merge",
+    ]);
+    expect(
+      await decryptWithOwnerKey(
+        charges[0]!.provider_reference,
+        await getTestPrivateKey(),
+      ),
+    ).toBe("pi_source_legacy");
   });
 
   test("preserves package_group_id when moving a source package booking", async () => {

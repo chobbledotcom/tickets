@@ -241,6 +241,10 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
     () => import("#routes/admin/news.ts"),
     ["entity-pages", "images", "news", "validation"],
   ),
+  payments: area(
+    () => import("#routes/admin/payments.ts"),
+    ["payment", "validation"],
+  ),
   privacy: area(
     () => import("#routes/admin/privacy.ts"),
     ["attendees", "privacy"],

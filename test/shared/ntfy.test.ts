@@ -18,16 +18,16 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
   });
 
   describe("sendNtfyError", () => {
-    test("does nothing when NTFY_URL is not set", () => {
-      sendNtfyError(ErrorCode.DB_CONNECTION);
+    test("does nothing when NTFY_URL is not set", async () => {
+      expect(await sendNtfyError(ErrorCode.DB_CONNECTION)).toBe("disabled");
 
       expect(fetchStub.calls.length).toBe(0);
     });
 
-    test("sends POST to ntfy URL with error code as body", () => {
+    test("sends POST to ntfy URL with error code as body", async () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/my-topic");
 
-      sendNtfyError(ErrorCode.DB_CONNECTION);
+      expect(await sendNtfyError(ErrorCode.DB_CONNECTION)).toBe("sent");
 
       expect(fetchStub.calls.length).toBe(1);
       const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
@@ -62,14 +62,25 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
       using failedFetch = stubFetch(new Error("Network error"));
       const errorSpy = spy(console, "error");
 
-      sendNtfyError(ErrorCode.WEBHOOK_SEND);
-
-      // Wait for the rejected promise's .catch handler to run
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(await sendNtfyError(ErrorCode.WEBHOOK_SEND)).toBe("failed");
 
       expect(failedFetch.calls.length).toBe(1);
       expect(errorSpy.calls.length).toBe(1);
       expect(errorSpy.calls[0]!.args[0]).toContain("[Error] E_CDN_REQUEST");
+      expect(errorSpy.calls[0]!.args[0]).toContain("ntfy send failed");
+      errorSpy.restore();
+    });
+
+    test("reports a non-success response as failed", async () => {
+      Deno.env.set("NTFY_URL", "https://ntfy.sh/my-topic");
+      fetchStub.restore();
+      using _failedFetch = stubFetch(
+        new Response("unavailable", { status: 503 }),
+      );
+      const errorSpy = spy(console, "error");
+
+      expect(await sendNtfyError(ErrorCode.WEBHOOK_SEND)).toBe("failed");
+
       expect(errorSpy.calls[0]!.args[0]).toContain("ntfy send failed");
       errorSpy.restore();
     });

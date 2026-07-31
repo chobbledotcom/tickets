@@ -3,8 +3,10 @@ import {
   pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
-import type { ValidatedSession } from "#routes/api/webhook-types.ts";
-import type { BookingIntent } from "#shared/booking-intent.ts";
+import type {
+  BookingIntent,
+  BookingPayment,
+} from "#routes/api/webhook-types.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
 import {
@@ -32,7 +34,7 @@ type CommittedBookingRow = {
 export const committedEntries = async (
   attendeeId: number,
   ticketToken: string,
-  session: ValidatedSession["session"],
+  session: BookingPayment,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
 ): Promise<CreatedEntry[]> => {
@@ -77,7 +79,7 @@ export const committedEntries = async (
     listing_id: row.listing_id,
     lng: "",
     package_group_id: row.package_group_id,
-    payment_id: session.paymentReference,
+    payment_id: session.paymentReference ?? "",
     pii_blob: "",
     price_paid: String(row.price_paid),
     quantity: row.quantity,

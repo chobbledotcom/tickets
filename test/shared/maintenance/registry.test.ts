@@ -25,6 +25,7 @@ import {
   rawActivityMessage,
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { maintenanceContext } from "#test-utils/maintenance.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
   const task = MAINTENANCE_TASKS.find((candidate) => candidate.name === name);
@@ -36,20 +37,12 @@ const runTask = (
   task: MaintenanceTaskDeclaration,
   overrides: Partial<MaintenanceTaskContext> = {},
 ): void | Promise<void> =>
-  task.run({
-    budget: {
-      remaining: () => ({ database: 2, external: 0, total: 2 }),
-    },
-    checkpoint: null,
-    completeTask: () => {},
-    deadline: Date.now() + 10_000,
-    requestFollowUp: () => {},
-    setCheckpoint: () => {},
-    ...overrides,
-  });
+  task.run(
+    maintenanceContext({ database: 2, external: 0, total: 2 }, overrides),
+  );
 
 describeWithEnv("maintenance registry", { db: true }, () => {
-  test("declares only bounded local pruning and activity backfill", () => {
+  test("declares bounded tasks with scheduled payment work", () => {
     expect(
       MAINTENANCE_TASKS.map(({ check, run: _run, ...task }) => ({
         ...task,
@@ -66,7 +59,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         deadlineMs: 15_000,
         failureRetryIntervalMs: 300_000,
         intervalMs: 86_400_000,
-        maxDatabaseCalls: 2,
+        maxDatabaseCalls: 5,
         maxExternalCalls: 0,
         name: "database_pruning",
         wakePolicy: "organic_safe",
@@ -85,6 +78,36 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         maxExternalCalls: 0,
         name: "activity_log_backfill",
         wakePolicy: "organic_safe",
+      },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: [],
+        },
+        deadlineMs: 20_000,
+        failureRetryIntervalMs: 60_000,
+        intervalMs: 60_000,
+        maxDatabaseCalls: 23,
+        maxExternalCalls: 11,
+        name: "payment_reconciliation",
+        wakePolicy: "scheduled_only",
+      },
+      {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: [],
+        },
+        deadlineMs: 10_000,
+        failureRetryIntervalMs: 60_000,
+        intervalMs: 60_000,
+        maxDatabaseCalls: 8,
+        maxExternalCalls: 4,
+        name: "payment_case_alerts",
+        wakePolicy: "scheduled_only",
       },
     ]);
   });
@@ -128,6 +151,28 @@ describeWithEnv("maintenance registry", { db: true }, () => {
 
   test("the activity task stays available to preserve its checkpoint", async () => {
     expect(await taskNamed("activity_log_backfill").check.enabled()).toBe(true);
+  });
+
+  test("keeps reconciliation scheduled and alerts gated by ntfy", async () => {
+    expect(await taskNamed("payment_reconciliation").check.enabled()).toBe(
+      true,
+    );
+    expect(await taskNamed("payment_case_alerts").check.enabled()).toBe(false);
+  });
+
+  test("the payment alert task fetches its work and finds nothing to say", async () => {
+    // Nothing hands this task its work — it fetches it itself on every run,
+    // which is the only way the scheduled alert ever happens.
+    let followUps = 0;
+
+    await taskNamed("payment_case_alerts").run(
+      maintenanceContext(
+        { database: 20, external: 10, total: 30 },
+        { requestFollowUp: () => followUps++ },
+      ),
+    );
+
+    expect(followUps).toBe(0);
   });
 
   test("a completed activity checkpoint completes without scanning", async () => {

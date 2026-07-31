@@ -21,7 +21,8 @@ import {
   getListingWithCount,
   requireListingWithCount,
 } from "#shared/db/listings/records.ts";
-import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
+import { attendeeHasPendingPaymentCompletion } from "#shared/db/payments/completion-fence.ts";
+import { attendeeHasPayment } from "#shared/db/payments/sessions.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
@@ -81,6 +82,14 @@ const deleteAttendeeAndRedirect = async (
   opts?: Parameters<typeof redirect>[3],
   releaseBookings = true,
 ): Promise<Response> => {
+  if (await attendeeHasPendingPaymentCompletion(attendeeId)) {
+    return redirect(
+      redirectTo,
+      t("payment.error.pending_completion_delete"),
+      false,
+      opts,
+    );
+  }
   await deleteAttendee(attendeeId, { releaseBookings });
   await logActivity(activityMessage, listingId, attendeeId);
   return redirect(redirectTo, flashMessage, true, opts);
@@ -118,7 +127,7 @@ const handleDeleteIncomplete = attendeeFormAction(
       !isIncompletePayment(
         data.attendee,
         isPaidListing(data.listing),
-        await hasAnyPaymentReference(data.attendee),
+        await attendeeHasPayment(data.attendee),
       )
     ) {
       return redirect(
