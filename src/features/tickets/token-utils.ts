@@ -38,6 +38,13 @@ export type { WalletPassData };
 export type TokenEntry = {
   attendee: Attendee;
   listing: ListingWithCount;
+  /** The booking row's `parent_listing_id` — the parent this row was folded
+   * under (0 for standalone bookings and parent rows themselves). Carries the
+   * last dimension of the `listing_attendees` unique slot identity alongside
+   * `attendee.id`, `listing.id`, `attendee.date`, and `attendee.package_group_id`,
+   * so callers can match a specific booking row, not just the (attendee,
+   * listing) pair that several rows can share. */
+  parentListingId: number;
 };
 
 /** Cache wallet responses for 1 hour on CDN, 5 minutes in browser */
@@ -188,6 +195,7 @@ export const resolveEntries = async (
         entries.push({
           attendee: buildAttendeeView(awb, booking),
           listing,
+          parentListingId: booking.parent_listing_id,
         });
       }
     }

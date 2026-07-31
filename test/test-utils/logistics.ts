@@ -64,3 +64,23 @@ export const assignBookingToAgent = async (
     addDays(date, 1),
   );
 };
+
+/** Insert a SECOND `listing_attendees` row for an attendee/listing pair on a
+ * different `start_at` date. The unique slot index is on
+ * `(listing_id, attendee_id, start_at, parent_listing_id, package_group_id)`,
+ * so a distinct `start_at` makes this a fresh row rather than colliding with
+ * the first booking — the same shape an attendee gets by booking the same
+ * daily listing twice on different dates. */
+export const insertSecondBookingRow = async (
+  attendeeId: number,
+  listingId: number,
+  startDate: string,
+  quantity = 1,
+): Promise<void> => {
+  await getDb().execute({
+    args: [listingId, attendeeId, quantity, `${startDate}T00:00:00Z`],
+    sql: `INSERT INTO listing_attendees
+            (listing_id, attendee_id, quantity, start_at)
+          VALUES (?, ?, ?, ?)`,
+  });
+};

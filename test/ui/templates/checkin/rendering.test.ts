@@ -13,7 +13,10 @@ import {
   createTestAttendeeWithToken,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { assignBookingToAgent } from "#test-utils/logistics.ts";
+import {
+  assignBookingToAgent,
+  insertSecondBookingRow,
+} from "#test-utils/logistics.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminGet,
@@ -186,6 +189,50 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expect(mixedBody).not.toContain(
         `/admin/listing/${own.listing.id}/attendee/${own.attendee.id}/checkin`,
       );
+    });
+
+    test("delivery agents see only the row whose leg is on their run sheet when one attendee has two rows on the same listing on different dates", async () => {
+      // Multi-row regression (Codex review on PR #1995): when one attendee
+      // books the same listing twice on different dates, the (attendee,
+      // listing) pair is shared by both rows. An agent who owns the leg on
+      // only one date must not see the other row's date or quantity — that
+      // would leak an unrelated booking the agent has no operational reason
+      // to view. Row A is on the agent's run sheet today; row B is a future
+      // date with no agent and must not appear.
+      const assignedAgent = (
+        await logisticsAgents.table.insert({ name: "Multi-row van" })
+      ).id;
+      const { cookie } = await createTestAgentSession({
+        agentIds: [assignedAgent],
+        token: "checkin-multiirow",
+        username: "checkin-multirow",
+      });
+      const today = todayInTz(settings.timezone);
+      const laterDate = "2099-12-31";
+      const { attendee, listing, token } = await createTestAttendeeWithToken(
+        "Multi Row Person",
+        "multirow@example.com",
+        { usesLogistics: true },
+        2,
+      );
+      // First row (today, quantity 2): drop-off owned by `assignedAgent`.
+      await assignBookingToAgent(attendee.id, listing.id, assignedAgent, today);
+      // Second row (later date, quantity 3): no agent, never on the run sheet.
+      await insertSecondBookingRow(attendee.id, listing.id, laterDate, 3);
+
+      const response = await awaitTestRequest(`/checkin/${token}`, { cookie });
+      expect(response.status).toBe(200);
+      const body = await response.text();
+
+      // The agent owns only row A, so only its quantity should appear.
+      expect(body).toContain("Multi Row Person");
+      expect(body).toContain("multirow@example.com");
+      // Row A's quantity (2) is visible; row B's quantity (3) must never be.
+      expect(body).toContain(">2<");
+      expect(body).not.toContain(">3<");
+      // Row A's date label is visible; row B's later date must not leak.
+      expect(body).toContain(formatDateLabel(today));
+      expect(body).not.toContain(formatDateLabel(laterDate));
     });
 
     test("editors cannot use check-in tokens to decrypt attendee details", async () => {

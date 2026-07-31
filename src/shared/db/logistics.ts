@@ -9,6 +9,7 @@
  */
 
 import { compact, flatMap, uniqueBy } from "#fp";
+import { bookingSlotKey } from "#shared/db/attendees/booking-slot.ts";
 import {
   execute,
   executeBatch,
@@ -50,6 +51,23 @@ export type AssignmentRow = {
   start_time: string;
   end_time: string;
 };
+
+/** Map query rows that each carry an `attendee_id`/`listing_id` pair into a
+ * result that always begins with the booking-ref fields plus caller-supplied
+ * extra fields. Used by the read helpers so their `queryAll` + `rows.map`
+ * pipeline shares one shape instead of being rewritten per call site. */
+const mapBookingRows = <
+  Row extends { attendee_id: number; listing_id: number },
+  Extra extends Record<string, unknown>,
+>(
+  rows: readonly Row[],
+  extend: (row: Row) => Extra,
+): (Extra & { attendeeId: number; listingId: number })[] =>
+  rows.map((row) => ({
+    attendeeId: row.attendee_id,
+    listingId: row.listing_id,
+    ...extend(row),
+  }));
 
 /** Map a DB row to the assignment shape (shared by the read helpers). */
 const rowToAssignment = (row: AssignmentRow): LogisticsAssignment => ({
@@ -123,11 +141,7 @@ export const getLogisticsAssignmentsForAttendees = async (
      FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
     attendeeIds,
   );
-  return rows.map((row) => ({
-    attendeeId: row.attendee_id,
-    listingId: row.listing_id,
-    ...rowToAssignment(row),
-  }));
+  return mapBookingRows(rows, rowToAssignment);
 };
 
 /** Which leg of a delivery a run-sheet entry represents. */
@@ -267,27 +281,82 @@ const bookingRefValues = (bookings: DeliveryBookingRef[]): string =>
 const bookingRefArgs = (bookings: DeliveryBookingRef[]): number[] =>
   bookings.flatMap((booking) => [booking.attendeeId, booking.listingId]);
 
-/** Which requested bookings have a leg on the same run sheet the agent may
- * view. Returns booking keys so callers can filter their own richer rows before
- * decrypting PII. */
-export const getAgentRunSheetBookingKeys = async (
+/** A booking row matched on an agent's run sheet, with its full slot identity
+ * (attendee + listing + date + parent + package) populated from the database
+ * row. Two `listing_attendees` rows can share `(attendee_id, listing_id)` when
+ * one attendee books the same listing twice — on different dates or through
+ * different package paths — so a matched-row reply carries the slot dimensions
+ * the caller needs to tell those rows apart, never just the attendee/listing
+ * pair. Callers test an entry's row identity against this with
+ * {@link runSheetBookingKey}. */
+export type RunSheetBooking = {
+  attendeeId: number;
+  listingId: number;
+  /** `DATE(start_at)` of the matched row (YYYY-MM-DD). Null only when the
+   * matched row has no `start_at` (a dateless, non-daily booking) — possible
+   * only via the collection leg, since the drop-off leg needs a `start_at`
+   * date. */
+  date: string | null;
+  parentListingId: number;
+  packageGroupId: number;
+};
+
+/** Stable row-identity key for one booking row: `attendeeId` plus the booking
+ * slot key. Two `listing_attendees` rows cannot share this key, because the
+ * (listing_id, attendee_id, start_at, parent_listing_id, package_group_id)
+ * unique index uniquely identifies a row — and that is exactly what this joins.
+ * Used on both sides of the agent-check-in filter so an attendee's matched row
+ * never blesses a different row that happens to share the (attendee, listing)
+ * pair. */
+export const runSheetBookingKey = (
+  booking: Readonly<
+    Pick<
+      RunSheetBooking,
+      "attendeeId" | "listingId" | "date" | "parentListingId" | "packageGroupId"
+    >
+  >,
+): string =>
+  `${booking.attendeeId}|${bookingSlotKey(
+    booking.listingId,
+    booking.date,
+    booking.parentListingId,
+    booking.packageGroupId,
+  )}`;
+
+/** The matched booking rows the agent may view: each row's full slot identity,
+ * drawn from `listing_attendees` rows that have a drop-off or collection leg
+ * owned by one of `agentIds` on one of `dates`. Callers filter their richer
+ * rows (e.g. token entries) by testing each row's {@link runSheetBookingKey}
+ * against the set built from these, so a multi-row attendee exposes only the
+ * row whose leg the agent actually owns. */
+export const getAgentRunSheetBookings = async (
   agentIds: number[],
   dates: string[],
   bookings: DeliveryBookingRef[],
-): Promise<Set<string>> => {
-  if (agentIds.length === 0) return new Set();
-  if (dates.length === 0) return new Set();
-  if (bookings.length === 0) return new Set();
+): Promise<RunSheetBooking[]> => {
+  if (agentIds.length === 0) return [];
+  if (dates.length === 0) return [];
+  if (bookings.length === 0) return [];
 
   const uniqueBookings = uniqueBy(bookingRefKey)(bookings);
   const agentPlaceholders = inPlaceholders(agentIds);
   const datePlaceholders = inPlaceholders(dates);
   const sourceName = "listingAttendee";
-  const rows = await queryAll<{ attendee_id: number; listing_id: number }>(
+  const rows = await queryAll<{
+    attendee_id: number;
+    date: string | null;
+    listing_id: number;
+    parent_listing_id: number;
+    package_group_id: number;
+  }>(
     `WITH requested_booking(attendee_id, listing_id) AS (
        VALUES ${bookingRefValues(uniqueBookings)}
      )
-     SELECT DISTINCT ${sourceName}.attendee_id, ${sourceName}.listing_id
+     SELECT DISTINCT ${sourceName}.attendee_id,
+                      ${sourceName}.listing_id,
+                      DATE(${sourceName}.start_at) AS date,
+                      ${sourceName}.parent_listing_id,
+                      ${sourceName}.package_group_id
      FROM listing_attendees AS ${sourceName}
      JOIN requested_booking AS requestedBooking
        ON requestedBooking.attendee_id = ${sourceName}.attendee_id
@@ -301,9 +370,11 @@ export const getAgentRunSheetBookingKeys = async (
       ...dates,
     ],
   );
-  return new Set(
-    rows.map((row) => bookingAssignmentKey(row.attendee_id, row.listing_id)),
-  );
+  return mapBookingRows(rows, (row) => ({
+    date: row.date,
+    packageGroupId: row.package_group_id,
+    parentListingId: row.parent_listing_id,
+  }));
 };
 
 /**

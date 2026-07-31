@@ -4,10 +4,10 @@ import { getDb, queryAll } from "#shared/db/client.ts";
 import {
   bookingAssignmentKey,
   clearLogisticsAgentReferences,
-  type DeliveryBookingRef,
-  getAgentRunSheetBookingKeys,
+  getAgentRunSheetBookings,
   getLogisticsAssignments,
   getLogisticsAssignmentsForAttendees,
+  runSheetBookingKey,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
@@ -16,6 +16,7 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   assignBookingLogistics,
+  insertSecondBookingRow,
   logisticsAgentAssignment,
 } from "#test-utils/logistics.ts";
 
@@ -36,9 +37,6 @@ const newAttendee = async (): Promise<{
   );
   return { attendeeId: attendee.id, listingId: listing.id };
 };
-
-const bookingKey = ({ attendeeId, listingId }: DeliveryBookingRef): string =>
-  bookingAssignmentKey(attendeeId, listingId);
 
 const setupDropoffAndCollection = async (split: boolean) => {
   const drop = await logisticsAgents.table.insert({ name: "Drop" });
@@ -141,18 +139,14 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
     ]);
   });
 
-  test("getAgentRunSheetBookingKeys returns empty for missing inputs", async () => {
+  test("getAgentRunSheetBookings returns empty for missing inputs", async () => {
     const booking = { attendeeId: 1, listingId: 1 };
-    expect(await getAgentRunSheetBookingKeys([], [D1], [booking])).toEqual(
-      new Set(),
-    );
-    expect(await getAgentRunSheetBookingKeys([1], [], [booking])).toEqual(
-      new Set(),
-    );
-    expect(await getAgentRunSheetBookingKeys([1], [D1], [])).toEqual(new Set());
+    expect(await getAgentRunSheetBookings([], [D1], [booking])).toEqual([]);
+    expect(await getAgentRunSheetBookings([1], [], [booking])).toEqual([]);
+    expect(await getAgentRunSheetBookings([1], [D1], [])).toEqual([]);
   });
 
-  test("getAgentRunSheetBookingKeys keeps only requested bookings on the agent's run sheet", async () => {
+  test("getAgentRunSheetBookings keeps only requested bookings on the agent's run sheet", async () => {
     const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
     const other = (await logisticsAgents.table.insert({ name: "Other" })).id;
     const mine = await newAttendee();
@@ -166,11 +160,23 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
       D2,
     );
 
-    const keys = await getAgentRunSheetBookingKeys([van], [D1], [mine, theirs]);
-    expect([...keys]).toEqual([bookingKey(mine)]);
+    const bookings = await getAgentRunSheetBookings(
+      [van],
+      [D1],
+      [mine, theirs],
+    );
+    expect(bookings).toEqual([
+      {
+        attendeeId: mine.attendeeId,
+        date: D1,
+        listingId: mine.listingId,
+        packageGroupId: 0,
+        parentListingId: 0,
+      },
+    ]);
   });
 
-  test("getAgentRunSheetBookingKeys uses the run sheet collection date", async () => {
+  test("getAgentRunSheetBookings uses the run sheet collection date", async () => {
     const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
     const booking = await newAttendee();
     await assignBookingLogistics(
@@ -183,11 +189,20 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
       D3,
     );
 
-    const keys = await getAgentRunSheetBookingKeys([van], [D2], [booking]);
-    expect([...keys]).toEqual([bookingKey(booking)]);
+    const bookings = await getAgentRunSheetBookings([van], [D2], [booking]);
+    expect(bookings).toEqual([
+      {
+        attendeeId: booking.attendeeId,
+        // The collection leg's date is `end_at - 1 day` (D3 − 1 = D2).
+        date: D1,
+        listingId: booking.listingId,
+        packageGroupId: 0,
+        parentListingId: 0,
+      },
+    ]);
   });
 
-  test("getAgentRunSheetBookingKeys excludes no-quantity bookings", async () => {
+  test("getAgentRunSheetBookings excludes no-quantity bookings", async () => {
     const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
     const booking = await newAttendee();
     await assignBookingLogistics(
@@ -201,9 +216,65 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
       sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
     });
 
-    expect(await getAgentRunSheetBookingKeys([van], [D1], [booking])).toEqual(
-      new Set(),
+    expect(await getAgentRunSheetBookings([van], [D1], [booking])).toEqual([]);
+  });
+
+  test("getAgentRunSheetBookings keeps only the matched row when one attendee has two rows on the same listing on different dates", async () => {
+    // The row identity is `(listing_id, attendee_id, start_at,
+    // parent_listing_id, package_group_id)`. Two rows for one attendee on the
+    // same listing must differ on `start_at`, so an agent who owns only the
+    // first row's leg must NOT see the second row's date/quantity. This is the
+    // multi-row regression Codex's review on PR #1995 called out: returning
+    // the (attendee, listing) pair alone would let one assigned row bless a
+    // sibling row outside the agent's run sheet.
+    const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
+    const { attendeeId, listingId } = await newAttendee();
+    // Row A: today, owned by `van`. owner_start_agent means drop-off today.
+    await assignBookingLogistics(
+      { attendeeId, listingId },
+      logisticsAgentAssignment(van),
+      D1,
+      D2,
     );
+    // Row B: a different date, no logistics agents — never on `van`'s run sheet.
+    await insertSecondBookingRow(attendeeId, listingId, D3);
+
+    const bookings = await getAgentRunSheetBookings(
+      [van],
+      [D1],
+      [{ attendeeId, listingId }],
+    );
+    // Only Row A's slot identity comes back; Row B (D3, no agent) is filtered.
+    expect(bookings).toEqual([
+      {
+        attendeeId,
+        date: D1,
+        listingId,
+        packageGroupId: 0,
+        parentListingId: 0,
+      },
+    ]);
+
+    // The filter side: a token entry on Row B's slot identity must NOT match
+    // the row keys built from Row A's identity. Two entries with the same
+    // (attendee, listing) but different `date` produce different keys.
+    const rowAKey = runSheetBookingKey({
+      attendeeId,
+      date: D1,
+      listingId,
+      packageGroupId: 0,
+      parentListingId: 0,
+    });
+    const rowBKey = runSheetBookingKey({
+      attendeeId,
+      date: D3,
+      listingId,
+      packageGroupId: 0,
+      parentListingId: 0,
+    });
+    expect(rowAKey).not.toBe(rowBKey);
+    expect(new Set(bookings.map(runSheetBookingKey)).has(rowAKey)).toBe(true);
+    expect(new Set(bookings.map(runSheetBookingKey)).has(rowBKey)).toBe(false);
   });
 
   test("clearLogisticsAgentReferences nulls agents but keeps times", async () => {

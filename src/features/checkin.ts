@@ -31,9 +31,9 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { addDays } from "#shared/dates.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import {
-  bookingAssignmentKey,
   type DeliveryBookingRef,
-  getAgentRunSheetBookingKeys,
+  getAgentRunSheetBookings,
+  runSheetBookingKey,
 } from "#shared/db/logistics.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
@@ -80,11 +80,14 @@ const entryBookingRef = (entry: TokenEntry): DeliveryBookingRef => ({
   listingId: entry.listing.id,
 });
 
-const entryBookingKey = (entry: TokenEntry): string =>
-  bookingAssignmentKey(entry.attendee.id, entry.listing.id);
-
-const entryAllowedBy = (allowedKeys: Set<string>) => (entry: TokenEntry) =>
-  allowedKeys.has(entryBookingKey(entry));
+const entryRunSheetKey = (entry: TokenEntry): string =>
+  runSheetBookingKey({
+    attendeeId: entry.attendee.id,
+    date: entry.attendee.date,
+    listingId: entry.listing.id,
+    packageGroupId: entry.attendee.package_group_id,
+    parentListingId: entry.parentListingId,
+  });
 
 const entriesVisibleToSession = async (
   session: AuthSession,
@@ -94,12 +97,19 @@ const entriesVisibleToSession = async (
   if (session.adminLevel !== "agent") return [];
 
   const agentIds = await userAgents.getIds(session.userId);
-  const allowedKeys = await getAgentRunSheetBookingKeys(
+  // The agent sees the booking rows whose drop-off or collection leg is on
+  // their run sheet for today or tomorrow — matched at row granularity, so a
+  // multi-row attendee's row outside the run sheet never leaks alongside an
+  // assigned sibling row.
+  const allowedBookings = await getAgentRunSheetBookings(
     agentIds,
     agentRunSheetDates(),
     entries.map(entryBookingRef),
   );
-  return filter(entryAllowedBy(allowedKeys))(entries);
+  const allowedKeys = new Set(allowedBookings.map(runSheetBookingKey));
+  return filter((entry: TokenEntry) =>
+    allowedKeys.has(entryRunSheetKey(entry)),
+  )(entries);
 };
 
 const renderAdminCheckin = async (
