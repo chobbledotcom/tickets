@@ -52,16 +52,15 @@ export const paidPlaceEach = async (
 /** The organiser refunds everyone from the listing's own refund-everyone page,
  * typing the listing name it asks for. The provider turns one payment down. */
 export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
-  const browser = await refundByTyping(
+  world.bulkRefundMessage = await refundByTyping(
     world,
     {
-      buttonText: "Refund All Attendees",
-      page: `/admin/listing/${theListing(world)}/refund-all`,
+      button: "Refund All Attendees",
+      path: `/admin/listing/${theListing(world)}/refund-all`,
       typed: requiredWorldValue(world.confirmName, "the listing name to type"),
     },
     (paymentId: string) => Promise.resolve(paymentId !== DECLINED_PAYMENT),
   );
-  world.bulkRefundMessage = browser.pageText;
 };
 
 /** Who got their money back, and who the provider turned down. */

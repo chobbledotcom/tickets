@@ -8,7 +8,8 @@ import { expect } from "@std/expect";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { minorUnits, sellSomethingAt } from "#test/specs/support/money.ts";
+import { sellSomethingAt } from "#test/specs/support/listings.ts";
+import { minorUnits } from "#test/specs/support/money.ts";
 import {
   pageHtmlVia,
   type ReadOnePageHtml,
