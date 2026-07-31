@@ -56,9 +56,14 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
     );
   });
 
-  test("refuses to pick out some of a site's fields", () => {
+  test("refuses to hand back anything but a whole, opened site", () => {
+    // Some of its columns, or a statement whose rows nobody has opened, would
+    // both be a site the caller cannot actually read.
     expect(() => builtSitesCrudTable.read.pick(["name"])).toThrow(
-      "stored in one encrypted blob",
+      "can only hand back whole, opened sites",
+    );
+    expect(() => builtSitesCrudTable.read.statement({ id: 1 })).toThrow(
+      "can only hand back whole, opened sites",
     );
   });
 

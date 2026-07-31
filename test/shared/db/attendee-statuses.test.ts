@@ -76,6 +76,65 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(seed.sort_order).toBe(0);
   });
 
+  test("the seeded status is the word an operator sees", async () => {
+    // The name is what an attendee's status reads as until anyone renames it,
+    // so it has to be a real word rather than blank.
+    expect(DEFAULT_ATTENDEE_STATUS_NAME).toBe("Confirmed");
+  });
+
+  test("saving a status that is not a default leaves it alone", async () => {
+    const other = await attendeeStatuses.table.insert({
+      name: "Waitlist",
+      sortOrder: 1,
+    });
+
+    // It holds neither default, and is not being asked to take one, so there
+    // is nothing to refuse — only a status giving a default UP is refused.
+    const saved = await attendeeStatusWrites.save(
+      other.id,
+      statusInput("Waitlist renamed"),
+    );
+
+    expect(saved.ok).toBe(true);
+    expect((await getAttendeeStatus(other.id))?.name).toBe("Waitlist renamed");
+  });
+
+  test("a default status may be saved while keeping its defaults", async () => {
+    const seed = (await attendeeStatuses.getAll())[0]!;
+
+    // Keeping a default is not giving it up, so this must save rather than be
+    // refused for leaving the site without one.
+    const saved = await attendeeStatusWrites.save(
+      seed.id,
+      statusInput("Still confirmed", {
+        isPaidDefault: true,
+        isPublicDefault: true,
+      }),
+    );
+
+    expect(saved.ok).toBe(true);
+    expect((await getAttendeeStatus(seed.id))?.name).toBe("Still confirmed");
+  });
+
+  test("a new status taking the defaults takes them off the old one", async () => {
+    const seed = (await attendeeStatuses.getAll())[0]!;
+
+    const created = await attendeeStatusWrites.save(
+      null,
+      statusInput("Now the default", {
+        isPaidDefault: true,
+        isPublicDefault: true,
+      }),
+    );
+
+    expect(created.ok).toBe(true);
+    // Two statuses claiming the same default is the state this must never
+    // leave behind — the old one gives them up as the new one takes them.
+    const previous = await getAttendeeStatus(seed.id);
+    expect(previous?.is_public_default).toBe(false);
+    expect(previous?.is_paid_default).toBe(false);
+  });
+
   test("required default status lookups return the seed", async () => {
     const [pub, paid] = await Promise.all([
       requirePublicDefaultStatus(),

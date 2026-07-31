@@ -13,7 +13,11 @@
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { type TxScope, useTransaction } from "#shared/db/client.ts";
+import {
+  type SqlStatement,
+  type TxScope,
+  useTransaction,
+} from "#shared/db/client.ts";
 import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
@@ -70,6 +74,15 @@ export const sitePageOrder = defineOrderedCollection({
   key: "id",
   table: "site_pages",
 });
+
+const sitePageIdColumn = rawSitePagesTable.read.pick(["id"]);
+
+/** Which of `ids` name a page that is really there — as a statement, so a
+ * caller can ask inside its own write transaction and have the answer hold
+ * for the writes it makes next. */
+export const existingSitePageIdsStatement = (
+  ids: readonly number[],
+): SqlStatement => sitePageIdColumn.statement({ id: ids });
 
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
 export const getSitePageBySlugIndex = (

@@ -52,7 +52,7 @@ import {
   type ListingRecordRow,
   listingReader,
 } from "#shared/db/listings/select.ts";
-import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
+import { envNameSource, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
@@ -97,21 +97,11 @@ const packageDisplayColumns = rawGroupsTable.read.pick([
 ]);
 
 /** Execute a query and decrypt the resulting group rows */
-const queryGroups = queryAndMap<Group, Group>((row) =>
-  rawGroupsTable.fromDb(row),
-);
-const GROUP_COLUMNS = rawGroupsTable.columns
-  .map((column) => `groupRecord.${column}`)
-  .join(", ");
-
 export const groups = cachedEntityTable<Group, GroupInput>(
   "groups",
   rawGroupsTable,
   {
-    fetchAll: () =>
-      queryGroups(
-        `SELECT ${GROUP_COLUMNS} FROM groups AS groupRecord ORDER BY groupRecord.id ASC`,
-      ),
+    fetchAll: () => rawGroupsTable.read.many({}, { order: "id ASC" }),
     idOf: (g) => g.id,
     keyOf: (g) => g.slug_index,
     ttlMs: GROUPS_CACHE_TTL_MS,

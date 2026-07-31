@@ -168,21 +168,23 @@ describeWithEnv(
           name: "Listing For Delete Err",
         });
 
-        // Spy on the listing read: return the row on first call (so requireExists
-        // passes), but also delete the listing from DB so getListingWithCount
-        // (raw SQL) returns null.
-        const originalRead = listingsTable.read.one.bind(listingsTable.read);
-        const readStub = stub(listingsTable.read, "one", async (filter) => {
-          const row = await originalRead(filter);
-          if (row) {
+        // Spy on the existence check: say the listing is there (so requireExists
+        // passes), but delete it from the DB on the way past so
+        // getListingWithCount (raw SQL) returns null.
+        const originalExists = listingsTable.read.exists.bind(
+          listingsTable.read,
+        );
+        const readStub = stub(listingsTable.read, "exists", async (filter) => {
+          const found = await originalExists(filter);
+          if (found) {
             // Delete the listing from DB so getListingWithCount returns null
             await getDb().execute({
-              args: [row.id],
+              args: [Number(filter?.id)],
               sql: "DELETE FROM listings WHERE id = ?",
             });
             invalidateListingsCache();
           }
-          return row;
+          return found;
         });
 
         try {
@@ -195,7 +197,7 @@ describeWithEnv(
               name: "",
             },
           );
-          // requireExists sees the row (first read). Validation fails (empty name).
+          // requireExists sees the row (first check). Validation fails (empty name).
           // listingErrorPage calls getListingWithCount, but listing was deleted, so returns 404.
           expect(response.status).toBe(404);
         } finally {
@@ -212,11 +214,11 @@ describeWithEnv(
         });
 
         // handleAdminListingEditPost calls getListingWithCount (raw SQL), then
-        // updateResource.update which checks the nullable by-key read.
+        // updateResource.update which checks whether the row is still there.
         // Return null to simulate the listing being deleted
         // between the initial check and the update.
-        const readStub2 = stub(listingsTable.read, "one", () =>
-          Promise.resolve(null),
+        const readStub2 = stub(listingsTable.read, "exists", () =>
+          Promise.resolve(false),
         );
 
         try {

@@ -188,12 +188,14 @@ export const defineResource = <
       config.validateValues,
     );
 
-  /** Run `fn` only when the row exists; otherwise report not found. */
+  /** Run `fn` only when the row exists; otherwise report not found. Asking
+   * whether the row is there fetches only its key: the whole row would be
+   * decrypted just to be thrown away. */
   const withExistingRow = async <Outcome>(
     id: InValue,
     fn: () => Promise<Outcome>,
   ): Promise<Outcome | NotFoundResult> =>
-    (await table.read.one(byPrimaryKey(table, id)))
+    (await table.read.exists(byPrimaryKey(table, id)))
       ? fn()
       : { notFound: true, ok: false };
 

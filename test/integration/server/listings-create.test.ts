@@ -108,6 +108,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
     test("still creates when the read-back replica lags the just-committed write", async () => {
       // The primary read-back succeeds even while an optional replica read
       // still misses the newly committed row.
+      // The optional replica read misses the row; the primary read-back the
+      // create path actually uses must still find it.
       const readStub = stub(listingsTable.read, "one", () =>
         Promise.resolve(null),
       );
