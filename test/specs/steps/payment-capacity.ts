@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getNotesFor } from "#shared/db/notes/queries.ts";
 import { attendeeNotes } from "#shared/db/notes/target.ts";
@@ -145,7 +146,11 @@ Then(
     this.placeholderId = attendee.id;
     // The record the site kept for somebody whose payment arrived too late,
     // which is the page that shows an organiser what happened to them.
-    this.evidenceValues.set("lostPlaceAttendeeId", String(attendee.id));
+    leaveEvidencePage(
+      this,
+      ["place-lost-while-paying"],
+      `/admin/attendees/${attendee.id}`,
+    );
     expect((await getAttendeesRaw(listingId)).length).toBe(2);
   },
 );

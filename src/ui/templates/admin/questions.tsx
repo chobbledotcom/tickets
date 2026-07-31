@@ -5,7 +5,10 @@
 import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
+import {
+  answerTextForm,
+  questionTextForm,
+} from "#routes/admin/questions/forms.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type {

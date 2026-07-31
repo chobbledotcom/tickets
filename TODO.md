@@ -1416,6 +1416,7 @@ provider observation into the same state transition.
 
 ---
 
+## Square PENDING refunds — propagate a pending result, not a plain false
 ## Stale equivalent-mutant line numbers across recent refactors
 
 _Origin: running `deno task mutation:audit-equivalents` while hardening
@@ -1598,6 +1599,9 @@ about import-graph narrowing, not test reorganisation.
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
+`test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
+Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
+`scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors remain.
 `test/features/api/folded-booking/parent-booking.test.ts` kill every
 non-equivalent mutant on the unchanged `folded-booking.ts`. Five equivalents
 (lines 84, 115, 173, 297, 377) are recorded in

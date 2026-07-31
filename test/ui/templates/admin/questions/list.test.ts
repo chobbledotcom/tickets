@@ -25,7 +25,7 @@ describe("adminQuestionsPage", () => {
     expect(html).toContain("<p><em>No custom questions yet.</em></p>");
   });
 
-  test("removes the Custom Questions heading", () => {
+  test("removes the Custom questions heading", () => {
     expect(adminQuestionsPage([], OWNER_SESSION)).not.toContain("<h1");
   });
 

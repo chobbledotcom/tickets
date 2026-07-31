@@ -1,4 +1,8 @@
-import { defineTable, type Table, type TableSchema } from "#shared/db/table.ts";
+import {
+  type CrudTable,
+  defineTable,
+  type TableSchema,
+} from "#shared/db/table.ts";
 
 /**
  * Helper for tables whose primary key column is `id`.
@@ -6,7 +10,7 @@ import { defineTable, type Table, type TableSchema } from "#shared/db/table.ts";
 export const defineIdTable = <Row, Input = Row>(
   name: string,
   schema: TableSchema<Row>,
-): Table<Row, Input> =>
+): CrudTable<Row, Input> =>
   defineTable<Row, Input>({
     name,
     primaryKey: "id" as keyof Row & string,

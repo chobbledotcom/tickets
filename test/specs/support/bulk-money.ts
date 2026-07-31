@@ -4,23 +4,26 @@
  * whose customers may pay more than it asks.
  */
 
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { sellSomethingAt } from "#test/specs/support/listings.ts";
+import { minorUnits } from "#test/specs/support/money.ts";
 import {
-  minorUnits,
   refundByTyping,
-  sellSomethingAt,
-} from "#test/specs/support/money.ts";
-import { runStripeSuccess } from "#test/specs/support/money-drivers.ts";
+  runStripeSuccess,
+} from "#test/specs/support/money-drivers.ts";
 import {
+  type ActOnSomeMoney,
   requiredWorldValue,
   type TicketsWorld,
   theListing,
 } from "#test/specs/support/world.ts";
-import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
-import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
+import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { singleItem } from "#test-utils/factories.ts";
-import { createAggregatePayment } from "#test-utils/payment-aggregate.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+
+// jscpd:ignore-end
 
 /** The payment the provider will turn down — the middle one, so the story
  * proves the refunds after it still run. */
@@ -38,31 +41,13 @@ export const paidPlaceEach = async (
   world.confirmName = name;
   world.attendeeIds = [];
   for (const [index, who] of people.entries()) {
-    const reference = `pi_bulk_${index + 1}`;
-    const paymentId = `cs_bulk_${index + 1}`;
-    const attendee = await createPaidAttendeeWithoutLedger(
+    const attendee = await createPaidTestAttendee(
       listing.id,
       who,
       `${who.toLowerCase()}@example.com`,
-      reference,
+      `pi_bulk_${index + 1}`,
       minorUnits(price),
     );
-    // The refund-everyone page works from the payment the site recorded, and
-    // gives the money back by reversing that payment's own ledger entries, so
-    // the sale has to be filed under the payment rather than on its own.
-    await postPaymentLeg(
-      attendee.id,
-      minorUnits(price),
-      paymentId,
-      listing.id,
-      minorUnits(price),
-    );
-    await createAggregatePayment({
-      attendeeId: attendee.id,
-      charges: [{ amount: minorUnits(price), reference }],
-      configuredAccount: true,
-      paymentId,
-    });
     world.attendeeIds.push(attendee.id);
   }
 };
@@ -70,16 +55,16 @@ export const paidPlaceEach = async (
 /** The organiser refunds everyone from the listing's own refund-everyone page,
  * typing the listing name it asks for. The provider turns one payment down. */
 export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
-  const listingId = theListing(world);
-  world.bulkRefundMessage = await refundByTyping(
+  const browser = await refundByTyping(
     world,
     {
-      button: "Refund All Attendees",
-      path: `/admin/listing/${listingId}/refund-all`,
+      buttonText: "Refund All Attendees",
+      page: `/admin/listing/${theListing(world)}/refund-all`,
       typed: requiredWorldValue(world.confirmName, "the listing name to type"),
     },
     (paymentId: string) => Promise.resolve(paymentId !== DECLINED_PAYMENT),
   );
+  world.bulkRefundMessage = browser.pageText;
 };
 
 /** Who got their money back, and who the provider turned down. */
@@ -105,10 +90,7 @@ export const payMoreListing = async (
 };
 
 /** The customer pays the amount they chose, through the real payment return. */
-export const payYourOwnPrice = async (
-  world: TicketsWorld,
-  chosen: string,
-): Promise<void> => {
+export const payYourOwnPrice: ActOnSomeMoney = async (world, chosen) => {
   const listingId = theListing(world);
   const paid = minorUnits(chosen);
   await runStripeSuccess({
@@ -121,5 +103,9 @@ export const payYourOwnPrice = async (
   });
   world.attendeeId = (await getAttendeesRaw(listingId))[0]!.id;
   // The statement that has to show what they chose rather than what was asked.
-  world.evidenceValues.set("payMoreListingId", String(listingId));
+  leaveEvidencePage(
+    world,
+    ["paid-more-than-asked"],
+    `/admin/ledger/revenue/${listingId}`,
+  );
 };

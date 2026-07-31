@@ -32,7 +32,7 @@ export const runSetup = async (
   await session.fill("admin_password_confirm", config.adminPassword);
   await session.select("country", country);
   await session.check("accept_agreement");
-  await session.clickButton("Complete Setup");
+  await session.clickButton("Complete setup");
   log(`  setup complete (admin=${config.adminUsername}, country=${country})`);
 };
 

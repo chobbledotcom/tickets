@@ -143,7 +143,7 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
           `/admin/attributes/${attribute.id}/options/${easy.id}/edit`,
         ),
         200,
-        "Edit Option",
+        "Edit option",
         "Option for: Difficulty",
         "Listings using this option",
         "Set on 1 listing.",
@@ -154,7 +154,7 @@ describeWithEnv("server (admin attribute detail pages)", { db: true }, () => {
       );
       expect(html).toContain(`href="/admin/attributes/${attribute.id}"`);
       expect(html).toContain(
-        `<a class="danger" href="/admin/attributes/${attribute.id}/options/${easy.id}/delete">Delete Option</a>`,
+        `<a class="danger" href="/admin/attributes/${attribute.id}/options/${easy.id}/delete">Delete option</a>`,
       );
     });
 

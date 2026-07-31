@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import type { World } from "@cucumber/cucumber";
 import type { CleanupTask } from "#scripts/cleanup.ts";
+import type { EvidencePages } from "#scripts/specs/evidence/pages.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";
@@ -85,7 +86,7 @@ export const asksIfThereIs =
   async (world, name) =>
     (await look(world, name)) !== null;
 
-export interface TicketsWorld extends World {
+export interface TicketsWorld extends World, EvidencePages {
   apiAnswer?: ApiAnswer;
   apiFirstDay?: string;
   apiKeyAnswer?: { answered: number; said: string };
@@ -107,6 +108,7 @@ export interface TicketsWorld extends World {
   bundleOutcome?: string;
   bundleParts?: ThingForSale[];
   bundleTicketPath?: string;
+  buyerQuestion?: { id: number; text: string };
   cashBefore?: number;
   cleanup: PutsThingsBack;
   closedDayOn?: string;
@@ -118,7 +120,6 @@ export interface TicketsWorld extends World {
   duplicateToken?: string;
   editorAnswer?: number;
   editorInvite?: string;
-  evidenceValues: Map<string, string>;
   firstBody?: string;
   firstDay?: string;
   firstFailureData?: string;
@@ -126,6 +127,7 @@ export interface TicketsWorld extends World {
   groupSlug?: string;
   holdListingId?: number;
   lengthChangeMessage?: string;
+  listingDetail?: { id: number; name: string };
   listingId?: number;
   mergeOutcome?: { applied: boolean; message: string };
   mergePreviewHtml?: string;
@@ -138,6 +140,7 @@ export interface TicketsWorld extends World {
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
+  ownerTold?: string;
   paymentBrowser?: TestBrowser;
   paymentCaseId?: number;
   paymentCaseRevision?: number;
@@ -173,9 +176,11 @@ export const addDatabaseCleanup = (
 };
 
 export const requiredWorldValue = <Value>(
-  value: Value | undefined,
+  value: Value | null | undefined,
   name: string,
 ): Value => {
-  if (value === undefined) throw new Error(`${name} was not set`);
+  if (value === undefined || value === null) {
+    throw new Error(`${name} was not set`);
+  }
   return value;
 };

@@ -191,10 +191,10 @@ const validateCustomisableDays = (input: ListingInput): string | null => {
 /** Validate renewal-tier configuration (months-per-unit and assigned site). */
 const validateRenewalConfig = (input: ListingInput): string | null => {
   if ((input.monthsPerUnit ?? 0) > 0 && !(input.purchaseOnly && input.hidden)) {
-    return "Months per unit requires No Check-In and Hidden to be enabled";
+    return t("error.months_per_unit_needs_flags");
   }
   if (input.assignBuiltSite && (input.initialSiteMonths ?? 0) <= 0) {
-    return "Initial site months is required when a site is assigned.";
+    return t("error.initial_site_months_required");
   }
   return null;
 };

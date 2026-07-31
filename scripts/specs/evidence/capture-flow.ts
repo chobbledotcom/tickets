@@ -6,12 +6,13 @@ import {
   screenshotContextOptions,
 } from "#scripts/screenshots/profile.ts";
 import type { SpecCatalog } from "#scripts/specs/types.ts";
-import { isAllowedEvidenceRequest, resolveEvidencePath } from "./browser.ts";
+import { isAllowedEvidenceRequest } from "./browser.ts";
 import type {
   CaptureScenario,
   EvidenceHookCase,
   EvidenceWorld,
 } from "./hook.ts";
+import { evidencePagePath } from "./pages.ts";
 import { resolveEvidenceScenario } from "./resolve.ts";
 import {
   type EvidenceCaptureDeclaration,
@@ -107,10 +108,9 @@ const captureProfile = async (
     ]);
     const page = await context.newPage();
     page.setDefaultTimeout(CAPTURE_TIMEOUT_MS);
-    await page.goto(
-      resolveEvidencePath(declaration.path, world.evidenceValues),
-      { waitUntil: "domcontentloaded" },
-    );
+    await page.goto(evidencePagePath(declaration, world.evidencePages), {
+      waitUntil: "domcontentloaded",
+    });
     await dependencies.waitForPage(page);
     const { png } = await dependencies.capturePage(page, declaration.element);
     assertNoBlockedRequests(blocked);

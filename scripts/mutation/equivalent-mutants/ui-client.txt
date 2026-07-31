@@ -1,0 +1,90 @@
+# Known-equivalent mutants — see README.txt in this directory.
+
+# --- External order widget (src/ui/client/order.ts) ----------------------------
+# URL matches and catalog entries are either non-empty strings/objects or absent,
+# so these nullish and truthy fallbacks have the same result.
+src/ui/client/order.ts:101:57  ?? → ||   # RegExp match group is a non-empty slug or undefined
+src/ui/client/order.ts:108:36  ?? → ||   # catalogEntry returns a CatalogEntry object or undefined
+src/ui/client/order.ts:213:51  ?? → ||   # merged quantities are positive integers, so an existing sum is truthy
+src/ui/client/order.ts:64:37  0 → 1       # quantity 1 takes the fallback 1 instead of returning 1
+
+# reconcile runs once on a new controller whose notice starts empty. The only
+# production caller of add always passes parseAddQuantity's positive result.
+src/ui/client/order.ts:216:18  = → +=     # empty notice plus the message equals the message
+src/ui/client/order.ts:222:39  1 → 0      # add's default is unused; its only caller always supplies quantity
+
+# Every `= → +=` below writes to a newly-created DOM element property whose DOM
+# default is "". Concatenating the assigned text onto "" is exactly assignment.
+src/ui/client/order.ts:294:24  = → +=    # fresh heading textContent
+src/ui/client/order.ts:299:18  = → +=    # fresh notice paragraph className
+src/ui/client/order.ts:300:20  = → +=    # fresh notice paragraph textContent
+src/ui/client/order.ts:316:22  = → +=    # fresh subtotal paragraph className
+src/ui/client/order.ts:317:24  = → +=    # fresh subtotal paragraph textContent
+src/ui/client/order.ts:322:23  = → +=    # fresh caveat paragraph className
+src/ui/client/order.ts:323:25  = → +=    # fresh caveat paragraph textContent
+src/ui/client/order.ts:329:24  = → +=    # fresh empty paragraph textContent
+src/ui/client/order.ts:338:18  = → +=    # fresh row className
+src/ui/client/order.ts:340:19  = → +=    # fresh name span className
+src/ui/client/order.ts:341:21  = → +=    # fresh name span textContent
+src/ui/client/order.ts:345:20  = → +=    # fresh price span className
+src/ui/client/order.ts:346:22  = → +=    # fresh price span textContent
+src/ui/client/order.ts:360:23  = → +=    # fresh Continue button textContent
+src/ui/client/order.ts:378:18  = → +=    # fresh count span className
+src/ui/client/order.ts:379:20  = → +=    # fresh count span textContent
+src/ui/client/order.ts:381:20  = → +=    # fresh cart label span textContent
+src/ui/client/order.ts:389:21  = → +=    # fresh Close button textContent
+src/ui/client/order.ts:399:17  = → +=    # fresh stepper span className
+src/ui/client/order.ts:402:18  = → +=    # fresh decrease button textContent
+src/ui/client/order.ts:406:20  = → +=    # fresh quantity span textContent
+src/ui/client/order.ts:409:18  = → +=    # fresh increase button textContent
+src/ui/client/order.ts:414:21  = → +=    # fresh Remove button textContent
+src/ui/client/order.ts:422:20  = → +=    # fresh style element textContent
+
+# buildButton's initial values are overwritten by the constructor's render
+# before the button is exposed.
+src/ui/client/order.ts:376:19  true → false  # constructor render immediately sets hidden from the cart count
+src/ui/client/order.ts:379:23  0 → ""     # constructor render immediately writes the current numeric count
+
+# The widget owns this global registry: before init it is undefined, afterwards
+# it is an object. Both are mapped to the same object by these operators.
+src/ui/client/order.ts:450:40  ?? → ||    # registry is Record<string, unknown>|undefined
+
+# Dataset values are strings when present. At initial scan the selector requires
+# the attribute; after enhancement, an absent value and either fallback string
+# all fail both resolvers and preserve normal navigation.
+src/ui/client/order.ts:466:40  ?? → ||    # present dataset string; empty maps to the same empty fallback
+src/ui/client/order.ts:466:44   → "mutated"  # fallback is unreachable for the matching selector
+src/ui/client/order.ts:481:46  ?? → ||    # present strings are truthy or empty; both operators keep the same value
+src/ui/client/order.ts:481:50   → "mutated"  # absent fallback values resolve to neither listing nor package
+src/shared/site-pages/core.ts:142:50  ?? → ||    # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/shared/site-pages/core.ts:309:43  ?? → ||    # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+
+# --- Rich markdown editor (src/ui/client/admin/markdown-editor*.ts) ------------
+# Browser DOM-construction code, same class of equivalents as order.ts above:
+# `= → +=` on a freshly created element's property whose value before the
+# assignment is "" (className, src), or a boolean IDL attribute whose setter
+# coerces the truthy `false + true === 1` to the same true.
+src/ui/client/admin/markdown-editor.ts:49:18  = → +=    # mount.className: fresh element, "" before
+src/ui/client/admin/markdown-editor.ts:91:19  = → +=    # toggle.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts:164:16  = → +=    # dom.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts:167:23  = → +=    # button.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts:168:17  = → +=    # button.title: fresh element, "" before
+# The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
+# /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
+# (Number trims whitespace and "N." is the same decimal) — no typed input can
+# tell them apart.
+src/ui/client/admin/markdown-editor-setup.ts:107:25  1 → 0    # Number("N. ") === Number("N") for every ordered-list match
+
+# bundle-loader.ts assigns query/style/script values onto freshly-created URLs
+# and elements. Each left-hand value is empty (or false for defer), so `=` and
+# `+=` produce the same final URL/string/boolean after DOM coercion.
+src/ui/client/admin/bundle-loader.ts:25:16  = → +=    # a sibling URL starts with an empty search
+src/ui/client/admin/bundle-loader.ts:41:13  = → +=    # fresh link.rel is empty
+src/ui/client/admin/bundle-loader.ts:42:14  = → +=    # fresh link.href is empty
+src/ui/client/admin/bundle-loader.ts:46:13  = → +=    # fresh script.src is empty
+
+# address-lookup client: panelText's "" fallback matches the only falsy dataset
+# value, and freshly created options start with empty value/text.
+src/ui/client/admin/address-lookup.ts:50:21  ?? → ||   # dataset[key]: string|undefined, only falsy string "" === fallback ""
+src/ui/client/admin/address-lookup.ts:55:15  = → +=   # a just-created <option>'s value is "", so append equals assign
+src/ui/client/admin/address-lookup.ts:56:21  = → +=   # a just-created <option>'s textContent is "", so append equals assign

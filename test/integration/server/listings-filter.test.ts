@@ -77,7 +77,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain(`href="/admin/listing/${merch.id}"`);
       expect(html).not.toContain(`href="/admin/listing/${standard.id}"`);
-      expect(html).toContain("No Check-In");
+      expect(html).toContain("No check-in");
     });
 
     test("treats an unknown type as 'all'", async () => {

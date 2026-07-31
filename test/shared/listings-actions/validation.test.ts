@@ -132,7 +132,7 @@ describeWithEnv("validateListingInput package edges", { db: true }, () => {
     ).resolves.toBeNull();
   });
 
-  test("rejects months per unit when No Check-In is set without Hidden", async () => {
+  test("rejects months per unit when No check-in is set without Hidden", async () => {
     await expect(
       validateListingInput(
         inputFor({
@@ -143,7 +143,7 @@ describeWithEnv("validateListingInput package edges", { db: true }, () => {
         }),
       ),
     ).resolves.toBe(
-      "Months per unit requires No Check-In and Hidden to be enabled",
+      "Months per unit requires No check-in and Hidden listing to be enabled.",
     );
   });
 });

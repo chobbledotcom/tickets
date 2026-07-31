@@ -5,12 +5,14 @@ import {
   type IgnoreList,
   ignoreListProblems,
   isIgnored,
+  listRegistryFiles,
   loadIgnoreList,
   mutantKey,
+  registryFilePath,
 } from "#scripts/mutation/ignore.ts";
 import type { MutantResult } from "#scripts/mutation/summary.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-import { tempFile } from "#test-utils/files.ts";
+import { tempDir, tempFile } from "#test-utils/files.ts";
 
 const file = `${projectRoot}/src/example.ts`;
 
@@ -63,7 +65,7 @@ describe("mutation ignore list", () => {
       ].join("\n"),
     );
 
-    const loaded = await loadIgnoreList(temp.path);
+    const loaded = await loadIgnoreList([temp.path]);
 
     expect(loaded.entries).toEqual(["src/example.ts:12:5 ??→||"]);
     expect(loaded.keys.has("src/example.ts:12:5 ??→||")).toBe(true);
@@ -81,16 +83,63 @@ describe("mutation ignore list", () => {
       ),
     );
 
-    const loaded = await loadIgnoreList(temp.path);
+    const loaded = await loadIgnoreList([temp.path]);
 
     expect(loaded.entries).toEqual(['src/example.ts:12:5 →"mutated"']);
     expect(isIgnored(loaded, file, mutant(12, "", '"mutated"'))).toBe(true);
   });
 
-  test("uses an empty ignore list when the file is absent", async () => {
-    const loaded = await loadIgnoreList(
-      "/tmp/missing-mutation-ignore-list.txt",
+  test("merges every registry file in a directory, in name order", async () => {
+    using dir = tempDir({ prefix: "mutation-ignore-dir-" });
+    await Deno.writeTextFile(
+      `${dir.path}/b-late.txt`,
+      "src/example.ts:13:5 ?? → ||\n",
     );
+    await Deno.writeTextFile(
+      `${dir.path}/a-early.txt`,
+      "src/example.ts:12:5 ?? → ||\n",
+    );
+    await Deno.writeTextFile(`${dir.path}/notes.md`, "not a registry file\n");
+
+    const loaded = await loadIgnoreList(await listRegistryFiles(dir.path));
+
+    expect(loaded.entries).toEqual([
+      "src/example.ts:12:5 ??→||",
+      "src/example.ts:13:5 ??→||",
+    ]);
+  });
+
+  test("loads the checked-in registry directory by default", async () => {
+    const files = await listRegistryFiles();
+    expect(files.length).toBeGreaterThan(0);
+    for (const registryFile of files) {
+      expect(String(registryFile)).toMatch(/\.txt$/);
+    }
+
+    // The default load is exactly the merge of the listed registry files.
+    const loaded = await loadIgnoreList();
+    expect(loaded.entries.length).toBeGreaterThan(0);
+    expect(loaded.entries).toEqual((await loadIgnoreList(files)).entries);
+  });
+
+  test("lists no registry files when the directory is absent", async () => {
+    expect(await listRegistryFiles("/tmp/missing-mutation-ignore-dir")).toEqual(
+      [],
+    );
+  });
+
+  test("surfaces a registry file that exists but cannot be read", async () => {
+    using dir = tempDir({ prefix: "mutation-ignore-unreadable-" });
+
+    // A directory path given as a registry file fails with a non-NotFound
+    // error, which must surface rather than reading as an empty registry.
+    await expect(loadIgnoreList([dir.path])).rejects.toThrow(/directory/i);
+  });
+
+  test("uses an empty ignore list when the file is absent", async () => {
+    const loaded = await loadIgnoreList([
+      "/tmp/missing-mutation-ignore-list.txt",
+    ]);
 
     expect(loaded.entries).toEqual([]);
     expect(loaded.keys.size).toBe(0);
@@ -157,5 +206,17 @@ describe("mutation ignore list", () => {
     ).toEqual([
       `redundant (a test kills this mutant, not a survivor): ${redundant}`,
     ]);
+  });
+
+  test("registryFilePath keeps a plain path as it is", () => {
+    expect(registryFilePath("scripts/mutation/equivalent-mutants/a.txt")).toBe(
+      "scripts/mutation/equivalent-mutants/a.txt",
+    );
+  });
+
+  test("registryFilePath turns a file URL into its path", () => {
+    expect(registryFilePath(new URL("file:///tmp/registry/a.txt"))).toBe(
+      "/tmp/registry/a.txt",
+    );
   });
 });

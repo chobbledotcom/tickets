@@ -86,7 +86,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
         slug: "test-slug",
         thank_you_url: "https://example.com",
       });
-      await expectHtmlResponse(response, 400, "Listing Name is required");
+      await expectHtmlResponse(response, 400, "Listing name is required");
     });
 
     test("updates listing when authenticated", async () => {
@@ -167,7 +167,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       await expectHtmlResponse(
         response,
         400,
-        "Total Attendees Ever must be 0 or greater",
+        "Total attendees ever must be 0 or greater",
       );
     });
 

@@ -154,7 +154,7 @@ describeWithEnv(
       });
 
       test("a shared token checks in the normal row but never a purchase-only one", async () => {
-        // A package/order can mix a checkable member with a No Check-In
+        // A package/order can mix a checkable member with a No check-in
         // (purchase_only) one on the same token; the token check-in must update
         // only the checkable row.
         const { attendeesApi } = await import("#shared/db/attendees/api.ts");

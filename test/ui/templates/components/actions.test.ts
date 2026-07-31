@@ -25,7 +25,7 @@ describe("ActionButton", () => {
   test("renders a primary button-styled link with an icon and label", () => {
     const html = String(
       ActionButton({
-        children: "Add Holiday",
+        children: "Add holiday",
         href: "/admin/holidays/new",
         icon: "plus",
       }),
@@ -33,7 +33,7 @@ describe("ActionButton", () => {
     expect(html).toContain('class="btn"');
     expect(html).toContain('href="/admin/holidays/new"');
     expect(html).toContain(`href="${ICONS_PATH}#plus"`);
-    expect(html).toContain("<span>Add Holiday</span>");
+    expect(html).toContain("<span>Add holiday</span>");
   });
 
   test("omits the icon when none is given", () => {

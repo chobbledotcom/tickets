@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
   adminBrowser,
   browserOf,
@@ -67,12 +68,12 @@ const askSizeQuestion = async (
   id: number,
 ): Promise<void> => {
   await browser.visit("/admin/questions");
-  expect(browser.containsText("Custom Questions")).toBe(true);
+  expect(browser.containsText("Custom questions")).toBe(true);
   // Adding a question opens its own page, where its answers are added.
-  await browser.submitForm({ text: QUESTION }, "Add Question");
+  await browser.submitForm({ text: QUESTION }, "Add question");
   expect(browser.containsText(QUESTION)).toBe(true);
   for (const size of SIZES) {
-    await browser.submitForm({ text: size }, "Add Answer");
+    await browser.submitForm({ text: size }, "Add answer");
   }
   for (const size of SIZES) {
     expect(browser.containsText(size)).toBe(true);
@@ -158,7 +159,11 @@ Then(
     const browser = await adminBrowser(this);
     // The list a booking made on a group page arrives in, which is what an
     // evidence capture of this journey has to show.
-    this.evidenceValues.set("groupBookingListingId", String(listingId(this)));
+    leaveEvidencePage(
+      this,
+      ["group-booking-arrives"],
+      `/admin/listing/${listingId(this)}/attendees`,
+    );
     await browser.visit(`/admin/listing/${listingId(this)}/attendees`);
     expect(browser.containsText(CUSTOMER)).toBe(true);
     expect(browser.containsText(CUSTOMER_EMAIL)).toBe(true);

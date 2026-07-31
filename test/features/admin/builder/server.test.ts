@@ -83,16 +83,16 @@ const stubBuildAndCapture = () => {
 test("builder form defines every field and option exactly", () => {
   expect(JSON.parse(JSON.stringify(builderForm.fields))).toEqual([
     {
-      label: "Site Name",
+      label: "Site name",
       maxlength: 64,
       minlength: 1,
       name: "site_name",
-      placeholder: "My Listing Site",
+      placeholder: "My Ticket Site",
       required: true,
       type: "text",
     },
     {
-      label: "Hosting Provider",
+      label: "Hosting provider",
       name: "hosting_provider",
       options: [
         { label: "Bunny Edge Scripting", value: "bunny" },
@@ -101,7 +101,7 @@ test("builder form defines every field and option exactly", () => {
       type: "select",
     },
     {
-      label: "Database Provider",
+      label: "Database provider",
       name: "db_provider",
       options: [
         { label: "Bunny DB (auto-provision)", value: "bunny" },
@@ -111,17 +111,17 @@ test("builder form defines every field and option exactly", () => {
       type: "select",
     },
     {
-      hint: "Leave blank to auto-provision a database",
+      hint: "Leave blank to auto-provision a database.",
       label: "Database URL",
       name: "db_url",
       placeholder: "libsql://your-db.turso.io",
       type: "url",
     },
     {
-      hint: "Leave blank to auto-provision a database",
-      label: "Database Token",
+      hint: "Leave blank to auto-provision a database.",
+      label: "Database token",
       name: "db_token",
-      placeholder: "Token for the database",
+      placeholder: "Database auth token",
       type: "password",
     },
   ]);
@@ -166,12 +166,12 @@ describeWithEnv(
       await expectHtmlResponse(
         response,
         200,
-        "Site Builder",
-        "Create New Site",
-        "Site Name",
+        "Site builder",
+        "Create new site",
+        "Site name",
         "Database URL",
-        "Database Token",
-        "Built Sites",
+        "Database token",
+        "Built sites",
       );
     });
 
@@ -214,7 +214,7 @@ describeWithEnv(
       expectRedirect(response, "/admin/builder");
       expectFlash(
         response,
-        expect.stringContaining("Site Name is required"),
+        expect.stringContaining("Site name is required"),
         false,
       );
     });

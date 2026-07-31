@@ -1,10 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
 import {
   addAnswer,
   createQuestion,
 } from "#test/test-utils/questions/helpers.ts";
+import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -13,12 +15,30 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withFailingOrderTrigger } from "#test-utils/db-helpers/failing-order.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("POST /admin/questions/:id/answers", () => {
+    test("a failed order write leaves no half-made answer behind", async () => {
+      // The insert and the order write run in one transaction, so the answer
+      // must roll back with a failed append.
+      const id = await createQuestion("Sizes?");
+
+      await withFailingOrderTrigger("answers", async () => {
+        await expect(
+          adminFormPost(`/admin/questions/${id}/answers`, { text: "Ghost" }),
+        ).rejects.toThrow("order write failed");
+      });
+      const question = (await getAllQuestionsWithAnswers()).find(
+        (item) => item.id === id,
+      );
+      if (!question) throw new Error(`Expected question ${id} to exist`);
+      expect(question.answers).toEqual([]);
+    });
+
     testRequiresAuth("/admin/questions/1/answers", {
       body: { text: "Yes" },
       method: "POST",
@@ -83,7 +103,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining(
-          "Free-text questions don't have answer options",
+          "Free-text questions don't have answer options.",
         ),
         false,
       );
@@ -193,6 +213,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)).toBeUndefined();
+      expect(await activityMessages()).toContain(
+        `Answer 'Goodbye Answer' deleted from question ${qId}`,
+      );
     });
 
     test("rejects deletion with wrong text", async () => {

@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { questionsTable } from "#shared/db/questions/tables.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
@@ -52,7 +53,7 @@ Given(
     this.groupSlug = group.slug;
     // The shifts are offered on the group's own page, which is where an
     // evidence capture of the sign-up form has to go.
-    this.evidenceValues.set("volunteerGroupSlug", group.slug);
+    leaveEvidencePage(this, ["volunteer-shift-form"], `/ticket/${group.slug}`);
     this.questionId = question.id;
   },
 );

@@ -3,8 +3,9 @@
  * not paid, a deposit against it, and settling the rest.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { minorUnits, sellSomethingAt } from "#test/specs/support/money.ts";
@@ -64,7 +65,7 @@ export const payDeposit: ActOnSomeMoney = async (world, amount) => {
  *  evidence capture has no path it could write by hand. */
 export const balancePageHtml = async (world: TicketsWorld): Promise<string> => {
   const token = await signBalanceToken(theBooking(world));
-  world.evidenceValues.set("balanceToken", token);
+  leaveEvidencePage(world, ["balance-payment-link"], `/pay/${token}`);
   return publicPageHtml(`/pay/${token}`);
 };
 

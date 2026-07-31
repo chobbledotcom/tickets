@@ -9,13 +9,13 @@ import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 describe("adminBuilderPage", () => {
   test("renders form fields", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
-    expect(html).toContain("Site Name");
+    expect(html).toContain("Site name");
     expect(html).toContain("Database URL");
-    expect(html).toContain("Database Token");
+    expect(html).toContain("Database token");
     expect(html).toContain('name="site_name"');
     expect(html).toContain('name="db_url"');
     expect(html).toContain('name="db_token"');
-    expect(html).toContain("Build Site");
+    expect(html).toContain("Build site");
   });
 
   test("renders empty state when no sites", () => {
@@ -69,6 +69,6 @@ describe("adminBuilderPage", () => {
 
   test("renders page title", () => {
     const html = adminBuilderPage(OWNER_SESSION, []);
-    expect(html).toContain("Site Builder");
+    expect(html).toContain("Site builder");
   });
 });

@@ -2,13 +2,8 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import { listingAttributeOptions } from "#shared/db/attributes.ts";
 import {
-  getAllAttributesWithOptions,
-  getAttributeWithOptions,
-  listingAttributeOptions,
-} from "#shared/db/attributes.ts";
-import {
-  expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
@@ -23,16 +18,8 @@ import {
   createTestListing,
   duplicateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  getTestSession,
-} from "#test-utils/session.ts";
-import {
-  enableFeature,
-  storedFeatureEnabled,
-  withFeatureWriteFailure,
-} from "#test-utils/settings.ts";
+import { adminGet, getTestSession } from "#test-utils/session.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 const postRepeatedOptions = async (
   path: string,
@@ -52,17 +39,6 @@ const postRepeatedOptions = async (
       method: "POST",
     }),
   );
-};
-
-const createAttributeViaRoute = async (name: string): Promise<number> => {
-  const { response } = await adminFormPost("/admin/attributes", { name });
-  expect(response.status).toBe(302);
-  expectFlash(response, "Attribute created");
-  const attribute = (await getAllAttributesWithOptions()).find(
-    (item) => item.name === name,
-  );
-  expect(attribute).toBeTruthy();
-  return attribute!.id;
 };
 
 describeWithEnv("server (admin attributes)", { db: true }, () => {
@@ -88,263 +64,6 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "col-quantity",
         ">2</td>",
       );
-    });
-  });
-
-  describe("attribute CRUD", () => {
-    testRequiresAuth("/admin/attributes", {
-      body: { name: "Auth attribute" },
-      method: "POST",
-    });
-
-    test("creates an attribute and redirects to its detail page", async () => {
-      const id = await createAttributeViaRoute("Difficulty");
-      expect(await storedFeatureEnabled("attributes")).toBe(true);
-
-      await expectHtmlResponse(
-        await adminGet(`/admin/attributes/${id}`),
-        200,
-        "Difficulty",
-        "No options yet.",
-      );
-    });
-
-    test("does not enable Attributes for an invalid create", async () => {
-      await setAdminFeatureEnabled("attributes", false);
-      const { response } = await adminFormPost("/admin/attributes");
-      response.body?.cancel();
-      expect(await storedFeatureEnabled("attributes")).toBe(false);
-    });
-
-    test("does not create an attribute when enabling the feature fails", async () => {
-      await enableFeature("attributes");
-      await expect(
-        withFeatureWriteFailure(async () => {
-          await adminFormPost("/admin/attributes", { name: "Hidden" });
-        }),
-      ).rejects.toThrow("feature enable failed");
-      expect(await getAllAttributesWithOptions()).toEqual([]);
-    });
-
-    test("redirects invalid attribute forms back to the right page", async () => {
-      const id = await createAttributeViaRoute("Required fields");
-
-      await expectFlashRedirect(
-        "/admin/attributes",
-        expect.any(String),
-        false,
-      )((await adminFormPost("/admin/attributes")).response);
-      await expectFlashRedirect(
-        `/admin/attributes/${id}`,
-        expect.any(String),
-        false,
-      )((await adminFormPost(`/admin/attributes/${id}/edit`)).response);
-      await expectFlashRedirect(
-        `/admin/attributes/${id}`,
-        expect.any(String),
-        false,
-      )((await adminFormPost(`/admin/attributes/${id}/options`)).response);
-    });
-
-    test("updates an attribute name", async () => {
-      const id = await createAttributeViaRoute("Old name");
-
-      const { response } = await adminFormPost(`/admin/attributes/${id}/edit`, {
-        name: "New name",
-      });
-
-      await expectFlashRedirect(
-        `/admin/attributes/${id}`,
-        "Attribute updated",
-      )(response);
-      expect((await getAttributeWithOptions(id))?.name).toBe("New name");
-    });
-
-    test("does not update an attribute when enabling the feature fails", async () => {
-      const attribute = await createTestAttributeWithOptions("Before", []);
-      await enableFeature("attributes");
-      await expect(
-        withFeatureWriteFailure(async () => {
-          await adminFormPost(`/admin/attributes/${attribute.id}/edit`, {
-            name: "After",
-          });
-        }),
-      ).rejects.toThrow("feature enable failed");
-      expect((await getAttributeWithOptions(attribute.id))?.name).toBe(
-        "Before",
-      );
-    });
-
-    test("returns 404 when changing a missing attribute", async () => {
-      expectStatus(404)(
-        (
-          await adminFormPost("/admin/attributes/999999/edit", {
-            name: "Missing",
-          })
-        ).response,
-      );
-      expectStatus(404)(
-        (
-          await adminFormPost("/admin/attributes/999999/options", {
-            text: "Missing",
-          })
-        ).response,
-      );
-      expectStatus(404)(
-        (await adminFormPost("/admin/attributes/999999/move-up")).response,
-      );
-    });
-
-    test("adds, edits, and reorders options", async () => {
-      const id = await createAttributeViaRoute("Format");
-      await adminFormPost(`/admin/attributes/${id}/options`, {
-        text: "Online",
-      });
-      await adminFormPost(`/admin/attributes/${id}/options`, {
-        text: "In person",
-      });
-      const before = (await getAttributeWithOptions(id))!;
-      const second = before.options[1]!;
-
-      const edited = await adminFormPost(
-        `/admin/attributes/${id}/options/${second.id}/edit`,
-        { text: "In-person" },
-      );
-      await expectFlashRedirect(
-        `/admin/attributes/${id}`,
-        "Option updated",
-      )(edited.response);
-      await adminFormPost(
-        `/admin/attributes/${id}/options/${second.id}/move-up`,
-      );
-
-      const after = (await getAttributeWithOptions(id))!;
-      expect(after.options.map((option) => option.text)).toEqual([
-        "In-person",
-        "Online",
-      ]);
-
-      // Moving it back down restores the original order.
-      await adminFormPost(
-        `/admin/attributes/${id}/options/${second.id}/move-down`,
-      );
-      const restored = (await getAttributeWithOptions(id))!;
-      expect(restored.options.map((option) => option.text)).toEqual([
-        "Online",
-        "In-person",
-      ]);
-    });
-
-    test("returns 404 or redirects when changing a missing or invalid option", async () => {
-      const attribute = await createTestAttributeWithOptions("Missing option", [
-        "Only",
-      ]);
-      const option = attribute.options[0]!;
-
-      expectStatus(404)(
-        await adminGet(
-          `/admin/attributes/${attribute.id}/options/999999/delete`,
-        ),
-      );
-      expectStatus(404)(
-        (
-          await adminFormPost(
-            `/admin/attributes/${attribute.id}/options/999999/edit`,
-            { text: "Missing" },
-          )
-        ).response,
-      );
-      await expectFlashRedirect(
-        `/admin/attributes/${attribute.id}/options/${option.id}/edit`,
-        expect.any(String),
-        false,
-      )(
-        (
-          await adminFormPost(
-            `/admin/attributes/${attribute.id}/options/${option.id}/edit`,
-          )
-        ).response,
-      );
-    });
-
-    test("reorders attributes and keeps edge moves harmless", async () => {
-      const first = await createTestAttributeWithOptions("First", []);
-      const second = await createTestAttributeWithOptions("Second", []);
-
-      await expectFlashRedirect(
-        "/admin/attributes",
-        "Attribute moved",
-      )(
-        (await adminFormPost(`/admin/attributes/${first.id}/move-up`)).response,
-      );
-      expect(
-        (await getAllAttributesWithOptions()).map((item) => item.name),
-      ).toEqual(["First", "Second"]);
-
-      await expectFlashRedirect(
-        "/admin/attributes",
-        "Attribute moved",
-      )(
-        (await adminFormPost(`/admin/attributes/${second.id}/move-up`))
-          .response,
-      );
-      expect(
-        (await getAllAttributesWithOptions()).map((item) => item.name),
-      ).toEqual(["Second", "First"]);
-    });
-
-    test("deletes an option after confirmation", async () => {
-      const attribute = await createTestAttributeWithOptions("Season", [
-        "Spring",
-      ]);
-
-      await expectHtmlResponse(
-        await adminGet(
-          `/admin/attributes/${attribute.id}/options/${
-            attribute.options[0]!.id
-          }/delete`,
-        ),
-        200,
-        "Delete Option",
-        "Spring",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attributes/${attribute.id}/options/${
-          attribute.options[0]!.id
-        }/delete`,
-        { confirm_identifier: "Spring" },
-      );
-      await expectFlashRedirect(
-        `/admin/attributes/${attribute.id}`,
-        "Option deleted",
-      )(response);
-      expect((await getAttributeWithOptions(attribute.id))?.options).toEqual(
-        [],
-      );
-    });
-
-    test("deletes an attribute after confirmation", async () => {
-      const attribute = await createTestAttributeWithOptions("Audience", [
-        "Adults",
-      ]);
-
-      await expectHtmlResponse(
-        await adminGet(`/admin/attributes/${attribute.id}/delete`),
-        200,
-        "Delete Attribute",
-        "Audience",
-      );
-
-      const { response } = await adminFormPost(
-        `/admin/attributes/${attribute.id}/delete`,
-        { confirm_identifier: "Audience" },
-      );
-      await expectFlashRedirect(
-        "/admin/attributes",
-        "Attribute deleted",
-      )(response);
-      expect(await getAttributeWithOptions(attribute.id)).toBeNull();
     });
   });
 

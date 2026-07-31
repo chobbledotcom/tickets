@@ -14,6 +14,7 @@ import {
   expectCanReallySend,
   fillInAndSend,
   optionsOffered,
+  requireCheckboxOffered,
   takeDownFromActions,
   tickedCheckboxes,
   whyValueCannotBeSent,
@@ -262,6 +263,32 @@ describe("the days a page has ticked", () => {
       expect(() =>
         checkboxValueOffered("<p>nothing</p>", "bookable_alone"),
       ).toThrow("The page offers no bookable_alone box to tick");
+    });
+  });
+
+  describe("requiring the box that sends one exact value", () => {
+    const boxes =
+      '<input type="checkbox" name="option_ids" value="4">' +
+      '<input type="checkbox" name="option_ids" value="7">';
+
+    test("passes when the page offers a box sending that value", () => {
+      expect(() =>
+        requireCheckboxOffered(boxes, "option_ids", "7"),
+      ).not.toThrow();
+    });
+
+    test("throws naming the offered values when the box is missing", () => {
+      expect(() => requireCheckboxOffered(boxes, "option_ids", "9")).toThrow(
+        'The page offers no option_ids box sending "9" (offered: 4, 7)',
+      );
+    });
+
+    test("says when the page offers no boxes at all", () => {
+      expect(() =>
+        requireCheckboxOffered("<p>nothing</p>", "option_ids", "9"),
+      ).toThrow(
+        'The page offers no option_ids box sending "9" (offered: none)',
+      );
     });
   });
 
