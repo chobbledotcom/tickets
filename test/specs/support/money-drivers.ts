@@ -4,7 +4,6 @@ import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { paymentsApi } from "#shared/payments.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
@@ -15,6 +14,7 @@ import {
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 // jscpd:ignore-end
 
 // -- Public-payment driver (mirrors server-payments-success.test.ts) ------ //
@@ -55,17 +55,16 @@ export const withStripeSuccess = async (
     },
     order.total,
   );
-  const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: order.total,
-      id: sessionId,
-      metadata,
-      payment_intent: order.paymentIntent,
-      payment_status: "paid",
-    } as unknown as Awaited<
-      ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
-  );
+  // Both reads a paid session needs: the session, and the charge behind it.
+  // Stubbing only the session leaves the real charge lookup running, and the
+  // payment cannot be resolved without it.
+  const mockRetrieve = stubRetrieveCheckoutSession({
+    amountTotal: order.total,
+    metadata,
+    paymentIntent: order.paymentIntent,
+    paymentStatus: "paid",
+    sessionId,
+  });
   try {
     await body(
       await handleRequest(

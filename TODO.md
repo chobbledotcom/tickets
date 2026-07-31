@@ -35,6 +35,10 @@ knows which API this branch means to keep:
 - **The provider interface.** This branch renamed `refundPayment` to
   `refundCharge`, returning a `RefundResolution`. Main's
   `test/specs/support/money-drivers.ts` still stubs `refundPayment` (1 error).
+  This one also breaks stories at run time, not only type checking: because the
+  stub misses, the real refund runs and this branch's charge matching turns it
+  away with "Stripe refund … does not match charge …". Fixing the name is not
+  enough — `withRefundMock` has to answer with a refund the charge recognises.
 - **The captured checkout.** `stubCheckout().getCaptured()` now hands back a
   `PaymentCheckoutCreateSnapshot`, while this branch's
   `test/specs/support/shown-code.ts` reads a `CheckoutIntent` (1 error).
@@ -46,6 +50,12 @@ knows which API this branch means to keep:
 Taking main's version of the spec-support money files leaves those 10. Taking
 this branch's version instead leaves 61, because the rest of the spec suite has
 moved to main's `listings.ts` helpers. The 10-error state is the one committed.
+
+One story failure has already been fixed and is not part of the above: paid
+checkouts were answering 400 because main's driver stubbed
+`retrieveCheckoutSession` while this branch reads `lookupCheckoutSession` and
+the charge behind it. The driver now uses the shared `stubRetrieveCheckoutSession`
+helper, which stands in for both reads.
 
 Starting point: `deno task typecheck`, then decide per bullet whether this
 branch's API supersedes main's or should be dropped in its favour. Rewrite
