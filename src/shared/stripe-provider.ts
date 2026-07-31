@@ -37,13 +37,19 @@ type StripeCheckoutCompletedEvent = Pick<
 const toValidatedSession = (
   session: StripeCheckoutSession,
 ): ValidatedPaymentSession | null => {
-  const { amount_total, id, metadata, payment_intent, payment_status } =
-    session;
-  if (!hasRequiredSessionMetadata(metadata) || amount_total === null)
-    return null;
+  const {
+    amount_total,
+    currency,
+    id,
+    metadata,
+    payment_intent,
+    payment_status,
+  } = session;
+  if (!hasRequiredSessionMetadata(metadata)) return null;
   return validatedPaymentSession({
     amountTotal: amount_total,
     createdAt: isoFromUnixSeconds(session.created),
+    currency: currency ?? null,
     id,
     metadata,
     paymentReference: payment_intent ?? "",

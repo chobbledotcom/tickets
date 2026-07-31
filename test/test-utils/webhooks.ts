@@ -35,6 +35,7 @@ export const checkoutSessionEvent = (opts: {
     object: {
       amount_total: opts.amountTotal,
       created: opts.created ?? 1_700_000_000,
+      currency: "gbp",
       id: opts.sessionId,
       metadata: opts.metadata,
       payment_intent: opts.paymentIntent ?? null,
@@ -319,6 +320,8 @@ export const stubRetrieveCheckoutSession = (
   stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
       amount_total: session.amountTotal,
+      created: 1_700_000_000,
+      currency: "gbp",
       id: session.sessionId,
       metadata:
         "metadata" in session
@@ -333,6 +336,7 @@ export const stubRetrieveCheckoutSession = (
             ),
       payment_intent: session.paymentIntent,
       payment_status: session.paymentStatus ?? "paid",
+      url: null,
     } as unknown as Awaited<
       ReturnType<typeof stripeApi.retrieveCheckoutSession>
     >),

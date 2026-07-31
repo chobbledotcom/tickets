@@ -199,7 +199,9 @@ export type ValidatedPaymentSession = {
   id: string;
   paymentStatus: PaymentStatus;
   paymentReference: string;
-  /** Total amount charged in smallest currency unit (cents), from the payment provider */
+  /** Total amount charged in smallest currency unit (cents), from the payment provider.
+   *  Validated at the provider boundary alongside its currency, so a malformed
+   *  amount never reaches a callback. */
   amountTotal: number;
   metadata: SessionMetadata;
   /**

@@ -30,6 +30,7 @@ export const stripeCheckoutSession = (
 ): StripeCheckoutSession => ({
   amount_total: 1000,
   created: 123,
+  currency: "gbp",
   id: "cs_test",
   metadata: {},
   payment_intent: "pi_test",

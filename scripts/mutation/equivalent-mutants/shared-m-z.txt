@@ -21,9 +21,10 @@ src/shared/payments.ts:379:44  ?? → ||   # getConfiguredProvider() is a provid
 src/shared/request-scoped.ts:130:35  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:198:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts:569:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts:628:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts:119:26  true → false    # safeAsync getValue returns true; guardedWithValue only null-checks it, and the inner fn () => fn() ignores the value, so true/false are indistinguishable
+src/shared/payment-helpers.ts:205:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:576:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:635:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
@@ -223,6 +224,11 @@ src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separat
 # SumUp client: values that are never falsy apart from null.
 src/shared/sumup.ts:215:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
 src/shared/sumup.ts:254:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+# SumUp provider verifyWebhookSignature: parsed.id / parsed.event_type are string|undefined, and their only falsy non-null value is "" — the fallback itself.
+src/shared/sumup-provider.ts:139:27  ?? → ||   # parsed.id is string|undefined; "" is the fallback, so ?? and || agree
+src/shared/sumup-provider.ts:144:34  ?? → ||   # parsed.event_type is string|undefined; "" is the fallback, so ?? and || agree
+# Stripe provider: payment_intent is nullable(NonEmptyText), so its only non-null values are non-empty; ?? "" and || "" agree.
+src/shared/stripe-provider.ts:55:37  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while

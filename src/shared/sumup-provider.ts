@@ -46,14 +46,16 @@ const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
 
 /** Build a validated session from a fetched checkout and its staged metadata.
  * The metadata was written by our own buildItemsMetadata, so it always carries
- * the required fields. */
+ * the required fields. Returns null when the checkout's charge or resource id
+ * is malformed (the boundary validates both). */
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession =>
+): ValidatedPaymentSession | null =>
   validatedPaymentSession({
     amountTotal: checkout.amountMinor,
     createdAt: toCanonicalIso(checkout.createdAt),
+    currency: checkout.currency,
     id: checkout.reference,
     metadata: metadata as SessionMetadata,
     paymentReference: checkout.transactionId,
@@ -93,6 +95,8 @@ export const sumupPaymentProvider: PaymentProvider = {
     // Non-null: the pre-filter just matched this id to a staging row
     const stored = (await getSumupCheckout(checkout.reference))!;
     const session = buildValidatedSession(checkout, stored.metadata);
+    // A malformed charge the boundary refused: nothing to process.
+    if (!session) return null;
     // Not yet (or never) paid: acknowledge without processing.
     return session.paymentStatus === "paid" ? session : "skip";
   },

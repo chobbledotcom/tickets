@@ -104,6 +104,8 @@ describeWithEnv(
       // This happens when validatePaidSession fails (no refund attempt)
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 0,
+          currency: "gbp",
           id: "cs_plain_error",
           metadata: {
             email: "john@example.com",

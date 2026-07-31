@@ -308,6 +308,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 1000,
+          currency: "gbp",
           id: "cs_bad_multi",
           metadata: {
             email: "bad@example.com",

@@ -248,13 +248,14 @@ describe("payment-helpers", () => {
     const session = validatedPaymentSession({
       amountTotal: 1000,
       createdAt,
+      currency: "GBP",
       id: "session-1",
       metadata: { items: "[]", name: "Alice" } as SessionMetadata,
       paymentReference: "payment-1",
       paymentStatus: "paid",
     });
 
-    expect(session.createdAt).toBe(createdAt);
+    expect(session?.createdAt).toBe(createdAt);
   });
 
   test("parseWebhookPayload returns the invalid JSON error", () => {

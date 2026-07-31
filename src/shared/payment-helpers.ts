@@ -19,9 +19,16 @@ import type {
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { parseDateMs } from "#shared/dates.ts";
-import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
-import { logDebug, logError } from "#shared/logger.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  ErrorCode,
+  type ErrorCodeType,
+  type LogCategory,
+  logDebug,
+  logError,
+} from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
+import { money } from "#shared/payment/money.ts";
 import {
   PAYMENT_PROVIDERS,
   type PaymentProviderMeta,
@@ -703,26 +710,55 @@ export const extractSessionMetadata = (
 
 /**
  * Assemble the one ValidatedPaymentSession shape every provider adapter
- * returns. Owns the createdAt rule — the key is left out entirely when the
- * provider gave no usable timestamp — and normalizes the guarded wire metadata
- * into the canonical shape. `metadata` must already have passed
- * hasRequiredSessionMetadata (or come from our own staged checkout row).
+ * returns, validating the charge's money and resource id at this single
+ * boundary so every callback reads a well-formed charge. Owns the createdAt
+ * rule — the key is left out entirely when the provider gave no usable
+ * timestamp — and normalizes the guarded wire metadata into the canonical
+ * shape. `metadata` must already have passed hasRequiredSessionMetadata (or
+ * come from our own staged checkout row).
+ *
+ * Returns `null` when the charge is malformed: an amount that is not a
+ * non-negative safe whole number, a currency that is not three letters, or —
+ * for a session the provider says was paid — a blank provider resource id. A
+ * free session (`no_payment_required`) carries no resource id, so a blank one
+ * is allowed only when no money was captured.
  */
 export const validatedPaymentSession = (fields: {
-  amountTotal: number;
+  amountTotal: number | null;
+  currency: string | null;
   createdAt: string | undefined;
   id: string;
   metadata: SessionMetadata;
   paymentReference: string;
   paymentStatus: ValidatedPaymentSession["paymentStatus"];
-}): ValidatedPaymentSession => ({
-  amountTotal: fields.amountTotal,
-  ...(fields.createdAt !== undefined ? { createdAt: fields.createdAt } : {}),
-  id: fields.id,
-  metadata: extractSessionMetadata(fields.metadata),
-  paymentReference: fields.paymentReference,
-  paymentStatus: fields.paymentStatus,
-});
+}): ValidatedPaymentSession | null => {
+  // A site has one currency, fixed at setup, so a charge the provider returns
+  // without a currency is the site's; a currency it does give that is not three
+  // letters is corrupt wire data. Both are settled here alongside the amount:
+  // a malformed amount or currency is refused, a missing currency is the site's.
+  const charge = money(
+    fields.amountTotal,
+    fields.currency ?? settings.currency,
+  );
+  if (charge === null) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
+    });
+    return null;
+  }
+  // A paid charge's resource id is not refused here — a captured charge must be
+  // kept and surfaced to the operator, never dropped; the refund path (tryRefund)
+  // is what refuses to act on a blank id.
+  return {
+    amountTotal: charge.amount,
+    ...(fields.createdAt !== undefined ? { createdAt: fields.createdAt } : {}),
+    id: fields.id,
+    metadata: extractSessionMetadata(fields.metadata),
+    paymentReference: fields.paymentReference,
+    paymentStatus: fields.paymentStatus,
+  };
+};
 
 /** The payload/signature pair a test POSTs to a provider webhook route. */
 export type SignedTestWebhook = { payload: string; signature: string };

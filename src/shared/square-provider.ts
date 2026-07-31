@@ -136,6 +136,7 @@ export const squarePaymentProvider: PaymentProvider = {
     return validatedPaymentSession({
       amountTotal: Number(order.totalMoney.amount),
       createdAt: toCanonicalIso(order.createdAt),
+      currency: order.totalMoney.currency,
       id: order.id,
       metadata,
       paymentReference,

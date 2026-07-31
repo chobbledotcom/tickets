@@ -20,6 +20,7 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { isResourceId } from "#shared/payment/resource-id.ts";
 import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
@@ -57,7 +58,11 @@ export const tryRefund = async (
   paymentReference: string,
   listingId?: number,
 ): Promise<boolean> => {
-  if (!paymentReference) return false;
+  // A blank or whitespace-only provider resource id names no charge to refund,
+  // so the refund is refused before any provider call. This is the one place the
+  // live callbacks reject a blank provider resource id — consistently, whatever
+  // the provider, because every refund goes through here.
+  if (!isResourceId(paymentReference)) return false;
 
   const provider = await getPaymentProviderOrLog(
     ErrorCode.PAYMENT_REFUND,

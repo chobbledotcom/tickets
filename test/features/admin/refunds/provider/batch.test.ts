@@ -28,8 +28,8 @@ const pendingCandidate = (
 ): RefundCandidate => ({
   attendee: { id: attendeeId } as RefundCandidate["attendee"],
   references: references.map((reference) => ({
-    providerRefunded: false,
     reference,
+    refundState: "none" as const,
     sessionIds: [] as string[],
   })) as RefundPaymentReference[],
 });

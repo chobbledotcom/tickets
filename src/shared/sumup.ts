@@ -46,6 +46,8 @@ export type SumupCheckout = {
   status: CheckoutSuccess["status"];
   /** Total amount in the app's minor units. */
   amountMinor: number;
+  /** The three-letter currency the checkout was taken in (upper-cased). */
+  currency: string;
   /** Transaction id of the completing payment (refund/payment reference). */
   transactionId: string;
   /** Checkout creation time (ISO 8601), from SumUp's `date` field. */
@@ -116,6 +118,7 @@ const sumupKeyError = (err: unknown): string => {
 const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => ({
   amountMinor: toMinorUnits(c.amount!),
   createdAt: c.date,
+  currency: (c.currency ?? "").toUpperCase(),
   reference: c.checkout_reference!,
   status: c.status,
   transactionId:

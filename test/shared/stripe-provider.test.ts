@@ -205,7 +205,7 @@ describeStripe("stripe-provider", () => {
                 items: '[{"e":10,"q":3,"p":0}]',
                 name: "Amount User",
               },
-              payment_intent: null,
+              payment_intent: "pi_with_amount",
             }),
           ),
         async () => {
@@ -213,7 +213,7 @@ describeStripe("stripe-provider", () => {
             await stripePaymentProvider.retrieveSession("cs_with_amount");
           expect(result).not.toBeNull();
           expect(result?.amountTotal).toBe(4500);
-          expect(result?.paymentReference).toBe("");
+          expect(result?.paymentReference).toBe("pi_with_amount");
         },
       );
     });

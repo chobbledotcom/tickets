@@ -98,6 +98,7 @@ describe("sumup", () => {
           Promise.resolve({
             amount: 12.5,
             checkout_reference: "ref_a",
+            currency: "GBP",
             status: "PAID",
             transaction_id: "txn_a",
           }),
@@ -106,6 +107,7 @@ describe("sumup", () => {
         const result = await retrieveCheckoutById("co_a");
         expect(result).toEqual({
           amountMinor: 1250,
+          currency: "GBP",
           reference: "ref_a",
           status: "PAID",
           transactionId: "txn_a",

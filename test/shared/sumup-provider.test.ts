@@ -21,6 +21,7 @@ const META = {
 /** A SumUp checkout with overridable fields (defaults: paid, reference "ref"). */
 const checkout = (over: Partial<SumupCheckout> = {}): SumupCheckout => ({
   amountMinor: 1000,
+  currency: "GBP",
   reference: "ref",
   status: "PAID",
   transactionId: "txn",
@@ -244,6 +245,15 @@ describe("sumup-provider", () => {
     test("returns null when the checkout cannot be fetched", async () => {
       await stageCheckout();
       await withFetched(null, async () => {
+        expect(
+          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+        ).toBeNull();
+      });
+    });
+
+    test("returns null when the checkout carries a malformed charge", async () => {
+      await stageCheckout();
+      await withFetched(checkout({ currency: "GB" }), async () => {
         expect(
           await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
         ).toBeNull();
