@@ -170,8 +170,8 @@ describeWithEnv(
         const page = await makePage("Guarded page", "guardp");
         const image = await makeImage("Guarded image");
         await appendImageToItem(image.id, {
-          itemId: page.id,
-          itemType: "page",
+          id: page.id,
+          kind: "page",
         });
         const managerCookie = await createTestManagerSession();
 

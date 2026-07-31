@@ -42,8 +42,8 @@ describeWithEnv(
         const listing = await createTestListing({ name: "Image listing" });
         const group = await createTestGroup({ name: "Image group" });
         await setItemsForImage(image.id, [
-          { itemId: listing.id, itemType: "listing" },
-          { itemId: group.id, itemType: "group" },
+          { id: listing.id, kind: "listing" },
+          { id: group.id, kind: "group" },
         ]);
 
         await expectHtmlResponse(

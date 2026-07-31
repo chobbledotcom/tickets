@@ -28,6 +28,7 @@ import {
   updateSitePage,
 } from "#shared/db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
+import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import type { SitePage } from "#shared/types.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
@@ -344,7 +345,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("deleteSitePageWithEdges prunes the page's image uses but keeps the images", async () => {
       const page = await makePage("with-image");
       const image = await makeImage("Page hero");
-      await appendImageToItem(image.id, { itemId: page.id, itemType: "page" });
+      await appendImageToItem(image.id, { id: page.id, kind: "page" });
       expect((await getImagesForItem("page", page.id)).length).toBe(1);
 
       await deleteSitePageWithEdges(page.id);
@@ -369,7 +370,9 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const p2 = await makePage("h2");
       await addPageItem(p1.id, "listing", 50);
       await addPageItem(p2.id, "listing", 50);
-      await executeBatch([clearItemEdgesStatement("listing", 50)]);
+      await executeBatch([
+        clearItemEdgesStatement(sitePageItemTargets.of("listing")(50)),
+      ]);
       invalidatePageItemsCache();
       const edges = await getAllPageItems();
       expect(

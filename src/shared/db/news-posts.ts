@@ -35,6 +35,7 @@ import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
+  imageUseTargets,
 } from "#shared/db/images.ts";
 import { readRows } from "#shared/db/read.ts";
 import {
@@ -260,6 +261,6 @@ export const updateNewsPost = async (
  * the library — only the uses are pruned, as with listing/group deletion). */
 export const deleteNewsPostWithImages = (id: number): Promise<void> =>
   executeBatch([
-    clearImageUsesForItemStatement("news", id),
+    clearImageUsesForItemStatement(imageUseTargets.of("news")(id)),
     { args: [id], sql: "DELETE FROM news_posts WHERE id = ?" },
   ]);

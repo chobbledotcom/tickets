@@ -141,8 +141,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
     test("projects the broken-image marker for a broken linked image", async () => {
       const post = await createTestNewsPost("Broken picture post");
       await appendImageToItem(await insertBrokenImage(), {
-        itemId: post.id,
-        itemType: "news",
+        id: post.id,
+        kind: "news",
       });
 
       const cards = await getNewsPostCards();
@@ -304,7 +304,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
     test("removes the post and prunes its image uses, keeping the images", async () => {
       const post = await createTestNewsPost("Doomed");
       const image = await makeImage("Kept Image");
-      await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
+      await appendImageToItem(image.id, { id: post.id, kind: "news" });
       expect(await getImagesForItem("news", post.id)).toHaveLength(1);
 
       await deleteNewsPostWithImages(post.id);
@@ -323,7 +323,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
 const makeImageOrder = async (postId: number) => {
   const first = await makeImage("Card First");
   const second = await makeImage("Card Second");
-  await appendImageToItem(first.id, { itemId: postId, itemType: "news" });
-  await appendImageToItem(second.id, { itemId: postId, itemType: "news" });
+  await appendImageToItem(first.id, { id: postId, kind: "news" });
+  await appendImageToItem(second.id, { id: postId, kind: "news" });
   return [first, second] as const;
 };

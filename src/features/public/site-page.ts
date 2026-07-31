@@ -21,7 +21,7 @@ import {
 } from "#shared/db/site-pages.ts";
 import { requirePublicSite } from "#shared/public-site.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { targetKey } from "#shared/site-pages/core.ts";
+import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
 import { publicNavProps } from "./site-nav.ts";
 
@@ -69,7 +69,8 @@ const handleSitePage = async (slug: string): Promise<Response> => {
   return renderContentPage(
     page,
     "page",
-    (found) => targetKey("page", found.id),
+    (found) =>
+      sitePageItemTargets.key(sitePageItemTargets.of("page")(found.id)),
     sitePagePage,
   );
 };

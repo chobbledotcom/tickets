@@ -10,6 +10,7 @@ import {
   getImageFilenamesForItem,
   getImagesForItem,
   imagesTable,
+  imageUseTargets,
   setImagesForItem,
   setItemsForImage,
 } from "#shared/db/images.ts";
@@ -148,7 +149,9 @@ describeWithEnv("db > images", { db: true }, () => {
       ]);
 
       await executeBatch([
-        clearImageUsesForItemStatement("listing", listing.id),
+        clearImageUsesForItemStatement(
+          imageUseTargets.of("listing")(listing.id),
+        ),
       ]);
       expect(await linkedImageIds("listing", listing.id)).toEqual([]);
     });
@@ -160,12 +163,12 @@ describeWithEnv("db > images", { db: true }, () => {
       await setImagesForItem("listing", listing.id, [existing.id]);
 
       await appendImageToItem(uploaded.id, {
-        itemId: listing.id,
-        itemType: "listing",
+        id: listing.id,
+        kind: "listing",
       });
       await appendImageToItem(uploaded.id, {
-        itemId: listing.id,
-        itemType: "listing",
+        id: listing.id,
+        kind: "listing",
       });
 
       expect(await linkedImageIds("listing", listing.id)).toEqual([
@@ -226,10 +229,10 @@ describeWithEnv("db > images", { db: true }, () => {
       await setImagesForItem("listing", listing.id, [existing.id]);
 
       await setItemsForImage(image.id, [
-        { itemId: listing.id, itemType: "listing" },
-        { itemId: listing.id, itemType: "listing" },
-        { itemId: group.id, itemType: "group" },
-        { itemId: 9999, itemType: "group" },
+        { id: listing.id, kind: "listing" },
+        { id: listing.id, kind: "listing" },
+        { id: group.id, kind: "group" },
+        { id: 9999, kind: "group" },
       ]);
 
       expect(await linkedImageIds("listing", listing.id)).toEqual([
@@ -252,9 +255,7 @@ describeWithEnv("db > images", { db: true }, () => {
       const trailing = await makeImage("Trailing");
       await setImagesForItem("listing", listing.id, [edited.id, trailing.id]);
 
-      await setItemsForImage(edited.id, [
-        { itemId: listing.id, itemType: "listing" },
-      ]);
+      await setItemsForImage(edited.id, [{ id: listing.id, kind: "listing" }]);
 
       expect(await linkedImageIds("listing", listing.id)).toEqual([
         edited.id,
@@ -267,8 +268,8 @@ describeWithEnv("db > images", { db: true }, () => {
       const group = await createTestGroup({ name: "Unlinked group" });
       const image = await makeImage("Unlinked");
       await setItemsForImage(image.id, [
-        { itemId: listing.id, itemType: "listing" },
-        { itemId: group.id, itemType: "group" },
+        { id: listing.id, kind: "listing" },
+        { id: group.id, kind: "group" },
       ]);
 
       await setItemsForImage(image.id, []);

@@ -1,11 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import {
-  buildForest,
-  buildNavModel,
-  targetKey,
-} from "#shared/site-pages/core.ts";
+import { buildForest, buildNavModel } from "#shared/site-pages/core.ts";
 import type { TargetMap } from "#shared/site-pages/types.ts";
 import {
   PublicNav,
@@ -14,6 +10,7 @@ import {
 } from "#templates/public/shared.tsx";
 import {
   navEdge as edge,
+  navKey,
   navPage as page,
 } from "#test/test-utils/site-pages/nav-fixtures.ts";
 
@@ -33,7 +30,7 @@ const props = (live: boolean): PublicNavProps => {
   );
   const targets: TargetMap = new Map([
     [
-      targetKey("listing", 7),
+      navKey("listing", 7),
       { href: "/ticket/leaf", label: "Leaf Listing", live },
     ],
   ]);
@@ -42,7 +39,7 @@ const props = (live: boolean): PublicNavProps => {
     hasNews: false,
     hasOrder: false,
     hasTerms: true,
-    pages: buildNavModel(forest, targets, targetKey("listing", 7)),
+    pages: buildNavModel(forest, targets, navKey("listing", 7)),
   };
 };
 

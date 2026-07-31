@@ -4,19 +4,13 @@ import {
   attendeeNotes,
   groupNotesByTargetId,
   NOTE_ENTITIES,
-  targetsSelectedBy,
-  targetsWhere,
-  targetWhere,
+  noteTargets,
 } from "#shared/db/notes/target.ts";
-import {
-  clauseArgs,
-  rowsUnlessNoneMatch,
-  whereSql,
-} from "#shared/db/where-clauses.ts";
+import { clauseArgs, whereSql } from "#shared/db/where-clauses.ts";
 
 describe("what a note is about", () => {
   test("names a record by its kind and its id", () => {
-    expect(attendeeNotes(7)).toEqual({ entity: "attendee", id: 7 });
+    expect(attendeeNotes(7)).toEqual({ id: 7, kind: "attendee" });
   });
 
   test("lists the kinds of record a note can be about", () => {
@@ -25,43 +19,10 @@ describe("what a note is about", () => {
     expect([...NOTE_ENTITIES]).toEqual(["attendee"]);
   });
 
-  test("asks for one record by both of its parts", () => {
-    const where = targetWhere(attendeeNotes(4));
+  test("asks for a note's record by the columns notes store it in", () => {
+    const where = noteTargets.where(attendeeNotes(4));
     expect(whereSql(where)).toBe(" WHERE entity_type = ? AND entity_id = ?");
     expect(clauseArgs(where)).toEqual(["attendee", 4]);
-  });
-
-  test("asks for several records of one kind in one go", () => {
-    const where = targetsWhere("attendee", [4, 5]);
-    expect(whereSql(where)).toBe(
-      " WHERE entity_type = ? AND entity_id IN (?, ?)",
-    );
-    expect(clauseArgs(where)).toEqual(["attendee", 4, 5]);
-  });
-
-  test("asking about no records is a question no row can answer", async () => {
-    // The reader sees this and skips the round trip, rather than building
-    // `IN ()` — SQL no database accepts.
-    let asked = false;
-    const rows = await rowsUnlessNoneMatch(targetsWhere("attendee", []), () => {
-      asked = true;
-      return Promise.resolve([{ id: 1 }]);
-    });
-
-    expect(rows).toEqual([]);
-    expect(asked).toBe(false);
-  });
-
-  test("keeps the subquery's own arguments after the kind", () => {
-    const where = targetsSelectedBy("attendee", {
-      args: [12],
-      sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
-    });
-    expect(whereSql(where)).toBe(
-      " WHERE entity_type = ? AND entity_id IN" +
-        " (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?)",
-    );
-    expect(clauseArgs(where)).toEqual(["attendee", 12]);
   });
 
   test("groups notes by the record they are about, keeping their order", () => {
