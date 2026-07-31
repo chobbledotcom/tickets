@@ -16,6 +16,7 @@ import { listingNamed } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import {
+  keepsAnswerAs,
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -71,18 +72,18 @@ const CUSTOMER = { email: "quoter@example.com", name: "Quote Asker" };
  * stands ready, the page is opened, and the rest is what the journey does
  * with the code the customer holds. */
 const fromBookingPage =
-  (
+  <Answer>(
     journey: (
       world: TicketsWorld,
       browser: TestBrowser,
       code: string,
-    ) => Promise<void>,
+    ) => Promise<Answer>,
   ) =>
   async (
     world: TicketsWorld,
     listingName: string,
     code: string,
-  ): Promise<void> => {
+  ): Promise<Answer> => {
     await setupStripe();
     return journey(
       world,
@@ -91,29 +92,32 @@ const fromBookingPage =
     );
   };
 
-/** The customer fills the booking page in with a code and presses the page's
- * own "Show total" button. Only the summary table is kept: the form around it
- * still holds whatever the customer typed, which is not the site telling them
- * anything about it. */
-export const customerAsksPrice = fromBookingPage(
-  async (world, browser, code) => {
-    await fillInAndSend(
-      browser,
-      { ...CUSTOMER, promo_code: code },
-      "Show total",
-    );
-    world.things.remember(
-      "told",
-      "price summary",
-      requiredWorldValue(
-        browser.currentHtml.match(
-          /<table class="order-summary">[\s\S]*?<\/table>/,
-        )?.[0],
-        "the price summary",
-      ),
-    );
-  },
+/** Fill the booking page in with a code and press its own "Show total"
+ * button. What comes back is the site's whole answer, kept as sent — a word
+ * beside the table is as much a disclosure as a word inside it. */
+const askForTotal = async (
+  browser: TestBrowser,
+  code: string,
+): Promise<string> => {
+  await fillInAndSend(browser, { ...CUSTOMER, promo_code: code }, "Show total");
+  // A quote with no table is the site refusing to total the order, so the
+  // story stops here rather than reading a refusal as a summary.
+  requiredWorldValue(
+    browser.currentHtml.match(/<table class="order-summary">/)?.[0],
+    "the price summary",
+  );
+  return browser.currentHtml;
+};
+
+/** What the site answers when a place's price is asked for with a code — or,
+ * with the code left empty, without one. */
+export const quoteFor = fromBookingPage((_world, browser, code) =>
+  askForTotal(browser, code),
 );
+
+/** The customer asks what a place costs with the code they hold, and keeps
+ * the answer for the story to read. */
+export const customerAsksPrice = keepsAnswerAs("price summary", quoteFor);
 
 /** The summary the customer was last shown. */
 export const priceSummary = (world: TicketsWorld): string =>

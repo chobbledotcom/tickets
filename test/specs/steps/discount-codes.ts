@@ -11,6 +11,7 @@ import {
   expectDiscountLine,
   organiserCreatesCode,
   priceSummary,
+  quoteFor,
   summaryTotal,
 } from "#test/specs/support/discount-codes.ts";
 import { sellPlacesAt } from "#test/specs/support/money.ts";
@@ -109,6 +110,15 @@ Then(
   "the summary never names {string}",
   function (this: TicketsWorld, code: string): void {
     expect(priceSummary(this)).not.toContain(code);
+  },
+);
+
+Then(
+  "the summary reads exactly as it does for a {word} place with no code",
+  async function (this: TicketsWorld, listing: string): Promise<void> {
+    // Word for word the same answer as someone who typed nothing gets: not
+    // even a general "we don't know that code" can hide in the difference.
+    expect(priceSummary(this)).toBe(await quoteFor(this, listing, ""));
   },
 );
 

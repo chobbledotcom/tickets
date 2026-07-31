@@ -63,6 +63,7 @@ Feature: A customer books with a discount code
       Then the summary total is 10.00
       And the summary shows no discount line
       And the summary never names "TENOFF"
+      And the summary reads exactly as it does for a Pottery place with no code
 
   @rule:payments.the-books-remember-what-a-code-was-used-for
   @surface:webhook

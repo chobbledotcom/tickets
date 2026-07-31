@@ -18,6 +18,7 @@ import {
   type ActOnOneThing,
   type AsksAboutOneThing,
   asksIfThereIs,
+  keepsAnswerAs,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -171,17 +172,10 @@ export const ownerTakesPageDown: TakesOneThingDown = takesDownFromList(
 
 /** The owner tries to take a page down, and what they were told is kept for
  * the step that reads it back. */
-export const ownerTriesToTakePageDown = async (
-  world: TicketsWorld,
-  name: string,
-  typed: string,
-): Promise<void> => {
-  world.things.remember(
-    "told",
-    OWNER,
-    await ownerTakesPageDown(world, name, typed),
-  );
-};
+export const ownerTriesToTakePageDown = keepsAnswerAs(
+  OWNER,
+  ownerTakesPageDown,
+);
 
 /** What the owner was told the last time they wrote a page. */
 export const whatOwnerWasTold = (world: TicketsWorld): string =>

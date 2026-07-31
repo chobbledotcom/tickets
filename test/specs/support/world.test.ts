@@ -8,8 +8,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { namedThings } from "#test/specs/support/memory.ts";
 import {
   asksIfThereIs,
+  keepsAnswerAs,
   stillThere,
   type TicketsWorld,
   theBooking,
@@ -79,6 +81,29 @@ describe("the story's shared lookups", () => {
       });
       await asks(worldWith({}), "Parking");
       expect(asked).toEqual(["Parking"]);
+    });
+  });
+
+  describe("keeping what a journey answered", () => {
+    const worldRemembering = (): TicketsWorld =>
+      worldWith({ things: namedThings() });
+
+    test("keeps the answer under the name the story reads it by", async () => {
+      const world = worldRemembering();
+      await keepsAnswerAs("price summary", () => Promise.resolve("£9.00"))(
+        world,
+      );
+      expect(world.things.require("told", "price summary")).toBe("£9.00");
+    });
+
+    test("hands the journey the world and everything after it", async () => {
+      const given: unknown[] = [];
+      const world = worldRemembering();
+      await keepsAnswerAs("page", (...args: unknown[]) => {
+        given.push(...args);
+        return Promise.resolve("gone");
+      })(world, "Directions", "directions");
+      expect(given).toEqual([world, "Directions", "directions"]);
     });
   });
 });
