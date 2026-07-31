@@ -6,15 +6,16 @@
 
 import { expect } from "@std/expect";
 // jscpd:ignore-start
-import type { Stub } from "@std/testing/mock";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { WORLD } from "#shared/accounting/accounts.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
-import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
+import { scenarioBrowser } from "#test/specs/support/browser.ts";
+import { correctOnPage } from "#test/specs/support/corrections.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import {
   completePaidOrder,
+  refundByTyping,
   runStripeSuccess,
 } from "#test/specs/support/money-drivers.ts";
 import { attendeeLegsOfKind } from "#test/specs/support/money-reads.ts";
@@ -23,11 +24,8 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import {
-  type RefundBehavior,
-  withRefundMock,
-} from "#test-utils/refund-routes.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+// jscpd:ignore-end
 
 /** The booking the story is about. */
 export const bookingId = (world: TicketsWorld): number =>
@@ -37,10 +35,8 @@ export const bookingId = (world: TicketsWorld): number =>
 export const minorUnits = (pounds: string): number =>
   Math.round(Number(pounds) * 100);
 
-/** A listing that sells places at the given price, remembered by name. Money
- * stories read what the customer is shown, so they keep the site's own
- * thank-you page. */
-export const sellPlacesAt = (
+/** A listing that sells places at the given price, remembered by name. */
+export const sellPlacesAt = async (
   world: TicketsWorld,
   name: string,
   pounds: string,
@@ -129,30 +125,6 @@ export const buyPlaceWithExtra = async (
 export const bookingPagePath = (world: TicketsWorld, page: string): string =>
   `/admin/attendees/${bookingId(world)}/${page}`;
 
-/**
- * Give money back from a page that makes the organiser type a name to confirm.
- * The provider is stood in for, so a story can say which payments it turns
- * down. Answers with what the page said afterwards.
- */
-export const refundByTyping = async (
-  world: TicketsWorld,
-  page: { button: string; path: string; typed: string },
-  provider: RefundBehavior,
-): Promise<string> => {
-  const browser = await adminBrowser(world);
-  let said = "";
-  await withRefundMock(provider, async (mockRefund: Stub) => {
-    await browser.visit(page.path);
-    // The page must offer the confirm-by-typing box; the browser carries the
-    // page's own token and action, so a broken form fails here.
-    expect(browser.currentHtml).toContain('name="confirm_identifier"');
-    await browser.submitForm({ confirm_identifier: page.typed }, page.button);
-    said = browser.pageText;
-    world.refundCalls = () => mockRefund.calls.length;
-  });
-  return said;
-};
-
 /** Ask for a refund the way the organiser does: open the booking's refund page,
  * type the name it asks for into its own form, and submit that form. The
  * provider answers `succeeds`. Keeps how many times it was asked. */
@@ -163,8 +135,8 @@ export const askForRefund = async (
   await refundByTyping(
     world,
     {
-      button: "Refund Attendee",
-      path: bookingPagePath(world, "refund"),
+      buttonText: "Refund Attendee",
+      page: bookingPagePath(world, "refund"),
       typed: requiredWorldValue(world.attendeeName, "attendee name"),
     },
     succeeds,
@@ -179,13 +151,13 @@ export const correctIncomeTo = async (
   listingId: number,
   pounds: string,
 ): Promise<void> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${listingId}/edit`);
-  // The page must offer the correction box; the browser posts the form's own
-  // action and token, so a broken form fails here.
-  expect(browser.currentHtml).toContain('id="income"');
-  await browser.submitForm({ income: pounds }, "Save income correction");
-  expect(browser.containsText("Listing income corrected.")).toBe(true);
+  await correctOnPage(
+    world,
+    `/admin/listing/${listingId}/edit`,
+    "income",
+    pounds,
+    "Listing income corrected.",
+  );
 };
 
 /** A member of the public books one free place through the listing's own page. */

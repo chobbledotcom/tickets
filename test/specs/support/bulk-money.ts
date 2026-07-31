@@ -8,8 +8,11 @@
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
-import { minorUnits, refundByTyping } from "#test/specs/support/money.ts";
-import { runStripeSuccess } from "#test/specs/support/money-drivers.ts";
+import { minorUnits } from "#test/specs/support/money.ts";
+import {
+  refundByTyping,
+  runStripeSuccess,
+} from "#test/specs/support/money-drivers.ts";
 import {
   type ActOnSomeMoney,
   requiredWorldValue,
@@ -52,15 +55,16 @@ export const paidPlaceEach = async (
 /** The organiser refunds everyone from the listing's own refund-everyone page,
  * typing the listing name it asks for. The provider turns one payment down. */
 export const everyoneRefunded = async (world: TicketsWorld): Promise<void> => {
-  world.bulkRefundMessage = await refundByTyping(
+  const browser = await refundByTyping(
     world,
     {
-      button: "Refund All Attendees",
-      path: `/admin/listing/${theListing(world)}/refund-all`,
+      buttonText: "Refund All Attendees",
+      page: `/admin/listing/${theListing(world)}/refund-all`,
       typed: requiredWorldValue(world.confirmName, "the listing name to type"),
     },
     (paymentId: string) => Promise.resolve(paymentId !== DECLINED_PAYMENT),
   );
+  world.bulkRefundMessage = browser.pageText;
 };
 
 /** Who got their money back, and who the provider turned down. */
