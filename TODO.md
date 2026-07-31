@@ -20,6 +20,56 @@ everything still outstanding is captured below.
 
 ---
 
+## The payment rewrite does not have full test coverage yet
+
+*Origin: bringing `base/payment-aggregate` (#1962) up to date with main. The
+merge itself is finished and both the Deno suite (21,629 tests) and the
+Cucumber suite (181 scenarios) pass; `deno task test:coverage` does not.*
+
+The repository requires 100% line and branch coverage, and 26 files the payment
+rewrite added or reworked are short of it. None of them was touched by the
+merge repair — the gap belongs to the rewrite itself and predates that work —
+so it is written down here rather than papered over.
+
+Every one is a payment file. The largest are `webhooks.ts` (38 lines),
+`completion-refund.ts` (30) and `store-refund.ts` (16), and the shape is
+consistent: the paths that are missing are the unhappy ones — a provider that
+cannot be reached, a refund that comes back part-paid, a completion that has to
+be picked up again later. Those are exactly the branches that most want a test,
+because they are the ones nobody exercises by hand.
+
+Starting point: `deno task test:coverage`, then work down this list. Where a
+branch turns out to be unreachable, delete it rather than test it.
+
+- `src/features/admin/attendees-edit.ts` — lines: 144/150 covered; missing 232-237; branches: 27/28 covered; missing 234
+- `src/features/admin/attendees.ts` — lines: 271/278 covered; missing 85-90, 92; branches: 33/34 covered; missing 85
+- `src/features/admin/payments/form.ts` — lines: 109/113 covered; missing 148, 150-152; branches: 12/13 covered; missing 150
+- `src/features/api/payment-processing/completion-booking.ts` — lines: 174/190 covered; missing 60-61, 72-74, 211-213, 237-244; branches: 9/13 covered; missing 61, 72, 211, 238
+- `src/features/api/payment-processing/completion-deliveries.ts` — lines: 94/101 covered; missing 56, 59-60, 88-90, 92; branches: 13/16 covered; missing 56, 58, 90
+- `src/features/api/payment-processing/completion-refund.ts` — lines: 200/230 covered; missing 51, 69-74, 99-101, 103, 165-168, 190-192, 194, 241-248, 281-283; branches: 25/34 covered; missing 51, 70, 99, 165, 190, 242, 245, 281
+- `src/features/api/payment-processing/index.ts` — lines: 135/139 covered; missing 70-73; branches: 28/30 covered; missing 70, 72
+- `src/features/api/payment-processing/store-refund.ts` — lines: 142/158 covered; missing 116-118, 120-122, 183-185, 232-234, 236, 238-240; branches: 7/12 covered; missing 116, 120, 183, 232, 238
+- `src/features/api/webhooks.ts` — lines: 319/357 covered; missing 76, 78-80, 212-216, 225-232, 309-314, 329-331, 334-335, 337-340, 365-366, 385-388; branches: 96/110 covered; missing 76, 78, 154, 215, 227, 230, 309, 312, 329, 334, 337, 339, 365, 388
+- `src/shared/accounting/queries.ts` — lines: 185/189 covered; missing 85-88
+- `src/shared/db/attendees/queries.ts` — lines: 187/194 covered; missing 366-367, 369-371, 373-374
+- `src/shared/db/migrations/legacy-payment-schema.ts` — lines: 203/207 covered; missing 169-172; branches: 26/27 covered; missing 171
+- `src/shared/db/notes/queries.ts` — lines: 103/104 covered; missing 51; branches: 8/9 covered; missing 51
+- `src/shared/db/payments/charges.ts` — lines: 246/257 covered; missing 278-283, 285, 334, 343-345; branches: 49/52 covered; missing 281, 334, 343
+- `src/shared/db/payments/completion-fence.ts` — lines: 42/49 covered; missing 9-12, 52-54; branches: 0/1 covered; missing 52
+- `src/shared/db/payments/decision-attempts.ts` — lines: 203/250 covered; missing 132-145, 147-151, 157-159, 161-171, 173-175, 177-181, 191, 195-199; branches: 48/55 covered; missing 148, 167, 179-180, 191, 195, 198
+- `src/shared/db/payments/decision-claim.ts` — lines: 119/126 covered; missing 59-61, 127, 133-135; branches: 4/7 covered; missing 59, 126, 133
+- `src/shared/db/payments/decision-completion.ts` — lines: 142/165 covered; missing 33-34, 49-55, 147-149, 153, 173-175, 229-231, 238-240, 242; branches: 16/24 covered; missing 32, 48, 53, 147, 153, 173, 229, 238
+- `src/shared/db/payments/legacy-copy.ts` — lines: 284/294 covered; missing 199-202, 204-206, 261-263; branches: 59/61 covered; missing 204, 261
+- `src/shared/db/payments/legacy-sessions.ts` — lines: 161/171 covered; missing 155-157, 159, 183-185, 263-265; branches: 9/12 covered; missing 155, 183, 263
+- `src/shared/db/payments/redaction.ts` — branches: 27/28 covered; missing 192
+- `src/shared/db/payments/sessions.ts` — lines: 170/180 covered; missing 93, 115-117, 128-129, 131-134; branches: 22/25 covered; missing 93, 115, 127
+- `src/shared/listings-actions.ts` — lines: 287/293 covered; missing 479-481, 492-494; branches: 115/117 covered; missing 479, 492
+- `src/shared/payment-runtime/operator-claim.ts` — lines: 119/142 covered; missing 23-25, 27, 49-64, 141-143; branches: 17/22 covered; missing 23, 48, 52, 54, 141
+- `src/shared/payment-runtime/operator.ts` — lines: 253/284 covered; missing 70-72, 80-82, 158-163, 175, 205-207, 239-242, 265-267, 270-271, 323-325, 329-331; branches: 58/68 covered; missing 70, 80, 161, 175, 205, 241, 265, 270, 323, 329
+- `src/shared/payment-runtime/process.ts` — lines: 238/259 covered; missing 128-130, 174-179, 201-203, 211-213, 282-283, 298, 319-321; branches: 60/67 covered; missing 128, 177, 201, 211, 282, 298, 321
+
+---
+
 ## Eight Codex findings on the payment aggregate base
 
 *Origin: Codex review of PR #1962 at commit `484b278d`, while that branch was
