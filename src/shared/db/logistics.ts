@@ -6,18 +6,18 @@
  * whether the operator entered one pair for the whole order (the common case)
  * or a distinct pair per delivered listing. These helpers keep the SQL for
  * that in one place, separate from the core attendee create/edit machinery.
+ *
+ * Run-sheet reads (which legs an agent owns on a given day, marking a leg
+ * done, the row-identity filter the agent check-in uses) live next door in
+ * `logistics-run-sheet.ts`.
  */
 
-import { compact, flatMap, uniqueBy } from "#fp";
-import { bookingSlotKey } from "#shared/db/attendees/booking-slot.ts";
 import {
-  execute,
   executeBatch,
   inPlaceholders,
   queryAll,
   update,
 } from "#shared/db/client.ts";
-import { columnFrom } from "#shared/db/query.ts";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for
@@ -52,11 +52,19 @@ export type AssignmentRow = {
   end_time: string;
 };
 
+/** Map a DB row to the assignment shape (shared by the read helpers). */
+const rowToAssignment = (row: AssignmentRow): LogisticsAssignment => ({
+  endAgentId: row.end_agent_id,
+  endTime: row.end_time,
+  startAgentId: row.start_agent_id,
+  startTime: row.start_time,
+});
+
 /** Map query rows that each carry an `attendee_id`/`listing_id` pair into a
- * result that always begins with the booking-ref fields plus caller-supplied
- * extra fields. Used by the read helpers so their `queryAll` + `rows.map`
- * pipeline shares one shape instead of being rewritten per call site. */
-const mapBookingRows = <
+ * result that always begins with those two camelCase fields plus caller-
+ * supplied extras. Shared with `logistics-run-sheet.ts` so the booking-ref
+ * prefix can't drift between the assignment read and the run-sheet read. */
+export const mapBookingRows = <
   Row extends { attendee_id: number; listing_id: number },
   Extra extends Record<string, unknown>,
 >(
@@ -68,14 +76,6 @@ const mapBookingRows = <
     listingId: row.listing_id,
     ...extend(row),
   }));
-
-/** Map a DB row to the assignment shape (shared by the read helpers). */
-const rowToAssignment = (row: AssignmentRow): LogisticsAssignment => ({
-  endAgentId: row.end_agent_id,
-  endTime: row.end_time,
-  startAgentId: row.start_agent_id,
-  startTime: row.start_time,
-});
 
 /** Build the stable key used to look up a booking's assignment. */
 export const bookingAssignmentKey = (
@@ -142,302 +142,6 @@ export const getLogisticsAssignmentsForAttendees = async (
     attendeeIds,
   );
   return mapBookingRows(rows, rowToAssignment);
-};
-
-/** Which leg of a delivery a run-sheet entry represents. */
-export type DeliveryLegKind = "start" | "end";
-
-/** One leg of a booking on an agent's run sheet: a drop-off (`start`) or a
- * collection (`end`) for a single logistics agent on a single calendar date. */
-export type AgentRunLeg = {
-  kind: DeliveryLegKind;
-  attendeeId: number;
-  listingId: number;
-  agentId: number;
-  /** Calendar date of this leg (YYYY-MM-DD): the drop-off date for a `start`
-   * leg, and the last booked day (`end_at - 1 day`) for an `end` leg. */
-  date: string;
-  /** Logistics time label ("" when unset). */
-  time: string;
-  done: boolean;
-};
-
-type RunSheetRow = AssignmentRow & {
-  start_done: number;
-  end_done: number;
-  start_date: string | null;
-  end_date: string | null;
-};
-
-/** Build the run-sheet leg of one `kind` for a row, or null when that leg's
- * agent or date falls outside the requested sets. */
-const buildLeg = (
-  row: RunSheetRow,
-  kind: DeliveryLegKind,
-  agentSet: Set<number>,
-  dateSet: Set<string>,
-): AgentRunLeg | null => {
-  const isStart = kind === "start";
-  const agentId = isStart ? row.start_agent_id : row.end_agent_id;
-  const date = isStart ? row.start_date : row.end_date;
-  if (agentId === null || !agentSet.has(agentId)) return null;
-  if (date === null || !dateSet.has(date)) return null;
-  return {
-    agentId,
-    attendeeId: row.attendee_id,
-    date,
-    done: (isStart ? row.start_done : row.end_done) === 1,
-    kind,
-    listingId: row.listing_id,
-    time: isStart ? row.start_time : row.end_time,
-  };
-};
-
-const runSheetLegWhere = (
-  sourceName: string,
-  agentPlaceholders: string,
-  datePlaceholders: string,
-): string => {
-  const column = columnFrom(sourceName);
-  return `((${column("start_agent_id")} IN (${agentPlaceholders}) AND DATE(${column("start_at")}) IN (${datePlaceholders}))
-        OR (${column("end_agent_id")} IN (${agentPlaceholders}) AND DATE(${column("end_at")}, '-1 day') IN (${datePlaceholders})))
-        AND ${column("quantity")} > 0`;
-};
-
-/** Collapse the identical legs a multi-path booking yields (a listing booked
- * through a package beside its standalone or second-package row is several
- * `listing_attendees` rows) into ONE run-sheet entry: the agents, dates and
- * times are written per listing and {@link setLegDone} completes every path
- * row together, so the paths are one physical drop-off/collection. A collapsed
- * leg reads done only when EVERY path row is done — a path added after the
- * run was ticked resurfaces as outstanding. */
-const collapseDuplicateLegs = (legs: AgentRunLeg[]): AgentRunLeg[] => {
-  const byIdentity = new Map<string, AgentRunLeg>();
-  for (const leg of legs) {
-    const key = [
-      leg.attendeeId,
-      leg.listingId,
-      leg.kind,
-      leg.agentId,
-      leg.date,
-      leg.time,
-    ].join("|");
-    const seen = byIdentity.get(key);
-    byIdentity.set(
-      key,
-      seen === undefined ? leg : { ...seen, done: seen.done && leg.done },
-    );
-  }
-  return [...byIdentity.values()];
-};
-
-/**
- * Load the run-sheet legs for a set of logistics agents on the given calendar
- * dates. A booking contributes a `start` leg when its drop-off agent is one of
- * `agentIds` and its drop-off date is in `dates`, and likewise an `end` leg for
- * collection. Empty input yields no query.
- *
- * `end_at` is the exclusive end of the booked window (the first midnight after
- * it), so the collection happens on the *last booked day*, `end_at - 1 day`.
- * That makes a one-day hire collected the same day it is dropped off, a two-day
- * hire collected the next day, and so on. (Availability is unaffected: a hire
- * still occupies the listing for its whole `[start_at, end_at)` span.)
- */
-export const getAgentRunSheet = async (
-  agentIds: number[],
-  dates: string[],
-): Promise<AgentRunLeg[]> => {
-  if (agentIds.length === 0 || dates.length === 0) return [];
-  const sourceName = "listingAttendee";
-  const agentPlaceholders = inPlaceholders(agentIds);
-  const datePlaceholders = inPlaceholders(dates);
-  const rows = await queryAll<RunSheetRow>(
-    `SELECT attendee_id, listing_id, start_agent_id, end_agent_id,
-            start_time, end_time, start_done, end_done,
-            DATE(start_at) AS start_date, DATE(end_at, '-1 day') AS end_date
-     FROM listing_attendees AS ${sourceName}
-     WHERE ${runSheetLegWhere(sourceName, agentPlaceholders, datePlaceholders)}`,
-    [...agentIds, ...dates, ...agentIds, ...dates],
-  );
-  const agentSet = new Set(agentIds);
-  const dateSet = new Set(dates);
-  // Each booking row can yield a drop-off leg, a collection leg, or both.
-  return collapseDuplicateLegs(
-    flatMap((row: RunSheetRow) =>
-      compact([
-        buildLeg(row, "start", agentSet, dateSet),
-        buildLeg(row, "end", agentSet, dateSet),
-      ]),
-    )(rows),
-  );
-};
-
-const bookingRefKey = (booking: DeliveryBookingRef): string =>
-  bookingAssignmentKey(booking.attendeeId, booking.listingId);
-
-const bookingRefValues = (bookings: DeliveryBookingRef[]): string =>
-  bookings.map(() => "(?, ?)").join(", ");
-
-const bookingRefArgs = (bookings: DeliveryBookingRef[]): number[] =>
-  bookings.flatMap((booking) => [booking.attendeeId, booking.listingId]);
-
-/** A booking row matched on an agent's run sheet, with its full slot identity
- * (attendee + listing + date + parent + package) populated from the database
- * row. Two `listing_attendees` rows can share `(attendee_id, listing_id)` when
- * one attendee books the same listing twice — on different dates or through
- * different package paths — so a matched-row reply carries the slot dimensions
- * the caller needs to tell those rows apart, never just the attendee/listing
- * pair. Callers test an entry's row identity against this with
- * {@link runSheetBookingKey}. */
-export type RunSheetBooking = {
-  attendeeId: number;
-  listingId: number;
-  /** `DATE(start_at)` of the matched row (YYYY-MM-DD). Null only when the
-   * matched row has no `start_at` (a dateless, non-daily booking) — possible
-   * only via the collection leg, since the drop-off leg needs a `start_at`
-   * date. */
-  date: string | null;
-  parentListingId: number;
-  packageGroupId: number;
-};
-
-/** Stable row-identity key for one booking row: `attendeeId` plus the booking
- * slot key. Two `listing_attendees` rows cannot share this key, because the
- * (listing_id, attendee_id, start_at, parent_listing_id, package_group_id)
- * unique index uniquely identifies a row — and that is exactly what this joins.
- * Used on both sides of the agent-check-in filter so an attendee's matched row
- * never blesses a different row that happens to share the (attendee, listing)
- * pair. */
-export const runSheetBookingKey = (
-  booking: Readonly<
-    Pick<
-      RunSheetBooking,
-      "attendeeId" | "listingId" | "date" | "parentListingId" | "packageGroupId"
-    >
-  >,
-): string =>
-  `${booking.attendeeId}|${bookingSlotKey(
-    booking.listingId,
-    booking.date,
-    booking.parentListingId,
-    booking.packageGroupId,
-  )}`;
-
-/** The matched booking rows the agent may view: each row's full slot identity,
- * drawn from `listing_attendees` rows that have a drop-off or collection leg
- * owned by one of `agentIds` on one of `dates`. Callers filter their richer
- * rows (e.g. token entries) by testing each row's {@link runSheetBookingKey}
- * against the set built from these, so a multi-row attendee exposes only the
- * row whose leg the agent actually owns. */
-export const getAgentRunSheetBookings = async (
-  agentIds: number[],
-  dates: string[],
-  bookings: DeliveryBookingRef[],
-): Promise<RunSheetBooking[]> => {
-  if (agentIds.length === 0) return [];
-  if (dates.length === 0) return [];
-  if (bookings.length === 0) return [];
-
-  const uniqueBookings = uniqueBy(bookingRefKey)(bookings);
-  const agentPlaceholders = inPlaceholders(agentIds);
-  const datePlaceholders = inPlaceholders(dates);
-  const sourceName = "listingAttendee";
-  const rows = await queryAll<{
-    attendee_id: number;
-    date: string | null;
-    listing_id: number;
-    parent_listing_id: number;
-    package_group_id: number;
-  }>(
-    `WITH requested_booking(attendee_id, listing_id) AS (
-       VALUES ${bookingRefValues(uniqueBookings)}
-     )
-     SELECT DISTINCT ${sourceName}.attendee_id,
-                      ${sourceName}.listing_id,
-                      DATE(${sourceName}.start_at) AS date,
-                      ${sourceName}.parent_listing_id,
-                      ${sourceName}.package_group_id
-     FROM listing_attendees AS ${sourceName}
-     JOIN requested_booking AS requestedBooking
-       ON requestedBooking.attendee_id = ${sourceName}.attendee_id
-      AND requestedBooking.listing_id = ${sourceName}.listing_id
-     WHERE ${runSheetLegWhere(sourceName, agentPlaceholders, datePlaceholders)}`,
-    [
-      ...bookingRefArgs(uniqueBookings),
-      ...agentIds,
-      ...dates,
-      ...agentIds,
-      ...dates,
-    ],
-  );
-  return mapBookingRows(rows, (row) => ({
-    date: row.date,
-    packageGroupId: row.package_group_id,
-    parentListingId: row.parent_listing_id,
-  }));
-};
-
-/**
- * The distinct calendar dates on which the given logistics agents have any
- * run-sheet leg: every drop-off date (`start_at`) and every collection date
- * (`end_at - 1 day`, the last booked day — see {@link getAgentRunSheet}). These
- * are the days a staff member can open on the run sheet's date picker. Empty
- * input yields no query.
- */
-export const getAgentRunSheetDates = async (
-  agentIds: number[],
-): Promise<string[]> => {
-  if (agentIds.length === 0) return [];
-  const placeholders = inPlaceholders(agentIds);
-  const rows = await queryAll<{ date: string }>(
-    // quantity > 0 mirrors the run-sheet query: a no-quantity sentinel line is
-    // never an operational delivery, so it must not offer a date to open.
-    `SELECT DATE(start_at) AS date FROM listing_attendees
-        WHERE start_agent_id IN (${placeholders})
-          AND start_at IS NOT NULL AND quantity > 0
-      UNION
-      SELECT DATE(end_at, '-1 day') AS date FROM listing_attendees
-        WHERE end_agent_id IN (${placeholders})
-          AND end_at IS NOT NULL AND quantity > 0`,
-    [...agentIds, ...agentIds],
-  );
-  return rows.map((row) => row.date).sort((a, b) => a.localeCompare(b));
-};
-
-/**
- * Mark a booking leg done/undone, but only when the leg's logistics agent is
- * one of `agentIds` — this enforces that an agent user can only update their
- * own runs — and only the row whose leg falls on `date`, so a mark is scoped to
- * the run-sheet day it was shown on. Returns true when a row was updated (i.e.
- * the agent owns the leg on that date).
- */
-export const setLegDone = async (
-  attendeeId: number,
-  listingId: number,
-  kind: DeliveryLegKind,
-  date: string,
-  done: boolean,
-  agentIds: number[],
-): Promise<boolean> => {
-  if (agentIds.length === 0) return false;
-  const doneColumn = kind === "start" ? "start_done" : "end_done";
-  const agentColumn = kind === "start" ? "start_agent_id" : "end_agent_id";
-  const dateExpression =
-    kind === "start" ? "DATE(start_at)" : "DATE(end_at, '-1 day')";
-  const result = await execute(
-    // The date predicate scopes the update to the leg on the claimed run-sheet
-    // day: a listing+attendee can have several rows across dates, so without it
-    // a mark would flip legs on days the user isn't viewing.
-    // quantity > 0: refuse to complete a leg on a no-quantity line, so a stale or
-    // crafted delivery form can't mark a hidden ghost's drop-off/collection done.
-    `UPDATE listing_attendees SET ${doneColumn} = ?
-          WHERE attendee_id = ? AND listing_id = ?
-            AND ${dateExpression} = ?
-            AND ${agentColumn} IN (${inPlaceholders(agentIds)})
-            AND quantity > 0`,
-    [done ? 1 : 0, attendeeId, listingId, date, ...agentIds],
-  );
-  return result.rowsAffected > 0;
 };
 
 /** Clear every booking reference to an agent (used before deleting it). */

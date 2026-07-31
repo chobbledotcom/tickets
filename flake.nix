@@ -27,16 +27,12 @@
           # Take Deno from the pinned nixpkgs so the shell uses exactly
           # ${denoVersion} regardless of what the main nixpkgs currently ships.
           deno = nixpkgs-deno.legacyPackages.${pkgs.stdenv.hostPlatform.system}.deno;
-          codexSecurityPython = pkgs.python3.withPackages (pythonPackages: [
-            pythonPackages.tomli
-          ]);
         in
         {
           default = pkgs.mkShell {
             packages =
               [
                 deno
-                codexSecurityPython
                 (pkgs.writeShellScriptBin "pc" ''
                   exec ${deno}/bin/deno task precommit "$@"
                 '')

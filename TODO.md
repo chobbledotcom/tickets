@@ -25,13 +25,14 @@ everything still outstanding is captured below.
 *Origin: Codex Security scan completed on 2026-07-29 at
 `/home/user/.codex/state/plugins/codex-security/scans/tickets/codex-security-tickets-qkJ7hC/`.*
 
-Findings 1, 2, and 4 are active worktree jobs:
+Findings 2 and 4 are active worktree jobs:
 
-- `work/security-finding-1-agent-checkin` for delivery-agent access to check-in
-  attendee details.
 - `work/security-finding-2-setup-race` for concurrent first-run setup.
 - `work/security-finding-4-bunny-deploy-action` for the mutable Bunny deploy
   action reference.
+
+Finding 1 (delivery-agent access to check-in attendee details) shipped on PR
+#1995.
 
 These are the remaining scan items that still look worth doing under the
 current trust model. They assume Bunny Edge remains the production runtime,

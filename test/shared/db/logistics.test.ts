@@ -4,13 +4,15 @@ import { getDb, queryAll } from "#shared/db/client.ts";
 import {
   bookingAssignmentKey,
   clearLogisticsAgentReferences,
-  getAgentRunSheetBookings,
   getLogisticsAssignments,
   getLogisticsAssignmentsForAttendees,
-  runSheetBookingKey,
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
+import {
+  getAgentRunSheetBookings,
+  runSheetBookingKey,
+} from "#shared/db/logistics-run-sheet.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -220,23 +222,22 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
   });
 
   test("getAgentRunSheetBookings keeps only the matched row when one attendee has two rows on the same listing on different dates", async () => {
-    // The row identity is `(listing_id, attendee_id, start_at,
-    // parent_listing_id, package_group_id)`. Two rows for one attendee on the
-    // same listing must differ on `start_at`, so an agent who owns only the
-    // first row's leg must NOT see the second row's date/quantity. This is the
-    // multi-row regression Codex's review on PR #1995 called out: returning
-    // the (attendee, listing) pair alone would let one assigned row bless a
-    // sibling row outside the agent's run sheet.
+    // Two rows for one attendee on the same listing must differ on `start_at`
+    // (the row's unique slot is `listing_id, attendee_id, start_at,
+    // parent_listing_id, package_group_id`). An agent who owns only one row's
+    // leg must NOT see the other row's date/quantity: returning the (attendee,
+    // listing) pair alone would let one assigned row bless a sibling outside
+    // the agent's run sheet.
     const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
     const { attendeeId, listingId } = await newAttendee();
-    // Row A: today, owned by `van`. owner_start_agent means drop-off today.
+    // Row A (D1, drop-off owned by `van`):
     await assignBookingLogistics(
       { attendeeId, listingId },
       logisticsAgentAssignment(van),
       D1,
       D2,
     );
-    // Row B: a different date, no logistics agents — never on `van`'s run sheet.
+    // Row B (D3, no agent — never on `van`'s run sheet):
     await insertSecondBookingRow(attendeeId, listingId, D3);
 
     const bookings = await getAgentRunSheetBookings(
@@ -255,9 +256,9 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
       },
     ]);
 
-    // The filter side: a token entry on Row B's slot identity must NOT match
-    // the row keys built from Row A's identity. Two entries with the same
-    // (attendee, listing) but different `date` produce different keys.
+    // The filter side: an entry on Row B's slot identity must NOT match the
+    // keys built from Row A's identity. Same (attendee, listing), different
+    // `date`, must produce different keys.
     const rowAKey = runSheetBookingKey({
       attendeeId,
       date: D1,

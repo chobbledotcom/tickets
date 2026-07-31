@@ -30,11 +30,11 @@ import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { addDays } from "#shared/dates.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
+import type { DeliveryBookingRef } from "#shared/db/logistics.ts";
 import {
-  type DeliveryBookingRef,
   getAgentRunSheetBookings,
   runSheetBookingKey,
-} from "#shared/db/logistics.ts";
+} from "#shared/db/logistics-run-sheet.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
