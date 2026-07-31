@@ -15,8 +15,18 @@ runs:
   using: composite
   steps:
     - name: Deploy script to Bunny Edge Scripting
-      uses: BunnyWay/actions/deploy-script@main
-      with:
-        script_id: ${{ inputs.script_id }}
-        file: ${{ inputs.file }}
-        api_key: ${{ inputs.api_key }}
+      shell: bash
+      env:
+        BUNNY_SCRIPT_ID: ${{ inputs.script_id }}
+        BUNNY_SCRIPT_FILE: ${{ inputs.file }}
+        BUNNY_ACCESS_KEY: ${{ inputs.api_key }}
+      run: |
+        # Trim whitespace so the read permission matches the path the script reads;
+        # parseDeployBuiltArgs trims the file again, so handing it an already-trimmed
+        # path keeps the permission and the read on the same value.
+        file="$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' <<<"$BUNNY_SCRIPT_FILE")"
+        deno run \
+          --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
+          --allow-read="$file" \
+          --allow-net=api.bunny.net \
+          scripts/deploy-built-edge.ts "$BUNNY_SCRIPT_ID" "$file"
