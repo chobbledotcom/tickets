@@ -15,8 +15,11 @@ const TrimmedNonEmptyTextSchema = v.pipe(TrimmedTextSchema, v.nonEmpty());
 const matchingText = (pattern: RegExp, message?: string) =>
   v.pipe(TrimmedNonEmptyTextSchema, v.regex(pattern, message));
 
+/** A stable id is refused rather than tidied when it carries stray spaces: a
+ * capture id is used as a key, so a tidied one would no longer be the id the
+ * code that named it was written with. */
 const stableId = (label: string) =>
-  matchingText(STABLE_ID_PATTERN, `Invalid ${label}`);
+  v.pipe(v.string(), v.regex(STABLE_ID_PATTERN, `Invalid ${label}`));
 
 const PositiveIntegerSchema = integerAtLeast(1);
 
@@ -37,15 +40,23 @@ const EvidenceProfilesSchema = v.pipe(
   ),
 );
 
+/** A whole page address, ready to open. Placeholders are refused: a capture
+ * whose address the story has to make up says so by leaving `path` out and
+ * handing the finished address over with leaveEvidencePage. */
+export const EvidencePathSchema = v.pipe(
+  TrimmedTextSchema,
+  v.startsWith("/", "Evidence path must start with /"),
+  v.check(
+    (path) => !path.includes("{"),
+    "Evidence path must be a whole address, not a placeholder",
+  ),
+);
+
 export const EvidenceCaptureDeclarationSchema = v.strictObject({
   caseId: stableId("evidence case id"),
-  css: v.optional(v.string()),
   element: TrimmedNonEmptyTextSchema,
   id: stableId("capture id"),
-  path: v.pipe(
-    TrimmedTextSchema,
-    v.startsWith("/", "Evidence path must start with /"),
-  ),
+  path: v.optional(EvidencePathSchema),
   presentation: EvidencePresentationSchema,
   profiles: EvidenceProfilesSchema,
 });

@@ -1,8 +1,16 @@
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryAll, withTransaction } from "#shared/db/client.ts";
+import { stub } from "@std/testing/mock";
+import {
+  execute,
+  getDb,
+  queryAll,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { col, defineTable, writeTableRow } from "#shared/db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 type WriteRow = { id: number; name: string };
 type WriteInput = { name: string };
@@ -66,5 +74,40 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
 
     expect(row).toBeNull();
     expect(await queryAll("SELECT id, name FROM table_write_rows")).toEqual([]);
+  });
+
+  // The id comes back from the row the INSERT wrote, so it needs no help from
+  // the driver's optional lastInsertRowid — which some drivers omit.
+  test("insert takes its id from the row the INSERT returned", async () => {
+    const table = await createWriteTable();
+    const realExecute = getDb().execute.bind(getDb());
+    using _execute = stub(getDb(), "execute", async (...args) => {
+      const result = await realExecute(
+        ...(args as Parameters<typeof realExecute>),
+      );
+      return { ...result, lastInsertRowid: undefined } as unknown as ResultSet;
+    });
+
+    const row = await table.insert({ name: "Named" });
+
+    // insert() reports the values it was given; the stored value keeps the
+    // column's write transform.
+    expect(row).toEqual({ id: 1, name: "Named" });
+    expect(await queryAll("SELECT id, name FROM table_write_rows")).toEqual([
+      { id: 1, name: "NAMED" },
+    ]);
+  });
+
+  // Nothing downstream can be keyed on a row the INSERT did not report, so the
+  // insert fails here rather than handing back a row with an unusable id.
+  test("insert rejects a result that returns no row", async () => {
+    const table = await createWriteTable();
+    using _execute = stub(getDb(), "execute", () =>
+      Promise.resolve(emptyResultSet()),
+    );
+
+    await expect(table.insert({ name: "Nameless" })).rejects.toThrow(
+      "INSERT did not return the id of the row it wrote",
+    );
   });
 });

@@ -15,10 +15,9 @@ const catalog = validateSpecSources([source()], registry);
 
 const declaration = {
   caseId: "payment.place-available",
-  css: ":root { color-scheme: light; }",
   element: "#payment-result",
   id: "payment-result",
-  path: "/admin/payments/{paymentId}",
+  path: "/admin/payments/42",
   presentation: "canonical",
   profiles: ["mobile"],
 } as const;
@@ -50,7 +49,12 @@ describe("Cucumber evidence schema", () => {
   test("rejects invalid or duplicate capture declarations", () => {
     const invalid = [
       [[{ ...declaration, id: "Not Stable" }], "capture id"],
+      [[{ ...declaration, id: " payment-result " }], "capture id"],
       [[{ ...declaration, path: "admin/payments" }], "path"],
+      [
+        [{ ...declaration, path: "/admin/payments/{paymentId}" }],
+        "whole address",
+      ],
       [[{ ...declaration, profiles: [] }], "profile"],
       [[{ ...declaration, profiles: ["mobile", "mobile"] }], "unique"],
       [[{ ...declaration, presentation: "sales" }], "canonical"],

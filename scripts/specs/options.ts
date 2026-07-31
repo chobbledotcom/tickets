@@ -1,4 +1,4 @@
-import { consumeFlagValue, walkArguments } from "#scripts/args.ts";
+import { splitFlagValues } from "#scripts/flag-values.ts";
 import { isFeaturePath, isSpecPath } from "./paths.ts";
 
 export interface SpecCliOptions {
@@ -58,48 +58,35 @@ const directArgumentCount = (args: string[], index: number): number => {
 };
 
 export const parseSpecArgs = (args: string[]): SpecCliOptions => {
-  const paths: string[] = [];
-  let tags: string | undefined;
-  const remaining = [...args];
-  while (remaining.length > 0) {
-    const value = remaining.shift()!;
-    if (value === "--tags") {
-      tags = tagExpression(remaining.shift());
-    } else if (value.startsWith("--")) {
-      throw new Error(`Unknown specs option ${value}`);
-    } else paths.push(value);
-  }
-  return { paths, ...(tags === undefined ? {} : { tags }) };
+  const { rest, values } = splitFlagValues(args, "--tags");
+  const unknown = rest.find((value) => value.startsWith("--"));
+  if (unknown) throw new Error(`Unknown specs option ${unknown}`);
+  // Every occurrence is checked, and like repeated flags anywhere, the last wins.
+  const tags = values.map(tagExpression).at(-1);
+  return { paths: rest, ...(tags === undefined ? {} : { tags }) };
 };
 
 export const focusedTargets = (args: string[]): FocusedTargets => {
   const specPaths: string[] = [];
   const testArgs: string[] = [];
   let tags: string | undefined;
-  walkArguments(args, (arg, index) => {
-    const tagArgCount = consumeFlagValue(
-      args,
-      arg,
-      index,
-      "--tags",
-      (value) => {
-        tags = tagExpression(value);
-      },
-    );
-    if (tagArgCount !== null) {
-      return tagArgCount;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]!;
+    if (arg === "--tags") {
+      tags = tagExpression(args[++index]);
+      continue;
     }
     const directCount = directArgumentCount(args, index);
     if (directCount > 0) {
       testArgs.push(...args.slice(index, index + directCount));
-      return directCount;
+      index += directCount - 1;
+      continue;
     }
     if (isFeaturePath(arg) || isSpecPath(arg)) {
       specPaths.push(arg);
-      return;
+      continue;
     }
     testArgs.push(arg);
-    return;
-  });
+  }
   return { specPaths, testArgs, ...(tags === undefined ? {} : { tags }) };
 };

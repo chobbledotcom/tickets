@@ -1,5 +1,7 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
@@ -220,6 +222,89 @@ describeWithEnv(
       expect(bodies.some((body) => body.endsWith("E_DB_MIGRATION_LOCK "))).toBe(
         true,
       );
+    });
+
+    /** Which boot step a statement belongs to, by the SQL it starts with. */
+    const bootStep = (statement: InStatement): "lock" | "probe" | "other" => {
+      const sql = typeof statement === "string" ? statement : statement.sql;
+      if (sql.startsWith("SELECT key, value FROM settings")) return "probe";
+      return sql.startsWith("INSERT INTO settings") ? "lock" : "other";
+    };
+
+    /** Report a missing settings table for this many probes and lock writes,
+     *  then let the rest through — so boot takes the tolerated lease and its
+     *  second look finds a table another request has since created. */
+    const hideSettings = (probes: number, locks: number) => {
+      const leftToHide = { lock: locks, probe: probes };
+      const client = getDb();
+      const execute = client.execute.bind(client);
+      return stub(client, "execute", (statement: InStatement) => {
+        const step = bootStep(statement);
+        if (step !== "other" && leftToHide[step] > 0) {
+          leftToHide[step] -= 1;
+          return Promise.reject(new Error("no such table: settings"));
+        }
+        return execute(statement);
+      });
+    };
+
+    test("a lock taken before the settings table existed is taken again for real", async () => {
+      await markMigrationsForRerun();
+      using _execute = hideSettings(1, 1);
+
+      // Without a real lease, recording the migrations would be refused as
+      // somebody else's migration and the database would stay out of date.
+      await initDb({ allowMissingSettings: true });
+
+      expect(await settingsValueOrNull("db_schema_hash")).toBe(SCHEMA_HASH);
+      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+    });
+
+    test("losing the race for that second lock refuses before migrating", async () => {
+      await markMigrationsForRerun();
+      // The request that created the table is still holding the lock.
+      const otherLease = new Date(Date.now() - 30_000).toISOString();
+      await getDb().execute({
+        args: ["migration_lock", otherLease],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      });
+      const { fetchStub, restore } = stubNtfyFetch({});
+      try {
+        using _env = restore;
+        using _fetch = fetchStub;
+        using _execute = hideSettings(1, 1);
+
+        await expect(initDb({ allowMissingSettings: true })).rejects.toThrow(
+          "Database migration is already in progress",
+        );
+
+        // The other request keeps its lease, and nothing was migrated past it.
+        expect(await settingsValueOrNull("migration_lock")).toBe(otherLease);
+        expect(await settingsValueOrNull("db_schema_hash")).toBe("stale");
+      } finally {
+        await getDb().execute(
+          "DELETE FROM settings WHERE key = 'migration_lock'",
+        );
+        invalidateInitDbCache();
+        await initDb();
+      }
+    });
+
+    test("taking that lock again is not allowed to shrug off a missing table", async () => {
+      await markMigrationsForRerun();
+      try {
+        using _execute = hideSettings(1, 2);
+
+        // The table was there a moment ago, so it cannot be missing now. Only
+        // setup and restore may carry on without a lock, and this is neither.
+        await expect(initDb({ allowMissingSettings: true })).rejects.toThrow(
+          "no such table: settings",
+        );
+      } finally {
+        // Leave the database fully migrated for the tests that follow.
+        invalidateInitDbCache();
+        await initDb();
+      }
     });
 
     test("one missing marker is a database to update, not a blank one", async () => {

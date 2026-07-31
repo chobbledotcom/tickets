@@ -3,8 +3,7 @@
 import { LISTING_ORDER_SQL } from "#shared/db/listings/select.ts";
 import { rawListingsTable } from "#shared/db/listings/table.ts";
 import { settings } from "#shared/db/settings.ts";
-import { defineTableProjection } from "#shared/db/table.ts";
-import { orderSql } from "#shared/db/where-clauses.ts";
+import { notInSubquery } from "#shared/db/where-clauses.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
 import type { SortableListing } from "#shared/types.ts";
 
@@ -15,7 +14,7 @@ import type { SortableListing } from "#shared/types.ts";
  * ones, so it sorts the same way a full listing record does. */
 export type GroupListingCandidate = SortableListing & { active: boolean };
 
-const candidateProjection = defineTableProjection(rawListingsTable, [
+const candidateColumns = rawListingsTable.read.pick([
   "id",
   "name",
   "active",
@@ -39,17 +38,16 @@ const candidateProjection = defineTableProjection(rawListingsTable, [
 export const getListingsNotInGroup = async (
   groupId: number,
 ): Promise<GroupListingCandidate[]> => {
-  const rows = await candidateProjection.queryAll(
-    `SELECT ${candidateProjection.columnsSql("listing")}
-       FROM listings AS listing
-      WHERE listing.id NOT IN (
-        SELECT groupListing.listing_id
-          FROM group_listings AS groupListing
-         WHERE groupListing.group_id = ?)${orderSql(
-           LISTING_ORDER_SQL,
-           "created_desc",
-         )}`,
-    [groupId],
+  const rows = await candidateColumns.many(
+    {},
+    {
+      alias: "listing",
+      order: LISTING_ORDER_SQL.created_desc,
+      where: notInSubquery("listing.id", {
+        args: [groupId],
+        sql: "SELECT groupListing.listing_id FROM group_listings AS groupListing WHERE groupListing.group_id = ?",
+      }),
+    },
   );
   return rows.map((row) => {
     // The flag has done its job once the settings are applied; leaving it on the

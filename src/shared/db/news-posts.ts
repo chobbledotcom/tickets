@@ -15,10 +15,11 @@ import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
+  insertedRowId,
   queryAll,
-  queryOne,
   resultRows,
   type TxScope,
   useTransaction,
@@ -34,28 +35,27 @@ import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
+  imageUseTargets,
 } from "#shared/db/images.ts";
+import { readRows } from "#shared/db/read.ts";
 import {
   unclaimedSlugCondition,
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import {
-  col,
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { col } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import type { Result } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
 import type {
-  ItemImageProjection,
+  ItemImageColumns,
   NewsPost,
   NewsPostCard,
   NewsPostSummary,
 } from "#shared/types.ts";
+import { isInstant } from "#shared/validation/timestamp.ts";
 
 /** Create/update input (camelCase keys → snake_case columns). `created`, `slug`,
  * and `slugIndex` are computed in {@link createNewsPost}, never posted by the
@@ -78,7 +78,7 @@ export const newsPostsTable = defineIdTable<NewsPost, NewsPostInput>(
   },
 );
 
-const newsSummaryProjection = defineTableProjection(newsPostsTable, [
+const newsSummaryColumns = newsPostsTable.read.pick([
   "id",
   "created",
   "slug",
@@ -86,10 +86,7 @@ const newsSummaryProjection = defineTableProjection(newsPostsTable, [
   "snippet",
 ]);
 
-const newsNameProjection = defineTableProjection(newsPostsTable, [
-  "id",
-  "name",
-]);
+const newsNameColumns = newsPostsTable.read.pick(["id", "name"]);
 
 /** What the admin form provides: every editable column. The permalink is
  * derived on create, never entered, so `slug`/`slugIndex`/`created` are out. */
@@ -130,35 +127,30 @@ export const hasNewsPosts = async (): Promise<boolean> =>
   (await existenceCache.getAll()).length > 0;
 
 /** A card row as stored: the sealed summary plus sealed image projections. */
-type SealedCardRow = StoredTableProjectionRow<
+type SealedCardRow = StoredRowOf<
   NewsPost,
-  typeof newsSummaryProjection.columns
+  typeof newsSummaryColumns.columns
 > & {
-  [K in keyof ItemImageProjection]: EnvKeyEncrypted | "";
+  [K in keyof ItemImageColumns]: EnvKeyEncrypted | "";
 };
 
 /** Load the summary projection for every post, newest first: id, created,
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
 export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
-  newsSummaryProjection.queryAll(
-    `SELECT ${newsSummaryProjection.columnsSql()}
-       FROM news_posts
-      ORDER BY created DESC, id DESC`,
-  );
+  newsSummaryColumns.many({}, { order: "created DESC, id DESC" });
 
 /** Load the card projection for every post, newest first: the summary plus
  * the post's first linked image — for the public /news list, the one reader
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
-  const rows = await queryAll<SealedCardRow>(
-    `SELECT ${newsSummaryProjection.columnsSql("news_post")},
-            ${imageFilenameSubqueries("news", "news_post.id")}
-       FROM news_posts AS news_post
-      ORDER BY news_post.created DESC, news_post.id DESC`,
-  );
+  const rows = await readRows<SealedCardRow>({
+    columns: `${newsSummaryColumns.columnsSql("news_post")}, ${imageFilenameSubqueries("news", "news_post.id")}`,
+    from: "news_posts AS news_post",
+    order: "news_post.created DESC, news_post.id DESC",
+  });
   return mapParallel(async (row: SealedCardRow) => ({
-    ...(await newsSummaryProjection.read(row)),
+    ...(await newsSummaryColumns.read(row)),
     image_alt_text: await decryptTextOrEmpty(row.image_alt_text),
     image_thumb_url: await decryptImageFilenameOrEmpty(
       row.image_thumb_url,
@@ -174,8 +166,9 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
 /** id → decrypted name for every post, newest first — the image library's
  * link-target labels (nothing but the name decrypted). */
 export const getNewsPostNames = async (): Promise<Map<number, string>> => {
-  const rows = await newsNameProjection.queryAll(
-    `SELECT ${newsNameProjection.columnsSql()} FROM news_posts ORDER BY created DESC, id DESC`,
+  const rows = await newsNameColumns.many(
+    {},
+    { order: "created DESC, id DESC" },
   );
   return fieldById("name")(rows);
 };
@@ -183,24 +176,14 @@ export const getNewsPostNames = async (): Promise<Map<number, string>> => {
 /** One full post (fully decrypted) by id — the admin single-post views.
  * Null when absent. */
 export const getNewsPostById = (id: number): Promise<NewsPost | null> =>
-  newsPostsTable.findById(id);
-
-/** Every {@link NewsPost} column, listed explicitly (AGENTS.md) so a future
- * column can't silently widen what the single-post read fetches and decrypts. */
-const NEWS_POST_COLUMNS =
-  "id, created, slug, slug_index, name, meta_title, meta_description, snippet, content";
+  newsPostsTable.read.one({ id });
 
 /** One full post (fully decrypted) by blind-index slug lookup — the public
  * `/news/:slug` read. Null when absent. */
-export const getNewsPostBySlugIndex = async (
+export const getNewsPostBySlugIndex = (
   slugIndex: BlindIndex,
-): Promise<NewsPost | null> => {
-  const row = await queryOne<NewsPost>(
-    `SELECT ${NEWS_POST_COLUMNS} FROM news_posts WHERE slug_index = ? LIMIT 1`,
-    [slugIndex],
-  );
-  return row ? newsPostsTable.fromDb(row) : null;
-};
+): Promise<NewsPost | null> =>
+  newsPostsTable.read.one({ slug_index: slugIndex });
 
 /** Create a post, stamping `created` now (the admin flow) or at a pinned time
  * (tests/restore), and deriving its immutable `/news` permalink from that date
@@ -210,6 +193,11 @@ export const createNewsPost = async (
   transaction?: TxScope,
 ): Promise<NewsPost> => {
   const created = input.created ?? nowIso();
+  // The permalink is built from this date and can never be rebuilt, so a caller
+  // that pins a date it made up gets an error rather than a broken /news link.
+  if (!isInstant(created)) {
+    throw new Error(`News post created is not a real timestamp: "${created}"`);
+  }
   return useTransaction(transaction, async (tx) => {
     const { slug, slugIndex } = await uniqueSlugFromBase({
       base: newsSlugBase(created, input.name),
@@ -229,7 +217,7 @@ export const createNewsPost = async (
       },
     });
     const result = await tx.execute(
-      await newsPostsTable.insertStatement!({
+      await newsPostsTable.insertStatement({
         ...input,
         created,
         slug,
@@ -239,7 +227,7 @@ export const createNewsPost = async (
     return {
       content: input.content,
       created,
-      id: Number(result.lastInsertRowid),
+      id: insertedRowId(result),
       meta_description: input.metaDescription,
       meta_title: input.metaTitle,
       name: input.name,
@@ -273,6 +261,6 @@ export const updateNewsPost = async (
  * the library — only the uses are pruned, as with listing/group deletion). */
 export const deleteNewsPostWithImages = (id: number): Promise<void> =>
   executeBatch([
-    clearImageUsesForItemStatement("news", id),
+    clearImageUsesForItemStatement(imageUseTargets.of("news")(id)),
     { args: [id], sql: "DELETE FROM news_posts WHERE id = ?" },
   ]);

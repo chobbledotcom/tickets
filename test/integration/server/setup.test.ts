@@ -14,6 +14,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { getSetupCsrfToken } from "#test-utils/csrf.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
+import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import {
   assertSchemaEmpty,
   schemaMarkerKeys,
@@ -54,7 +55,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
     return submitSetupForm({
       admin_password: "mypassword123",
       admin_password_confirm: "mypassword123",
-      admin_username: "testadmin",
+      admin_username: TEST_ADMIN_USERNAME,
       country: "GB",
       ...overrides,
     });
@@ -81,7 +82,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         {
           admin_password: "mypassword123",
           admin_password_confirm: "mypassword123",
-          admin_username: "testadmin",
+          admin_username: TEST_ADMIN_USERNAME,
           country: "GB",
         },
         csrfToken as string,
@@ -312,7 +313,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
         const response = await handleRequest(mockRequest("/setup/"));
 
-        await expectHtmlResponse(response, 200, "Initial Setup");
+        await expectHtmlResponse(response, 200, "Initial setup");
         expect(await settingsTableExists()).toBe(true);
       });
 
@@ -322,7 +323,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
         const response = await handleRequest(mockRequest("/setup/"));
 
-        await expectHtmlResponse(response, 200, "Initial Setup");
+        await expectHtmlResponse(response, 200, "Initial setup");
         expect(await settingsTableExists()).toBe(true);
         expect(await tableExists("listings")).toBe(true);
         expect(await schemaMarkerKeys()).toEqual([
@@ -334,15 +335,15 @@ describeWithEnv("server (setup)", { db: true }, () => {
       test("GET /setup/ shows setup page", async () => {
         await assertPublicHtml(
           "/setup/",
-          "Initial Setup",
-          "Admin Password",
-          "Your Country",
-          "Data Controller Agreement",
+          "Initial setup",
+          "Admin password",
+          "Your country",
+          "Data controller agreement",
         );
       });
 
       test("GET /setup (without trailing slash) shows setup page", async () => {
-        await assertPublicHtml("/setup", "Initial Setup");
+        await assertPublicHtml("/setup", "Initial setup");
       });
 
       test("POST /setup/ with valid data completes setup", async () => {
@@ -358,7 +359,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           mockFormRequest("/setup/", {
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            admin_username: "testadmin",
+            admin_username: TEST_ADMIN_USERNAME,
             country: "US",
           }),
         );
@@ -375,7 +376,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           mockFormRequest("/setup/", {
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            admin_username: "testadmin",
+            admin_username: TEST_ADMIN_USERNAME,
             country: "US",
             csrf_token: "wrong-token-in-form",
           }),
@@ -394,7 +395,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         });
         await expectFlashRedirect(
           "/setup/",
-          expect.stringContaining("Admin Password"),
+          expect.stringContaining("Admin password"),
           false,
         )(response);
       });
@@ -439,7 +440,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         });
         await expectFlashRedirect(
           "/setup/",
-          expect.stringContaining("must accept the Data Controller Agreement"),
+          expect.stringContaining("must accept the Data controller agreement"),
           false,
         )(response);
       });
@@ -472,7 +473,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
                   {
                     admin_password: "mypassword123",
                     admin_password_confirm: "mypassword123",
-                    admin_username: "testadmin",
+                    admin_username: TEST_ADMIN_USERNAME,
                     country: "GB",
                   },
                   csrfToken as string,
@@ -529,9 +530,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
       test("GET /setup/complete shows success page when setup is done", async () => {
         await assertPublicHtml(
           "/setup/complete",
-          "Setup Complete",
+          "Setup complete",
           'href="/admin/login"',
-          "Log In",
+          "Log in",
         );
       });
     });
@@ -550,7 +551,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           {
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
-            admin_username: "testadmin",
+            admin_username: TEST_ADMIN_USERNAME,
             country: "US",
           },
           csrfToken as string,

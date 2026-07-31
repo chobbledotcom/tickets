@@ -557,13 +557,21 @@ describe("TestBrowser forms", () => {
     );
   });
 
-  it("presses a usable button in a later form, not the switched-off one", async () => {
+  const postedPathBrowser = (): {
+    browser: TestBrowser;
+    postedPath: () => string;
+  } => {
     const browser = new TestBrowser();
-    let postedPath = "";
+    let path = "";
     useHandler(browser, (request) => {
-      postedPath = new URL(request.url).pathname;
+      path = new URL(request.url).pathname;
       return new Response("saved");
     });
+    return { browser, postedPath: () => path };
+  };
+
+  it("presses a usable button in a later form, not the switched-off one", async () => {
+    const { browser, postedPath } = postedPathBrowser();
     // A person reading this page can press the second Publish, so naming it
     // must reach that one rather than stopping at the switched-off first.
     browser.currentHtml = `
@@ -577,7 +585,65 @@ describe("TestBrowser forms", () => {
 
     await browser.submitForm({}, "Publish");
 
-    expect(postedPath).toBe("/ready");
+    expect(postedPath()).toBe("/ready");
+  });
+
+  it("prefers the form that renders every field being sent", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // Two forms share the Save wording; only the second renders the field
+    // being filled in, so that is the one a person would submit.
+    browser.currentHtml = `
+      <form action="/toggle">
+        <input type="checkbox" name="enabled" value="true">
+        <button>Save</button>
+      </form>
+      <form action="/words">
+        <textarea name="intro"></textarea>
+        <button>Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ intro: "Welcome" }, "Save");
+
+    expect(postedPath()).toBe("/words");
+  });
+
+  it("ignores a data-name attribute when ranking forms by field", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // Only a real name attribute counts as rendering the field — a longer
+    // attribute like data-name on another form must not win the ranking.
+    browser.currentHtml = `
+      <form action="/decoy">
+        <div data-name="intro"></div>
+        <button>Save</button>
+      </form>
+      <form action="/real">
+        <textarea name="intro"></textarea>
+        <button>Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ intro: "Welcome" }, "Save");
+
+    expect(postedPath()).toBe("/real");
+  });
+
+  it("keeps the first matching form when nothing renders a sent field", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // A field no form renders is a plain override, so form choice falls back
+    // to the first form carrying the button, as it always did.
+    browser.currentHtml = `
+      <form action="/first">
+        <button>Save</button>
+      </form>
+      <form action="/second">
+        <button>Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ extra: "override" }, "Save");
+
+    expect(postedPath()).toBe("/first");
   });
 
   it("selects a form by body text even when no button text matches", async () => {

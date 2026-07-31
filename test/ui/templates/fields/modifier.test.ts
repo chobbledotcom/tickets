@@ -28,7 +28,6 @@ describe("modifier fields", () => {
   test("defines the complete form", async () => {
     await withMessageGroups(["modifiers"], () => {
       const form = getModifierForm();
-      expect(form.id).toBe("modifier");
       expect(JSON.parse(JSON.stringify(form.fields))).toEqual([
         {
           label: "Name",

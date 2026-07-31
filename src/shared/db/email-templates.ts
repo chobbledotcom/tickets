@@ -8,7 +8,7 @@
  */
 
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { countRows, queryAll } from "#shared/db/client.ts";
+import { countRows } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { col } from "#shared/db/table.ts";
 
@@ -33,11 +33,13 @@ const emailTemplatesTable = defineIdTable<
 
 /** Every template, newest first (the admin templates list). */
 export const getAllRawEmailTemplates = (): Promise<RawEmailTemplate[]> =>
-  queryAll("SELECT id, subject, body FROM email_templates ORDER BY id DESC");
+  emailTemplatesTable.read
+    .pick(["id", "subject", "body"])
+    .many({}, { order: "id DESC" });
 
 export const getRawEmailTemplate = (
   id: number,
-): Promise<RawEmailTemplate | null> => emailTemplatesTable.findById(id);
+): Promise<RawEmailTemplate | null> => emailTemplatesTable.read.one({ id });
 
 export const countEmailTemplates = (): Promise<number> =>
   countRows("email_templates");

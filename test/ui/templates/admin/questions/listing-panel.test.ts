@@ -57,7 +57,7 @@ describe("adminListingQuestionsPage", () => {
     expect(html).not.toContain("1 options");
   });
 
-  test("shows Manage Questions link below form", () => {
+  test("shows Manage questions link below form", () => {
     const listing = testListingWithCount({ id: 1, name: "My Listing" });
     const questions = [
       testQuestion({
@@ -77,7 +77,7 @@ describe("adminListingQuestionsPage", () => {
       }),
     );
     expect(html).toContain('href="/admin/questions"');
-    expect(html).toContain("Manage Questions");
+    expect(html).toContain("Manage questions");
   });
 
   test("lists option names in parentheses", () => {

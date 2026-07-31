@@ -6,12 +6,13 @@ import {
   screenshotContextOptions,
 } from "#scripts/screenshots/profile.ts";
 import type { SpecCatalog } from "#scripts/specs/types.ts";
-import { isAllowedEvidenceRequest, resolveEvidencePath } from "./browser.ts";
+import { isAllowedEvidenceRequest } from "./browser.ts";
 import type {
   CaptureScenario,
   EvidenceHookCase,
   EvidenceWorld,
 } from "./hook.ts";
+import { evidencePagePath } from "./pages.ts";
 import { resolveEvidenceScenario } from "./resolve.ts";
 import {
   type EvidenceCaptureDeclaration,
@@ -19,6 +20,7 @@ import {
 } from "./schema.ts";
 import type { LoopbackServer } from "./server.ts";
 import { storeEvidenceCss } from "./style.ts";
+import type { ReadEvidenceTheme } from "./themes.ts";
 
 /** Per-page capture timeout. The After hook has EVIDENCE_HOOK_TIMEOUT_MS
  * (hook.ts) for all captures in one scenario; keep the declaration×profile
@@ -34,6 +36,7 @@ interface EvidenceCaptureDependencies {
   getCookie: () => Promise<string>;
   launchBrowser: () => Promise<Browser>;
   readCatalog: () => Promise<SpecCatalog>;
+  readTheme: ReadEvidenceTheme;
   startServer: () => LoopbackServer;
   waitForPage: (page: Page) => Promise<void>;
   writeCss: (css: string) => Promise<void>;
@@ -88,7 +91,11 @@ const captureProfile = async (
   dependencies: EvidenceCaptureDependencies,
 ): Promise<void> => {
   const profile = SCREENSHOT_PROFILES[profileName];
-  await storeEvidenceCss(declaration, dependencies.writeCss);
+  await storeEvidenceCss(
+    declaration,
+    await dependencies.readTheme(declaration.id),
+    dependencies.writeCss,
+  );
   const context = await browser.newContext({
     baseURL: baseUrl,
     ...screenshotContextOptions(profile),
@@ -101,10 +108,9 @@ const captureProfile = async (
     ]);
     const page = await context.newPage();
     page.setDefaultTimeout(CAPTURE_TIMEOUT_MS);
-    await page.goto(
-      resolveEvidencePath(declaration.path, world.evidenceValues),
-      { waitUntil: "domcontentloaded" },
-    );
+    await page.goto(evidencePagePath(declaration, world.evidencePages), {
+      waitUntil: "domcontentloaded",
+    });
     await dependencies.waitForPage(page);
     const { png } = await dependencies.capturePage(page, declaration.element);
     assertNoBlockedRequests(blocked);

@@ -4,6 +4,11 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
+  listingIdNamed,
+  rememberListing,
+  rememberListingById,
+} from "#test/specs/support/listings.ts";
+import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -57,9 +62,6 @@ const BOB: Rename = {
   special_instructions: "Vegetarian meals",
 };
 
-const listingIdFor = (world: TicketsWorld, name: string): string =>
-  String(requiredWorldValue(world.listingIds.get(name), `${name} listing id`));
-
 /** Add the person to a fresh Art Class through the quick-add form. */
 const addToArtClass = async (
   world: TicketsWorld,
@@ -67,7 +69,7 @@ const addToArtClass = async (
 ): Promise<TestBrowser> => {
   const browser = await adminBrowser(world);
   const id = await createListing(browser, { name: ART_CLASS });
-  world.listingIds.set(ART_CLASS, Number(id));
+  await rememberListingById(world, ART_CLASS, Number(id));
   await addAttendee(browser, {
     name: person.oldName,
     quantity: person.places,
@@ -118,7 +120,7 @@ const expectKeptBooking = (
   checkedIn: boolean,
 ): void => {
   const browser = scenarioBrowser(world);
-  expect(linePlacesOnPage(browser, listingIdFor(world, ART_CLASS))).toBe(
+  expect(linePlacesOnPage(browser, listingIdNamed(world, ART_CLASS))).toBe(
     person.places,
   );
   expect(browser.currentHtml.includes("Checked in")).toBe(checkedIn);
@@ -129,7 +131,7 @@ const expectKeptBooking = (
 const savePlaces = async (
   browser: TestBrowser,
   name: string,
-  listingId: string,
+  listingId: number,
   places: string,
 ): Promise<void> => {
   await browser.submitForm(
@@ -218,12 +220,12 @@ Given(
         maxQuantity: 5,
         name,
       });
-      this.listingIds.set(name, listing.id);
+      rememberListing(this, name, listing);
     }
     this.attendeeIds = [];
     for (const person of [ALICE, BOB]) {
       const { attendee } = await createTestAttendeeDirect(
-        Number(listingIdFor(this, MORNING)),
+        listingIdNamed(this, MORNING),
         person.oldName,
         person.email,
       );
@@ -237,8 +239,8 @@ When(
   async function (this: TicketsWorld): Promise<void> {
     const browser = await adminBrowser(this);
     const ids = requiredWorldValue(this.attendeeIds, "attendee ids");
-    const morning = listingIdFor(this, MORNING);
-    const evening = listingIdFor(this, EVENING);
+    const morning = listingIdNamed(this, MORNING);
+    const evening = listingIdNamed(this, EVENING);
     for (const [index, attendeeId] of ids.entries()) {
       const name = [ALICE, BOB][index]!.oldName;
       // Give the new listing a place, then take the old listing's place away.
@@ -258,8 +260,12 @@ Then(
     const ids = requiredWorldValue(this.attendeeIds, "attendee ids");
     for (const attendeeId of ids) {
       await browser.visit(`/admin/attendees/${attendeeId}/edit`);
-      expect(linePlacesOnPage(browser, listingIdFor(this, EVENING))).toBe("1");
-      expect(linePlacesOnPage(browser, listingIdFor(this, MORNING))).toBe("0");
+      expect(linePlacesOnPage(browser, listingIdNamed(this, EVENING))).toBe(
+        "1",
+      );
+      expect(linePlacesOnPage(browser, listingIdNamed(this, MORNING))).toBe(
+        "0",
+      );
     }
   },
 );

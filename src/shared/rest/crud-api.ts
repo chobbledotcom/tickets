@@ -17,7 +17,6 @@
  *   });
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { isNotNullish, reduce } from "#fp";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
@@ -28,6 +27,8 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
+/* jscpd:ignore-start */
+import { byPrimaryKey } from "#shared/db/table-reader.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { type JoinWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import {
@@ -241,7 +242,7 @@ export interface CrudApiConfig<
   linkActivityToRow?: boolean;
   /** Extra keys added to the list response alongside the row array (e.g. admin_level) */
   listExtras?: (session: AdminSession) => Record<string, unknown>;
-  /** Custom single-row lookup (e.g. to include joined counts). Defaults to table.findById. */
+  /** Custom single-row lookup (e.g. to include joined counts). Defaults to reading the row by its key. */
   lookup?: (id: number) => Promise<FullRow | null>;
   /** Custom single-row lookup used ONLY to read a row back right after committing
    * its own write, which must be pinned to the primary (read-your-writes): the
@@ -344,7 +345,10 @@ export const defineCrudApi = <
   const listKey = name;
   const lookup: (id: number) => Promise<FullRow | null> =
     config.lookup ??
-    ((id) => table.findById(id) as unknown as Promise<FullRow | null>);
+    ((id) =>
+      table.read.one(
+        byPrimaryKey(table, id),
+      ) as unknown as Promise<FullRow | null>);
   // Reading a row back right after committing its write must hit the primary, or
   // a lagging replica can return null and the create/update path crashes on
   // `.id`. Defaults to the primary-pinned base-row read; a resource whose
@@ -459,11 +463,12 @@ export const defineCrudApi = <
       joinWrites,
       plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,
       readBack: lookupAfterWrite,
+      tableName: config.table.name,
     });
-    // writeEntity returns null when the just-written row can't be read back —
-    // an update whose row was deleted between the entityRoute lookup and the
-    // commit. Report a clean not-found (as defineResource's update path does)
-    // rather than dereferencing null in respondWithRow.
+    // writeEntity returns null only for an update whose row was deleted between
+    // the entityRoute lookup and the commit. Report a clean not-found (as
+    // defineResource's update path does) rather than dereferencing null in
+    // respondWithRow.
     if (!fullRow) return apiErrorResponse(`${singular} not found`, 404);
     return respondWithRow(fullRow, action, status);
   };

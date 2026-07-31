@@ -203,7 +203,7 @@ const reportIgnoreListStaleness = (
   );
   if (problems.length === 0) return exitCode;
   console.error(
-    yellow("\nIgnore-list issues (scripts/mutation/equivalent-mutants.txt):"),
+    yellow("\nIgnore-list issues (scripts/mutation/equivalent-mutants/):"),
   );
   for (const problem of problems) console.error(red(`  ✗ ${problem}`));
   console.error(

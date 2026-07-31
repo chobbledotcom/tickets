@@ -86,8 +86,8 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
         filenameThumb: nonEmptyString("two-thumb.webp"),
         name: "Two",
       });
-      await appendImageToItem(first.id, { itemId: page.id, itemType: "page" });
-      await appendImageToItem(second.id, { itemId: page.id, itemType: "page" });
+      await appendImageToItem(first.id, { id: page.id, kind: "page" });
+      await appendImageToItem(second.id, { id: page.id, kind: "page" });
 
       const html = await assertPublicHtml("/page/gallery-page");
       // The public page now shows the images an editor attached, as the same

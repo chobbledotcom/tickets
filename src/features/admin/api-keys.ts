@@ -49,7 +49,6 @@ export const apiKeyForm = defineForm({
       type: "text" as const,
     },
   ] as const,
-  id: "apiKey",
 });
 
 /** Owner-guarded handler that loads the caller's API keys up front. */

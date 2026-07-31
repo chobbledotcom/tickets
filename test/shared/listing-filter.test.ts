@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { ensureMessageGroups } from "#i18n";
+import { MESSAGE_GROUPS } from "#locales/manifest.ts";
 import {
   filterListingsByType,
   isListingFilter,
@@ -11,6 +13,9 @@ import {
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
 import type { ListingType } from "#shared/types.ts";
+
+// The filter labels resolve through the catalog, so it must be loaded first.
+await ensureMessageGroups(MESSAGE_GROUPS);
 
 /** A minimal listing shape carrying only the two fields the categoriser reads. */
 const listing = (
@@ -44,7 +49,7 @@ describe("listingFilterLabel", () => {
     expect(listingFilterLabel("all")).toBe("All");
     expect(listingFilterLabel("standard")).toBe("Standard");
     expect(listingFilterLabel("daily")).toBe("Daily");
-    expect(listingFilterLabel("purchase-only")).toBe("No Check-In");
+    expect(listingFilterLabel("purchase-only")).toBe("No check-in");
   });
 });
 
@@ -169,7 +174,7 @@ describe("renderTypeFilter", () => {
         "</div>",
     );
     expect(html).not.toContain("Daily");
-    expect(html).not.toContain("No Check-In");
+    expect(html).not.toContain("No check-in");
   });
 
   test("does not duplicate 'All' when 'all' is itself passed in categories", () => {
@@ -192,7 +197,7 @@ describe("renderTypeFilter", () => {
     );
   });
 
-  test("renders all four options with 'purchase-only' labelled 'No Check-In'", () => {
+  test("renders all four options with 'purchase-only' labelled 'No check-in'", () => {
     const html = renderTypeFilter(
       "purchase-only",
       ["standard", "daily", "purchase-only"],
@@ -203,7 +208,7 @@ describe("renderTypeFilter", () => {
         '<a href="/admin/listings?type=all">All</a>' +
         ' / <a href="/admin/listings?type=standard">Standard</a>' +
         ' / <a href="/admin/listings?type=daily">Daily</a>' +
-        " / <strong><u>No Check-In</u></strong>" +
+        " / <strong><u>No check-in</u></strong>" +
         "</div>",
     );
   });

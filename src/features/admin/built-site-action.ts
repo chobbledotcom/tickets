@@ -34,8 +34,8 @@ export type BuiltSitePost = (
   id: number,
 ) => Promise<Response>;
 
-const builtSiteHandler = createIdEntityHandler<BuiltSite>(
-  builtSitesCrudTable.findById,
+const builtSiteHandler = createIdEntityHandler<BuiltSite>((id) =>
+  builtSitesCrudTable.read.one({ id }),
 );
 
 export const builtSiteAction = (action: BuiltSitePost): IdRouteHandler =>

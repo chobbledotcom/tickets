@@ -30,6 +30,7 @@ import { executeBatch } from "#shared/db/client.ts";
 import {
   cloneGroupMembershipStatement,
   generateUniqueGroupSlug,
+  getGroupById,
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -106,7 +107,7 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
     actionLabel: `${opts.action}ion`,
     identifier: (group) => group.name,
     identifierLabel: "Group name",
-    loadContext: ({ id }) => groups.table.findById(id),
+    loadContext: ({ id }) => getGroupById(id),
     mismatchRedirect: (group) =>
       `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
     onConfirm: async ({ context: group }) => {

@@ -8,8 +8,6 @@ import {
   eligibleChildPages,
   isReservedSlug,
   pageParentMapFromEdges,
-  parseTargetKey,
-  targetKey,
   wouldCreateCycle,
 } from "#shared/site-pages/core.ts";
 import type { TargetKey, TargetMap } from "#shared/site-pages/types.ts";
@@ -18,6 +16,7 @@ import type {
   SitePageItemType,
   SitePageNavRow,
 } from "#shared/types.ts";
+import { navKey } from "#test/test-utils/site-pages/nav-fixtures.ts";
 
 const page = (id: number, sort_order = id): SitePageNavRow => ({
   id,
@@ -45,20 +44,11 @@ const leafTarget = (
   id: number,
   live = true,
 ): [TargetKey, { href: string; label: string; live: boolean }] => [
-  targetKey(type, id),
+  navKey(type, id),
   { href: `/ticket/${type}-${id}`, label: `${type}-${id}`, live },
 ];
 
 describe("site-pages core", () => {
-  describe("targetKey / parseTargetKey", () => {
-    test("round-trips every item type", () => {
-      for (const type of ["listing", "group", "page"] as const) {
-        const parsed = parseTargetKey(targetKey(type, 42));
-        expect(parsed).toEqual({ id: 42, type });
-      }
-    });
-  });
-
   describe("pageParentMapFromEdges", () => {
     test("maps only page edges, child to parent, first edge winning", () => {
       // Leaf edges must never enter the map (a listing id could collide with

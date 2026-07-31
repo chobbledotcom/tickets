@@ -1,24 +1,20 @@
 /**
  * Read a paid session's signed metadata into the domain {@link BookingIntent}.
  *
- * The metadata JSON was serialized by our own checkout (buildMetadata), and
- * every fulfilment caller reaches here only for a session carrying a valid price
- * proof, so the structure is trusted — except {@link parseBookingItems}, which
- * schema-validates so a drifted/foreign blob fails closed instead of feeding
- * wrong values inward.
+ * The metadata JSON was serialized by our own checkout (buildMetadata), but it
+ * is never trusted on the way back in: the assembled booking is parsed against
+ * {@link BookingIntentSchema}, so a drifted, tampered, or foreign blob fails
+ * closed here instead of feeding wrong values into fulfilment after the buyer
+ * has already paid.
  */
 
 import * as v from "valibot";
-import type { BookingIntent } from "#routes/api/webhook-types.ts";
-import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { nowIso } from "#shared/now.ts";
 import {
-  type BookingItem,
-  BookingItemsSchema,
-  type ModifierRef,
-  type TextAnswerRef,
-  type ValidatedPaymentSession,
-} from "#shared/payments.ts";
+  type BookingIntent,
+  BookingIntentSchema,
+} from "#shared/booking-intent.ts";
+import { nowIso } from "#shared/now.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
 
 /**
  * The ledger occurredAt for a payment: the provider's checkout time — the
@@ -29,100 +25,66 @@ import {
 export const businessTime = (session: ValidatedPaymentSession): string =>
   session.createdAt ?? nowIso();
 
-/** Read one optional JSON metadata field: parse it when present, or hand back
- * the field's own fallback when empty. The JSON was serialized by our own
- * buildMetadata, so we trust the structure (parseBookingItems is the deliberate
- * schema-validated exception). */
+/** Read one JSON metadata field: the value it holds when it has one, the
+ * field's own fallback when it is empty, and `null` when the text is not
+ * readable JSON at all. Nothing in a booking may be null, so unreadable text
+ * fails the whole booking below rather than one field going quietly missing. */
 const jsonMetaField =
-  <T>(fallback: T) =>
-  (json: string): T =>
-    json ? (JSON.parse(json) as T) : fallback;
+  (fallback: unknown) =>
+  (json: string): unknown => {
+    if (!json) return fallback;
+    try {
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  };
 
-/** Per-listing answer IDs; undefined when the checkout sent none. */
-const parseListingAnswerIds = jsonMetaField<
-  Record<string, number[]> | undefined
->(undefined);
+/** Answers, free-text answers, and child tickets are all absent when the
+ * checkout sent none; modifiers are an empty list. */
+const parseAnswerRefs = jsonMetaField(undefined);
+const parseModifierRefs = jsonMetaField([]);
 
-/** Per-listing free-text answer references; undefined when none. */
-const parseListingTextAnswerIds = jsonMetaField<
-  Record<string, TextAnswerRef[]> | undefined
->(undefined);
+/** The lines being booked. A checkout with none is not a booking, so an empty
+ * field reads as nothing the schema will accept. */
+const parseBookingItems = jsonMetaField(null);
+
+/** A whole number a booking counts with, or nothing when the field is empty.
+ * A field holding something that is not a whole number becomes a number the
+ * booking schema refuses, so the reading fails instead of counting wrong. */
+const wholeNumberField = (raw: string): number | undefined =>
+  raw ? Number(raw) : undefined;
 
 /**
- * Parse booking items from metadata JSON. Returns null when the JSON is
- * unparseable, not an array, or empty.
+ * Read a paid session's booking back out of its metadata, or `null` when what
+ * came back is not a booking we can act on.
  *
- * Every fulfilment caller reaches this only for a session carrying a valid price
- * proof, so the items are exactly what our checkout serialized — a non-empty
- * array of well-formed items. The cancel page also parses here, but only on a
- * best-effort basis to find a listing id for its back-link, so a session that
- * never came through our checkout degrades to null rather than throwing.
- */
-const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(itemsJson);
-  } catch {
-    return null;
-  }
-  // Schema-validated, never blind-cast: a malformed or drifted blob fails the
-  // parse loudly (the session is then unsigned/ignored) instead of feeding
-  // wrong nodeKeys or NaN prices into revalidation.
-  const result = v.safeParse(BookingItemsSchema, parsed);
-  return result.success ? result.output : null;
-};
-
-/** The compact modifier references; absent (empty) means no modifiers. */
-const parseModifierRefs = jsonMetaField<ModifierRef[]>([]);
-
-/** Child ticket allocations; undefined when the checkout sent none. */
-const parseAllocations = jsonMetaField<ChildAllocation[] | undefined>(
-  undefined,
-);
-
-/**
- * Extract booking intent from session metadata.
- * Converts date from metadata's "" convention to null for domain use.
+ * Everything here arrives as text a provider handed back, so the assembled
+ * booking is parsed against the schema before anyone sees it: a drifted,
+ * tampered, or foreign blob fails here rather than after the buyer has paid.
+ * The empty date the metadata uses for "no date" becomes null on the way in.
  */
 export const extractIntent = (
   session: ValidatedPaymentSession,
 ): BookingIntent | null => {
   const { metadata } = session;
-  const items = parseBookingItems(metadata.items);
-  if (!items || items.length === 0) return null;
-
-  const parsedDayCount = Number.parseInt(metadata.day_count, 10);
-  const allocations = parseAllocations(metadata.allocations);
-  const balanceAttendeeId = metadata.balance_attendee_id
-    ? Number(metadata.balance_attendee_id)
-    : undefined;
-  const dayCount =
-    Number.isInteger(parsedDayCount) && parsedDayCount > 0
-      ? parsedDayCount
-      : undefined;
-  const listingAnswerIds = parseListingAnswerIds(metadata.answer_ids);
-  const listingTextAnswerIds = parseListingTextAnswerIds(
-    metadata.text_answer_ids,
-  );
-  const reservationAmount = metadata.reservation_amount || undefined;
-  const siteTokenIndex = metadata.site_token_index || undefined;
-  const thankYouUrl = metadata.thank_you_url || undefined;
-  return {
+  const result = v.safeParse(BookingIntentSchema, {
     address: metadata.address,
-    allocations,
-    balanceAttendeeId,
+    allocations: parseAnswerRefs(metadata.allocations),
+    balanceAttendeeId: wholeNumberField(metadata.balance_attendee_id),
     date: metadata.date || null,
-    dayCount,
+    dayCount: wholeNumberField(metadata.day_count),
     email: metadata.email,
-    items,
-    listingAnswerIds,
-    listingTextAnswerIds,
+    items: parseBookingItems(metadata.items),
+    listingAnswerIds: parseAnswerRefs(metadata.answer_ids),
+    listingTextAnswerIds: parseAnswerRefs(metadata.text_answer_ids),
     modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
     phone: metadata.phone,
-    reservationAmount,
-    siteTokenIndex,
+    reservationAmount: metadata.reservation_amount || undefined,
+    siteTokenIndex: metadata.site_token_index || undefined,
     special_instructions: metadata.special_instructions,
-    thankYouUrl,
-  };
+    thankYouUrl: metadata.thank_you_url || undefined,
+  });
+  return result.success ? result.output : null;
 };

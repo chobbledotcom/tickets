@@ -11,6 +11,7 @@ Feature: An owner writes the pages people read
   read it straight away.
 
   @rule:servicing.a-page-written-is-a-page-anybody-can-read
+  @surface:public
   Rule: A page written is a page anybody can read
     There is no separate step to publish. The owner writes it, and it is there
     at the address they chose — for a visitor who was never signed in and never

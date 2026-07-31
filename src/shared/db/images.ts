@@ -4,27 +4,31 @@
 
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
-  queryAll,
-  queryOne,
   type SqlStatement,
   useTransaction,
 } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
+import { type Read, readOneRow, readRows } from "#shared/db/read.ts";
 import {
-  type ColumnDef,
-  col,
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+  defineRecordTarget,
+  ITEM_TARGET_COLUMNS,
+  type RecordTarget,
+  type RecordTargets,
+} from "#shared/db/record-target.ts";
+import { type ColumnDef, col } from "#shared/db/table.ts";
+import { equals } from "#shared/db/where-clauses.ts";
+
 import { decryptImageFilename } from "#shared/images/broken.ts";
-import type {
-  Image,
-  ImageUse,
-  ImageUseItemType,
-  ItemImageProjection,
+import {
+  type Image,
+  type ImageUse,
+  type ImageUseItemType,
+  ImageUseItemTypeSchema,
+  type ItemImageColumns,
 } from "#shared/types.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 /* jscpd:ignore-end */
@@ -36,10 +40,22 @@ export type ImageInput = {
   altText?: string | undefined;
 };
 
-export type ImageUseTarget = {
-  itemType: ImageUseItemType;
-  itemId: number;
-};
+/** One record an image can be attached to. */
+export type ImageUseTarget = RecordTarget<ImageUseItemType>;
+
+/** How to name and ask for the records images hang off. Each kind lists its
+ * table so an attach can insist the record is really there. */
+export const imageUseTargets: RecordTargets<ImageUseItemType> =
+  defineRecordTarget({
+    columns: ITEM_TARGET_COLUMNS,
+    kinds: ImageUseItemTypeSchema.options,
+    tables: {
+      group: "groups",
+      listing: "listings",
+      news: "news_posts",
+      page: "site_pages",
+    },
+  });
 
 export type OrderedImage = Image & { sort_order: number };
 
@@ -62,7 +78,7 @@ export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   name: col.encryptedText(encrypt, decrypt),
 });
 
-const imageProjection = defineTableProjection(imagesTable, [
+const imageColumns = imagesTable.read.pick([
   "id",
   "name",
   "filename",
@@ -70,7 +86,7 @@ const imageProjection = defineTableProjection(imagesTable, [
   "alt_text",
 ]);
 
-const imageFileProjection = defineTableProjection(imagesTable, [
+const imageFileColumns = imagesTable.read.pick([
   "id",
   "filename",
   "filename_thumb",
@@ -78,12 +94,10 @@ const imageFileProjection = defineTableProjection(imagesTable, [
 ]);
 
 export const getAllImages = (): Promise<Image[]> =>
-  imageProjection.queryAll(
-    `SELECT ${imageProjection.columnsSql()} FROM images ORDER BY id DESC`,
-  );
+  imageColumns.many({}, { order: "id DESC" });
 
 export const getImageById = (id: number): Promise<Image | null> =>
-  imagesTable.findById(id);
+  imagesTable.read.one({ id });
 
 export const imageFilenameSubquery = (
   itemType: ImageUseItemType,
@@ -114,26 +128,36 @@ export const imageFilenameSubqueries = (
     ),
   ].join(", ");
 
+/** The images attached to one item, in the order the operator arranged them.
+ * Both image reads below want the same rows and differ only in which columns
+ * they open, so they say it once here. */
+const imagesOfItem = (
+  columns: string,
+  itemType: ImageUseItemType,
+  itemId: number,
+): Read => ({
+  columns,
+  from: "image_uses AS imageUse JOIN images AS image ON image.id = imageUse.image_id",
+  order: "imageUse.sort_order ASC, imageUse.image_id ASC",
+  where: imageUseTargets.where(
+    imageUseTargets.of(itemType)(itemId),
+    "imageUse",
+  ),
+});
+
 export const getImageFilenamesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
-): Promise<ItemImageProjection> => {
-  type ImageFileRow = StoredTableProjectionRow<
-    Image,
-    typeof imageFileProjection.columns
-  > & { id: number };
-  const stored = await queryOne<ImageFileRow>(
-    `SELECT ${imageFileProjection.columnsSql("image")}
-       FROM image_uses AS imageUse
-       JOIN images AS image ON image.id = imageUse.image_id
-      WHERE imageUse.item_type = ? AND imageUse.item_id = ?
-      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC
-      LIMIT 1`,
-    [itemType, itemId],
+): Promise<ItemImageColumns> => {
+  type ImageFileRow = StoredRowOf<Image, typeof imageFileColumns.columns> & {
+    id: number;
+  };
+  const stored = await readOneRow<ImageFileRow>(
+    imagesOfItem(imageFileColumns.columnsSql("image"), itemType, itemId),
   );
   if (!stored)
     return { image_alt_text: "", image_thumb_url: "", image_url: "" };
-  const image = await imageFileProjection.read(
+  const image = await imageFileColumns.read(
     stored,
     `${stored.id} (first image of ${itemType} ${itemId})`,
   );
@@ -148,20 +172,17 @@ export const getImagesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
 ): Promise<OrderedImage[]> => {
-  type OrderedImageRow = StoredTableProjectionRow<
-    Image,
-    typeof imageProjection.columns
-  > & { sort_order: number };
-  const rows = await queryAll<OrderedImageRow>(
-    `SELECT ${imageProjection.columnsSql("image")},
-            imageUse.sort_order
-       FROM image_uses AS imageUse
-       JOIN images AS image ON image.id = imageUse.image_id
-      WHERE imageUse.item_type = ? AND imageUse.item_id = ?
-      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC`,
-    [itemType, itemId],
+  type OrderedImageRow = StoredRowOf<Image, typeof imageColumns.columns> & {
+    sort_order: number;
+  };
+  const rows = await readRows<OrderedImageRow>(
+    imagesOfItem(
+      `${imageColumns.columnsSql("image")}, imageUse.sort_order`,
+      itemType,
+      itemId,
+    ),
   );
-  const images = await imageProjection.readAll(rows);
+  const images = await imageColumns.readAll(rows);
   return images.map((image, index) => ({
     ...image,
     sort_order: rows[index]!.sort_order,
@@ -169,20 +190,12 @@ export const getImagesForItem = async (
 };
 
 export const getImageUsesForImage = (imageId: number): Promise<ImageUse[]> =>
-  queryAll<ImageUse>(
-    `SELECT image_id, item_type, item_id, sort_order
-       FROM image_uses
-      WHERE image_id = ?
-      ORDER BY item_type ASC, item_id ASC`,
-    [imageId],
-  );
-
-const itemTable: Record<ImageUseItemType, string> = {
-  group: "groups",
-  listing: "listings",
-  news: "news_posts",
-  page: "site_pages",
-};
+  readRows<ImageUse>({
+    columns: "image_id, item_type, item_id, sort_order",
+    from: "image_uses",
+    order: "item_type ASC, item_id ASC",
+    where: equals("image_id", imageId),
+  });
 
 const imageUseOrder = defineOrderedCollection({
   key: "image_id",
@@ -190,54 +203,60 @@ const imageUseOrder = defineOrderedCollection({
   table: "image_uses",
 });
 
-const imageUseInsertStatement = (
-  imageId: number,
-  itemType: ImageUseItemType,
-  itemId: number,
-  sortOrder: number,
-): SqlStatement => ({
-  args: [imageId, itemType, itemId, sortOrder, imageId],
-  sql: `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
-        SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM images WHERE id = ?)`,
-});
+/**
+ * The insert that links an image to a record, ignoring a link already there.
+ * It only lands while the image still exists — and, when the record is one this
+ * write did not just save itself, while that record still exists too, so a
+ * stale request can never leave a link to nothing.
+ */
+const linkImageStatement =
+  (checkItemExists: boolean) =>
+  (
+    imageId: number,
+    target: ImageUseTarget,
+    sortOrder: number,
+  ): SqlStatement => {
+    const item = checkItemExists ? imageUseTargets.exists(target) : null;
+    return {
+      args: [
+        imageId,
+        target.kind,
+        target.id,
+        sortOrder,
+        imageId,
+        ...(item ? item.args : []),
+      ],
+      sql: `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
+          SELECT ?, ?, ?, ?
+           WHERE EXISTS (SELECT 1 FROM images WHERE id = ?)${
+             item ? `\n             AND ${item.sql}` : ""
+}`,
+    };
+  };
+
+/** Link an image to the record whose own save is making this link. */
+const linkImageToItem = linkImageStatement(false);
+
+/** Link an image to a record that must already exist. */
+const linkImageToExistingItem = linkImageStatement(true);
+
+/** Clear every image link of one record. */
+export const clearImageUsesForItemStatement =
+  imageUseTargets.deleteFrom("image_uses");
 
 export const setImagesForItem = (
   itemType: ImageUseItemType,
   itemId: number,
   imageIds: readonly number[],
 ): Promise<void> => {
+  const target = imageUseTargets.of(itemType)(itemId);
   const uniqueIds = [...new Set(imageIds)];
   return executeBatch([
-    {
-      args: [itemType, itemId],
-      sql: "DELETE FROM image_uses WHERE item_type = ? AND item_id = ?",
-    },
+    clearImageUsesForItemStatement(target),
     ...uniqueIds.map((imageId, index) =>
-      imageUseInsertStatement(imageId, itemType, itemId, index),
+      linkImageToItem(imageId, target, index),
     ),
   ]);
-};
-
-const attachImageToExistingItemStatement = (
-  imageId: number,
-  target: ImageUseTarget,
-  sortOrder: number,
-): SqlStatement => {
-  const table = itemTable[target.itemType];
-  return {
-    args: [
-      imageId,
-      target.itemType,
-      target.itemId,
-      sortOrder,
-      imageId,
-      target.itemId,
-    ],
-    sql: `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
-          SELECT ?, ?, ?, ?
-           WHERE EXISTS (SELECT 1 FROM images WHERE id = ?)
-             AND EXISTS (SELECT 1 FROM ${table} WHERE id = ?)`,
-  };
 };
 
 export const appendImageToItem = (
@@ -246,28 +265,35 @@ export const appendImageToItem = (
 ): Promise<void> =>
   useTransaction(undefined, async (transaction) => {
     const sortOrder = await imageUseOrder.next({
-      scope: [target.itemType, target.itemId],
+      scope: [target.kind, target.id],
       transaction,
     });
     await transaction.execute(
-      attachImageToExistingItemStatement(imageId, target, sortOrder),
+      linkImageToExistingItem(imageId, target, sortOrder),
     );
   });
 
+/** Drop this image's links to every record other than the ones named. Naming
+ *  none of them drops all of its links. */
 const clearStaleImageUseTargetsStatement = (
   imageId: number,
   targets: readonly ImageUseTarget[],
 ): SqlStatement => {
-  const targetPredicates = targets.map(() => "(item_type = ? AND item_id = ?)");
+  const kept = targets.map((target) => imageUseTargets.where(target));
   return {
     args: [
       imageId,
-      ...targets.flatMap((target) => [target.itemType, target.itemId]),
+      ...kept.flatMap((clauses) => clauses.flatMap((clause) => clause.args)),
     ],
     sql: `DELETE FROM image_uses WHERE image_id = ?${
-      targetPredicates.length === 0
+      kept.length === 0
         ? ""
-        : ` AND NOT (${targetPredicates.join(" OR ")})`
+        : ` AND NOT (${kept
+            .map(
+              (clauses) =>
+                `(${clauses.map((clause) => clause.clause).join(" AND ")})`,
+            )
+            .join(" OR ")})`
     }`,
   };
 };
@@ -276,41 +302,20 @@ export const setItemsForImage = (
   imageId: number,
   targets: readonly ImageUseTarget[],
 ): Promise<void> => {
-  const unique = [
-    ...new Map(
-      targets.map((target) => [`${target.itemType}:${target.itemId}`, target]),
-    ).values(),
-  ];
+  const unique = imageUseTargets.unique(targets);
   return useTransaction(undefined, async (transaction) => {
     const sortOrders = await imageUseOrder.nextMany({
-      items: unique.map((target) => ({
-        scope: [target.itemType, target.itemId],
-      })),
+      items: unique.map((target) => ({ scope: [target.kind, target.id] })),
       transaction,
     });
     await transaction.batch([
       clearStaleImageUseTargetsStatement(imageId, unique),
       ...unique.map((target, index) =>
-        attachImageToExistingItemStatement(imageId, target, sortOrders[index]!),
+        linkImageToExistingItem(imageId, target, sortOrders[index]!),
       ),
     ]);
   });
 };
-
-/**
- * A statement builder that deletes every row of `table` matching one
- * (item_type, item_id) pair. The callers differ only in the table and the
- * item-type they accept. `table` must be a trusted constant, never input.
- */
-export const deleteByItemStatement =
-  <ItemType extends string>(table: string) =>
-  (itemType: ItemType, itemId: number): SqlStatement => ({
-    args: [itemType, itemId],
-    sql: `DELETE FROM ${table} WHERE item_type = ? AND item_id = ?`,
-  });
-
-export const clearImageUsesForItemStatement =
-  deleteByItemStatement<ImageUseItemType>("image_uses");
 
 export const deleteImageRecord = async (imageId: number): Promise<void> => {
   await executeBatch([

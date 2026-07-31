@@ -173,41 +173,6 @@ actual size before marking an item complete.
 
 ---
 
-## Migration lock: re-acquire after a tolerated missing settings table
-
-*Origin: CodeRabbit review on PR #1965 (`src/shared/db/migrations/lock.ts`).*
-
-`acquireMigrationLock(true)` returns a lease token when the `settings` table
-does not exist yet, because the lock row lives in the very table the caller is
-about to create. Setup, restore, and bootstrap rely on this: their route is
-`initializeFreshSchema` → `sealFreshSchema`, which writes with a plain
-`executeBatch` and never checks lock ownership, so the unpersisted token is
-harmless there.
-
-There is one narrow interleaving where it is not harmless. Request A probes a
-missing `settings` table and takes the tolerated token; request B then creates
-and stamps the schema; A's re-probe inside `runAcquiredMigrations` now sees
-real markers, and if they read as stale it takes the pending-migrations branch
-and reaches `recordMigrationBatch` with a token no row ever backed. The
-ownership check finds zero rows and throws `MigrationInProgressError`.
-
-The outcome today is fail-closed and retryable — no markers are written and no
-data is corrupted, and another isolate genuinely was migrating — so this is a
-tidiness issue, not a correctness bug. Still, A is running migrations without
-holding a real lock until that final check catches it.
-
-The fix: after the re-probe in `runAcquiredMigrations`, when the initial
-acquisition was the tolerated one and the database now has a `settings` table,
-re-acquire the lease (and bail out the normal way if another request holds it)
-before entering the pending-migrations branch. A regression test needs to
-control the interleaving: acquire with `allowMissingSettings` against a wiped
-database, create and stamp the schema from another path, then assert the
-lock-gated write either succeeds against a real lease or refuses before any
-migration runs.
-
-Out of scope for #1965, which moved this code verbatim out of `migrations.ts`
-without changing behaviour.
-
 ## Booking unification — phases 3 & 4
 
 *Origin: `booking-unification.md`, `booking-unification-phase2.md`.*
@@ -1333,43 +1298,6 @@ proves they create the attendee and ledger rows exactly once.
 
 ---
 
-## Stale equivalent-mutant line numbers across recent refactors
-
-*Origin: running `deno task mutation:audit-equivalents` while hardening
-`src/shared/square.ts` for the confirmed-Square-refunds job.*
-
-`scripts/mutation/equivalent-mutants.txt` carries several entries whose
-`file:line:col` no longer points at a generated mutant, so
-`deno task mutation:audit-equivalents` aborts with "No generated mutant matches".
-The mutants are still real and equivalent; only the code moved. Confirmed stale
-entries span at least:
-- `src/shared/uptime-kuma/socket.ts` (lines 107, 130, 167, 187 — `===`/`!==`↔loose)
-- `src/shared/uptime-kuma/monitors.ts` (lines 87, 101, 116, 119, 138, 193, 227,
-  250, 306, 325 — `===`/`!==`↔loose and `1000→1001`)
-- `src/shared/scheduled-access.ts:16:20 ??→||`
-- `src/shared/storage.ts:376:18 application/octet-stream→""`
-- `src/ui/templates/admin/images.tsx:84:28` and `:85:20 ??→||`
-- `src/features/app/routes.ts:235:14 →"mutated"`
-
-These most likely drifted when the Uptime Kuma modules were split into
-one-concept-per-file (#1906) and other recent move/refactor PRs. The audit is a
-standalone task (`mutation:audit-equivalents`, not part of `deno task
-precommit`), so CI doesn't gate on it; it surfaced here only because the
-Square-refunds job ran exhaustive mutation and used the audit to validate its
-own equivalent entries. The `square.ts` entries in the equivalent-mutants
-registry have been refreshed in place (they drift as the source shifts lines —
-the audit command's own output lists every stale `file:line:col`);
-
-Fix: for each stale entry, re-run `deno task mutation <file> '<tests>'
---exhaustive`, locate the surviving equivalent mutant's current `file:line:col`
-from the report, and update the line/col in `equivalent-mutants.txt` (or remove
-the entry if the static gates now kill it — `mutation:audit-equivalents --write`
-does this automatically for entries the lint/type-check gates catch). Then
-re-run the audit until it reports no stale entries. Starting point: the audit's
-own output lists every stale `file:line:col`.
-
----
-
 ## Square PENDING refunds — propagate a pending result, not a plain false
 
 *Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread
@@ -1437,50 +1365,12 @@ a malformed response throws rather than being silently cast. Starting point:
 
 ---
 
-## Should the mutation gate pick fewer test files per source?
-
-*Origin: Codex review of PR #1981 (splitting three oversized test files into
-folders).*
-
-`ownsTest` in `scripts/mutation/test-map.ts` matches a source's mirror prefix
-*and everything under it*, so a source whose tests live in a folder selects
-every file in that folder, and `execution.ts` runs them with `--parallel` — one
-isolate each, for every mutant. Splitting a suite therefore turns one isolate
-per mutant into several. Codex's point is that this may cost more in repeated
-module-graph evaluation and setup than the single large file did.
-
-It may also cost less: each file is smaller, and they run in parallel. Nobody
-has measured it, and that measurement is the first job here. The command needs
-both a source and a test glob, so the split shape times as:
-
-```bash
-deno task mutation src/ui/templates/admin/questions.tsx \
-  'test/ui/templates/admin/questions/*.test.ts' --harness
-```
-
-For the "before" number, run the same command in a checkout from before PR
-#1981 — that is where the single `test/ui/templates/admin/questions.test.ts`
-still exists — with that one file as the test glob.
-
-Only if the split shape is genuinely slower is there something to change, and
-then the options are to select more narrowly (map a mutant to the one file whose
-name matches the mutated export — fragile) or to generate a single entry file
-that imports the folder's suites so one isolate runs them all. Note the manual
-command is already narrow: you can name one file yourself, which is what the
-~400-line guidance in AGENTS.md is about.
-
-Starting point: `ownsTest` and `selectMutationTests` in
-`scripts/mutation/test-map.ts`, and the `--parallel` invocation in
-`scripts/mutation/execution.ts`.
-
----
-
 ## Mutation coverage of `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
 `test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
 Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
-`scripts/mutation/equivalent-mutants.txt` with proofs — no unsuppressed survivors remain.
+`scripts/mutation/equivalent-mutants/` with proofs — no unsuppressed survivors remain.
 
 ## Split `render-selector.test.ts` by what each case actually checks
 
@@ -1546,42 +1436,29 @@ stands, so the split can be a pure move.
 
 ---
 
-## Mutation gaps in `src/shared/crypto/encryption.ts`
+## Two suites now cover the attendees list
 
-*Origin: mutation run while speeding up owner-key encryption (PR #1945).*
+*Origin: Codex review of PR #1993 (direct tests for the four testless modules).*
 
-`deno task mutation --source src/shared/crypto/encryption.ts --test
-test/shared/crypto/encryption.test.ts` reports **41 survivors out of 90**, a
-score of 54%. None came from that change; they are gaps the run happened to
-surface. They fall into three groups.
+`test/features/admin/attendees-list.test.ts` was added because the mutation
+gate needs a test at the source's mirrored path. It calls the handlers
+directly. But `test/integration/server/attendees-list.test.ts` already drives
+the same behaviour over HTTP — authentication, the listing filter, sort order
+and paging — and `test/integration/server/attendees-csv.test.ts` covers the
+export. So the same rules are now checked twice.
 
-**The binary file format** (`encryptBytes` / `decryptBytes`, the `ENCB` header —
-roughly lines 254 to 301). Most of the survivors are here: the magic bytes, the
-version byte, the header offsets, and both format errors can all be mutated
-without a direct test noticing. These functions are only reached today through
-integration tests (`test/features/images.test.ts`,
-`test/integration/attachment-route.test.ts`,
-`test/ui/templates/admin/settings/header-image.test.ts`), which the direct-test
-run does not include. They want unit tests in `test/shared/crypto/` covering the
-header layout byte by byte, a wrong magic, and a wrong version.
+That costs runtime on every suite run, and lets the two sets of fixtures and
+expectations drift apart. The fix is to consolidate: move the route-level cases
+into the mirrored feature suite (which can call the handler directly *and* go
+through the router where that is the point), and delete what is left behind.
 
-**Key caching and change notification** (lines 65 to 136): clearing the two
-resolved-key caches and running the registered change callbacks can be removed
-without a test failing. A test that changes the key and then checks the *next*
-encryption uses the new one would close this.
+Not done in #1993 because that change touches suites the PR otherwise had no
+reason to open, and the mirrored suite had to exist first. Worth doing next
+time either file is opened.
 
-**The key import flag** (line 119): `false` → `true` on the `extractable`
-argument of `crypto.subtle.importKey`. No behaviour can tell these apart,
-because the key is never exported — a genuine equivalent mutant. Either record
-it in `scripts/mutation/equivalent-mutants.txt` with that reasoning, or find an
-assertion on the imported key itself. `importRsaKey` in
-`src/shared/crypto/keys.ts` has the same shape.
-
-Start with the binary format: it is the bulk of the count and the group where a
-surviving mutant would represent a real risk to stored files.
+Starting point: the three files named above.
 
 ---
-
 
 ## Let Deno-hosted sites with a Bunny database be migrated
 
@@ -1856,30 +1733,127 @@ and thinking again about the startup grace, which exists because a process id
 can be given to somebody else after the original has gone. Start at
 `RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
 
-## Four feature modules have no test at their mirrored path
+## Four feature modules had no test at their mirrored path — now they do
 
 *Origin: `deno task precommit:mutation` on the notes-migration branch, which
-could not start.*
+could not start. Closed by the direct-test pass that followed.*
 
-The mutation gate refuses to run a source that has mutants but no test at its
-mirrored path under `test/`. Four modules are in that state:
+All four now have a direct test at their mirrored path, so the gate no longer
+refuses to start on a branch that touches them:
 
-- `src/features/admin/attendee-page.ts` (55 mutants)
-- `src/features/admin/attendees-list.ts` (37)
-- `src/features/admin/listing-page-data.ts` (45)
-- `src/features/api/payment-processing/store-refund.ts` (29)
+- `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
+- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list.test.ts` (100%)
+- `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
+- `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
 
-Nothing needs moving: no test imports any of them. They are reached only
-through the app, by integration and Cucumber journeys, so each needs a direct
-test written at `test/features/…` to match its path.
+Every one of them now catches every mutation the gate demands, so a branch
+touching any of them can pass without first writing the tests that should
+already have existed.
 
-This blocks the gate for *any* branch that touches one of them, however small
-the change — the notes migration only swapped an import in each. Until they
-have direct tests, a branch touching them can prove its own work with a
-targeted `deno task mutation <source> <tests>` run instead.
+`src/features/admin/attendee-notes.ts` was in the same state and was fixed
+earlier: its route suite drives real pages through the session helpers, so it
+moved from `test/integration/admin/` to `test/features/admin/`, which is where
+that kind of suite belongs (see "Let the misplaced-test list see past request
+helpers" above).
 
-`src/features/admin/attendee-notes.ts` was in the same state and is now fixed:
-its route suite drives real pages through the session helpers, so it moved from
-`test/integration/admin/` to `test/features/admin/`, which is where that kind
-of suite belongs (see "Let the misplaced-test list see past request helpers"
-above). The other four have no such suite to move.
+## Two people setting a site up at the same moment can both succeed
+
+Raised on #1988 by both automated reviewers, and confirmed against the code.
+It is a production bug, not a test gap, and it is deliberately left out of that
+pull request because that branch changes no production code and this sits in
+the most security-critical path we have.
+
+**What happens.** `handleSetupPost` (`src/features/setup.ts`) asks
+`isSetupComplete()` and then calls `settings.setup.complete`. Nothing holds
+between the asking and the doing, so two requests that arrive together can both
+be told the site is empty. `completeSetup`
+(`src/shared/db/settings/setup.ts`) then runs its batch twice.
+
+The unique index on `username_index` saves us only when both people pick the
+*same* name. Two different names both insert, and the second batch's
+`settingUpsert` calls overwrite `PUBLIC_KEY` and `WRAPPED_PRIVATE_KEY` with a
+second keypair. The first owner is left holding a wrapped data key for a data
+key the site no longer uses — they can sign in and read nothing.
+
+**Why it is not simply "add a guard".** The batch cannot decide anything
+mid-flight, so making the owner insert conditional still leaves the four
+setting upserts landing unconditionally. Whatever fixes it has to make the
+whole ceremony refuse to run twice — an interactive transaction that re-reads
+`setup_complete` inside the write lock, or a single conditional write that
+every other statement hangs off. That is a design decision in the code that
+holds everybody's encryption keys, so it wants its own change and its own
+review, not a corner of a test PR.
+
+**Where to start.** `completeSetup` in `src/shared/db/settings/setup.ts` —
+`withTransaction` from `src/shared/db/client.ts` is the tool, and the header
+comment on the current batch explains why it is a plain batch today (all values
+are computed up front). The guard in `handleSetupPost` at
+`src/features/setup.ts:114` stays useful as the cheap first check.
+
+**Proving it.** A story cannot show this today: Cucumber awaits each step, so
+the two posts never overlap. #1988 covers the neighbouring case it *can* reach
+honestly — a person who had the setup page open before somebody else finished,
+sending their stale form afterwards. A real test for this one needs both posts
+started together behind a barrier, and it should be written with the fix.
+
+---
+
+## An answer filed under a listing nobody booked
+
+*Origin: review of PR #1990 (the booking-check slice), 2026-07-29.*
+
+Free-text answers travel through checkout filed under the listing they belong
+to, as `{"12": [{"q": 3, "s": 400}]}`. `ListingKeySchema` in
+`src/shared/booking-intent.ts` checks that the key is written the way a listing
+id is written, so a key of any other shape stops the booking rather than losing
+the answers under it after the buyer has paid.
+
+What it cannot check is whether that listing was one of the ones actually
+bought. A key of `"12"` on an order for listings 3 and 7 passes the shape rule,
+and `saveSessionAnswers` in `src/features/api/payment-processing/create.ts` then
+looks up each booked listing in turn, finds nothing under 3 or 7, and saves no
+answers. The buyer answered a question and the answer quietly goes nowhere.
+
+The schema is the wrong place for the check: it validates one booking's metadata
+on its own, and the listings that were bought are decided later, once the items
+have been priced and loaded. The natural home is next to
+`saveSessionAnswers`, which already has both the answer map and the booked
+listings — compare the two sets and raise any key that matches no booked
+listing, the same way an unreadable booking is raised.
+
+Start at `saveSessionAnswers`, and at `test/shared/booking-intent.test.ts`,
+where the shape rule is covered and the "names a booked listing" rule is not.
+
+---
+
+## A create whose row can't be read back should not look retryable
+
+*Origin: Codex review on PR #2002, which added the loud failure for a create
+whose just-written row can't be read back.*
+
+`writeEntity` (`src/shared/rest/write-entity.ts`) writes the row, commits, then
+reads it back on the primary. When a create's read-back finds nothing it now
+raises an error. That error leaves the API write path in
+`src/shared/rest/crud-api.ts` and reaches the request handler
+(`src/features/app/request.ts`), which turns any unhandled error into the shared
+503 page. The row itself was committed, so a client that treats the 503 as
+"try again" can post the same create twice and end up with two rows.
+
+The reviewer's suggestion was to read the row back *before* committing, so a
+failed read-back rolls the insert back and there is nothing to duplicate. That
+is more than a local change: each resource can supply its own
+`lookupAfterWrite`, several of which join extra columns, and every one of them
+would need a version that reads inside the open transaction. It also trades one
+rare wrong answer for another — a row read before the commit can still be
+reported to the caller when the commit afterwards fails.
+
+`writeTableRow` in `src/shared/db/table.ts` already inserts and reads back
+inside one transaction (see `test/shared/db/table/write-row.test.ts`), so it is
+the place to start if the pre-commit read-back is the direction taken. The
+smaller alternative is to keep the failure after the commit but answer with a
+response that says plainly the create is not to be repeated, and carries the id
+of the row that was made, rather than falling through to the generic 503.
+
+Note that the id that made this reachable in the first place is now checked at
+the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
+answer given for a failure that should no longer happen — not a live fault.

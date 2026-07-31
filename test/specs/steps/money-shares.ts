@@ -4,12 +4,12 @@ import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { listingIdNamed } from "#test/specs/support/listings.ts";
 import {
   askForRefund,
   bookingId,
   buyOnePlace,
   correctIncomeTo,
-  listingIdFor,
   sellPlacesAt,
   soleBookingOn,
   timesProviderWasAsked,
@@ -44,12 +44,12 @@ Given(
 When(
   "a customer pays 50.00 for one place on each",
   async function (this: TicketsWorld): Promise<void> {
-    const first = listingIdFor(this, "Part One");
+    const first = listingIdNamed(this, "Part One");
     await runStripeSuccess({
       email: "both@example.com",
       items: JSON.stringify([
         { e: first, p: 3000, q: 1 },
-        { e: listingIdFor(this, "Part Two"), p: 2000, q: 1 },
+        { e: listingIdNamed(this, "Part Two"), p: 2000, q: 1 },
       ]),
       name: "Both Buyer",
       paymentIntent: "pi_multi",
@@ -64,8 +64,8 @@ When(
 Then(
   "Part One has earned 30.00 and Part Two has earned 20.00",
   async function (this: TicketsWorld): Promise<void> {
-    expect(await incomeOf(listingIdFor(this, "Part One"))).toBe(3000);
-    expect(await incomeOf(listingIdFor(this, "Part Two"))).toBe(2000);
+    expect(await incomeOf(listingIdNamed(this, "Part One"))).toBe(3000);
+    expect(await incomeOf(listingIdNamed(this, "Part Two"))).toBe(2000);
     expect(await owedBy(bookingId(this))).toBe(0);
     expect(await worldBalance()).toBe(-5000);
     expect(await sumOfAllBalances()).toBe(0);
@@ -78,8 +78,8 @@ Then(
     // Both listings must hold the very same booking — money alone could add up
     // while one of the places was never given to anybody.
     const booking = bookingId(this);
-    expect(await soleBookingOn(listingIdFor(this, "Part One"))).toBe(booking);
-    expect(await soleBookingOn(listingIdFor(this, "Part Two"))).toBe(booking);
+    expect(await soleBookingOn(listingIdNamed(this, "Part One"))).toBe(booking);
+    expect(await soleBookingOn(listingIdNamed(this, "Part Two"))).toBe(booking);
     const legs = await transfersByAccount(attendeeAccount(booking));
     expect(legsOfKind(legs, "sale").length).toBe(2);
     expect(new Set(legs.map((leg) => leg.eventGroup)).size).toBe(1);
@@ -89,8 +89,8 @@ Then(
 Then(
   "each listing's page shows its own earnings",
   async function (this: TicketsWorld): Promise<void> {
-    await assertEditPageIncome(listingIdFor(this, "Part One"), 3000);
-    await assertEditPageIncome(listingIdFor(this, "Part Two"), 2000);
+    await assertEditPageIncome(listingIdNamed(this, "Part One"), 3000);
+    await assertEditPageIncome(listingIdNamed(this, "Part Two"), 2000);
   },
 );
 
@@ -99,20 +99,20 @@ Given(
   async function (this: TicketsWorld): Promise<void> {
     await buyOnePlace(this, FESTIVAL, "70.00", "Mixed One");
     await createPaidTestAttendee(
-      listingIdFor(this, FESTIVAL),
+      listingIdNamed(this, FESTIVAL),
       "Mixed Two",
       "mixed2@example.com",
       "pi_mix2",
       7000,
     );
-    expect(await incomeOf(listingIdFor(this, FESTIVAL))).toBe(14000);
+    expect(await incomeOf(listingIdNamed(this, FESTIVAL))).toBe(14000);
   },
 );
 
 Given(
   "the organiser corrected the Festival income to 100.00",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = listingIdFor(this, FESTIVAL);
+    const listingId = listingIdNamed(this, FESTIVAL);
     await correctIncomeTo(this, listingId, "100.00");
     expect(await incomeOf(listingId)).toBe(10000);
   },
@@ -128,7 +128,7 @@ When(
 Then(
   "the Festival earnings and the refunded customer's balance agree",
   async function (this: TicketsWorld): Promise<void> {
-    const listingId = listingIdFor(this, FESTIVAL);
+    const listingId = listingIdNamed(this, FESTIVAL);
     expect(timesProviderWasAsked(this)).toBe(1);
     expect(await owedBy(bookingId(this))).toBe(0);
     // 140 sold − 40 written down − 70 refunded = 30 on the money record, while

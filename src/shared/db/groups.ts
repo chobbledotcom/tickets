@@ -49,15 +49,12 @@ import {
 } from "#shared/db/listing-prices.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import {
-  type ListingProjectionRow,
-  listingStatement,
+  type ListingRecordRow,
+  listingReader,
 } from "#shared/db/listings/select.ts";
-import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
+import { envNameSource, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
-import {
-  defineTableProjection,
-  type StoredTableProjectionRow,
-} from "#shared/db/table.ts";
+import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
   type PackageChildEdgeBlock,
   type PackageMemberBlock,
@@ -93,32 +90,18 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...projectCatalogFields(groupCatalogFields, "columns", {}),
 });
 
-const packageDisplayProjection = defineTableProjection(rawGroupsTable, [
+const packageDisplayColumns = rawGroupsTable.read.pick([
   "id",
   "hide_package_listings",
   "name",
 ]);
-type StoredPackageDisplay = StoredTableProjectionRow<
-  Group,
-  typeof packageDisplayProjection.columns
->;
 
 /** Execute a query and decrypt the resulting group rows */
-const queryGroups = queryAndMap<Group, Group>((row) =>
-  rawGroupsTable.fromDb(row),
-);
-const GROUP_COLUMNS = rawGroupsTable.columns
-  .map((column) => `groupRecord.${column}`)
-  .join(", ");
-
 export const groups = cachedEntityTable<Group, GroupInput>(
   "groups",
   rawGroupsTable,
   {
-    fetchAll: () =>
-      queryGroups(
-        `SELECT ${GROUP_COLUMNS} FROM groups AS groupRecord ORDER BY groupRecord.id ASC`,
-      ),
+    fetchAll: () => rawGroupsTable.read.many({}, { order: "id ASC" }),
     idOf: (g) => g.id,
     keyOf: (g) => g.slug_index,
     ttlMs: GROUPS_CACHE_TTL_MS,
@@ -146,7 +129,7 @@ export const listingGroups = {
 };
 
 /** Every group keyed by id, from the request-cached set — the batched
- * alternative to one findById per id when resolving or validating many groups
+ * alternative to one read per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
   mapById(identity<Group>)(await groups.cache.getAll());
@@ -155,6 +138,12 @@ export const getGroupsById = async (): Promise<Map<number, Group>> =>
  * pickers/labels that must not load the whole groups cache. */
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
   envNameSource("groups", "groupRecord").all();
+
+/** One group by id, read straight from the table: a group about to be shown,
+ * edited or acted on must be the stored row, not a cached copy. Null when no
+ * group has that id. */
+export const getGroupById = (id: number): Promise<Group | null> =>
+  rawGroupsTable.read.one({ id });
 
 /**
  * Get a single group by slug_index (from cache)
@@ -195,9 +184,9 @@ export const getListingsByGroupIds = async (
   activeOnly = false,
 ): Promise<Map<number, ListingWithCount[]>> => {
   if (groupIds.length === 0) return new Map();
-  type GroupListingRow = ListingProjectionRow & { group_ids: string };
+  type GroupListingRow = ListingRecordRow & { group_ids: string };
   type ListingGroups = { groupIds: number[]; member: ListingWithCount };
-  const { sql, args } = listingStatement({
+  const { sql, args } = listingReader.statement({
     order: "created_desc",
     where: { activeOnly, inGroups: [...groupIds] },
   });
@@ -459,14 +448,18 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
-  const packageGroups = await packageDisplayProjection.readAll(
-    await rowsByIds<StoredPackageDisplay>(
-      [...new Set(groupIds)].filter((groupId) => groupId > 0),
-      (placeholders) =>
-        `SELECT ${packageDisplayProjection.columnsSql("groupRecord")}
-          FROM groups AS groupRecord
-        WHERE groupRecord.id IN (${placeholders}) AND groupRecord.is_package = 1`,
-    ),
+  const packageGroups = await packageDisplayColumns.many(
+    {},
+    {
+      alias: "groupRecord",
+      where: [
+        ...inList(
+          "groupRecord.id",
+          [...new Set(groupIds)].filter((groupId) => groupId > 0),
+        ),
+        ...equals("groupRecord.is_package", 1),
+      ],
+    },
   );
   return new Map(
     packageGroups.map((group) => [

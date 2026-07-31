@@ -29,6 +29,7 @@ const writeWith = (
     joinWrites: [],
     plainWrite: () => table.insert({ name: "row" }),
     readBack: (id) => table.findByIdPrimary!(id),
+    tableName: "we_items",
     ...overrides,
   });
 
@@ -63,7 +64,7 @@ describe("writeEntity", () => {
     expect(joinIds).toEqual([1]);
     // afterCommit ran once with the written row's id, after the read-back.
     expect(afterCommitIds).toEqual([1]);
-    expect(await table.findById(1)).toEqual({ id: 1, name: "row" });
+    expect(await table.read.one({ id: 1 })).toEqual({ id: 1, name: "row" });
   });
 
   test("runs every join write in order, all inside the one transaction", async () => {
@@ -110,7 +111,7 @@ describe("writeEntity", () => {
 
     // The row write rolled back with the failed join write; nothing persisted,
     // and the post-commit hook never ran.
-    expect(await table.findById(1)).toBeNull();
+    expect(await table.read.one({ id: 1 })).toBeNull();
     expect(afterCommitRan).toBe(false);
   });
 
@@ -151,6 +152,36 @@ describe("writeEntity", () => {
 
     expect(row).toBeNull();
     expect(afterCommitRan).toBe(false);
+  });
+
+  test("throws when a create can't read its own inserted row back", async () => {
+    const table = makeTable();
+
+    await expect(
+      writeWith(table, {
+        existingId: null,
+        joinWrites: [() => Promise.resolve()],
+        plainWrite: reject("plainWrite"),
+        readBack: () => Promise.resolve(null),
+      }),
+    ).rejects.toThrow(
+      "we_items: row 1 was inserted but could not be read back",
+    );
+  });
+
+  test("returns null when an update's row is gone by the time it reads back", async () => {
+    const table = makeTable();
+    await table.insert({ name: "row" });
+
+    const row = await writeWith(table, {
+      buildStatement: () => table.updateStatement!(1, { name: "renamed" }),
+      existingId: 1,
+      joinWrites: [() => Promise.resolve()],
+      plainWrite: reject("plainWrite"),
+      readBack: () => Promise.resolve(null),
+    });
+
+    expect(row).toBeNull();
   });
 
   test("runs without an afterCommit hook", async () => {

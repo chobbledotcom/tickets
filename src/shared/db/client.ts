@@ -771,11 +771,28 @@ export const useTransaction = <T>(
   transaction === undefined ? withTransaction(work) : work(transaction);
 
 /**
+ * The key of the row an `INSERT … RETURNING` wrote, read from the row itself
+ * rather than from the driver's optional `lastInsertRowid`. Every generated key
+ * is a positive integer, so anything else means nothing downstream can be keyed
+ * on this row and the write must fail here.
+ */
+export const insertedRowId = (
+  result: ResultSet,
+  primaryKey: string = "id",
+): number => {
+  const id = resultRows<Record<string, unknown>>(result)[0]?.[primaryKey];
+  if (typeof id === "number" && Number.isInteger(id) && id > 0) return id;
+  throw new Error(
+    `INSERT did not return the ${primaryKey} of the row it wrote (got ${JSON.stringify(id)})`,
+  );
+};
+
+/**
  * Write one row `statement` in a fresh write transaction and run `persist` (the
  * coupled join-table writes) on the same `tx`, so the row and its side writes
  * commit or roll back together. Returns the row id — `existingId` on update, or
- * the INSERT's `lastInsertRowid` on create (`existingId` null). Shared by the
- * REST resource (HTML forms) and CRUD API write paths.
+ * the key the INSERT returned on create (`existingId` null). Shared by the REST
+ * resource (HTML forms) and CRUD API write paths.
  */
 export const writeRowInTransaction = (
   statement: InStatement,
@@ -784,7 +801,7 @@ export const writeRowInTransaction = (
 ): Promise<number> =>
   withTransaction(async (tx) => {
     const res = await tx.execute(statement);
-    const id = existingId ?? Number(res.lastInsertRowid);
+    const id = existingId ?? insertedRowId(res);
     await persist(tx, id);
     return id;
   });
@@ -816,10 +833,14 @@ export const rawSql = (expr: string): RawSql => ({ [RAW_SQL]: expr }) as RawSql;
  * // → { sql: "INSERT INTO listing_attendees (...) VALUES (?, last_insert_rowid(), ?)",
  * //     args: [1, 2] }
  * ```
+ *
+ * Pass `returningColumns` when the caller needs the written row to report
+ * something back — a generated key, say, read with {@link insertedRowId}.
  */
 export const insert = (
   table: string,
   values: Record<string, InValue | RawSql>,
+  returningColumns?: string,
 ): { sql: string; args: InValue[] } => {
   const columns: string[] = [];
   const placeholders: string[] = [];
@@ -835,11 +856,12 @@ export const insert = (
     }
   }
 
+  const returning = returningColumns ? ` RETURNING ${returningColumns}` : "";
   return {
     args,
     sql: `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders.join(
       ", ",
-    )})`,
+    )})${returning}`,
   };
 };
 

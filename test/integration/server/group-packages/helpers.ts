@@ -7,8 +7,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import {
+  getGroupById,
+  getGroupPackagePrices,
+  groups,
+} from "#shared/db/groups.ts";
+import type { Group, ListingWithCount } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -96,6 +100,20 @@ export const postIsPackage = (group: {
     is_package: "1",
   });
 
+/** Assert a group edit POST was turned away by the package invariant, and hand
+ * back the group as the refused save left it. */
+export const expectPackageRefused = async (
+  group: { id: number },
+  response: Response,
+): Promise<Group> => {
+  await expectFlashRedirect(
+    `/admin/groups/${group.id}/edit`,
+    expect.stringContaining("Packages cannot contain"),
+    false,
+  )(response);
+  return (await getGroupById(group.id))!;
+};
+
 /** POST the edit form with is_package ticked and assert it was rejected by the
  * package invariant, leaving the flag clear. */
 export const expectPackageRejected = async (group: {
@@ -104,12 +122,8 @@ export const expectPackageRejected = async (group: {
   slug: string;
 }): Promise<void> => {
   const { response } = await postIsPackage(group);
-  await expectFlashRedirect(
-    `/admin/groups/${group.id}/edit`,
-    expect.stringContaining("Packages cannot contain"),
-    false,
-  )(response);
-  expect((await groups.table.findById(group.id))!.is_package).toBe(false);
+  const refused = await expectPackageRefused(group, response);
+  expect(refused.is_package).toBe(false);
 };
 
 /** POST the edit form with is_package ticked and assert it saved. */
@@ -120,7 +134,7 @@ export const expectPackageAccepted = async (group: {
 }): Promise<void> => {
   const { response } = await postIsPackage(group);
   expect(response.status).toBe(302);
-  expect((await groups.table.findById(group.id))!.is_package).toBe(true);
+  expect((await getGroupById(group.id))!.is_package).toBe(true);
 };
 
 /** POST add-listings with `listingId` to a package group and assert the package

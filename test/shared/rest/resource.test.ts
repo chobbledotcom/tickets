@@ -29,7 +29,6 @@ const testForm = defineForm({
     { label: "Name", name: "name", required: true, type: "text" },
     { label: "Value", name: "value", required: true, type: "number" },
   ] as const,
-  id: "test-resource",
 });
 
 type TestFormValues = FormValues<typeof testForm>;
@@ -78,7 +77,7 @@ const expectRowExists = async (
   id: number,
   exists: boolean,
 ): Promise<void> => {
-  const row = await resource.table.findById(id);
+  const row = await resource.table.read.one({ id: id });
   exists ? expect(row).not.toBeNull() : expect(row).toBeNull();
 };
 
@@ -209,6 +208,26 @@ describe("rest/resource", () => {
       );
       expect(result.ok).toBe(true);
     });
+
+    // The row commits but the read-back finds nothing, so create used to report
+    // `ok: true` with a null row — every caller's first field read (a listing
+    // create's `result.row.name`) then died as "Cannot read properties of null",
+    // a 500 far from the cause on a listing that HAD been created.
+    test("throws naming the table when the committed row can't be read back", async () => {
+      const table = createTestTable();
+      const resource = defineResource({
+        // A join write puts the create on the transactional read-back path,
+        // which is where every real create (listings, groups, …) runs.
+        afterWrite: () => Promise.resolve(),
+        form: testForm,
+        table: { ...table, findByIdPrimary: () => Promise.resolve(null) },
+        toInput,
+      });
+
+      await expect(
+        resource.create(new FormParams({ name: "Ghost", value: "1" })),
+      ).rejects.toThrow("test_items");
+    });
   });
 
   describe("update", () => {
@@ -326,7 +345,7 @@ describeWithEnv("rest/resource - additional coverage", { db: true }, () => {
       expect(deletedId).toBe(1);
 
       // Verify row was actually deleted
-      const row = await table.findById(1);
+      const row = await table.read.one({ id: 1 });
       expect(row).toBeNull();
     });
   });

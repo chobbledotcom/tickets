@@ -44,12 +44,14 @@ import {
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
 } from "#shared/db/attributes.ts";
+import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import {
   flatCollectionSwap,
+  insertScopedOrderedRow,
   scopedCollectionSwap,
 } from "#shared/db/ordered-collection.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { defineForm } from "#shared/forms/definition.ts";
+import { defineTextForm } from "#shared/forms/definition.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
@@ -66,31 +68,17 @@ import { createListingChoicePost } from "./listing-choice-post.ts";
 
 /* jscpd:ignore-end */
 
-export const attributeNameForm = defineForm({
-  fields: [
-    {
-      label: "Attribute name",
-      name: "name",
-      placeholder: "e.g. Difficulty",
-      required: true,
-      type: "text",
-    },
-  ] as const,
-  id: "attributeName",
-});
+export const attributeNameForm = defineTextForm(
+  "Attribute name",
+  "name",
+  "e.g. Difficulty",
+);
 
-export const attributeOptionForm = defineForm({
-  fields: [
-    {
-      label: "Option text",
-      name: "text",
-      placeholder: "e.g. Beginner",
-      required: true,
-      type: "text",
-    },
-  ] as const,
-  id: "attributeOption",
-});
+export const attributeOptionForm = defineTextForm(
+  "Option text",
+  "text",
+  "e.g. Beginner",
+);
 
 const handleAttributesGet = ownerPage(async (session) => {
   const flash = getFlash();
@@ -106,11 +94,23 @@ const handleAttributesPost = createAuthedFormRoute({
   form: attributeNameForm,
   onInvalid: ({ error }) => errorRedirect("/admin/attributes", error),
   onValid: async ({ values: { name } }) => {
-    const attribute = await attributesTable.insert({ name });
-    await attributesOrder.append({ key: attribute.id });
-    await logActivity(`Attribute '${name}' created`);
+    // One transaction: an attribute must never exist without its order entry
+    // or its log line.
+    const attributeId = await writeRowInTransaction(
+      await attributesTable.insertStatement({ name }),
+      null,
+      async (transaction, id) => {
+        await attributesOrder.append({ key: id, transaction });
+        await logActivity(
+          `Attribute '${name}' created`,
+          undefined,
+          undefined,
+          transaction,
+        );
+      },
+    );
     return redirect(
-      `/admin/attributes/${attribute.id}`,
+      `/admin/attributes/${attributeId}`,
       "Attribute created",
       true,
     );
@@ -162,11 +162,15 @@ const logAttributeOptionActivity = (
   optionText: string,
   action: string,
   attribute: AttributeWithOptions,
+  transaction?: TxScope,
 ) =>
   logActivity(
     `Attribute option '${optionText}' ${action} ${attributeNameFlat(
       attribute.name,
     )}`,
+    undefined,
+    undefined,
+    transaction,
   );
 
 const handleAttributeEdit = createAuthedFormRoute<
@@ -188,6 +192,12 @@ const handleAttributeEdit = createAuthedFormRoute<
     }),
 });
 
+/** Insert an option and place it in its attribute's order, atomically. */
+const addOptionRow = insertScopedOrderedRow(
+  attributeOptionsTable,
+  attributeOptionsOrder,
+);
+
 const handleAddOption = createAuthedFormRoute<
   { text: string },
   AttributeParams
@@ -197,16 +207,15 @@ const handleAddOption = createAuthedFormRoute<
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { text } }) =>
     orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
-      const option = await attributeOptionsTable.insert({
-        attributeId: params.id,
-        sortOrder: 0,
-        text,
-      });
-      await attributeOptionsOrder.append({
-        key: option.id,
-        scope: params.id,
-      });
-      await logAttributeOptionActivity(text, "added to", attribute);
+      // One transaction: an option must never exist without its place in the
+      // order or its log line. The inserted sortOrder is a placeholder the
+      // append overwrites before anything can read it.
+      await addOptionRow(
+        params.id,
+        { attributeId: params.id, sortOrder: 0, text },
+        (transaction) =>
+          logAttributeOptionActivity(text, "added to", attribute, transaction),
+      );
       return redirect(`/admin/attributes/${params.id}`, "Option added", true);
     }),
 });
@@ -348,10 +357,10 @@ const handleListingAttributesPost = createListingChoicePost({
   fieldName: "option_ids",
   label: "Attributes",
   noun: "option",
-  readIds: async (form) =>
+  readIds: async (form, fieldName) =>
     pruneInvalidAttributeOptionIds(
       await getAllAttributeOptionIds(),
-      form.getNumberArray("option_ids"),
+      form.getNumberArray(fieldName),
     ),
   saveIds: listingAttributeOptions.setIds,
   tab: "attributes",

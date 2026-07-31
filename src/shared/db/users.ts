@@ -24,6 +24,7 @@ import {
   execute,
   inPlaceholders,
   insert,
+  insertedRowId,
   queryAll,
 } from "#shared/db/client.ts";
 import {
@@ -153,7 +154,7 @@ const buildUserInsert = async (
     username_index: usernameIndex,
     wrapped_data_key: opts.wrappedDataKey,
   };
-  return { statement: insert("users", values), values };
+  return { statement: insert("users", values, "id"), values };
 };
 
 /** A user INSERT statement plus the row values needed to rebuild the User. */
@@ -165,7 +166,7 @@ const runUserInsert = async ({
   values,
 }: BuiltUserInsert): Promise<User> => {
   const result = await execute(statement.sql, statement.args);
-  return { id: Number(result.lastInsertRowid), ...values };
+  return { id: insertedRowId(result), ...values };
 };
 
 /** Shared user creation logic */

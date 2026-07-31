@@ -40,7 +40,8 @@ describeWithEnv(
         ok: false,
       });
       expect(
-        (await builtSitesCrudTable.findById(child.id))?.scheduledTaskKey,
+        (await builtSitesCrudTable.read.one({ id: child.id }))
+          ?.scheduledTaskKey,
       ).toBeNull();
     });
 
@@ -52,11 +53,11 @@ describeWithEnv(
 
     test("reuses the primary key when a replica read is stale", async () => {
       const child = await site();
-      const stale = await builtSitesCrudTable.findById(child.id);
+      const stale = await builtSitesCrudTable.read.one({ id: child.id });
       const key = await ensureBuiltSiteSchedulerKey(child.id);
       const pushed: string[] = [];
       stubs.push(
-        stub(builtSitesCrudTable, "findById", () => Promise.resolve(stale)),
+        stub(builtSitesCrudTable.read, "one", () => Promise.resolve(stale)),
         stub(bunnyHostingProvider, "getSecretNames", () =>
           Promise.resolve({ ok: true, value: ["SCHEDULED_TASK_KEY"] }),
         ),
@@ -104,11 +105,12 @@ describeWithEnv(
       stubBunnySchedulerSecrets(stubs, [], { error: "host down", ok: false });
 
       expect((await provisionSiteScheduler(child.id)).ok).toBe(false);
-      const first = (await builtSitesCrudTable.findById(child.id))
+      const first = (await builtSitesCrudTable.read.one({ id: child.id }))
         ?.scheduledTaskKey;
       expect((await provisionSiteScheduler(child.id)).ok).toBe(false);
       expect(
-        (await builtSitesCrudTable.findById(child.id))?.scheduledTaskKey,
+        (await builtSitesCrudTable.read.one({ id: child.id }))
+          ?.scheduledTaskKey,
       ).toBe(first);
     });
 

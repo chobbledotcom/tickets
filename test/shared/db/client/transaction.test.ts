@@ -197,4 +197,58 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     expect(id).toBe(0);
     expect(persistedIds).toEqual([0]);
   });
+
+  /** Run an INSERT through writeRowInTransaction against a driver whose
+   *  RETURNING gives back `rows`, recording the ids persist saw. */
+  const insertReturningRows = async (
+    rows: unknown[],
+  ): Promise<{ persistedIds: number[]; error: unknown }> => {
+    const persistedIds: number[] = [];
+    using _txStub = stubTransaction({
+      commit: () => Promise.resolve(),
+      execute: () => Promise.resolve({ rows } as unknown as ResultSet),
+      rollback: () => Promise.resolve(),
+    });
+    try {
+      await writeRowInTransaction(
+        "INSERT INTO rows (x) VALUES (1)",
+        null,
+        (_tx, rowId) => {
+          persistedIds.push(rowId);
+          return Promise.resolve();
+        },
+      );
+      return { error: null, persistedIds };
+    } catch (thrown) {
+      return { error: thrown, persistedIds };
+    }
+  };
+
+  // The join writes are keyed on the id, so an INSERT that hands back no row —
+  // or a row without a usable key — has to fail before persist runs, leaving the
+  // whole write to roll back rather than writing rows against a bad id.
+  test("writeRowInTransaction rejects an INSERT that returns no row", async () => {
+    const { error, persistedIds } = await insertReturningRows([]);
+
+    expect(String(error)).toContain(
+      "did not return the id of the row it wrote",
+    );
+    expect(persistedIds).toEqual([]);
+  });
+
+  test("writeRowInTransaction rejects a returned row whose id is 0", async () => {
+    const { error, persistedIds } = await insertReturningRows([{ id: 0 }]);
+
+    expect(String(error)).toContain(
+      "did not return the id of the row it wrote",
+    );
+    expect(persistedIds).toEqual([]);
+  });
+
+  test("writeRowInTransaction persists against the id the INSERT returned", async () => {
+    const { error, persistedIds } = await insertReturningRows([{ id: 7 }]);
+
+    expect(error).toBeNull();
+    expect(persistedIds).toEqual([7]);
+  });
 });

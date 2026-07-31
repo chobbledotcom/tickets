@@ -5,7 +5,6 @@ import { stub } from "@std/testing/mock";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { loadMigrations } from "#shared/db/migrations/context.ts";
 import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
-import { MIGRATION_LOCK_TTL_MS } from "#shared/db/migrations/lock.ts";
 import { baselineCurrentSchemaIfNeeded } from "#shared/db/migrations/runner.ts";
 import {
   DB_SCHEMA_HASH_KEY,
@@ -32,7 +31,15 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { tempDir } from "#test-utils/files.ts";
-import { resetTestSession, TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+import {
+  resetTestSession,
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
+} from "#test-utils/internal.ts";
+import {
+  freshLockStamp,
+  LONG_EXPIRED_LOCK_STAMP,
+} from "#test-utils/migrations.ts";
 import { expectNtfyNotification, stubNtfyFetch } from "#test-utils/mocks.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
@@ -202,9 +209,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
           STORAGE_ZONE_KEY: undefined,
           STORAGE_ZONE_NAME: undefined,
         });
-        await setStaleSchemaAndLock(
-          new Date(Date.now() - MIGRATION_LOCK_TTL_MS - 1000),
-        );
+        await setStaleSchemaAndLock(new Date(LONG_EXPIRED_LOCK_STAMP));
         await markCurrentSchemaMigrationPending();
 
         await initDb();
@@ -222,9 +227,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
     test("keeps blocking while a lock is still within its TTL", async () => {
       try {
-        await setStaleSchemaAndLock(
-          new Date(Date.now() - MIGRATION_LOCK_TTL_MS / 2),
-        );
+        await setStaleSchemaAndLock(new Date(freshLockStamp()));
         invalidateInitDbCache();
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
@@ -371,7 +374,11 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       resetTestSession();
       await initDb({ allowMissingSettings: true });
 
-      await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
+      await settings.setup.complete(
+        TEST_ADMIN_USERNAME,
+        TEST_ADMIN_PASSWORD,
+        "USD",
+      );
       const listing = await createTestListing({
         maxAttendees: 25,
         name: "New Listing",
@@ -398,7 +405,11 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       // database as fully migrated rather than throwing MissingSettingsTable.
       await initDb();
 
-      await settings.setup.complete("testadmin", TEST_ADMIN_PASSWORD, "USD");
+      await settings.setup.complete(
+        TEST_ADMIN_USERNAME,
+        TEST_ADMIN_PASSWORD,
+        "USD",
+      );
       const listing = await createTestListing({ name: "Fresh Schema Listing" });
       expect(listing.name).toBe("Fresh Schema Listing");
     });

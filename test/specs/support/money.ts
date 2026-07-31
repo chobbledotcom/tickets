@@ -4,8 +4,9 @@
  * the provider was asked.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { WORLD } from "#shared/accounting/accounts.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
@@ -25,10 +26,6 @@ import {
 } from "#test/specs/support/world.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 // jscpd:ignore-end
-
-/** The id of a listing the story put on sale, by the name it used. */
-export const listingIdFor = (world: TicketsWorld, name: string): number =>
-  requiredWorldValue(world.listingIds.get(name), `${name} listing id`);
 
 /** The booking the story is about. */
 export const bookingId = (world: TicketsWorld): number =>
@@ -65,6 +62,18 @@ export const buyOnePlace = async (
   );
   world.attendeeId = attendeeId;
   world.attendeeName = who;
+  // What the listing earned is read from its own ledger page, and what one
+  // booking has paid from its own, which is where captures of each figure go.
+  leaveEvidencePage(
+    world,
+    ["listing-ledger"],
+    `/admin/ledger/revenue/${listingId}`,
+  );
+  leaveEvidencePage(
+    world,
+    ["refunded-booking"],
+    `/admin/attendees/${attendeeId}/ledger`,
+  );
   return attendeeId;
 };
 
@@ -94,7 +103,8 @@ export const buyPlaceWithExtra = async (
   // The story may already have put this listing on sale (with its extra charge
   // attached), so reuse it rather than selling a second one of the same name.
   const listingId =
-    world.listingIds.get(name) ?? (await sellPlacesAt(world, name, pounds)).id;
+    world.things.recall("listing", name)?.id ??
+    (await sellPlacesAt(world, name, pounds)).id;
   const price = minorUnits(pounds);
   await runStripeSuccess({
     email: `${who.toLowerCase().replaceAll(" ", ".")}@example.com`,

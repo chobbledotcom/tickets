@@ -115,11 +115,16 @@ export const requirePaidDefaultStatus: () => Promise<AttendeeStatus> =
 export const requirePublicStatusId = async (): Promise<number> =>
   (await requirePublicDefaultStatus()).id;
 
-type DefaultRow = {
-  is_paid_default: number;
-  is_public_default: number;
-  sort_order: number;
-};
+/** The three columns a status write reads back about itself, opened by the
+ * table — so the two default flags arrive as the booleans they are declared
+ * to be, not as the 1/0 the database stores. */
+const statusDefaults = attendeeStatuses.table.read.pick([
+  "is_paid_default",
+  "is_public_default",
+  "sort_order",
+]);
+
+type DefaultRow = NonNullable<Awaited<ReturnType<typeof statusDefaults.one>>>;
 
 const executeStatusWrite = async (
   tx: TxScope,
@@ -132,14 +137,9 @@ const getCurrentDefaults = async (
   tx: TxScope,
   id: number,
 ): Promise<DefaultRow> => {
-  const current = resultRows<DefaultRow>(
-    await tx.execute({
-      args: [id],
-      sql: `SELECT status.is_public_default, status.is_paid_default, status.sort_order
-              FROM attendee_statuses AS status
-             WHERE status.id = ?`,
-    }),
-  )[0];
+  const [current] = await statusDefaults.readAll(
+    resultRows(await tx.execute(statusDefaults.statement({ id }))),
+  );
   if (!current) throw new Error(`Attendee status ${id} does not exist`);
   return current;
 };
@@ -148,10 +148,10 @@ const defaultChangeError = (
   current: DefaultRow,
   input: AttendeeStatusWriteInput,
 ): AttendeeStatusSaveError | null => {
-  if (current.is_public_default === 1 && !input.isPublicDefault) {
+  if (current.is_public_default && !input.isPublicDefault) {
     return "public_default_required";
   }
-  return current.is_paid_default === 1 && !input.isPaidDefault
+  return current.is_paid_default && !input.isPaidDefault
     ? "paid_default_required"
     : null;
 };
@@ -228,10 +228,10 @@ const deleteStatus = (
              LIMIT 1`,
     });
     if (anotherStatus.rows.length === 0) return errorResult("last_status");
-    if (status.is_public_default === 1) {
+    if (status.is_public_default) {
       return errorResult("public_default");
     }
-    if (status.is_paid_default === 1) return errorResult("paid_default");
+    if (status.is_paid_default) return errorResult("paid_default");
 
     const attendee = await tx.execute({
       args: [id],

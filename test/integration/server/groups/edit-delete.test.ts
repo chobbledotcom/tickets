@@ -252,7 +252,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         "#shared/db/listings/records.ts"
       );
 
-      expect(await groups.table.findById(group.id)).toBeNull();
+      expect(await groups.table.read.one({ id: group.id })).toBeNull();
       const existingListing = await getListingWithCount(listing.id);
       expect(existingListing).not.toBeNull();
       // Group delete prunes membership rows, leaving the listing ungrouped.
@@ -274,16 +274,11 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
+      // The confirm page still loads the group; by the time the delete itself
+      // checks the row is there, it has gone.
       const { groups } = await import("#shared/db/groups.ts");
-      const original = groups.table.findById.bind(groups.table);
-      let calls = 0;
-      const findByIdStub = stub(
-        groups.table,
-        "findById",
-        (...args: Parameters<typeof original>) => {
-          calls++;
-          return calls === 1 ? original(...args) : Promise.resolve(null);
-        },
+      const readStub = stub(groups.table.read, "exists", () =>
+        Promise.resolve(false),
       );
 
       try {
@@ -299,7 +294,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
           false,
         );
       } finally {
-        findByIdStub.restore();
+        readStub.restore();
       }
     });
   });

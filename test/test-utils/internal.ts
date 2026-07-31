@@ -1,11 +1,20 @@
 import { lazyRef } from "#fp";
 
-export const TEST_ADMIN_USERNAME = "testadmin";
+/** The owner every test starts with. A person's name, because some stories
+ * leave a page behind that gets published: a screenshot of the team is only
+ * worth showing if the team reads like one. */
+export const TEST_ADMIN_USERNAME = "jo";
 
 export const TEST_ADMIN_PASSWORD = "testpassword123";
 
 export const TEST_ENCRYPTION_KEY =
   "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
+// A second valid 32-byte key, for tests that change the key and check what the
+// change invalidates. Different bytes from TEST_ENCRYPTION_KEY, so work sealed
+// under one cannot be opened with the other.
+export const OTHER_TEST_ENCRYPTION_KEY =
+  "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
 
 // The standard Bunny CDN test zone. Single source of truth shared by the
 // storage-mock helpers (as a runWithStorageConfig object) and describeWithEnv's

@@ -41,7 +41,7 @@ describeWithEnv(
         },
       );
       expect(response.status).toBe(302);
-      const kept = (await groups.table.findById(group.id))!;
+      const kept = (await groups.table.read.one({ id: group.id }))!;
       expect(kept.is_package).toBe(true);
       expect(kept.hide_package_listings).toBe(true);
     });
@@ -59,7 +59,7 @@ describeWithEnv(
         { confirm_identifier: "Empty Kit" },
       );
       expect(response.status).toBe(302);
-      expect(await groups.table.findById(group.id)).toBeNull();
+      expect(await groups.table.read.one({ id: group.id })).toBeNull();
     });
 
     test("the groups API blocks deleting a sold hidden package until un-hidden", async () => {
@@ -79,7 +79,7 @@ describeWithEnv(
           );
         },
       );
-      expect(await groups.table.findById(group.id)).not.toBeNull();
+      expect(await groups.table.read.one({ id: group.id })).not.toBeNull();
 
       // After the explicit reveal, the API delete un-groups as before.
       await groups.table.update(group.id, { hidePackageListings: false });
@@ -93,7 +93,7 @@ describeWithEnv(
           expect(body.status).toBe("ok");
         },
       );
-      expect(await groups.table.findById(group.id)).toBeNull();
+      expect(await groups.table.read.one({ id: group.id })).toBeNull();
       expect(await loadListing(memberListing.id)).not.toBeNull();
     });
 

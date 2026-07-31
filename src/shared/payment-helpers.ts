@@ -7,6 +7,11 @@ import * as v from "valibot";
 import { lazyRef, map } from "#fp";
 import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
 import type {
+  BookingIntent,
+  BookingItem,
+  ModifierRef,
+} from "#shared/booking-intent.ts";
+import type {
   ExtraLine,
   PricedLine,
   PricedOrder,
@@ -23,11 +28,8 @@ import {
 } from "#shared/payment-providers.ts";
 import { signPrice } from "#shared/payment-signature.ts";
 import type {
-  BookingIntent,
-  BookingItem,
   CheckoutIntent,
   CheckoutSessionResult,
-  ModifierRef,
   SessionMetadata,
   ValidatedPaymentSession,
   WebhookEvent,

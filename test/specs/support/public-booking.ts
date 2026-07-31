@@ -15,7 +15,11 @@ import { expect } from "@std/expect";
 import { bookingError } from "#shared/booking/form.ts";
 import type { Listing } from "#shared/types.ts";
 // jscpd:ignore-start
-import { openAsNewcomer } from "#test/specs/support/browser.ts";
+import {
+  CUSTOMER,
+  openAsNewcomer,
+  rememberBrowser,
+} from "#test/specs/support/browser.ts";
 import {
   optionsOffered,
   whyValueCannotBeSent,
@@ -163,7 +167,7 @@ export const visitorBooks = async (
 ): Promise<TestBrowser> => {
   const { browser, wasBooked } = await visitorTriesToBook(listing, choices);
   expect(wasBooked).toBe(true);
-  world.customerBrowser = browser;
+  rememberBrowser(world, CUSTOMER, browser);
   world.attendeeName = choices.who;
   return browser;
 };
@@ -181,12 +185,16 @@ export const expectRefusedForWantOfRoom = (
   );
 };
 
-/** The days the page offers as a stay's first day. Read from the served date
- * chooser, so a day the site stops offering disappears from this list. */
-export const daysOfferedFor = async (listing: Listing): Promise<string[]> => {
-  const browser = await openAsNewcomer(`/ticket/${listing.slug}`);
+/** The page one listing is booked from, as a customer opening it fresh. */
+export const openBookingPage = (listing: Listing): Promise<TestBrowser> =>
+  openAsNewcomer(`/ticket/${listing.slug}`);
+
+/** The days a served booking page offers as a stay's first day. Read from the
+ * date chooser, so a day the site stops offering disappears from this list. */
+export const daysOfferedOn = (html: string): string[] =>
   // The chooser carries an empty "pick a day" option; only real days count.
-  return optionsOffered(browser.currentHtml, "date").filter(
-    (day) => day !== "",
-  );
-};
+  optionsOffered(html, "date").filter((day) => day !== "");
+
+/** The days a listing's own page offers as a stay's first day. */
+export const daysOfferedFor = async (listing: Listing): Promise<string[]> =>
+  daysOfferedOn((await openBookingPage(listing)).currentHtml);

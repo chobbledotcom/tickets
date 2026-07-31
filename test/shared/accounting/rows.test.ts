@@ -114,7 +114,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       insertStatement(voiding, recordedAt),
     ]);
 
-    const all = await selectTransfers(fromDb, " ORDER BY id", []);
+    const all = await selectTransfers(fromDb, { order: "id" });
     expect(all.length).toBe(2);
     const [first, second] = all;
 
@@ -143,7 +143,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       source: account("attendee", 3),
     };
     await executeBatch([insertStatement(kindless, recordedAt)]);
-    const [stored] = await selectTransfers(fromDb, "", []);
+    const [stored] = await selectTransfers(fromDb);
     // Omitted, not "": a stored transfer and a never-stored input must agree
     // on what "no kind" looks like (mirroring reverses_id).
     expect(stored!.kind).toBeUndefined();

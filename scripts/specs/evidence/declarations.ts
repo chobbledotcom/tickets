@@ -4,329 +4,156 @@ import {
   EvidenceCaptureDeclarationSchema,
 } from "./schema.ts";
 
-const brandedThemeCss = (
-  borderRadius: string,
-  accent: string,
-  background: string,
-  secondaryBackground: string,
-  link: string,
-  secondary: string,
-  secondaryAccent: string,
-  shadow: string,
-  table: string,
-  text: string,
-  secondaryText: string,
-): string => `
-:root {
-  --border-radius: ${borderRadius};
-  --color-accent: ${accent};
-  --color-bg: ${background};
-  --color-bg-secondary: ${secondaryBackground};
-  --color-link: ${link};
-  --color-secondary: ${secondary};
-  --color-secondary-accent: ${secondaryAccent};
-  --color-shadow: ${shadow};
-  --color-table: ${table};
-  --color-text: ${text};
-  --color-text-secondary: ${secondaryText};
-  --font-family: Arial, Helvetica, sans-serif;
-}
-`;
+/** One declared capture, still carrying its own id in the type. That is what
+ * lets the capture ids below be the whole list a story can leave a page for. */
+type DeclaredCapture<Id extends string> = EvidenceCaptureDeclaration & {
+  id: Id;
+};
 
-const SERVICING_STUDIO_CSS = `${brandedThemeCss(
-  "5px",
-  "#c28b52",
-  "#e9edef",
-  "#d8e0e3",
-  "#315b67",
-  "#315b67",
-  "#315b6718",
-  "#263f4724",
-  "#315b67",
-  "#27383d",
-  "#66777c",
-)}
-
-#servicing-form {
-  background: #f9faf8;
-  border: 1px solid #bdc9ca;
-  border-left: 7px solid var(--color-secondary);
-  border-radius: 6px;
-  box-shadow: 0 12px 28px var(--color-shadow);
-  padding: 1rem;
-}
-
-#servicing-form label {
-  color: #294852;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-#servicing-form input {
-  background: #fff;
-  border-color: #aebdbf;
-  border-radius: 3px;
-}
-
-#servicing-form .table-scroll {
-  overflow: visible;
-}
-
-#servicing-form table {
-  font-size: 0.82rem;
-  table-layout: fixed;
-  white-space: normal;
-  width: 100%;
-}
-
-#servicing-form th,
-#servicing-form td {
-  padding: 0.45rem;
-}
-
-#servicing-form th:last-child,
-#servicing-form td:last-child {
-  width: 5rem;
-}
-
-#servicing-form button[type="submit"] {
-  background: var(--color-accent);
-  border-color: #a66f39;
-  border-radius: 3px;
-  color: #2e251d;
-  font-weight: 800;
-  width: 100%;
-}
-`;
-
-const PAYMENT_PROVIDER_CSS = `${brandedThemeCss(
-  "8px",
-  "#d7ab48",
-  "#eef3f2",
-  "#dde8e5",
-  "#245e59",
-  "#244c48",
-  "#244c4818",
-  "#1e454020",
-  "#244c48",
-  "#263a38",
-  "#647471",
-)}
-
-.admin-page {
-  background: #fff;
-  border: 1px solid #c9d8d4;
-  border-top: 6px solid var(--color-accent);
-  box-shadow: 0 12px 28px var(--color-shadow);
-  padding: 1rem;
-}
-
-.admin-page > form:not(#settings-payment-provider):not(#settings-stripe),
-.admin-page > article,
-.admin-page > footer {
-  display: none;
-}
-
-#settings-payment-provider,
-#settings-stripe {
-  background: #f8faf9;
-  border: 1px solid #c9d8d4;
-  border-radius: var(--border-radius);
-  padding: 1rem;
-}
-
-#settings-payment-provider h2,
-#settings-stripe h2 {
-  color: var(--color-secondary);
-}
-
-#settings-payment-provider .radio-option {
-  background: #fff;
-  border-color: #c9d8d4;
-}
-
-#settings-stripe .notice {
-  border-left: 5px solid var(--color-accent);
-}
-`;
-
-const DOOR_CHECK_IN_CSS = `${brandedThemeCss(
-  "8px",
-  "#164e63",
-  "#071525",
-  "#10283c",
-  "#67e8f9",
-  "#22d3ee",
-  "#22d3ee1f",
-  "#02081780",
-  "#22d3ee",
-  "#e6f7fb",
-  "#9bb7c5",
-)}
-
-#manual-checkin {
-  background: #0b1d2e;
-  border: 1px solid #25758b;
-  border-radius: 8px;
-  box-shadow: 0 12px 28px var(--color-shadow);
-  padding: 1rem;
-}
-
-#manual-checkin label {
-  color: #bdeff7;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-#manual-checkin input[type="text"] {
-  background: #071525;
-  border: 1px solid #2f7188;
-  border-radius: 6px;
-  color: var(--color-text);
-}
-
-/* The page's own script opens the list of people still to arrive once the
- * organiser starts typing. A capture is a plain page load, so show the list
- * the scenario proves is offered. */
-/* The search box's placeholder is drawn by the input's own text layer, which
- * rasterises differently from run to run and would change the captured bytes
- * without changing what the page says. The label above the box already says
- * what the box is for, so the capture leaves it empty. */
-#manual-checkin input::placeholder {
-  color: transparent;
-}
-
-#ticket-options.hidden {
-  display: block;
-}
-
-#ticket-options {
-  margin-top: 0.5rem;
-  position: static;
-}
-
-#ticket-options [role="option"] {
-  background: #0d3a42;
-  border: 1px solid #22566d;
-  border-radius: 6px;
-  color: #cffafe;
-  /* Each row's own text carries the ticket token, which is new every run and
-   * would change the captured bytes. Show the row's name and place count
-   * instead, both read from the row the organiser would click. */
-  font-size: 0;
-  padding: 0.5rem;
-}
-
-#ticket-options [role="option"]::before {
-  content: attr(data-name) " (" attr(data-quantity) ")";
-  font-size: 1rem;
-}
-
-#manual-checkin button[type="submit"] {
-  background: var(--color-accent);
-  border-color: #2f7188;
-  border-radius: 6px;
-  color: #e6f7fb;
-  font-weight: 800;
-  width: 100%;
-}
-`;
-
-const BALANCE_LINK_CSS = `${brandedThemeCss(
-  "12px",
-  "#9c4a2f",
-  "#ece0d3",
-  "#fdf9f4",
-  "#9c4a2f",
-  "#5b3a2b",
-  "#9c4a2f18",
-  "#5b3a2b26",
-  "#9c4a2f",
-  "#3b2a22",
-  "#7a6155",
-)}
-
-.public-page {
-  background: #fdf9f4;
-  border: 1px solid #e4d5c5;
-  border-radius: var(--border-radius);
-  box-shadow: 0 14px 32px var(--color-shadow);
-  padding: 1.25rem;
-}
-
-.public-page h1 {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 2rem;
-}
-
-.public-page table {
-  width: 100%;
-}
-
-.public-page th {
-  background: var(--color-accent);
-  color: #fdf9f4;
-}
-
-.public-page button[type="submit"] {
-  background: var(--color-accent);
-  border-color: #7f3a24;
-  border-radius: 999px;
-  color: #fdf9f4;
-  font-weight: 800;
-}
-`;
-
-/** One branded mobile capture: the page an authored case leaves behind, the
- * part of it worth showing, and the styling it is shown in. */
-const brandedMobileCapture = (
+/**
+ * One branded mobile capture: the page an authored case leaves behind and the
+ * part of it worth showing. What the page is dressed in is not said here: see
+ * themes.ts, because a screenshot's look belongs to whoever publishes it.
+ *
+ * A page that is always at the same address says so with `path`. A page whose
+ * address the story only knows once it has run — a new listing's number, a
+ * signed link, a one-way code — leaves `path` out, and the story hands the
+ * finished address over with leaveEvidencePage.
+ */
+const brandedMobileCapture = <Id extends string>(
   caseId: string,
-  id: string,
-  path: string,
+  id: Id,
   element: string,
-  css: string,
-): EvidenceCaptureDeclaration =>
-  v.parse(EvidenceCaptureDeclarationSchema, {
+  path?: string,
+): DeclaredCapture<Id> => {
+  const declaration = {
     caseId,
-    css,
     element,
     id,
     path,
-    presentation: "branded",
-    profiles: ["mobile"],
-  });
+    presentation: "branded" as const,
+    profiles: ["mobile" as const],
+  };
+  const checked = v.parse(EvidenceCaptureDeclarationSchema, declaration);
+  // The checked values are the ones to keep; the id is put back only to hold
+  // on to its own name in the type, and checking never changes an id.
+  return { ...checked, id };
+};
 
-export const EVIDENCE_CAPTURES: EvidenceCaptureDeclaration[] = [
+export const EVIDENCE_CAPTURES = [
   brandedMobileCapture(
     "servicing.hold-on-dashboard",
     "servicing-studio-floor-hold",
-    "/admin/servicing/{servicingEventId}",
     "#servicing-form",
-    SERVICING_STUDIO_CSS,
   ),
   brandedMobileCapture(
     "payments.select-saved-stripe",
     "payment-provider-choice",
-    "/admin/settings",
     ".page-regions.admin-page",
-    PAYMENT_PROVIDER_CSS,
+    "/admin/settings",
   ),
   brandedMobileCapture(
     "deposit.balance-page-shows-what-is-left",
     "balance-payment-link",
-    "/pay/{balanceToken}",
     ".page-regions.public-page",
-    BALANCE_LINK_CSS,
+  ),
+  brandedMobileCapture(
+    "contact-record.a-record-with-a-history-behind-it",
+    "contact-record",
+    "#contact-history-form",
+  ),
+  brandedMobileCapture(
+    "bundles.the-parts-are-named-on-the-booking-page",
+    "bundle-booking-page",
+    ".page-regions.public-page",
+  ),
+  brandedMobileCapture(
+    "bookings.volunteer-chooses-shift",
+    "volunteer-shift-form",
+    ".page-regions.public-page",
+  ),
+  brandedMobileCapture(
+    "editors.joining-from-an-invite",
+    "team-and-roles",
+    ".page-regions.admin-page",
+    "/admin/users",
+  ),
+  brandedMobileCapture(
+    "paid-booking.recorded-once",
+    "listing-ledger",
+    ".page-regions.admin-page",
+  ),
+  brandedMobileCapture(
+    "site-pages.written-and-readable",
+    "page-anybody-can-read",
+    "main",
+  ),
+  brandedMobileCapture(
+    "api-keys.made-and-shown-once",
+    "api-keys-list",
+    ".page-regions.admin-page",
+    "/admin/api-keys",
+  ),
+  brandedMobileCapture(
+    "payment.refund-undoes-the-sale",
+    "refunded-booking",
+    "#attendee-money",
+  ),
+  brandedMobileCapture(
+    "booking.group-page-journey",
+    "group-booking-arrives",
+    "main",
+  ),
+  brandedMobileCapture(
+    "payment.place-lost",
+    "place-lost-while-paying",
+    ".system-note-alert",
+  ),
+  brandedMobileCapture(
+    "site-pages.moved-into-order",
+    "site-pages-in-order",
+    ".page-regions.admin-page",
+    "/admin/site/pages",
+  ),
+  brandedMobileCapture(
+    "add-ons.it-appears-in-the-list-with-its-own-link",
+    "add-on-in-the-list",
+    "main",
+    "/listings",
+  ),
+  brandedMobileCapture(
+    "stay-length.the-length-is-on-the-listing-page",
+    "stay-length-on-the-page",
+    "main",
+  ),
+  brandedMobileCapture(
+    "pay-more.the-chosen-price-is-the-income",
+    "paid-more-than-asked",
+    ".page-regions.admin-page",
+  ),
+  brandedMobileCapture(
+    "door.the-day-is-written-down",
+    "checked-in-on-the-day",
+    "main",
+  ),
+  brandedMobileCapture(
+    "contact-record.correcting-the-counts-and-the-note",
+    "record-put-right",
+    "#contact-history-form",
+  ),
+  brandedMobileCapture(
+    "contact-record.repairing-an-unreadable-record",
+    "record-repaired",
+    "#contact-history-form",
   ),
   brandedMobileCapture(
     "door.someone-still-to-arrive-can-be-picked",
     "qr-code-check-in",
-    "/admin/listing/{doorListingId}/scanner",
     "article:has(#manual-checkin)",
-    DOOR_CHECK_IN_CSS,
   ),
 ];
+
+/** Every screenshot this repo takes. A story can only leave a page for one of
+ * these names, so a typo is a compile error rather than a screenshot of the
+ * wrong page. */
+export type EvidenceCaptureId = (typeof EVIDENCE_CAPTURES)[number]["id"];

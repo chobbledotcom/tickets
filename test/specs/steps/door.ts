@@ -7,6 +7,7 @@ import {
   doorPageHtml,
   otherListing,
   peopleOfferedAtDoor,
+  personWithStayTicket,
   personWithTicket,
   refundTicket,
   showTicketAtDoor,
@@ -39,6 +40,18 @@ Given(
     listing: string,
   ): Promise<void> {
     return personWithTicket(this, who, listing, { places });
+  },
+);
+
+Given(
+  "{word} has a ticket for a {int}-day stay at the {word}",
+  function (
+    this: TicketsWorld,
+    who: string,
+    days: number,
+    listing: string,
+  ): Promise<void> {
+    return personWithStayTicket(this, who, listing, days);
   },
 );
 

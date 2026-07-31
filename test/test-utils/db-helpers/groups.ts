@@ -63,7 +63,7 @@ export const updateTestGroup = async (
   updates: Partial<Omit<GroupInput, "slugIndex">>,
 ): Promise<Group> => {
   const { groups } = await import("#shared/db/groups.ts");
-  const existing = (await groups.table.findById(groupId)) as Group;
+  const existing = (await groups.table.read.one({ id: groupId })) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
   const isPackage = updates.isPackage ?? existing.is_package;
@@ -80,7 +80,7 @@ export const updateTestGroup = async (
       ...(isPackage ? { is_package: "1" } : {}),
     },
     async () => {
-      const updated = await groups.table.findById(groupId);
+      const updated = await groups.table.read.one({ id: groupId });
       return updated as Group;
     },
     "update group",
@@ -89,7 +89,7 @@ export const updateTestGroup = async (
 
 export const deleteTestGroup = async (groupId: number): Promise<void> => {
   const { groups } = await import("#shared/db/groups.ts");
-  const existing = (await groups.table.findById(groupId)) as Group;
+  const existing = (await groups.table.read.one({ id: groupId })) as Group;
 
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/delete`,

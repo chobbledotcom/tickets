@@ -1,5 +1,5 @@
 /**
- * `getOverlappingBookings` — the Logistics tab's "Other Attendees" query.
+ * `getOverlappingBookings` — the Logistics tab's "Other attendees" query.
  *
  * Locks the half-open overlap contract (`start_at < windowEnd AND end_at >
  * windowStart`), the exclusions (the queried attendee itself, servicing-kind

@@ -10,18 +10,17 @@ import {
   execute,
   executeBatch,
   insert,
-  queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { readOneRow, readRows } from "#shared/db/read.ts";
+import {
+  deleteWhere,
+  equals,
+  type WhereClause,
+} from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
-import {
-  type NoteEntity,
-  type NoteTarget,
-  targetsSelectedBy,
-  targetsWhere,
-  targetWhere,
-} from "./target.ts";
+import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
 import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
 
 const NOTE_COLUMNS = "id, entity_type, entity_id, type, note, created";
@@ -34,7 +33,7 @@ const noteWriterOf =
     const { sql, args } = insert("system_notes", {
       created: nowIso(),
       entity_id: target.id,
-      entity_type: target.entity,
+      entity_type: target.kind,
       note: await sealNote(type, note),
       type,
     });
@@ -53,11 +52,13 @@ export const createOwnerNote = noteWriterOf("owner");
 
 /** The still-sealed rows matching a WHERE body, oldest first per record. Shared
  *  by every read so the column list and the ordering live in one place. */
-const noteRowsWhere = ({ args, sql }: SqlStatement): Promise<SystemNoteRow[]> =>
-  queryAll<SystemNoteRow>(
-    `SELECT ${NOTE_COLUMNS} FROM system_notes WHERE ${sql} ORDER BY entity_id, id`,
-    args,
-  );
+const noteRowsWhere = (where: WhereClause[]): Promise<SystemNoteRow[]> =>
+  readRows<SystemNoteRow>({
+    columns: NOTE_COLUMNS,
+    from: "system_notes",
+    order: "entity_id, id",
+    where,
+  });
 
 /**
  * The still-sealed rows for several records of one kind, oldest first. Cheap
@@ -68,11 +69,7 @@ export const getNoteRows = (
   entity: NoteEntity,
   ids: number[],
 ): Promise<SystemNoteRow[]> =>
-  // Nothing to ask about is answered here rather than by the database: an empty
-  // list would otherwise cost a round trip to be told what we already know.
-  ids.length === 0
-    ? Promise.resolve([])
-    : noteRowsWhere(targetsWhere(entity, ids));
+  noteRowsWhere(noteTargets.whereMany(entity, ids));
 
 /**
  * The still-sealed rows for every real (`kind = 'attendee'`) attendee booked
@@ -84,7 +81,7 @@ export const getNoteRowsForListing = (
   listingId: number,
 ): Promise<SystemNoteRow[]> =>
   noteRowsWhere(
-    targetsSelectedBy("attendee", {
+    noteTargets.whereChosenBy("attendee", {
       args: [listingId],
       sql: `SELECT listingAttendee.attendee_id
               FROM listing_attendees AS listingAttendee
@@ -99,7 +96,7 @@ export const getNotesFor = async (
   target: NoteTarget,
   privateKey: CryptoKey,
 ): Promise<SystemNote[]> =>
-  openNotes(await getNoteRows(target.entity, [target.id]), privateKey);
+  openNotes(await getNoteRows(target.kind, [target.id]), privateKey);
 
 /** A "load the notes for <selector>" reader: takes the selector value and a way
  *  to get the owner private key, and answers with opened-up notes. */
@@ -137,18 +134,27 @@ export const loadNotesForListing: NotesLoader<number> = notesLoaderVia(
   getNoteRowsForListing,
 );
 
+/** One note, tied to the record it has to belong to, so a stray id can't reach
+ *  another record's note. */
+const noteOfTarget = (target: NoteTarget, noteId: number): WhereClause[] => [
+  ...equals("id", noteId),
+  ...noteTargets.where(target),
+];
+
+/** A delete over the notes the clauses select. */
+const deleteNotesWhere = deleteWhere("system_notes");
+
 /** One record's note, opened up, or null when it isn't that record's. */
 export const getNote = async (
   target: NoteTarget,
   noteId: number,
   privateKey: CryptoKey,
 ): Promise<SystemNote | null> => {
-  const { args, sql } = targetWhere(target);
-  const rows = await queryAll<SystemNoteRow>(
-    `SELECT ${NOTE_COLUMNS} FROM system_notes WHERE id = ? AND ${sql}`,
-    [noteId, ...args],
-  );
-  const row = rows[0];
+  const row = await readOneRow<SystemNoteRow>({
+    columns: NOTE_COLUMNS,
+    from: "system_notes",
+    where: noteOfTarget(target, noteId),
+  });
   return row ? openNote(row, privateKey) : null;
 };
 
@@ -161,21 +167,14 @@ export const deleteNotes = (
   noteIds: number[],
 ): Promise<void> => {
   if (noteIds.length === 0) return Promise.resolve();
-  const { args, sql } = targetWhere(target);
   return executeBatch(
-    noteIds.map((noteId) => ({
-      args: [noteId, ...args],
-      sql: `DELETE FROM system_notes WHERE id = ? AND ${sql}`,
-    })),
+    noteIds.map((noteId) => deleteNotesWhere(noteOfTarget(target, noteId))),
   );
 };
 
 /** Delete the notes of records chosen by a subquery — for a delete path that
  *  clears a record's dependent rows in one batch. */
-export const noteDeleteStatement = (
+export const noteDeleteStatement: (
   entity: NoteEntity,
   idsQuery: SqlStatement,
-): SqlStatement => {
-  const { args, sql } = targetsSelectedBy(entity, idsQuery);
-  return { args, sql: `DELETE FROM system_notes WHERE ${sql}` };
-};
+) => SqlStatement = noteTargets.deleteChosenBy("system_notes");

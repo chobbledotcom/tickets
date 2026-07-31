@@ -2,9 +2,14 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { t } from "#i18n";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
+import { openAdminPage, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
-  rememberStayListing,
-  stayListing,
+  listingIdNamed,
+  listingNamed,
+  organiserSavesListing,
+  rememberListing,
 } from "#test/specs/support/listings.ts";
 import { visitorBooks } from "#test/specs/support/public-booking.ts";
 import {
@@ -18,8 +23,12 @@ import {
   requiredWorldValue,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { expectListingActivityLogContains } from "#test-utils/assertions.ts";
+import {
+  expectListingActivityLogContains,
+  expectListingActivityLogLacks,
+} from "#test-utils/assertions.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectStayCanBeBooked, expectStayRunsFor } from "./stays-booking.ts";
 
 // jscpd:ignore-end
@@ -47,7 +56,7 @@ Given(
       quantity: onFirst,
       secondQuantity: onSecond,
     });
-    rememberStayListing(this, FIRST, listingA);
+    rememberListing(this, FIRST, listingA);
     this.sharedDayOver = dayFromToday(this, 11);
   },
 );
@@ -69,12 +78,75 @@ Given(
     startsIn: number,
   ): Promise<void> {
     this.stayStartsOn = dayFromToday(this, startsIn);
-    await visitorBooks(this, stayListing(this, "Retreat"), {
+    await visitorBooks(this, listingNamed(this, "Retreat"), {
       ...guest(1),
       day: this.stayStartsOn,
       dayCount: days,
     });
     this.attendeeId = await newestStayOn(this, "Retreat");
+  },
+);
+
+Given(
+  "a {word} that is not booked by the day",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    rememberListing(
+      this,
+      name,
+      await createTestListing({ maxAttendees: 5, name }),
+    );
+  },
+);
+
+When(
+  "the organiser looks at the {word}'s page",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    const { id } = listingNamed(this, name);
+    leaveEvidencePage(
+      this,
+      ["stay-length-on-the-page"],
+      `/admin/listing/${id}`,
+    );
+    await openAdminPage(this, `/admin/listing/${id}`);
+  },
+);
+
+Then(
+  "the page says each booking lasts {int} days",
+  function (this: TicketsWorld, days: number): void {
+    const page = scenarioBrowser(this).pageText;
+    expect(page).toContain(t("listings_table.booking_duration"));
+    expect(page).toContain(
+      `${days} ${t("listings_table.day_count_with_parens")}`,
+    );
+  },
+);
+
+Then(
+  "the page says nothing about how long bookings last",
+  function (this: TicketsWorld): void {
+    expect(scenarioBrowser(this).pageText).not.toContain(
+      t("listings_table.booking_duration"),
+    );
+  },
+);
+
+When(
+  "the organiser saves the {word} without changing how long stays last",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    // The form is saved exactly as served: every box keeps the value the page
+    // already held, including the length.
+    await organiserSavesListing(this, name, () => ({}));
+  },
+);
+
+Then(
+  "the {word}'s history says nothing about a length change",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await expectListingActivityLogLacks(
+      listingIdNamed(this, name),
+      "duration changed",
+    );
   },
 );
 
@@ -154,7 +226,7 @@ Then(
 Then(
   "the warning is kept in the listing's history",
   async function (this: TicketsWorld): Promise<void> {
-    const listing = stayListing(this, FIRST);
+    const listing = listingNamed(this, FIRST);
     // Both entries matter: the ordinary record of the change every edit gets,
     // and the warning about the day that went over.
     await expectListingActivityLogContains(

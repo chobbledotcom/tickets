@@ -7,16 +7,16 @@
  */
 
 import { filter, map, mapParallel, reduce } from "#fp";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import {
+  inPlaceholders,
+  queryAll,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import {
-  clauseArgs,
-  equals,
-  type WhereClause,
-  whereSql,
-} from "#shared/db/where-clauses.ts";
+import { readRows } from "#shared/db/read.ts";
+import { equals, type WhereClause } from "#shared/db/where-clauses.ts";
 
 /** Direct question-to-listing assignments, viewed from either side. */
 export const questionListings = linkTableSide(
@@ -105,22 +105,28 @@ const withAnswers = filter(
     q.display_type === "free_text" || q.answers.length > 0,
 );
 
-/** Fetch questions with their answers, keeping only the ones the clauses select. */
-const fetchQuestions = (parts: WhereClause[]) =>
-  queryAll<JoinedRow>(
-    `SELECT ${QA_COLS} FROM ${QA_JOIN}${whereSql(parts)} ORDER BY answer.sort_order`,
-    clauseArgs(parts),
-  );
+/** The order every question list comes back in: the operator's arrangement,
+ * then each question's answers in theirs. */
+const QUESTION_ORDER = "question.sort_order, question.id, answer.sort_order";
+
+/** Fetch questions with their answers, keeping only the ones the clauses
+ * select. `from` differs only for the per-listing read, which joins the
+ * assignment table to find out which questions a listing asks. */
+const fetchQuestions = (
+  where: WhereClause[],
+  from: string | SqlStatement = QA_JOIN,
+) =>
+  readRows<JoinedRow>({
+    columns: QA_COLS,
+    from,
+    order: QUESTION_ORDER,
+    where,
+  });
 
 /** Get all questions with their answers (sorted by sort_order), decrypted */
 export const getAllQuestionsWithAnswers = async (): Promise<
   QuestionWithAnswers[]
-> =>
-  groupJoinedRows(
-    await queryAll<JoinedRow>(
-      `SELECT ${QA_COLS} FROM ${QA_JOIN} ORDER BY question.sort_order, question.id, answer.sort_order`,
-    ),
-  );
+> => groupJoinedRows(await fetchQuestions([]));
 
 /** Get questions assigned to a listing, in the global question order.
  * Questions with no answers are excluded (nothing useful to ask). */
@@ -129,14 +135,20 @@ export const getQuestionsForListing = async (
 ): Promise<QuestionWithAnswers[]> =>
   withAnswers(
     await groupJoinedRows(
-      await queryAll<JoinedRow>(
-        `SELECT ${QA_COLS}
-       FROM questions AS question
+      await fetchQuestions(
+        [
+          {
+            args: [],
+            clause:
+              "question.assign_all = 1 OR listingQuestion.listing_id IS NOT NULL",
+          },
+        ],
+        {
+          args: [listingId],
+          sql: `questions AS question
        LEFT JOIN listing_questions AS listingQuestion ON question.id = listingQuestion.question_id AND listingQuestion.listing_id = ?
-       LEFT JOIN answers AS answer ON answer.question_id = question.id
-       WHERE question.assign_all = 1 OR listingQuestion.listing_id IS NOT NULL
-       ORDER BY question.sort_order, question.id, answer.sort_order`,
-        [listingId],
+       LEFT JOIN answers AS answer ON answer.question_id = question.id`,
+        },
       ),
     ),
   );

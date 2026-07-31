@@ -28,17 +28,15 @@ import type {
 } from "#shared/crypto/sealed.ts";
 import {
   execute,
-  queryAll,
   queryBatch,
   resultRows,
   type TxScope,
 } from "#shared/db/client.ts";
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
-import { listingStatement } from "#shared/db/listings/select.ts";
+import { listingReader } from "#shared/db/listings/select.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
-import { clauseArgs, equals, whereSql } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -93,6 +91,17 @@ export const activityLogTable = defineTable<
 });
 const ACTIVITY_LOG_COLUMNS = activityLogTable.columns.join(", ");
 
+/** The whole stored entry — what every log read selects. */
+const logEntries = activityLogTable.read;
+
+/**
+ * Newest first, by id rather than by created: id is AUTOINCREMENT so it rises
+ * with created (newest row = highest id) but, being the rowid, it is served
+ * straight from the primary key / idx_activity_log_listing_id without a sort
+ * over the unbounded log table.
+ */
+const NEWEST_FIRST = { order: "id DESC" };
+
 /**
  * Decrypt a stored log message, routing by format prefix: owner-key (hybrid)
  * rows need the session private key; legacy env-key rows decrypt without it.
@@ -142,21 +151,21 @@ export const logActivity = async (
   attendeeId?: number | null,
   transaction?: TxScope,
 ): Promise<ActivityLogEntry> => {
-  const statement = await activityLogTable.insertStatement!({
-    attendeeId: attendeeId ?? null,
-    listingId: toListingId(listing),
-    // Encrypt with the owner's public key — a set-up site always has one, so
-    // there is no env-key fallback (ownerPublicKey loads it if the snapshot was
-    // reset earlier this request).
-    message: await encryptWithOwnerKey(message, await ownerPublicKey()),
-  });
-  const returning = {
-    ...statement,
-    sql: `${statement.sql} RETURNING ${ACTIVITY_LOG_COLUMNS}`,
-  };
+  const statement = await activityLogTable.insertStatement(
+    {
+      attendeeId: attendeeId ?? null,
+      listingId: toListingId(listing),
+      // Encrypt with the owner's public key — a set-up site always has one, so
+      // there is no env-key fallback (ownerPublicKey loads it if the snapshot was
+      // reset earlier this request).
+      message: await encryptWithOwnerKey(message, await ownerPublicKey()),
+    },
+    undefined,
+    ACTIVITY_LOG_COLUMNS,
+  );
   const result = transaction
-    ? await transaction.execute(returning)
-    : await execute(returning.sql, returning.args);
+    ? await transaction.execute(statement)
+    : await execute(statement.sql, statement.args);
   const row = resultRows<StoredActivityLogEntry>(result)[0]!;
   return { ...row, message };
 };
@@ -184,20 +193,14 @@ const decryptLogRows = async (
 const queryActivityLog = async (
   listingId: number | null,
   limit: number,
-): Promise<ActivityLogEntry[]> => {
-  // A null listing means "every listing", which is no filter at all.
-  const parts = equals("listing_id", listingId ?? undefined);
-  // Order by id DESC, not created DESC: id is AUTOINCREMENT so it is
-  // co-monotonic with created (newest row = highest id) but, being the rowid,
-  // it is served straight from the primary key / idx_activity_log_listing_id
-  // without a sort over the unbounded log table.
-  return decryptLogRows(
-    await queryAll<StoredActivityLogEntry>(
-      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log${whereSql(parts)} ORDER BY id DESC LIMIT ?`,
-      [...clauseArgs(parts), limit],
+): Promise<ActivityLogEntry[]> =>
+  decryptLogRows(
+    await logEntries.many(
+      // A null listing means "every listing", which is no filter at all.
+      listingId === null ? {} : { listing_id: listingId },
+      { ...NEWEST_FIRST, limit },
     ),
   );
-};
 
 /**
  * Get activity log entries for an listing (most recent first)
@@ -222,9 +225,9 @@ export const getAttendeeActivityLog = async (
   limit = 100,
 ): Promise<ActivityLogEntry[]> =>
   decryptLogRows(
-    await queryAll<StoredActivityLogEntry>(
-      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE attendee_id = ? ORDER BY id DESC LIMIT ?`,
-      [attendeeId, limit],
+    await logEntries.many(
+      { attendee_id: attendeeId },
+      { ...NEWEST_FIRST, limit },
     ),
   );
 
@@ -243,11 +246,8 @@ export const getListingWithActivityLogOrNull = async (
   limit = 100,
 ): Promise<ListingWithActivityLog | null> => {
   const results = await queryBatch([
-    listingStatement({ where: { ids: [listingId] } }),
-    {
-      args: [listingId, limit],
-      sql: `SELECT ${ACTIVITY_LOG_COLUMNS} FROM activity_log WHERE listing_id = ? ORDER BY id DESC LIMIT ?`,
-    },
+    listingReader.statement({ where: { ids: [listingId] } }),
+    logEntries.statement({ listing_id: listingId }, { ...NEWEST_FIRST, limit }),
   ]);
 
   const listingRow = resultRows<ListingWithCount>(results[0]!)[0];

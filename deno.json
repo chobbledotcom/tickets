@@ -6,7 +6,9 @@
     "e2e-payments"
   ],
   "tasks": {
-    "start": "deno task build:static && deno run --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
+    "serve": "deno run $SERVE_WATCH --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
+    "start": "deno task build:static && deno task serve",
+    "dev": "deno task build:static && SERVE_WATCH=--watch deno task serve",
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
     "build:edge": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-edge.ts",
     "bundle:report": "deno task build:edge && deno run -A scripts/bench/bundle-composition/report.ts",
@@ -81,6 +83,7 @@
     "#scripts/": "./scripts/",
     "@libsql/client": "npm:@libsql/client@^0.17.2",
     "fast-check": "npm:fast-check@^3.23.0",
+    "@formatjs/icu-messageformat-parser": "npm:@formatjs/icu-messageformat-parser@^2.11",
     "intl-messageformat": "npm:intl-messageformat@^10",
     "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@^0.11.1",
     "@std/dotenv": "jsr:@std/dotenv@^0.225.7",
@@ -125,6 +128,7 @@
     "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/cli": "jsr:@std/cli@^1.0.30",
     "@std/collections": "jsr:@std/collections@^1.2.0",
+    "@std/csv": "jsr:@std/csv@^1.0.6",
     "@std/expect": "jsr:@std/expect@^1.0.18",
     "@std/testing": "jsr:@std/testing@^1.0.17",
     "@std/path": "jsr:@std/path@^1.1.4"

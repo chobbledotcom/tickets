@@ -9,6 +9,7 @@ import {
   getNewsPostBySlugIndex,
   getNewsPostCards,
   getNewsPostNames,
+  getNewsPostSummaries,
   hasNewsPosts,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
@@ -140,8 +141,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
     test("projects the broken-image marker for a broken linked image", async () => {
       const post = await createTestNewsPost("Broken picture post");
       await appendImageToItem(await insertBrokenImage(), {
-        itemId: post.id,
-        itemType: "news",
+        id: post.id,
+        kind: "news",
       });
 
       const cards = await getNewsPostCards();
@@ -237,6 +238,43 @@ describeWithEnv("db > news-posts", { db: true }, () => {
     });
   });
 
+  describe("createNewsPost", () => {
+    // The /news permalink is built from this date and is never rebuilt, so a
+    // date that isn't a real moment has to fail before the post is written.
+    test("rejects a pinned created date that is not a real timestamp", async () => {
+      for (const created of ["", "not a date", "2026-02-30T10:00:00.000Z"]) {
+        await expect(
+          createTestNewsPost("Bad date", { created }),
+        ).rejects.toThrow("News post created is not a real timestamp");
+      }
+      expect(await hasNewsPosts()).toBe(false);
+    });
+  });
+
+  describe("getNewsPostSummaries", () => {
+    // The news feed and the admin news page both show these summaries in the
+    // order they come back, so newest-first is part of what this returns.
+    test("lists newest first, most recently created of a shared day first", async () => {
+      await createTestNewsPost("Oldest", {
+        created: "2026-07-01T10:00:00.000Z",
+      });
+      await createTestNewsPost("Same day, written first", {
+        created: "2026-07-03T10:00:00.000Z",
+      });
+      await createTestNewsPost("Same day, written second", {
+        created: "2026-07-03T10:00:00.000Z",
+      });
+
+      const summaries = await getNewsPostSummaries();
+
+      expect(summaries.map((summary) => summary.name)).toEqual([
+        "Same day, written second",
+        "Same day, written first",
+        "Oldest",
+      ]);
+    });
+  });
+
   describe("getNewsPostNames", () => {
     test("maps id to decrypted name", async () => {
       const post = await createTestNewsPost("Named post");
@@ -266,7 +304,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
     test("removes the post and prunes its image uses, keeping the images", async () => {
       const post = await createTestNewsPost("Doomed");
       const image = await makeImage("Kept Image");
-      await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
+      await appendImageToItem(image.id, { id: post.id, kind: "news" });
       expect(await getImagesForItem("news", post.id)).toHaveLength(1);
 
       await deleteNewsPostWithImages(post.id);
@@ -285,7 +323,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
 const makeImageOrder = async (postId: number) => {
   const first = await makeImage("Card First");
   const second = await makeImage("Card Second");
-  await appendImageToItem(first.id, { itemId: postId, itemType: "news" });
-  await appendImageToItem(second.id, { itemId: postId, itemType: "news" });
+  await appendImageToItem(first.id, { id: postId, kind: "news" });
+  await appendImageToItem(second.id, { id: postId, kind: "news" });
   return [first, second] as const;
 };

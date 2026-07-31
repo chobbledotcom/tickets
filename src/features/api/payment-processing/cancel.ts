@@ -7,7 +7,6 @@
  */
 
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
-import type { BookingIntent } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import {
   getVisibleGroupMembers,
@@ -16,7 +15,8 @@ import {
 import { lacksStandalonePublicPage } from "#routes/public/ticket-payment.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { lineGroupIds } from "#shared/booking/signed-metadata.ts";
-import { groups } from "#shared/db/groups.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
+import { getGroupById } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
@@ -45,7 +45,7 @@ const retryHrefFor = async (
       : `/ticket/${listing.slug}`;
   const groupIds = lineGroupIds(intent.items);
   for (const groupId of groupIds) {
-    const group = await groups.table.findById(groupId);
+    const group = await getGroupById(groupId);
     const bundleServes =
       group !== null &&
       (await groupBookable(group, await getVisibleGroupMembers(group)));

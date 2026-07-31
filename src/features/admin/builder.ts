@@ -1,9 +1,11 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin builder routes — create new Tickets instances via Bunny API
  * Owner-only access, gated behind CAN_BUILD_SITES=true env var
  */
 
+import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -35,6 +37,11 @@ import {
   adminBuilderPage,
   type BuiltSiteDisplay,
 } from "#templates/admin/builder.tsx";
+import {
+  builtSiteBox,
+  denoDeployOption,
+  providerChoices,
+} from "#templates/fields/admin.ts";
 
 const BUILDER_PATH = "/admin/builder";
 
@@ -66,49 +73,34 @@ const handleBuilderGet = (request: Request): Promise<Response> => {
 export const builderForm = defineForm({
   fields: [
     {
-      label: "Site Name",
+      ...builtSiteBox("site_name", "name", "text" as const),
       maxlength: 64,
       minlength: 1,
-      name: "site_name",
-      placeholder: "My Listing Site",
       required: true,
-      type: "text" as const,
+    },
+    ...providerChoices({
+      db: [
+        {
+          label: t("fields.built_site.provider.bunny_db_auto"),
+          value: "bunny",
+        },
+        { label: t("fields.built_site.provider.turso_auto"), value: "turso" },
+        { label: t("fields.built_site.provider.manual_db"), value: "manual" },
+      ],
+      hosting: [
+        { label: t("fields.built_site.provider.bunny_edge"), value: "bunny" },
+        denoDeployOption(),
+      ],
+    }),
+    {
+      ...builtSiteBox("db_url", "db_url", "url" as const),
+      hint: t("fields.built_site.auto_provision_hint"),
     },
     {
-      label: "Hosting Provider",
-      name: "hosting_provider",
-      options: [
-        { label: "Bunny Edge Scripting", value: "bunny" },
-        { label: "Deno Deploy", value: "deno" },
-      ] as const,
-      type: "select" as const,
-    },
-    {
-      label: "Database Provider",
-      name: "db_provider",
-      options: [
-        { label: "Bunny DB (auto-provision)", value: "bunny" },
-        { label: "Turso (auto-provision)", value: "turso" },
-        { label: "Manual (enter URL below)", value: "manual" },
-      ] as const,
-      type: "select" as const,
-    },
-    {
-      hint: "Leave blank to auto-provision a database",
-      label: "Database URL",
-      name: "db_url",
-      placeholder: "libsql://your-db.turso.io",
-      type: "url" as const,
-    },
-    {
-      hint: "Leave blank to auto-provision a database",
-      label: "Database Token",
-      name: "db_token",
-      placeholder: "Token for the database",
-      type: "password" as const,
+      ...builtSiteBox("db_token", "db_token", "password" as const),
+      hint: t("fields.built_site.auto_provision_hint"),
     },
   ] as const,
-  id: "builder",
 });
 
 /** Return an error message when a DB provider isn't configured, else null. */

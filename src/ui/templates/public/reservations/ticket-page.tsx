@@ -19,7 +19,7 @@ import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
-import type { ItemImageProjection, ListingWithCount } from "#shared/types.ts";
+import type { ItemImageColumns, ListingWithCount } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
 import {
@@ -49,7 +49,7 @@ type TicketHeaderInput = {
   attributesByListing: NonNullable<TicketPageOptions["attributesByListing"]>;
   baseUrl: string | undefined;
   groupDescription: string | undefined;
-  groupImage: ItemImageProjection | undefined;
+  groupImage: ItemImageColumns | undefined;
   groupName: string | undefined;
   singleListing: ListingWithCount | null;
   slugs: string[];
@@ -58,7 +58,7 @@ type TicketHeaderInput = {
 interface TicketHeaderData {
   headExtra: string | undefined;
   headerDescription: string | null | undefined;
-  headerImage: ItemImageProjection | null;
+  headerImage: ItemImageColumns | null;
   headerName: string | undefined;
   listingAttributes: ReturnType<
     TicketHeaderInput["attributesByListing"]["get"]

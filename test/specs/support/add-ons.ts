@@ -10,15 +10,19 @@ const FIELD = "bookable_alone";
 import { expect } from "@std/expect";
 import { groups } from "#shared/db/groups.ts";
 // jscpd:ignore-start
-import { openAsNewcomer } from "#test/specs/support/browser.ts";
+import {
+  type OpensASalesPage,
+  openAsNewcomer,
+  opensSalesPagesAt,
+} from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   tickedCheckboxes,
 } from "#test/specs/support/form-controls.ts";
 import {
-  rememberStayListing,
+  listingNamed,
+  rememberListing,
   setBoxOnListing,
-  stayListing,
 } from "#test/specs/support/listings.ts";
 
 import type {
@@ -46,8 +50,8 @@ export const sellWithAddOn = async (
     children: [{ bookableAlone: onItsOwn, name: addOn }],
     parent: { name: mainThing },
   });
-  rememberStayListing(world, mainThing, parent);
-  rememberStayListing(world, addOn, children[0]!);
+  rememberListing(world, mainThing, parent);
+  rememberListing(world, addOn, children[0]!);
 };
 
 /** A bundle whose parts the organiser has chosen to keep hidden, holding one
@@ -63,7 +67,7 @@ export const sellHiddenBundle: ChangeOneThing<string> = async (
     hidePackageListings: true,
     isPackage: true,
   });
-  rememberStayListing(
+  rememberListing(
     world,
     part,
     await createTestListing({
@@ -76,7 +80,7 @@ export const sellHiddenBundle: ChangeOneThing<string> = async (
 
 /** The link a customer would follow to book something on its own. */
 export const bookingLinkFor = (world: TicketsWorld, name: string): string =>
-  `/ticket/${stayListing(world, name).slug}`;
+  `/ticket/${listingNamed(world, name).slug}`;
 
 /** A customer opens something's own page and is shown it. Both halves matter:
  * the page has to answer at all, and it has to be the page for this thing
@@ -91,7 +95,7 @@ export const expectCustomerCanOpen: ActOnOneThing = async (world, name) => {
 const expectTicketPageAnswers =
   (answer: number) =>
   async (world: TicketsWorld, name: string): Promise<void> => {
-    expect(await ticketPageStatus(stayListing(world, name).slug)).toBe(answer);
+    expect(await ticketPageStatus(listingNamed(world, name).slug)).toBe(answer);
   };
 
 /** There is no page for this thing at all — the site's way of saying it is only
@@ -120,13 +124,8 @@ export const sellOnItsOwn: ChangeOneThing<boolean> = async (
 };
 
 /** Whether the Chair's own booking page still offers the Cover with it. */
-export const bookingPageFor = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<TestBrowser> => {
-  const browser = await openAsNewcomer(bookingLinkFor(world, name));
-  return browser;
-};
+export const bookingPageFor: OpensASalesPage =
+  opensSalesPagesAt(bookingLinkFor);
 
 /** Everything the site currently offers for sale, as the customer sees it. */
 export const everythingForSale = async (): Promise<TestBrowser> => {

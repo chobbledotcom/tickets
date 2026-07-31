@@ -12,8 +12,8 @@ import {
   type RefundSpec,
   refundSpec,
 } from "#routes/api/payment-processing/refunds.ts";
-import type { BookingIntent } from "#routes/api/webhook-types.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
+import type { BookingIntent } from "#shared/booking-intent.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
 import type {

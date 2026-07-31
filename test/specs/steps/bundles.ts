@@ -9,6 +9,7 @@ import {
   bundleStillExists,
   buyersTicket,
   customerBuysBundle,
+  customerOpensBundlePage,
   expectPartOnSaleAlone,
   GROUP_DELETED,
   GROUP_SAVED,
@@ -95,6 +96,13 @@ Given(
 );
 
 When(
+  "a customer opens the {word} booking page",
+  async function (this: TicketsWorld, bundle: string): Promise<void> {
+    await customerOpensBundlePage(this, bundle);
+  },
+);
+
+When(
   "the organiser stops selling the {word} as a bundle",
   async function (this: TicketsWorld, bundle: string): Promise<void> {
     this.bundleOutcome = await organiserStopsBundling(this, bundle);
@@ -168,10 +176,7 @@ Then(
 );
 
 const onlyBundle = (world: TicketsWorld): string => {
-  const [name, ...rest] = requiredWorldValue(
-    world.bundles,
-    "the story's bundles",
-  ).keys();
+  const [name, ...rest] = world.things.names("bundle");
   if (!name || rest.length > 0)
     throw new Error("The story has no single bundle");
   return name;

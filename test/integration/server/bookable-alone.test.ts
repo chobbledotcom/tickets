@@ -148,9 +148,11 @@ describeWithEnv(
           name: "Lone",
         });
         await updateTestListing(solo.id, { bookableAlone: false });
-        expect((await listingsTable.findById(solo.id))!.bookable_alone).toBe(
-          false,
-        );
+        expect(
+          (await listingsTable.read.pick(["bookable_alone"]).one({
+            id: solo.id,
+          }))!.bookable_alone,
+        ).toBe(false);
       });
     });
   },

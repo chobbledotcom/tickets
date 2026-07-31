@@ -41,24 +41,46 @@ export interface EntityWrite<Row extends { id: number }> {
   plainWrite: () => Promise<Row | null>;
   /** Read the just-committed row back — this MUST be pinned to the primary. A
    *  "read"-mode lookup can hit a replica that still lags the commit and return
-   *  null for the row just written, which the create path would then dereference
-   *  (`row.id`) and crash on. Use `table.findByIdPrimary` or a primary-pinned
-   *  join lookup. */
+   *  null for the row just written. Use `table.findByIdPrimary` or a
+   *  primary-pinned join lookup. */
   readBack: (id: number) => Promise<Row | null>;
+  /** The table being written, for the error raised when a create's own row can't
+   *  be read back. */
+  tableName: string;
 }
+
+/**
+ * Read the just-committed row back. Null only for an update, whose row can be
+ * deleted between the caller's lookup and the commit; a create's row is one it
+ * just inserted, so not finding it is a broken database rather than an outcome
+ * to hand back.
+ */
+const readBackWrittenOrNull = async <Row extends { id: number }>(
+  { existingId, readBack, tableName }: EntityWrite<Row>,
+  id: number,
+): Promise<Row | null> => {
+  const row = await readBack(id);
+  if (row || existingId !== null) return row;
+  throw new Error(
+    `${tableName}: row ${id} was inserted but could not be read back`,
+  );
+};
 
 /**
  * Write the row — transactionally with its join writes when there are any, else
  * as a plain single statement — read it back on the primary, then run
  * `afterCommit`. Returns the committed row, or null when the read-back finds
- * nothing (a plain write returning null, or an update whose id no longer exists).
+ * nothing — which only an update can legitimately do (its row was deleted before
+ * the commit); a create that can't read its own row back throws
+ * ({@link readBackWrittenOrNull}).
  */
 export const writeEntity = async <Row extends { id: number }>(
   write: EntityWrite<Row>,
 ): Promise<Row | null> => {
   const row =
     write.joinWrites.length > 0
-      ? await write.readBack(
+      ? await readBackWrittenOrNull(
+          write,
           await writeRowInTransaction(
             await write.buildStatement(),
             write.existingId,

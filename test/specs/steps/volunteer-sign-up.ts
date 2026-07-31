@@ -2,8 +2,13 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { questionsTable } from "#shared/db/questions/tables.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
+import {
+  listingIdNamed,
+  rememberListing,
+} from "#test/specs/support/listings.ts";
 import {
   requiredWorldValue,
   type TicketsWorld,
@@ -38,7 +43,7 @@ Given(
         thankYouUrl: "",
         unitPrice: 0,
       });
-      this.listingIds.set(name, listing.id);
+      rememberListing(this, name, listing);
     }
     const question = await questionsTable.insert({
       assignAll: true,
@@ -46,6 +51,9 @@ Given(
       text: ACCESS_QUESTION,
     });
     this.groupSlug = group.slug;
+    // The shifts are offered on the group's own page, which is where an
+    // evidence capture of the sign-up form has to go.
+    leaveEvidencePage(this, ["volunteer-shift-form"], `/ticket/${group.slug}`);
     this.questionId = question.id;
   },
 );
@@ -63,8 +71,7 @@ When(
       {
         email: VOLUNTEER_EMAIL,
         name: VOLUNTEER_NAME,
-        [`quantity_${requiredWorldValue(this.listingIds.get(SETUP_SHIFT), "set-up shift listing id")}`]:
-          "1",
+        [`quantity_${listingIdNamed(this, SETUP_SHIFT)}`]: "1",
         [`question_${requiredWorldValue(this.questionId, "access question id")}`]:
           ACCESS_ANSWER,
       },
@@ -90,7 +97,7 @@ Then(
   async function (this: TicketsWorld): Promise<void> {
     const browser = await adminBrowser(this);
     const listingId = requiredWorldValue(
-      this.listingIds.get(SETUP_SHIFT),
+      listingIdNamed(this, SETUP_SHIFT),
       "set-up shift listing id",
     );
     await browser.visit(`/admin/listing/${listingId}/attendees`);

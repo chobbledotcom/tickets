@@ -11,6 +11,7 @@
 import { unique } from "#fp";
 import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
+import type { ModifierRef } from "#shared/booking-intent.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import {
@@ -27,11 +28,7 @@ import {
   modifierIdsByAnswerId,
   modifierListings,
 } from "#shared/db/modifiers.ts";
-import type {
-  CheckoutItem,
-  ModifierRef,
-  ModifierSpec,
-} from "#shared/payments.ts";
+import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import { type ModifierTrigger, normalizeCode } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
 

@@ -139,6 +139,21 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(entries).toEqual([]);
   });
 
+  // Listing 0 is still a listing filter, not "no filter" — asking for a listing
+  // that cannot exist must return nothing rather than every listing's entries.
+  test("getListingActivityLog for listing 0 returns no entries", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      name: "Has entries",
+      thankYouUrl: "https://example.com",
+    });
+    await logActivity("Action for a real listing", listing.id);
+
+    const entries = await withTestSession(() => getListingActivityLog(0));
+
+    expect(entries).toEqual([]);
+  });
+
   test("getListingActivityLog respects limit", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,

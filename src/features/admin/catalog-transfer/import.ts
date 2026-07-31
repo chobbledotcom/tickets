@@ -152,7 +152,7 @@ const firstPackageGroup = async (
   groupIds: readonly number[],
 ): Promise<Group | null> => {
   if (groupIds.length === 0) return null;
-  // Resolve against the cached group set rather than one findById per group, so a
+  // Resolve against the cached group set rather than one read per group, so a
   // child listing that belongs to many groups doesn't trip the request N+1 guard.
   const byId = await getGroupsById();
   for (const groupId of groupIds) {

@@ -67,7 +67,7 @@ describeWithEnv("assignable built sites", { db: true }, () => {
       assignBuiltSite(site.id, 42, 7),
     ]);
 
-    expect(await builtSitesCrudTable.findById(site.id)).toMatchObject({
+    expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject({
       assignable: false,
       assignedAttendeeId: 42,
       assignedListingId: 7,
@@ -176,7 +176,7 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
     const row = await insertBuiltSite("Empty Index", "empty-index.b-cdn.net");
     await updateBuiltSiteRenewalState(row.id, { renewalTokenIndex: "" });
     expect(
-      (await builtSitesCrudTable.findById(row.id))?.renewalTokenIndex,
+      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalTokenIndex,
     ).toBe("");
   });
 
@@ -189,7 +189,7 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
     await updateBuiltSiteRenewalState(row.id, { renewalToken: "" });
 
     expect(
-      (await builtSitesCrudTable.findById(row.id))?.renewalToken,
+      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalToken,
     ).toBeNull();
   });
 });

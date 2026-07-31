@@ -1,10 +1,9 @@
 /**
- * Shared end-to-end (TestBrowser) harness: cache invalidation, the fresh-install
- * setup+login flow, and the per-test browser lifecycle — so each e2e spec calls
- * these instead of re-spelling the same boilerplate.
+ * Shared end-to-end (TestBrowser) harness: cache invalidation and the
+ * fresh-install setup+login flow — so each e2e spec calls these instead of
+ * re-spelling the same boilerplate.
  */
 
-import { afterEach, beforeEach } from "@std/testing/bdd";
 import { invalidateCachesForTable } from "#shared/cache-registry.ts";
 import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
@@ -12,11 +11,6 @@ import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
-import { createTestDb, resetDb } from "#test-utils/db.ts";
-import {
-  clearTestEncryptionKey,
-  setupTestEncryptionKey,
-} from "#test-utils/env.ts";
 import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -45,10 +39,10 @@ export const setupAndLogin = async (browser: TestBrowser): Promise<void> => {
       admin_username: "admin",
       country: "GB",
     },
-    "Complete Setup",
+    "Complete setup",
   );
   invalidateAllCaches();
-  await browser.clickLink("Log In");
+  await browser.clickLink("Log in");
   await browser.submitForm(
     { password: "password", username: "admin" },
     "Login",
@@ -72,23 +66,6 @@ export const loggedInAdminBrowser = async (): Promise<TestBrowser> => {
   await browser.visit("/admin/");
   await logInAsTestAdmin(browser);
   return browser;
-};
-
-/** Register the standard e2e browser lifecycle (fresh encryption key + DB +
- * TestBrowser per test) and return a holder whose `.browser` is the current
- * test's browser (assigned in beforeEach, so read it inside the test body). */
-export const useE2eBrowser = (): { browser: TestBrowser } => {
-  const holder = { browser: null as unknown as TestBrowser };
-  beforeEach(async () => {
-    setupTestEncryptionKey();
-    await createTestDb();
-    holder.browser = new TestBrowser();
-  });
-  afterEach(() => {
-    resetDb();
-    clearTestEncryptionKey();
-  });
-  return holder;
 };
 
 // ---------------------------------------------------------------------------

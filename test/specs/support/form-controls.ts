@@ -116,6 +116,21 @@ const usableCheckboxes = (
   return boxes;
 };
 
+/** Confirm the page offers a box for this field sending exactly this value —
+ * ticking a box nobody is shown would prove nothing. Throws otherwise. */
+export const requireCheckboxOffered = (
+  html: string,
+  field: string,
+  value: string,
+): void => {
+  const offered = usableCheckboxes(html, field).map((box) => box.value);
+  if (!offered.includes(value)) {
+    throw new Error(
+      `The page offers no ${field} box sending "${value}" (offered: ${offered.join(", ") || "none"})`,
+    );
+  }
+};
+
 /** The value the page's own box for a field sends when ticked — what a person
  * ticking it would send, rather than a value the caller believes in. Throws
  * when the page offers no such box, so "the box is gone" and "the box sends
@@ -165,6 +180,19 @@ export const whyValueCannotBeSent: WhyFieldCannotCarry = (
   return whyBoxCannotCarry(box, field, chosen);
 };
 
+/** Why a box will not take this many characters, or null when it will. A box
+ * that asks for at least eight cannot send five, however happily a post
+ * carrying five is accepted. */
+const whyTextIsTooShort: WhyFieldCannotCarry = (box, field, chosen) => {
+  const least = attribute(box, "minlength");
+  // An empty box is answered by the required rule, which says something more
+  // useful than "too short".
+  if (least === null || chosen === "" || chosen.length >= Number(least)) {
+    return null;
+  }
+  return `the ${field} box takes nothing shorter than ${least} characters`;
+};
+
 /** Why one box on the page could not carry this value. */
 const whyBoxCannotCarry: WhyFieldCannotCarry = (box, field, chosen) => {
   if (hasFlag(box, "disabled")) return `the ${field} box is switched off`;
@@ -177,7 +205,10 @@ const whyBoxCannotCarry: WhyFieldCannotCarry = (box, field, chosen) => {
   if (box.includes('type="hidden"') && !box.includes(`value="${chosen}"`)) {
     return `the ${field} box is fixed at something other than "${chosen}"`;
   }
-  return whyNumberIsOutOfRange(box, field, chosen);
+  return (
+    whyTextIsTooShort(box, field, chosen) ??
+    whyNumberIsOutOfRange(box, field, chosen)
+  );
 };
 
 /** Everything somebody is about to send has to be something they could really

@@ -5,9 +5,10 @@
  * the story names and lets the site work that code out.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { mapNotNullish } from "#fp";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { execute } from "#shared/db/client.ts";
 import {
   type ContactRecord,
@@ -35,9 +36,9 @@ interface RecordEdit {
   visits?: string;
 }
 
-/** The page for one person's record, found the way the site finds it. */
-const pagePath = async (email: string): Promise<string> =>
-  `/admin/history/${toContactHashParam(await hashEmail(email))}`;
+/** Where one person's record lives, under the one-way code made from their
+ *  email rather than the address itself. */
+const recordPath = (code: string): string => `/admin/history/${code}`;
 
 /** Everything the site has stored about them right now. */
 export const recordFor = async (email: string): Promise<ContactRecord> =>
@@ -89,11 +90,21 @@ export const unreadableRecord = async (
   );
 };
 
-/** The organiser opens someone's record. */
+/** The organiser opens someone's record. The address it lives at is kept on
+ *  the world because it is made from a one-way code, not from the email, so an
+ *  evidence capture has no path it could write by hand. */
 export const openRecord = async (
   world: TicketsWorld,
   email: string,
-): Promise<TestBrowser> => openAdminPage(world, await pagePath(email));
+): Promise<TestBrowser> => {
+  const code = toContactHashParam(await hashEmail(email));
+  leaveEvidencePage(
+    world,
+    ["contact-record", "record-put-right", "record-repaired"],
+    recordPath(code),
+  );
+  return openAdminPage(world, recordPath(code));
+};
 
 /** The boxes on the page, by the words this file uses for them. */
 const BOXES = {

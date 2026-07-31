@@ -6,6 +6,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { escapeForRegex } from "#test-utils/regex.ts";
 
 /** Extract all cookies from a Set-Cookie header and merge into a cookie jar */
 const parseCookies = (response: Response, jar: Map<string, string>): void => {
@@ -190,7 +191,10 @@ const findForms = (html: string): FormInfo[] =>
 /** Extract all checkbox values for a given field name from form HTML */
 const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
   regexCollect(
-    new RegExp(`<input\\b[^>]*name="${fieldName}"[^>]*>`, "gi"),
+    new RegExp(
+      `<input\\b[^>]*\\sname="${escapeForRegex(fieldName)}"[^>]*>`,
+      "gi",
+    ),
     formHtml,
     (m) => m[0],
   )
@@ -259,6 +263,7 @@ const buttonToPress = (
 const findFormByButton = (
   forms: FormInfo[],
   buttonText: string,
+  fieldNames: string[] = [],
 ): {
   action: string;
   body: string;
@@ -266,8 +271,18 @@ const findFormByButton = (
   buttonValue?: string | undefined;
 } => {
   const lower = buttonText.toLowerCase();
+  // A page can serve two forms behind one button wording; the one rendering
+  // every field being sent is the one a person filling them in would submit,
+  // so it wins whenever any form renders them all. The whitespace before
+  // name= keeps a longer attribute like data-name from counting as a field.
+  const rendersEveryField = (body: string): boolean =>
+    fieldNames.every((field) =>
+      new RegExp(`\\sname="${escapeForRegex(field)}"`).test(body),
+    );
+  const preferred = forms.filter((f) => rendersEveryField(f.body));
+  const candidates = preferred.length > 0 ? preferred : forms;
   let switchedOff = false;
-  for (const f of forms) {
+  for (const f of candidates) {
     if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
     const pressed = buttonToPress(f.body, lower);
     // A switched-off button here does not settle it: a later form may carry a
@@ -409,9 +424,12 @@ export class TestBrowser {
   /**
    * Visit a page by path (GET request).
    * Follows redirects and updates currentHtml/currentUrl.
+   * Answers with the status of the page landed on, so a caller wanting both
+   * the answer and the words gets them from the one visit.
    */
-  async visit(path: string): Promise<void> {
-    await this.request(path);
+  async visit(path: string): Promise<number> {
+    const response = await this.request(path);
+    return response.status;
   }
 
   /**
@@ -448,7 +466,10 @@ export class TestBrowser {
   }
 
   /** Find a form by button text and extract its action + hidden fields */
-  private findForm(buttonText?: string): {
+  private findForm(
+    buttonText?: string,
+    fieldNames: string[] = [],
+  ): {
     action: string;
     body: string;
     entries: FormEntry[];
@@ -464,7 +485,7 @@ export class TestBrowser {
         entries: extractFormEntries(form.body),
       };
     }
-    const found = findFormByButton(forms, buttonText);
+    const found = findFormByButton(forms, buttonText, fieldNames);
     return {
       action: found.action,
       body: found.body,
@@ -487,8 +508,10 @@ export class TestBrowser {
     data: Record<string, string | string[]>,
     buttonText?: string,
   ): Promise<void> {
-    const { action, body, entries, buttonName, buttonValue } =
-      this.findForm(buttonText);
+    const { action, body, entries, buttonName, buttonValue } = this.findForm(
+      buttonText,
+      Object.keys(data),
+    );
 
     // Build the form body as URLSearchParams
     const params = new URLSearchParams();
