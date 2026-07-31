@@ -17,6 +17,7 @@ Feature: A paid booking loses the last available place
       Then the customer receives a ticket
 
   @rule:payments.late-customer-is-kept-and-refunded
+  @surface:admin
   Rule: A paid customer who loses the place is kept and refunded once
     The organiser can see the customer and the reason no place was booked.
 

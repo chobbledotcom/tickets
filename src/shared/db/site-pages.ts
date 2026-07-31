@@ -13,8 +13,11 @@
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import { chooseColumns } from "#shared/db/chosen-columns.ts";
-import { type TxScope, useTransaction } from "#shared/db/client.ts";
+import {
+  type SqlStatement,
+  type TxScope,
+  useTransaction,
+} from "#shared/db/client.ts";
 import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
@@ -25,7 +28,6 @@ import {
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { cachedTable, col, writeTableRow } from "#shared/db/table.ts";
-import { readerFor } from "#shared/db/table-reader.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -46,7 +48,7 @@ const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
   sort_order: col.simple<number>(),
 });
 
-const sitePageNavColumns = chooseColumns(rawSitePagesTable, [
+const sitePageNavColumns = rawSitePagesTable.read.pick([
   "id",
   "slug",
   "name",
@@ -57,7 +59,7 @@ const sitePageNavColumns = chooseColumns(rawSitePagesTable, [
  * and name (never content/meta). Ordered by (sort_order, id). The raw row
  * carries name and slug still sealed; the map below opens them. */
 const fetchNavRows = (): Promise<SitePageNavRow[]> =>
-  sitePageNavColumns.select({ order: "sort_order ASC, id ASC" });
+  sitePageNavColumns.many({}, { order: "sort_order ASC, id ASC" });
 
 // Request-scoped cache over those columns: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write
@@ -73,17 +75,24 @@ export const sitePageOrder = defineOrderedCollection({
   table: "site_pages",
 });
 
-/** The whole page, fully decrypted — for the public/admin single-page views. */
-const wholePage = readerFor(rawSitePagesTable);
+const sitePageIdColumn = rawSitePagesTable.read.pick(["id"]);
+
+/** Which of `ids` name a page that is really there — as a statement, so a
+ * caller can ask inside its own write transaction and have the answer hold
+ * for the writes it makes next. */
+export const existingSitePageIdsStatement = (
+  ids: readonly number[],
+): SqlStatement => sitePageIdColumn.statement({ id: ids });
 
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
 export const getSitePageBySlugIndex = (
   slugIndex: BlindIndex,
-): Promise<SitePage | null> => wholePage.one({ slug_index: slugIndex });
+): Promise<SitePage | null> =>
+  rawSitePagesTable.read.one({ slug_index: slugIndex });
 
 /** One full page by id (the admin edit read). */
 export const getSitePageById = (id: number): Promise<SitePage | null> =>
-  wholePage.one({ id });
+  rawSitePagesTable.read.one({ id });
 
 /** A create/update provides every editable column; the blind index is computed
  * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move

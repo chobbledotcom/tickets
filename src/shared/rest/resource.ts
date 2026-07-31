@@ -16,10 +16,11 @@
  *   return redirect('/admin/');
  */
 
-/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
+/* jscpd:ignore-start */
+import { byPrimaryKey } from "#shared/db/table-reader.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
@@ -187,12 +188,16 @@ export const defineResource = <
       config.validateValues,
     );
 
-  /** Run `fn` only when the row exists; otherwise report not found. */
+  /** Run `fn` only when the row exists; otherwise report not found. Asking
+   * whether the row is there fetches only its key: the whole row would be
+   * decrypted just to be thrown away. */
   const withExistingRow = async <Outcome>(
     id: InValue,
     fn: () => Promise<Outcome>,
   ): Promise<Outcome | NotFoundResult> =>
-    (await table.findById(id)) ? fn() : { notFound: true, ok: false };
+    (await table.read.exists(byPrimaryKey(table, id)))
+      ? fn()
+      : { notFound: true, ok: false };
 
   /** Parse + validate the form, write the row (transactionally when
    * `afterWrite` is set, else the plain insert/update `fallback`), then run the
@@ -223,6 +228,7 @@ export const defineResource = <
         : [],
       plainWrite: () => fallback(result.value),
       readBack: (rowId) => table.findByIdPrimary!(rowId),
+      tableName: table.name,
     });
     return { ok: true, row };
   };
@@ -231,6 +237,9 @@ export const defineResource = <
     const result = await parseWriteAndCommit(form, null, (input) =>
       table.insert(input),
     );
+    // A create's row is never null: `insert` returns the row it wrote, and a
+    // transactional write that can't read its own row back throws in
+    // `writeEntity` rather than reporting a null-row success.
     return result.ok ? { ok: true, row: result.row as Row } : result;
   };
 
@@ -266,7 +275,7 @@ export const defineResource = <
     create,
     delete: deleteRow,
     fields: schema.fields,
-    loadOrNull: table.findById,
+    loadOrNull: (id) => table.read.one(byPrimaryKey(table, id)),
     parseInput,
     table,
     update,

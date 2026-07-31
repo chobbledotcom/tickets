@@ -77,7 +77,7 @@ import {
   questionsTable,
 } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { defineForm } from "#shared/forms/definition.ts";
+import { defineForm, defineTextForm } from "#shared/forms/definition.ts";
 import { requireChoiceOptions } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
@@ -130,21 +130,13 @@ export const questionTextForm = defineForm({
       type: "select",
     },
   ] as const,
-  id: "questionText",
 });
 
-export const answerTextForm = defineForm({
-  fields: [
-    {
-      label: "Answer text",
-      name: "text",
-      placeholder: "e.g. Medium",
-      required: true,
-      type: "text",
-    },
-  ] as const,
-  id: "answerText",
-});
+export const answerTextForm = defineTextForm(
+  "Answer text",
+  "text",
+  "e.g. Medium",
+);
 
 /** Handle GET /admin/questions */
 const handleQuestionsGet = ownerPage(async (session) => {

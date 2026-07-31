@@ -59,6 +59,7 @@ export const withSecondLockRefreshHeld = async (
   body: (lockWrite: {
     releaseWrite: () => void;
     waitForWrite: () => Promise<void>;
+    writesSoFar: () => number;
   }) => Promise<void>,
 ): Promise<void> => {
   const writeTextFile = Deno.writeTextFile;
@@ -81,6 +82,7 @@ export const withSecondLockRefreshHeld = async (
     await body({
       releaseWrite: writeCanFinish.done,
       waitForWrite: () => writeStarted.wait,
+      writesSoFar: () => lockWrites,
     });
   } finally {
     writeCanFinish.done();

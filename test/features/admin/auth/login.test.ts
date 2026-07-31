@@ -16,7 +16,10 @@ import {
 } from "#test-utils/assertions.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
+import {
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
+} from "#test-utils/internal.ts";
 import {
   awaitTestRequest,
   mockAdminLoginRequest,
@@ -32,7 +35,7 @@ const expectWrongPasswordLoginVia = async (
 ): Promise<void> => {
   const request = await mockAdminLoginRequest({
     password: "wrong",
-    username: "testadmin",
+    username: TEST_ADMIN_USERNAME,
   });
   const response = await handleRequest(request, server);
   expect(response.status).toBe(302);
@@ -57,7 +60,7 @@ const expectLoginRejectedWithWrappedKey = async (
   const response = await handleRequest(
     await mockAdminLoginRequest({
       password: TEST_ADMIN_PASSWORD,
-      username: "testadmin",
+      username: TEST_ADMIN_USERNAME,
     }),
   );
   expect(response.status).toBe(302);
@@ -99,7 +102,10 @@ describeWithEnv("server (admin login)", { db: true }, () => {
   describe("POST /admin/login", () => {
     test("validates required password field", async () => {
       const response = await handleRequest(
-        await mockAdminLoginRequest({ password: "", username: "testadmin" }),
+        await mockAdminLoginRequest({
+          password: "",
+          username: TEST_ADMIN_USERNAME,
+        }),
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -113,7 +119,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({
           password: "wrong",
-          username: "testadmin",
+          username: TEST_ADMIN_USERNAME,
         }),
       );
       expect(response.status).toBe(302);
@@ -127,7 +133,10 @@ describeWithEnv("server (admin login)", { db: true }, () => {
     test("accepts correct password and sets cookie", async () => {
       const password = TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
-        await mockAdminLoginRequest({ password, username: "testadmin" }),
+        await mockAdminLoginRequest({
+          password,
+          username: TEST_ADMIN_USERNAME,
+        }),
       );
       await expectAdminLoginSuccess(response);
     });
@@ -158,7 +167,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
         mockFormRequest("/admin/login", {
           csrf_token: "invalid-csrf-token",
           password: TEST_ADMIN_PASSWORD,
-          username: "testadmin",
+          username: TEST_ADMIN_USERNAME,
         }),
       );
 
@@ -173,7 +182,10 @@ describeWithEnv("server (admin login)", { db: true }, () => {
     test("redirects with a too-many-attempts flash when rate limited", async () => {
       // Rate limiting uses direct connection IP (falls back to "direct" in tests)
       const makeRequest = () =>
-        mockAdminLoginRequest({ password: "wrong", username: "testadmin" });
+        mockAdminLoginRequest({
+          password: "wrong",
+          username: TEST_ADMIN_USERNAME,
+        });
 
       // Make 5 failed attempts to trigger lockout
       for (let i = 0; i < 5; i++) {
@@ -230,7 +242,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({
           password: TEST_ADMIN_PASSWORD,
-          username: "testadmin",
+          username: TEST_ADMIN_USERNAME,
         }),
       );
       const elapsed = Date.now() - start;
@@ -259,7 +271,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
       const postResponse = await handleRequest(
         await mockAdminLoginRequest({
           password: "wrong",
-          username: "testadmin",
+          username: TEST_ADMIN_USERNAME,
         }),
       );
       expect(postResponse.status).toBe(302);
@@ -289,7 +301,7 @@ describeWithEnv("server (admin login)", { db: true }, () => {
           {
             csrf_token: csrfToken,
             password: "wrong",
-            username: "testadmin",
+            username: TEST_ADMIN_USERNAME,
           },
           cookie,
         ),

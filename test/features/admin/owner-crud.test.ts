@@ -234,7 +234,7 @@ describeWithEnv("owner CRUD handlers", { db: true }, () => {
     );
 
     expectRedirectWithFlash(path, "This holiday is protected", false)(response);
-    expect(await holidays.table.findById(holiday.id)).toEqual(holiday);
+    expect(await holidays.table.read.one({ id: holiday.id })).toEqual(holiday);
   });
 
   test("uses the configured identifier label for a mismatch", async () => {

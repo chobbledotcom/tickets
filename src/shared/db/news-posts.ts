@@ -15,9 +15,10 @@ import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { chooseColumns, type StoredRowOf } from "#shared/db/chosen-columns.ts";
+import type { StoredRowOf } from "#shared/db/chosen-columns.ts";
 import {
   executeBatch,
+  insertedRowId,
   queryAll,
   resultRows,
   type TxScope,
@@ -42,7 +43,6 @@ import {
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { col } from "#shared/db/table.ts";
-import { readerFor } from "#shared/db/table-reader.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -54,6 +54,7 @@ import type {
   NewsPostCard,
   NewsPostSummary,
 } from "#shared/types.ts";
+import { isInstant } from "#shared/validation/timestamp.ts";
 
 /** Create/update input (camelCase keys → snake_case columns). `created`, `slug`,
  * and `slugIndex` are computed in {@link createNewsPost}, never posted by the
@@ -76,7 +77,7 @@ export const newsPostsTable = defineIdTable<NewsPost, NewsPostInput>(
   },
 );
 
-const newsSummaryColumns = chooseColumns(newsPostsTable, [
+const newsSummaryColumns = newsPostsTable.read.pick([
   "id",
   "created",
   "slug",
@@ -84,7 +85,7 @@ const newsSummaryColumns = chooseColumns(newsPostsTable, [
   "snippet",
 ]);
 
-const newsNameColumns = chooseColumns(newsPostsTable, ["id", "name"]);
+const newsNameColumns = newsPostsTable.read.pick(["id", "name"]);
 
 /** What the admin form provides: every editable column. The permalink is
  * derived on create, never entered, so `slug`/`slugIndex`/`created` are out. */
@@ -136,7 +137,7 @@ type SealedCardRow = StoredRowOf<
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
 export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
-  newsSummaryColumns.select({ order: "created DESC, id DESC" });
+  newsSummaryColumns.many({}, { order: "created DESC, id DESC" });
 
 /** Load the card projection for every post, newest first: the summary plus
  * the post's first linked image — for the public /news list, the one reader
@@ -164,25 +165,24 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
 /** id → decrypted name for every post, newest first — the image library's
  * link-target labels (nothing but the name decrypted). */
 export const getNewsPostNames = async (): Promise<Map<number, string>> => {
-  const rows = await newsNameColumns.select({
-    order: "created DESC, id DESC",
-  });
+  const rows = await newsNameColumns.many(
+    {},
+    { order: "created DESC, id DESC" },
+  );
   return fieldById("name")(rows);
 };
 
 /** One full post (fully decrypted) by id — the admin single-post views.
  * Null when absent. */
 export const getNewsPostById = (id: number): Promise<NewsPost | null> =>
-  newsPostsTable.findById(id);
-
-/** The whole post, fully decrypted. */
-const wholeNewsPost = readerFor(newsPostsTable);
+  newsPostsTable.read.one({ id });
 
 /** One full post (fully decrypted) by blind-index slug lookup — the public
  * `/news/:slug` read. Null when absent. */
 export const getNewsPostBySlugIndex = (
   slugIndex: BlindIndex,
-): Promise<NewsPost | null> => wholeNewsPost.one({ slug_index: slugIndex });
+): Promise<NewsPost | null> =>
+  newsPostsTable.read.one({ slug_index: slugIndex });
 
 /** Create a post, stamping `created` now (the admin flow) or at a pinned time
  * (tests/restore), and deriving its immutable `/news` permalink from that date
@@ -192,6 +192,11 @@ export const createNewsPost = async (
   transaction?: TxScope,
 ): Promise<NewsPost> => {
   const created = input.created ?? nowIso();
+  // The permalink is built from this date and can never be rebuilt, so a caller
+  // that pins a date it made up gets an error rather than a broken /news link.
+  if (!isInstant(created)) {
+    throw new Error(`News post created is not a real timestamp: "${created}"`);
+  }
   return useTransaction(transaction, async (tx) => {
     const { slug, slugIndex } = await uniqueSlugFromBase({
       base: newsSlugBase(created, input.name),
@@ -221,7 +226,7 @@ export const createNewsPost = async (
     return {
       content: input.content,
       created,
-      id: Number(result.lastInsertRowid),
+      id: insertedRowId(result),
       meta_description: input.metaDescription,
       meta_title: input.metaTitle,
       name: input.name,

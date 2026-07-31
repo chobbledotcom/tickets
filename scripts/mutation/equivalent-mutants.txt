@@ -109,17 +109,18 @@ src/fp.ts:452:17  ++ → --   # either direction changes generation and invalida
 src/fp.ts:455:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
 
 # Table inputs make these operators equivalent: nullable query results exclude
-# undefined, paired null checks already reject both nullish values, optional
-# conditions/dependencies are objects or arrays, and non-generated primary keys
-# are overwritten from the input-column fold in either initial-row branch.
-src/shared/db/table.ts:521:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
-src/shared/db/table.ts:561:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:733:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+# undefined, paired null checks already reject both nullish values, and optional
+# conditions/dependencies are objects or arrays.
+src/shared/db/table.ts:445:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:492:71  ?? → ||   # a found row is a truthy object, and a miss is undefined, so both operators give the row or null
+src/shared/db/table.ts:496:31  ?? → ||   # findByIds's element is a truthy row, null, or undefined, and all three agree
+src/shared/db/table.ts:584:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:617:32  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
 src/shared/db/login-attempts.ts:46:39  ?? → ||
-src/shared/db/users.ts:263:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/db/users.ts:264:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
 src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
 src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
 src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
@@ -173,7 +174,8 @@ src/shared/rest/crud-api.ts:342:31  ?? → ||   # policy is an AuthPolicy object
 src/shared/rest/crud-api.ts:346:18  ?? → ||   # lookup is a function or undefined
 src/shared/rest/crud-api.ts:353:28  ?? → ||   # lookupAfterWrite is a function or undefined
 src/shared/rest/crud-api.ts:363:31  ?? → ||   # hydrated map values are records or undefined; records are truthy
-src/shared/rest/crud-api.ts:572:27  ?? → ||   # extraRoutes is a route object or undefined
+src/shared/rest/crud-api.ts:573:27  ?? → ||   # extraRoutes is a route object or undefined
+src/shared/rest/resource.ts:157:25  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
@@ -840,16 +842,16 @@ scripts/unit-tests-report-imports.ts:138:23   → "mutated"   # stem()'s first r
 src/shared/db/attendees/select.ts:294:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
 src/shared/db/attendees/select.ts:379:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
-# i18n (shared/i18n.ts) — four provably-equivalent survivors.
+# i18n copy handling (shared/rebrand.ts + shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
 # compiled by IntlMessageFormat; both produce identical output for a
 # placeholder-free message (locked by the "fast path renders every
 # placeholder-free message exactly as full ICU would" test), so a mutant that
 # makes needsIcu always-true is a pure performance change with no observable effect.
-src/shared/i18n.ts:237:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
-src/shared/i18n.ts:237:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
-src/shared/i18n.ts:180:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
-src/shared/i18n.ts:319:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
+src/shared/rebrand.ts:26:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
+src/shared/rebrand.ts:26:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
+src/shared/rebrand.ts:251:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts:230:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # listing edit panel (features/admin/listing-page-management-panels.ts) — group-id fallback.
 src/features/admin/listing-page-management-panels.ts:46:39  ?? → ||   # `selectedGroupIds ?? ctxData.selectedGroupIds`: selectedGroupIds is number[]|undefined — a submitted array (even []) is always truthy, so both operators return it unchanged, and undefined maps to the stored ids under both. No input distinguishes them (same class as attributes.tsx:173:61)
@@ -875,7 +877,6 @@ src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separat
 src/features/admin/calendar-csv.ts:77:55  ?? → ||   # agentNames.get() is string|undefined; "" and the "" fallback are identical
 src/features/admin/calendar-csv.ts:94:59  ?? → ||   # startTime is string|undefined; every falsy value produces the same "" fallback
 src/features/admin/calendar-csv.ts:102:57  ?? → ||   # endTime is string|undefined; every falsy value produces the same "" fallback
-src/shared/db/activityLog.ts:187:69   → "mutated"   # the inserted word is an unused SQLite table alias, so rows, ordering, arguments, and limit are unchanged
 src/shared/forms/rendering.tsx:67:17   → "mutated"   # split("T")[0] always exists, and the empty input returned before this line
 src/shared/forms/rendering.tsx:194:35  || → &&   # publicLinkPath is absent or a function, so both boolean terms always agree
 src/shared/forms/rendering.tsx:209:20  ?? → ||   # beforeHtml is string|undefined and falls back to "", so both operators agree
@@ -969,9 +970,16 @@ scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it a
 
 # Isolated mutation runs: the exit code before any path has set one.
 scripts/mutation/isolation.ts:188:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
-src/shared/db/migrations.ts:254:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
+src/shared/db/migrations.ts:252:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
 
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.
 scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
 src/shared/crypto/encryption.ts:120:5  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable
+src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
+src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
+src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
+
+# The news card query names a single table, so its columns need no alias to
+# resolve.
+src/shared/db/news-posts.ts:148:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column

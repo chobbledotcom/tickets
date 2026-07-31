@@ -176,10 +176,7 @@ Then(
 );
 
 const onlyBundle = (world: TicketsWorld): string => {
-  const [name, ...rest] = requiredWorldValue(
-    world.bundles,
-    "the story's bundles",
-  ).keys();
+  const [name, ...rest] = world.things.names("bundle");
   if (!name || rest.length > 0)
     throw new Error("The story has no single bundle");
   return name;

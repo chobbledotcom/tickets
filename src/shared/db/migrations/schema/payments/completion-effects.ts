@@ -1,20 +1,17 @@
-import type { Table } from "#shared/db/migrations/schema/types.ts";
+import {
+  paymentRecord,
+  wholeNumber,
+  wholeNumberOrNull,
+  words,
+} from "./columns.ts";
 
-export const paymentCompletionEffectsTable: [name: string, table: Table] = [
+export const paymentCompletionEffectsTable = paymentRecord(
   "payment_completion_effects",
   {
     columns: [
-      ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-      ["payment_id", "TEXT NOT NULL CHECK (length(trim(payment_id)) > 0)"],
-      ["effect", "TEXT NOT NULL CHECK (length(trim(effect)) > 0)"],
-      [
-        "record_id",
-        "INTEGER CHECK (record_id IS NULL OR (typeof(record_id) = 'integer' AND record_id >= 1))",
-      ],
-      [
-        "completed_at",
-        "INTEGER NOT NULL CHECK (typeof(completed_at) = 'integer' AND completed_at >= 0)",
-      ],
+      ["effect", words()],
+      ["record_id", wholeNumberOrNull()],
+      ["completed_at", wholeNumber()],
     ],
     indexes: [
       {
@@ -24,4 +21,4 @@ export const paymentCompletionEffectsTable: [name: string, table: Table] = [
       },
     ],
   },
-];
+);

@@ -345,6 +345,14 @@ and keeps its ordinary site build offline.
 DB_URL=libsql://your-db.turso.io DB_TOKEN=your-token \
   DB_ENCRYPTION_KEY=your-base64-key deno task start
 
+# Or run against a throwaway in-memory database, with no Turso account
+DB_URL=:memory: DB_ENCRYPTION_KEY="$(openssl rand -base64 32)" deno task start
+
+# Same, restarting whenever a source file changes. An in-memory database is
+# emptied by each restart, so use a file to keep your setup across edits:
+# DB_URL=file:./local.db
+DB_URL=:memory: DB_ENCRYPTION_KEY="$(openssl rand -base64 32)" deno task dev
+
 # Run tests (stripe-mock downloaded automatically)
 deno task test
 ```
@@ -355,6 +363,7 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 
 ```
 deno task start          # Run server
+deno task dev            # Run server, restarting on source changes (static assets build once, so editing style.scss or bundle inputs needs the task restarted)
 deno task test           # Run tests
 deno task test:coverage  # Tests with coverage report
 deno task lint           # Format + lint with Biome — fixes in place

@@ -204,6 +204,14 @@ export const expectHtmlContains = (
   return html;
 };
 
+/** The one input tag on a page with the given name, so a test can check the
+ * exact attributes a form serves (default, bounds, required). */
+export const inputNamed = (html: string, name: string): string => {
+  const tag = html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0];
+  if (!tag) throw new Error(`No input named ${name} on the page`);
+  return tag;
+};
+
 /**
  * "Render once, assert many": for a suite that makes many assertions about one
  * admin page rendered from the standard fixture, this returns an assert

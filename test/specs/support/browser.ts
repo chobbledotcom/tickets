@@ -9,15 +9,37 @@ import { TestBrowser } from "#test-utils/test-browser.ts";
 import type { TicketsWorld } from "./world.ts";
 // jscpd:ignore-end
 
-export const scenarioBrowser = (world: TicketsWorld): TestBrowser => {
-  world.testBrowser ??= new TestBrowser();
-  return world.testBrowser;
-};
+/** Whose browser each story keeps. The organiser's is the story's own, so a
+ * step that does not say who is doing something is the organiser doing it. */
+export const ORGANISER = "the organiser";
+export const CUSTOMER = "the customer";
+export const EDITOR = "the editor";
+export const LATECOMER = "the latecomer";
+
+/** Keep the window somebody is looking at, so the next step can read the page
+ * they really ended on. */
+export const rememberBrowser = (
+  world: TicketsWorld,
+  who: string,
+  browser: TestBrowser,
+): TestBrowser => world.things.remember("browser", who, browser);
+
+/** The window somebody is already looking at. A story that never gave them one
+ * has nothing to read, so it says so rather than opening a fresh window and
+ * reporting on a page nobody was ever shown. */
+export const browserSeenBy = (world: TicketsWorld, who: string): TestBrowser =>
+  world.things.require("browser", who);
+
+export const browserOf = (world: TicketsWorld, who: string): TestBrowser =>
+  world.things.orMake("browser", who, () => new TestBrowser());
+
+export const scenarioBrowser = (world: TicketsWorld): TestBrowser =>
+  browserOf(world, ORGANISER);
 
 /** Forget the Scenario's browser, so the next ask starts a fresh one. Use this
  * after the site itself is replaced and the old session can no longer work. */
 export const resetScenarioBrowser = (world: TicketsWorld): void => {
-  delete world.testBrowser;
+  world.things.forget("browser", ORGANISER);
 };
 
 export const adminBrowser = async (
@@ -35,6 +57,17 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   const browser = new TestBrowser();
   await browser.visit(path);
   return browser;
+};
+
+/** What somebody who was never signed in is shown at an address, and how the
+ * site answered. Both come from the one visit, so they always describe the page
+ * the visitor really ended on rather than two separate answers. */
+export const newcomerReading = async (
+  path: string,
+): Promise<{ answered: number; said: string }> => {
+  const browser = new TestBrowser();
+  const answered = await browser.visit(path);
+  return { answered, said: browser.pageText };
 };
 
 /** Opening the page one named thing is sold from, as somebody never signed in.

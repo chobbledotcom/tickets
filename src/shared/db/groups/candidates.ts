@@ -1,6 +1,5 @@
 /** The listings a group's "add listings" form can offer. */
 
-import { chooseColumns } from "#shared/db/chosen-columns.ts";
 import { LISTING_ORDER_SQL } from "#shared/db/listings/select.ts";
 import { rawListingsTable } from "#shared/db/listings/table.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -15,7 +14,7 @@ import type { SortableListing } from "#shared/types.ts";
  * ones, so it sorts the same way a full listing record does. */
 export type GroupListingCandidate = SortableListing & { active: boolean };
 
-const candidateColumns = chooseColumns(rawListingsTable, [
+const candidateColumns = rawListingsTable.read.pick([
   "id",
   "name",
   "active",
@@ -39,14 +38,17 @@ const candidateColumns = chooseColumns(rawListingsTable, [
 export const getListingsNotInGroup = async (
   groupId: number,
 ): Promise<GroupListingCandidate[]> => {
-  const rows = await candidateColumns.select({
-    alias: "listing",
-    order: LISTING_ORDER_SQL.created_desc,
-    where: notInSubquery("listing.id", {
-      args: [groupId],
-      sql: "SELECT groupListing.listing_id FROM group_listings AS groupListing WHERE groupListing.group_id = ?",
-    }),
-  });
+  const rows = await candidateColumns.many(
+    {},
+    {
+      alias: "listing",
+      order: LISTING_ORDER_SQL.created_desc,
+      where: notInSubquery("listing.id", {
+        args: [groupId],
+        sql: "SELECT groupListing.listing_id FROM group_listings AS groupListing WHERE groupListing.group_id = ?",
+      }),
+    },
+  );
   return rows.map((row) => {
     // The flag has done its job once the settings are applied; leaving it on the
     // candidate would invite a second, pointless overlay.

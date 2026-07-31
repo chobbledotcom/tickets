@@ -99,41 +99,6 @@ actual size before marking an item complete.
 
 ---
 
-## Migration lock: re-acquire after a tolerated missing settings table
-
-*Origin: CodeRabbit review on PR #1965 (`src/shared/db/migrations/lock.ts`).*
-
-`acquireMigrationLock(true)` returns a lease token when the `settings` table
-does not exist yet, because the lock row lives in the very table the caller is
-about to create. Setup, restore, and bootstrap rely on this: their route is
-`initializeFreshSchema` → `sealFreshSchema`, which writes with a plain
-`executeBatch` and never checks lock ownership, so the unpersisted token is
-harmless there.
-
-There is one narrow interleaving where it is not harmless. Request A probes a
-missing `settings` table and takes the tolerated token; request B then creates
-and stamps the schema; A's re-probe inside `runAcquiredMigrations` now sees
-real markers, and if they read as stale it takes the pending-migrations branch
-and reaches `recordMigrationBatch` with a token no row ever backed. The
-ownership check finds zero rows and throws `MigrationInProgressError`.
-
-The outcome today is fail-closed and retryable — no markers are written and no
-data is corrupted, and another isolate genuinely was migrating — so this is a
-tidiness issue, not a correctness bug. Still, A is running migrations without
-holding a real lock until that final check catches it.
-
-The fix: after the re-probe in `runAcquiredMigrations`, when the initial
-acquisition was the tolerated one and the database now has a `settings` table,
-re-acquire the lease (and bail out the normal way if another request holds it)
-before entering the pending-migrations branch. A regression test needs to
-control the interleaving: acquire with `allowMissingSettings` against a wiped
-database, create and stamp the schema from another path, then assert the
-lock-gated write either succeeds against a real lease or refuses before any
-migration runs.
-
-Out of scope for #1965, which moved this code verbatim out of `migrations.ts`
-without changing behaviour.
-
 ## Booking unification — phases 3 & 4
 
 _Origin: `booking-unification.md`, `booking-unification-phase2.md`._
@@ -1821,6 +1786,27 @@ stands, so the split can be a pure move.
 
 ---
 
+## Two suites now cover the attendees list
+
+*Origin: Codex review of PR #1993 (direct tests for the four testless modules).*
+
+`test/features/admin/attendees-list.test.ts` was added because the mutation
+gate needs a test at the source's mirrored path. It calls the handlers
+directly. But `test/integration/server/attendees-list.test.ts` already drives
+the same behaviour over HTTP — authentication, the listing filter, sort order
+and paging — and `test/integration/server/attendees-csv.test.ts` covers the
+export. So the same rules are now checked twice.
+
+That costs runtime on every suite run, and lets the two sets of fixtures and
+expectations drift apart. The fix is to consolidate: move the route-level cases
+into the mirrored feature suite (which can call the handler directly *and* go
+through the router where that is the point), and delete what is left behind.
+
+Not done in #1993 because that change touches suites the PR otherwise had no
+reason to open, and the mirrored suite had to exist first. Worth doing next
+time either file is opened.
+
+Starting point: the three files named above.
 ## Mutation gaps in `src/shared/crypto/encryption.ts`
 
 _Origin: mutation run while speeding up owner-key encryption (PR #1945)._
@@ -2716,33 +2702,68 @@ and thinking again about the startup grace, which exists because a process id
 can be given to somebody else after the original has gone. Start at
 `RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
 
-## Four feature modules have no test at their mirrored path
+## Four feature modules had no test at their mirrored path — now they do
 
 *Origin: `deno task precommit:mutation` on the notes-migration branch, which
-could not start.*
+could not start. Closed by the direct-test pass that followed.*
 
-The mutation gate refuses to run a source that has mutants but no test at its
-mirrored path under `test/`. Four modules are in that state:
+All four now have a direct test at their mirrored path, so the gate no longer
+refuses to start on a branch that touches them:
 
-- `src/features/admin/attendee-page.ts` (55 mutants)
-- `src/features/admin/attendees-list.ts` (37)
-- `src/features/admin/listing-page-data.ts` (45)
-- `src/features/api/payment-processing/store-refund.ts` (29)
+- `src/features/admin/attendee-page.ts` → `test/features/admin/attendee-page.test.ts` (100%, two recorded equivalents)
+- `src/features/admin/attendees-list.ts` → `test/features/admin/attendees-list.test.ts` (100%)
+- `src/features/admin/listing-page-data.ts` → `test/features/admin/listing-page-data/` (100%, one recorded equivalent)
+- `src/features/api/payment-processing/store-refund.ts` → `test/features/api/payment-processing/store-refund.test.ts` (100%)
 
-Nothing needs moving: no test imports any of them. They are reached only
-through the app, by integration and Cucumber journeys, so each needs a direct
-test written at `test/features/…` to match its path.
+Every one of them now catches every mutation the gate demands, so a branch
+touching any of them can pass without first writing the tests that should
+already have existed.
 
-This blocks the gate for *any* branch that touches one of them, however small
-the change — the notes migration only swapped an import in each. Until they
-have direct tests, a branch touching them can prove its own work with a
-targeted `deno task mutation <source> <tests>` run instead.
+`src/features/admin/attendee-notes.ts` was in the same state and was fixed
+earlier: its route suite drives real pages through the session helpers, so it
+moved from `test/integration/admin/` to `test/features/admin/`, which is where
+that kind of suite belongs (see "Let the misplaced-test list see past request
+helpers" above).
 
-`src/features/admin/attendee-notes.ts` was in the same state and is now fixed:
-its route suite drives real pages through the session helpers, so it moved from
-`test/integration/admin/` to `test/features/admin/`, which is where that kind
-of suite belongs (see "Let the misplaced-test list see past request helpers"
-above). The other four have no such suite to move.
+## Two people setting a site up at the same moment can both succeed
+
+Raised on #1988 by both automated reviewers, and confirmed against the code.
+It is a production bug, not a test gap, and it is deliberately left out of that
+pull request because that branch changes no production code and this sits in
+the most security-critical path we have.
+
+**What happens.** `handleSetupPost` (`src/features/setup.ts`) asks
+`isSetupComplete()` and then calls `settings.setup.complete`. Nothing holds
+between the asking and the doing, so two requests that arrive together can both
+be told the site is empty. `completeSetup`
+(`src/shared/db/settings/setup.ts`) then runs its batch twice.
+
+The unique index on `username_index` saves us only when both people pick the
+*same* name. Two different names both insert, and the second batch's
+`settingUpsert` calls overwrite `PUBLIC_KEY` and `WRAPPED_PRIVATE_KEY` with a
+second keypair. The first owner is left holding a wrapped data key for a data
+key the site no longer uses — they can sign in and read nothing.
+
+**Why it is not simply "add a guard".** The batch cannot decide anything
+mid-flight, so making the owner insert conditional still leaves the four
+setting upserts landing unconditionally. Whatever fixes it has to make the
+whole ceremony refuse to run twice — an interactive transaction that re-reads
+`setup_complete` inside the write lock, or a single conditional write that
+every other statement hangs off. That is a design decision in the code that
+holds everybody's encryption keys, so it wants its own change and its own
+review, not a corner of a test PR.
+
+**Where to start.** `completeSetup` in `src/shared/db/settings/setup.ts` —
+`withTransaction` from `src/shared/db/client.ts` is the tool, and the header
+comment on the current batch explains why it is a plain batch today (all values
+are computed up front). The guard in `handleSetupPost` at
+`src/features/setup.ts:114` stays useful as the cheap first check.
+
+**Proving it.** A story cannot show this today: Cucumber awaits each step, so
+the two posts never overlap. #1988 covers the neighbouring case it *can* reach
+honestly — a person who had the setup page open before somebody else finished,
+sending their stale form afterwards. A real test for this one needs both posts
+started together behind a barrier, and it should be written with the fix.
 
 ---
 
@@ -2774,6 +2795,37 @@ where the shape rule is covered and the "names a booked listing" rule is not.
 
 ---
 
+## A create whose row can't be read back should not look retryable
+
+*Origin: Codex review on PR #2002, which added the loud failure for a create
+whose just-written row can't be read back.*
+
+`writeEntity` (`src/shared/rest/write-entity.ts`) writes the row, commits, then
+reads it back on the primary. When a create's read-back finds nothing it now
+raises an error. That error leaves the API write path in
+`src/shared/rest/crud-api.ts` and reaches the request handler
+(`src/features/app/request.ts`), which turns any unhandled error into the shared
+503 page. The row itself was committed, so a client that treats the 503 as
+"try again" can post the same create twice and end up with two rows.
+
+The reviewer's suggestion was to read the row back *before* committing, so a
+failed read-back rolls the insert back and there is nothing to duplicate. That
+is more than a local change: each resource can supply its own
+`lookupAfterWrite`, several of which join extra columns, and every one of them
+would need a version that reads inside the open transaction. It also trades one
+rare wrong answer for another — a row read before the commit can still be
+reported to the caller when the commit afterwards fails.
+
+`writeTableRow` in `src/shared/db/table.ts` already inserts and reads back
+inside one transaction (see `test/shared/db/table/write-row.test.ts`), so it is
+the place to start if the pre-commit read-back is the direction taken. The
+smaller alternative is to keep the failure after the commit but answer with a
+response that says plainly the create is not to be repeated, and carries the id
+of the row that was made, rather than falling through to the generic 503.
+
+Note that the id that made this reachable in the first place is now checked at
+the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
+answer given for a failure that should no longer happen — not a live fault.
 ## Ten more findings from the review of the aggregate base branch
 
 *Origin: automated review of PR #1962 at commit `cdac3314`, 2026-07-29.*

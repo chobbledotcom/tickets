@@ -120,4 +120,6 @@ export const payYourOwnPrice = async (
     total: paid,
   });
   world.attendeeId = (await getAttendeesRaw(listingId))[0]!.id;
+  // The statement that has to show what they chose rather than what was asked.
+  world.evidenceValues.set("payMoreListingId", String(listingId));
 };

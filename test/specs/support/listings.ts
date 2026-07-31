@@ -9,31 +9,66 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import type { Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import {
-  requiredWorldValue,
-  type TicketsWorld,
-} from "#test/specs/support/world.ts";
+import { minorUnits } from "#test/specs/support/money.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
 /** Keep a listing under the name the story calls it, so later steps can find
  * it however it was set up. */
-export const rememberStayListing = (
+export const rememberListing = (
   world: TicketsWorld,
   name: string,
   listing: Listing,
-): Listing => {
-  world.listingIds.set(name, listing.id);
-  world.stayListings ??= new Map();
-  world.stayListings.set(name, listing);
-  return listing;
-};
+): Listing => world.things.remember("listing", name, listing);
 
 /** The listing a story set up under this name. */
-export const stayListing = (world: TicketsWorld, name: string): Listing =>
-  requiredWorldValue(world.stayListings?.get(name), `${name} stay listing`);
+export const listingNamed = (world: TicketsWorld, name: string): Listing =>
+  world.things.require("listing", name);
+
+/** Keep the listing with this id, for a story that made one through a form
+ * and was handed nothing but its id back. */
+export const rememberListingById = async (
+  world: TicketsWorld,
+  name: string,
+  id: number,
+): Promise<Listing> =>
+  rememberListing(world, name, await requireListingWithCount(id));
+
+/** The id of the listing a story set up under this name. */
+export const listingIdNamed = (world: TicketsWorld, name: string): number =>
+  listingNamed(world, name).id;
+
+/** Something the site sells at a price, remembered under the name the story
+ * calls it. The listing a money story starts from, so its price and its id are
+ * in one place rather than set up slightly differently each time. */
+export const sellSomethingAt = async (
+  world: TicketsWorld,
+  name: string,
+  price: string,
+  options: { canPayMore?: boolean; keepThankYouPage?: boolean } = {},
+): Promise<Listing> => {
+  const listing = await createTestListing({
+    maxAttendees: 50,
+    name,
+    // A listing that lets a customer pay more than it asks needs a ceiling to
+    // pay up to, or there is nothing to be generous within.
+    ...(options.canPayMore
+      ? { canPayMore: true, maxPrice: minorUnits("100.00") }
+      : {}),
+    // Keeping the site's own thank-you page lets a story read what the customer
+    // is shown, rather than being sent off to another site.
+    ...(options.keepThankYouPage ? { thankYouUrl: "" } : {}),
+    unitPrice: minorUnits(price),
+  });
+  rememberListing(world, name, listing);
+  world.listingId = listing.id;
+  return listing;
+};
 
 /** What the site tells somebody when a listing's own form saves. */
 export const LISTING_SAVED = "Listing updated";
@@ -93,7 +128,7 @@ export const organiserSavesListing = async (
 ): Promise<void> => {
   await saveListingEdit(
     await adminBrowser(world),
-    stayListing(world, name).id,
+    listingIdNamed(world, name),
     fillsIn,
   );
 };

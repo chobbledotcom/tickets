@@ -66,7 +66,7 @@ describe("test-compat", () => {
       });
       await deleteTestGroup(group.id);
       const { groups } = await import("#shared/db/groups.ts");
-      expect(await groups.table.findById(group.id)).toBeNull();
+      expect(await groups.table.read.one({ id: group.id })).toBeNull();
     });
   });
 

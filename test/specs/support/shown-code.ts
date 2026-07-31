@@ -5,20 +5,19 @@
  * always using a code the site itself would hand out.
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
-import { listingsTable } from "#shared/db/listings/records.ts";
-import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
-import { adminBrowser } from "#test/specs/support/browser.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
+import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
 import {
-  rememberStayListing,
-  stayListing,
+  listingIdNamed,
+  rememberListing,
 } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
+import type { ActOnOneThing, TicketsWorld } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+
+// jscpd:ignore-end
 
 /** What the organiser types on the page that makes the code. A box left out is
  * left as the page had it, the way it would be for a person who fills in one
@@ -38,7 +37,7 @@ export const somethingForSale = async (
 ): Promise<void> => {
   await enablePublicSite();
   await setupStripe();
-  rememberStayListing(
+  rememberListing(
     world,
     name,
     await createTestListing({
@@ -69,8 +68,10 @@ export const organiserShowsCode = async (
   name: string,
   wanted: CodeWanted = {},
 ): Promise<CodeOnScreen> => {
-  const browser = await adminBrowser(world);
-  await browser.visit(`/admin/listing/${stayListing(world, name).id}/qr`);
+  const browser = await openAdminPage(
+    world,
+    `/admin/listing/${listingIdNamed(world, name)}/qr`,
+  );
   await browser.submitForm(
     {
       ...(wanted.who === undefined ? {} : { customer_name: wanted.who }),
@@ -109,30 +110,25 @@ export interface WhereTheCodeLed {
 const withPayingStubbed = async <Answer>(
   body: (paying: {
     timesReached: () => number;
-    whatWasCharged: () => PaymentCheckoutCreateSnapshot | undefined;
+    whatWasCharged: () => CheckoutIntent | undefined;
   }) => Promise<Answer>,
 ): Promise<Answer> => {
   const { stubCheckout } = await import("#test-utils/checkout.ts");
-  const { mockProviderType, withMocks } = await import("#test-utils/mocks.ts");
-  const { paymentsApi } = await import("#shared/payments.ts");
-  let answer: Answer | undefined;
-  await withMocks(
-    () =>
-      stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
-      ),
-    async () => {
-      const checkout = stubCheckout();
-      try {
-        answer = await body({
-          timesReached: checkout.calls,
-          whatWasCharged: checkout.getCaptured,
-        });
-      } finally {
-        checkout.checkout.restore();
-      }
-    },
+  const { withStripeAsProvider } = await import(
+    "#test/specs/support/money-drivers.ts"
   );
+  let answer: Answer | undefined;
+  await withStripeAsProvider(async () => {
+    const checkout = stubCheckout();
+    try {
+      answer = await body({
+        timesReached: checkout.calls,
+        whatWasCharged: checkout.getCaptured,
+      });
+    } finally {
+      checkout.checkout.restore();
+    }
+  });
   if (answer === undefined) throw new Error("Nothing came of that");
   return answer;
 };
@@ -150,19 +146,19 @@ export interface WhatIsBeingCharged {
  * there twice for one press is not either: only the last order would be
  * visible, while the customer would have two of them. */
 const whatIsBeingCharged = (
-  charged: PaymentCheckoutCreateSnapshot | undefined,
+  charged: CheckoutIntent | undefined,
   timesReached: number,
 ): WhatIsBeingCharged => {
-  const line = charged?.order.lines[0];
+  const line = charged?.items[0];
   if (!line) throw new Error("Paying was reached with nothing to charge for");
   if (timesReached !== 1) {
     throw new Error(`Paying was set up ${timesReached} times, not once`);
   }
   return {
-    forWhat: line.name,
-    nameOnIt: charged.bookingIntent.name,
+    forWhat: line.slug,
+    nameOnIt: charged.name,
     places: line.quantity,
-    priceEach: line.amount,
+    priceEach: line.unitPrice,
   };
 };
 
@@ -224,8 +220,7 @@ export const customerPaysMore = (
   price: number,
 ): Promise<WhatIsBeingCharged> =>
   withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
-    const browser = new TestBrowser();
-    await browser.visit(link);
+    const browser = await openAsNewcomer(link);
     expect(browser.currentHtml).toContain('name="qr_token"');
     await browser.submitForm(
       {
@@ -257,25 +252,16 @@ export const meddledWith = (link: string): string => {
   return link.replace(code, code.slice(0, at) + swapped + code.slice(at + 1));
 };
 
-/** Something a story does to the listing it named. */
-type ListingStep = (world: TicketsWorld, name: string) => Promise<void>;
-
-/** Look the named listing up once, then do the work on it — so every step that
- *  works on a listing the story named finds it the same way. */
-const onNamedListing =
-  (use: (listingId: number) => Promise<unknown>): ListingStep =>
-  async (world, name) => {
-    await use(stayListing(world, name).id);
-  };
-
 /** The organiser takes something off sale after the codes are printed. */
-export const takeOffSale: ListingStep = onNamedListing((listingId) =>
-  listingsTable.update(listingId, { active: false }),
-);
+export const takeOffSale: ActOnOneThing = async (world, name) => {
+  const { listingsTable } = await import("#shared/db/listings/records.ts");
+  await listingsTable.update(listingIdNamed(world, name), { active: false });
+};
 
 /** Nothing at all was booked, whatever the page said. */
-export const expectNothingBooked: ListingStep = onNamedListing(
-  async (listingId) => {
-    expect(await getAttendeesRaw(listingId)).toEqual([]);
-  },
-);
+export const expectNothingBooked: ActOnOneThing = async (world, name) => {
+  const { getAttendeesRaw } = await import(
+    "#test-utils/db-helpers/attendees.ts"
+  );
+  expect(await getAttendeesRaw(listingIdNamed(world, name))).toEqual([]);
+};

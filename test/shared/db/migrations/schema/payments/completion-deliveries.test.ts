@@ -1,0 +1,68 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { paymentCompletionDeliveriesTable } from "#shared/db/migrations/schema/payments/completion-deliveries.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { expectAccepted, expectRefused } from "./refuses.ts";
+
+const [name, table] = paymentCompletionDeliveriesTable;
+const column = (wanted: string): string =>
+  table.columns.find(([held]) => held === wanted)?.[1] ?? "";
+
+describe("the messages sent after a payment", () => {
+  test("is one row per message per payment", () => {
+    expect(name).toBe("payment_completion_deliveries");
+    expect(table.columns.map(([held]) => held)).toEqual([
+      "id",
+      "payment_id",
+      "delivery_key",
+      "data",
+      "completed_at",
+    ]);
+  });
+
+  test("demands the message be hidden, because it holds the buyer's details", () => {
+    // Name, email, phone and address travel in here, so the table refuses a
+    // plain one rather than trusting every writer to hide it.
+    expect(column("data")).toContain("GLOB 'enc:1:?*:?*'");
+    expect(column("data")).toContain("TEXT NOT NULL");
+  });
+
+  test("lets a message wait until it has been sent", () => {
+    // Empty until it goes out, which is what makes "which messages are still
+    // waiting?" a cheap question.
+    expect(column("completed_at")).toBe("INTEGER");
+  });
+
+  test("cannot send the same message for a payment twice", () => {
+    // Without this the buyer could be emailed twice by two workers.
+    expect(table.indexes).toContainEqual({
+      columns: ["payment_id", "delivery_key"],
+      name: "idx_payment_completion_deliveries_unique",
+      unique: true,
+    });
+  });
+
+  test("can find the messages still waiting to be sent", () => {
+    expect(table.indexes).toContainEqual({
+      columns: ["payment_id", "completed_at", "id"],
+      name: "idx_payment_completion_deliveries_pending",
+    });
+  });
+});
+
+// Read as a string the rule above looks right whatever column it names, so
+// this asks a real table to turn a plain message away.
+describeWithEnv("db > message rules", { db: true }, () => {
+  const aMessage = (key: string, data: string) =>
+    `INSERT INTO payment_completion_deliveries
+      (payment_id, delivery_key, data)
+      VALUES ('pay_1', '${key}', ${data})`;
+
+  test("refuses a message left in plain words", async () => {
+    await expectRefused(aMessage("plain", "'Jane Smith'"));
+  });
+
+  test("accepts a message that is hidden", async () => {
+    await expectAccepted(aMessage("hidden", "'enc:1:a:b'"));
+  });
+});

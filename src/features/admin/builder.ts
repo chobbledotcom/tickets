@@ -108,7 +108,6 @@ export const builderForm = defineForm({
       type: "password" as const,
     },
   ] as const,
-  id: "builder",
 });
 
 /** Return an error message when a DB provider isn't configured, else null. */

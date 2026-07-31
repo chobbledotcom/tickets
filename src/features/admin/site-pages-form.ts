@@ -12,7 +12,6 @@ export const { createForm: sitePageForm, editForm: sitePageEditForm } =
   defineContentForms({
     createSlugFields: [contentSlugField()] as const,
     extraFields: [],
-    id: "sitePage",
     nameLabel: t("site.pages.field.name"),
     publicLinkPath: (slug) => `/page/${slug}`,
   });

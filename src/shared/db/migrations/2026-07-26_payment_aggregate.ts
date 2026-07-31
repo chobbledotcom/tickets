@@ -16,7 +16,7 @@ import {
   prepareLegacyPayment,
 } from "#shared/db/payments/legacy-copy.ts";
 import { verifyLegacyPayments } from "#shared/db/payments/legacy-verify.ts";
-import { schemaMigration } from "./define.ts";
+import { bareSchemaMigration } from "./define.ts";
 import { MigrationInProgressError } from "./errors.ts";
 import {
   assertLegacyPaymentSourcesDrained,
@@ -281,23 +281,10 @@ const migrateLegacyPayments = async (
   if (!attendees.complete) return requireAnotherInvocation();
 };
 
-export default schemaMigration(
+// The tables this fills are made by 2026-07-26_payment_records, so this one
+// owns no schema of its own — only the copy of the old payment rows into them.
+export default bareSchemaMigration(
   "2026-07-26_payment_aggregate",
-  "Create durable payments, preserve legacy runtime facts, retry uncertain work, and queue operator alerts.",
-  {
-    indexes: [
-      "idx_payment_sessions_reference",
-      "idx_payment_sessions_reconcile",
-      "idx_payment_sessions_attendee",
-      "idx_payment_charges_payment_reference",
-      "idx_payment_charges_reference",
-      "idx_payment_charges_pending_refund",
-      "idx_payment_charges_legacy_source",
-      "idx_payment_cases_payment_resource",
-      "idx_payment_cases_reconcile",
-      "idx_payment_cases_alert",
-    ],
-    newTables: ["payment_sessions", "payment_charges", "payment_cases"],
-  },
+  "Copy the old payment rows into the durable payment tables.",
   async ({ getDb }) => migrateLegacyPayments(getDb),
 );

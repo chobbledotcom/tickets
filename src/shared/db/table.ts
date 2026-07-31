@@ -18,7 +18,7 @@ import {
 } from "#shared/cache-registry.ts";
 import {
   execute,
-  queryAll,
+  insertedRowId,
   queryOne,
   queryOnePrimary,
   resultRows,
@@ -26,6 +26,11 @@ import {
   type TxScope,
 } from "#shared/db/client.ts";
 import { queryAndMap } from "#shared/db/query.ts";
+import {
+  byPrimaryKey,
+  readerFor,
+  type TableReader,
+} from "#shared/db/table-reader.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
@@ -105,16 +110,10 @@ export interface Table<Row, Input> {
   /** Delete a row by primary key */
   deleteById: (id: InValue) => Promise<void>;
 
-  /** Find all rows */
-  findAll: () => Promise<Row[]>;
-
-  /** Find a row by primary key, or null when it does not exist. */
-  findById: (id: InValue) => Promise<Row | null>;
-
   /**
    * Find a row by primary key, pinned to the primary (read-your-writes). Use
    * when reading a row back immediately after committing its own write: a plain
-   * {@link findById} runs in "read" mode, which Turso may serve from a replica
+   * {@link read} runs in "read" mode, which Turso may serve from a replica
    * that lags behind the just-committed write and so miss the row (returning
    * null). This reads on the primary, which always reflects the write.
    *
@@ -123,9 +122,6 @@ export interface Table<Row, Input> {
    * façade table that never takes that path may omit it.
    */
   findByIdPrimary?: (id: InValue) => Promise<Row | null>;
-
-  /** Find rows in input order, retaining nulls for missing primary keys. */
-  findByIds: (ids: InValue[]) => Promise<(Row | null)[]>;
 
   /** Transform a row from DB (apply read transforms) */
   fromDb: (row: Row) => Promise<Row>;
@@ -138,9 +134,17 @@ export interface Table<Row, Input> {
   insertStatement?: (
     input: Input,
     condition?: SqlStatement,
+    /** Columns the INSERT reports back. Defaults to the primary key. */
+    returningColumns?: string,
   ) => Promise<SqlStatement>;
   name: string;
   primaryKey: keyof Row & string;
+
+  /**
+   * Every ordinary read of this table's rows: the whole row, or the columns a
+   * caller names. See `#shared/db/table-reader.ts`.
+   */
+  read: TableReader<Row>;
 
   readColumn: ReadColumn<Row>;
 
@@ -203,16 +207,13 @@ export async function writeTableRow<Row, Input>(
 ): Promise<Row | null> {
   const statement =
     write.kind === "insert"
-      ? await table.insertStatement!(write.input, write.condition)
+      ? await table.insertStatement!(
+          write.input,
+          write.condition,
+          table.columns.join(", "),
+        )
       : await table.updateStatement!(write.id, write.input, write.condition);
-  const returning =
-    write.kind === "insert"
-      ? {
-          ...statement,
-          sql: `${statement.sql} RETURNING ${table.columns.join(", ")}`,
-        }
-      : statement;
-  const row = resultRows<Row>(await transaction.execute(returning))[0];
+  const row = resultRows<Row>(await transaction.execute(statement))[0];
   return row ? table.fromDb(row) : null;
 }
 
@@ -236,16 +237,19 @@ const applyWriteTransform = <T>(
 };
 
 /** Build INSERT SQL */
+/** Build INSERT SQL with RETURNING, so the written row itself reports the
+ * columns the caller needs — a generated key included. */
 const buildInsertSql = (
   name: string,
   columns: string[],
+  returningColumns: string,
   condition?: string,
 ): string => {
   const placeholders = columns.map(() => "?").join(", ");
   const values = condition
     ? `SELECT ${placeholders} WHERE ${condition}`
     : `VALUES (${placeholders})`;
-  return `INSERT INTO ${name} (${columns.join(", ")}) ${values}`;
+  return `INSERT INTO ${name} (${columns.join(", ")}) ${values} RETURNING ${returningColumns}`;
 };
 
 /** Build UPDATE SQL with RETURNING to get updated row in one round trip */
@@ -303,6 +307,16 @@ export const defineTable = <Row, Input = Row>(
     }
     return value;
   };
+
+  /** The table's own rows, read by the shared reader. */
+  const table = {
+    columns: physicalColumns,
+    name,
+    primaryKey,
+    readColumn,
+    schema,
+  };
+  const read = readerFor<Row>(table);
 
   // The columns whose stored value has to be turned back into its real value
   // (decrypted, parsed, looked up). Every other column is copied straight
@@ -376,6 +390,7 @@ export const defineTable = <Row, Input = Row>(
    * lives in one place. */
   const buildInsert = async (
     input: Input,
+    returningColumns: string,
   ): Promise<{
     args: InValue[];
     columns: string[];
@@ -388,17 +403,17 @@ export const defineTable = <Row, Input = Row>(
       args: columns.map((col) => dbValues[col] as InValue),
       columns,
       dbValues,
-      sql: buildInsertSql(name, columns),
+      sql: buildInsertSql(name, columns, returningColumns),
     };
   };
 
   // Insert implementation
   const insert = async (input: Input): Promise<Row> => {
-    const { args, dbValues, sql } = await buildInsert(input);
+    const { args, dbValues, sql } = await buildInsert(input, primaryKey);
     const result = await execute(sql, args);
 
     const initialRow = schema[primaryKey].generated
-      ? { [primaryKey]: Number(result.lastInsertRowid) }
+      ? { [primaryKey]: insertedRowId(result, primaryKey) }
       : {};
 
     return reduce((row: Record<string, unknown>, col: string) => {
@@ -413,12 +428,13 @@ export const defineTable = <Row, Input = Row>(
   const insertStatement = async (
     input: Input,
     condition?: SqlStatement,
+    returningColumns: string = primaryKey,
   ): Promise<SqlStatement> => {
-    const { args, columns, sql } = await buildInsert(input);
+    const { args, columns, sql } = await buildInsert(input, returningColumns);
     return condition
       ? {
           args: [...args, ...condition.args],
-          sql: buildInsertSql(name, columns, condition.sql),
+          sql: buildInsertSql(name, columns, returningColumns, condition.sql),
         }
       : { args, sql };
   };
@@ -454,56 +470,28 @@ export const defineTable = <Row, Input = Row>(
     id: InValue,
     input: Partial<Input>,
   ): Promise<Row | null> => {
-    if (getProvidedColumns(input).length === 0) return findById(id);
+    if (getProvidedColumns(input).length === 0) {
+      return read.one(byPrimaryKey(table, id));
+    }
     const { args, sql } = await updateStatement(id, input);
     const row = await queryOne<Row>(sql, args);
     return row ? fromDb(row) : null;
   };
 
-  // Find by ID via the given single-row query — a plain "read" (findById) or the
-  // primary read-your-writes read (findByIdPrimary), for reading a row back right
-  // after its own write (see Table.findByIdPrimary).
-  const findByIdVia = async (
-    query: (sql: string, args: InValue[]) => Promise<Row | null>,
-    id: InValue,
-  ): Promise<Row | null> => {
-    const row = await query(
+  /** Read one row back on the primary, right after its own write — the one
+   * read that cannot go through {@link read}, which runs where a replica may
+   * still be behind the write (see {@link Table.findByIdPrimary}). */
+  const findByIdPrimary = async (id: InValue): Promise<Row | null> => {
+    const row = await queryOnePrimary<Row>(
       `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} = ?`,
       [id],
     );
     return row ? fromDb(row) : null;
   };
 
-  const findByIds = async (ids: InValue[]): Promise<(Row | null)[]> => {
-    if (ids.length === 0) return [];
-    const rows = await queryAll<Row>(
-      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} IN (${ids.map(() => "?").join(", ")})`,
-      ids,
-    );
-    const readRows = await mapParallel(fromDb)(rows);
-    const rowsById = new Map(
-      readRows.map((row) => [row[primaryKey], row] as const),
-    );
-    return ids.map((id) => rowsById.get(id as Row[keyof Row & string]) ?? null);
-  };
-
-  const findById = async (id: InValue): Promise<Row | null> =>
-    (await findByIds([id]))[0] ?? null;
-
-  const findByIdPrimary = (id: InValue): Promise<Row | null> =>
-    findByIdVia(queryOnePrimary, id);
-
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
     await execute(`DELETE FROM ${name} WHERE ${primaryKey} = ?`, [id]);
-  };
-
-  // Find all implementation
-  const findAll = async (): Promise<Row[]> => {
-    const rows = await queryAll<Row>(
-      `SELECT ${physicalColumnsSql} FROM ${name}`,
-    );
-    return mapParallel(fromDb)(rows);
   };
 
   // Row → Input: copy input-eligible columns from a row, translating
@@ -528,16 +516,14 @@ export const defineTable = <Row, Input = Row>(
   return {
     columns: physicalColumns,
     deleteById,
-    findAll,
-    findById,
     findByIdPrimary,
-    findByIds,
     fromDb,
     inputKeyMap,
     insert,
     insertStatement,
     name,
     primaryKey,
+    read,
     readColumn,
     rowToInput,
     schema,

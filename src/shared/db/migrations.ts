@@ -21,10 +21,8 @@ import { lazyRef } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
 import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
-import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
 import { recordScriptVersion } from "#shared/update.ts";
 import {
@@ -40,9 +38,10 @@ import {
 import { LEGACY_PAYMENT_TABLE_NAMES } from "./migrations/legacy-payment-schema.ts";
 import {
   acquireMigrationLock,
-  MIGRATION_LOCK_TTL_MS,
+  migrationLockHeldError,
   releaseAfterMigrationFailure,
   releaseMigrationLock,
+  storedLease,
 } from "./migrations/lock.ts";
 import {
   migrationMarkerStatement,
@@ -62,7 +61,6 @@ import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
   LATEST_UPDATE,
-  MIGRATION_LOCK_KEY,
   SCHEMA_MIGRATIONS_TABLE,
 } from "./migrations/schema/version.ts";
 import {
@@ -293,10 +291,9 @@ const finishIfUpToDate = async (probe: DbProbe): Promise<boolean> => {
 type LockedMigrationResult = "continue" | "release" | "released";
 
 const runAcquiredMigrations = async (
+  recheck: DbProbe,
   lockToken: string,
 ): Promise<LockedMigrationResult> => {
-  // Re-check after acquiring lock because another process may have finished.
-  const recheck = await probeDbState();
   if (await finishIfUpToDate(recheck)) return "release";
 
   if (
@@ -336,24 +333,27 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   if (await finishIfUpToDate(probe)) return;
   requireAllowedInitialDbState(probe.state, allowMissingSettings);
 
-  const lockToken = await acquireMigrationLock(allowMissingSettings);
-  if (lockToken === null) {
-    void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
-    throw new MigrationInProgressError(
-      "Database migration is already in progress (migration_lock held). " +
-        `The request can be retried; a crashed migration's lock is reclaimed automatically after ${
-          MIGRATION_LOCK_TTL_MS / 60000
-        } minutes, or manually DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'.`,
-    );
-  }
+  const lease = await acquireMigrationLock(allowMissingSettings);
+  if (lease === null) throw migrationLockHeldError();
 
+  // Only a stored lease is ever given back: a database with no settings table
+  // has no row to delete, and trying would swap this request's retry message
+  // for whatever the pointless write failed with.
+  let held = lease;
   let result: LockedMigrationResult;
   try {
-    result = await runAcquiredMigrations(lockToken);
+    // Re-check after acquiring the lock because another process may have
+    // finished, which is also what decides whether the lease is real yet.
+    const recheck = await probeDbState();
+    held = await storedLease(lease, recheck.state === "missing_settings");
+    result = await runAcquiredMigrations(recheck, held.token);
   } catch (error) {
-    return await releaseAfterMigrationFailure(lockToken, error);
+    if (!held.stored) throw error;
+    return await releaseAfterMigrationFailure(held.token, error);
   }
-  if (result === "release") await releaseMigrationLock(lockToken);
+  if (result === "release" && held.stored) {
+    await releaseMigrationLock(held.token);
+  }
   if (result === "continue") {
     throw new MigrationInProgressError(
       "Database update is continuing on the next request.",

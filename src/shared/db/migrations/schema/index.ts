@@ -20,6 +20,7 @@ export const SCHEMA: [name: string, table: Table][] = [
   ...catalogTables,
   ...questionTables,
   ...contentTables,
+  ...paymentTables,
 ];
 
 /** Ordered table names — matches FK dependency order (parents before children) */

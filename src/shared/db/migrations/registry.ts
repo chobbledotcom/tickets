@@ -389,22 +389,27 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-28_note_entities",
     () => import("./2026-07-28_note_entities.ts"),
   ),
-  // Create the durable payment aggregate and retain ambiguous legacy facts for repair.
+  // Runs after the note migration despite its earlier date, and must stay
+  // there. Creating these tables asks the database to match the whole current
+  // schema, which includes the two columns notes gained. On a site that
+  // skipped the note release, those columns are still missing from a
+  // system_notes table that already has rows, and SQLite refuses to add a
+  // NOT NULL column to a table with rows. The note migration is the one that
+  // knows how to do it — add them with a default, fill them in, then rebuild.
   entry(
-    "2026-07-26_payment_aggregate",
-    () => import("./2026-07-26_payment_aggregate.ts"),
+    "2026-07-26_payment_records",
+    () => import("./2026-07-26_payment_records.ts"),
   ),
-  entry(
-    "2026-07-26_payment_operator_decisions",
-    () => import("./2026-07-26_payment_operator_decisions.ts"),
-  ),
+  // Mark each built site with the handing-over it belongs to.
   entry(
     "2026-07-26_payment_completion",
     () => import("./2026-07-26_payment_completion.ts"),
   ),
+  // Fill the tables above from the old payment rows. It has to follow them,
+  // and to come before the old tables are taken away.
   entry(
-    "2026-07-26_payment_history_redaction",
-    () => import("./2026-07-26_payment_history_redaction.ts"),
+    "2026-07-26_payment_aggregate",
+    () => import("./2026-07-26_payment_aggregate.ts"),
   ),
   // Remove the write-blocked staging tables after their verified aggregate copy.
   entry(

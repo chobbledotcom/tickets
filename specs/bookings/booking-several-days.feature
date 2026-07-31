@@ -4,8 +4,28 @@
 @edition:managed @edition:self-hosted
 Feature: A customer books a stay of several days
   Some listings are booked by the day, and one booking covers several days in a
-  row. Every day a stay covers must be held for that customer, and a stay must
-  never be taken when one of the days it needs is already full.
+  row. The booking page says up front how many days each booking reserves.
+  Every day a stay covers must be held for that customer, and a stay must
+  never be taken when one of the days it needs is already full — even when
+  customers pick their own lengths and a short stay meets a longer one.
+
+  @rule:bookings.the-booking-page-says-how-long-a-stay-lasts
+  Rule: The booking page says how long each booking lasts
+    A customer picking a first day is told each booking reserves several days,
+    so the length is never a surprise. A listing booked one day at a time does
+    not bring it up.
+
+    @case:stay.the-page-says-a-booking-reserves-three-days
+    Scenario: A customer looks at a listing booked three days at a time
+      Given a Cabin that is booked 3 days at a time, with room for 5 places a day
+      When a customer looks at the days the Cabin offers
+      Then they are told each booking reserves 3 days
+
+    @case:stay.a-one-day-listing-keeps-quiet-about-length
+    Scenario: A customer looks at a listing booked one day at a time
+      Given a Cabin that is booked 1 day at a time, with room for 5 places a day
+      When a customer looks at the days the Cabin offers
+      Then nothing tells them a booking reserves more than one day
 
   @rule:bookings.a-stay-holds-every-day-it-covers
   Rule: A stay holds every day it covers
@@ -66,6 +86,21 @@ Feature: A customer books a stay of several days
       And a customer looks at the days the Lodge offers
       Then the Lodge offers fewer days to start on than the Cabin
       And the Lodge still offers some days
+
+  @rule:bookings.stays-of-different-lengths-share-the-days
+  Rule: Stays of different lengths share each day's room
+    Where customers pick how many days they want, a short stay and a long stay
+    can want the same day. A day one customer has filled blocks every longer
+    stay that would cover it, while the days around it stay open.
+
+    @case:stay.a-short-stay-blocks-a-longer-one-needing-its-day
+    Scenario: A one-day stay blocks a three-day stay that needs its day
+      Given a Retreat where customers pick up to 3 days themselves, with room for 1 place a day
+      And a customer booked a 1-day Retreat stay starting in 11 days
+      When another customer tries to book a 3-day Retreat stay starting in 10 days
+      Then they are told the Retreat has no room for those days
+      And a 1-day Retreat stay starting in 10 days can still be booked
+      And a 1-day Retreat stay starting in 12 days can still be booked
 
   @rule:bookings.only-one-of-two-stays-booked-at-once-is-taken
   Rule: Only one of two stays booked at the same moment is taken
