@@ -26,7 +26,7 @@ describeWithEnv("db > payments > stored charge rows", { db: true }, () => {
         id: 1,
         observedAt: 3,
         paymentId: "legacy-payment",
-        providerReference: "hyb:1:legacy-reference",
+        providerReference: "hyb:1:key:iv:legacy-reference",
         providerRefundedAt: "2026-07-25T10:00:00.000Z",
         refundState: "unknown",
         source: "processed_payments",

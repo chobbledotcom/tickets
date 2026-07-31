@@ -77,11 +77,12 @@ describeWithEnv(
       // processed_payments_failure_data, processed_payments_payment_reference,
       // processed_payments_attendee_index, checkout_stages) are excluded by id
       // in helpers.ts because the tables they own no longer exist to restore,
-      // and retire_legacy_payment_tables is removal-only. The payment
-      // migrations that do own new objects — payment_aggregate,
-      // payment_operator_decisions, payment_completion, and
-      // payment_history_redaction — are still covered by restore cases.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 29);
+      // and retire_legacy_payment_tables is removal-only. payment_aggregate only
+      // copies the old rows into the tables payment_records makes, so it owns no
+      // new objects either. The payment migrations that do own new objects —
+      // payment_records and payment_completion — are still covered by restore
+      // cases.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 30);
     });
 
     test("restores triggers attached to a dropped table", async () => {
