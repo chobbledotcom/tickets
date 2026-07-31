@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { t } from "#i18n";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import type {
@@ -5,7 +6,10 @@ import type {
   PaymentCaseResource,
 } from "#shared/db/payments/types.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
-import type { PaymentCaseReason } from "#shared/payment-state/lifecycle.ts";
+import {
+  type PaymentCaseReason,
+  PaymentCaseReasonSchema,
+} from "#shared/payment-state/lifecycle.ts";
 import type { Money } from "#shared/payment-state/resources.ts";
 
 // Keyed by the reason itself, so a new reason cannot be added to the payment
@@ -41,7 +45,9 @@ const REASON_KEYS: Readonly<Record<PaymentCaseReason, string>> = {
  *  than refused. Every reason this version can write has words above. */
 export const paymentCaseReason = (reason: string): string =>
   t(
-    `admin.payments.reason.${REASON_KEYS[reason as PaymentCaseReason] ?? "other"}`,
+    `admin.payments.reason.${
+      v.is(PaymentCaseReasonSchema, reason) ? REASON_KEYS[reason] : "other"
+    }`,
   );
 
 export const paymentCaseProvider = (paymentCase: PaymentCase): string =>

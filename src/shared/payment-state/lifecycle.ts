@@ -259,4 +259,3 @@ export const PaymentCaseReasonSchema = v.picklist([
   "legacy_refund_amount_unknown",
 ]);
 export type PaymentCaseReason = v.InferOutput<typeof PaymentCaseReasonSchema>;
-export const PAYMENT_CASE_REASONS = PaymentCaseReasonSchema.options;

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { PaymentCasePageData } from "#routes/admin/payments/data.ts";
 import type { PaymentCaseDecision } from "#shared/db/payments/types.ts";
-import { PAYMENT_CASE_REASONS } from "#shared/payment-state/lifecycle.ts";
+import { PaymentCaseReasonSchema } from "#shared/payment-state/lifecycle.ts";
 import { adminPaymentCasePage } from "#templates/admin/payments/detail.tsx";
 import {
   formatPaymentMoney,
@@ -74,12 +74,12 @@ describe("admin payment case templates", () => {
     // back to "other" — so a reason reading the same as an unknown one is a
     // reason nobody wrote words for.
     const unknown = paymentCaseReason("a reason this version never writes");
-    const missing = PAYMENT_CASE_REASONS.filter(
+    const missing = PaymentCaseReasonSchema.options.filter(
       (reason) => paymentCaseReason(reason) === unknown,
     );
 
     expect(missing).toEqual([]);
-    expect(PAYMENT_CASE_REASONS.length).toBe(23);
+    expect(PaymentCaseReasonSchema.options.length).toBe(23);
   });
 
   test("formats current and older payment record roles", () => {
