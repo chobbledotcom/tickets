@@ -51,25 +51,32 @@ Then(
   },
 );
 
-Then(
-  "the {word} booking page offers no promo code box",
+/** Both box steps ask the same question of the served page; only the answer
+ * they insist on differs. */
+const boxExpected = (offered: boolean) =>
   async function (this: TicketsWorld, listing: string): Promise<void> {
-    expect(await codeBoxOffered(this, listing)).toBe(false);
-  },
-);
+    expect(await codeBoxOffered(this, listing)).toBe(offered);
+  };
 
-Then(
-  "the {word} booking page offers a promo code box",
-  async function (this: TicketsWorld, listing: string): Promise<void> {
-    expect(await codeBoxOffered(this, listing)).toBe(true);
-  },
-);
+Then("the {word} booking page offers no promo code box", boxExpected(false));
+
+Then("the {word} booking page offers a promo code box", boxExpected(true));
+
+/** A step that hands the listing and the typed code straight to one journey. */
+const codeJourney = (
+  journey: (
+    world: TicketsWorld,
+    listing: string,
+    code: string,
+  ) => Promise<void>,
+) =>
+  function (this: TicketsWorld, listing: string, code: string): Promise<void> {
+    return journey(this, listing, code);
+  };
 
 When(
   "a customer asks the price of a {word} place with the code {string}",
-  function (this: TicketsWorld, listing: string, code: string): Promise<void> {
-    return customerAsksPrice(this, listing, code);
-  },
+  codeJourney(customerAsksPrice),
 );
 
 Then(
@@ -100,9 +107,7 @@ Then("the summary shows no discount line", function (this: TicketsWorld): void {
 
 When(
   "a customer books a {word} place with the code {string} and pays",
-  function (this: TicketsWorld, listing: string, code: string): Promise<void> {
-    return customerPaysWithCode(this, listing, code);
-  },
+  codeJourney(customerPaysWithCode),
 );
 
 Then(

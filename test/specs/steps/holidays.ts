@@ -3,12 +3,12 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
+import { somethingForSale } from "#test/specs/support/editors.ts";
 import {
   listingOffersDay,
   organiserAddsHoliday,
   organiserDeletesHoliday,
   sellsDayPlaces,
-  sellsPlainPlaces,
 } from "#test/specs/support/holidays.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import { soleBookingOn } from "#test/specs/support/money.ts";
@@ -28,7 +28,7 @@ Given(
 Given(
   "the site sells places at the {word}",
   function (this: TicketsWorld, name: string): Promise<void> {
-    return sellsPlainPlaces(this, name);
+    return somethingForSale(this, name);
   },
 );
 
@@ -88,8 +88,8 @@ Then(
 
 When(
   "the organiser deletes the holiday {string} typing its exact name",
-  function (this: TicketsWorld, name: string): Promise<void> {
-    return organiserDeletesHoliday(this, name);
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    this.ownerTold = await organiserDeletesHoliday(this, name, name);
   },
 );
 

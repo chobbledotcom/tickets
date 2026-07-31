@@ -18,6 +18,7 @@ import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** The organiser makes a percentage-off promo code through the real form,
  * named after the code so the summary shows the words the story uses. */
@@ -60,18 +61,42 @@ export const codeBoxOffered = async (
 
 const CUSTOMER = { email: "quoter@example.com", name: "Quote Asker" };
 
+/** One customer journey from a listing's booking page: the payment provider
+ * stands ready, the page is opened, and the rest is what the journey does
+ * with the code the customer holds. */
+const fromBookingPage =
+  (
+    journey: (
+      world: TicketsWorld,
+      browser: TestBrowser,
+      code: string,
+    ) => Promise<void>,
+  ) =>
+  async (
+    world: TicketsWorld,
+    listingName: string,
+    code: string,
+  ): Promise<void> => {
+    await setupStripe();
+    return journey(
+      world,
+      await openBookingPage(listingNamed(world, listingName)),
+      code,
+    );
+  };
+
 /** The customer fills the booking page in with a code and presses the page's
  * own "Show total" button. What came back is kept for the summary steps. */
-export const customerAsksPrice = async (
-  world: TicketsWorld,
-  listingName: string,
-  code: string,
-): Promise<void> => {
-  await setupStripe();
-  const browser = await openBookingPage(listingNamed(world, listingName));
-  await fillInAndSend(browser, { ...CUSTOMER, promo_code: code }, "Show total");
-  world.things.remember("told", "price summary", browser.currentHtml);
-};
+export const customerAsksPrice = fromBookingPage(
+  async (world, browser, code) => {
+    await fillInAndSend(
+      browser,
+      { ...CUSTOMER, promo_code: code },
+      "Show total",
+    );
+    world.things.remember("told", "price summary", browser.currentHtml);
+  },
+);
 
 /** The summary the customer was last shown. */
 export const priceSummary = (world: TicketsWorld): string =>
@@ -89,39 +114,39 @@ export const summaryTotal = (world: TicketsWorld): string => {
 /** The customer books with a code and pays. The booking page's own form
  * builds the checkout, and the payment completes through the provider — so
  * the code the customer typed is the one the books record. */
-export const customerPaysWithCode = async (
-  world: TicketsWorld,
-  listingName: string,
-  code: string,
-): Promise<void> => {
-  await setupStripe();
-  const browser = await openBookingPage(listingNamed(world, listingName));
-  const captured: { intent: unknown } = { intent: null };
-  const sessionId = "cs_discount_code";
-  const checkoutStub = stub(
-    stripePaymentProvider,
-    "createCheckoutSession",
-    (intent) => {
-      captured.intent = intent;
-      return Promise.resolve({
-        checkoutUrl: "https://spec.test/checkout",
-        sessionId,
-      });
-    },
-  );
-  try {
-    await fillInAndSend(browser, { ...CUSTOMER, promo_code: code }, "Continue");
-  } finally {
-    checkoutStub.restore();
-  }
-  if (captured.intent === null) {
-    throw new Error("Pressing Continue never reached the payment provider");
-  }
-  await completePaidCheckout(
-    captured.intent as Parameters<typeof completePaidCheckout>[0],
-    sessionId,
-  );
-};
+export const customerPaysWithCode = fromBookingPage(
+  async (_world, browser, code) => {
+    const captured: { intent: unknown } = { intent: null };
+    const sessionId = "cs_discount_code";
+    const checkoutStub = stub(
+      stripePaymentProvider,
+      "createCheckoutSession",
+      (intent) => {
+        captured.intent = intent;
+        return Promise.resolve({
+          checkoutUrl: "https://spec.test/checkout",
+          sessionId,
+        });
+      },
+    );
+    try {
+      await fillInAndSend(
+        browser,
+        { ...CUSTOMER, promo_code: code },
+        "Continue",
+      );
+    } finally {
+      checkoutStub.restore();
+    }
+    if (captured.intent === null) {
+      throw new Error("Pressing Continue never reached the payment provider");
+    }
+    await completePaidCheckout(
+      captured.intent as Parameters<typeof completePaidCheckout>[0],
+      sessionId,
+    );
+  },
+);
 
 /** The exact money words the story's own numbers come to, e.g. "£9.00". */
 export const asMoney = (pounds: string): string =>

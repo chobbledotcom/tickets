@@ -5,47 +5,40 @@
  */
 
 import {
+  makesRecordThroughForm,
   newcomerReading,
-  openAdminPage,
   openAsNewcomer,
   type PageRead,
+  type TakesOneThingDown,
+  takesDownFromList,
 } from "#test/specs/support/browser.ts";
-import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 
-/** The owner writes a post and is left on its editor. The number the site
- * files the post under is kept by its name, so a later step can find the
- * same post again. */
-export const ownerPostsNews = async (
+const makesPost = makesRecordThroughForm({
+  button: "Create News Post",
+  filedAt: /\/admin\/site\/news\/(\d+)\//,
+  formPath: "/admin/site/news/new",
+});
+
+/** The owner writes a post and is left on its editor. */
+export const ownerPostsNews = (
   world: TicketsWorld,
   name: string,
   words: string,
-): Promise<void> => {
-  const browser = await openAdminPage(world, "/admin/site/news/new");
-  await fillInAndSend(browser, { content: words, name }, "Create News Post");
-  world.ownerTold = browser.pageText;
-  const id = browser.currentUrl.match(/\/admin\/site\/news\/(\d+)\//)?.[1];
-  if (!id) throw new Error(`No post editor address after creating "${name}"`);
-  world.things.remember("record", name, Number(id));
-};
+): Promise<void> => makesPost(world, name, { content: words, name });
 
-/** The owner answers the type-the-name check on a post's delete page. What
- * they typed is the story's business; both the wrong and the exact name go
- * through the same real form. */
-export const ownerTakesDownNews = async (
-  world: TicketsWorld,
-  name: string,
-  typed: string,
-): Promise<void> => {
-  const id = world.things.require("record", name);
-  const browser = await openAdminPage(world, `/admin/site/news/${id}/delete`);
-  await fillInAndSend(
-    browser,
-    { confirm_identifier: typed },
-    "Delete News Post",
-  );
-  world.ownerTold = browser.pageText;
-};
+/** The owner answers the type-the-name check behind the post's Actions tab.
+ * What they typed is the story's business; both the wrong and the exact name
+ * walk the same served pages. */
+export const ownerTakesDownNews: TakesOneThingDown = takesDownFromList(
+  (world, name) =>
+    Promise.resolve(`/admin/site/news/${world.things.require("record", name)}`),
+  {
+    deleteLinkKey: "news.delete_title",
+    missing: (name) => `The site filed no post under "${name}"`,
+    submitKey: "news.delete_submit",
+  },
+);
 
 /** What a visitor finds on the news page, signed out. */
 export const visitorOnNewsPage = (): Promise<PageRead> =>

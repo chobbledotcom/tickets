@@ -35,21 +35,24 @@ Then(
   },
 );
 
+/** The news page answers and carries these words, however the step is put. */
+const newsPageReads = async (words: string): Promise<void> => {
+  const read = await visitorOnNewsPage();
+  expect(read.answered).toBe(200);
+  expect(read.said).toContain(words);
+};
+
 Then(
   "a visitor on the news page reads {string}",
-  async function (this: TicketsWorld, words: string): Promise<void> {
-    const read = await visitorOnNewsPage();
-    expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+  function (this: TicketsWorld, words: string): Promise<void> {
+    return newsPageReads(words);
   },
 );
 
 Then(
   "a visitor on the news page still reads {string}",
-  async function (this: TicketsWorld, words: string): Promise<void> {
-    const read = await visitorOnNewsPage();
-    expect(read.answered).toBe(200);
-    expect(read.said).toContain(words);
+  function (this: TicketsWorld, words: string): Promise<void> {
+    return newsPageReads(words);
   },
 );
 
@@ -85,15 +88,15 @@ Then(
 
 When(
   "the owner tries to take down {string} typing {string}",
-  function (this: TicketsWorld, name: string, typed: string): Promise<void> {
-    return ownerTakesDownNews(this, name, typed);
+  async function (this: TicketsWorld, name: string, typed: string) {
+    this.ownerTold = await ownerTakesDownNews(this, name, typed);
   },
 );
 
 When(
   "the owner takes down {string} typing its exact name",
-  function (this: TicketsWorld, name: string): Promise<void> {
-    return ownerTakesDownNews(this, name, name);
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    this.ownerTold = await ownerTakesDownNews(this, name, name);
   },
 );
 
