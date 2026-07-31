@@ -8,7 +8,7 @@ import { expect } from "@std/expect";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { sellSomethingAt } from "#test/specs/support/listings.ts";
+import { soldWithPeopleOnIt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
   pageHtmlVia,
@@ -23,6 +23,7 @@ import {
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { required } from "#test-utils/required.ts";
 
 // jscpd:ignore-end
 
@@ -37,17 +38,17 @@ export const unpaidPlace = async (
   name: string,
   price: string,
 ): Promise<void> => {
-  const listing = await sellSomethingAt(world, name, price);
   const email = `${name.toLowerCase().replaceAll(" ", "-")}@example.com`;
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    `${name} Payer`,
-    email,
+  const who = `${name} Payer`;
+  const { ids } = await soldWithPeopleOnIt(
+    world,
+    { name, price },
+    [who],
+    (listing) => createTestAttendee(listing.id, listing.slug, who, email),
   );
-  world.attendeeId = attendee.id;
+  world.attendeeId = required(ids[0], "the booking just made");
   world.attendeeEmail = email;
-  world.attendeeName = `${name} Payer`;
+  world.attendeeName = who;
 };
 
 /** Part of what they owe, paid now. */
