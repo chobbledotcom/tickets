@@ -37,6 +37,11 @@ export const queryColumnSet = async (
 ): Promise<Set<string>> =>
   stringColumnSet(await queryAll<Row>(sql, args), column);
 
+export const columnFrom =
+  (sourceName: string): ((name: string) => string) =>
+  (name: string): string =>
+    `${sourceName}.${name}`;
+
 /**
  * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is
  * empty. `buildSql` receives the bound `?`-placeholder list for `ids`, so `ids`

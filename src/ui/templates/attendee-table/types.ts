@@ -9,6 +9,7 @@ export type TableQuestionData = AttendeeQuestionData;
 
 /** Values shared by attendee column renderers during one table render. */
 export type AttendeeColumnOpts = {
+  adminLinks: boolean;
   allowedDomain: string;
   phonePrefix: string;
   renderStatus: (row: AttendeeTableRow) => Child;
@@ -21,6 +22,8 @@ export type AttendeeColumnOpts = {
 export type AttendeeTableOptions = {
   rows: AttendeeTableRow[];
   allowedDomain: string;
+  /** Link attendee/listing cells to staff-only admin pages (default: true). */
+  adminLinks?: boolean | undefined;
   showListing: boolean;
   showDate: boolean;
   activeFilter?: string | undefined;

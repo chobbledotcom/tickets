@@ -22,13 +22,20 @@ export type { TokenEntry as CheckinEntry };
 /**
  * Admin check-in page - shows attendee details with check-in/check-out button
  */
+type CheckinAdminPageOptions = {
+  canCheckIn: boolean;
+  linkAdminPages: boolean;
+};
+
 export const checkinAdminPage = (
   entries: TokenEntry[],
   checkinPath: string,
   message: string,
   allowedDomain: string,
-  phonePrefix?: string,
+  phonePrefix: string | undefined,
+  options: CheckinAdminPageOptions,
 ): string => {
+  const { canCheckIn } = options;
   const showDate = entries.some((e) => e.attendee.date !== null);
   const tableRows: AttendeeTableRow[] = pipe(
     map(
@@ -43,25 +50,36 @@ export const checkinAdminPage = (
     : t("admin.checkin.check_in_all");
   const buttonClass = allCheckedIn ? "bulk-checkout" : "bulk-checkin";
   const nextValue = allCheckedIn ? "false" : "true";
+  const heading = (
+    <>
+      <h1>{t("admin.checkin.heading")}</h1>
+      <Flash success={message} />
+    </>
+  );
 
   return String(
     <Layout title={t("admin.checkin.title")}>
-      <CsrfForm action={checkinPath}>
-        <h1>{t("admin.checkin.heading")}</h1>
-        <Flash success={message} />
-        <SubmitWithHidden
-          buttonClass={buttonClass}
-          label={buttonLabel}
-          name="check_in"
-          value={nextValue}
-        />
-      </CsrfForm>
+      {canCheckIn ? (
+        <CsrfForm action={checkinPath}>
+          {heading}
+          <SubmitWithHidden
+            buttonClass={buttonClass}
+            label={buttonLabel}
+            name="check_in"
+            value={nextValue}
+          />
+        </CsrfForm>
+      ) : (
+        heading
+      )}
       <AttendeeTableBlock
         options={{
+          adminLinks: options.linkAdminPages,
           allowedDomain,
           phonePrefix,
           returnUrl: checkinPath,
           rows: tableRows,
+          showCheckin: canCheckIn,
           showDate,
           showListing: true,
         }}

@@ -20,6 +20,79 @@ everything still outstanding is captured below.
 
 ---
 
+## Codex Security scan follow-ups
+
+*Origin: Codex Security scan completed on 2026-07-29 at
+`/home/user/.codex/state/plugins/codex-security/scans/tickets/codex-security-tickets-qkJ7hC/`.*
+
+Findings 2 and 4 are active worktree jobs:
+
+- `work/security-finding-2-setup-race` for concurrent first-run setup.
+- `work/security-finding-4-bunny-deploy-action` for the mutable Bunny deploy
+  action reference.
+
+Finding 1 (delivery-agent access to check-in attendee details) shipped on PR
+#1995.
+
+These are the remaining scan items that still look worth doing under the
+current trust model. They assume Bunny Edge remains the production runtime,
+site owners are trusted with their own content and integrations, and deployment
+operators own the risk of choosing deliberately hostile third-party endpoints.
+
+- **Make rate-limit writes atomic and bounded.** `src/shared/db/login-attempts.ts`
+  and `src/shared/db/token-attempts.ts` update shared rows with read-then-write
+  sequences, so concurrent attempts can lose increments. The expired-lockout
+  cleanup in `src/shared/db/attempt-lockout.ts` can also delete a fresh lockout
+  written by another request, and below-threshold rows are not pruned. Fold the
+  login, API-key, booking, address-lookup, and token limiters onto one atomic
+  update/prune shape. Regression tests should drive concurrent attempts and
+  prove the fresh lockout survives cleanup.
+- **Preserve the client IP in production request scopes.** `src/edge.ts`,
+  `src/deploy.ts`, and `src/serve-app.ts` should carry the platform connection
+  context into the shared request handler so production rate limits do not fall
+  back to one global bucket. Add direct entrypoint tests that prove two client
+  IPs do not share a limiter row.
+- **Bound the invalid-session cache.** `src/features/auth.ts` negative-caches
+  arbitrary invalid session cookies in process memory. Give that cache a size
+  cap or time-based sweep that removes entries without waiting for the same bad
+  token to be seen again, and test that unique junk cookies cannot grow it
+  without bound.
+- **Stop cross-origin redirects from replaying secrets or PII.** The shared
+  fetch path in `src/shared/safe-fetch.ts` is used by registration webhooks and
+  SMS delivery. Do not let a cross-origin redirect replay attendee data,
+  ticket capability links, or Basic credentials. Prefer failing closed on
+  cross-origin redirects unless a caller has a very narrow, tested reason to
+  follow one.
+- **Make attachment caching match signed URL access.** `src/features/attachments.ts`
+  and the middleware currently let public caches keep a time-limited attachment
+  response longer than the URL authorization window. Set cache headers from the
+  signed URL expiry, or make private attachment responses non-publicly
+  cacheable, and test the exact header on a signed attachment download.
+- **Escape spreadsheet formulas in attendee CSV exports.** CSV fields that
+  start with spreadsheet formula characters need a safe prefix before export.
+  Keep the escaping in the shared CSV writer if it applies to every human-opened
+  export, or in `src/features/admin/attendees-csv.ts` if attendee exports are
+  the only affected surface. Add a regression test with attacker-controlled
+  attendee names, emails, and answers.
+- **Escape booking data in HTML notification emails.** Public booking contact
+  fields flow into owner notification email HTML. Keep intentional template
+  markup working, but escape user-supplied field values before they reach
+  `src/shared/email-renderer.ts` or `src/shared/liquid-engine.ts`. Test a
+  booking field containing HTML and a script-like value.
+- **Pin or verify CI tools downloaded with credentials present.** Outside the
+  deploy-action worktree, the scan flagged `cloudflared` in
+  `.github/workflows/payment-sandbox-e2e.yml`, the opencode release archive in
+  `.github/workflows/opencode.yml`, and the Sentry CLI range in
+  `.github/actions/sentry-sourcemaps/action.yml`. Pin exact versions and verify
+  checksums or signatures before those binaries run with secrets.
+- **Require encrypted transport for remote Uptime Kuma.** Keep `http://` only
+  for an explicitly local Uptime Kuma URL. Remote hosts should require HTTPS so
+  the WebSocket login does not send monitoring credentials over cleartext.
+- **Randomize public payment-test admin credentials.** The public payment e2e
+  tunnel is test-only, but it uses repository-known admin credentials while the
+  app is reachable through a quick tunnel. Generate per-run credentials and keep
+  them out of ordinary logs before broadening that harness further.
+
 ## Marketing screenshot visual cleanup
 
 *Origin: visual audit of the mobile Retina screenshots generated from

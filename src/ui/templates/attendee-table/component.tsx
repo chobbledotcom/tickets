@@ -25,6 +25,7 @@ const buildColumnOptions = (
       : undefined;
   const answerMaps = buildAnswerMaps(questionData?.questions ?? []);
   return {
+    adminLinks: options.adminLinks ?? true,
     allowedDomain: options.allowedDomain,
     ...answerMaps,
     phonePrefix: options.phonePrefix || "44",
