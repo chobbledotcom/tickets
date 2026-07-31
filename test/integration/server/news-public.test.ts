@@ -56,8 +56,8 @@ describeWithEnv("server (public news)", { db: true }, () => {
         });
         const image = await makeImage("News Hero");
         await appendImageToItem(image.id, {
-          itemId: newer.id,
-          itemType: "news",
+          id: newer.id,
+          kind: "news",
         });
 
         const html = await assertPublicHtml("/news");
@@ -138,7 +138,7 @@ describeWithEnv("server (public news)", { db: true }, () => {
         filenameThumb: nonEmptyString("solo-thumb.webp"),
         name: "Solo",
       });
-      await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
+      await appendImageToItem(image.id, { id: post.id, kind: "news" });
       const html = await assertPublicHtml(`/news/${post.slug}`);
       expect(html).toContain('class="news-gallery-full"');
       expect(html).toContain("solo.webp");
@@ -150,8 +150,8 @@ describeWithEnv("server (public news)", { db: true }, () => {
       const post = await createTestNewsPost("Gallery Post");
       const first = await makeImage("First Pic");
       const second = await makeImage("Second Pic");
-      await appendImageToItem(first.id, { itemId: post.id, itemType: "news" });
-      await appendImageToItem(second.id, { itemId: post.id, itemType: "news" });
+      await appendImageToItem(first.id, { id: post.id, kind: "news" });
+      await appendImageToItem(second.id, { id: post.id, kind: "news" });
 
       const html = await assertPublicHtml(`/news/${post.slug}`);
       // Two radios sharing one group; only the first is checked.

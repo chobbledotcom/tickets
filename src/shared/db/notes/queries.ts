@@ -14,20 +14,13 @@ import {
 } from "#shared/db/client.ts";
 import { readOneRow, readRows } from "#shared/db/read.ts";
 import {
-  clauseArgs,
+  deleteWhere,
   equals,
   type WhereClause,
-  whereSql,
 } from "#shared/db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
-import {
-  type NoteEntity,
-  type NoteTarget,
-  targetsSelectedBy,
-  targetsWhere,
-  targetWhere,
-} from "./target.ts";
+import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
 import type { SystemNote, SystemNoteRow, SystemNoteType } from "./types.ts";
 
 const NOTE_COLUMNS = "id, entity_type, entity_id, type, note, created";
@@ -40,7 +33,7 @@ const noteWriterOf =
     const { sql, args } = insert("system_notes", {
       created: nowIso(),
       entity_id: target.id,
-      entity_type: target.entity,
+      entity_type: target.kind,
       note: await sealNote(type, note),
       type,
     });
@@ -75,7 +68,8 @@ const noteRowsWhere = (where: WhereClause[]): Promise<SystemNoteRow[]> =>
 export const getNoteRows = (
   entity: NoteEntity,
   ids: number[],
-): Promise<SystemNoteRow[]> => noteRowsWhere(targetsWhere(entity, ids));
+): Promise<SystemNoteRow[]> =>
+  noteRowsWhere(noteTargets.whereMany(entity, ids));
 
 /**
  * The still-sealed rows for every real (`kind = 'attendee'`) attendee booked
@@ -87,7 +81,7 @@ export const getNoteRowsForListing = (
   listingId: number,
 ): Promise<SystemNoteRow[]> =>
   noteRowsWhere(
-    targetsSelectedBy("attendee", {
+    noteTargets.whereChosenBy("attendee", {
       args: [listingId],
       sql: `SELECT listingAttendee.attendee_id
               FROM listing_attendees AS listingAttendee
@@ -102,7 +96,7 @@ export const getNotesFor = async (
   target: NoteTarget,
   privateKey: CryptoKey,
 ): Promise<SystemNote[]> =>
-  openNotes(await getNoteRows(target.entity, [target.id]), privateKey);
+  openNotes(await getNoteRows(target.kind, [target.id]), privateKey);
 
 /** A "load the notes for <selector>" reader: takes the selector value and a way
  *  to get the owner private key, and answers with opened-up notes. */
@@ -144,14 +138,11 @@ export const loadNotesForListing: NotesLoader<number> = notesLoaderVia(
  *  another record's note. */
 const noteOfTarget = (target: NoteTarget, noteId: number): WhereClause[] => [
   ...equals("id", noteId),
-  ...targetWhere(target),
+  ...noteTargets.where(target),
 ];
 
 /** A delete over the notes the clauses select. */
-const deleteNotesWhere = (where: WhereClause[]): SqlStatement => ({
-  args: clauseArgs(where),
-  sql: `DELETE FROM system_notes${whereSql(where)}`,
-});
+const deleteNotesWhere = deleteWhere("system_notes");
 
 /** One record's note, opened up, or null when it isn't that record's. */
 export const getNote = async (
@@ -183,7 +174,7 @@ export const deleteNotes = (
 
 /** Delete the notes of records chosen by a subquery — for a delete path that
  *  clears a record's dependent rows in one batch. */
-export const noteDeleteStatement = (
+export const noteDeleteStatement: (
   entity: NoteEntity,
   idsQuery: SqlStatement,
-): SqlStatement => deleteNotesWhere(targetsSelectedBy(entity, idsQuery));
+) => SqlStatement = noteTargets.deleteChosenBy("system_notes");

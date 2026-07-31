@@ -25,6 +25,7 @@ import {
   getImageUsesForImage,
   type ImageUseTarget,
   imagesTable,
+  imageUseTargets,
   setItemsForImage,
 } from "#shared/db/images.ts";
 import { getAllListingOptions } from "#shared/db/listings/records.ts";
@@ -170,7 +171,7 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
       const [itemType = "", itemId = ""] = raw.split(":");
       const id = Number(itemId);
       return isImageUseItemType(itemType) && Number.isSafeInteger(id) && id > 0
-        ? { itemId: id, itemType }
+        ? imageUseTargets.of(itemType)(id)
         : null;
     })
     .filter((target): target is ImageUseTarget => target !== null);
@@ -213,7 +214,7 @@ const allowedImageTargets = (
 ): ImageUseTarget[] =>
   isSiteRole(adminLevel)
     ? submitted
-    : submitted.filter((target) => !isSiteContentImageType(target.itemType));
+    : submitted.filter((target) => !isSiteContentImageType(target.kind));
 
 const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
   imageHandlers.post(async (image, form, adminLevel) => {

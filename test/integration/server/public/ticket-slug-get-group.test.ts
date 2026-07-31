@@ -90,9 +90,7 @@ describeWithEnv(
           filenameThumb: nonEmptyString("poster-group-thumb.webp"),
           name: "Poster group image",
         });
-        await setItemsForImage(image.id, [
-          { itemId: group.id, itemType: "group" },
-        ]);
+        await setItemsForImage(image.id, [{ id: group.id, kind: "group" }]);
 
         await assertPublicHtml(
           `/ticket/${group.slug}`,

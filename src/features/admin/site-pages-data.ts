@@ -17,12 +17,12 @@ import { getAllPageItems } from "#shared/db/site-page-items.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 // jscpd:ignore-start
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
-import {
-  buildForest,
-  eligibleChildPages,
-  targetKey,
-} from "#shared/site-pages/core.ts";
+import { buildForest, eligibleChildPages } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
+import {
+  sitePageItemTargets,
+  targetOfPageItem,
+} from "#shared/site-pages/target.ts";
 // jscpd:ignore-end
 import type { SitePage, SitePageItemType } from "#shared/types.ts";
 import type {
@@ -93,14 +93,19 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   // A leaf may sit on a page only once (unique (page_id, item_type, item_id)),
   // so drop targets already present from the pickers.
   const present = new Set(
-    pageItems.map((i) => targetKey(i.item_type, i.item_id)),
+    pageItems.map((i) => sitePageItemTargets.key(targetOfPageItem(i))),
   );
   const options = (
     names: Map<number, string>,
     type: SitePageItemType,
   ): PickerOption[] =>
     [...names]
-      .filter(([id]) => !present.has(targetKey(type, id)))
+      .filter(
+        ([id]) =>
+          !present.has(
+            sitePageItemTargets.key(sitePageItemTargets.of(type)(id)),
+          ),
+      )
       .map(([id, name]) => opt(id, name));
   // The listing picker offers only OFFERABLE listings — active (an inactive
   // listing's public page 404s), not a renewal tier (a tier bought through a

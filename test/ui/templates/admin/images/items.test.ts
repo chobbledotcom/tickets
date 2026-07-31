@@ -114,9 +114,7 @@ describeWithEnv("admin item image routes", { db: true, storage: "cdn" }, () => {
     test("uploads a new image and appends it to the group", async () => {
       const group = await createTestGroup({ name: "Upload group" });
       const existing = await makeImage("Existing group image");
-      await setItemsForImage(existing.id, [
-        { itemId: group.id, itemType: "group" },
-      ]);
+      await setItemsForImage(existing.id, [{ id: group.id, kind: "group" }]);
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 

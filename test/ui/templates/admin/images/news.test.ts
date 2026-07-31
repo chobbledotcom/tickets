@@ -107,7 +107,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
     test("a manager sees no news targets and cannot edit a news-linked image", async () => {
       const post = await createTestNewsPost("Manager-proof post");
       const image = await makeImage("Managed image");
-      await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
+      await appendImageToItem(image.id, { id: post.id, kind: "news" });
       const managerCookie = await createTestManagerSession();
 
       // The edit page offers no news checkboxes to a manager (Site-gated).
@@ -183,7 +183,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
     test("a manager cannot delete an image that a news post uses", async () => {
       const post = await createTestNewsPost("Guarded post");
       const image = await makeImage("News-linked image");
-      await appendImageToItem(image.id, { itemId: post.id, itemType: "news" });
+      await appendImageToItem(image.id, { id: post.id, kind: "news" });
       const managerCookie = await createTestManagerSession();
 
       const response = await handleRequest(

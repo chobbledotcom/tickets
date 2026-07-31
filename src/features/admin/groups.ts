@@ -38,7 +38,10 @@ import {
   setGroupPackageMembers,
   validateGroupListingType,
 } from "#shared/db/groups.ts";
-import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
+import {
+  clearImageUsesForItemStatement,
+  imageUseTargets,
+} from "#shared/db/images.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
@@ -49,6 +52,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
+import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import type {
   AdminSession,
@@ -243,8 +247,8 @@ export const deleteGroup = async (id: InValue) => {
   // delete must never leave a page pointing at a still-present group, nor strip
   // edges from a group that survives.
   await executeBatch([
-    clearItemEdgesStatement("group", groupId),
-    clearImageUsesForItemStatement("group", groupId),
+    clearItemEdgesStatement(sitePageItemTargets.of("group")(groupId)),
+    clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
     { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
   ]);
 };

@@ -19,6 +19,7 @@ import {
   appendImageToItem,
   getAllImages,
   getImagesForItem,
+  imageUseTargets,
   setImagesForItem,
 } from "#shared/db/images.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -108,10 +109,10 @@ export const createItemImageHandlers = <T>(
     async (formData: FormData, item: T, itemId: number) => {
       const itemPath = config.path(itemId);
       return withUploadedImage(formData, itemPath, async (image) => {
-        await appendImageToItem(image.id, {
-          itemId,
-          itemType: config.itemType,
-        });
+        await appendImageToItem(
+          image.id,
+          imageUseTargets.of(config.itemType)(itemId),
+        );
         await logActivity(
           `Image '${image.name}' uploaded for ${config.itemType} '${config.nameOf(
             item,

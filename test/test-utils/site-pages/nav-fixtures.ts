@@ -4,7 +4,17 @@
  * assert what gets rendered. Not itself a test file.
  */
 
-import type { SitePageItem, SitePageNavRow } from "#shared/types.ts";
+import { sitePageItemTargets } from "#shared/site-pages/target.ts";
+import type { TargetKey } from "#shared/site-pages/types.ts";
+import type {
+  SitePageItem,
+  SitePageItemType,
+  SitePageNavRow,
+} from "#shared/types.ts";
+
+/** The key the nav model knows one thing by. */
+export const navKey = (type: SitePageItemType, id: number): TargetKey =>
+  sitePageItemTargets.key(sitePageItemTargets.of(type)(id));
 
 /** One page in the nav, named and slugged after its id. */
 export const navPage = (id: number, sortOrder = 0): SitePageNavRow => ({
