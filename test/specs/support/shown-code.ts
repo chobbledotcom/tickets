@@ -7,7 +7,7 @@
 
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { PaymentCheckoutCreateSnapshot } from "#shared/payment-checkout.ts";
 import { openAdminPage, openAsNewcomer } from "#test/specs/support/browser.ts";
 import {
   listingIdNamed,
@@ -110,7 +110,7 @@ export interface WhereTheCodeLed {
 const withPayingStubbed = async <Answer>(
   body: (paying: {
     timesReached: () => number;
-    whatWasCharged: () => CheckoutIntent | undefined;
+    whatWasCharged: () => PaymentCheckoutCreateSnapshot | undefined;
   }) => Promise<Answer>,
 ): Promise<Answer> => {
   const { stubCheckout } = await import("#test-utils/checkout.ts");
@@ -135,7 +135,9 @@ const withPayingStubbed = async <Answer>(
 
 /** What the customer is being asked to pay for. */
 export interface WhatIsBeingCharged {
-  forWhat: string;
+  /** Which listing is being charged for. The checkout carries the listing's
+   *  id rather than its slug, and the id says it exactly. */
+  forWhat: number;
   nameOnIt: string;
   places: number;
   priceEach: number;
@@ -146,19 +148,19 @@ export interface WhatIsBeingCharged {
  * there twice for one press is not either: only the last order would be
  * visible, while the customer would have two of them. */
 const whatIsBeingCharged = (
-  charged: CheckoutIntent | undefined,
+  charged: PaymentCheckoutCreateSnapshot | undefined,
   timesReached: number,
 ): WhatIsBeingCharged => {
-  const line = charged?.items[0];
+  const line = charged?.bookingIntent.items[0];
   if (!line) throw new Error("Paying was reached with nothing to charge for");
   if (timesReached !== 1) {
     throw new Error(`Paying was set up ${timesReached} times, not once`);
   }
   return {
-    forWhat: line.slug,
-    nameOnIt: charged.name,
-    places: line.quantity,
-    priceEach: line.unitPrice,
+    forWhat: line.e,
+    nameOnIt: charged.bookingIntent.name,
+    places: line.q,
+    priceEach: line.p,
   };
 };
 

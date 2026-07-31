@@ -199,7 +199,7 @@ Then(
 );
 
 Then("it is for the {word}", function (this: TicketsWorld, name: string): void {
-  expect(payingNow(this).forWhat).toBe(listingNamed(this, name).slug);
+  expect(payingNow(this).forWhat).toBe(listingNamed(this, name).id);
 });
 
 Then(
