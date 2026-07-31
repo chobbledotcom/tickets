@@ -231,7 +231,7 @@ const selectionUrl = (
 
 /** Complete the captured checkout through the provider webhook, exactly as
  * the app signed it: same intent, same metadata builder, same caps. */
-const completePaidCheckout = async (
+export const completePaidCheckout = async (
   intent: CheckoutIntent,
   sessionId: string,
 ): Promise<void> => {

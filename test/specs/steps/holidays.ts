@@ -1,0 +1,118 @@
+// jscpd:ignore-start
+
+import { Given, Then, When } from "@cucumber/cucumber";
+import { expect } from "@std/expect";
+import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
+import {
+  listingOffersDay,
+  organiserAddsHoliday,
+  organiserDeletesHoliday,
+  sellsDayPlaces,
+  sellsPlainPlaces,
+} from "#test/specs/support/holidays.ts";
+import { listingNamed } from "#test/specs/support/listings.ts";
+import { soleBookingOn } from "#test/specs/support/money.ts";
+import { visitorBooks } from "#test/specs/support/public-booking.ts";
+import { dayFromToday } from "#test/specs/support/stays.ts";
+import type { TicketsWorld } from "#test/specs/support/world.ts";
+
+// jscpd:ignore-end
+
+Given(
+  "the site sells day places at the {word}",
+  function (this: TicketsWorld, name: string): Promise<void> {
+    return sellsDayPlaces(this, name);
+  },
+);
+
+Given(
+  "the site sells places at the {word}",
+  function (this: TicketsWorld, name: string): Promise<void> {
+    return sellsPlainPlaces(this, name);
+  },
+);
+
+When(
+  "the organiser adds a holiday called {string} on the day {int} days from now",
+  function (this: TicketsWorld, name: string, day: number): Promise<void> {
+    return organiserAddsHoliday(this, name, dayFromToday(this, day));
+  },
+);
+
+Given(
+  "the organiser has added a holiday called {string} on the day {int} days from now",
+  function (this: TicketsWorld, name: string, day: number): Promise<void> {
+    return organiserAddsHoliday(this, name, dayFromToday(this, day));
+  },
+);
+
+Given(
+  "the organiser has added a holiday called {string} covering today and the next {int} days",
+  function (this: TicketsWorld, name: string, days: number): Promise<void> {
+    return organiserAddsHoliday(
+      this,
+      name,
+      dayFromToday(this, 0),
+      dayFromToday(this, days),
+    );
+  },
+);
+
+Then(
+  "the organiser is told the holiday was created",
+  function (this: TicketsWorld): void {
+    expect(ownerLastTold(this)).toContain("Holiday created");
+  },
+);
+
+Then(
+  "the {word} no longer offers the day {int} days from now",
+  async function (this: TicketsWorld, listing: string, day: number) {
+    expect(await listingOffersDay(this, listing, day)).toBe(false);
+  },
+);
+
+Then(
+  "the {word} still offers the day {int} days from now",
+  async function (this: TicketsWorld, listing: string, day: number) {
+    expect(await listingOffersDay(this, listing, day)).toBe(true);
+  },
+);
+
+Then(
+  "the {word} offers the day {int} days from now again",
+  async function (this: TicketsWorld, listing: string, day: number) {
+    expect(await listingOffersDay(this, listing, day)).toBe(true);
+  },
+);
+
+When(
+  "the organiser deletes the holiday {string} typing its exact name",
+  function (this: TicketsWorld, name: string): Promise<void> {
+    return organiserDeletesHoliday(this, name);
+  },
+);
+
+Then(
+  "the organiser is told the holiday was deleted",
+  function (this: TicketsWorld): void {
+    expect(ownerLastTold(this)).toContain("Holiday deleted");
+  },
+);
+
+When(
+  "a customer books a place at the {word}",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    await visitorBooks(this, listingNamed(this, name), {
+      email: "gala.goer@example.com",
+      who: "Gala Goer",
+    });
+  },
+);
+
+Then(
+  "the {word} keeps that booking",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    expect(await soleBookingOn(listingNamed(this, name).id)).toBeGreaterThan(0);
+  },
+);

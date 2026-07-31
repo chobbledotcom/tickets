@@ -237,7 +237,11 @@ const buttonToPress = (
   body: string,
   lower: string,
 ):
-  | { buttonName?: string | undefined; buttonValue?: string }
+  | {
+      buttonAction?: string | undefined;
+      buttonName?: string | undefined;
+      buttonValue?: string;
+    }
   | "switched off" => {
   const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
   let switchedOff = false;
@@ -249,6 +253,8 @@ const buttonToPress = (
       continue;
     }
     return {
+      // A button may aim the form somewhere else, as a real browser honours.
+      buttonAction: attrs.match(/formaction="([^"]+)"/)?.[1],
       buttonName: attrs.match(/name="([^"]+)"/)?.[1],
       buttonValue: attrValue(attrs, "value") ?? "",
     };
@@ -292,7 +298,8 @@ const findFormByButton = (
       switchedOff = true;
       continue;
     }
-    return { action: f.action, body: f.body, ...pressed };
+    const { buttonAction, ...button } = pressed;
+    return { action: buttonAction ?? f.action, body: f.body, ...button };
   }
   // Nothing usable anywhere, and at least one button was switched off.
   // Submitting anyway would let a test do something nobody could do.
