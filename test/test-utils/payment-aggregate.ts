@@ -56,7 +56,7 @@ export interface AggregatePaymentFixtureInput {
   currency?: string;
   paymentId: string;
   providerSessionId?: string;
-  state?: "completed" | "completion_pending" | "created" | "processing";
+  state?: "completed" | "created" | "processing";
   ticketTokens?: string[];
 }
 
@@ -153,21 +153,6 @@ const finishAggregatePayment = async (
 ): Promise<AggregatePaymentFixture> => {
   if (input.state === "processing") {
     return aggregateFixture(processing.payment, session, processing.claim);
-  }
-  if (input.state === "completion_pending") {
-    const ticketTokens = input.ticketTokens ?? ["pending-ticket"];
-    const payment = await applyPaymentSessionClaim(
-      processing.claim,
-      paymentProgress(processing.payment, {
-        completion: fixtureBookingCompletion(intent, createdAt, ticketTokens),
-        completionState: "pending",
-        nextReconcileAt: createdAt + 60_000,
-        state: "processing",
-        ticketState: "ready",
-        ticketTokens,
-      }),
-    );
-    return aggregateFixture(payment, session, null);
   }
   const ticketTokens = input.ticketTokens ?? [];
   const payment = await applyPaymentSessionClaim(
