@@ -106,7 +106,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-26_payment_aggregate",
         "2026-07-26_retire_legacy_payment_tables",
       ],
-      schemaHash: "1c2t2ah",
+      schemaHash: "1muf7dg",
     });
   });
 
@@ -120,7 +120,8 @@ describe("db > migrations > schema change guard", () => {
     }).toEqual({
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
-      latestUpdate: "Add the tables one payment record lives in.",
+      latestUpdate:
+        "Remove drained payment staging tables after the durable payment copy.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

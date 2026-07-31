@@ -16,7 +16,6 @@ import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 export const SCHEMA: [name: string, table: Table][] = [
   ...coreTables,
   ...attendeeTables,
-  ...paymentTables,
   ...catalogTables,
   ...questionTables,
   ...contentTables,

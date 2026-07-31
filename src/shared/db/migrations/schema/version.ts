@@ -1,6 +1,7 @@
 /** Schema version label and the migrations bookkeeping table name. */
 
-export const LATEST_UPDATE = "Add the tables one payment record lives in.";
+export const LATEST_UPDATE =
+  "Remove drained payment staging tables after the durable payment copy.";
 
 export const SCHEMA_MIGRATIONS_TABLE = "schema_migrations";
 export const LATEST_DB_UPDATE_KEY = "latest_db_update";
