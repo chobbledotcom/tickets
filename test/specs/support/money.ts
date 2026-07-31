@@ -4,8 +4,9 @@
  * the provider was asked.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { WORLD } from "#shared/accounting/accounts.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Listing } from "#shared/types.ts";
@@ -63,8 +64,16 @@ export const buyOnePlace = async (
   world.attendeeName = who;
   // What the listing earned is read from its own ledger page, and what one
   // booking has paid from its own, which is where captures of each figure go.
-  world.evidenceValues.set("paidListingId", String(listingId));
-  world.evidenceValues.set("paidBookingId", String(attendeeId));
+  leaveEvidencePage(
+    world,
+    ["listing-ledger"],
+    `/admin/ledger/revenue/${listingId}`,
+  );
+  leaveEvidencePage(
+    world,
+    ["refunded-booking"],
+    `/admin/attendees/${attendeeId}/ledger`,
+  );
   return attendeeId;
 };
 

@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import type { World } from "@cucumber/cucumber";
 import type { CleanupTask } from "#scripts/cleanup.ts";
+import type { EvidencePages } from "#scripts/specs/evidence/pages.ts";
 import type { ApiAnswer } from "#test/specs/support/booking-api.ts";
 import type { ThingForSale } from "#test/specs/support/bundles.ts";
 import type { DoorAnswer } from "#test/specs/support/door.ts";
@@ -85,7 +86,7 @@ export const asksIfThereIs =
   async (world, name) =>
     (await look(world, name)) !== null;
 
-export interface TicketsWorld extends World {
+export interface TicketsWorld extends World, EvidencePages {
   apiAnswer?: ApiAnswer;
   apiFirstDay?: string;
   apiKeyAnswer?: { answered: number; said: string };
@@ -118,7 +119,6 @@ export interface TicketsWorld extends World {
   duplicateToken?: string;
   editorAnswer?: number;
   editorInvite?: string;
-  evidenceValues: Map<string, string>;
   firstBody?: string;
   firstDay?: string;
   firstFailureData?: string;

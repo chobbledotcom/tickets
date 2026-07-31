@@ -5,9 +5,10 @@
  * the story names and lets the site work that code out.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { mapNotNullish } from "#fp";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { execute } from "#shared/db/client.ts";
 import {
   type ContactRecord,
@@ -97,7 +98,11 @@ export const openRecord = async (
   email: string,
 ): Promise<TestBrowser> => {
   const code = toContactHashParam(await hashEmail(email));
-  world.evidenceValues.set("contactCode", code);
+  leaveEvidencePage(
+    world,
+    ["contact-record", "record-put-right", "record-repaired"],
+    recordPath(code),
+  );
   return openAdminPage(world, recordPath(code));
 };
 

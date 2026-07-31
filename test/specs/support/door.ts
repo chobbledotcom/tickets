@@ -7,8 +7,9 @@
  * than being stepped around.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
 import {
@@ -60,7 +61,11 @@ export const personWithTicket = async (
   );
   rememberListing(world, listing, created);
   // The door this person belongs to, so a screenshot capture can open it.
-  world.evidenceValues.set("doorListingId", String(created.id));
+  leaveEvidencePage(
+    world,
+    ["qr-code-check-in"],
+    listingPath(world, listing, "scanner"),
+  );
   rememberTicket(world, who, token);
 };
 
@@ -211,13 +216,8 @@ const readOf = (row: string, what: string): string => {
 /** What the listing's own record of the day says happened. */
 export const dayLog: ReadAboutOneThing = async (world, listing) => {
   // The listing whose own record of the day a capture of a check-in goes to.
-  world.evidenceValues.set(
-    "checkedInListingId",
-    String(listingIdNamed(world, listing)),
-  );
-  const browser = await openAdminPage(
-    world,
-    listingPath(world, listing, "activity"),
-  );
+  const path = listingPath(world, listing, "activity");
+  leaveEvidencePage(world, ["checked-in-on-the-day"], path);
+  const browser = await openAdminPage(world, path);
   return browser.pageText;
 };

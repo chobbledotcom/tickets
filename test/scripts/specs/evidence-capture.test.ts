@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  isAllowedEvidenceRequest,
-  resolveEvidencePath,
-} from "#scripts/specs/evidence/browser.ts";
+import { isAllowedEvidenceRequest } from "#scripts/specs/evidence/browser.ts";
 import { defineEvidenceCapture } from "#scripts/specs/evidence/capture-flow.ts";
 import type { EvidenceCaptureDeclaration } from "#scripts/specs/evidence/schema.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -11,6 +8,7 @@ import { validFeature } from "#test/scripts/specs/profile-fixture.ts";
 import {
   compileEvidenceFeature,
   PAYMENT_RESULT_CAPTURE as declaration,
+  PAYMENT_RESULT_PAGE,
 } from "./evidence-fixture.ts";
 
 interface CaptureCalls {
@@ -42,6 +40,7 @@ interface CaptureFixtureOptions {
   feature?: string;
   hookPickle?: number;
   launchError?: Error;
+  leftPages?: ReadonlyArray<readonly [string, string]>;
   serverCloseError?: Error;
 }
 
@@ -194,7 +193,9 @@ const captureFixture = (
           options: attachmentOptions,
         });
       },
-      evidenceValues: new Map([["paymentId", "42"]]),
+      evidencePages: new Map(
+        options.leftPages ?? [[declaration.id, PAYMENT_RESULT_PAGE]],
+      ),
     },
   };
 };
@@ -213,24 +214,6 @@ const errorMessages = (error: unknown): string[] =>
     : [String(error)];
 
 describe("Cucumber evidence browser boundary", () => {
-  test("fills encoded World values into a declared path", () => {
-    expect(
-      resolveEvidencePath(
-        "/admin/servicing/{servicingEventId}/{label}",
-        new Map([
-          ["servicingEventId", "42"],
-          ["label", "floor treatment"],
-        ]),
-      ),
-    ).toBe("/admin/servicing/42/floor%20treatment");
-  });
-
-  test("fails when a declared path value was not set by the scenario", () => {
-    expect(() =>
-      resolveEvidencePath("/admin/servicing/{servicingEventId}", new Map()),
-    ).toThrow("Evidence World value servicingEventId was not set");
-  });
-
   test("allows only the scenario server and inline data", () => {
     const baseUrl = "http://127.0.0.1:3100";
     expect(isAllowedEvidenceRequest(baseUrl, `${baseUrl}/admin/`)).toBe(true);
@@ -270,7 +253,7 @@ describe("Cucumber evidence capture", () => {
     expect(calls.goto).toEqual([
       {
         navigation: { waitUntil: "domcontentloaded" },
-        path: "/admin/payments/42",
+        path: PAYMENT_RESULT_PAGE,
       },
     ]);
     expect(calls.timeout).toEqual([60_000]);
@@ -312,6 +295,31 @@ describe("Cucumber evidence capture", () => {
         "Test owner cookie is malformed",
       );
     }
+  });
+
+  test("opens the address a fixed-path capture declares", async () => {
+    const { calls, capture, hook, world } = captureFixture({
+      declarations: [{ ...declaration, path: "/admin/settings" }],
+      leftPages: [],
+    });
+
+    await capture(world, hook);
+
+    expect(calls.goto).toEqual([
+      {
+        navigation: { waitUntil: "domcontentloaded" },
+        path: "/admin/settings",
+      },
+    ]);
+  });
+
+  test("rejects a capture whose story left no page", async () => {
+    const { calls, capture, hook, world } = captureFixture({ leftPages: [] });
+
+    await expect(capture(world, hook)).rejects.toThrow(
+      "The story left no page for the payment-result capture",
+    );
+    expectCaptureClosed(calls);
   });
 
   test("rejects a scenario without a declared capture before opening IO", async () => {

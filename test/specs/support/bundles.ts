@@ -5,9 +5,10 @@
  * than being reached around.
  */
 
-// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { map } from "#fp";
+// jscpd:ignore-start
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getGroupPackagePrices, groups } from "#shared/db/groups.ts";
 import type { Group, GroupListing } from "#shared/types.ts";
@@ -247,7 +248,7 @@ export const customerOpensBundlePage = async (
   // be chosen in a real browser however well a crafted send goes through.
   expect(browser.currentHtml).toContain(`name="package_quantity_${group.id}"`);
   world.bundleBookingPage = browser.pageText;
-  world.evidenceValues.set("bundleSlug", group.slug);
+  leaveEvidencePage(world, ["bundle-booking-page"], `/ticket/${group.slug}`);
   return browser;
 };
 

@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
   adminBrowser,
   browserOf,
@@ -158,7 +159,11 @@ Then(
     const browser = await adminBrowser(this);
     // The list a booking made on a group page arrives in, which is what an
     // evidence capture of this journey has to show.
-    this.evidenceValues.set("groupBookingListingId", String(listingId(this)));
+    leaveEvidencePage(
+      this,
+      ["group-booking-arrives"],
+      `/admin/listing/${listingId(this)}/attendees`,
+    );
     await browser.visit(`/admin/listing/${listingId(this)}/attendees`);
     expect(browser.containsText(CUSTOMER)).toBe(true);
     expect(browser.containsText(CUSTOMER_EMAIL)).toBe(true);
