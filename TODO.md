@@ -173,6 +173,12 @@ has been checked against the code or given a regression test yet.*
   queued message goes out, so changing it after a payment completes sends the
   owner notification, with the buyer's details in it, to the old address.
 
+- `src/shared/square-provider.ts:23` — a Square `payment.updated` event for a
+  dashboard or till payment carries no `order_id`, but the check demands one,
+  so verification calls it invalid and the handler answers 400. Square then
+  retries that unrelated event for ever. Read the order id as optional and
+  accept an event that cannot name an order.
+
 **Recorded from the same round, still to be looked at**
 
 - `src/shared/db/migrations/2026-07-26_payment_aggregate.ts:190`
