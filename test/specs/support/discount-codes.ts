@@ -15,7 +15,12 @@ import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  keepsAnswerAs,
+  requiredWorldValue,
+  type StoryJourney,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -68,18 +73,18 @@ const CUSTOMER = { email: "quoter@example.com", name: "Quote Asker" };
  * stands ready, the page is opened, and the rest is what the journey does
  * with the code the customer holds. */
 const fromBookingPage =
-  (
+  <Answer>(
     journey: (
       world: TicketsWorld,
       browser: TestBrowser,
       code: string,
-    ) => Promise<void>,
+    ) => Promise<Answer>,
   ) =>
   async (
     world: TicketsWorld,
     listingName: string,
     code: string,
-  ): Promise<void> => {
+  ): Promise<Answer> => {
     await setupStripe();
     return journey(
       world,
@@ -88,18 +93,37 @@ const fromBookingPage =
     );
   };
 
-/** The customer fills the booking page in with a code and presses the page's
- * own "Show total" button. What came back is kept for the summary steps. */
-export const customerAsksPrice = fromBookingPage(
-  async (world, browser, code) => {
-    await fillInAndSend(
-      browser,
-      { ...CUSTOMER, promo_code: code },
-      "Show total",
-    );
-    world.things.remember("told", "price summary", browser.currentHtml);
-  },
+/** Fill the booking page in with a code and press its own "Show total"
+ * button. What comes back is the site's whole answer, kept as sent — a word
+ * beside the table is as much a disclosure as a word inside it. */
+const askForTotal = async (
+  browser: TestBrowser,
+  code: string,
+): Promise<string> => {
+  await fillInAndSend(browser, { ...CUSTOMER, promo_code: code }, "Show total");
+  // A quote with no table is the site refusing to total the order, so the
+  // story stops here rather than reading a refusal as a summary.
+  requiredWorldValue(
+    browser.currentHtml.match(/<table class="order-summary">/)?.[0],
+    "the price summary",
+  );
+  return browser.currentHtml;
+};
+
+/** What every customer journey here is told: which listing, and the code the
+ * customer typed into the box (empty when they typed none). */
+type APlaceAndACode = [listingName: string, code: string];
+
+/** What the site answers when a place's price is asked for with a code — or,
+ * with the code left empty, without one. */
+export const quoteFor: StoryJourney<APlaceAndACode, string> = fromBookingPage(
+  (_world, browser, code) => askForTotal(browser, code),
 );
+
+/** The customer asks what a place costs with the code they hold, and keeps
+ * the answer for the story to read. */
+export const customerAsksPrice: StoryJourney<APlaceAndACode, void> =
+  keepsAnswerAs("price summary", quoteFor);
 
 /** The summary the customer was last shown. */
 export const priceSummary = (world: TicketsWorld): string =>
@@ -117,8 +141,8 @@ export const summaryTotal = (world: TicketsWorld): string => {
 /** The customer books with a code and pays. The booking page's own form
  * builds the checkout, and the payment completes through the provider — so
  * the code the customer typed is the one the books record. */
-export const customerPaysWithCode = fromBookingPage(
-  async (_world, browser, code) => {
+export const customerPaysWithCode: StoryJourney<APlaceAndACode, void> =
+  fromBookingPage(async (_world, browser, code) => {
     const captured: { intent: unknown } = { intent: null };
     const sessionId = "cs_discount_code";
     const checkoutStub = stub(
@@ -148,8 +172,7 @@ export const customerPaysWithCode = fromBookingPage(
       captured.intent as Parameters<typeof completePaidCheckout>[0],
       sessionId,
     );
-  },
-);
+  });
 
 /** The exact money words the story's own numbers come to, e.g. "£9.00". */
 export const asMoney = (pounds: string): string =>
