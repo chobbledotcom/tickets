@@ -85,50 +85,56 @@ checking. None has a regression test yet.
 
 ---
 
-## Payment aggregate base: 10 type errors after merging main
+## Nine more Codex findings on the payment aggregate base
 
-*Origin: bringing `base/payment-aggregate` (#1962) up to date with main.*
+*Origin: Codex review of PR #1962 at commits `95c4367d` and `bd012b2e`, while
+that branch was being brought up to date with main. Recorded as claimed — none
+has been checked against the code or given a regression test yet.*
 
-The merge itself is done — every conflict is resolved and the migration chain
-is rebased onto main's `2026-07-26_payment_records`. What is left is 10 type
-errors, all of one kind: this branch rewrote payment APIs that main has since
-refactored a different way, so the shared test helpers cannot suit both.
+**Money can go missing**
 
-The two sides pull in opposite directions, which is why this needs a person who
-knows which API this branch means to keep:
+- `src/shared/db/payments/sessions.ts:213` — `getPaymentRefundTargets` skips
+  sessions whose origin is `legacy`, and a copied booking keeps that origin
+  even after the owner names the provider. So no booking made before the
+  upgrade is offered a refund, on its own page or in refund-all. Suggested:
+  load resolved legacy sessions too, or promote one once its provider facts
+  are confirmed.
+- `src/features/admin/attendee-refunds.ts:130` — a single refund the provider
+  answers as pending returns before `recordAttendeeRefund`, and the later
+  confirmation only finishes the ledger for bulk refunds. The money is handed
+  back but the site keeps showing it. Suggested: store the retryable local
+  completion on this path too.
+- `src/shared/db/attendees/delete.ts:91` — the guard only fences a pending
+  completion, so a booking with a refund still in flight can be deleted and
+  its payment detached. The later confirmation then has no booking to record
+  against. Suggested: fence on an unfinished refund as well.
 
-- **The provider interface.** This branch renamed `refundPayment` to
-  `refundCharge`, returning a `RefundResolution`. Main's
-  `test/specs/support/money-drivers.ts` still stubs `refundPayment` (1 error).
-  This one also breaks a story at run time, not only type checking: because the
-  stub misses, the real refund runs and this branch's charge matching turns it
-  away with "Stripe refund … does not match charge …". Fixing the name is not
-  enough — `withRefundMock` has to answer with a refund the charge recognises.
-  It is the last failing story, and the sign it is fixed is that "the organiser
-  refunds a paid place" ends on the booking's actions page rather than staying
-  on its refund page, which is where a refund that errored leaves it.
-- **The captured checkout.** `stubCheckout().getCaptured()` now hands back a
-  `PaymentCheckoutCreateSnapshot`, while this branch's
-  `test/specs/support/shown-code.ts` reads a `CheckoutIntent` (1 error).
-- **The settle/store calls.** `settleBalanceSession` and `storeRefundedBooking`
-  now take one `PaymentWork` object rather than loose arguments, and a failure
-  result carries `refund` rather than `refunded`
-  (`test/features/api/payment-processing/store-refund.test.ts`, 8 errors).
+**The buyer or owner can get the wrong thing**
 
-Taking main's version of the spec-support money files leaves those 10. Taking
-this branch's version instead leaves 61, because the rest of the spec suite has
-moved to main's `listings.ts` helpers. The 10-error state is the one committed.
+- `src/features/api/webhooks.ts:156` — a SumUp return carries the local
+  payment id in `session_id`, but only `payment_id` is read as local, so a
+  provider change while the checkout is open makes the site ask the new
+  provider about SumUp's id and the buyer cannot reach their ticket.
+- `src/shared/payment-runtime/terminal.ts:42` — a cancelled SumUp checkout is
+  stored as failed-and-ignored and shown the normal cancellation page, but a
+  reload takes the terminal path and answers `conflict`, telling the buyer
+  their payment needs review when nothing does.
+- `src/shared/email.ts:514` — the business email is not rechecked before a
+  queued message goes out, so changing it after a payment completes sends the
+  owner notification, with the buyer's details in it, to the old address.
 
-One story failure has already been fixed and is not part of the above: paid
-checkouts were answering 400 because main's driver stubbed
-`retrieveCheckoutSession` while this branch reads `lookupCheckoutSession` and
-the charge behind it. The driver now uses the shared `stubRetrieveCheckoutSession`
-helper, which stands in for both reads.
+**Recorded from the same round, still to be looked at**
 
-Starting point: `deno task typecheck`, then decide per bullet whether this
-branch's API supersedes main's or should be dropped in its favour. Rewrite
-`test/test-utils/payment-completion.ts`'s `paymentWorkForCompletion` into a
-light fixture for the `store-refund` tests once that call is settled.
+- `src/shared/db/migrations/2026-07-26_payment_aggregate.ts:190`
+- `src/features/admin/attendees-edit.ts:209`
+- `src/shared/payment-runtime/operator-context.ts:158`
+- `src/shared/db/migrations/legacy-payment-retirement.ts:9`
+- `src/shared/db/payments/redaction-eligibility.ts:31`
+- `src/shared/db/payments/redaction-values.ts:58`
+- `src/shared/db/payments/legacy.ts:300`
+- `src/shared/db/payments/completion-deliveries.ts:40`
+- `src/shared/payment-runtime/provider-refund.ts:65`
+- `src/shared/sumup.ts:85`
 
 ---
 
