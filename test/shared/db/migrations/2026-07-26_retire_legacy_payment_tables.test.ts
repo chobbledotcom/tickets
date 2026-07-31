@@ -41,7 +41,7 @@ describeWithEnv("retire legacy payment tables migration", { db: true }, () => {
     await getDb().execute(`INSERT INTO processed_payments
       (payment_session_id, processed_at, failure_data)
       VALUES ('retired-payment', '2026-07-25T10:00:00.000Z',
-        'enc:1:legacy-failure')`);
+        'enc:1:iv:legacy-failure')`);
     const aggregate = paymentAggregateMigration(context);
     await aggregate.up();
     await aggregate.verify();

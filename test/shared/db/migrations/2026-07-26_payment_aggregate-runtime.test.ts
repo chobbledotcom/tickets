@@ -21,7 +21,7 @@ describeWithEnv(
     test("preserves a completed staged payment and its refundable reference", async () => {
       await seedLegacyPaidAttendee();
       const ticketTokens = await encrypt("ticket-one+ticket-two");
-      const paymentReference = "hyb:1:legacy-provider-reference";
+      const paymentReference = "hyb:1:key:iv:legacy-provider-reference";
       await getDb().batch(
         [
           {
@@ -170,7 +170,7 @@ describeWithEnv(
         (payment_session_id, processed_at, payment_reference,
          provider_refunded_at)
         VALUES ('refund-marker', '2026-07-25T10:00:00.000Z',
-          'hyb:1:legacy-reference', '2026-07-25T10:05:00.000Z')`);
+          'hyb:1:key:iv:legacy-reference', '2026-07-25T10:05:00.000Z')`);
 
       await runMigration();
 

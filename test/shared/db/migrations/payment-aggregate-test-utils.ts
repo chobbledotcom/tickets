@@ -61,7 +61,7 @@ export const seedLegacyPaidAttendee = async (): Promise<void> => {
         args: [
           42,
           "2026-07-25T09:00:00.000Z",
-          "hyb:1:legacy-pii",
+          "hyb:1:key:iv:legacy-pii",
           "legacy-token",
         ],
         sql: `INSERT INTO attendees (id, created, pii_blob, ticket_token_index)

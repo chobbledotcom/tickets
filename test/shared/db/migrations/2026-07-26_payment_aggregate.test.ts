@@ -47,7 +47,7 @@ const seedLegacyRows = async (
           PROCESSED_AT,
           ticketTokens,
           failureData,
-          "hyb:1:legacy-provider-reference",
+          "hyb:1:key:iv:legacy-provider-reference",
           "",
         ],
         sql: `INSERT INTO processed_payments
@@ -101,7 +101,7 @@ describeWithEnv(
   () => {
     beforeEach(restoreLegacyPaymentSources);
 
-    test("declares the complete aggregate schema", () => {
+    test("owns no schema of its own, only the copy", () => {
       const migration = paymentAggregateMigration(context);
       expect({
         description: migration.description,
@@ -109,23 +109,11 @@ describeWithEnv(
         requires: migration.requires,
       }).toEqual({
         description:
-          "Create durable payments, preserve legacy runtime facts, retry uncertain work, and queue operator alerts.",
+          "Copy the old payment rows into the durable payment tables.",
         id: "2026-07-26_payment_aggregate",
-        requires: {
-          indexes: [
-            "idx_payment_sessions_reference",
-            "idx_payment_sessions_reconcile",
-            "idx_payment_sessions_attendee",
-            "idx_payment_charges_payment_reference",
-            "idx_payment_charges_reference",
-            "idx_payment_charges_pending_refund",
-            "idx_payment_charges_legacy_source",
-            "idx_payment_cases_payment_resource",
-            "idx_payment_cases_reconcile",
-            "idx_payment_cases_alert",
-          ],
-          newTables: ["payment_sessions", "payment_charges", "payment_cases"],
-        },
+        // The tables it fills are made by 2026-07-26_payment_records, so this
+        // migration owns no schema of its own.
+        requires: {},
       });
     });
 
@@ -198,7 +186,7 @@ describeWithEnv(
       );
       expect(runtimes[0]?.processedPayment).toMatchObject({
         failureData: original.failureData,
-        paymentReference: "hyb:1:legacy-provider-reference",
+        paymentReference: "hyb:1:key:iv:legacy-provider-reference",
         ticketTokens: original.ticketTokens,
       });
       expect(runtimes[1]?.checkoutStage).toMatchObject({
@@ -218,7 +206,7 @@ describeWithEnv(
         refund_state FROM payment_charges`);
       expect(charges.rows).toEqual([
         {
-          provider_reference: "hyb:1:legacy-provider-reference",
+          provider_reference: "hyb:1:key:iv:legacy-provider-reference",
           refund_state: "unknown",
         },
       ]);
@@ -241,7 +229,7 @@ describeWithEnv(
         args: [
           `paged-payment-${String(index).padStart(3, "0")}`,
           PROCESSED_AT,
-          "enc:1:legacy-failure",
+          "enc:1:iv:legacy-failure",
         ],
         sql: `INSERT INTO processed_payments
           (payment_session_id, processed_at, failure_data) VALUES (?, ?, ?)`,

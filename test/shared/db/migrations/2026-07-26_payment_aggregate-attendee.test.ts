@@ -89,7 +89,12 @@ describeWithEnv("payment aggregate attendee migration", { db: true }, () => {
     await getDb().batch(
       [
         {
-          args: [42, "2026-07-25T09:00:00.000Z", "hyb:1:legacy-pii", "tok-0"],
+          args: [
+            42,
+            "2026-07-25T09:00:00.000Z",
+            "hyb:1:key:iv:legacy-pii",
+            "tok-0",
+          ],
           sql: `INSERT INTO attendees (id, created, pii_blob, ticket_token_index)
             VALUES (?, ?, ?, ?)`,
         },
