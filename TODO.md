@@ -20,6 +20,71 @@ everything still outstanding is captured below.
 
 ---
 
+## Eight Codex findings on the payment aggregate base
+
+*Origin: Codex review of PR #1962 at commit `484b278d`, while that branch was
+being brought up to date with main.*
+
+These are about the branch's own payment logic, not about the merge, so none
+were acted on there. Two were spot-checked against the code and the shape they
+describe is really there; the other six are recorded as claimed and still need
+checking. None has a regression test yet.
+
+**Money can stop moving**
+
+- `src/shared/payment-runtime/maintenance.ts:200` — a saved owner decision that
+  fails against the provider is stored as retrying and then rethrown, and
+  `runPaymentMaintenance` awaits it before reconciliation. So one stuck decision
+  holds up every checkout, completion and refund behind it. *(Checked: the two
+  steps are awaited in that order, so a throw in the first does skip the
+  second.)* Suggested: treat the stored failure as that item's outcome and carry
+  on.
+- `src/shared/payment-runtime/process.ts:224` — the "completion still pending"
+  branch is tested before the "refunding" one, so a payment queued by
+  refund-all resumes its old completion first, `finishCompletion` refuses the
+  refunding → completed move, throws, and reschedules for ever. The refund
+  never runs. *(Checked: those branches are in that order.)* Suggested: handle
+  the stored bulk-refund request first.
+- `src/shared/payment-runtime/create.ts:101` — a provider create answering
+  `null` is always recorded as created and retried, but the wrappers also
+  answer `null` for permanent refusals, so the same request repeats every
+  minute and the buyer's encrypted details never become eligible for tidying.
+  Suggested: separate "cannot reach the provider" from "the provider said no".
+
+**The buyer can get the wrong thing**
+
+- `src/features/api/payment-processing/completion-booking.ts:76` — completion
+  run later by maintenance reloads the listing and the booked quantity, so an
+  owner edit between taking the money and finishing the work changes what the
+  buyer receives (quantity 1 → 2 reserves two sites against a payment for one).
+  Suggested: write the delivery facts down when the booking commits.
+
+**Repair paths that are not there**
+
+- `src/shared/db/payments/legacy-copy.ts:93` — a `checkout_stages` row with no
+  processed result copies across as a legacy pending payment with no
+  reconcile time and no case, and maintenance only looks at current sessions.
+  A later provider callback then reads it as a conflict with nothing to fix it
+  by. Suggested: open a needs-action case for it.
+- `src/features/admin/payments/data.ts:62` — the legacy case page resolves every
+  configured payment account with `Promise.all`, so one provider being down
+  hides the whole page, including choices that use a working provider.
+  Suggested: resolve them separately and mark only the one that is unavailable.
+
+**Smaller**
+
+- `src/shared/square-payment-pages.ts:29` — reconciling an order walks the
+  location's payment list (eight pages of 100) rather than asking for the
+  tender payment ids the order already carries. Past about 800 payments a
+  recent one is never reached and reconciliation reports the provider as
+  unavailable. Suggested: fetch each documented payment directly.
+- `src/shared/listings-actions.ts:495` — the attachment is deleted from storage
+  before `deleteListing` takes its transaction, so if a completion turns up in
+  between, the file is gone but the listing stays, showing a link to nothing.
+  Suggested: take the database claim first.
+
+---
+
 ## Payment aggregate base: 10 type errors after merging main
 
 *Origin: bringing `base/payment-aggregate` (#1962) up to date with main.*
