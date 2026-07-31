@@ -17,6 +17,7 @@ import { minorUnits } from "#test/specs/support/money.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { stubProviderCheckout } from "#test-utils/checkout.ts";
+import { settleDeferredPaymentWork } from "#test-utils/maintenance.ts";
 import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -140,6 +141,9 @@ export const customerPaysWithCode = fromBookingPage(
       checkoutStub.checkout.restore();
     }
     await completePaidCheckout(checkoutStub.requireCaptured(), sessionId);
+    // The activity log entry for the code is written after the buyer is sent
+    // on their way, so the story waits for that work the way the site does.
+    await settleDeferredPaymentWork();
   },
 );
 

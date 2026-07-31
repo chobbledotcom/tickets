@@ -20,29 +20,6 @@ everything still outstanding is captured below.
 
 ---
 
-## One discount-code story still fails after the merge with main
-
-*Origin: merging main (`50172d63`) into `base/payment-aggregate` (#1962).*
-
-Main added discount-code stories. Their support file stubs the provider method
-`createCheckoutSession`, which this branch renamed to `createCheckout` and
-changed to take the whole checkout rather than the booking on its own — so the
-stub was standing in for a method that no longer exists. It now goes through
-this branch's own `stubProviderCheckout`, which is the shared way to stand in
-for a checkout and keeps the exact one the provider was handed.
-
-That fixed 194 of the 195 stories. The last one, "A customer pays with the
-code" in `specs/payments/booking-with-a-discount-code.feature:74`, gets as far
-as paying but its activity log does not say the code took anything off, so
-something between finishing the payment and writing the log is not carrying the
-discount through. Everything else about the story passes.
-
-Starting point: `deno task specs:files
-specs/payments/booking-with-a-discount-code.feature`, and
-`test/specs/support/discount-codes.ts` for how the payment is completed.
-
----
-
 ## The payment rewrite does not have full test coverage yet
 
 *Origin: bringing `base/payment-aggregate` (#1962) up to date with main. The
