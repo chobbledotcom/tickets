@@ -97,8 +97,10 @@ checking. None has a regression test yet.
   the stored bulk-refund request first.
 - `src/shared/payment-runtime/create.ts:101` — a provider create answering
   `null` is always recorded as created and retried, but the wrappers also
-  answer `null` for permanent refusals, so the same request repeats every
-  minute and the buyer's encrypted details never become eligible for tidying.
+  answer `null` for permanent refusals — and for *any* unexpected error, since
+  `withCheckoutError` turns every one into `null` — so the same request repeats
+  every minute and the buyer's encrypted details never become eligible for
+  tidying.
   Suggested: separate "cannot reach the provider" from "the provider said no".
 
 **The buyer can get the wrong thing**
@@ -252,7 +254,11 @@ been checked against the code or given a regression test yet.*
   session with no completion plan is never redacted, so its personal details
   are kept for ever.
 - `src/shared/db/payments/redaction-values.ts:66` — redacting the completion
-  input drops the marker that says the payment was a balance payment.
+  input drops the marker that says the payment was a balance payment, and the
+  stored shape insists the two agree, so sealing the redacted payment throws.
+  The redaction page prepares all its statements together, so one such payment
+  stops all payment-history redaction, and the rest of the tidying behind it,
+  on every run.
 
 ---
 
