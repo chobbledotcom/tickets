@@ -7,6 +7,7 @@
 // jscpd:ignore-start
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { createRefundableTestAttendee } from "#test/features/admin/refunds-helpers.ts";
 import { sellSomethingAt } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import {
@@ -19,7 +20,6 @@ import {
   type TicketsWorld,
   theListing,
 } from "#test/specs/support/world.ts";
-import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -36,12 +36,16 @@ export const paidPlaceEach = async (
   price: string,
   people: string[],
 ): Promise<void> => {
-  await setupStripe();
   const listing = await sellSomethingAt(world, name, price);
   world.confirmName = name;
   world.attendeeIds = [];
   for (const [index, who] of people.entries()) {
-    const attendee = await createPaidTestAttendee(
+    // Who can be refunded is read from the payment record and the money on it,
+    // so each place needs one behind it, not only a payment name on the row.
+    // The site is left un-set-up for Stripe on purpose: the refund driver then
+    // stands in the same account these payments were made on, and a refund only
+    // goes out on its own account.
+    const attendee = await createRefundableTestAttendee(
       listing.id,
       who,
       `${who.toLowerCase()}@example.com`,
