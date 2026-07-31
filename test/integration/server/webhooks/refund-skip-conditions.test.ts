@@ -72,8 +72,10 @@ describeWithEnv(
       await deactivateTestListing(listing.id);
 
       // Mock paymentsApi.getConfiguredProvider to return "stripe" on first call
-      // (for webhook handler's initial check) then null on second call (for tryRefund).
-      // This covers lines 135-141 where tryRefund has a payment reference but no provider.
+      // (for webhook handler's initial check) then null on second call (for tryRefund),
+      // and stub the last-activated fallback null too, so tryRefund's resolver sees no
+      // provider. This covers the branch where tryRefund has a payment reference but
+      // no provider can be resolved, so it logs and leaves the refund retryable.
       const { paymentsApi } = await import("#shared/payments.ts");
       const origGetConfigured = paymentsApi.getConfiguredProvider;
       let callCount = 0;
@@ -85,6 +87,11 @@ describeWithEnv(
           // First call: webhook handler needs provider; second call: tryRefund should get null
           return callCount <= 1 ? origGetConfigured() : null;
         },
+      );
+      const mockGetLast = stub(
+        paymentsApi,
+        "getLastConfiguredProvider",
+        () => null,
       );
 
       const mockVerify = await stubWebhookVerify(
@@ -116,6 +123,7 @@ describeWithEnv(
       } finally {
         mockVerify.restore();
         mockGetConfigured.restore();
+        mockGetLast.restore();
       }
     });
 

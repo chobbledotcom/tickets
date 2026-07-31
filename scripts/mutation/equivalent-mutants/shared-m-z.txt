@@ -9,6 +9,10 @@ src/shared/rest/crud-api.ts:367:31  ?? → ||   # hydrated map values are record
 src/shared/rest/crud-api.ts:577:27  ?? → ||   # extraRoutes is a route object or undefined
 src/shared/rest/resource.ts:158:25  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
+# paymentsApi.getConfiguredProvider() returns PaymentProviderType | null (a
+# validated settings getter, never a falsy non-null string), so ?? and || agree.
+src/shared/payments.ts:379:44  ?? → ||   # getConfiguredProvider() is a provider type or null; never falsy-but-non-null
+
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so
 # `?? fallback` and `|| fallback` always agree. (createScopedValue's ?? is NOT

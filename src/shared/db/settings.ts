@@ -101,7 +101,7 @@ import type {
   SuperuserChoice,
   Theme,
 } from "#shared/types.ts";
-import { isSuperuserChoice } from "#shared/types.ts";
+import { isPaymentProvider, isSuperuserChoice } from "#shared/types.ts";
 import { appleWallet } from "#shared/wallets/apple-wallet-settings.ts";
 import { googleWallet } from "#shared/wallets/google-wallet-settings.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
@@ -243,6 +243,14 @@ const settingsBase = {
   // --- Google Wallet ---
   googleWallet: googleWallet.createReadSettings(snap as (k: string) => string),
   invalidateCache,
+  /** The provider that captured payments before new sales were switched off.
+   *  Used to refund, reconcile, replay, and complete payments that already
+   *  exist while new sales are disabled; null when no provider was ever
+   *  activated. */
+  get lastActivePaymentProvider(): PaymentProviderType | null {
+    const value = snap("last_active_payment_provider");
+    return isPaymentProvider(value) ? value : null;
+  },
   get listingColumnLayout(): TableLayout<ListingColumnKey> {
     return configurableTableLayouts.listing.parse(snap("listing_column_order"));
   },
@@ -444,8 +452,21 @@ const settingsBase = {
       await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
       data.payment_provider = v;
       data.payment_provider_setting = v;
+      // Remember the activated provider so existing payments stay serviceable
+      // after new sales are later switched off.
+      await writeRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, v);
+      data.last_active_payment_provider = v;
     },
     setPaymentProviderNone: async (): Promise<void> => {
+      // Remember the provider being switched off (if any) before clearing it,
+      // so refunds, replayed callbacks, and in-flight completions of payments
+      // that already exist keep resolving the provider that captured them. A
+      // second "none" save leaves the remembered provider in place.
+      const switchedOff = data.payment_provider;
+      if (switchedOff) {
+        await writeRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, switchedOff);
+        data.last_active_payment_provider = switchedOff;
+      }
       await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
       data.payment_provider = null;
       data.payment_provider_setting = "none";

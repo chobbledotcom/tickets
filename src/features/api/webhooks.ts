@@ -50,7 +50,7 @@ import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
-  getActivePaymentProvider,
+  getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
@@ -237,7 +237,9 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
 const logCancelError = paymentSessionErrorLogger("cancel");
 
 const handlePaymentCancel = withSessionId(async (sid) => {
-  const provider = await getActivePaymentProvider();
+  // A buyer who cancels may do so after the operator switched new sales off, so
+  // resolve the provider that captured the payment rather than the new-sales gate.
+  const provider = await getPaymentProviderForExistingPayments();
   if (!provider) {
     logCancelError(`No provider configured (session=${sid})`);
     return paymentErrorResponse("Payment provider not configured");
@@ -320,7 +322,7 @@ const authenticateWebhook = async (
   | Response
   | {
       provider: NonNullable<
-        Awaited<ReturnType<typeof getActivePaymentProvider>>
+        Awaited<ReturnType<typeof getPaymentProviderForExistingPayments>>
       >;
       listing: WebhookEvent;
     }
@@ -376,7 +378,7 @@ const authenticateWebhook = async (
 const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Read raw body bytes FIRST, before any async work. The Bunny Edge runtime
   // can garbage-collect the underlying request body resource during awaits
-  // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
+  // (e.g. dynamic imports in getPaymentProviderForExistingPayments), causing "BadResource:
   // Cannot read body as underlying resource unavailable" errors.
   const payloadBytes = new Uint8Array(await request.arrayBuffer());
   const payload = new TextDecoder().decode(payloadBytes);

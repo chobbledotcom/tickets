@@ -105,6 +105,60 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       expect(settings.paymentProvider).toBeNull();
       expect(settings.paymentProviderSetting).toBe("none");
     });
+
+    test("remembers the most recently activated provider", async () => {
+      // Activating twice proves the remembered provider is replaced, not
+      // appended (a fresh snapshot read catches a `+=` drift), and a reload
+      // from the DB catches a missing persistence write.
+      await settings.update.paymentProvider("stripe");
+      await settings.update.paymentProvider("square");
+      expect(settings.lastActivePaymentProvider).toBe("square");
+
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
+      expect(settings.lastActivePaymentProvider).toBe("square");
+    });
+
+    test("keeps the last provider after new sales are switched off", async () => {
+      await settings.update.paymentProvider("stripe");
+      await settings.update.setPaymentProviderNone();
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
+
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
+    });
+
+    test("a second none save keeps the remembered provider", async () => {
+      // Saving "none" again must not clear the provider remembered from the
+      // first switch-off — existing payments still need it.
+      await settings.update.paymentProvider("stripe");
+      await settings.update.setPaymentProviderNone();
+      await settings.update.setPaymentProviderNone();
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
+    });
+
+    test("backfills the remembered provider for a pre-existing database", async () => {
+      // A database that configured Stripe before last-active was tracked has
+      // payment_provider set but last_active_payment_provider empty. Switching
+      // new sales off must still remember Stripe so its existing payments stay
+      // refundable.
+      await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "stripe");
+      await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+      settings.invalidateCache();
+      await settings.loadKeys([
+        CONFIG_KEYS.PAYMENT_PROVIDER,
+        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+      ]);
+      expect(settings.lastActivePaymentProvider).toBeNull();
+
+      await settings.update.setPaymentProviderNone();
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
+    });
   });
 
   describe("Stripe activation", () => {

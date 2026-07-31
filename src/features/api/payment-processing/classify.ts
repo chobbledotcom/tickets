@@ -15,7 +15,7 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
-  getActivePaymentProvider,
+  getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
 
@@ -119,7 +119,10 @@ export const classifySessionIntent = async (
 export const validatePaidSession = async (
   sessionId: string,
 ): Promise<SessionValidation> => {
-  const provider = await getActivePaymentProvider();
+  // An in-flight checkout may complete after the operator switched new sales
+  // off, so resolve the provider that captured the payment rather than the
+  // new-sales gate.
+  const provider = await getPaymentProviderForExistingPayments();
   if (!provider) {
     logRedirectError(`No payment provider configured (session=${sessionId})`);
     return {

@@ -21,7 +21,7 @@ import {
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
-  getActivePaymentProvider,
+  getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
@@ -31,16 +31,20 @@ const PRICE_CHANGED_MESSAGE =
   "The price for this listing changed while you were completing payment.";
 
 /**
- * Resolve the active payment provider. When none is configured, log a
- * structured error with the caller's code/detail and return null, so each
+ * Resolve the provider for refunding or reconciling an existing payment. Falls
+ * back to the last activated provider when new sales are off, so refunds keep
+ * working after the operator switches new sales off. When none is configured,
+ * log a structured error with the caller's code/detail and return null, so each
  * caller can pick its own fallback (a false, a 400, ...).
  */
 export const getPaymentProviderOrLog = async (
   code: ErrorCodeType,
   detail: string,
   listingId?: number,
-): Promise<Awaited<ReturnType<typeof getActivePaymentProvider>>> => {
-  const provider = await getActivePaymentProvider();
+): Promise<
+  Awaited<ReturnType<typeof getPaymentProviderForExistingPayments>>
+> => {
+  const provider = await getPaymentProviderForExistingPayments();
   if (!provider) logError({ code, detail, listingId });
   return provider;
 };

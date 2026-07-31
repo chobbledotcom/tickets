@@ -478,6 +478,30 @@ look.
   fail-closed behaviour. See the "Respect the subrequest budget" guidance in
   AGENTS.md.
 
+## Payment aggregate — safety behaviour (PR 1)
+
+*Origin: the first incremental step toward the `base/payment-aggregate` rewrite.
+That branch carries the full aggregate (owner-review cases, queued owner email,
+aggregate activation); this PR lands only the safety property the rest of the
+series depends on, on `main` as it is today.*
+
+New sales and existing payments are now resolved by different questions:
+`getActivePaymentProvider()` / `isPaymentsEnabled()` gate new checkouts;
+`getPaymentProviderForExistingPayments()` resolves the provider for refunds,
+provider reconciliation, replayed callbacks, and completion of already-started
+payment work. When new sales are switched off (provider saved as "none"), the
+existing-payment paths fall back to the last provider the operator activated —
+whose credentials stay stored — so money already captured is never stranded.
+
+The seven accepted safety rules the aggregate must satisfy — including the ones
+not yet implementable on `main` (owner review, queued owner email, aggregate
+activation) — are recorded as acceptance constraints in
+[`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md),
+not implemented ahead of their time. Later-stage findings from the aggregate
+base branch (its own payment-rewrite coverage gaps and the eight Codex findings
+recorded in its TODO) belong to when the aggregate itself lands, and are not
+copied here.
+
 ## Request performance: consolidate AsyncLocalStorage scopes
 
 `src/features/app/request.ts` enters eleven nested request scopes for locale, client
