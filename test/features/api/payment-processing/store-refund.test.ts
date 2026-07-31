@@ -437,15 +437,20 @@ describeWithEnv(
         intent,
       );
 
-      const result = await storeRefundedBooking(
-        await workFor("cs_full", 1000, intent),
-        bookings,
-        specForFailure({
-          detail: "full",
-          ok: false,
-          reason: "capacity_exceeded",
-        }),
-      );
+      const work = await workFor("cs_full", 1000, intent);
+      let stored: Awaited<ReturnType<typeof storeRefundedBooking>> | undefined;
+      await withRefundMock(true, async () => {
+        stored = await storeRefundedBooking(
+          work,
+          bookings,
+          specForFailure({
+            detail: "full",
+            ok: false,
+            reason: "capacity_exceeded",
+          }),
+        );
+      });
+      const result = required(stored, "the stored refund result");
 
       expect(result.status).toBe(200);
       const { getAttendeesByListingIds } = await import(
