@@ -244,3 +244,19 @@ export const PaymentDecisionStateSchema = v.picklist([
 export type PaymentDecisionState = v.InferOutput<
   typeof PaymentDecisionStateSchema
 >;
+
+/** Every reason a payment case can carry. A case is opened either because the
+ * provider's answer did not add up (a conflict), because the provider could not
+ * be reached, or because a payment copied from an older version is missing
+ * something only the owner can supply. Naming them in one place is what lets
+ * the pages that show them prove they have words for every one. */
+export const PaymentCaseReasonSchema = v.picklist([
+  ...PaymentConflictSchema.options.map((option) => option.entries.kind.literal),
+  ...ProviderUnavailableReasonSchema.options,
+  "legacy_lifecycle_unknown",
+  "legacy_mapping_ambiguous",
+  "legacy_provider_unknown",
+  "legacy_refund_amount_unknown",
+]);
+export type PaymentCaseReason = v.InferOutput<typeof PaymentCaseReasonSchema>;
+export const PAYMENT_CASE_REASONS = PaymentCaseReasonSchema.options;

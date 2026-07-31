@@ -1,10 +1,16 @@
 import { t } from "#i18n";
 import { getDecimalPlaces } from "#shared/currency.ts";
-import type { PaymentCase } from "#shared/db/payments/types.ts";
+import type {
+  PaymentCase,
+  PaymentCaseResource,
+} from "#shared/db/payments/types.ts";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
+import type { PaymentCaseReason } from "#shared/payment-state/lifecycle.ts";
 import type { Money } from "#shared/payment-state/resources.ts";
 
-const REASON_KEYS: Readonly<Record<string, string>> = {
+// Keyed by the reason itself, so a new reason cannot be added to the payment
+// vocabulary without giving it words here.
+const REASON_KEYS: Readonly<Record<PaymentCaseReason, string>> = {
   capture_total_mismatch: "money_mismatch",
   currency_mismatch: "money_mismatch",
   duplicate_charge: "charge_conflict",
@@ -30,15 +36,22 @@ const REASON_KEYS: Readonly<Record<string, string>> = {
   timed_out: "unavailable",
 };
 
+/** A reason read back from a payment made by an older version may be a word
+ *  this version no longer uses, so an unknown one is shown as "other" rather
+ *  than refused. Every reason this version can write has words above. */
 export const paymentCaseReason = (reason: string): string =>
-  t(`admin.payments.reason.${REASON_KEYS[reason] ?? "other"}`);
+  t(
+    `admin.payments.reason.${REASON_KEYS[reason as PaymentCaseReason] ?? "other"}`,
+  );
 
 export const paymentCaseProvider = (paymentCase: PaymentCase): string =>
   "provider" in paymentCase.resource
     ? PAYMENT_PROVIDERS[paymentCase.resource.provider].label
     : t("admin.payments.older_payment");
 
-const RESOURCE_KEYS: Readonly<Record<string, string>> = {
+// Keyed by the kind itself, so a new kind of thing a case can be about cannot
+// be added without saying what to call it.
+const RESOURCE_KEYS: Readonly<Record<PaymentCaseResource["kind"], string>> = {
   legacy_payment: "older_payment",
   square_order: "checkout",
   square_payment: "charge",
