@@ -35,7 +35,6 @@ Then(
   },
 );
 
-/** The news page answers and carries these words, however the step is put. */
 const newsPageReads = async (words: string): Promise<void> => {
   const read = await visitorOnNewsPage();
   expect(read.answered).toBe(200);

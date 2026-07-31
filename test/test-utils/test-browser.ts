@@ -254,7 +254,8 @@ const buttonToPress = (
     }
     return {
       // A button may aim the form somewhere else, as a real browser honours.
-      buttonAction: attrs.match(/formaction="([^"]+)"/)?.[1],
+      // The space boundary keeps a longer attribute like data-formaction out.
+      buttonAction: attrs.match(/(?:^|\s)formaction="([^"]+)"/i)?.[1],
       buttonName: attrs.match(/name="([^"]+)"/)?.[1],
       buttonValue: attrValue(attrs, "value") ?? "",
     };

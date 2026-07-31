@@ -625,6 +625,21 @@ describe("TestBrowser forms", () => {
     expect(postedPath()).toBe("/quote");
   });
 
+  it("ignores a data-formaction attribute when aiming the form", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // Only the real formaction attribute may redirect the submission.
+    browser.currentHtml = `
+      <form action="/book">
+        <input name="email" value="a@example.com">
+        <button data-formaction="/wrong" type="submit">Continue</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Continue");
+
+    expect(postedPath()).toBe("/book");
+  });
+
   it("ignores a data-name attribute when ranking forms by field", async () => {
     const { browser, postedPath } = postedPathBrowser();
     // Only a real name attribute counts as rendering the field — a longer

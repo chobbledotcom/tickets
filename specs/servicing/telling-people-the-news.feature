@@ -63,3 +63,4 @@ Feature: An owner tells people the news
       When the owner takes down "Spring fair" typing its exact name
       Then the owner is told the news post was deleted
       And a visitor asking for the news page finds nothing there
+      And a visitor on the front page is offered no News link

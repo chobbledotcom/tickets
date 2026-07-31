@@ -75,8 +75,6 @@ describeWithEnv("server (public news)", { db: true }, () => {
         expect(html).toContain("news hero-thumb.webp");
       }));
 
-    // The News nav link waiting for the first post is told by the
-    // telling-people-the-news story; only the bare-title contract stays here.
     test("the list page's title is just News when the site has no name", async () => {
       await createTestNewsPost("Nav-worthy");
       expect(await assertPublicHtml("/news")).toContain("<title>News</title>");

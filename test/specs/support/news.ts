@@ -1,8 +1,4 @@
-/**
- * News posts, as the owner writes them and a visitor reads them. The owner's
- * half drives the real admin forms; the visitor's half reads the public pages
- * signed out, because that is who the news is for.
- */
+/** News posts: the owner writes and removes them, a visitor reads them. */
 
 import {
   makesRecordThroughForm,
@@ -12,7 +8,10 @@ import {
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 
 const makesPost = makesRecordThroughForm({
   button: "Create News Post",
@@ -27,9 +26,8 @@ export const ownerPostsNews = (
   words: string,
 ): Promise<void> => makesPost(world, name, { content: words, name });
 
-/** The owner answers the type-the-name check behind the post's Actions tab.
- * What they typed is the story's business; both the wrong and the exact name
- * walk the same served pages. */
+/** The typed-name check behind the post's Actions tab; what the owner types
+ * is the story's business. */
 export const ownerTakesDownNews: TakesOneThingDown = takesDownFromList(
   (world, name) =>
     Promise.resolve(`/admin/site/news/${world.things.require("record", name)}`),
@@ -44,9 +42,8 @@ export const ownerTakesDownNews: TakesOneThingDown = takesDownFromList(
 export const visitorOnNewsPage = (): Promise<PageRead> =>
   newcomerReading("/news");
 
-/** A visitor follows a post's own link from the news page and reads the page
- * it leads to. Following the served link is what keeps the story honest: a
- * post the news page stopped linking cannot be read this way. */
+/** Follow the post's own link off the news page, so a post the page stopped
+ * linking cannot be read this way. */
 export const visitorFollowsNewsLink = async (
   name: string,
 ): Promise<PageRead> => {
@@ -55,10 +52,10 @@ export const visitorFollowsNewsLink = async (
     /<a[^>]*href="(\/news\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g,
   );
   // The link is found by the post's name, never by its place in the list.
-  const target = [...cards].find((card) => card[2]!.includes(name))?.[1];
-  if (!target) {
-    throw new Error(`The news page offers no link to a post named "${name}"`);
-  }
+  const target = requiredWorldValue(
+    [...cards].find((card) => card[2]!.includes(name))?.[1],
+    `the news page's link to "${name}"`,
+  );
   return newcomerReading(target);
 };
 

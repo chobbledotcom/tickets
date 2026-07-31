@@ -45,7 +45,10 @@ export const organiserCreatesCode = async (
   const rows = browser.currentHtml.matchAll(
     /<a[^>]*href="\/admin\/modifiers\/(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g,
   );
-  const id = [...rows].find((row) => row[2]!.includes(code))?.[1];
+  // Matched whole, so an older "SAVE100" can never stand in for "SAVE10".
+  const id = [...rows].find(
+    (row) => row[2]!.replace(/<[^>]*>/g, "").trim() === code,
+  )?.[1];
   if (!id) throw new Error(`The modifier list offers no link to ${code}`);
   world.things.remember("record", code, Number(id));
 };

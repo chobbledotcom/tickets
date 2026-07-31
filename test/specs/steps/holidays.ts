@@ -65,26 +65,21 @@ Then(
   },
 );
 
+/** All three day steps ask the listing's page the same question; only the
+ * answer they insist on differs. */
+const dayOffered = (offered: boolean) =>
+  async function (this: TicketsWorld, listing: string, day: number) {
+    expect(await listingOffersDay(this, listing, day)).toBe(offered);
+  };
+
 Then(
   "the {word} no longer offers the day {int} days from now",
-  async function (this: TicketsWorld, listing: string, day: number) {
-    expect(await listingOffersDay(this, listing, day)).toBe(false);
-  },
+  dayOffered(false),
 );
 
-Then(
-  "the {word} still offers the day {int} days from now",
-  async function (this: TicketsWorld, listing: string, day: number) {
-    expect(await listingOffersDay(this, listing, day)).toBe(true);
-  },
-);
+Then("the {word} still offers the day {int} days from now", dayOffered(true));
 
-Then(
-  "the {word} offers the day {int} days from now again",
-  async function (this: TicketsWorld, listing: string, day: number) {
-    expect(await listingOffersDay(this, listing, day)).toBe(true);
-  },
-);
+Then("the {word} offers the day {int} days from now again", dayOffered(true));
 
 When(
   "the organiser deletes the holiday {string} typing its exact name",

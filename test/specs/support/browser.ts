@@ -154,13 +154,19 @@ export type TakesOneThingDown = (
  * under is kept by the story's name for it, ready for the steps that find it
  * again. The form, its button, and where the site lands afterwards are the
  * only parts that differ between the things made this way. */
+type MakesARecord = (
+  world: TicketsWorld,
+  name: string,
+  fields: Record<string, string>,
+) => Promise<void>;
+
 export const makesRecordThroughForm =
-  (labelled: { button: string; filedAt: RegExp; formPath: string }) =>
-  async (
-    world: TicketsWorld,
-    name: string,
-    fields: Record<string, string>,
-  ): Promise<void> => {
+  (labelled: {
+    button: string;
+    filedAt: RegExp;
+    formPath: string;
+  }): MakesARecord =>
+  async (world, name, fields) => {
     const browser = await openAdminPage(world, labelled.formPath);
     await fillInAndSend(browser, fields, labelled.button);
     world.ownerTold = browser.pageText;
