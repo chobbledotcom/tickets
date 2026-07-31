@@ -267,7 +267,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
     test("does not claim the refund happened", async () => {
       const { result } = await storeFor("cs_unrefunded_flag", false);
-      expect(result.refund).toBeUndefined();
+      expect(result.refund?.status).toBe("failed");
     });
   });
 
@@ -333,19 +333,24 @@ describeWithEnv(
       const intent = bookingIntent([{ e: listingId, p: amount, q: 1 }], {
         balanceAttendeeId: attendeeId,
       });
-      return await settleBalanceSession(
-        await workFor(sessionId, amount, intent),
-        bookingCompletion(
-          intent,
-          {
-            flow: "balance",
-            listingId,
-            occurredAt: "2026-07-26T12:00:00.000Z",
-            promos: [],
-          },
-          ["ticket-one"],
-        ),
-      );
+      const work = await workFor(sessionId, amount, intent);
+      let settled: Awaited<ReturnType<typeof settleBalanceSession>> | undefined;
+      await withRefundMock(true, async () => {
+        settled = await settleBalanceSession(
+          work,
+          bookingCompletion(
+            intent,
+            {
+              flow: "balance",
+              listingId,
+              occurredAt: "2026-07-26T12:00:00.000Z",
+              promos: [],
+            },
+            ["ticket-one"],
+          ),
+        );
+      });
+      return required(settled, "the settled balance result");
     };
 
     describe("when the balance changed while they were paying", () => {
