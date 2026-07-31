@@ -2,23 +2,12 @@
 
 import { fromFileUrl } from "@std/path";
 import { runDenoScript } from "#scripts/script-runner.ts";
-import { type FetchTextResult, runDeployEdge } from "./deploy-edge-lib.ts";
+import { runDeployEdge } from "./deploy-edge-lib.ts";
+import { fetchText } from "./fetch-text.ts";
 import { runBuildEdge } from "./run-build-edge.ts";
 
 const repoRoot = fromFileUrl(new URL("..", import.meta.url));
 const bundlePath = fromFileUrl(new URL("../bunny-script.ts", import.meta.url));
-
-const fetchText = async (
-  url: string,
-  init: RequestInit,
-): Promise<FetchTextResult> => {
-  const response = await fetch(url, init);
-  return {
-    ok: response.ok,
-    status: response.status,
-    text: await response.text(),
-  };
-};
 
 await runDenoScript((io) =>
   runDeployEdge({

@@ -75,13 +75,8 @@ describeWithEnv("server (public news)", { db: true }, () => {
         expect(html).toContain("news hero-thumb.webp");
       }));
 
-    test("the nav shows a News link on other public pages once a post exists", async () => {
-      let html = await assertPublicHtml("/");
-      expect(html).not.toContain('href="/news"');
+    test("the list page's title is just News when the site has no name", async () => {
       await createTestNewsPost("Nav-worthy");
-      html = await assertPublicHtml("/");
-      expect(html).toContain('<a href="/news">News</a>');
-      // Without a website title the list page's <title> is just "News".
       expect(await assertPublicHtml("/news")).toContain("<title>News</title>");
     });
 

@@ -227,8 +227,9 @@ const selectionUrl = (
   return `/order?${picks.join("&")}`;
 };
 
-/** Complete the captured checkout through its signed provider notice. */
-const completePaidCheckout = async (
+/** Complete the captured checkout through the provider webhook, exactly as
+ * the app signed it: same money, same metadata, same session. */
+export const completePaidCheckout = async (
   checkout: PaymentCheckoutCreateSnapshot,
   sessionId: string,
 ): Promise<void> => {

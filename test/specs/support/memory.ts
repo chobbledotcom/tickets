@@ -26,6 +26,9 @@ export interface ThingsByKind {
   key: string;
   /** Something the site sells. */
   listing: Listing;
+  /** The number the site filed something under, kept by the story's name
+   * for it — a news post, a holiday, anything made through a form. */
+  record: number;
   /** The code one person holds to get in. */
   ticket: string;
   /** What somebody was told the last time they did something. */

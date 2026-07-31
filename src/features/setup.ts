@@ -14,7 +14,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { isValidCountry } from "#shared/countries.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { settings } from "#shared/db/settings.ts";
+import { SetupAlreadyCompleteError, settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logDbError, logDebug, logError } from "#shared/logger.ts";
 import { getSetupForm } from "#templates/fields/admin.ts";
@@ -150,6 +150,10 @@ const handleSetupPost: SetupHandler = async (request, isSetupComplete) => {
     logDebug("Setup", "Setup completed successfully!");
     return redirectResponse("/setup/complete");
   } catch (error) {
+    if (error instanceof SetupAlreadyCompleteError) {
+      logDebug("Setup", "Setup already completed by another request");
+      return redirectResponse("/");
+    }
     logDbError("setup completion", error);
     throw error;
   }

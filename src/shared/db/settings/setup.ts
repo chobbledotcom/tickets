@@ -5,7 +5,7 @@
  * permanent in-memory short-circuit (set once setup flipped to true) on top of
  * the on-demand loader. `completeSetup` is the one-time write that lands the
  * owner account, its wrapped DATA_KEY and keypair, and the `setup_complete`
- * flag in a single batch — no half-initialised site can result.
+ * flag in one guarded transaction — no half-initialised site can result.
  */
 
 import { lazyRef } from "#fp";
@@ -17,7 +17,7 @@ import {
   generateKeyPair,
   wrapDataKeyForPassword,
 } from "#shared/crypto/keys.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import { type SqlStatement, withTransaction } from "#shared/db/client.ts";
 import { bumpSettingsVersion } from "#shared/db/settings/cache.ts";
 import { invalidateCache, loadKeys } from "#shared/db/settings/load.ts";
 import { getRawCached, settingUpsert } from "#shared/db/settings/raw-writes.ts";
@@ -28,6 +28,15 @@ const [getSetupCompleteCache, setSetupCompleteCache] = lazyRef<boolean>(
   () => false,
 );
 const [getSetupConfirmed, setSetupConfirmed] = lazyRef<boolean>(() => false);
+const SETUP_CLAIM_VALUE = "claiming";
+const SETUP_DONE_VALUE = "true";
+
+export class SetupAlreadyCompleteError extends Error {
+  constructor() {
+    super("Setup is already complete");
+    this.name = "SetupAlreadyCompleteError";
+  }
+}
 
 export const isSetupComplete = async (): Promise<boolean> => {
   const confirmed = getSetupConfirmed();
@@ -53,12 +62,20 @@ export const clearSetupCompleteCache = (): void => {
 // registration covers it (it never re-reads once true), so hook the sweep.
 registerCacheReset(clearSetupCompleteCache);
 
+const claimSetupSlot = (): SqlStatement => ({
+  args: [CONFIG_KEYS.SETUP_COMPLETE, SETUP_CLAIM_VALUE, SETUP_DONE_VALUE],
+  sql:
+    "INSERT INTO settings (key, value) VALUES (?, ?) " +
+    "ON CONFLICT(key) DO UPDATE SET value = excluded.value " +
+    "WHERE settings.value <> ?",
+});
+
 /**
  * The initial site-setup ceremony — creates the owner account, generates and
  * stores the DATA_KEY and keypair, sets the country, and flips
- * `setup_complete` on, all in one batch so a mid-write failure rolls back
- * every piece. The owner's wrapped DATA_KEY is v2 (bound to the raw password),
- * so attendee PII can't be unwrapped from a DB dump alone.
+ * `setup_complete` on in one transaction. The settings primary key is the
+ * cross-isolate setup slot: once any request claims and commits it as done,
+ * every later request fails before it can create another owner or keypair.
  */
 export const completeSetup = async (
   username: string,
@@ -77,25 +94,23 @@ export const completeSetup = async (
   );
   const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
 
-  // The whole setup ceremony commits in one transaction: the owner account and
-  // every config key land together, so a mid-write failure can never leave a
-  // half-initialised site (an owner with no keypair, or setup_complete set
-  // before the owner row exists). All values are computed above, so this is a
-  // plain batch — no inter-statement logic — rather than an interactive
-  // transaction.
   const ownerInsert = await buildCreateUserStatement(
     username,
     hashedPassword,
     wrappedDataKey,
     "owner",
   );
-  await executeBatch([
-    ownerInsert,
-    settingUpsert(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey),
-    settingUpsert(CONFIG_KEYS.PUBLIC_KEY, publicKey),
-    settingUpsert(CONFIG_KEYS.COUNTRY, country),
-    settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, "true"),
-  ]);
+  await withTransaction(async (tx) => {
+    const claim = await tx.execute(claimSetupSlot());
+    if (claim.rowsAffected !== 1) throw new SetupAlreadyCompleteError();
+    await tx.batch([
+      ownerInsert,
+      settingUpsert(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey),
+      settingUpsert(CONFIG_KEYS.PUBLIC_KEY, publicKey),
+      settingUpsert(CONFIG_KEYS.COUNTRY, country),
+      settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, SETUP_DONE_VALUE),
+    ]);
+  });
   // Setup's config lands via a batch (not writeRaw), so bump the version by hand
   // to keep the cross-isolate signal consistent.
   await bumpSettingsVersion();
