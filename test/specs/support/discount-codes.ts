@@ -15,7 +15,10 @@ import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  requiredWorldValue,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -89,7 +92,9 @@ const fromBookingPage =
   };
 
 /** The customer fills the booking page in with a code and presses the page's
- * own "Show total" button. What came back is kept for the summary steps. */
+ * own "Show total" button. Only the summary table is kept: the form around it
+ * still holds whatever the customer typed, which is not the site telling them
+ * anything about it. */
 export const customerAsksPrice = fromBookingPage(
   async (world, browser, code) => {
     await fillInAndSend(
@@ -97,7 +102,16 @@ export const customerAsksPrice = fromBookingPage(
       { ...CUSTOMER, promo_code: code },
       "Show total",
     );
-    world.things.remember("told", "price summary", browser.currentHtml);
+    world.things.remember(
+      "told",
+      "price summary",
+      requiredWorldValue(
+        browser.currentHtml.match(
+          /<table class="order-summary">[\s\S]*?<\/table>/,
+        )?.[0],
+        "the price summary",
+      ),
+    );
   },
 );
 

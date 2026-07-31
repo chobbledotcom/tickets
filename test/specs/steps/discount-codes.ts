@@ -105,6 +105,13 @@ Then("the summary shows no discount line", function (this: TicketsWorld): void {
   expect(priceSummary(this)).not.toContain("-£");
 });
 
+Then(
+  "the summary never names {string}",
+  function (this: TicketsWorld, code: string): void {
+    expect(priceSummary(this)).not.toContain(code);
+  },
+);
+
 When(
   "a customer books a {word} place with the code {string} and pays",
   codeJourney(customerPaysWithCode),
