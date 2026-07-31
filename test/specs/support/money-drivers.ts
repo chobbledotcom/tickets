@@ -3,10 +3,7 @@ import { expect } from "@std/expect";
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import type { PaymentCharge } from "#shared/db/payments/types.ts";
-import type { RefundResolution } from "#shared/payment-state/resources.ts";
 import { paymentsApi } from "#shared/payments.ts";
-import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import {
   expectHtmlResponse,
@@ -15,6 +12,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { withRefundMock } from "#test-utils/refund-routes.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 // jscpd:ignore-end
@@ -156,39 +154,3 @@ export const refundByTyping = async (
   });
   return browser;
 };
-
-// -- Refund driver (mirrors server-refunds.test.ts withRefundMock) -------- //
-
-/** Run `body` with the payment provider resolved to a stripe provider whose
- *  `refundCharge` is stubbed, so the admin refund routes reach the ledger
- *  reversal without a real network call. `refund` is either a fixed outcome or a
- *  per-`paymentId` function — the latter lets a bulk refund decline one specific
- *  payment while the rest succeed. */
-export const withRefundMock = (
-  refund: boolean | ((paymentId: string) => Promise<boolean>),
-  body: (mockRefund: Stub) => Promise<void>,
-): Promise<void> =>
-  withStripeAsProvider(async () => {
-    const succeeds =
-      typeof refund === "function" ? refund : () => Promise.resolve(refund);
-    // The whole captured amount goes back, and no refund resource is named:
-    // one is optional, and inventing an id here would not belong to the
-    // charge, which is exactly what the charge rules refuse.
-    const mockRefund = stub(
-      stripePaymentProvider,
-      "refundCharge",
-      async (charge: PaymentCharge): Promise<RefundResolution> =>
-        (await succeeds(charge.providerReference.id))
-          ? { amount: charge.captured, status: "completed" }
-          : {
-              amount: charge.captured,
-              reason: "provider_failed",
-              status: "failed",
-            },
-    );
-    try {
-      await body(mockRefund);
-    } finally {
-      mockRefund.restore();
-    }
-  });

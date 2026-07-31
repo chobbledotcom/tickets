@@ -51,7 +51,7 @@ const workFor = async (
 ): Promise<PaymentWork> => {
   // The stored payment has to be for the same order the story finishes, or
   // the booking it writes names a listing that was never made.
-  const payment = await createPendingPayment({
+  await createPendingPayment({
     ...paymentSessionInput(id),
     bookingIntent: intent,
   });
@@ -214,6 +214,28 @@ describe("the refund reason for a booking we could not honour", () => {
   });
 });
 
+/** One place bought on this listing, refused for `spec`, with the provider
+ *  standing in and saying whether it hands the money back. Answers with what
+ *  was stored. */
+const storeWithRefund = async (
+  listing: Awaited<ReturnType<typeof createTestListing>>,
+  id: string,
+  spec: Parameters<typeof storeRefundedBooking>[2],
+  moneyComesBack = true,
+): Promise<Awaited<ReturnType<typeof storeRefundedBooking>>> => {
+  const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
+  const bookings = placeholderBookings(
+    [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
+    intent,
+  );
+  const work = await workFor(id, 1000, intent);
+  let stored: Awaited<ReturnType<typeof storeRefundedBooking>> | undefined;
+  await withRefundMock(moneyComesBack, async () => {
+    stored = await storeRefundedBooking(work, bookings, spec);
+  });
+  return required(stored, "the stored refund result");
+};
+
 describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   const specFor = (detail: string) =>
     specForFailure({ detail, ok: false, reason: "capacity_exceeded" });
@@ -224,21 +246,13 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
    *  rather than left to whether one happens to be set up. */
   const storeFor = async (id: string, moneyComesBack = true) => {
     const listing = await createTestListing({});
-    const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
-    const bookings = placeholderBookings(
-      [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
-      intent,
+    const result = await storeWithRefund(
+      listing,
+      id,
+      specFor("listing full"),
+      moneyComesBack,
     );
-    const work = await workFor(id, 1000, intent);
-    let stored: Awaited<ReturnType<typeof storeRefundedBooking>> | undefined;
-    await withRefundMock(moneyComesBack, async () => {
-      stored = await storeRefundedBooking(
-        work,
-        bookings,
-        specFor("listing full"),
-      );
-    });
-    return { listing, result: required(stored, "the stored refund result") };
+    return { listing, result };
   };
 
   describe("when the money could be sent back", () => {
@@ -431,26 +445,15 @@ describeWithEnv(
         [listing.id],
       );
 
-      const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
-      const bookings = placeholderBookings(
-        [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
-        intent,
+      const result = await storeWithRefund(
+        listing,
+        "cs_full",
+        specForFailure({
+          detail: "full",
+          ok: false,
+          reason: "capacity_exceeded",
+        }),
       );
-
-      const work = await workFor("cs_full", 1000, intent);
-      let stored: Awaited<ReturnType<typeof storeRefundedBooking>> | undefined;
-      await withRefundMock(true, async () => {
-        stored = await storeRefundedBooking(
-          work,
-          bookings,
-          specForFailure({
-            detail: "full",
-            ok: false,
-            reason: "capacity_exceeded",
-          }),
-        );
-      });
-      const result = required(stored, "the stored refund result");
 
       expect(result.status).toBe(200);
       const { getAttendeesByListingIds } = await import(
