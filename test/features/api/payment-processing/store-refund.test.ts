@@ -14,14 +14,44 @@ import {
   specForFailure,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
+import type { PaymentWork } from "#routes/api/webhook-types.ts";
 import { processBooking } from "#shared/booking.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
+import {
+  PAYMENT_BOOKING_COMPLETION,
+  paymentSessionInput,
+  READY_RESULT,
+} from "#test/shared/db/payments/fixtures.ts";
+import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
+
+/** A stored payment that has been paid for, ready to finish a booking against.
+ *  These stories only read the payment's id, the money it took and the order it
+ *  was for, so everything else comes from the shared paid-payment fixture. */
+const workFor = async (
+  id: string,
+  amountTotal: number,
+  intent: BookingIntent,
+): Promise<PaymentWork> => {
+  const payment = await createPendingPayment(paymentSessionInput(id));
+  return {
+    claim: {
+      leaseToken: `lease_${id}`,
+      paymentId: id,
+      revision: payment.revision,
+      state: payment.state,
+    },
+    intent,
+    payment,
+    resolution: READY_RESULT,
+    session: paymentSession(id, amountTotal),
+  };
+};
 
 /** A signed cart line: `e` is the listing, `k`/`r` mark a package path. */
 const line = (listingId: number, groupId?: number): BookingItem =>
@@ -158,14 +188,12 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   const storeFor = async (id: string) => {
     const listing = await createTestListing({});
     const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
-    const session = paymentSession(id, 1000, intent);
     const bookings = placeholderBookings(
       [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
       intent,
     );
     const result = await storeRefundedBooking(
-      session,
-      intent,
+      await workFor(id, 1000, intent),
       bookings,
       specFor("listing full"),
     );
@@ -184,7 +212,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
     test("records that the refund happened", async () => {
       await setupStripe();
       const { result } = await storeFor("cs_refunded_flag");
-      expect(result.refunded).toBe(true);
+      expect(result.refund?.status).toBe("completed");
     });
   });
 
@@ -198,7 +226,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
     test("does not claim the refund happened", async () => {
       const { result } = await storeFor("cs_unrefunded_flag");
-      expect(result.refunded).toBeUndefined();
+      expect(result.refund).toBeUndefined();
     });
   });
 
@@ -264,8 +292,10 @@ describeWithEnv(
       const intent = bookingIntent([{ e: listingId, p: amount, q: 1 }], {
         balanceAttendeeId: attendeeId,
       });
-      const session = paymentSession(sessionId, amount, intent);
-      return await settleBalanceSession(sessionId, session, intent);
+      return await settleBalanceSession(
+        await workFor(sessionId, amount, intent),
+        PAYMENT_BOOKING_COMPLETION,
+      );
     };
 
     describe("when the balance changed while they were paying", () => {
@@ -353,8 +383,7 @@ describeWithEnv(
       );
 
       const result = await storeRefundedBooking(
-        paymentSession("cs_full", 1000, intent),
-        intent,
+        await workFor("cs_full", 1000, intent),
         bookings,
         specForFailure({
           detail: "full",
