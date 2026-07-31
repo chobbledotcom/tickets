@@ -82,7 +82,7 @@ const seedCompleted = async (entry: (typeof PROVIDERS)[number]) => {
               args: [
                 "legacy-sumup-reference-index",
                 "wk:1:legacy-key",
-                "enc:1:legacy-metadata",
+                "enc:1:iv:legacy-metadata",
                 entry.resource.id,
                 "2026-07-25T10:00:30.000Z",
               ],
@@ -147,7 +147,7 @@ describeWithEnv("legacy payment replay", { db: true }, () => {
       error: "The payment was returned.",
       provider: "square" as const,
       providerRefundedAt: "2026-07-25T10:02:00.000Z",
-      reference: "hyb:1:legacy-provider-reference",
+      reference: "hyb:1:key:iv:legacy-provider-reference",
     },
   ]) {
     test(`replays a migrated ${terminal.provider} ${terminal.providerRefundedAt ? "refund" : "failure"}`, async () => {

@@ -31,7 +31,7 @@ export const seedHistoricalFixture = async (
       ...(legacyPayments
         ? [
             `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference)
-             VALUES ('payment-session', 903, '2024-01-02T00:10:00Z', 'enc:1:fixture-ticket-token', '', 'hyb:1:fixture-reference')`,
+             VALUES ('payment-session', 903, '2024-01-02T00:10:00Z', 'enc:1:iv:fixture-ticket-token', '', 'hyb:1:key:iv:fixture-reference')`,
           ]
         : []),
       `INSERT INTO activity_log (id, created, listing_id, message, attendee_id)
@@ -39,7 +39,7 @@ export const seedHistoricalFixture = async (
       ...(legacyPayments
         ? [
             `INSERT INTO sumup_checkouts (reference_index, wrapped_key, metadata, sumup_id, created_at)
-             VALUES ('sumup-reference', 'wk:1:fixture-key', 'enc:1:fixture-metadata', 'sumup-id', '2024-01-02T00:20:00Z')`,
+             VALUES ('sumup-reference', 'wk:1:fixture-key', 'enc:1:iv:fixture-metadata', 'sumup-id', '2024-01-02T00:20:00Z')`,
           ]
         : []),
       `INSERT INTO questions (id, text, sort_order, display_type, assign_all)
@@ -109,7 +109,7 @@ const assertPaymentMigration = async (
       ? [
           {
             legacy_source: "processed_payments",
-            provider_reference: "hyb:1:fixture-reference",
+            provider_reference: "hyb:1:key:iv:fixture-reference",
             refund_state: "unknown",
           },
         ]

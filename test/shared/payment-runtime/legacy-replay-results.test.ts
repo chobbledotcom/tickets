@@ -30,7 +30,7 @@ describeWithEnv("what an old payment says it already did", { db: true }, () => {
     [
       "it was refunded",
       () => ({
-        paymentReference: "hyb:1:legacy-reference",
+        paymentReference: "hyb:1:key:iv:legacy-reference",
         providerRefundedAt: "2026-07-25T10:02:00.000Z",
       }),
     ],
@@ -141,7 +141,7 @@ describeWithEnv("replaying what an old payment ended as", { db: true }, () => {
     expect(
       await legacyPaymentResult(
         dealtWith({
-          paymentReference: "hyb:1:legacy-reference",
+          paymentReference: "hyb:1:key:iv:legacy-reference",
           providerRefundedAt: "2026-07-25T10:02:00.000Z",
         }),
       ),

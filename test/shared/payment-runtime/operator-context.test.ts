@@ -310,7 +310,7 @@ describe("payment operator case rules", () => {
     if (context.payment.origin !== "legacy") throw new Error("Expected legacy");
     context.payment.value.runtime.attendeePayment = null;
     context.payment.value.runtime.processedPayment = legacyProcessedPayment({
-      paymentReference: "hyb:1:legacy-reference",
+      paymentReference: "hyb:1:key:iv:legacy-reference",
     });
 
     expect(

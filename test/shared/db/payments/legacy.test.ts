@@ -19,7 +19,7 @@ import { setupTestEncryptionKey } from "#test-utils/env.ts";
 setupTestEncryptionKey();
 
 const TIME = "2026-07-25T10:00:00.000Z";
-const TICKETS = "enc:1:tickets";
+const TICKETS = "enc:1:iv:tickets";
 
 const processed = (changes: Record<string, unknown> = {}) => {
   const attendeeId = changes.attendeeId ?? null;
@@ -50,7 +50,7 @@ const stage = (changes: Record<string, unknown> = {}) =>
 const sumup = (changes: Record<string, unknown> = {}) =>
   v.parse(LegacySumupCheckoutSchema, {
     createdAt: TIME,
-    metadata: "enc:1:metadata",
+    metadata: "enc:1:iv:metadata",
     referenceIndex: "reference-index",
     sumupId: "session-one",
     wrappedKey: "wk:1:key",
@@ -123,7 +123,10 @@ test("maps every non-success legacy lifecycle without inventing a result", async
       ],
       processedPayments: [
         processed({ attendeeId: 42, paymentSessionId: "consumed" }),
-        processed({ failureData: "enc:1:failure", paymentSessionId: "failed" }),
+        processed({
+          failureData: "enc:1:iv:failure",
+          paymentSessionId: "failed",
+        }),
         processed({ paymentSessionId: "processing" }),
       ],
       sumupCheckouts: [sumup({ referenceIndex: "standalone", sumupId: "" })],
@@ -136,7 +139,7 @@ test("maps every non-success legacy lifecycle without inventing a result", async
     }),
   ).toEqual([
     ["session:consumed", "completed", "succeeded", null],
-    ["session:failed", "failed", "failed", "enc:1:failure"],
+    ["session:failed", "failed", "failed", "enc:1:iv:failure"],
     ["session:processing", "processing", "none", null],
     ["session:refunding", "refunding", "none", null],
     ["sumup:standalone", "pending", "none", null],
@@ -192,9 +195,9 @@ test("names an invalid legacy time exactly", () => {
 
 test("requires the exact owner ciphertext prefix", () => {
   expect(
-    processed({ paymentReference: "hyb:1:provider-reference" })
+    processed({ paymentReference: "hyb:1:key:iv:provider-reference" })
       .paymentReference,
-  ).toBe("hyb:1:provider-reference");
+  ).toBe("hyb:1:key:iv:provider-reference");
 });
 
 test("requires a non-empty wrapped SumUp key", () => {
@@ -214,7 +217,7 @@ test("requires a positive staged attendee id", () => {
 test("names contradictory terminal results exactly", () => {
   expect(
     errorMessage(() =>
-      processed({ attendeeId: 42, failureData: "enc:1:failure" }),
+      processed({ attendeeId: 42, failureData: "enc:1:iv:failure" }),
     ),
   ).toBe("A legacy payment cannot be both completed and failed");
 });
@@ -222,7 +225,7 @@ test("names contradictory terminal results exactly", () => {
 test("accepts a refund marker only with an encrypted reference", () => {
   expect(
     processed({
-      paymentReference: "hyb:1:provider-reference",
+      paymentReference: "hyb:1:key:iv:provider-reference",
       providerRefundedAt: TIME,
     }).providerRefundedAt,
   ).toBe(TIME);
@@ -318,7 +321,7 @@ test("keeps a staged provider without SumUp recovery data", async () => {
 test("keeps failed completion explicitly empty", async () => {
   const group = await onlyGroup({
     checkoutStages: [],
-    processedPayments: [processed({ failureData: "enc:1:failure" })],
+    processedPayments: [processed({ failureData: "enc:1:iv:failure" })],
     sumupCheckouts: [],
   });
   expect(legacySessionFields(group).completionState).toBe("none");

@@ -227,7 +227,7 @@ test("requires exact quarantined legacy charge facts", () => {
     id: 1,
     observedAt: 0,
     paymentId: "legacy-payment",
-    providerReference: "hyb:1:legacy-reference",
+    providerReference: "hyb:1:key:iv:legacy-reference",
     providerRefundedAt: null,
     refundState: "unknown",
     source: "processed_payments" as const,

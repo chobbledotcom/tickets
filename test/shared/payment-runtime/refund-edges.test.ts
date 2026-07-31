@@ -45,7 +45,7 @@ describeWithEnv("payment refund engine edges", { db: true }, () => {
       id: 99,
       observedAt: PAYMENT_TIME,
       paymentId: PAYMENT_ID,
-      providerReference: "hyb:1:legacy-reference",
+      providerReference: "hyb:1:key:iv:legacy-reference",
       providerRefundedAt: null,
       refundState: "unknown",
       source: "processed_payments",

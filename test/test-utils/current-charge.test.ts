@@ -11,7 +11,7 @@ const legacyCharge = () =>
     id: 7,
     observedAt: 1,
     paymentId: "pay-legacy",
-    providerReference: "hyb:1:sealed",
+    providerReference: "hyb:1:key:iv:sealed",
     providerRefundedAt: null,
     refundState: "unknown",
     source: "processed_payments",

@@ -232,7 +232,7 @@ describeWithEnv("db > payment case decisions", { db: true }, () => {
     const providerClaim: PaymentOperatorDecisionClaim = {
       ...claim(paymentCase.revision),
       reviewed: {
-        charges: [{ chargeId: 1, providerReference: "hyb:1:reference" }],
+        charges: [{ chargeId: 1, providerReference: "hyb:1:key:iv:reference" }],
         kind: "legacy_assignment",
         paymentId: PAYMENT_ID,
       },

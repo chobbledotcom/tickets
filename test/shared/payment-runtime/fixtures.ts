@@ -368,7 +368,7 @@ export const legacyPaymentOperatorCase = (): PaymentOperatorCase => ({
       id: 1,
       observedAt: PAYMENT_TIME,
       paymentId: PAYMENT_ID,
-      providerReference: "hyb:1:legacy-reference",
+      providerReference: "hyb:1:key:iv:legacy-reference",
       providerRefundedAt: null,
       refundState: "unknown",
       source: "attendee_merge",
@@ -389,7 +389,7 @@ export const legacyPaymentOperatorCase = (): PaymentOperatorCase => ({
         attendeePayment: {
           attendeeId: 42,
           createdAt: "2026-07-26T12:00:00.000Z",
-          paymentReference: "hyb:1:legacy-reference",
+          paymentReference: "hyb:1:key:iv:legacy-reference",
           source: "attendee_merge",
         },
         checkoutStage: null,
@@ -555,7 +555,9 @@ export const legacyPaymentDecision = ({
     claimedAt: PAYMENT_TIME,
     reason: "Looked it up at the provider",
     reviewed: {
-      charges: [{ chargeId: 1, providerReference: "hyb:1:legacy-reference" }],
+      charges: [
+        { chargeId: 1, providerReference: "hyb:1:key:iv:legacy-reference" },
+      ],
       kind: "legacy_assignment",
       paymentId: PAYMENT_ID,
     },

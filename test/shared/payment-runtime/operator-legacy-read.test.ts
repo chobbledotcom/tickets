@@ -73,7 +73,7 @@ describeWithEnv("legacy payment provider reads", { db: true }, () => {
         paymentSessionId: "legacy-session",
         provider: "stripe",
         state: "pending",
-        ticketTokens: "enc:1:tickets",
+        ticketTokens: "enc:1:iv:tickets",
       },
       processedPayment: null,
       sumupCheckout: null,
@@ -311,7 +311,7 @@ describeWithEnv("legacy payment provider reads", { db: true }, () => {
         paymentSessionId: "cs_legacy",
         provider: "stripe",
         state: "pending",
-        ticketTokens: "enc:1:tickets",
+        ticketTokens: "enc:1:iv:tickets",
       },
     });
 
@@ -378,7 +378,7 @@ describeWithEnv("legacy payment provider reads", { db: true }, () => {
       ...payment.runtime,
       sumupCheckout: {
         createdAt: "2026-07-26T12:00:00.000Z",
-        metadata: "enc:1:metadata",
+        metadata: "enc:1:iv:metadata",
         referenceIndex: "reference-index",
         sumupId: "sumup-checkout",
         wrappedKey: "wk:1:key",

@@ -62,7 +62,9 @@ describe("preparing the owner's decision about an old payment", () => {
     const { claim, decision } = keepLegacyPayment(context);
 
     expect(claim.reviewed).toEqual({
-      charges: [{ chargeId: 1, providerReference: "hyb:1:legacy-reference" }],
+      charges: [
+        { chargeId: 1, providerReference: "hyb:1:key:iv:legacy-reference" },
+      ],
       kind: "legacy_assignment",
       paymentId: claim.reviewed.paymentId,
     });
