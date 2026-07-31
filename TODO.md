@@ -35,10 +35,13 @@ knows which API this branch means to keep:
 - **The provider interface.** This branch renamed `refundPayment` to
   `refundCharge`, returning a `RefundResolution`. Main's
   `test/specs/support/money-drivers.ts` still stubs `refundPayment` (1 error).
-  This one also breaks stories at run time, not only type checking: because the
+  This one also breaks a story at run time, not only type checking: because the
   stub misses, the real refund runs and this branch's charge matching turns it
   away with "Stripe refund … does not match charge …". Fixing the name is not
   enough — `withRefundMock` has to answer with a refund the charge recognises.
+  It is the last failing story, and the sign it is fixed is that "the organiser
+  refunds a paid place" ends on the booking's actions page rather than staying
+  on its refund page, which is where a refund that errored leaves it.
 - **The captured checkout.** `stubCheckout().getCaptured()` now hands back a
   `PaymentCheckoutCreateSnapshot`, while this branch's
   `test/specs/support/shown-code.ts` reads a `CheckoutIntent` (1 error).
