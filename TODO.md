@@ -217,6 +217,68 @@ has been checked against the code or given a regression test yet.*
 
 ---
 
+## The rest of the Codex findings on the payment aggregate base
+
+*Origin: the same Codex reviews of PR #1962. The two sections above cover the
+findings recorded while the branch was being merged; these are the remainder,
+gathered when every review thread was answered. Recorded as claimed — none has
+been checked against the code or given a regression test yet.*
+
+**Money can move when it should not**
+
+- `src/features/admin/attendees-edit.ts:206` — "Refresh payment" passes a
+  part-refunded charge to the refund path, so an action that reads as a
+  read-only refresh can hand back more money with no operator choice.
+  Suggested: refresh should only re-read the provider, never refund.
+- `src/features/admin/refunds/provider.ts:82` — a bulk refund that goes out at
+  the provider but fails to reach the money ledger is only logged, so the money
+  is gone with nothing left to repair it by. Suggested: queue the ledger repair.
+- `src/shared/payment-completion.ts:66` and
+  `src/features/api/payment-processing/completion-refund.ts:279` — when a
+  captured payment cannot be booked, only the provider refund is treated as
+  critical, so the ledger entry and the note explaining it wait behind a refund
+  that may never finish. Suggested: write the money and the note first.
+
+**Work that repeats or stalls**
+
+- `src/shared/renewal.ts:151` — two paid renewals for the same site share one
+  deadline instead of taking turns, so one can overwrite the other's extension.
+- `src/shared/payment-runtime/process.ts:152` — when resolving the payment
+  account fails, the claim is not released and the failure is not written down,
+  so the payment retries against the same broken account for ever.
+- `src/shared/sumup-provider.ts:216` (also `src/features/api/webhooks.ts:376`) —
+  an unknown SumUp id is sent to the provider before being checked locally, so
+  unsigned junk ids each cost a provider call.
+- `src/features/api/payment-processing/completion-deliveries.ts:123` — one
+  permanently failed delivery holds up every later delivery in the queue
+  instead of being moved aside.
+- `src/shared/db/payments/bulk-refunds.ts:57` — a refund is queued while the
+  booking's completion is still pending, and the two then fight.
+- `src/shared/db/migrations/2026-07-26_payment_aggregate.ts:241` — paging stops
+  while raw legacy ids are still left, so the tail of a large table is skipped.
+- `src/shared/db/migrations/2026-07-26_payment_aggregate.ts:55` — a SumUp
+  payment's two ids can land in different migration pages and be copied twice.
+
+**Records that end up wrong**
+
+- `src/features/api/payment-processing/create.ts:192` — a newly paid booking is
+  stored with an empty `payment_id` while the attendee panel and the CSV export
+  still read that field, so both now show nothing for new bookings.
+- `src/features/api/webhooks.ts:239` — a ticket token handed out before
+  completion finishes is not consumed, so it can be used again.
+- `src/shared/merge/attendee-merge.ts:828` — merging an attendee with a paid
+  delivery still pending leaves the delivery and any reserved site pointing at
+  the attendee that was deleted.
+- `src/shared/sumup.ts:176` — a retried SumUp amount is converted with the
+  current currency rather than the one stored on the payment.
+- `src/shared/db/payments/redaction-eligibility.ts:21` — a fully refunded
+  session with no completion plan is never redacted, so its personal details
+  are kept for ever.
+- `src/shared/db/payments/redaction-values.ts:66` — redacting the completion
+  input drops the marker that says the payment was a balance payment.
+
+---
+
 ## Marketing screenshot visual cleanup
 
 _Origin: visual audit of the mobile Retina screenshots generated from
