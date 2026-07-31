@@ -23,8 +23,9 @@ everything still outstanding is captured below.
 ## The payment rewrite does not have full test coverage yet
 
 *Origin: bringing `base/payment-aggregate` (#1962) up to date with main. The
-merge itself is finished and both the Deno suite (21,629 tests) and the
-Cucumber suite (181 scenarios) pass; `deno task test:coverage` does not.*
+merge itself is finished and both the Deno suite (21,650 tests) and the
+Cucumber suite (195 stories) pass; `deno task test:coverage` does not. This is
+the only gate still failing on that pull request.*
 
 The repository requires 100% line and branch coverage, and 26 files the payment
 rewrite added or reworked are short of it. None of them was touched by the
@@ -40,6 +41,17 @@ because they are the ones nobody exercises by hand.
 
 Starting point: `deno task test:coverage`, then work down this list. Where a
 branch turns out to be unreachable, delete it rather than test it.
+
+Expect this to be slower than a list of line numbers suggests. Most of the
+uncovered lines are guards inside functions the module does not export —
+`outcomeForStoredResolution`, `runFulfilment`, `fulfilStoredCompletion` and
+`retainedClaim` in `process.ts` are all private — so each one has to be reached
+through the public reconcile entry points by building a payment in exactly the
+contradictory state the guard refuses (a stored answer marked `ready` arriving
+on the path that does not fulfil, a ready payment with no charge that is not
+`no_payment_required`, a ready payment that lost its claim). Exporting them to
+test them directly is not an option: the same CI job forbids exports that only
+tests use.
 
 - `src/features/admin/attendees-edit.ts` — lines: 144/150 covered; missing 232-237; branches: 27/28 covered; missing 234
 - `src/features/admin/attendees.ts` — lines: 271/278 covered; missing 85-90, 92; branches: 33/34 covered; missing 85
@@ -259,6 +271,64 @@ been checked against the code or given a regression test yet.*
   The redaction page prepares all its statements together, so one such payment
   stops all payment-history redaction, and the rest of the tidying behind it,
   on every run.
+
+---
+
+## Left unfinished on the payment branch (#1962)
+
+*Origin: a session spent bringing `base/payment-aggregate` up to date with
+main. What that session finished is on the branch; this is what it did not, so
+nobody has to reconstruct it from the pull request.*
+
+**The pull request is one gate from green.** Both suites pass. The coverage
+gate is the only failure, and it is the section above.
+
+**Codex review threads are only part-answered.** Codex has raised about forty
+distinct findings, all written down in the three sections above. It re-reviews
+on every push and opens a *fresh thread for each finding every time*, so the
+thread count grows with each commit — roughly a hundred threads for forty
+findings, and about sixty of them still have no reply. Thirty-five were
+answered, each saying the finding is real, where it is recorded, and why it was
+not fixed during a merge repair.
+
+Two things to know before picking this up:
+
+- **The queue does not converge while the branch is being pushed to.** Every
+  commit costs another round of duplicate threads. Answering only the newest
+  thread per finding (about forty replies) keeps it finite, and still leaves an
+  answer visible at every file and line a reader looks at. Answering all of
+  them only makes sense once the branch has stopped moving.
+- **Replies must go through the GitHub MCP tool.** Direct REST writes fail with
+  403 in this environment, and each MCP reply echoes the whole diff hunk back,
+  which is slow for the larger files.
+
+The working list of outstanding thread ids lived in a session scratchpad, which
+does not survive the container. To rebuild it: read the review threads
+(`get_review_comments`, hundred at a time, following the page cursor), keep the
+ones whose last comment is from `chatgpt-codex-connector`, and group them by
+file and line — each group is one finding.
+
+**The findings themselves are all still open.** Nothing in the three Codex
+sections above has been fixed or given a regression test. The three worth doing
+first, because each one stops something dead rather than degrading it:
+
+- `src/shared/db/payments/legacy.ts:59` — a payment whose listing was deleted
+  fails the copy, and the same row fails again on every retry, so the site
+  never finishes upgrading.
+- `src/shared/db/payments/redaction-values.ts:66` — one completed balance
+  payment makes redaction throw, and takes all payment-history redaction and
+  the tidying behind it down with it, on every run.
+- `src/shared/payment-runtime/maintenance.ts:200` — one owner decision the
+  provider keeps refusing holds up every checkout, completion and refund
+  behind it.
+
+**The i18n idea for #1973 was only half taken.** The suggestion was that
+leaning on the message catalog would let the payment-case vocabulary collapse
+into one organised table. What exists now is the two tables in
+`src/ui/templates/admin/payments/format.tsx`, keyed by the reason and by the
+kind of thing a case is about, so a new one cannot be added without giving it
+words. The wider idea — the rest of the payment pages reading their wording the
+same way — was not attempted.
 
 ---
 
