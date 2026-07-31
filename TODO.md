@@ -20,12 +20,12 @@ everything still outstanding is captured below.
 
 ---
 
-## Payment aggregate base: 11 type errors after merging main
+## Payment aggregate base: 10 type errors after merging main
 
 *Origin: bringing `base/payment-aggregate` (#1962) up to date with main.*
 
 The merge itself is done — every conflict is resolved and the migration chain
-is rebased onto main's `2026-07-26_payment_records`. What is left is 11 type
+is rebased onto main's `2026-07-26_payment_records`. What is left is 10 type
 errors, all of one kind: this branch rewrote payment APIs that main has since
 refactored a different way, so the shared test helpers cannot suit both.
 
@@ -37,15 +37,15 @@ knows which API this branch means to keep:
   `test/specs/support/money-drivers.ts` still stubs `refundPayment` (1 error).
 - **The captured checkout.** `stubCheckout().getCaptured()` now hands back a
   `PaymentCheckoutCreateSnapshot`, while this branch's
-  `test/specs/support/shown-code.ts` reads a `CheckoutIntent` (2 errors).
+  `test/specs/support/shown-code.ts` reads a `CheckoutIntent` (1 error).
 - **The settle/store calls.** `settleBalanceSession` and `storeRefundedBooking`
   now take one `PaymentWork` object rather than loose arguments, and a failure
   result carries `refund` rather than `refunded`
   (`test/features/api/payment-processing/store-refund.test.ts`, 8 errors).
 
-Taking main's version of the spec-support money files leaves those 11. Taking
+Taking main's version of the spec-support money files leaves those 10. Taking
 this branch's version instead leaves 61, because the rest of the spec suite has
-moved to main's `listings.ts` helpers. The 11-error state is the one committed.
+moved to main's `listings.ts` helpers. The 10-error state is the one committed.
 
 Starting point: `deno task typecheck`, then decide per bullet whether this
 branch's API supersedes main's or should be dropped in its favour. Rewrite
