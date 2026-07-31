@@ -217,6 +217,13 @@ been checked against the code or given a regression test yet.*
 
 **Money can move when it should not**
 
+- `src/shared/payment-runtime/refund-targets.ts:24` — an attendee can own a
+  charged payment *and* an empty one carrying no charges, which a merge makes
+  possible because it repoints every payment onto one attendee. The empty one
+  still becomes a refund target, and refunding it throws. If the charged one
+  goes first the money has already left when the error stops the ledger being
+  written; if the empty one goes first the real refund never runs at all. Leave
+  payments with no charges out of the list.
 - `src/features/admin/attendees-edit.ts:206` — "Refresh payment" passes a
   part-refunded charge to the refund path, so an action that reads as a
   read-only refresh can hand back more money with no operator choice.
@@ -232,6 +239,13 @@ been checked against the code or given a regression test yet.*
 
 **Work that repeats or stalls**
 
+- `src/shared/db/payments/charges.ts:232` — when the provider says a refund
+  definitely failed, the charge keeps the same one-time key. Stripe and Square
+  tie the answer to that key, so every retry, and the owner's own "refund the
+  rest" action, ask again for the operation that already failed and get the
+  same failure back. The case asks the owner to act while the action it offers
+  cannot work. Keep the key when the outcome is unknown, but clear it once the
+  provider has answered plainly.
 - `src/shared/renewal.ts:151` — two paid renewals for the same site share one
   deadline instead of taking turns, so one can overwrite the other's extension.
 - `src/shared/payment-runtime/process.ts:152` — when resolving the payment
@@ -256,6 +270,12 @@ been checked against the code or given a regression test yet.*
 
 **Records that end up wrong**
 
+- `src/shared/payment-completion.ts:239` — the ticket links are kept in two
+  places: on the payment, and again inside the stored completion. Marking them
+  used only clears the first, so while the rest of the completion is still
+  waiting, revisiting the provider's return page rebuilds the answer from the
+  second copy and shows the ticket link again — for as long as the outstanding
+  work stays stuck. Whatever marks them used has to cover both copies.
 - `src/features/api/payment-processing/create.ts:192` — a newly paid booking is
   stored with an empty `payment_id` while the attendee panel and the CSV export
   still read that field, so both now show nothing for new bookings.
