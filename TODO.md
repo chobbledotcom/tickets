@@ -245,8 +245,12 @@ been checked against the code or given a regression test yet.*
   instead of being moved aside.
 - `src/shared/db/payments/bulk-refunds.ts:57` — a refund is queued while the
   booking's completion is still pending, and the two then fight.
-- `src/shared/db/migrations/2026-07-26_payment_aggregate.ts:241` — paging stops
-  while raw legacy ids are still left, so the tail of a large table is skipped.
+- `src/shared/db/migrations/2026-07-26_payment_aggregate.ts:241` — a page is
+  judged finished by how many payments came out of it, but a SumUp payment's
+  two ids merge into one, so a full page of 25 source rows can look short. The
+  copy then calls the source finished, reaches the check that nothing is left,
+  and fails the whole upgrade rather than carrying on. Count the source rows,
+  or read the source again after draining.
 - `src/shared/db/migrations/2026-07-26_payment_aggregate.ts:55` — a SumUp
   payment's two ids can land in different migration pages and be copied twice.
 
@@ -260,8 +264,12 @@ been checked against the code or given a regression test yet.*
 - `src/shared/merge/attendee-merge.ts:828` — merging an attendee with a paid
   delivery still pending leaves the delivery and any reserved site pointing at
   the attendee that was deleted.
-- `src/shared/sumup.ts:176` — a retried SumUp amount is converted with the
-  current currency rather than the one stored on the payment.
+- `src/shared/sumup.ts:176` — a retried SumUp payment is turned back into
+  pounds and pence using the site's *current* currency, not the one stored on
+  the payment. If the owner has since switched to a currency with no decimal
+  places, 1000 minor units is sent as 1000 rather than 10 — a hundred times the
+  money — and the reply is checked with the same wrong divisor, so the check
+  still passes. Use the currency stored on the payment for both.
 - `src/shared/db/payments/redaction-eligibility.ts:21` — a fully refunded
   session with no completion plan is never redacted, so its personal details
   are kept for ever.
