@@ -36,6 +36,21 @@ export const browserOf = (world: TicketsWorld, who: string): TestBrowser =>
 export const scenarioBrowser = (world: TicketsWorld): TestBrowser =>
   browserOf(world, ORGANISER);
 
+/** Take a thing down from its own page: follow its delete link, type a name
+ * to confirm, and keep what the site said for the story to read. Curried on
+ * the page and the link, so each kind of thing declares itself in one line. */
+export const takesDownFromOwnPage =
+  (
+    openPage: (world: TicketsWorld) => Promise<TestBrowser>,
+    deleteLabel: string,
+  ): ((world: TicketsWorld, typed: string) => Promise<void>) =>
+  async (world: TicketsWorld, typed: string): Promise<void> => {
+    const browser = await openPage(world);
+    await browser.clickLink(deleteLabel);
+    await fillInAndSend(browser, { confirm_identifier: typed }, deleteLabel);
+    world.ownerTold = browser.pageText;
+  };
+
 /** Forget the Scenario's browser, so the next ask starts a fresh one. Use this
  * after the site itself is replaced and the old session can no longer work. */
 export const resetScenarioBrowser = (world: TicketsWorld): void => {
@@ -59,12 +74,16 @@ export const openAsNewcomer = async (path: string): Promise<TestBrowser> => {
   return browser;
 };
 
+/** One read of a page: how the site answered, and what it said. */
+export interface PageRead {
+  answered: number;
+  said: string;
+}
+
 /** What somebody who was never signed in is shown at an address, and how the
  * site answered. Both come from the one visit, so they always describe the page
  * the visitor really ended on rather than two separate answers. */
-export const newcomerReading = async (
-  path: string,
-): Promise<{ answered: number; said: string }> => {
+export const newcomerReading = async (path: string): Promise<PageRead> => {
   const browser = new TestBrowser();
   const answered = await browser.visit(path);
   return { answered, said: browser.pageText };

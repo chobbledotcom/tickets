@@ -108,6 +108,7 @@ export interface TicketsWorld extends World, EvidencePages {
   bundleOutcome?: string;
   bundleParts?: ThingForSale[];
   bundleTicketPath?: string;
+  buyerQuestion?: { id: number; text: string };
   cashBefore?: number;
   cleanup: PutsThingsBack;
   closedDayOn?: string;
@@ -126,6 +127,7 @@ export interface TicketsWorld extends World, EvidencePages {
   groupSlug?: string;
   holdListingId?: number;
   lengthChangeMessage?: string;
+  listingDetail?: { id: number; name: string };
   listingId?: number;
   mergeOutcome?: { applied: boolean; message: string };
   mergePreviewHtml?: string;
@@ -138,6 +140,7 @@ export interface TicketsWorld extends World, EvidencePages {
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
+  ownerTold?: string;
   placeholderId?: number;
   questionId?: number;
   raceListing?: string;
@@ -167,9 +170,11 @@ export const addDatabaseCleanup = (
 };
 
 export const requiredWorldValue = <Value>(
-  value: Value | undefined,
+  value: Value | null | undefined,
   name: string,
 ): Value => {
-  if (value === undefined) throw new Error(`${name} was not set`);
+  if (value === undefined || value === null) {
+    throw new Error(`${name} was not set`);
+  }
   return value;
 };

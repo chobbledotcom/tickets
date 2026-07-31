@@ -128,6 +128,7 @@
     "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/cli": "jsr:@std/cli@^1.0.30",
     "@std/collections": "jsr:@std/collections@^1.2.0",
+    "@std/csv": "jsr:@std/csv@^1.0.6",
     "@std/expect": "jsr:@std/expect@^1.0.18",
     "@std/testing": "jsr:@std/testing@^1.0.17",
     "@std/path": "jsr:@std/path@^1.1.4"

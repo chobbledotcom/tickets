@@ -6,6 +6,8 @@ import {
   attributesTable,
   listingAttributeOptions,
 } from "#shared/db/attributes.ts";
+import { expectRedirect } from "#test-utils/assertions.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 export const createTestAttribute = async (
   name = "Test attribute",
@@ -47,3 +49,12 @@ export const assignTestAttributeOptions = (
     listingId,
     options.map((option) => option.id),
   );
+
+/** Create an attribute through the real admin POST and return its new id. */
+export const createAttributeViaRoute = async (
+  name: string,
+): Promise<number> => {
+  const { response } = await adminFormPost("/admin/attributes", { name });
+  const location = expectRedirect(response, /^\/admin\/attributes\/\d+/);
+  return Number(new URL(location, "http://localhost").pathname.split("/")[3]);
+};

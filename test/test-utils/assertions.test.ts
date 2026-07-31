@@ -23,9 +23,33 @@ describe("inputNamed", () => {
     );
   });
 
-  test("rejects a page with no input of that name", () => {
+  test("rejects a page with no control of that name", () => {
     expect(() => inputNamed("<p>No boxes here</p>", "a")).toThrow(
-      "No input named a on the page",
+      "No control named a on the page",
+    );
+  });
+
+  test("hands back a textarea with the given name too", () => {
+    expect(inputNamed('<textarea name="notes" required>', "notes")).toBe(
+      '<textarea name="notes" required>',
+    );
+  });
+
+  test("hands back a select with the given name too", () => {
+    expect(inputNamed('<select name="kind">', "kind")).toBe(
+      '<select name="kind">',
+    );
+  });
+
+  test("rejects a control whose only name-like attribute is data-name", () => {
+    expect(() => inputNamed('<input data-name="a">', "a")).toThrow(
+      "No control named a on the page",
+    );
+  });
+
+  test("rejects a longer tag that merely starts with a control name", () => {
+    expect(() => inputNamed('<input-widget name="a">', "a")).toThrow(
+      "No control named a on the page",
     );
   });
 });

@@ -77,14 +77,14 @@ describe("LogisticsAgentEditPanel", () => {
     const html = String(
       LogisticsAgentEditPanel({
         agent,
-        error: "Agent Name is required",
+        error: "Agent name is required",
         selectedUserIds: new Set([1]),
         users,
         values: { name: "Submitted van" },
       }),
     );
     expect(html).toContain('value="Submitted van"');
-    expect(html).toContain("Agent Name is required");
+    expect(html).toContain("Agent name is required");
     expect(html).toMatch(/value="1"[^>]*checked|checked[^>]*value="1"/);
   });
 });
@@ -114,8 +114,8 @@ describe("logisticsAgentPages new page", () => {
 
   test("renders the add-agent form posting to the logistics base path", () => {
     const html = logisticsAgentPages.newPage(OWNER_SESSION);
-    expect(html).toContain("Add Logistics Agent");
-    expect(html).toContain("Create Agent");
+    expect(html).toContain("Add logistics agent");
+    expect(html).toContain("Create agent");
     expect(html).toContain('action="/admin/logistics"');
     // A direct URL stays usable while the feature is hidden, without restoring
     // its navigation link.
@@ -135,7 +135,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     expect(html).not.toContain('name="has_logistics"');
     expect(html).toContain('href="/admin/guide#logistics"');
     expect(html).toContain("Logistics guide");
-    expect(html).toContain("Logistics Agents");
+    expect(html).toContain("Logistics agents");
     expect(html).toContain('href="/admin/logistics/7"');
   });
 
@@ -143,7 +143,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     await enableFeature("logistics");
     const html = adminLogisticsPage([agent], OWNER_SESSION);
 
-    expect(html).toContain("Logistics Agents");
+    expect(html).toContain("Logistics agents");
     expect(html).toContain("Agents (e.g. vans, drivers, or crew)");
     expect(html).toContain('href="/admin/logistics/7"');
     expect(html).toContain("Van 1");
@@ -151,7 +151,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     expect(html).toContain('action="/admin/logistics"');
     expect(html).toContain('class="listing-section"');
     expect(html).toContain('href="/icons.svg#plus"');
-    expect(html).toContain("Add Agent");
+    expect(html).toContain("Add agent");
     // The page marks the logistics nav entry active.
     expect(html).toContain('<a class="active" href="/admin/logistics">');
     // A populated list shows the table, not the empty-state placeholder.
@@ -161,7 +161,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
   test("shows the empty-state placeholder with no agents", () => {
     const html = adminLogisticsPage([], OWNER_SESSION);
 
-    expect(html).toContain("Logistics Agents");
+    expect(html).toContain("Logistics agents");
     expect(html).toContain("No logistics agents yet.");
     // No agent rows are rendered.
     expect(html).not.toContain('href="/admin/logistics/7"');

@@ -116,6 +116,21 @@ const usableCheckboxes = (
   return boxes;
 };
 
+/** Confirm the page offers a box for this field sending exactly this value —
+ * ticking a box nobody is shown would prove nothing. Throws otherwise. */
+export const requireCheckboxOffered = (
+  html: string,
+  field: string,
+  value: string,
+): void => {
+  const offered = usableCheckboxes(html, field).map((box) => box.value);
+  if (!offered.includes(value)) {
+    throw new Error(
+      `The page offers no ${field} box sending "${value}" (offered: ${offered.join(", ") || "none"})`,
+    );
+  }
+};
+
 /** The value the page's own box for a field sends when ticked — what a person
  * ticking it would send, rather than a value the caller believes in. Throws
  * when the page offers no such box, so "the box is gone" and "the box sends

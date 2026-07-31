@@ -1,9 +1,11 @@
 import { defineRoutes } from "#routes/router.ts";
+
 /**
  * Admin site page editor routes - manage public site content.
  * Access: owner + editor (managers stay excluded — see SITE_ADMIN_LEVELS).
  */
 
+import { t } from "#i18n";
 import {
   settingsHandler,
   settingsToggle,
@@ -29,58 +31,41 @@ import {
 } from "#templates/admin/site.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 
+/** A markdown text box for one site page, worded by the catalog keys under
+ * `prefix` (`_label`, `_hint`, `_placeholder`). */
+const siteTextarea = <Name extends string>(field: Name, prefix: string) =>
+  ({
+    hintHtml: `${t(`${prefix}_hint`, { max: `${MAX_TEXTAREA_LENGTH}` })} ${formattingHint()}`,
+    id: field,
+    label: t(`${prefix}_label`),
+    markdown: true,
+    maxlength: MAX_TEXTAREA_LENGTH,
+    name: field,
+    placeholder: t(`${prefix}_placeholder`),
+    type: "textarea" as const,
+  }) as const;
+
 export const siteHomeForm = defineForm({
   fields: [
     {
       autocomplete: "off" as const,
-      hint: "Displayed as the main heading on all public pages (max 128 characters).",
+      hint: t("site.home.title_hint", { max: `${MAX_WEBSITE_TITLE_LENGTH}` }),
       id: "website_title",
-      label: "Website Title",
+      label: t("site.home.title_label"),
       maxlength: MAX_WEBSITE_TITLE_LENGTH,
       name: "website_title",
       type: "text" as const,
     },
-    {
-      hintHtml: `Text displayed on the public homepage (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
-      id: "homepage_text",
-      label: "Homepage Text",
-      markdown: true,
-      maxlength: MAX_TEXTAREA_LENGTH,
-      name: "homepage_text",
-      placeholder: "Welcome to our site...",
-      type: "textarea" as const,
-    },
+    siteTextarea("homepage_text", "site.home.text"),
   ] as const,
 });
 
 export const siteContactForm = defineForm({
-  fields: [
-    {
-      hintHtml: `Text displayed on the public contact page (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
-      id: "contact_page_text",
-      label: "Contact Page Text",
-      markdown: true,
-      maxlength: MAX_TEXTAREA_LENGTH,
-      name: "contact_page_text",
-      placeholder: "Get in touch with us...",
-      type: "textarea" as const,
-    },
-  ] as const,
+  fields: [siteTextarea("contact_page_text", "site.contact.text")] as const,
 });
 
 export const siteOrderForm = defineForm({
-  fields: [
-    {
-      hintHtml: `Shown at the top of the public order page (max ${MAX_TEXTAREA_LENGTH} characters). ${formattingHint()}`,
-      id: "order_intro_text",
-      label: "Order Page Intro",
-      markdown: true,
-      maxlength: MAX_TEXTAREA_LENGTH,
-      name: "order_intro_text",
-      placeholder: "Pick the items you're interested in...",
-      type: "textarea" as const,
-    },
-  ] as const,
+  fields: [siteTextarea("order_intro_text", "site.order.text")] as const,
 });
 
 /** Count active, visible listings — every one appears on the order page. */

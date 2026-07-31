@@ -7,6 +7,7 @@
  */
 
 import { join } from "@std/path";
+import { writeWholeOrNotAtAll } from "#scripts/mutation/write-whole.ts";
 import { errorMessage } from "#shared/error-message.ts";
 
 /** One file to bring back, and what it held when the run started. */
@@ -27,25 +28,50 @@ export const readCopyBackFiles = (
     })),
   );
 
-/**
- * Copy one file out of the snapshot, and say whether it moved. A file someone
- * else edited during the run stops the copy: the run's version was built from
- * the older text, so writing it would undo their edit.
- */
-const copyOneBack = async (
+/** Stop the copy when someone else edited the file during the run: the run's
+ * version was built from the older text, so writing it would undo their edit. */
+const assertUnchanged = async (
   root: string,
-  workRoot: string,
   { before, file }: CopyBackFile,
-): Promise<boolean> => {
+): Promise<void> => {
   if ((await Deno.readTextFile(join(root, file))) !== before) {
     throw new Error(
       `${file} changed while the isolated run was going, so its result was left behind. Re-run it on an unchanged checkout.`,
     );
   }
-  const after = await Deno.readTextFile(join(workRoot, file));
-  if (after === before) return false;
-  await Deno.writeTextFile(join(root, file), after);
-  return true;
+};
+
+/** One file this run wrote back, with the text before and after the write. */
+export interface WrittenFile {
+  after: string;
+  before: string;
+  file: string;
+}
+
+/** Undo this run's own writes after a failure. A file that no longer holds
+ * what this run wrote was edited again meanwhile — that edit stays. Every
+ * file gets its restore attempt even when an earlier one fails, so one bad
+ * path cannot leave the rest of the run's writes applied; what could not be
+ * put back is reported rather than thrown, so the failure that triggered the
+ * undo stays the one the caller rethrows. */
+export const putBackOwnWrites = async (
+  root: string,
+  written: WrittenFile[],
+): Promise<void> => {
+  const problems: string[] = [];
+  for (const { after, before, file } of written) {
+    try {
+      if ((await Deno.readTextFile(join(root, file))) === after) {
+        await writeWholeOrNotAtAll(join(root, file), before);
+        console.log(`Put back ${file}`);
+      }
+    } catch (error) {
+      problems.push(`${file}: ${errorMessage(error)}`);
+    }
+  }
+  if (problems.length > 0) {
+    console.error(`Could not put back every file:\n${problems.join("\n")}`);
+  }
 };
 
 /** Bring every kept file back, and report a failure as an exit code. */
@@ -55,10 +81,28 @@ export const bringFilesBack = async (
   files: CopyBackFile[],
 ): Promise<number> => {
   try {
+    // Check every file before writing any: one changed file stops the whole
+    // copy up front, so a multi-file result is never left partly applied.
     for (const entry of files) {
-      if (await copyOneBack(root, workRoot, entry)) {
+      await assertUnchanged(root, entry);
+    }
+    const written: WrittenFile[] = [];
+    try {
+      for (const entry of files) {
+        // Checked again at the moment of writing: an edit that lands between
+        // the preflight and this file's turn must still stop the overwrite.
+        await assertUnchanged(root, entry);
+        const after = await Deno.readTextFile(join(workRoot, entry.file));
+        if (after === entry.before) continue;
+        await writeWholeOrNotAtAll(join(root, entry.file), after);
+        written.push({ after, before: entry.before, file: entry.file });
         console.log(`Updated ${entry.file}`);
       }
+    } catch (error) {
+      // A failure part-way through must not leave a half-applied result: put
+      // back what was already written, then report the original failure.
+      await putBackOwnWrites(root, written);
+      throw error;
     }
     return 0;
   } catch (error) {

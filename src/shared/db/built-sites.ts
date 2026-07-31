@@ -184,7 +184,7 @@ export const updateBuiltSite = (
   id: InValue,
   changesFor: (existing: BuiltSite) => BuiltSiteUpdate | null,
 ): Promise<BuiltSite | null> => {
-  const updateStatement = rawBuiltSitesTable.updateStatement!;
+  const updateStatement = rawBuiltSitesTable.updateStatement;
   return retryWrite(`Could not update built site ${String(id)}`, async () => {
     const existing = await findBuiltSiteByIdPrimary(id);
     if (!existing) return { value: null };

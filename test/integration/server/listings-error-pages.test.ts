@@ -44,7 +44,7 @@ describeWithEnv(
           name: "",
         },
       );
-      await expectHtmlResponse(response, 400, "Listing Name is required");
+      await expectHtmlResponse(response, 400, "Listing name is required");
     };
 
     describe("admin/listings.ts (listingErrorPage with deleted listing)", () => {
@@ -63,7 +63,7 @@ describeWithEnv(
           thank_you_url: "https://example.com",
         });
         // Should return 400 with error page (listing exists -> listingErrorPage returns htmlResponse)
-        await expectHtmlResponse(response, 400, "Listing Name is required");
+        await expectHtmlResponse(response, 400, "Listing name is required");
       });
     });
     describe("admin/listings.ts (form.get fallbacks)", () => {

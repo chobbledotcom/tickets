@@ -131,10 +131,10 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       await expectHtmlResponse(
         response,
         200,
-        "Add Holiday",
-        "Holiday Name",
-        "Start Date",
-        "End Date",
+        "Add holiday",
+        "Holiday name",
+        "Start date",
+        "End date",
       );
     });
   });
@@ -180,7 +180,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Holiday Name is required"),
+        expect.stringContaining("Holiday name is required"),
         false,
       );
     });
@@ -194,7 +194,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("Start Date is required"),
+        expect.stringContaining("Start date is required"),
         false,
       );
     });
@@ -208,7 +208,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       expect(response.status).toBe(302);
       expectFlash(
         response,
-        expect.stringContaining("End Date is required"),
+        expect.stringContaining("End date is required"),
         false,
       );
     });

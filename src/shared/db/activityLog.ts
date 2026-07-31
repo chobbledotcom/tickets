@@ -151,7 +151,7 @@ export const logActivity = async (
   attendeeId?: number | null,
   transaction?: TxScope,
 ): Promise<ActivityLogEntry> => {
-  const statement = await activityLogTable.insertStatement!(
+  const statement = await activityLogTable.insertStatement(
     {
       attendeeId: attendeeId ?? null,
       listingId: toListingId(listing),
