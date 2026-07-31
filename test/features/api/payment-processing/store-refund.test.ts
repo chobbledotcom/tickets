@@ -18,15 +18,24 @@ import type { PaymentWork } from "#routes/api/webhook-types.ts";
 import { processBooking } from "#shared/booking.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import {
-  PAYMENT_BOOKING_COMPLETION,
+  applyPaymentSessionClaim,
+  requirePaymentSessionClaim,
+} from "#shared/db/payments/claims.ts";
+import { bookingCompletion } from "#shared/payment-completion.ts";
+import {
+  CHARGE_RESOURCE,
+  PAYMENT_TIME,
   paymentSessionInput,
   READY_RESULT,
+  SESSION_RESOURCE,
+  sessionProgress,
 } from "#test/shared/db/payments/fixtures.ts";
 import { createPendingPayment } from "#test/shared/payment-runtime/fixtures.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 
@@ -38,16 +47,39 @@ const workFor = async (
   amountTotal: number,
   intent: BookingIntent,
 ): Promise<PaymentWork> => {
-  const payment = await createPendingPayment(paymentSessionInput(id));
+  // The stored payment has to be for the same order the story finishes, or
+  // the booking it writes names a listing that was never made.
+  const payment = await createPendingPayment({
+    ...paymentSessionInput(id),
+    bookingIntent: intent,
+  });
+  // The payment has to have started being worked on: the writes that finish
+  // one are fenced on its lease and its state, so a payment still sitting at
+  // pending matches no rows and the booking quietly fails to store.
+  const started = await applyPaymentSessionClaim(
+    await requirePaymentSessionClaim(id, 60_000),
+    sessionProgress({ state: "processing" }),
+  );
+  // Money really was taken: a refused booking hands a charge back, and a
+  // payment with no charge has nothing to give.
+  await savePaymentCharges(
+    id,
+    SESSION_RESOURCE,
+    [
+      {
+        captured: { amount: amountTotal, currency: "GBP" },
+        confirmedRefunded: { amount: 0, currency: "GBP" },
+        refunds: [],
+        resource: CHARGE_RESOURCE,
+      },
+    ],
+    PAYMENT_TIME,
+  );
+  const claim = await requirePaymentSessionClaim(id, 60_000);
   return {
-    claim: {
-      leaseToken: `lease_${id}`,
-      paymentId: id,
-      revision: payment.revision,
-      state: payment.state,
-    },
+    claim,
     intent,
-    payment,
+    payment: started,
     resolution: READY_RESULT,
     session: paymentSession(id, amountTotal),
   };
@@ -294,7 +326,16 @@ describeWithEnv(
       });
       return await settleBalanceSession(
         await workFor(sessionId, amount, intent),
-        PAYMENT_BOOKING_COMPLETION,
+        bookingCompletion(
+          intent,
+          {
+            flow: "balance",
+            listingId,
+            occurredAt: "2026-07-26T12:00:00.000Z",
+            promos: [],
+          },
+          ["ticket-one"],
+        ),
       );
     };
 
