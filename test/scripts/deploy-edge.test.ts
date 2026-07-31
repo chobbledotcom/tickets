@@ -7,8 +7,6 @@ import {
   DEPLOY_BUILT_USAGE,
   type DeployEdgeDeps,
   deployScriptCode,
-  type FetchText,
-  type FetchTextResult,
   formatBunnyError,
   getAccessKey,
   parseDeployBuiltArgs,
@@ -19,6 +17,7 @@ import {
   USAGE,
   uploadScriptCode,
 } from "#scripts/deploy-edge-lib.ts";
+import type { FetchText, FetchTextResult } from "#scripts/fetch-text.ts";
 
 interface FetchCall {
   init: RequestInit;

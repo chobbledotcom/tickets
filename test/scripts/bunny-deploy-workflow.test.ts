@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { map } from "#fp";
 
 const DEPLOY_ACTION_PATH = ".github/actions/deploy-bunny-script/action.yml";
 const BUNNY_DEPLOY_WORKFLOW_PATHS = [
@@ -31,13 +32,43 @@ describe("Bunny deploy workflow", () => {
       BUNNY_DEPLOY_WORKFLOW_PATHS.map(readText),
     );
 
-    for (const workflow of workflows) {
-      expect(workflow).toContain("uses: ./.github/actions/deploy-bunny-script");
-      expect(workflow).toContain(
+    const expected = {
+      omitsMutableBunnyRef: true,
+      passesAccessKey: true,
+      usesLocalAction: true,
+    };
+
+    const checks = map((workflow: string) => ({
+      omitsMutableBunnyRef: !workflow.includes(
+        "BunnyWay/actions/deploy-script@main",
+      ),
+      passesAccessKey: workflow.includes(
         `api_key: ${githubValue("secrets.BUNNY_ACCESS_KEY")}`,
-      );
-      expect(workflow).not.toContain("BunnyWay/actions/deploy-script@main");
-    }
+      ),
+      usesLocalAction: workflow.includes(
+        "uses: ./.github/actions/deploy-bunny-script",
+      ),
+    }))(workflows);
+
+    expect(checks).toEqual(workflows.map(() => expected));
+  });
+
+  test("grants read permission for the same trimmed path it passes to the script", async () => {
+    const action = await readText(DEPLOY_ACTION_PATH);
+    const lines = action.split("\n").map((line) => line.trim());
+
+    const allowRead = lines
+      .find((line) => line.startsWith("--allow-read="))!
+      .match(/--allow-read="([^"]+)"/)![1]!;
+    const scriptFileArg = lines
+      .find((line) => line.startsWith("scripts/deploy-built-edge.ts"))!
+      .match(/deploy-built-edge\.ts\s+"[^"]+"\s+"([^"]+)"/)![1]!;
+
+    // parseDeployBuiltArgs trims the file internally, so the action must hand the
+    // script an already-trimmed path and grant the read permission for that same
+    // path — otherwise a padded `file:` input leaves Deno denying its own read.
+    expect(allowRead).not.toMatch(/BUNNY_SCRIPT_FILE/);
+    expect(scriptFileArg).toBe(allowRead);
   });
 
   test("restore deploy pins the external Bunny action to a commit SHA", async () => {

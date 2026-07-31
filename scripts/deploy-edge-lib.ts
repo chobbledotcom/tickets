@@ -2,8 +2,6 @@ import { mapNotNullish } from "#fp";
 import type { ScriptIo } from "#scripts/script-runner.ts";
 import type { FetchText, FetchTextResult } from "./fetch-text.ts";
 
-export type { FetchText, FetchTextResult } from "./fetch-text.ts";
-
 export const BUNNY_API_BASE = "https://api.bunny.net";
 export const BUNDLE_PATH = "bunny-script.ts";
 export const USAGE = "Usage: deno task deploy:edge <script-id>";

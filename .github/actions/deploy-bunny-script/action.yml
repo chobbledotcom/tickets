@@ -21,8 +21,12 @@ runs:
         BUNNY_SCRIPT_FILE: ${{ inputs.file }}
         BUNNY_ACCESS_KEY: ${{ inputs.api_key }}
       run: |
+        # Trim whitespace so the read permission matches the path the script reads;
+        # parseDeployBuiltArgs trims the file again, so handing it an already-trimmed
+        # path keeps the permission and the read on the same value.
+        file="$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' <<<"$BUNNY_SCRIPT_FILE")"
         deno run \
           --allow-env=BUNNY_ACCESS_KEY,BUNNY_API_KEY \
-          --allow-read="$BUNNY_SCRIPT_FILE" \
+          --allow-read="$file" \
           --allow-net=api.bunny.net \
-          scripts/deploy-built-edge.ts "$BUNNY_SCRIPT_ID" "$BUNNY_SCRIPT_FILE"
+          scripts/deploy-built-edge.ts "$BUNNY_SCRIPT_ID" "$file"
