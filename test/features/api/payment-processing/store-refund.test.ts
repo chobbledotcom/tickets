@@ -36,6 +36,8 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { savePaymentCharges } from "#test-utils/payment-aggregate.ts";
+import { withRefundMock } from "#test-utils/refund-routes.ts";
+import { required } from "#test-utils/required.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { bookingIntent, paymentSession } from "./index/helpers.ts";
 
@@ -216,20 +218,27 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
   const specFor = (detail: string) =>
     specForFailure({ detail, ok: false, reason: "capacity_exceeded" });
 
-  /** Store a placeholder for a paid-for booking on a real listing. */
-  const storeFor = async (id: string) => {
+  /** Store a placeholder for a paid-for booking on a real listing, saying
+   *  whether the provider hands the money back. Making a payment to work from
+   *  configures a provider, so whether the money comes back is said here
+   *  rather than left to whether one happens to be set up. */
+  const storeFor = async (id: string, moneyComesBack = true) => {
     const listing = await createTestListing({});
     const intent = bookingIntent([{ e: listing.id, p: 1000, q: 1 }]);
     const bookings = placeholderBookings(
       [{ expectedPrice: 1000, item: intent.items[0]!, listing }],
       intent,
     );
-    const result = await storeRefundedBooking(
-      await workFor(id, 1000, intent),
-      bookings,
-      specFor("listing full"),
-    );
-    return { listing, result };
+    const work = await workFor(id, 1000, intent);
+    let stored: Awaited<ReturnType<typeof storeRefundedBooking>> | undefined;
+    await withRefundMock(moneyComesBack, async () => {
+      stored = await storeRefundedBooking(
+        work,
+        bookings,
+        specFor("listing full"),
+      );
+    });
+    return { listing, result: required(stored, "the stored refund result") };
   };
 
   describe("when the money could be sent back", () => {
@@ -237,7 +246,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
       await setupStripe();
       const { result } = await storeFor("cs_refunded");
       expect(result.error).toBe(
-        "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.",
+        "We could not complete your booking. We saved your details so the organiser can help you book again.",
       );
     });
 
@@ -250,14 +259,14 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
   describe("when the money could not be sent back", () => {
     test("tells the customer a refund is being arranged", async () => {
-      const { result } = await storeFor("cs_unrefunded");
+      const { result } = await storeFor("cs_unrefunded", false);
       expect(result.error).toBe(
-        "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook. Your refund is being arranged — please contact us if it does not arrive.",
+        "We could not complete your booking. We saved your details so the organiser can help you book again. Your refund is being arranged. Contact the organiser if it does not arrive.",
       );
     });
 
     test("does not claim the refund happened", async () => {
-      const { result } = await storeFor("cs_unrefunded_flag");
+      const { result } = await storeFor("cs_unrefunded_flag", false);
       expect(result.refund).toBeUndefined();
     });
   });
