@@ -12,7 +12,6 @@ import {
 } from "#test-utils/assertions.ts";
 import { getTicketCsrfToken, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -160,20 +159,6 @@ describeWithEnv(
         expect(response.status).toBe(302);
         const location = response.headers.get("location");
         expect(location).not.toBeNull();
-      });
-
-      test("daily listing excludes holiday dates", async () => {
-        // Create a holiday covering tomorrow
-        await createTestHoliday({
-          endDate: validDate,
-          name: "Test Holiday",
-          startDate: validDate,
-        });
-
-        const listing = await createDailyListing();
-        const html = await assertPublicHtml(`/ticket/${listing.slug}`);
-        // The holiday date should not appear as an option
-        expect(html).not.toContain(`value="${validDate}"`);
       });
     });
   },

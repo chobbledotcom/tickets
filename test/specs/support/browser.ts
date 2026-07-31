@@ -150,6 +150,31 @@ export type TakesOneThingDown = (
   typed: string,
 ) => Promise<string>;
 
+/** The owner makes a record through a form, and the number the site filed it
+ * under is kept by the story's name for it, ready for the steps that find it
+ * again. The form, its button, and where the site lands afterwards are the
+ * only parts that differ between the things made this way. */
+type MakesARecord = (
+  world: TicketsWorld,
+  name: string,
+  fields: Record<string, string>,
+) => Promise<void>;
+
+export const makesRecordThroughForm =
+  (labelled: {
+    button: string;
+    filedAt: RegExp;
+    formPath: string;
+  }): MakesARecord =>
+  async (world, name, fields) => {
+    const browser = await openAdminPage(world, labelled.formPath);
+    await fillInAndSend(browser, fields, labelled.button);
+    world.ownerTold = browser.pageText;
+    const id = browser.currentUrl.match(labelled.filedAt)?.[1];
+    if (!id) throw new Error(`No page address for the new "${name}"`);
+    world.things.remember("record", name, Number(id));
+  };
+
 export const takesDownFromList =
   (
     wayInto: (world: TicketsWorld, name: string) => Promise<string | null>,
