@@ -12,6 +12,7 @@ import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { Currency } from "#shared/payment/money.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -203,6 +204,10 @@ export type ValidatedPaymentSession = {
    *  Validated at the provider boundary alongside its currency, so a malformed
    *  amount never reaches a callback. */
   amountTotal: number;
+  /** The three-letter currency the provider charged in. The callbacks refuse a
+   *  charge in any currency other than the site's — it cannot be honored at the
+   *  signed total — by treating it as a price mismatch. */
+  currency: Currency;
   metadata: SessionMetadata;
   /**
    * When the provider created this checkout, in the ledger's canonical ISO 8601

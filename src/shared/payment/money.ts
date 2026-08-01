@@ -15,6 +15,7 @@ const CurrencySchema = v.pipe(
   v.string(),
   v.regex(/^[A-Z]{3}$/u, "Currency must be three uppercase letters"),
 );
+export type Currency = v.InferOutput<typeof CurrencySchema>;
 
 /** Money: a non-negative minor-unit amount paired with its currency. The
  *  amount is already in the smallest unit the currency uses, so two amounts in

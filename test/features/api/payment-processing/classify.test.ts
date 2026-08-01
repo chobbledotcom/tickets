@@ -32,8 +32,10 @@ const providerAnswers = async (
 const paidSession = (
   metadata: Partial<SessionMetadata> = {},
   amountTotal = 500,
+  currency = "GBP",
 ): ValidatedPaymentSession => ({
   amountTotal,
+  currency,
   id: "cs_classify",
   metadata: {
     ...signedMeta(
@@ -66,6 +68,18 @@ describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
     await setupStripe();
 
     expect(await classifySession(paidSession({}, 900))).toEqual({
+      agreed: 500,
+      verdict: "mismatch",
+    });
+  });
+
+  test("calls it a mismatch when the provider charged in another currency", async () => {
+    // The proof is ours and the amount matches, but a charge in a different
+    // currency cannot be honored at the signed total — it must be refunded,
+    // not booked, so the captured money is never stranded.
+    await setupStripe();
+
+    expect(await classifySession(paidSession({}, 500, "USD"))).toEqual({
       agreed: 500,
       verdict: "mismatch",
     });
@@ -187,6 +201,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     await setupStripe();
     using _provider = await providerAnswers({
       amountTotal: 0,
+      currency: "GBP",
       id: "cs_failed",
       metadata: webhookMeta({
         items: singleItem(99999, 1, 0),
@@ -208,6 +223,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     await setupStripe();
     using _provider = await providerAnswers({
       amountTotal: 500,
+      currency: "GBP",
       id: "cs_unpaid",
       metadata: webhookMeta({ name: "Still Going" }),
       paymentReference: "",

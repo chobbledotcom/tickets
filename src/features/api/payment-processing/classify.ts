@@ -4,6 +4,7 @@
  * ours before anything downstream processes or refunds it.
  */
 
+/* jscpd:ignore-start -- import block */
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type {
@@ -12,12 +13,14 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
+/* jscpd:ignore-end */
 
 /** Makes a logger that records a payment-session error, prefixed with the
  * payment step it happened on (e.g. "redirect", "cancel"). */
@@ -92,6 +95,12 @@ export const classifySession = async (
 ): Promise<SessionClass> => {
   const evaluation = await evaluatePriceProof(session);
   if (evaluation === null || !evaluation.valid) return { verdict: "ignore" };
+  // A charge in a currency other than the site's cannot be honored at the
+  // signed total — the amount is in the wrong unit — so it is refused like any
+  // other mismatch and refunded rather than dropped.
+  if (session.currency !== settings.currency.toUpperCase()) {
+    return { agreed: evaluation.total, verdict: "mismatch" };
+  }
   return session.amountTotal === evaluation.total
     ? { agreed: evaluation.total, verdict: "trusted" }
     : { agreed: evaluation.total, verdict: "mismatch" };

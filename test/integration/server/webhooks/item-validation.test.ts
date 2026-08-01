@@ -127,6 +127,7 @@ describeWithEnv(
         () =>
           Promise.resolve({
             amountTotal: 0,
+            currency: "GBP",
             id: "cs_no_listing_id",
             metadata: webhookMeta({
               email: "nolistingid@example.com",

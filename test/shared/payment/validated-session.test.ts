@@ -138,18 +138,18 @@ describe("validatedPaymentSession", () => {
     ).toBeNull();
   });
 
-  // A currency the provider did give that doesn't match the site's one currency
-  // is refused — the amount would be in the wrong unit for the site-currency
-  // proof the callback checks.
-  it("refuses a currency that does not match the site", () => {
-    expect(
-      validatedPaymentSession({
-        ...basePaid,
-        amountTotal: 1000,
-        currency: "USD",
-      }),
-    ).toBeNull();
-    expect(errorSpy.contains("site currency")).toBe(true);
+  // A currency the provider gave that doesn't match the site's is carried on
+  // the session: the callbacks refuse it (classify treats it as a mismatch and
+  // refunds the captured charge) rather than dropping it here, so the money is
+  // never stranded.
+  it("builds a session carrying a non-site currency", () => {
+    const session = validatedPaymentSession({
+      ...basePaid,
+      amountTotal: 1000,
+      currency: "USD",
+    });
+    expect(session).not.toBeNull();
+    expect(session?.currency).toBe("USD");
   });
 
   // A paid charge must name the provider resource that captured it; the old
