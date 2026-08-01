@@ -13,6 +13,7 @@ import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { Currency } from "#shared/payment/money.ts";
+import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -296,17 +297,22 @@ export interface PaymentProvider {
    * event structure, so the webhook handler stays provider-agnostic.
    *
    * @returns the session, "skip" if the event should be acknowledged
-   *          without processing (e.g. pending payment), or null on error.
+   *          without processing (e.g. pending payment), a rejection when the
+   *          provider reported a paid charge the boundary could not read, or
+   *          null on error.
    */
   resolveWebhookSession(
     listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null>;
+  ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null>;
 
   /**
    * Retrieve and validate a completed checkout session by ID.
-   * Returns the validated session or null if not found / invalid.
+   * Returns the validated session, a rejection when the provider reported a
+   * paid charge the boundary could not read, or null if not found.
    */
-  retrieveSession(sessionId: string): Promise<ValidatedPaymentSession | null>;
+  retrieveSession(
+    sessionId: string,
+  ): Promise<ValidatedPaymentSession | SessionRejection | null>;
 
   /**
    * Set up a webhook endpoint for this provider.

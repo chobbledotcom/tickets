@@ -79,6 +79,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       Promise.resolve({
         amountMinor: 1000,
         currency: "GBP",
+        overPrecise: false,
         reference,
         status,
         transactionId,

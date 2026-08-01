@@ -9,6 +9,7 @@ import { type SumupCheckout, sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { asSession } from "#test-utils/payment-session.ts";
 
 /** Booking metadata as buildItemsMetadata would write it. */
 const META = {
@@ -22,6 +23,7 @@ const META = {
 const checkout = (over: Partial<SumupCheckout> = {}): SumupCheckout => ({
   amountMinor: 1000,
   currency: "GBP",
+  overPrecise: false,
   reference: "ref",
   status: "PAID",
   transactionId: "txn",
@@ -70,6 +72,11 @@ describe("sumup-provider", () => {
       });
     });
 
+    test("asSession refuses a null or rejected result", () => {
+      expect(() => asSession(null)).toThrow();
+      expect(() => asSession({ reason: "blank_reference" })).toThrow();
+    });
+
     test("fetches by the stored SumUp id and returns the paid session", async () => {
       await stageCheckout();
       await withFetched(checkout(), async (calls) => {
@@ -82,7 +89,7 @@ describe("sumup-provider", () => {
             paymentStatus: "paid",
           }),
         );
-        expect(result!.metadata.email).toBe("alice@example.com");
+        expect(asSession(result).metadata.email).toBe("alice@example.com");
         expect(calls()).toEqual([["co_1"]]);
       });
     });
@@ -93,7 +100,7 @@ describe("sumup-provider", () => {
         checkout({ createdAt: "2026-06-20T09:00:00+00:00" }),
         async () => {
           const result = await sumupPaymentProvider.retrieveSession("ref");
-          expect(result!.createdAt).toBe("2026-06-20T09:00:00.000Z");
+          expect(asSession(result).createdAt).toBe("2026-06-20T09:00:00.000Z");
         },
       );
     });
@@ -104,7 +111,7 @@ describe("sumup-provider", () => {
         checkout({ createdAt: "not-a-timestamp" }),
         async () => {
           const result = await sumupPaymentProvider.retrieveSession("ref");
-          expect(result!.createdAt).toBeUndefined();
+          expect(asSession(result).createdAt).toBeUndefined();
         },
       );
     });
@@ -115,7 +122,7 @@ describe("sumup-provider", () => {
         checkout({ status: "PENDING", transactionId: "" }),
         async () => {
           const result = await sumupPaymentProvider.retrieveSession("ref");
-          expect(result!.paymentStatus).toBe("unpaid");
+          expect(asSession(result).paymentStatus).toBe("unpaid");
         },
       );
     });
@@ -126,7 +133,7 @@ describe("sumup-provider", () => {
         checkout({ status: "FAILED", transactionId: "" }),
         async () => {
           const result = await sumupPaymentProvider.retrieveSession("ref");
-          expect(result!.paymentStatus).toBe("failed");
+          expect(asSession(result).paymentStatus).toBe("failed");
         },
       );
     });
@@ -251,14 +258,23 @@ describe("sumup-provider", () => {
       });
     });
 
-    test("returns null when the checkout carries a malformed charge", async () => {
-      await stageCheckout();
-      await withFetched(checkout({ currency: "GB" }), async () => {
-        expect(
-          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
-        ).toBeNull();
+    for (const [name, checkoutOverrides] of [
+      ["a malformed paid charge", { currency: "GB" }],
+      ["an over-precise paid charge", { overPrecise: true }],
+    ] as const) {
+      test(`returns a refundable rejection for ${name}`, async () => {
+        await stageCheckout();
+        await withFetched(checkout(checkoutOverrides), async () => {
+          expect(
+            await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+          ).toEqual({
+            paymentReference: "txn",
+            reason: "malformed_charge",
+            refundable: true,
+          });
+        });
       });
-    });
+    }
 
     test("returns null when the checkout reference is blank", async () => {
       await stageCheckout();
@@ -354,6 +370,17 @@ describe("sumup-provider", () => {
     test("defaults missing fields to empty strings", async () => {
       expect(await verify("{}")).toEqual({
         listing: { data: { object: { id: "" } }, id: "", type: "" },
+        valid: true,
+      });
+    });
+
+    // A falsy non-string id/type is not the missing-field marker: `?? ""`
+    // passes it through, while `|| ""` would replace it — the webhook then
+    // rejects the session either way (a falsy id), but the parsed shape pins
+    // the `??` behavior.
+    test("passes falsy non-string id and event_type through unchanged", async () => {
+      expect(await verify('{"event_type":false,"id":0}')).toEqual({
+        listing: { data: { object: { id: 0 } }, id: 0, type: false },
         valid: true,
       });
     });

@@ -7,6 +7,7 @@
 /* jscpd:ignore-start -- import block */
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
+import { refundRejectedCharge } from "#routes/api/payment-processing/refunds.ts";
 import type {
   SessionValidation,
   SignedVerdict,
@@ -15,6 +16,7 @@ import { paymentErrorResponse } from "#routes/payment-response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   getPaymentProviderForExistingPayments,
@@ -34,6 +36,18 @@ export const paymentSessionErrorLogger =
 
 /** Log a payment session error with redirect context prefix */
 const logRedirectError = paymentSessionErrorLogger("redirect");
+
+/** A session that could not be read: log why and return the shared refusal. */
+const sessionUnavailable = (
+  sessionId: string,
+  why: string,
+): SessionValidation => {
+  logRedirectError(`Session ${why} (session=${sessionId})`);
+  return {
+    ok: false,
+    response: paymentErrorResponse("Payment session not found"),
+  };
+};
 
 /** Raise a checkout we can prove is ours but whose booking will not read. */
 const logUnreadableBooking = paymentSessionErrorLogger("booking");
@@ -141,12 +155,14 @@ export const validatePaidSession = async (
   }
 
   const session = await provider.retrieveSession(sessionId);
+  // A charge the boundary could not read: refund a paid one with a usable
+  // reference so the captured money never disappears, then tell the buyer.
+  if (isSessionRejection(session)) {
+    await refundRejectedCharge(session);
+    return sessionUnavailable(sessionId, `rejected as ${session.reason}`);
+  }
   if (!session) {
-    logRedirectError(`Session not found (session=${sessionId})`);
-    return {
-      ok: false,
-      response: paymentErrorResponse("Payment session not found"),
-    };
+    return sessionUnavailable(sessionId, "not found");
   }
 
   // Declined or expired checkout: SumUp's hosted page has a single redirect

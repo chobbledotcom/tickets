@@ -1,6 +1,9 @@
 // jscpd:ignore-start
+import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { stripeApi } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
   expectHtmlResponse,
@@ -67,6 +70,41 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           await expectHtmlResponse(response, 400, "Payment session not found");
         },
       );
+    });
+
+    test("refunds and refuses a paid session the boundary could not read", async () => {
+      await setupStripe();
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const refundSpy = spy(stripeApi, "refundPayment");
+      try {
+        await withMocks(
+          () =>
+            stub(stripePaymentProvider, "retrieveSession", () =>
+              Promise.resolve({
+                paymentReference: "pi_unusable",
+                reason: "malformed_charge",
+                refundable: true,
+              }),
+            ),
+          async () => {
+            const response = await handleRequest(
+              mockRequest("/payment/cancel?session_id=cs_rejected"),
+            );
+            await expectHtmlResponse(
+              response,
+              400,
+              "Payment session not found",
+            );
+          },
+        );
+        expect(refundSpy.calls.length).toBe(1);
+        expect(refundSpy.calls[0]?.args[0]).toBe("pi_unusable");
+      } finally {
+        refundSpy.restore();
+      }
     });
 
     // The page itself, and which page it offers to try again, are covered

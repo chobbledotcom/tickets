@@ -7,7 +7,11 @@
 
 import type Stripe from "stripe";
 import * as v from "valibot";
-import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
+import {
+  type SessionRejection,
+  sessionOrRejection,
+  validatedPaymentSession,
+} from "#shared/payment/validated-session.ts";
 import {
   hasRequiredSessionMetadata,
   makeCreateCheckoutSession,
@@ -36,7 +40,7 @@ type StripeCheckoutCompletedEvent = Pick<
 
 const toValidatedSession = (
   session: StripeCheckoutSession,
-): ValidatedPaymentSession | null => {
+): ValidatedPaymentSession | SessionRejection | null => {
   const {
     amount_total,
     currency,
@@ -46,15 +50,17 @@ const toValidatedSession = (
     payment_status,
   } = session;
   if (!hasRequiredSessionMetadata(metadata)) return null;
-  return validatedPaymentSession({
-    amountTotal: amount_total,
-    createdAt: isoFromUnixSeconds(session.created),
-    currency: currency ?? null,
-    id,
-    metadata,
-    paymentReference: payment_intent ?? "",
-    paymentStatus: payment_status,
-  });
+  return sessionOrRejection(
+    validatedPaymentSession({
+      amountTotal: amount_total,
+      createdAt: isoFromUnixSeconds(session.created),
+      currency: currency ?? null,
+      id,
+      metadata,
+      paymentReference: payment_intent ?? "",
+      paymentStatus: payment_status,
+    }),
+  );
 };
 
 /** Stripe's checkout-session builder (see {@link makeCreateCheckoutSession}). */
@@ -83,7 +89,9 @@ export const stripePaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession({
     data: { object: obj },
-  }: WebhookEvent): Promise<ValidatedPaymentSession | "skip" | null> {
+  }: WebhookEvent): Promise<
+    ValidatedPaymentSession | "skip" | SessionRejection | null
+  > {
     const id = obj.id;
     if (typeof id !== "string" || id.length === 0) return null;
 
@@ -94,7 +102,7 @@ export const stripePaymentProvider: PaymentProvider = {
 
   async retrieveSession(
     sessionId: string,
-  ): Promise<ValidatedPaymentSession | null> {
+  ): Promise<ValidatedPaymentSession | SessionRejection | null> {
     const session = await stripeApi.retrieveCheckoutSession(sessionId);
     if (!session) return null;
     return toValidatedSession(session);

@@ -245,7 +245,7 @@ describe("payment-helpers", () => {
 
   test("validatedPaymentSession includes a supplied creation time", () => {
     const createdAt = "2026-07-19T12:00:00.000Z";
-    const session = validatedPaymentSession({
+    const build = validatedPaymentSession({
       amountTotal: 1000,
       createdAt,
       currency: "GBP",
@@ -255,7 +255,12 @@ describe("payment-helpers", () => {
       paymentStatus: "paid",
     });
 
-    expect(session).toEqual(expect.objectContaining({ createdAt }));
+    expect(build).toEqual(
+      expect.objectContaining({
+        ok: true,
+        session: expect.objectContaining({ createdAt }),
+      }),
+    );
   });
 
   test("parseWebhookPayload returns the invalid JSON error", () => {

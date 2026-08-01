@@ -21,6 +21,7 @@ import {
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
+import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
@@ -48,6 +49,18 @@ export const getPaymentProviderOrLog = async (
   const provider = await getPaymentProviderForExistingPayments();
   if (!provider) logError({ code, detail, listingId });
   return provider;
+};
+
+/**
+ * Refund a paid charge the provider boundary could not read, when its
+ * reference is usable. A blank-reference rejection names no charge to refund.
+ */
+export const refundRejectedCharge = async (
+  rejection: SessionRejection,
+): Promise<void> => {
+  if (rejection.reason !== "blank_reference" && rejection.refundable) {
+    await tryRefund(rejection.paymentReference);
+  }
 };
 
 /**

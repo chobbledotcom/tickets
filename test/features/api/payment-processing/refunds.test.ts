@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { tryRefund } from "#routes/api/payment-processing/refunds.ts";
+import {
+  refundRejectedCharge,
+  tryRefund,
+} from "#routes/api/payment-processing/refunds.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 
@@ -44,5 +47,28 @@ describe("tryRefund resource id", () => {
     withStripeProvider(async () => {
       expect(await tryRefund("   ")).toBe(false);
       expect(await tryRefund("\t\n")).toBe(false);
+    }));
+
+  it("refunds a rejected paid charge that carries a usable reference", async () => {
+    const original = paymentsApi.getConfiguredProvider;
+    paymentsApi.getConfiguredProvider = () => "stripe";
+    const refundSpy = spy(stripeApi, "refundPayment");
+    try {
+      await refundRejectedCharge({
+        paymentReference: "pi_usable",
+        reason: "malformed_charge",
+        refundable: true,
+      });
+      expect(refundSpy.calls.length).toBe(1);
+      expect(refundSpy.calls[0]?.args[0]).toBe("pi_usable");
+    } finally {
+      refundSpy.restore();
+      paymentsApi.getConfiguredProvider = original;
+    }
+  });
+
+  it("does not refund a blank-reference rejection", () =>
+    withStripeProvider(async () => {
+      await refundRejectedCharge({ reason: "blank_reference" });
     }));
 });

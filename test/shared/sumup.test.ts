@@ -108,6 +108,7 @@ describe("sumup", () => {
         expect(result).toEqual({
           amountMinor: 1250,
           currency: "GBP",
+          overPrecise: false,
           reference: "ref_a",
           status: "PAID",
           transactionId: "txn_a",
@@ -151,7 +152,7 @@ describe("sumup", () => {
       });
     });
 
-    test("rejects a checkout amount more precise than the currency allows", async () => {
+    test("flags a checkout amount more precise than the currency allows", async () => {
       const client = makeClient({
         get: () =>
           Promise.resolve({
@@ -162,9 +163,11 @@ describe("sumup", () => {
           }),
       });
       await withClient(client, async () => {
-        // The raw major-unit amount must fail before it is rounded to minor
-        // units, so an over-precise charge can never round to the signed total.
-        expect(await retrieveCheckoutById("co_overprecise")).toBeNull();
+        // The raw major-unit amount cannot be rounded silently: the checkout is
+        // flagged so the adapter refuses the charge and the callback refunds it.
+        expect(await retrieveCheckoutById("co_overprecise")).toEqual(
+          expect.objectContaining({ overPrecise: true }),
+        );
       });
     });
   });

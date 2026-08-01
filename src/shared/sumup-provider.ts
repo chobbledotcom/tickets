@@ -17,7 +17,13 @@ import {
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
-import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
+import {
+  isSessionRejection,
+  malformedChargeRejection,
+  type SessionRejection,
+  sessionOrRejection,
+  validatedPaymentSession,
+} from "#shared/payment/validated-session.ts";
 import {
   makeCreateCheckoutSession,
   toCanonicalIso,
@@ -47,13 +53,23 @@ const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
 
 /** Build a validated session from a fetched checkout and its staged metadata.
  * The metadata was written by our own buildItemsMetadata, so it always carries
- * the required fields. Returns null when the checkout's charge or resource id
- * is malformed (the boundary validates both). */
+ * the required fields. Returns a rejection when the checkout's charge or
+ * resource id is malformed (the boundary validates both), so a paid charge the
+ * boundary cannot read still reaches the refund path. */
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession | null =>
-  validatedPaymentSession({
+): ValidatedPaymentSession | SessionRejection => {
+  // An over-precise raw amount cannot be trusted in minor units: refuse the
+  // charge and let the callback refund a paid one rather than booking a
+  // charge for an amount the provider did not actually take.
+  if (checkout.overPrecise) {
+    return malformedChargeRejection(
+      checkout.transactionId,
+      checkout.status === "PAID",
+    );
+  }
+  const build = validatedPaymentSession({
     amountTotal: checkout.amountMinor,
     createdAt: toCanonicalIso(checkout.createdAt),
     currency: checkout.currency,
@@ -62,6 +78,8 @@ const buildValidatedSession = (
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
   });
+  return sessionOrRejection(build);
+};
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSumupCheckoutSession = makeCreateCheckoutSession(
@@ -86,7 +104,7 @@ export const sumupPaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null> {
+  ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null> {
     if (!webhookEvent.id) return null;
     // Unsigned webhooks: only fetch checkouts we created. Spam or another
     // integration's listings are acknowledged without an API call.
@@ -103,8 +121,9 @@ export const sumupPaymentProvider: PaymentProvider = {
     // would process the wrong booking's metadata.
     if (stored.sumupId !== webhookEvent.id) return null;
     const session = buildValidatedSession(checkout, stored.metadata);
-    // A malformed charge the boundary refused: nothing to process.
-    if (!session) return null;
+    // A charge the boundary could not read: surface the rejection so a paid
+    // one still reaches the refund path.
+    if (isSessionRejection(session)) return session;
     // Not yet (or never) paid: acknowledge without processing.
     return session.paymentStatus === "paid" ? session : "skip";
   },
@@ -115,7 +134,7 @@ export const sumupPaymentProvider: PaymentProvider = {
      Square fetches the order and its payment from the API). */
   async retrieveSession(
     sessionId: string,
-  ): Promise<ValidatedPaymentSession | null> {
+  ): Promise<ValidatedPaymentSession | SessionRejection | null> {
     /* jscpd:ignore-end */
     // sessionId is our checkout_reference (set on the redirect URL); the
     // staged row carries the SumUp id for a direct fetch. An empty sumupId

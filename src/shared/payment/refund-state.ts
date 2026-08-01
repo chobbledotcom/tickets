@@ -7,7 +7,7 @@ import * as v from "valibot";
  * whose record never said whether its refund went through. A charge made on
  * this system is always a known "none" or "completed".
  */
-export const RefundStateSchema = v.picklist(["none", "completed", "unknown"]);
+const RefundStateSchema = v.picklist(["none", "completed", "unknown"]);
 export type RefundState = v.InferOutput<typeof RefundStateSchema>;
 
 /**

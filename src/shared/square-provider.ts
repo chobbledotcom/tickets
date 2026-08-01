@@ -13,7 +13,11 @@
  */
 
 import { logDebug } from "#shared/logger.ts";
-import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
+import {
+  type SessionRejection,
+  sessionOrRejection,
+  validatedPaymentSession,
+} from "#shared/payment/validated-session.ts";
 import {
   hasRequiredSessionMetadata,
   toCanonicalIso,
@@ -64,7 +68,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession(
     listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null> {
+  ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null> {
     const obj = listing.data.object;
 
     // Square nests payment fields under data.object.payment
@@ -107,7 +111,7 @@ export const squarePaymentProvider: PaymentProvider = {
      Square fetches the order and its payment from the API). */
   async retrieveSession(
     sessionId: string,
-  ): Promise<ValidatedPaymentSession | null> {
+  ): Promise<ValidatedPaymentSession | SessionRejection | null> {
     /* jscpd:ignore-end */
     // sessionId is the Square order ID
     const order = await retrieveOrder(sessionId);
@@ -133,15 +137,17 @@ export const squarePaymentProvider: PaymentProvider = {
       }
     }
 
-    return validatedPaymentSession({
-      amountTotal: Number(order.totalMoney.amount),
-      createdAt: toCanonicalIso(order.createdAt),
-      currency: order.totalMoney.currency,
-      id: order.id,
-      metadata,
-      paymentReference,
-      paymentStatus,
-    });
+    return sessionOrRejection(
+      validatedPaymentSession({
+        amountTotal: Number(order.totalMoney.amount),
+        createdAt: toCanonicalIso(order.createdAt),
+        currency: order.totalMoney.currency,
+        id: order.id,
+        metadata,
+        paymentReference,
+        paymentStatus,
+      }),
+    );
   },
 
   setupWebhookEndpoint(

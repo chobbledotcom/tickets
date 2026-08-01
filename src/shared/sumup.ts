@@ -45,8 +45,12 @@ export type SumupCheckout = {
   reference: string;
   /** SumUp checkout lifecycle status. */
   status: CheckoutSuccess["status"];
-  /** Total amount in the app's minor units. */
+  /** Total amount in the app's minor units (rounded from the raw amount). */
   amountMinor: number;
+  /** True when the raw major-unit amount was more precise than the currency
+   *  allows, so the rounded {@link amountMinor} cannot be trusted. The adapter
+   *  refuses such a charge; the callback refunds it when money was captured. */
+  overPrecise: boolean;
   /** The three-letter currency the checkout was taken in (upper-cased). */
   currency: string;
   /** Transaction id of the completing payment (refund/payment reference). */
@@ -113,23 +117,18 @@ const sumupKeyError = (err: unknown): string => {
  * amount, checkout_reference, and currency are always present on checkouts we
  * created (webhook ids are pre-filtered against our staging rows before
  * fetching), so the SDK's optional types are asserted rather than defaulted.
- * The raw amount is checked against the currency's precision before it is
- * rounded to minor units, so an over-precise charge fails loudly instead of
- * silently rounding to a value that could match the signed total.
+ * An over-precise raw amount is flagged (not rounded silently) so the adapter
+ * can refuse the charge and the callback can refund it.
  * transaction_id only exists once a payment attempt succeeds; older attempts
  * in `transactions` may have FAILED, so the fallback picks the successful one.
  */
 const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
   const amount = c.amount!;
-  if (exceedsCurrencyPrecision(amount)) {
-    throw new Error(
-      `SumUp checkout amount ${amount} is more precise than ${settings.currency} allows`,
-    );
-  }
   return {
     amountMinor: toMinorUnits(amount),
     createdAt: c.date,
     currency: c.currency!.toUpperCase(),
+    overPrecise: exceedsCurrencyPrecision(amount),
     reference: c.checkout_reference!,
     status: c.status,
     transactionId:

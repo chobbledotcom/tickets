@@ -8,6 +8,7 @@ import {
 } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { asSession } from "#test-utils/payment-session.ts";
 
 describeSquare(() => {
   describe("squarePaymentProvider integration", () => {
@@ -38,13 +39,15 @@ describeSquare(() => {
           const result =
             await squarePaymentProvider.retrieveSession("order_paid");
           expect(result).not.toBeNull();
-          expect(result!.id).toBe("order_paid");
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_abc");
-          expect(result!.metadata.name).toBe("John Doe");
-          expect(result!.metadata.email).toBe("john@example.com");
-          expect(result!.metadata.phone).toBe("555-1234");
-          expect(result!.metadata.items).toBe('[{"e":1,"q":2,"p":0}]');
+          expect(asSession(result).id).toBe("order_paid");
+          expect(asSession(result).paymentStatus).toBe("paid");
+          expect(asSession(result).paymentReference).toBe("pay_abc");
+          expect(asSession(result).metadata.name).toBe("John Doe");
+          expect(asSession(result).metadata.email).toBe("john@example.com");
+          expect(asSession(result).metadata.phone).toBe("555-1234");
+          expect(asSession(result).metadata.items).toBe(
+            '[{"e":1,"q":2,"p":0}]',
+          );
         },
       );
     });
@@ -70,8 +73,8 @@ describeSquare(() => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("unpaid");
-          expect(result!.paymentReference).toBe("");
+          expect(asSession(result).paymentStatus).toBe("unpaid");
+          expect(asSession(result).paymentReference).toBe("");
         },
       );
     });
@@ -152,9 +155,9 @@ describeSquare(() => {
           const result =
             await squarePaymentProvider.retrieveSession("order_with_amount");
           expect(result).not.toBeNull();
-          expect(result!.amountTotal).toBe(6000);
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_total_123");
+          expect(asSession(result).amountTotal).toBe(6000);
+          expect(asSession(result).paymentStatus).toBe("paid");
+          expect(asSession(result).paymentReference).toBe("pay_total_123");
         },
       );
     });
@@ -189,8 +192,8 @@ describeSquare(() => {
           const result =
             await squarePaymentProvider.retrieveSession("order_multi");
           expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.metadata.items).toBe(items);
+          expect(asSession(result).paymentStatus).toBe("paid");
+          expect(asSession(result).metadata.items).toBe(items);
         },
       );
     });

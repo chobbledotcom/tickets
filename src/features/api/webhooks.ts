@@ -25,7 +25,10 @@ import {
   formatPaymentError,
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
-import { getPaymentProviderOrLog } from "#routes/api/payment-processing/refunds.ts";
+import {
+  getPaymentProviderOrLog,
+  refundRejectedCharge,
+} from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
@@ -47,6 +50,7 @@ import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
@@ -246,6 +250,13 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   }
 
   const session = await provider.retrieveSession(sid);
+  if (isSessionRejection(session)) {
+    // A paid charge the boundary could not read: refund it when the reference
+    // is usable, then show the cancel page rather than a dead error.
+    await refundRejectedCharge(session);
+    logCancelError(`Session rejected as ${session.reason} (session=${sid})`);
+    return paymentErrorResponse("Payment session not found");
+  }
   if (!session) {
     logCancelError(`Session not found (session=${sid})`);
     return paymentErrorResponse("Payment session not found");
@@ -399,6 +410,18 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   if (sessionResult === "skip") {
     return webhookAckResponse({ status: "pending" });
+  }
+
+  // A charge the boundary could not read: a paid one with a usable reference
+  // is refunded rather than acked into limbo — the money was captured, so it
+  // must not disappear. A blank-reference rejection cannot be refunded.
+  if (isSessionRejection(sessionResult)) {
+    await refundRejectedCharge(sessionResult);
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Webhook session rejected as ${sessionResult.reason}`,
+    });
+    return webhookAckResponse({ error: "rejected", processed: false });
   }
 
   if (!sessionResult) {

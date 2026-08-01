@@ -60,8 +60,10 @@ describeWithEnv(
         },
         200,
         (json) => {
-          expect(json.received).toBe(true);
-          expect(json.error).toBeUndefined();
+          // The boundary rejects the paid session as a blank reference; the
+          // webhook acknowledges it without processing (nothing to refund).
+          expect(json.error).toBe("rejected");
+          expect(json.processed).toBe(false);
         },
       );
     });
