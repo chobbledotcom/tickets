@@ -50,6 +50,7 @@ import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
+  type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
   type WebhookEvent,
@@ -321,9 +322,7 @@ const authenticateWebhook = async (
 ): Promise<
   | Response
   | {
-      provider: NonNullable<
-        Awaited<ReturnType<typeof getPaymentProviderForExistingPayments>>
-      >;
+      provider: NonNullable<ExistingPaymentProvider>;
       listing: WebhookEvent;
     }
 > => {

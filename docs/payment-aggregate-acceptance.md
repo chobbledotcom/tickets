@@ -26,6 +26,16 @@ New sales and existing payments are now resolved by different questions:
 
 The rules below assume that separation holds.
 
+> **Pre-existing `none` sites.** A site that was already on `none` *before*
+> this PR landed has neither `payment_provider` set nor a `last_active`
+> provider recorded, so the resolver still returns null and existing payments
+> stay stranded — the same state as before this PR (no regression). The recovery
+> path is a one-click operator action: re-select any provider on the settings
+> page, which sets `last_active` and unblocks refunds/completion against it.
+> A migration that infers the provider from stored credentials alone would be a
+> guess (multiple providers could be configured), so it is deliberately not
+> added; the re-select path is the honest repair.
+
 ## 1. Failed checkout plus captured money becomes owner review with complete-or-refund choices
 
 A captured charge whose booking cannot be honoured at the charged amount does
@@ -50,6 +60,16 @@ own refund total confirms it.
 refunded (`isPaymentRefunded`) as success, and each charge carries a
 `provider_refunded_at` marker so a later attempt skips the provider call for
 charges already returned. This is the current rule and must stay.
+
+> **Known gap (provider switching).** `main` does not record which provider
+> captured a charge — only the opaque `payment_reference`. So after an operator
+> switches providers (Stripe → Square) and then selects "none", the last-active
+> fallback resolves every existing payment through Square, and an older Stripe
+> charge cannot be refunded or reconciled. This predates this PR (the old
+> code resolved the currently-active provider, which returned null and failed
+> outright once sales were switched off). Per-charge provider tracking is the
+> reference a charge lives in — it is future aggregate work and is recorded in
+> TODO.md.
 
 ## 3. Multiple captured charges require owner review
 

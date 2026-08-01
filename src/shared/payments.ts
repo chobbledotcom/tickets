@@ -363,6 +363,14 @@ export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
     logDebug("Payment", "No payment provider configured in settings"),
   );
 
+/** The provider resolved for work on payments that already exist — refunds,
+ *  provider reconciliation, replayed callbacks, and completion of an
+ *  already-started payment. Null when no provider was ever configured. The
+ *  named type for the return of {@link getPaymentProviderForExistingPayments},
+ *  shared by every call site that annotates it instead of re-deriving
+ *  `Awaited<ReturnType<...>>`. */
+export type ExistingPaymentProvider = PaymentProvider | null;
+
 /**
  * Resolve the provider for work on payments that already exist — refunds,
  * provider reconciliation, replayed callbacks, and completion of an
@@ -373,7 +381,7 @@ export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
  * ever configured.
  */
 export const getPaymentProviderForExistingPayments =
-  (): Promise<PaymentProvider | null> =>
+  (): Promise<ExistingPaymentProvider> =>
     resolveProvider(
       () =>
         paymentsApi.getConfiguredProvider() ??

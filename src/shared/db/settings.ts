@@ -449,27 +449,34 @@ const settingsBase = {
       "orphan_purge_retention",
     ),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
+      // Persist the provider and remember it as the last activated in one
+      // transaction, so a failure between the two writes cannot leave new
+      // sales enabled against a stale remembered provider. The snapshot mirrors
+      // the committed values only after the batch succeeds.
+      await writeRawBatch([
+        [CONFIG_KEYS.PAYMENT_PROVIDER, v],
+        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, v],
+      ]);
       data.payment_provider = v;
       data.payment_provider_setting = v;
-      // Remember the activated provider so existing payments stay serviceable
-      // after new sales are later switched off.
-      await writeRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, v);
       data.last_active_payment_provider = v;
     },
     setPaymentProviderNone: async (): Promise<void> => {
-      // Remember the provider being switched off (if any) before clearing it,
-      // so refunds, replayed callbacks, and in-flight completions of payments
-      // that already exist keep resolving the provider that captured them. A
-      // second "none" save leaves the remembered provider in place.
-      const switchedOff = data.payment_provider;
-      if (switchedOff) {
-        await writeRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, switchedOff);
-        data.last_active_payment_provider = switchedOff;
-      }
-      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
+      // Remember the provider being switched off (if any) in the same
+      // transaction as clearing it, so a failure between the two writes cannot
+      // leave new sales disabled with a stale remembered provider (or vice
+      // versa). A second "none" save leaves the remembered provider in place:
+      // there is nothing new to switch off, so keep the last active value
+      // already in the snapshot rather than clearing it.
+      const switchedOff = data.payment_provider ?? "";
+      const keepLastActive = switchedOff || data.last_active_payment_provider;
+      await writeRawBatch([
+        [CONFIG_KEYS.PAYMENT_PROVIDER, "none"],
+        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, keepLastActive],
+      ]);
       data.payment_provider = null;
       data.payment_provider_setting = "none";
+      data.last_active_payment_provider = keepLastActive;
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
 

@@ -21,6 +21,7 @@ import {
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import {
+  type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
@@ -41,9 +42,7 @@ export const getPaymentProviderOrLog = async (
   code: ErrorCodeType,
   detail: string,
   listingId?: number,
-): Promise<
-  Awaited<ReturnType<typeof getPaymentProviderForExistingPayments>>
-> => {
+): Promise<ExistingPaymentProvider> => {
   const provider = await getPaymentProviderForExistingPayments();
   if (!provider) logError({ code, detail, listingId });
   return provider;

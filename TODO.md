@@ -502,6 +502,21 @@ base branch (its own payment-rewrite coverage gaps and the eight Codex findings
 recorded in its TODO) belong to when the aggregate itself lands, and are not
 copied here.
 
+- **Track the provider each charge was captured with.** `main` stores only the
+  opaque `payment_reference` per processed payment, not which provider captured
+  it. So after an operator switches providers (Stripe → Square) and then selects
+  "none", the existing-payment resolver's last-active fallback resolves every
+  payment through Square, and an older Stripe charge cannot be refunded or
+  reconciled against the provider that captured it. This predates PR 1 (the old
+  code resolved the currently-active provider, which returned null and failed
+  outright once sales were switched off). Fix direction: store the provider type
+  on each `processed_payments` row at capture time (a migration backfills it
+  from the then-current setting where determinable, and surfaces the ambiguous
+  case for the operator rather than guessing), and dispatch existing-payment
+  work from that per-charge provider instead of one global fallback. Surfaces as
+  Codex review P1 on PR #2020; referenced from
+  `docs/payment-aggregate-acceptance.md` rule 2.
+
 ## Request performance: consolidate AsyncLocalStorage scopes
 
 `src/features/app/request.ts` enters eleven nested request scopes for locale, client
