@@ -67,6 +67,7 @@ const buildValidatedSession = (
     return malformedChargeRejection(
       checkout.transactionId,
       checkout.status === "PAID",
+      metadata as SessionMetadata,
     );
   }
   const build = validatedPaymentSession({

@@ -6,6 +6,7 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { isRecord } from "#shared/types.ts";
 
 /**
  * Why a provider session was refused at the boundary.
@@ -14,7 +15,9 @@ import type {
  * cannot be read (a fraction, a negative, a missing currency, a SumUp amount
  * more precise than the currency allows). `refundable` is true when the charge
  * captured money and the provider gave a usable resource id, so the callback
- * can refund it instead of stranding it.
+ * can refund it instead of stranding it. The metadata is carried so the
+ * callback can verify the price proof before refunding — a session signed by
+ * another instance's key must not be refunded from here.
  *
  * `blank_reference` — the provider says the session is paid but gave no
  * resource id, so no refund is possible; the callback acknowledges it.
@@ -24,13 +27,27 @@ export type SessionRejection =
       reason: "malformed_charge";
       paymentReference: string;
       refundable: boolean;
+      metadata: SessionMetadata;
     }
   | { reason: "blank_reference" };
 
 /** Whether a value is a {@link SessionRejection} (provider adapters and the
- *  callback handlers share this guard for the boundary's refusal). */
-export const isSessionRejection = (value: unknown): value is SessionRejection =>
-  typeof value === "object" && value !== null && "reason" in value;
+ *  callback handlers share this guard for the boundary's refusal). Only the
+ *  exact variants with their required fields count, so a partial or invented
+ *  shape cannot steer the payment flow. */
+export const isSessionRejection = (
+  value: unknown,
+): value is SessionRejection => {
+  if (!isRecord(value)) return false;
+  if (value.reason === "blank_reference") return true;
+  return (
+    value.reason === "malformed_charge" &&
+    typeof value.paymentReference === "string" &&
+    typeof value.refundable === "boolean" &&
+    typeof value.metadata === "object" &&
+    value.metadata !== null
+  );
+};
 
 /** The malformed-charge refusal for a provider session. `paid` says whether
  *  the charge captured money; the rejection is refundable only when the
@@ -38,13 +55,15 @@ export const isSessionRejection = (value: unknown): value is SessionRejection =>
 export const malformedChargeRejection = (
   paymentReference: string,
   paid: boolean,
+  metadata: SessionMetadata,
 ): SessionRejection => ({
+  metadata,
   paymentReference,
   reason: "malformed_charge",
   refundable: paid && isResourceId(paymentReference),
 });
 
-export type SessionBuild =
+type SessionBuild =
   | { ok: true; session: ValidatedPaymentSession }
   | { ok: false; rejection: SessionRejection };
 
@@ -92,6 +111,7 @@ export const validatedPaymentSession = (fields: {
       rejection: malformedChargeRejection(
         fields.paymentReference,
         fields.paymentStatus === "paid",
+        fields.metadata,
       ),
     };
   }

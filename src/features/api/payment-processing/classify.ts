@@ -7,7 +7,7 @@
 /* jscpd:ignore-start -- import block */
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
-import { refundRejectedCharge } from "#routes/api/payment-processing/refunds.ts";
+import { refundRejectedSession } from "#routes/api/payment-processing/refunds.ts";
 import type {
   SessionValidation,
   SignedVerdict,
@@ -17,7 +17,7 @@ import type { BookingIntent } from "#shared/booking-intent.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { isSessionRejection } from "#shared/payment/validated-session.ts";
-import { verifyPrice } from "#shared/payment-signature.ts";
+import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
@@ -41,25 +41,17 @@ const logRedirectError = paymentSessionErrorLogger("redirect");
 const sessionUnavailable = (
   sessionId: string,
   why: string,
+  status = 400,
 ): SessionValidation => {
   logRedirectError(`Session ${why} (session=${sessionId})`);
   return {
     ok: false,
-    response: paymentErrorResponse("Payment session not found"),
+    response: paymentErrorResponse("Payment session not found", status),
   };
 };
 
 /** Raise a checkout we can prove is ours but whose booking will not read. */
 const logUnreadableBooking = paymentSessionErrorLogger("booking");
-
-/** Split the `total.sig` price proof into a non-negative integer total and a
- * non-empty signature, or null when the field is absent or malformed. */
-const parsePriceProof = (
-  proof: string,
-): { total: number; sig: string } | null => {
-  const match = /^(\d+)\.(.+)$/.exec(proof);
-  return match ? { sig: match[2]!, total: Number(match[1]) } : null;
-};
 
 /**
  * Evaluate a session's price proof against its metadata:
@@ -156,10 +148,15 @@ export const validatePaidSession = async (
 
   const session = await provider.retrieveSession(sessionId);
   // A charge the boundary could not read: refund a paid one with a usable
-  // reference so the captured money never disappears, then tell the buyer.
+  // reference so the captured money never disappears, then tell the buyer. A
+  // failed refund is a retryable failure, so revisiting the redirect
+  // re-attempts it.
   if (isSessionRejection(session)) {
-    await refundRejectedCharge(session);
-    return sessionUnavailable(sessionId, `rejected as ${session.reason}`);
+    return sessionUnavailable(
+      sessionId,
+      `rejected as ${session.reason}`,
+      (await refundRejectedSession(session)).status,
+    );
   }
   if (!session) {
     return sessionUnavailable(sessionId, "not found");

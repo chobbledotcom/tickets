@@ -32,11 +32,21 @@ describe("validatedPaymentSession", () => {
 
   it("recognises a session rejection and nothing else", () => {
     expect(isSessionRejection({ reason: "blank_reference" })).toBe(true);
+    expect(isSessionRejection({ reason: "unknown" })).toBe(false);
+    // A malformed_charge without its metadata is an invented partial shape.
     expect(
       isSessionRejection({
         paymentReference: "pi_1",
         reason: "malformed_charge",
         refundable: false,
+      }),
+    ).toBe(false);
+    expect(
+      isSessionRejection({
+        metadata: meta,
+        paymentReference: "pi_1",
+        reason: "malformed_charge",
+        refundable: true,
       }),
     ).toBe(true);
     expect(isSessionRejection(null)).toBe(false);
@@ -101,6 +111,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
+        metadata: meta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -119,6 +130,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
+        metadata: meta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -136,6 +148,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
+        metadata: meta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -153,6 +166,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
+        metadata: meta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -167,6 +181,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
+        metadata: meta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -186,6 +201,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
+        metadata: meta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -205,6 +221,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
+        metadata: meta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -225,6 +242,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
+        metadata: meta,
         paymentReference: "",
         reason: "malformed_charge",
         refundable: false,

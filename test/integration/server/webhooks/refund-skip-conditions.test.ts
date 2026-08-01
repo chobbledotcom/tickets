@@ -68,6 +68,51 @@ describeWithEnv(
       );
     });
 
+    test("webhook retries when the refund of a rejected paid session fails", async () => {
+      await setupStripe();
+
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "WH Malformed",
+        unitPrice: 500,
+      });
+      await deactivateTestListing(listing.id);
+
+      // A paid charge the boundary cannot read (fractional amount) with a
+      // usable reference is refunded; a refund the provider refuses must not
+      // be acked away, so the webhook answers 503 for the provider to retry.
+      const refundStub = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve(null),
+      );
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 10.5,
+          eventId: "evt_malformed",
+          metadata: signedMeta(
+            {
+              email: "malformed@example.com",
+              items: singleItem(listing.id, 1, 500),
+              name: "Malformed",
+            },
+            500,
+          ),
+          paymentIntent: "pi_malformed",
+          sessionId: "cs_malformed",
+        }),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(503);
+        await response.text(); // the plain retry body
+      } finally {
+        mockVerify.restore();
+        refundStub.restore();
+      }
+    });
+
     test("tryRefund logs error when no payment provider is configured", async () => {
       await setupStripe();
 

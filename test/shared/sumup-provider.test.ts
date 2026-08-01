@@ -261,6 +261,7 @@ describe("sumup-provider", () => {
     for (const [name, checkoutOverrides] of [
       ["a malformed paid charge", { currency: "GB" }],
       ["an over-precise paid charge", { overPrecise: true }],
+      ["a paid charge with no currency", { currency: null }],
     ] as const) {
       test(`returns a refundable rejection for ${name}`, async () => {
         await stageCheckout();
@@ -268,6 +269,7 @@ describe("sumup-provider", () => {
           expect(
             await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
           ).toEqual({
+            metadata: META,
             paymentReference: "txn",
             reason: "malformed_charge",
             refundable: true,

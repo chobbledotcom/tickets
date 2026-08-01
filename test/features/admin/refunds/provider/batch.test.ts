@@ -13,7 +13,7 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 const LISTING = 7;
 
 /** A candidate already refunded at the provider (its references carry
- * `providerRefunded: true`, so the provider is never called for it). */
+ * `refundState: "completed"`, so the provider is never called for it). */
 const refundedCandidate = (
   attendeeId: number,
   sessionId: string,

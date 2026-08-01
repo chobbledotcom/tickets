@@ -11,7 +11,7 @@ import {
 import { johnCheckoutSession } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { singleItem } from "#test-utils/factories.ts";
+import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
@@ -84,6 +84,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           () =>
             stub(stripePaymentProvider, "retrieveSession", () =>
               Promise.resolve({
+                metadata: signedMeta(
+                  { email: "a@example.com", items: "[]", name: "A" },
+                  500,
+                ),
                 paymentReference: "pi_unusable",
                 reason: "malformed_charge",
                 refundable: true,

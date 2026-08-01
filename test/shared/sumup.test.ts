@@ -189,6 +189,49 @@ describe("sumup", () => {
         );
       });
     });
+
+    test("falls back to the site currency when the checkout carries none", async () => {
+      const client = makeClient({
+        get: () =>
+          Promise.resolve({
+            amount: 10,
+            checkout_reference: "ref_nocur",
+            status: "PAID",
+          }),
+      });
+      await withClient(client, async () => {
+        // A response without a currency is not asserted away: the conversion
+        // and precision check use the site's currency (GBP here) and the
+        // currency is carried as null for the boundary to refuse.
+        expect(await retrieveCheckoutById("co_nocur")).toEqual({
+          amountMinor: 1000,
+          currency: null,
+          overPrecise: false,
+          reference: "ref_nocur",
+          status: "PAID",
+          transactionId: "",
+        });
+      });
+    });
+
+    test("treats a blank currency like a missing one", async () => {
+      const client = makeClient({
+        get: () =>
+          Promise.resolve({
+            amount: 10,
+            checkout_reference: "ref_blankcur",
+            currency: "   ",
+            status: "PAID",
+          }),
+      });
+      await withClient(client, async () => {
+        // A blank currency must not reach the conversion helpers (which would
+        // format against it) or the boundary: it is refused like a missing one.
+        expect(await retrieveCheckoutById("co_blankcur")).toEqual(
+          expect.objectContaining({ currency: null }),
+        );
+      });
+    });
   });
 
   describe("createCheckout", () => {

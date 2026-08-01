@@ -51,8 +51,9 @@ export type SumupCheckout = {
    *  allows, so the rounded {@link amountMinor} cannot be trusted. The adapter
    *  refuses such a charge; the callback refunds it when money was captured. */
   overPrecise: boolean;
-  /** The three-letter currency the checkout was taken in (upper-cased). */
-  currency: string;
+  /** The three-letter currency the checkout was taken in (upper-cased), or
+   *  null when the provider response carried none — the boundary refuses it. */
+  currency: string | null;
   /** Transaction id of the completing payment (refund/payment reference). */
   transactionId: string;
   /** Checkout creation time (ISO 8601), from SumUp's `date` field. */
@@ -114,9 +115,11 @@ const sumupKeyError = (err: unknown): string => {
 
 /**
  * Normalize a SumUp checkout resource into our internal shape.
- * amount, checkout_reference, and currency are always present on checkouts we
- * created (webhook ids are pre-filtered against our staging rows before
- * fetching), so the SDK's optional types are asserted rather than defaulted.
+ * amount and checkout_reference are always present on checkouts we created
+ * (webhook ids are pre-filtered against our staging rows before fetching), so
+ * the SDK's optional types are asserted rather than defaulted. A missing
+ * currency is carried as null for the boundary to refuse — an unchecked
+ * assertion would throw inside withClient and be swallowed as "no session".
  * An over-precise raw amount is flagged (not rounded silently) so the adapter
  * can refuse the charge and the callback can refund it.
  * transaction_id only exists once a payment attempt succeeds; older attempts
@@ -124,12 +127,18 @@ const sumupKeyError = (err: unknown): string => {
  */
 const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
   const amount = c.amount!;
-  const currency = c.currency!.toUpperCase();
+  const currency =
+    typeof c.currency === "string" && c.currency.trim() !== ""
+      ? c.currency.toUpperCase()
+      : null;
   return {
-    amountMinor: toMinorUnits(amount, currency),
+    amountMinor: toMinorUnits(amount, currency ?? settings.currency),
     createdAt: c.date,
     currency,
-    overPrecise: exceedsCurrencyPrecision(amount, currency),
+    overPrecise: exceedsCurrencyPrecision(
+      amount,
+      currency ?? settings.currency,
+    ),
     reference: c.checkout_reference!,
     status: c.status,
     transactionId:

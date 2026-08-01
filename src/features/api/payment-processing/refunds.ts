@@ -22,6 +22,7 @@ import {
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
+import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
@@ -54,13 +55,40 @@ export const getPaymentProviderOrLog = async (
 /**
  * Refund a paid charge the provider boundary could not read, when its
  * reference is usable. A blank-reference rejection names no charge to refund.
+ * Returns `false` only when a refund was required and the provider refused
+ * it, so the caller can retry rather than acknowledging the charge away.
  */
 export const refundRejectedCharge = async (
   rejection: SessionRejection,
-): Promise<void> => {
-  if (rejection.reason !== "blank_reference" && rejection.refundable) {
-    await tryRefund(rejection.paymentReference);
+): Promise<boolean> => {
+  if (rejection.reason === "blank_reference" || !rejection.refundable) {
+    return true;
   }
+  // Refund only a charge we can prove is ours: the price proof in the metadata
+  // is signed with this instance's key, so a session belonging to another
+  // instance sharing the provider account verifies false and its charge is
+  // left alone.
+  const parsed = parsePriceProof(rejection.metadata.price_proof);
+  if (
+    parsed === null ||
+    !(await verifyPrice(rejection.metadata, parsed.total, parsed.sig))
+  ) {
+    return true;
+  }
+  return tryRefund(rejection.paymentReference);
+};
+
+/**
+ * Refund a rejected session's charge when its proof verifies, and report the
+ * outcome a handler needs: whether the charge is settled, and the HTTP status
+ * to answer with — 400 once it is (refunded, or nothing to refund), 503 when a
+ * required refund failed so the caller retries rather than acking it away.
+ */
+export const refundRejectedSession = async (
+  rejection: SessionRejection,
+): Promise<{ refunded: boolean; status: number }> => {
+  const refunded = await refundRejectedCharge(rejection);
+  return { refunded, status: refunded ? 400 : 503 };
 };
 
 /**
