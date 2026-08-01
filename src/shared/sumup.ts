@@ -124,11 +124,12 @@ const sumupKeyError = (err: unknown): string => {
  */
 const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
   const amount = c.amount!;
+  const currency = c.currency!.toUpperCase();
   return {
-    amountMinor: toMinorUnits(amount),
+    amountMinor: toMinorUnits(amount, currency),
     createdAt: c.date,
-    currency: c.currency!.toUpperCase(),
-    overPrecise: exceedsCurrencyPrecision(amount),
+    currency,
+    overPrecise: exceedsCurrencyPrecision(amount, currency),
     reference: c.checkout_reference!,
     status: c.status,
     transactionId:

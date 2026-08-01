@@ -152,6 +152,25 @@ describe("sumup", () => {
       });
     });
 
+    test("uses the checkout currency for precision and minor-unit conversion", async () => {
+      const client = makeClient({
+        get: () =>
+          Promise.resolve({
+            amount: 12.5, // one decimal place; JPY has none
+            checkout_reference: "ref_jpy",
+            currency: "JPY",
+            status: "PAID",
+          }),
+      });
+      await withClient(client, async () => {
+        // The conversion and precision check follow the checkout's currency
+        // (JPY, no minor places), not the site's (GBP, two places).
+        expect(await retrieveCheckoutById("co_jpy")).toEqual(
+          expect.objectContaining({ amountMinor: 13, overPrecise: true }),
+        );
+      });
+    });
+
     test("flags a checkout amount more precise than the currency allows", async () => {
       const client = makeClient({
         get: () =>
