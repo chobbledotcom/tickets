@@ -150,6 +150,23 @@ describe("sumup", () => {
         expect(result!.transactionId).toBe("");
       });
     });
+
+    test("rejects a checkout amount more precise than the currency allows", async () => {
+      const client = makeClient({
+        get: () =>
+          Promise.resolve({
+            amount: 12.505, // three decimal places in GBP
+            checkout_reference: "ref_overprecise",
+            currency: "GBP",
+            status: "PAID",
+          }),
+      });
+      await withClient(client, async () => {
+        // The raw major-unit amount must fail before it is rounded to minor
+        // units, so an over-precise charge can never round to the signed total.
+        expect(await retrieveCheckoutById("co_overprecise")).toBeNull();
+      });
+    });
   });
 
   describe("createCheckout", () => {

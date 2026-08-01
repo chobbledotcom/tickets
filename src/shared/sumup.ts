@@ -35,6 +35,7 @@ import {
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
+import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 
 /* jscpd:ignore-end */
 
@@ -112,20 +113,31 @@ const sumupKeyError = (err: unknown): string => {
  * amount, checkout_reference, and currency are always present on checkouts we
  * created (webhook ids are pre-filtered against our staging rows before
  * fetching), so the SDK's optional types are asserted rather than defaulted.
+ * The raw amount is checked against the currency's precision before it is
+ * rounded to minor units, so an over-precise charge fails loudly instead of
+ * silently rounding to a value that could match the signed total.
  * transaction_id only exists once a payment attempt succeeds; older attempts
  * in `transactions` may have FAILED, so the fallback picks the successful one.
  */
-const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => ({
-  amountMinor: toMinorUnits(c.amount!),
-  createdAt: c.date,
-  currency: c.currency!.toUpperCase(),
-  reference: c.checkout_reference!,
-  status: c.status,
-  transactionId:
-    c.transaction_id ??
-    c.transactions?.find((t) => t.status === "SUCCESSFUL")?.id ??
-    "",
-});
+const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
+  const amount = c.amount!;
+  if (exceedsCurrencyPrecision(amount)) {
+    throw new Error(
+      `SumUp checkout amount ${amount} is more precise than ${settings.currency} allows`,
+    );
+  }
+  return {
+    amountMinor: toMinorUnits(amount),
+    createdAt: c.date,
+    currency: c.currency!.toUpperCase(),
+    reference: c.checkout_reference!,
+    status: c.status,
+    transactionId:
+      c.transaction_id ??
+      c.transactions?.find((t) => t.status === "SUCCESSFUL")?.id ??
+      "",
+  };
+};
 
 /**
  * Stubbable API for testing — mirrors stripeApi/squareApi so the provider
