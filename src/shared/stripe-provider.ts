@@ -7,10 +7,10 @@
 
 import type Stripe from "stripe";
 import * as v from "valibot";
+import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import {
   hasRequiredSessionMetadata,
   makeCreateCheckoutSession,
-  validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,

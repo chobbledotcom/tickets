@@ -13,11 +13,11 @@
  */
 
 import { logDebug } from "#shared/logger.ts";
+import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import {
   hasRequiredSessionMetadata,
   toCanonicalIso,
   toCheckoutResult,
-  validatedPaymentSession,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
 import type {

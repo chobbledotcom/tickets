@@ -21,10 +21,10 @@ src/shared/payments.ts:379:44  ?? → ||   # getConfiguredProvider() is a provid
 src/shared/request-scoped.ts:130:35  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:120:26  true → false    # safeAsync getValue returns true; guardedWithValue only null-checks it, and the inner fn () => fn() ignores the value, so true/false are indistinguishable
-src/shared/payment-helpers.ts:206:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts:577:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts:636:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts:116:26  true → false    # safeAsync getValue returns true; guardedWithValue only null-checks it, and the inner fn () => fn() ignores the value, so true/false are indistinguishable
+src/shared/payment-helpers.ts:202:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:573:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:632:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
@@ -229,6 +229,9 @@ src/shared/sumup-provider.ts:143:27  ?? → ||   # parsed.id is string|undefined
 src/shared/sumup-provider.ts:148:34  ?? → ||   # parsed.event_type is string|undefined; "" is the fallback, so ?? and || agree
 # Stripe provider: payment_intent is nullable(NonEmptyText), so its only non-null values are non-empty; ?? "" and || "" agree.
 src/shared/stripe-provider.ts:55:37  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
+# Payment vocabulary: the valibot regex message strings only change the error text, never pass/fail.
+src/shared/payment/money.ts:16:26  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
+src/shared/payment/resource-id.ts:13:18  Resource id must contain text → ""   # message text of the resource-id regex; validation outcome is identical
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while

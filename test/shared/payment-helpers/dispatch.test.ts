@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { ErrorCode } from "#shared/logger.ts";
+import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import {
   cachedClientFactory,
   createWithClient,
@@ -10,7 +11,6 @@ import {
   parseWebhookPayload,
   safeAsync,
   toCheckoutResult,
-  validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { validatedPaymentSession } from "#shared/payment-helpers.ts";
+import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 

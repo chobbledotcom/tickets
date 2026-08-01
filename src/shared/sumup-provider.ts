@@ -17,10 +17,10 @@ import {
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
+import { validatedPaymentSession } from "#shared/payment/validated-session.ts";
 import {
   makeCreateCheckoutSession,
   toCanonicalIso,
-  validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
