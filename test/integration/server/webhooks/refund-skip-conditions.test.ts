@@ -49,6 +49,7 @@ describeWithEnv(
             },
             500,
           ),
+          paymentIntent: null,
           sessionId: "cs_noref",
         }),
       );

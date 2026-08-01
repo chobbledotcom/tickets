@@ -21,7 +21,10 @@ export const checkoutSessionEvent = (opts: {
   sessionId: string;
   amountTotal: number;
   metadata: SessionMetadata | Record<string, string>;
-  paymentIntent?: string;
+  /** The charge's provider resource id. Defaults to a non-blank `pi_<sessionId>`
+   *  so an omitted value still yields a processable paid session; pass `null`
+   *  explicitly to exercise the boundary's blank-reference rejection. */
+  paymentIntent?: string | null;
   paymentStatus?: string;
   /** Stripe's `created` (Unix seconds) — the checkout's actual creation time,
    *  for tests asserting a webhook processed late still books against it. */
@@ -38,7 +41,10 @@ export const checkoutSessionEvent = (opts: {
       currency: "gbp",
       id: opts.sessionId,
       metadata: opts.metadata,
-      payment_intent: opts.paymentIntent ?? null,
+      payment_intent:
+        opts.paymentIntent === undefined
+          ? `pi_${opts.sessionId}`
+          : opts.paymentIntent,
       payment_status: opts.paymentStatus ?? "paid",
       url: null,
     },
