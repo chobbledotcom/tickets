@@ -14,7 +14,6 @@ import {
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
-import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 describe("payment-helpers", () => {
   const debugSpy = useDebugLogSpy();
@@ -256,45 +255,12 @@ describe("payment-helpers", () => {
       paymentStatus: "paid",
     });
 
-    expect(session?.createdAt).toBe(createdAt);
+    expect(session).toEqual(expect.objectContaining({ createdAt }));
   });
 
   test("parseWebhookPayload returns the invalid JSON error", () => {
     expect(parseWebhookPayload("not JSON", ErrorCode.PAYMENT_CHECKOUT)).toEqual(
       { error: "Invalid JSON payload", valid: false },
     );
-  });
-
-  describe("checkoutSessionEvent", () => {
-    const base = {
-      amountTotal: 1000,
-      eventId: "evt_default",
-      metadata: { email: "a@example.com", items: "[]", name: "A" },
-      sessionId: "cs_default",
-    };
-
-    test("defaults the payment intent to a non-blank id", () => {
-      const event = checkoutSessionEvent(base);
-      expect(event.data.object.payment_intent).toBe("pi_cs_default");
-    });
-
-    test("defaults the payment status to paid", () => {
-      expect(checkoutSessionEvent(base).data.object.payment_status).toBe(
-        "paid",
-      );
-    });
-
-    test("keeps an explicit payment intent", () => {
-      const event = checkoutSessionEvent({
-        ...base,
-        paymentIntent: "pi_explicit",
-      });
-      expect(event.data.object.payment_intent).toBe("pi_explicit");
-    });
-
-    test("keeps an explicit null payment intent for rejection tests", () => {
-      const event = checkoutSessionEvent({ ...base, paymentIntent: null });
-      expect(event.data.object.payment_intent).toBeNull();
-    });
   });
 });

@@ -109,28 +109,29 @@ export const balanceSession = (
     chargedAmount?: number;
     eventId?: number;
     over?: Record<string, unknown>;
-    meta?: Record<string, unknown>;
+    meta?: Record<string, string>;
   } = {},
-): StripeCheckoutSession =>
-  ({
-    amount_total: chargedAmount,
-    currency: "gbp",
-    id,
-    metadata: {
-      ...signMeta(
-        webhookMeta({
-          balance_attendee_id: String(attendeeId),
-          items: JSON.stringify([{ e: eventId, p: signedAmount, q: 1 }]),
-          name: "Balance payment",
-        }),
-        signedAmount,
-      ),
-      ...meta,
-    },
-    payment_intent: id.replace(/^cs_/, "pi_"),
-    payment_status: "paid",
-    ...over,
-  }) as unknown as StripeCheckoutSession;
+): StripeCheckoutSession => ({
+  amount_total: chargedAmount,
+  created: 1_700_000_000,
+  currency: "gbp",
+  id,
+  metadata: {
+    ...signMeta(
+      webhookMeta({
+        balance_attendee_id: String(attendeeId),
+        items: JSON.stringify([{ e: eventId, p: signedAmount, q: 1 }]),
+        name: "Balance payment",
+      }),
+      signedAmount,
+    ),
+    ...meta,
+  },
+  payment_intent: id.replace(/^cs_/, "pi_"),
+  payment_status: "paid",
+  url: null,
+  ...over,
+});
 
 /** Stub retrieveCheckoutSession to return a {@link balanceSession}. */
 export const stubBalanceSession = (

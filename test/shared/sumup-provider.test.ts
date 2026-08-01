@@ -278,6 +278,20 @@ describe("sumup-provider", () => {
       });
     });
 
+    test("returns null when the checkout reference maps to a different staged row", async () => {
+      await stageCheckout();
+      // A second staged checkout exists, and the provider response for the
+      // co_1 webhook names the other one's reference — the flow must not use
+      // the other booking's metadata.
+      await storeSumupCheckout("ref_other", META);
+      await setSumupCheckoutId("ref_other", "co_other");
+      await withFetched(checkout({ reference: "ref_other" }), async () => {
+        expect(
+          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+        ).toBeNull();
+      });
+    });
+
     test("skips when the payment is not yet paid", async () => {
       await stageCheckout();
       await withFetched(

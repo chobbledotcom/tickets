@@ -98,7 +98,7 @@ describe("sumup", () => {
           Promise.resolve({
             amount: 12.5,
             checkout_reference: "ref_a",
-            currency: "GBP",
+            currency: "gbp",
             status: "PAID",
             transaction_id: "txn_a",
           }),
@@ -121,7 +121,7 @@ describe("sumup", () => {
           Promise.resolve({
             amount: 10,
             checkout_reference: "ref_b",
-            currency: "GBP",
+            currency: "gbp",
             status: "PAID",
             transactions: [
               { id: "txn_declined", status: "FAILED" },

@@ -1,3 +1,5 @@
+import * as v from "valibot";
+
 /**
  * The refund state of a charge the live path tracks.
  *
@@ -5,8 +7,8 @@
  * whose record never said whether its refund went through. A charge made on
  * this system is always a known "none" or "completed".
  */
-
-export type RefundState = "none" | "completed" | "unknown";
+export const RefundStateSchema = v.picklist(["none", "completed", "unknown"]);
+export type RefundState = v.InferOutput<typeof RefundStateSchema>;
 
 /**
  * The refund state for a charge, given whether the provider returned the money

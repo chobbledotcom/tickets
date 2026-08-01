@@ -98,6 +98,10 @@ export const sumupPaymentProvider: PaymentProvider = {
     if (!isResourceId(checkout.reference)) return null;
     const stored = await getSumupCheckout(checkout.reference);
     if (!stored) return null;
+    // The staged row must be the one the webhook id proved exists: the provider
+    // response could otherwise name a different staged checkout and this flow
+    // would process the wrong booking's metadata.
+    if (stored.sumupId !== webhookEvent.id) return null;
     const session = buildValidatedSession(checkout, stored.metadata);
     // A malformed charge the boundary refused: nothing to process.
     if (!session) return null;

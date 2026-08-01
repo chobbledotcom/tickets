@@ -51,6 +51,11 @@ describeWithEnv(
           mockRequest("/payment/success?session_id=cs_null_ref"),
         );
         await expectHtmlResponse(response, 400, "Payment session not found");
+        // The rejected session must not leave a processed-payment row behind.
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        expect(await isSessionProcessed("cs_null_ref")).toBeNull();
       } finally {
         mockRetrieve.restore();
       }
