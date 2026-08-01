@@ -21,8 +21,8 @@ New sales and existing payments are now resolved by different questions:
 - **Existing payments** — `getPaymentProviderForExistingPayments()`. Refunds,
   provider reconciliation, replayed callbacks, and completion of already-started
   payment work use this. When new sales are off, it falls back to the last
-  provider the operator activated (whose credentials stay stored), so money
-  already captured is never stranded.
+  provider the operator activated (whose credentials stay stored), so payments
+  captured by that provider stay refundable and completable.
 
 The rules below assume that separation holds.
 

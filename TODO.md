@@ -491,7 +491,8 @@ New sales and existing payments are now resolved by different questions:
 provider reconciliation, replayed callbacks, and completion of already-started
 payment work. When new sales are switched off (provider saved as "none"), the
 existing-payment paths fall back to the last provider the operator activated —
-whose credentials stay stored — so money already captured is never stranded.
+whose credentials stay stored — so payments captured by that provider stay
+refundable and completable.
 
 The seven accepted safety rules the aggregate must satisfy — including the ones
 not yet implementable on `main` (owner review, queued owner email, aggregate
