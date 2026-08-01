@@ -130,6 +130,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 500,
+        currency: "gbp",
         id: "cs_multi_concurrent",
         metadata: signMeta(
           webhookMeta({
@@ -173,6 +174,7 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 1000,
+        currency: "gbp",
         id: "cs_single_concurrent",
         metadata: signMeta(
           webhookMeta({

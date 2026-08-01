@@ -24,7 +24,7 @@ describeWithEnv(
   "server webhooks > refund skip conditions",
   { db: true },
   () => {
-    test("webhook refund returns false when payment reference is null", async () => {
+    test("webhook rejects a paid session with no provider payment reference", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -34,6 +34,9 @@ describeWithEnv(
       });
       await deactivateTestListing(listing.id);
 
+      // A paid session with no payment_intent is refused at the provider
+      // boundary (it would be unrefundable), so the webhook resolves no
+      // session and acks without processing — even for a deactivated listing.
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
           amountTotal: 500,
@@ -56,7 +59,8 @@ describeWithEnv(
         },
         200,
         (json) => {
-          expect(json.error).toContain("no longer accepting");
+          expect(json.received).toBe(true);
+          expect(json.error).toBeUndefined();
         },
       );
     });

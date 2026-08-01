@@ -6,10 +6,7 @@ import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createTestListing,
-  deactivateTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -35,35 +32,25 @@ describeWithEnv(
       );
     });
 
-    test("tryRefund returns false when paymentReference is empty", async () => {
+    test("rejects a paid session with a blank provider payment reference", async () => {
       await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-      await deactivateTestListing(listing.id);
 
       const mockRetrieve = stubRetrieveCheckoutSession({
         amountTotal: 1000,
         email: "john@example.com",
-        items: singleItem(listing.id, 1, 1000),
+        items: singleItem(1, 1, 1000),
         name: "John",
         paymentIntent: null, // No payment reference
         sessionId: "cs_null_ref",
       });
 
       try {
+        // A paid session with no provider resource id is refused at the
+        // boundary — it would be unrefundable, so it is not persisted.
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_null_ref"),
         );
-        const html = await expectHtmlResponse(
-          response,
-          410,
-          "no longer accepting registrations",
-        );
-        // Should show "contact support" since refund failed (no payment reference)
-        expect(html).toContain("contact support");
+        await expectHtmlResponse(response, 400, "Payment session not found");
       } finally {
         mockRetrieve.restore();
       }
@@ -197,6 +184,8 @@ describeWithEnv(
       // Mock empty items list (edge case where items parsed but empty after filtering)
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 0,
+          currency: "gbp",
           id: "cs_multi_empty_items",
           metadata: {
             email: "empty@example.com",

@@ -20,7 +20,7 @@ describeSquare(() => {
       // calls — an edge case the guard handles safely by returning false).
       const retrieveStub = stub(squareApi, "retrievePayment", () =>
         Promise.resolve({
-          amountMoney: { amount: BigInt(1500), currency: "USD" },
+          amountMoney: { amount: BigInt(1500), currency: "GBP" },
           id: "pay_no_client",
           status: "COMPLETED",
         }),
@@ -61,7 +61,7 @@ describeSquare(() => {
           paymentsGet: () =>
             Promise.resolve({
               payment: {
-                amountMoney: { amount: BigInt(4200), currency: "USD" },
+                amountMoney: { amount: BigInt(4200), currency: "GBP" },
                 id: "pay_refund_me",
                 orderId: "order_refund",
                 status: "COMPLETED",
@@ -70,7 +70,7 @@ describeSquare(() => {
           refundsRefundPayment: () =>
             Promise.resolve({
               refund: {
-                amount_money: { amount: 4200, currency: "USD" },
+                amount_money: { amount: 4200, currency: "GBP" },
                 id: "refund_123",
                 payment_id: "pay_refund_me",
                 status: "COMPLETED",
@@ -89,7 +89,7 @@ describeSquare(() => {
             ?.args[0] as RefundPaymentInput;
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
-          expect(refundArgs.amountMoney.currency).toBe("USD");
+          expect(refundArgs.amountMoney.currency).toBe("GBP");
           expect(refundArgs.idempotencyKey).toBe(
             "94jKDa73RqRmoCUbDHE2CCc5rNAMtKDdSERbYIImwK0",
           );
@@ -310,7 +310,7 @@ describeSquare(() => {
           paymentsGet: () =>
             Promise.resolve({
               payment: {
-                amountMoney: { amount: BigInt(1500), currency: "USD" },
+                amountMoney: { amount: BigInt(1500), currency: "GBP" },
                 id: paymentId,
                 orderId: "order_malformed",
                 status: "COMPLETED",

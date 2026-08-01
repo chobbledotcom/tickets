@@ -113,6 +113,7 @@ export const balanceSession = (
 ) =>
   ({
     amount_total: chargedAmount,
+    currency: "gbp",
     id,
     metadata: {
       ...signMeta(

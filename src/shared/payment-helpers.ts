@@ -29,6 +29,7 @@ import {
 } from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
 import { money } from "#shared/payment/money.ts";
+import { isResourceId } from "#shared/payment/resource-id.ts";
 import {
   PAYMENT_PROVIDERS,
   type PaymentProviderMeta,
@@ -718,10 +719,11 @@ export const extractSessionMetadata = (
  * come from our own staged checkout row).
  *
  * Returns `null` when the charge is malformed: an amount that is not a
- * non-negative safe whole number, a currency that is not three letters, or —
- * for a session the provider says was paid — a blank provider resource id. A
- * free session (`no_payment_required`) carries no resource id, so a blank one
- * is allowed only when no money was captured.
+ * non-negative safe whole number, a currency that is missing or not three
+ * letters or does not match the site's one currency, or — for a session the
+ * provider says was paid — a blank provider resource id. A free session
+ * (`no_payment_required`) carries no resource id, so a blank one is allowed only
+ * when no money was captured.
  */
 export const validatedPaymentSession = (fields: {
   amountTotal: number | null;
@@ -732,14 +734,11 @@ export const validatedPaymentSession = (fields: {
   paymentReference: string;
   paymentStatus: ValidatedPaymentSession["paymentStatus"];
 }): ValidatedPaymentSession | null => {
-  // A site has one currency, fixed at setup, so a charge the provider returns
-  // without a currency is the site's; a currency it does give that is not three
-  // letters is corrupt wire data. Both are settled here alongside the amount:
-  // a malformed amount or currency is refused, a missing currency is the site's.
-  const charge = money(
-    fields.amountTotal,
-    fields.currency ?? settings.currency,
-  );
+  // A site has one currency, fixed at setup. A provider charge must name it:
+  // a missing currency is not defaulted to the site's (a missing expected field
+  // is a hard no), and a different valid currency is refused because the amount
+  // would be in the wrong unit for the site-currency proof the callback checks.
+  const charge = money(fields.amountTotal, fields.currency);
   if (charge === null) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
@@ -747,9 +746,27 @@ export const validatedPaymentSession = (fields: {
     });
     return null;
   }
-  // A paid charge's resource id is not refused here — a captured charge must be
-  // kept and surfaced to the operator, never dropped; the refund path (tryRefund)
-  // is what refuses to act on a blank id.
+  if (charge.currency !== settings.currency.toUpperCase()) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Session ${fields.id} charged in ${charge.currency} but site currency is ${settings.currency.toUpperCase()}`,
+    });
+    return null;
+  }
+  // A paid charge must name the provider resource that captured it. A blank id
+  // names no charge to refund — `getRefundPaymentReferences` excludes it and
+  // `tryRefund` refuses it — so a paid session with one is refused here rather
+  // than persisted as an unrefundable booking. A free session carries none.
+  if (
+    fields.paymentStatus === "paid" &&
+    !isResourceId(fields.paymentReference)
+  ) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Paid session ${fields.id} is missing its provider resource id`,
+    });
+    return null;
+  }
   return {
     amountTotal: charge.amount,
     ...(fields.createdAt !== undefined ? { createdAt: fields.createdAt } : {}),

@@ -218,6 +218,33 @@ describeStripe("stripe-provider", () => {
       );
     });
 
+    test("returns null when the session has no currency", async () => {
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve(
+            stripeCheckoutSession({
+              currency: null,
+              id: "cs_no_currency",
+              metadata: {
+                email: "nocur@example.com",
+                items: '[{"e":10,"q":1,"p":0}]',
+                name: "No Cur",
+              },
+              payment_intent: "pi_no_currency",
+            }),
+          ),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_no_currency");
+          // A missing currency is refused at the boundary: it is not defaulted
+          // to the site's, and the charge cannot be trusted without one.
+          expect(result).toBeNull();
+        },
+      );
+    });
+
     test("returns null when amount_total is null", async () => {
       const client = await stripeClient();
       await whileRetrieving(

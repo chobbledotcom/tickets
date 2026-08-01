@@ -115,8 +115,7 @@ describe("validatedPaymentSession", () => {
   });
 
   // An empty-string currency is a present (not missing) value that is not three
-  // letters, so it is refused — this is what tells `??` (keeps "") apart from
-  // `||` (would fall through to the site currency).
+  // letters, so it is refused.
   it("refuses an empty-string currency", () => {
     expect(
       validatedPaymentSession({
@@ -127,30 +126,51 @@ describe("validatedPaymentSession", () => {
     ).toBeNull();
   });
 
-  // A site has one currency, fixed at setup, so a charge the provider returns
-  // without a currency is the site's — not refused, just settled to the one
-  // currency the site uses.
-  it("defaults a missing currency to the site's one currency", () => {
-    const session = validatedPaymentSession({
-      ...basePaid,
-      amountTotal: 1000,
-      currency: null,
-    });
-    expect(session).not.toBeNull();
-    expect(session?.amountTotal).toBe(1000);
+  // A missing currency is not defaulted — a missing expected field is a hard no,
+  // not a guess at the site's currency.
+  it("refuses a missing currency", () => {
+    expect(
+      validatedPaymentSession({
+        ...basePaid,
+        amountTotal: 1000,
+        currency: null,
+      }),
+    ).toBeNull();
   });
 
-  // A paid charge with a blank resource id is NOT refused at the boundary — a
-  // captured charge must be kept and surfaced, never dropped. The refund path
-  // (tryRefund) is what refuses to act on a blank id (see refunds.test.ts).
-  it("keeps a paid session whose provider resource id is blank", () => {
-    const session = validatedPaymentSession({
-      ...basePaid,
-      amountTotal: 1000,
-      currency: "GBP",
-      paymentReference: "",
-    });
-    expect(session).not.toBeNull();
-    expect(session?.paymentReference).toBe("");
+  // A currency the provider did give that doesn't match the site's one currency
+  // is refused — the amount would be in the wrong unit for the site-currency
+  // proof the callback checks.
+  it("refuses a currency that does not match the site", () => {
+    expect(
+      validatedPaymentSession({
+        ...basePaid,
+        amountTotal: 1000,
+        currency: "USD",
+      }),
+    ).toBeNull();
+    expect(errorSpy.contains("site currency")).toBe(true);
+  });
+
+  // A paid charge must name the provider resource that captured it; the old
+  // per-provider parsing let a blank id through as a refundable charge.
+  it("refuses a paid session with a blank provider resource id", () => {
+    expect(
+      validatedPaymentSession({
+        ...basePaid,
+        amountTotal: 1000,
+        currency: "GBP",
+        paymentReference: "",
+      }),
+    ).toBeNull();
+    expect(
+      validatedPaymentSession({
+        ...basePaid,
+        amountTotal: 1000,
+        currency: "GBP",
+        paymentReference: "   ",
+      }),
+    ).toBeNull();
+    expect(errorSpy.contains("provider resource id")).toBe(true);
   });
 });

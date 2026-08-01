@@ -59,9 +59,9 @@ export const tryRefund = async (
   listingId?: number,
 ): Promise<boolean> => {
   // A blank or whitespace-only provider resource id names no charge to refund,
-  // so the refund is refused before any provider call. This is the one place the
-  // live callbacks reject a blank provider resource id — consistently, whatever
-  // the provider, because every refund goes through here.
+  // so the refund is refused before any provider call. The provider boundary
+  // already rejects a paid session with a blank id; this is the safety net for
+  // a reference that reaches here from a stored or legacy row.
   if (!isResourceId(paymentReference)) return false;
 
   const provider = await getPaymentProviderOrLog(

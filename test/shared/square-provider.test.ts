@@ -10,8 +10,8 @@ import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
-/** A Square Money value in the given minor units (defaults to USD). */
-const money = (amount: number, currency = "USD") => ({
+/** A Square Money value in the given minor units (defaults to GBP). */
+const money = (amount: number, currency = "GBP") => ({
   amount: BigInt(amount),
   currency,
 });
@@ -188,7 +188,7 @@ describe("square-provider", () => {
               },
               state: "OPEN",
               tenders: [{ id: "tender_1", paymentId: "pay_2" }],
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
             }),
           ),
           payment: stub(squareApi, "retrievePayment", () =>
@@ -222,7 +222,7 @@ describe("square-provider", () => {
               },
               state: "OPEN",
               tenders: [{ id: "tender_1", paymentId: "pay_3" }],
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
             }),
           ),
           payment: stub(squareApi, "retrievePayment", () =>
@@ -253,7 +253,7 @@ describe("square-provider", () => {
                 name: "Dave",
               },
               state: "OPEN",
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
             }),
           ),
         async () => {
@@ -429,7 +429,7 @@ describe("square-provider", () => {
               },
               state: "COMPLETED",
               tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
             }),
           ),
           payment: stub(squareApi, "retrievePayment", () =>
@@ -543,7 +543,7 @@ describe("square-provider", () => {
               id: "order_no_meta",
               metadata: {},
               state: "COMPLETED",
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
             }),
           ),
         async () => {

@@ -26,7 +26,7 @@ describeSquare(() => {
                 },
                 state: "COMPLETED",
                 tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
-                totalMoney: { amount: BigInt(5000), currency: "USD" },
+                totalMoney: { amount: BigInt(5000), currency: "GBP" },
               },
             }),
           paymentsGet: () =>
@@ -62,7 +62,7 @@ describeSquare(() => {
                   name: "John",
                 },
                 state: "OPEN",
-                totalMoney: { amount: BigInt(1000), currency: "USD" },
+                totalMoney: { amount: BigInt(1000), currency: "GBP" },
               },
             }),
         },
@@ -177,7 +177,7 @@ describeSquare(() => {
                 },
                 state: "COMPLETED",
                 tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
-                totalMoney: { amount: BigInt(3000), currency: "USD" },
+                totalMoney: { amount: BigInt(3000), currency: "GBP" },
               },
             }),
           paymentsGet: () =>

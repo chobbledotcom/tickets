@@ -41,7 +41,7 @@ describeSquare(() => {
                   { id: "tender_1", paymentId: "pay_abc" },
                   { id: "tender_2", paymentId: null },
                 ],
-                totalMoney: { amount: BigInt(2000), currency: "USD" },
+                totalMoney: { amount: BigInt(2000), currency: "GBP" },
               },
             }),
         },
@@ -65,7 +65,7 @@ describeSquare(() => {
                 metadata: undefined,
                 state: "OPEN",
                 tenders: undefined,
-                totalMoney: { amount: BigInt(0), currency: "USD" },
+                totalMoney: { amount: BigInt(0), currency: "GBP" },
               },
             }),
         },
@@ -91,7 +91,7 @@ describeSquare(() => {
                   removed_null: null,
                   stored_key: "stored value",
                 },
-                totalMoney: { amount: BigInt(0), currency: "USD" },
+                totalMoney: { amount: BigInt(0), currency: "GBP" },
               },
             }),
         },
@@ -218,7 +218,7 @@ describeSquare(() => {
           paymentsGet: () =>
             Promise.resolve({
               payment: {
-                amountMoney: { amount: BigInt(1000), currency: "USD" },
+                amountMoney: { amount: BigInt(1000), currency: "GBP" },
                 id: "pay_wrapper",
                 orderId: "order_wrapper",
                 status: "COMPLETED",
