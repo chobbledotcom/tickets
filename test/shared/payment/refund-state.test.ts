@@ -15,9 +15,6 @@ describe("refund state", () => {
       expect(refundStateOf({ legacy: false, refunded: false })).toBe("none");
     });
 
-    // The rule the live path must keep: "unknown" is the state of a legacy
-    // charge whose refund was never observed, and only a legacy charge may
-    // carry it. A current charge is always a known "none" or "completed".
     it("marks a legacy, not-refunded charge unknown", () => {
       expect(refundStateOf({ legacy: true, refunded: false })).toBe("unknown");
     });

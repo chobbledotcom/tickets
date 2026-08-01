@@ -16,6 +16,7 @@ import {
   getSumupCheckout,
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
+import { isResourceId } from "#shared/payment/resource-id.ts";
 import {
   makeCreateCheckoutSession,
   toCanonicalIso,
@@ -92,8 +93,11 @@ export const sumupPaymentProvider: PaymentProvider = {
     if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
     const checkout = await retrieveCheckoutById(webhookEvent.id);
     if (!checkout) return null;
-    // Non-null: the pre-filter just matched this id to a staging row
-    const stored = (await getSumupCheckout(checkout.reference))!;
+    // A blank checkout reference names no staged row — reject the malformed
+    // webhook rather than dereferencing nothing.
+    if (!isResourceId(checkout.reference)) return null;
+    const stored = await getSumupCheckout(checkout.reference);
+    if (!stored) return null;
     const session = buildValidatedSession(checkout, stored.metadata);
     // A malformed charge the boundary refused: nothing to process.
     if (!session) return null;

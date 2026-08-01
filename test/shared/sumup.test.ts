@@ -121,6 +121,7 @@ describe("sumup", () => {
           Promise.resolve({
             amount: 10,
             checkout_reference: "ref_b",
+            currency: "GBP",
             status: "PAID",
             transactions: [
               { id: "txn_declined", status: "FAILED" },
@@ -140,6 +141,7 @@ describe("sumup", () => {
           Promise.resolve({
             amount: 10,
             checkout_reference: "ref_c",
+            currency: "GBP",
             status: "EXPIRED",
           }),
       });

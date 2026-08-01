@@ -260,6 +260,24 @@ describe("sumup-provider", () => {
       });
     });
 
+    test("returns null when the checkout reference is blank", async () => {
+      await stageCheckout();
+      await withFetched(checkout({ reference: "" }), async () => {
+        expect(
+          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+        ).toBeNull();
+      });
+    });
+
+    test("returns null when the checkout reference matches no staged row", async () => {
+      await stageCheckout();
+      await withFetched(checkout({ reference: "unrelated" }), async () => {
+        expect(
+          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+        ).toBeNull();
+      });
+    });
+
     test("skips when the payment is not yet paid", async () => {
       await stageCheckout();
       await withFetched(

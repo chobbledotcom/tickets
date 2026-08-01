@@ -109,16 +109,16 @@ const sumupKeyError = (err: unknown): string => {
 
 /**
  * Normalize a SumUp checkout resource into our internal shape.
- * amount and checkout_reference are always present on checkouts we created
- * (webhook ids are pre-filtered against our staging rows before fetching),
- * so the SDK's optional types are asserted rather than defaulted.
+ * amount, checkout_reference, and currency are always present on checkouts we
+ * created (webhook ids are pre-filtered against our staging rows before
+ * fetching), so the SDK's optional types are asserted rather than defaulted.
  * transaction_id only exists once a payment attempt succeeds; older attempts
  * in `transactions` may have FAILED, so the fallback picks the successful one.
  */
 const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => ({
   amountMinor: toMinorUnits(c.amount!),
   createdAt: c.date,
-  currency: (c.currency ?? "").toUpperCase(),
+  currency: c.currency!.toUpperCase(),
   reference: c.checkout_reference!,
   status: c.status,
   transactionId:

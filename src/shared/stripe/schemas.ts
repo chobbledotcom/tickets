@@ -15,8 +15,9 @@ type StripeCheckoutSessionFields = {
   amount_total: number | null;
   created: number;
   /** Stripe always sends a currency on a real session; the schema leaves it
-   *  optional so a test payload (or a future session shape) without one
-   *  parses and the boundary settles it to the site's currency. */
+   *  optional so a test payload (or a future session shape) without one still
+   *  parses here — `validatedPaymentSession` then refuses the session, because
+   *  a missing currency is never defaulted to the site's. */
   currency?: string | null;
   id: string;
   metadata: Stripe.Checkout.Session["metadata"];

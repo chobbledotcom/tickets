@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   createNonReservationAttendee,
@@ -110,7 +111,7 @@ export const balanceSession = (
     over?: Record<string, unknown>;
     meta?: Record<string, unknown>;
   } = {},
-) =>
+): StripeCheckoutSession =>
   ({
     amount_total: chargedAmount,
     currency: "gbp",
@@ -129,14 +130,16 @@ export const balanceSession = (
     payment_intent: id.replace(/^cs_/, "pi_"),
     payment_status: "paid",
     ...over,
-  }) as unknown as Awaited<
-    ReturnType<typeof stripeApi.retrieveCheckoutSession>
-  >;
+  }) as unknown as StripeCheckoutSession;
 
 /** Stub retrieveCheckoutSession to return a {@link balanceSession}. */
 export const stubBalanceSession = (
   ...args: Parameters<typeof balanceSession>
-) =>
+): Stub<
+  typeof stripeApi,
+  Parameters<typeof stripeApi.retrieveCheckoutSession>,
+  Promise<Awaited<ReturnType<typeof stripeApi.retrieveCheckoutSession>>>
+> =>
   stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve(balanceSession(...args)),
   );

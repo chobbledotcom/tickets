@@ -222,11 +222,11 @@ src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arm
 src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
-src/shared/sumup.ts:215:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
-src/shared/sumup.ts:254:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+src/shared/sumup.ts:218:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
+src/shared/sumup.ts:257:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 # SumUp provider verifyWebhookSignature: parsed.id / parsed.event_type are string|undefined, and their only falsy non-null value is "" — the fallback itself.
-src/shared/sumup-provider.ts:139:27  ?? → ||   # parsed.id is string|undefined; "" is the fallback, so ?? and || agree
-src/shared/sumup-provider.ts:144:34  ?? → ||   # parsed.event_type is string|undefined; "" is the fallback, so ?? and || agree
+src/shared/sumup-provider.ts:143:27  ?? → ||   # parsed.id is string|undefined; "" is the fallback, so ?? and || agree
+src/shared/sumup-provider.ts:148:34  ?? → ||   # parsed.event_type is string|undefined; "" is the fallback, so ?? and || agree
 # Stripe provider: payment_intent is nullable(NonEmptyText), so its only non-null values are non-empty; ?? "" and || "" agree.
 src/shared/stripe-provider.ts:55:37  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 
