@@ -11,7 +11,7 @@ src/shared/rest/resource.ts:158:25  ?? → ||   # validationError is an ErrorRes
 
 # paymentsApi.getConfiguredProvider() returns PaymentProviderType | null (a
 # validated settings getter, never a falsy non-null string), so ?? and || agree.
-src/shared/payments.ts:379:44  ?? → ||   # getConfiguredProvider() is a provider type or null; never falsy-but-non-null
+src/shared/payments.ts:387:44  ?? → ||   # getConfiguredProvider() is a provider type or null; never falsy-but-non-null
 
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so
