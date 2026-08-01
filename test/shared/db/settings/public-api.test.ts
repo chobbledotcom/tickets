@@ -159,6 +159,18 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
       expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
+
+    test("throws on a corrupt non-empty remembered provider", async () => {
+      await settings.setRaw(
+        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+        "garbage",
+      );
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
+      expect(() => settings.lastActivePaymentProvider).toThrow(
+        "Invalid last_active_payment_provider setting: garbage",
+      );
+    });
   });
 
   describe("Stripe activation", () => {

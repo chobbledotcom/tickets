@@ -46,6 +46,7 @@ const getSettingsPageState = async () => {
     embedHosts: settings.embedHosts,
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
     headerImageUrl: settings.headerImageUrl,
+    lastActivePaymentProvider: settings.lastActivePaymentProvider,
     paymentProvider: settings.paymentProvider,
     squareSandbox: settings.square.sandbox,
     squareTokenConfigured: settings.square.hasToken,
@@ -120,6 +121,7 @@ const getAdvancedSettingsPageState = async (
       if (!hostConfig) return "";
       return `Host env (${hostConfig.issuerId})`;
     })(),
+    lastActivePaymentProvider: settings.lastActivePaymentProvider,
     listingColumnOrder: settings.listingColumnOrder,
     paymentProvider: settings.paymentProvider,
     scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV),

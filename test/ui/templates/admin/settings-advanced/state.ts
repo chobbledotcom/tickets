@@ -28,6 +28,7 @@ export const advancedDefaultState: AdvancedSettingsPageState = {
   hostAppleWalletLabel: "",
   hostEmailLabel: "",
   hostGoogleWalletLabel: "",
+  lastActivePaymentProvider: "",
   listingColumnOrder: "",
   paymentProvider: "",
   scheduledTaskKey: "",

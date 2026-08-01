@@ -41,7 +41,9 @@ export const CustomDomainForm = (
         <SubmitButton icon="save">
           {t("settings.advanced.save_custom_domain")}
         </SubmitButton>
-        <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
+        <DomainPaymentWebhookWarning
+          paymentProvider={s.paymentProvider ?? s.lastActivePaymentProvider}
+        />
       </CsrfForm>
 
       {s.customDomain && (

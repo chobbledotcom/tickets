@@ -246,10 +246,13 @@ const settingsBase = {
   /** The provider that captured payments before new sales were switched off.
    *  Used to refund, reconcile, replay, and complete payments that already
    *  exist while new sales are disabled; null when no provider was ever
-   *  activated. */
+   *  activated. Throws on a non-empty-but-invalid stored value so a corrupt
+   *  settings row is surfaced loudly rather than silently treated as "none". */
   get lastActivePaymentProvider(): PaymentProviderType | null {
     const value = snap("last_active_payment_provider");
-    return isPaymentProvider(value) ? value : null;
+    if (value === "") return null;
+    if (isPaymentProvider(value)) return value;
+    throw new Error(`Invalid last_active_payment_provider setting: ${value}`);
   },
   get listingColumnLayout(): TableLayout<ListingColumnKey> {
     return configurableTableLayouts.listing.parse(snap("listing_column_order"));

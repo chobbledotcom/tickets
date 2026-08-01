@@ -28,6 +28,10 @@ export type SettingsPageState = {
   stripeKeyConfigured: boolean;
   stripeKeyMode: string | null;
   paymentProvider: string | null;
+  /** The provider that captured payments before new sales were switched off.
+   *  Used so the domain-change warning and dashboard links stay visible for
+   *  existing payments when sales are disabled. */
+  lastActivePaymentProvider: string | null;
   /** The site's ISO currency code — decides which providers can be picked. */
   currency: string;
   squareTokenConfigured: boolean;
