@@ -106,18 +106,36 @@ describeWithEnv("executeSettingsBatchReturningValue", { db: true }, () => {
   });
 
   test("executeBatchReturningResults does not invalidate the settings cache", async () => {
-    // Pre-load a setting so the cache has it.
     await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "loc_pre");
     const before = settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID);
-    // Run a no-op batch through executeBatchReturningResults.
     await executeBatchReturningResults([
       {
         args: ["noop_key", "noop_val"],
         sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
       },
     ]);
-    // If invalidate were true, the cache would have been cleared and this read
-    // would fail the audit (key not declared loaded).
     expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe(before);
+  });
+
+  test("writeRaw marks the key loaded so snap() audit passes", async () => {
+    await runWithSettingsAudit(async () => {
+      await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_snap");
+      // snap() calls recordSettingRead which checks state.loaded.
+      // If loaded.add was removed, this throws "Settings read but not declared".
+      settings.square.locationId;
+      assertSettingsReadsDeclared("snap-audit");
+    });
+  });
+
+  test("writeRawBatch marks every key loaded so snap() audit passes", async () => {
+    await runWithSettingsAudit(async () => {
+      await writeRawBatch([
+        [CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_batch"],
+        [CONFIG_KEYS.SUMUP_MERCHANT_CODE, "audit_batch_mc"],
+      ]);
+      settings.square.locationId;
+      settings.sumup.merchantCode;
+      assertSettingsReadsDeclared("batch-audit");
+    });
   });
 });

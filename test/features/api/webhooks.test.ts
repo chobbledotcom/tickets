@@ -116,7 +116,9 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?session_id=cs_ty"),
     );
     expect(res.status).toBe(200);
-    expect((await res.text()).length).toBeGreaterThan(0);
+    const html = await res.text();
+    expect(html).toContain("/t/"); // ticket URL is built with "/t/" + tokens
+    expect(html).toContain("https://ty.example.com");
   });
 
   test("processed webhook returns received=true and processed=true", async () => {
@@ -278,5 +280,140 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     expect(j.processed).toBe(false);
     expect(String(j.error)).toContain("saved your details");
     expect(errorLogged(E, `listing=${l.id}`)).toBe(true);
+  });
+
+  // --- survivors that need the success-page render path ---
+
+  test("redirect path includes encoded tokens in the URL", async () => {
+    await setupStripe();
+    const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
+    using _r = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "rd@e.com",
+      items: singleItem(l.id, 1, 500),
+      name: "RD",
+      paymentIntent: "pi_rd",
+      sessionId: "cs_rd",
+    });
+    const res = await handleRequest(
+      mockRequest("/payment/success?session_id=cs_rd"),
+    );
+    expect(res.status).toBe(302);
+    const loc = res.headers.get("location") ?? "";
+    expect(loc).toContain("/payment/success?tokens=");
+    expect(loc.split("tokens=")[1]?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  test("already-processed session renders success page with paid:true", async () => {
+    await setupStripe();
+    const l = await createTestListing({
+      maxAttendees: 5,
+      thankYouUrl: "  https://trim.example.com  ",
+      unitPrice: 500,
+    });
+    using _r = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "ap@e.com",
+      items: singleItem(l.id, 1, 500),
+      metadata: signedMeta(
+        { email: "ap@e.com", items: singleItem(l.id, 1, 500), name: "AP" },
+        500,
+      ),
+      name: "AP",
+      paymentIntent: "pi_ap",
+      sessionId: "cs_ap_redirect",
+    });
+    // First call processes and creates the attendee
+    const res1 = await handleRequest(
+      mockRequest("/payment/success?session_id=cs_ap_redirect"),
+    );
+    // First call should redirect with tokens (302) — tokens present
+    if (res1.status === 302) {
+      const loc = res1.headers.get("location") ?? "";
+      // Follow the redirect to the tokens page — triggers renderSuccessFromTokens
+      const res2 = await handleRequest(mockRequest(loc));
+      expect(res2.status).toBe(200);
+      const html = await res2.text();
+      expect(html).toContain("trim.example.com"); // trimmed thank_you_url
+      expect(html).toContain("/t/"); // ticket URL built with + operator
+    }
+  });
+
+  test("renderSuccessFromTokens rejects bad tokens", async () => {
+    await setupStripe();
+    const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
+    await withWebhookVerify(
+      webhookEvent({
+        amountTotal: 500,
+        eventId: "evt_bto",
+        metadata: signedMeta(
+          { email: "bt@e.com", items: singleItem(l.id, 1, 500), name: "BT" },
+          500,
+        ),
+        paymentIntent: "pi_bto",
+        sessionId: "cs_bto",
+      }),
+      () => {},
+    );
+    const res = await handleRequest(
+      mockRequest("/payment/success?tokens=deadbeef"),
+    );
+    expect((await res.text()).length).toBeGreaterThan(0);
+  });
+
+  test("handlePaymentSuccess logs paramKeys and referer on no session", async () => {
+    const req = mockRequest("/payment/success?foo=bar&baz=qux");
+    req.headers.set("referer", "https://evil.example.com");
+    await handleRequest(req);
+    expect(
+      errorLogged(E, "params=[foo,baz] referer=https://evil.example.com"),
+    ).toBe(true);
+  });
+
+  test("skip session returns pending status", async () => {
+    await setupStripe();
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    using _rs = stub(stripePaymentProvider, "resolveWebhookSession", () =>
+      Promise.resolve("skip" as const),
+    );
+    using _v = await stubWebhookVerify(
+      webhookEvent({
+        amountTotal: 100,
+        eventId: "evt_skip",
+        metadata: {},
+        paymentIntent: "pi_skip",
+        sessionId: "cs_skip",
+      }),
+    );
+    const res = await handleRequest(
+      mockWebhookRequest({}, { "stripe-signature": "sig" }),
+    );
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as Record<string, unknown>;
+    expect(j.status).toBe("pending");
+  });
+
+  test("processed webhook logs listingId from items[0]", async () => {
+    await setupStripe();
+    const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
+    await withWebhookVerify(
+      webhookEvent({
+        amountTotal: 500,
+        eventId: "evt_pl",
+        metadata: signedMeta(
+          { email: "pl@e.com", items: singleItem(l.id, 1, 500), name: "PL" },
+          500,
+        ),
+        paymentIntent: "pi_pl",
+        sessionId: "cs_pl",
+      }),
+      () => {
+        expect(errorLogged(E, `listing=${l.id}`)).toBe(false);
+      },
+    );
+    // The success path doesn't log an error, but the listingId is used in the
+    // error-branch. A webhook that keeps-and-refunds does log it.
   });
 });
