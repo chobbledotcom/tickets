@@ -36,6 +36,10 @@ import {
 } from "#shared/admin-features.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
+  executeBatchWithoutCacheInvalidation,
+  requireOne,
+} from "#shared/db/client.ts";
+import {
   boolUpdate,
   rawUpdate,
   stringAccessors,
@@ -51,6 +55,7 @@ import {
   getCacheState,
   getCurrentSettingsVersion,
   prefetchVersion,
+  settingsVersionIncrement,
 } from "#shared/db/settings/cache.ts";
 import { keyModeOf } from "#shared/db/settings/constants.ts";
 import { withCurrentTask } from "#shared/db/settings/current-task.ts";
@@ -61,6 +66,7 @@ import {
   encryptedUpdate,
   getRawCached,
   plaintextUpdate,
+  syncStoredSetting,
   writeEncrypted,
   writeOrDelete,
   writeRaw,
@@ -465,21 +471,48 @@ const settingsBase = {
       data.last_active_payment_provider = v;
     },
     setPaymentProviderNone: async (): Promise<void> => {
-      // Remember the provider being switched off (if any) in the same
-      // transaction as clearing it, so a failure between the two writes cannot
-      // leave new sales disabled with a stale remembered provider (or vice
-      // versa). A second "none" save leaves the remembered provider in place:
-      // there is nothing new to switch off, so keep the last active value
-      // already in the snapshot rather than clearing it.
-      const switchedOff = data.payment_provider ?? "";
-      const keepLastActive = switchedOff || data.last_active_payment_provider;
-      await writeRawBatch([
-        [CONFIG_KEYS.PAYMENT_PROVIDER, "none"],
-        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, keepLastActive],
+      // Write PAYMENT_PROVIDER=none and LAST_ACTIVE_PAYMENT_PROVIDER=<the
+      // current provider> in ONE SQL statement. SQLite evaluates the SELECT
+      // subqueries against the pre-statement state, so the subquery reads the
+      // ORIGINAL payment_provider (not "none"), making the read and write
+      // atomic — a concurrent activation landing before this statement is
+      // correctly reflected. A second "none" save keeps the remembered
+      // provider: the CASE falls through to the existing last_active when the
+      // current provider is already "none".
+      await executeBatchWithoutCacheInvalidation([
+        {
+          args: [],
+          sql:
+            "INSERT OR REPLACE INTO settings (key, value) " +
+            "SELECT 'payment_provider', 'none' " +
+            "UNION ALL " +
+            "SELECT 'last_active_payment_provider', " +
+            "COALESCE(CASE " +
+            "WHEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
+            "IN ('stripe', 'square', 'sumup') " +
+            "THEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
+            "ELSE COALESCE(" +
+            "(SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') " +
+            "END, '')",
+        },
+        settingsVersionIncrement(),
       ]);
+      // Read the committed last_active value from the DB (the subquery
+      // computed it; the raw cache doesn't know it yet).
+      const row = await requireOne<{ value: string }>(
+        "SELECT value FROM settings WHERE key = ?",
+        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER],
+      );
+      const lastActive = row.value;
+      syncStoredSetting(CONFIG_KEYS.PAYMENT_PROVIDER, (values) =>
+        values.set(CONFIG_KEYS.PAYMENT_PROVIDER, "none"),
+      );
+      syncStoredSetting(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, (values) =>
+        values.set(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, lastActive),
+      );
       data.payment_provider = null;
       data.payment_provider_setting = "none";
-      data.last_active_payment_provider = keepLastActive;
+      data.last_active_payment_provider = lastActive;
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
 

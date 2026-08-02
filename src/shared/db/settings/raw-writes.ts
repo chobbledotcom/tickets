@@ -82,16 +82,19 @@ export const writeRaw = async (key: string, value: string): Promise<void> => {
   await syncWrittenSetting(key, value);
 };
 
-/** Persist several related settings in one transaction and one version bump. */
-export const writeRawBatch = async (
-  values: ReadonlyArray<readonly [key: string, value: string]>,
-): Promise<void> => {
-  if (values.length === 0)
-    throw new Error("Cannot write an empty settings batch");
-  await executeBatchWithoutCacheInvalidation([
-    ...values.map(([key, value]) => settingUpsert(key, value)),
-    settingsVersionIncrement(),
-  ]);
+/** A batch of settings (key, value) pairs. Shared by every batch write path. */
+type SettingsBatch = ReadonlyArray<readonly [key: string, value: string]>;
+
+/** Build a settings batch: the upserts for each (key, value) pair plus the
+ *  shared version increment, so every batch write bumps the version. */
+const settingsBatchStatements = (values: SettingsBatch): SqlStatement[] => [
+  ...values.map(([key, value]) => settingUpsert(key, value)),
+  settingsVersionIncrement(),
+];
+
+/** Mirror a batch of committed settings writes into the in-memory cache and
+ *  mark each key as loaded. Shared by every batch write path. */
+const syncWrittenBatch = (values: SettingsBatch): void => {
   recordSettingsLoaded(values.map(([key]) => key));
   syncCache((state) => {
     for (const [key, value] of values) {
@@ -99,6 +102,14 @@ export const writeRawBatch = async (
       state.loaded.add(key);
     }
   });
+};
+
+/** Persist several related settings in one transaction and one version bump. */
+export const writeRawBatch = async (values: SettingsBatch): Promise<void> => {
+  if (values.length === 0)
+    throw new Error("Cannot write an empty settings batch");
+  await executeBatchWithoutCacheInvalidation(settingsBatchStatements(values));
+  syncWrittenBatch(values);
 };
 
 /** Delete a setting from the DB, drop it from the raw cache, and bump the

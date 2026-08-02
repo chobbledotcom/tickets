@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Spy } from "@std/testing/mock";
-import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  ALL_SETTINGS_KEYS,
+  CONFIG_KEYS,
+  settings,
+} from "#shared/db/settings.ts";
 import {
   getActivePaymentProvider,
   getPaymentProviderForExistingPayments,
@@ -102,5 +106,45 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
   test("returns null when sales are off and no provider was ever activated", async () => {
     await settings.update.setPaymentProviderNone();
     expect(await getPaymentProviderForExistingPayments()).toBeNull();
+  });
+
+  test("recovers from a pre-existing none site with exactly one set of credentials", async () => {
+    // A site that was already on "none" before this PR: no payment_provider,
+    // no last_active_payment_provider, but Stripe credentials are stored.
+    // The resolver must fall back to the single configured provider.
+    await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
+    await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+    await settings.update.stripe.secretKey("sk_test_recovered");
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+    expect(settings.paymentProvider).toBeNull();
+    expect(settings.lastActivePaymentProvider).toBeNull();
+    expect((await getPaymentProviderForExistingPayments())?.type).toBe(
+      "stripe",
+    );
+  });
+
+  test("does not guess when multiple providers have stored credentials", async () => {
+    // A pre-existing none site with both Stripe and Square credentials: the
+    // resolver must not guess between them; the operator must re-select.
+    await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
+    await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+    await settings.update.stripe.secretKey("sk_test_both");
+    await settings.update.square.accessToken("sq_test_both");
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+    expect(await getPaymentProviderForExistingPayments()).toBeNull();
+  });
+
+  test("recovers when sumup is the sole configured provider", async () => {
+    await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
+    await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+    await settings.update.sumup.apiKey("sumup_test_only");
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+    expect((await getPaymentProviderForExistingPayments())?.type).toBe("sumup");
   });
 });

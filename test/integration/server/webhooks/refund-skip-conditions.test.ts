@@ -93,6 +93,11 @@ describeWithEnv(
         "getLastConfiguredProvider",
         () => null,
       );
+      const mockGetSingle = stub(
+        paymentsApi,
+        "getProviderFromSingleCredential",
+        () => null,
+      );
 
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
@@ -124,6 +129,7 @@ describeWithEnv(
         mockVerify.restore();
         mockGetConfigured.restore();
         mockGetLast.restore();
+        mockGetSingle.restore();
       }
     });
 

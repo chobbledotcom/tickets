@@ -28,13 +28,13 @@ The rules below assume that separation holds.
 
 > **Pre-existing `none` sites.** A site that was already on `none` *before*
 > this PR landed has neither `payment_provider` set nor a `last_active`
-> provider recorded, so the resolver still returns null and existing payments
-> stay stranded — the same state as before this PR (no regression). The recovery
-> path is a one-click operator action: re-select any provider on the settings
-> page, which sets `last_active` and unblocks refunds/completion against it.
-> A migration that infers the provider from stored credentials alone would be a
-> guess (multiple providers could be configured), so it is deliberately not
-> added; the re-select path is the honest repair.
+> provider recorded. The resolver falls back to the sole provider with stored
+> credentials when exactly one is configured — unambiguous evidence of which
+> provider captured prior payments. When zero or multiple providers have
+> credentials, the resolver returns null and the operator must re-select a
+> provider on the settings page (which sets `last_active` and unblocks
+> refunds/completion). The system never guesses among multiple configured
+> providers.
 
 ## 1. Failed checkout plus captured money becomes owner review with complete-or-refund choices
 

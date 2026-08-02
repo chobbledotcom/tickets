@@ -25,6 +25,19 @@ export const paymentsApi = {
    *  sales are disabled. */
   getLastConfiguredProvider: (): PaymentProviderType | null =>
     settings.lastActivePaymentProvider,
+  /** Recovery for a site that was already on "none" before this PR landed
+   *  (no `payment_provider`, no `last_active_payment_provider`). Returns the
+   *  sole provider with stored credentials when exactly one is configured —
+   *  unambiguous evidence of which provider captured prior payments. Returns
+   *  null when zero or multiple providers have credentials, so the operator
+   *  must re-select rather than having the system guess. */
+  getProviderFromSingleCredential: (): PaymentProviderType | null => {
+    const configured: PaymentProviderType[] = [];
+    if (settings.stripe.hasKey) configured.push("stripe" as const);
+    if (settings.square.hasToken) configured.push("square" as const);
+    if (settings.sumup.hasKey) configured.push("sumup" as const);
+    return configured.length === 1 ? configured[0]! : null;
+  },
 };
 
 /** Re-export from types.ts (canonical definition) */
@@ -385,6 +398,7 @@ export const getPaymentProviderForExistingPayments =
     resolveProvider(
       () =>
         paymentsApi.getConfiguredProvider() ??
-        paymentsApi.getLastConfiguredProvider(),
+        paymentsApi.getLastConfiguredProvider() ??
+        paymentsApi.getProviderFromSingleCredential(),
       " for existing payments",
     );
