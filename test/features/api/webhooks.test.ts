@@ -105,7 +105,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
           items: singleItem(l.id, 1, 1000),
           name: "TY",
           thank_you_url: "https://ty.example.com",
-        } as unknown as { email: string; items: string; name: string },
+        },
         1000,
       ),
       name: "TY",
