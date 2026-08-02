@@ -20,13 +20,26 @@ describe("CustomDomainForm", () => {
     expect(html).toContain('href="/admin/settings#settings-stripe"');
   });
 
-  test("hides the warning when no provider was ever configured", () => {
-    const html = String(
+  test("hides the warning when no provider is configured (null or empty string)", () => {
+    let html = String(
       CustomDomainForm({
         ...advancedDefaultState,
         bunnyCdnEnabled: true,
         lastActivePaymentProvider: null,
         paymentProvider: null,
+      }),
+    );
+    expect(html).not.toContain("Changing your domain");
+    expect(html).not.toContain(
+      'action="/admin/settings/custom-domain/validate"',
+    );
+    // `"" ?? "stripe"` is "" but `"" || "stripe"` is "stripe" — distinguishes ?? from ||.
+    html = String(
+      CustomDomainForm({
+        ...advancedDefaultState,
+        bunnyCdnEnabled: true,
+        lastActivePaymentProvider: "stripe",
+        paymentProvider: "",
       }),
     );
     expect(html).not.toContain("Changing your domain");
@@ -46,6 +59,10 @@ describe("CustomDomainForm", () => {
     // Form action + id
     expect(html).toContain('action="/admin/settings/custom-domain"');
     expect(html).toContain('id="settings-custom-domain"');
+    // Prose container around the heading
+    expect(html).toContain('class="prose"');
+    // Whitespace between the intro sentence and the setup-guide anchor
+    expect(html).toContain("your tickets site. <a");
     // Input field
     expect(html).toContain('name="custom_domain"');
     expect(html).toContain('placeholder="tickets.yourdomain.com"');
@@ -57,8 +74,15 @@ describe("CustomDomainForm", () => {
     // Validate button (visible when customDomain is set)
     expect(html).toContain('action="/admin/settings/custom-domain/validate"');
     expect(html).toContain('id="settings-custom-domain-validate"');
+    // Not-yet-validated warning (customDomainLastValidated defaults to "")
+    expect(html).toContain("not yet validated");
     // DNS hint
     expect(html).toContain("DNS record is in place");
+    // CNAME instructions: whitespace separators between strong tags and text
+    expect(html).toContain("</strong> record:");
+    expect(html).toContain("Name:</strong> <code");
+    // Last-validated line is hidden when customDomainLastValidated is empty
+    expect(html).not.toContain("Last validated:");
     // Payment name label
     expect(html).toContain("Name:");
   });

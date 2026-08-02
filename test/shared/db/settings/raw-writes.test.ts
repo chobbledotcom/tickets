@@ -3,10 +3,15 @@ import { it as test } from "@std/testing/bdd";
 import {
   deleteRaw,
   executeSettingsBatchReturningValue,
+  writeOrDelete,
   writeRaw,
   writeRawBatch,
 } from "#shared/db/settings/raw-writes.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  assertSettingsReadsDeclared,
+  runWithSettingsAudit,
+} from "#shared/db/settings-audit.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("writeRawBatch", { db: true }, () => {
@@ -46,6 +51,19 @@ describeWithEnv("writeRaw", { db: true }, () => {
     settings.invalidateCache();
     await settings.loadKeys([CONFIG_KEYS.SQUARE_LOCATION_ID]);
     expect(settings.square.locationId).toBe("loc_single");
+  });
+
+  test("registers audit-loaded keys; writeOrDelete empties via deleteRaw", async () => {
+    await runWithSettingsAudit(async () => {
+      await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_one");
+      await writeRawBatch([[CONFIG_KEYS.SUMUP_MERCHANT_CODE, "audit_two"]]);
+      settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID);
+      settings.getCachedRaw(CONFIG_KEYS.SUMUP_MERCHANT_CODE);
+      assertSettingsReadsDeclared("test");
+    });
+    await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "del_target");
+    await writeOrDelete(CONFIG_KEYS.SQUARE_LOCATION_ID, "");
+    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBeNull();
   });
 });
 
