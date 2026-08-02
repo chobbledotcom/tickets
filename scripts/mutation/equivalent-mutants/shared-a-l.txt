@@ -48,7 +48,6 @@ src/shared/accounting/rows.ts:262:64  ?? → ||   # selectById (await …)[0]: T
 src/shared/accounting/rows.ts:138:72  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
 src/shared/accounting/manual-entries.ts:236:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:42:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
-src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/maintenance/runner.ts:183:5  0 → 1   # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:190:5  0 → 1   # every non-empty run needs at least two database startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:202:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback

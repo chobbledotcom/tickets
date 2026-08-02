@@ -31,4 +31,51 @@ describe("HostSubdomainForm", () => {
     );
     expect(html).not.toContain("Changing your domain");
   });
+
+  test("renders the register form when a subdomain is available", () => {
+    const html = String(
+      HostSubdomainForm({
+        ...advancedDefaultState,
+        bunnyDnsEnabled: true,
+        lastActivePaymentProvider: "square",
+        paymentProvider: null,
+        subdomainPreview: "my-sub",
+        subdomainPreviewFullDomain: "my-sub.example.com",
+      }),
+    );
+    // Full domain preview
+    expect(html).toContain("my-sub.example.com");
+    expect(html).toContain("is available");
+    // Hidden input
+    expect(html).toContain('name="subdomain"');
+    expect(html).toContain('type="hidden"');
+    // Confirm label
+    expect(html).toContain("Confirm registration");
+    // Register button
+    expect(html).toContain("Register Subdomain");
+    // Cancel link
+    expect(html).toContain("Cancel");
+    expect(html).toContain(
+      'href="/admin/settings-advanced#settings-host-subdomain"',
+    );
+    // First form
+    expect(html).toContain('action="/admin/settings/host-subdomain"');
+    expect(html).toContain('id="settings-host-subdomain"');
+  });
+
+  test("renders the check form when no subdomain is set", () => {
+    const html = String(
+      HostSubdomainForm({
+        ...advancedDefaultState,
+        bunnyDnsEnabled: true,
+        bunnyDnsSubdomainSuffix: ".tickets.example",
+        lastActivePaymentProvider: null,
+        paymentProvider: null,
+      }),
+    );
+    expect(html).toContain('type="text"');
+    expect(html).toContain("muted");
+    expect(html).toContain(".tickets.example");
+    expect(html).toContain("Check");
+  });
 });

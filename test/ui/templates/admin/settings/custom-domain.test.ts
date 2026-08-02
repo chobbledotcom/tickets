@@ -31,4 +31,35 @@ describe("CustomDomainForm", () => {
     );
     expect(html).not.toContain("Changing your domain");
   });
+
+  test("renders all form fields, actions, and hints", () => {
+    const html = String(
+      CustomDomainForm({
+        ...advancedDefaultState,
+        bunnyCdnEnabled: true,
+        bunnySubdomain: "my-sub",
+        customDomain: "tickets.example.com",
+        lastActivePaymentProvider: "stripe",
+        paymentProvider: null,
+      }),
+    );
+    // Form action + id
+    expect(html).toContain('action="/admin/settings/custom-domain"');
+    expect(html).toContain('id="settings-custom-domain"');
+    // Input field
+    expect(html).toContain('name="custom_domain"');
+    expect(html).toContain('placeholder="tickets.yourdomain.com"');
+    expect(html).toContain('type="text"');
+    // Guide link
+    expect(html).toContain('href="/admin/guide#custom-domain"');
+    // Subdomain note (visible when subdomain is set)
+    expect(html).toContain("same time as a custom domain");
+    // Validate button (visible when customDomain is set)
+    expect(html).toContain('action="/admin/settings/custom-domain/validate"');
+    expect(html).toContain('id="settings-custom-domain-validate"');
+    // DNS hint
+    expect(html).toContain("DNS record is in place");
+    // Payment name label
+    expect(html).toContain("Name:");
+  });
 });

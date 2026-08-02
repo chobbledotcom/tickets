@@ -24,10 +24,6 @@ src/features/api/webhooks.ts:291:26  ?? → ||   # result.detail is string|undef
 src/features/api/webhooks.ts:310:4   ?? → ||   # singleListingThankYou returns string|""; "" is falsy so ?? and || agree
 src/features/api/webhooks.ts:338:55  ?? → ||   # getWebhookSignatureHeader returns string|null; a header value is never ""
 
-# settings-page.ts: existingPaymentProviderType() returns PaymentProviderType|null;
-# a provider type is a non-empty truthy string, so ?? and || agree.
-src/features/admin/settings-page.ts:128:46  ?? → ||   # existingPaymentProviderType is PaymentProviderType|null; never falsy-but-non-null
-
 # require-provider.ts: getPaymentProviderForExistingPayments() returns
 # PaymentProvider | null; a provider type is a non-empty truthy string, so
 # ?? and || agree.
