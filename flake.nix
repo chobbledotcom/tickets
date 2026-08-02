@@ -3,13 +3,21 @@
     nixpkgs.url = "nixpkgs";
     # Pinned solely to provide Deno 2.5.6 — the lowest Bunny Edge Scripting
     # runtime this project supports and the version the suite is verified
-    # against. Everything else in the dev shell comes from `nixpkgs`, so only
-    # Deno is held back; bump this rev when the supported floor moves.
+    # against. The normal `deno` command is held back; bump this rev when the
+    # supported floor moves.
     nixpkgs-deno.url = "github:NixOS/nixpkgs/ee09932cedcef15aaf476f9343d1dea2cb77e261";
+    # Desktop is the sole command allowed to move ahead of the production Deno
+    # floor. It requires Deno 2.9.0 or newer.
+    nixpkgs-desktop.url = "nixpkgs";
   };
 
   outputs =
-    { nixpkgs, nixpkgs-deno, ... }:
+    {
+      nixpkgs,
+      nixpkgs-deno,
+      nixpkgs-desktop,
+      ...
+    }:
     let
       denoVersion = "2.5.6";
       systems = [
@@ -27,12 +35,57 @@
           # Take Deno from the pinned nixpkgs so the shell uses exactly
           # ${denoVersion} regardless of what the main nixpkgs currently ships.
           deno = nixpkgs-deno.legacyPackages.${pkgs.stdenv.hostPlatform.system}.deno;
+          desktopDeno =
+            nixpkgs-desktop.legacyPackages.${pkgs.stdenv.hostPlatform.system}.deno;
+          denoDesktop = pkgs.writeShellScriptBin "deno-desktop" ''
+            export DENO_DIR="''${DENO_DESKTOP_DIR:-''${XDG_CACHE_HOME:-$HOME/.cache}/deno-desktop}"
+            exec ${desktopDeno}/bin/deno "$@"
+          '';
+          desktopFhs = pkgs.buildFHSEnv {
+            name = "tickets-desktop-fhs";
+            runScript = "bash";
+            targetPkgs = desktopPkgs: [
+              desktopPkgs.glib
+              desktopPkgs.gtk3
+              desktopPkgs.libsoup_3
+              desktopPkgs.webkitgtk_4_1
+            ];
+          };
+          startDesktop = pkgs.writeShellScriptBin "start-desktop" (
+            if pkgs.stdenv.isLinux then
+              ''
+                if [ "''${DB_URL:-}" = ":memory:" ]; then
+                  data_dir="$PWD/.local-data"
+                  key_file="$data_dir/desktop.key"
+                  mkdir -p "$data_dir"
+                  if [ ! -f "$key_file" ]; then
+                    ${pkgs.openssl}/bin/openssl rand -base64 32 > "$key_file"
+                  fi
+                  export DB_URL="file:$data_dir/desktop.db"
+                  export DB_ENCRYPTION_KEY="$(<"$key_file")"
+                fi
+                runtime="$PWD/dist/desktop/tickets/tickets.so"
+                launcher="$PWD/dist/desktop/tickets/tickets"
+                exec ${desktopFhs}/bin/tickets-desktop-fhs \
+                  -c 'export LD_PRELOAD="$1"; shift; exec "$@"' -- \
+                  "$runtime" "$launcher" "$@"
+              ''
+            else
+              ''
+                echo "start:desktop currently supports Linux only" >&2
+                exit 1
+              ''
+          );
         in
+        assert pkgs.lib.assertMsg (pkgs.lib.versionAtLeast desktopDeno.version "2.9.0")
+          "tickets desktop builds require Deno 2.9.0 or newer, but nixpkgs provides ${desktopDeno.version}";
         {
           default = pkgs.mkShell {
             packages =
               [
                 deno
+                denoDesktop
+                startDesktop
                 (pkgs.writeShellScriptBin "pc" ''
                   exec ${deno}/bin/deno task precommit "$@"
                 '')
@@ -52,6 +105,8 @@
               echo "  deno task start      - run server"
               echo "  deno task test       - run tests"
               echo "  deno task build:edge - build for edge"
+              echo "  deno task build:desktop - build the desktop app"
+              echo "  deno task start:desktop - build and open the desktop app"
               echo "  deno task screenshot - capture representative pages"
               echo "  deno task precommit  - typecheck + lint + cpd + build + test"
               echo "  pc                   - run precommit"
@@ -63,7 +118,6 @@
               export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(openssl rand -base64 32)}"
               export DB_URL="''${DB_URL-:memory:}"
               export PORT="''${PORT-8080}"
-              export CODEX_SECURITY_PYTHON="''${CODEX_SECURITY_PYTHON-${codexSecurityPython}/bin/python3}"
               ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
                 export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
                 export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}:''${LD_LIBRARY_PATH:-}"

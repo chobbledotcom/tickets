@@ -370,6 +370,8 @@ deno task lint           # Format + lint with Biome — fixes in place
 deno task lint:ci        # Strict read-only lint (what precommit runs everywhere)
 deno task typecheck      # Type check
 deno task build:edge     # Build for Bunny Edge
+deno task build:desktop  # Build the desktop app (requires the Nix development shell)
+deno task start:desktop  # Build and open the desktop app on Linux (uses .local-data/desktop.db when DB_URL=:memory:)
 deno task deploy:edge <script-id> # Build, upload, and publish to Bunny Edge using BUNNY_ACCESS_KEY from .env
 deno task backup         # Dump the database out-of-band (uploads to storage; --out <path> for a local .zip)
 deno task restore <backup.zip> # Restore the database at DB_URL from a local backup using DB_TOKEN from .env
