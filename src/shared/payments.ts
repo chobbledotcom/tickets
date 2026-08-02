@@ -402,3 +402,17 @@ export const getPaymentProviderForExistingPayments =
         paymentsApi.getProviderFromSingleCredential(),
       " for existing payments",
     );
+
+/**
+ * The sync provider type for existing-payment UI surfaces (dashboard links,
+ * domain-change warnings) — the same three-tier fallback as
+ * {@link getPaymentProviderForExistingPayments} but without the async provider
+ * module load. Returns the provider type, or null when no provider can be
+ * resolved. Callers that need to call provider methods must use the async
+ * resolver; callers that only need the type (for a URL, a warning gate) use
+ * this.
+ */
+export const existingPaymentProviderType = (): PaymentProviderType | null =>
+  paymentsApi.getConfiguredProvider() ??
+  paymentsApi.getLastConfiguredProvider() ??
+  paymentsApi.getProviderFromSingleCredential();

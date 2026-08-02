@@ -7,13 +7,12 @@ import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 describe("CustomDomainForm", () => {
   beforeAll(setupAdminPageTest);
 
-  test("warns Stripe users via the last-active provider when sales are off", () => {
+  test("warns about Stripe webhook when sales are off but provider remembered", () => {
     const html = String(
       CustomDomainForm({
         ...advancedDefaultState,
         bunnyCdnEnabled: true,
-        lastActivePaymentProvider: "stripe",
-        paymentProvider: null,
+        paymentProvider: "stripe",
       }),
     );
     expect(html).toContain("Changing your domain changes your payment webhook");

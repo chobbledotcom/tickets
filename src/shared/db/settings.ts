@@ -36,8 +36,8 @@ import {
 } from "#shared/admin-features.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
-  executeBatchWithoutCacheInvalidation,
-  requireOne,
+  executeBatchWithoutCacheInvalidationWithResults,
+  resultRows,
 } from "#shared/db/client.ts";
 import {
   boolUpdate,
@@ -479,7 +479,9 @@ const settingsBase = {
       // correctly reflected. A second "none" save keeps the remembered
       // provider: the CASE falls through to the existing last_active when the
       // current provider is already "none".
-      await executeBatchWithoutCacheInvalidation([
+      // RETURNING value reads the computed last_active from the write result
+      // itself, avoiding a lagging-replica read after the write.
+      const results = await executeBatchWithoutCacheInvalidationWithResults([
         {
           args: [],
           sql:
@@ -493,17 +495,18 @@ const settingsBase = {
             "THEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
             "ELSE COALESCE(" +
             "(SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') " +
-            "END, '')",
+            "END, '') " +
+            "RETURNING value",
         },
         settingsVersionIncrement(),
       ]);
-      // Read the committed last_active value from the DB (the subquery
-      // computed it; the raw cache doesn't know it yet).
-      const row = await requireOne<{ value: string }>(
-        "SELECT value FROM settings WHERE key = ?",
-        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER],
-      );
-      const lastActive = row.value;
+      // RETURNING value yields both rows from the UNION ALL: first the "none"
+      // row, then the last_active row. The second row carries the value we
+      // computed from the pre-statement state.
+      const rows = resultRows<{ value: string }>(results[0]!);
+      // The UNION ALL always yields two rows: "none" then the computed
+      // last_active value. The second row carries the value we need.
+      const lastActive = rows[1]!.value;
       syncStoredSetting(CONFIG_KEYS.PAYMENT_PROVIDER, (values) =>
         values.set(CONFIG_KEYS.PAYMENT_PROVIDER, "none"),
       );

@@ -9,6 +9,7 @@
  */
 
 import { settings } from "#shared/db/settings.ts";
+import { existingPaymentProviderType } from "#shared/payments.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 /** Build a provider dashboard URL for a single payment reference. */
@@ -27,13 +28,11 @@ const urlBuilders: Record<PaymentProviderType, (id: string) => string> = {
 /**
  * Build a link to view a payment on the configured provider's dashboard.
  * Returns null when there is no payment id or no provider was ever configured.
- * Falls back to the last active provider when new sales are off, so an
- * operator can still inspect existing payments after switching sales off.
+ * Uses the shared existing-payment provider resolver so the link stays
+ * available when new sales are off.
  */
 export const paymentDashboardUrl = (paymentId: string): string | null => {
   if (!paymentId) return null;
-  const provider =
-    settings.paymentProvider ?? settings.lastActivePaymentProvider;
-  if (!provider) return null;
-  return urlBuilders[provider](encodeURIComponent(paymentId));
+  const provider = existingPaymentProviderType();
+  return provider ? urlBuilders[provider](encodeURIComponent(paymentId)) : null;
 };

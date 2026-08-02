@@ -495,8 +495,9 @@ whose credentials stay stored — so payments captured by that provider stay
 refundable and completable. A site already on `none` before this PR recovers
 when exactly one provider has stored credentials; when multiple do, the operator
 must re-select. `setPaymentProviderNone` reads the current provider from the
-database inside a `withTransaction` so a concurrent activation cannot land
-between the read and the write.
+database via an atomic INSERT ... SELECT subquery (evaluated against
+pre-statement state) so a concurrent activation cannot land between the read
+and the write.
 
 The seven accepted safety rules the aggregate must satisfy — including the ones
 not yet implementable on `main` (owner review, queued owner email, aggregate

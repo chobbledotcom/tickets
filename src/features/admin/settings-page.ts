@@ -20,6 +20,7 @@ import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
+import { existingPaymentProviderType } from "#shared/payments.ts";
 import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { getSuperuserState } from "#shared/superuser.ts";
@@ -28,7 +29,8 @@ import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.ts
 
 /* jscpd:ignore-end */
 
-/** Gather all state needed to render the settings page.
+/**
+ * Gather all state needed to render the settings page.
  * All calls are independent, so we fetch them concurrently with Promise.all
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
@@ -46,7 +48,7 @@ const getSettingsPageState = async () => {
     embedHosts: settings.embedHosts,
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
     headerImageUrl: settings.headerImageUrl,
-    lastActivePaymentProvider: settings.lastActivePaymentProvider,
+    lastActivePaymentProvider: existingPaymentProviderType(),
     paymentProvider: settings.paymentProvider,
     squareSandbox: settings.square.sandbox,
     squareTokenConfigured: settings.square.hasToken,
@@ -121,9 +123,9 @@ const getAdvancedSettingsPageState = async (
       if (!hostConfig) return "";
       return `Host env (${hostConfig.issuerId})`;
     })(),
-    lastActivePaymentProvider: settings.lastActivePaymentProvider,
+    lastActivePaymentProvider: existingPaymentProviderType(),
     listingColumnOrder: settings.listingColumnOrder,
-    paymentProvider: settings.paymentProvider,
+    paymentProvider: settings.paymentProvider ?? existingPaymentProviderType(),
     scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV),
     showPublicApi: settings.showPublicApi,
     smsGatewayBaseUrl: settings.smsGatewayBaseUrl,

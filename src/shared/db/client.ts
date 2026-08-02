@@ -578,6 +578,13 @@ export const executeBatchWithoutCacheInvalidation = async (
   await runBatch(statements, "write", false, false);
 };
 
+/** Same as {@link executeBatchWithoutCacheInvalidation} but returns each
+ *  statement's {@link ResultSet}, so an INSERT ... RETURNING can read the
+ *  written value back from the write round-trip itself. */
+export const executeBatchWithoutCacheInvalidationWithResults = async (
+  statements: SqlStatement[],
+): Promise<ResultSet[]> => runBatch(statements, "write", false, false);
+
 /** A read/write batch with a fixed mode, or one chosen when it runs. */
 type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
 

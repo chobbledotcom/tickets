@@ -110,8 +110,3 @@ src/shared/db/processed-payments.ts:287:7  processed_payments.failure_data → "
 # resolve.
 src/shared/db/news-posts.ts:147:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
 src/features/admin/api-keys.ts:147:75  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
-
-# setPaymentProviderNone writes PAYMENT_PROVIDER=none to the raw cache. The
-# applied checks isPaymentProvider(raw); both "none" and "" (the removal
-# target) fail this check, so data.payment_provider is null either way.
-src/shared/db/settings.ts:508:50  none → ""   # isPaymentProvider("none") and isPaymentProvider("") both return false

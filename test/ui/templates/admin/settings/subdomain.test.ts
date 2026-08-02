@@ -7,13 +7,12 @@ import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 describe("HostSubdomainForm", () => {
   beforeAll(setupAdminPageTest);
 
-  test("warns Square users via the last-active provider when sales are off", () => {
+  test("warns about Square webhook when provider is configured", () => {
     const html = String(
       HostSubdomainForm({
         ...advancedDefaultState,
         bunnyDnsEnabled: true,
-        lastActivePaymentProvider: "square",
-        paymentProvider: null,
+        paymentProvider: "square",
       }),
     );
     expect(html).toContain("Changing your domain changes your payment webhook");

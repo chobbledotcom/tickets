@@ -18,20 +18,6 @@ src/features/settings-bundles.ts:248:41  ?? → ||   # bundle is a readonly arra
 # ?? and || agree.
 src/features/admin/require-provider.ts:16:18  ?? → ||   # provider is PaymentProvider | null; never falsy-but-non-null
 
-# payment-dashboard.ts: settings.paymentProvider is string | null;
-# "stripe"/"square"/"sumup" are truthy, "" is falsy, null is falsy — same as ||
-src/shared/payment-dashboard.ts:36:29  ?? → ||   # paymentProvider is string|null; never falsy-but-non-null
-
-# settings.ts: setPaymentProviderNone writes "none" to the raw cache; the getter
-# rejects "none" via isPaymentProvider, same as rejecting "".
-src/shared/db/settings.ts:508:50  none → ""   # isPaymentProvider("none") and isPaymentProvider("") both return false
-
-# DomainPaymentWebhookWarning: s.paymentProvider is string | null;
-# "none" and "" are falsy, provider types are truthy, null is falsy — same as ||
-src/ui/templates/admin/settings/custom-domain.tsx:45:45  ?? → ||   # paymentProvider is string|null; never falsy-but-non-null
-src/ui/templates/admin/settings/subdomain.tsx:48:45  ?? → ||   # paymentProvider is string|null; never falsy-but-non-null
-src/ui/templates/admin/settings/subdomain.tsx:85:43  ?? → ||   # paymentProvider is string|null; never falsy-but-non-null
-
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so
 # `?? fallback` and `|| fallback` always agree. (createScopedValue's ?? is NOT
