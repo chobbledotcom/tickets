@@ -36,10 +36,6 @@ import {
 } from "#shared/admin-features.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
-  executeBatchWithoutCacheInvalidationWithResults,
-  resultRows,
-} from "#shared/db/client.ts";
-import {
   boolUpdate,
   rawUpdate,
   stringAccessors,
@@ -64,8 +60,10 @@ import { updateUserPassword } from "#shared/db/settings/password.ts";
 import {
   deleteRaw,
   encryptedUpdate,
+  executeSettingsBatchReturningValue,
   getRawCached,
   plaintextUpdate,
+  settingUpsert,
   syncStoredSetting,
   writeEncrypted,
   writeOrDelete,
@@ -471,23 +469,15 @@ const settingsBase = {
       data.last_active_payment_provider = v;
     },
     setPaymentProviderNone: async (): Promise<void> => {
-      // Write PAYMENT_PROVIDER=none and LAST_ACTIVE_PAYMENT_PROVIDER=<the
-      // current provider> in ONE SQL statement. SQLite evaluates the SELECT
-      // subqueries against the pre-statement state, so the subquery reads the
-      // ORIGINAL payment_provider (not "none"), making the read and write
-      // atomic — a concurrent activation landing before this statement is
-      // correctly reflected. A second "none" save keeps the remembered
-      // provider: the CASE falls through to the existing last_active when the
-      // current provider is already "none".
-      // RETURNING value reads the computed last_active from the write result
-      // itself, avoiding a lagging-replica read after the write.
-      const results = await executeBatchWithoutCacheInvalidationWithResults([
+      // Write LAST_ACTIVE from the current DB state, then clear
+      // PAYMENT_PROVIDER — both in one batch. The RETURNING statement's
+      // subqueries read pre-statement state, so a concurrent activation
+      // landing before the batch is correctly reflected.
+      const lastActive = await executeSettingsBatchReturningValue(
         {
           args: [],
           sql:
             "INSERT OR REPLACE INTO settings (key, value) " +
-            "SELECT 'payment_provider', 'none' " +
-            "UNION ALL " +
             "SELECT 'last_active_payment_provider', " +
             "COALESCE(CASE " +
             "WHEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
@@ -498,15 +488,11 @@ const settingsBase = {
             "END, '') " +
             "RETURNING value",
         },
-        settingsVersionIncrement(),
-      ]);
-      // RETURNING value yields both rows from the UNION ALL: first the "none"
-      // row, then the last_active row. The second row carries the value we
-      // computed from the pre-statement state.
-      const rows = resultRows<{ value: string }>(results[0]!);
-      // The UNION ALL always yields two rows: "none" then the computed
-      // last_active value. The second row carries the value we need.
-      const lastActive = rows[1]!.value;
+        [
+          settingUpsert(CONFIG_KEYS.PAYMENT_PROVIDER, "none"),
+          settingsVersionIncrement(),
+        ],
+      );
       syncStoredSetting(CONFIG_KEYS.PAYMENT_PROVIDER, (values) =>
         values.set(CONFIG_KEYS.PAYMENT_PROVIDER, "none"),
       );

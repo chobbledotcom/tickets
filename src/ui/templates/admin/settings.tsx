@@ -28,6 +28,11 @@ export type SettingsPageState = {
   stripeKeyConfigured: boolean;
   stripeKeyMode: string | null;
   paymentProvider: string | null;
+  /** The provider to show in the domain-change warning when new sales are off.
+   *  Distinct from `paymentProvider` (which controls the active-sales radio and
+   *  stays null when sales are off) so the radio correctly shows "none" while
+   *  the warning still names the provider that captured existing payments. */
+  lastActivePaymentProvider: string | null;
   /** The site's ISO currency code — decides which providers can be picked. */
   currency: string;
   squareTokenConfigured: boolean;

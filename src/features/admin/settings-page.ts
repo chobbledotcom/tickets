@@ -125,7 +125,7 @@ const getAdvancedSettingsPageState = async (
     })(),
     lastActivePaymentProvider: existingPaymentProviderType(),
     listingColumnOrder: settings.listingColumnOrder,
-    paymentProvider: settings.paymentProvider ?? existingPaymentProviderType(),
+    paymentProvider: settings.paymentProvider,
     scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV),
     showPublicApi: settings.showPublicApi,
     smsGatewayBaseUrl: settings.smsGatewayBaseUrl,

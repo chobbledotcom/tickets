@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { writeRawBatch } from "#shared/db/settings/raw-writes.ts";
+import {
+  deleteRaw,
+  executeSettingsBatchReturningValue,
+  writeRaw,
+  writeRawBatch,
+} from "#shared/db/settings/raw-writes.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -10,14 +15,12 @@ describeWithEnv("writeRawBatch", { db: true }, () => {
       [CONFIG_KEYS.SQUARE_LOCATION_ID, "loc_test"],
       [CONFIG_KEYS.SUMUP_MERCHANT_CODE, "mc_test"],
     ]);
-    // The raw cache mirrors the committed batch.
     expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe(
       "loc_test",
     );
     expect(settings.getCachedRaw(CONFIG_KEYS.SUMUP_MERCHANT_CODE)).toBe(
       "mc_test",
     );
-    // Reload from DB to confirm persistence.
     settings.invalidateCache();
     await settings.loadKeys([
       CONFIG_KEYS.SQUARE_LOCATION_ID,
@@ -25,5 +28,52 @@ describeWithEnv("writeRawBatch", { db: true }, () => {
     ]);
     expect(settings.square.locationId).toBe("loc_test");
     expect(settings.sumup.merchantCode).toBe("mc_test");
+  });
+
+  test("throws on an empty batch", () => {
+    expect(writeRawBatch([])).rejects.toThrow(
+      "Cannot write an empty settings batch",
+    );
+  });
+});
+
+describeWithEnv("writeRaw", { db: true }, () => {
+  test("persists a setting and mirrors the cache", async () => {
+    await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "loc_single");
+    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe(
+      "loc_single",
+    );
+    settings.invalidateCache();
+    await settings.loadKeys([CONFIG_KEYS.SQUARE_LOCATION_ID]);
+    expect(settings.square.locationId).toBe("loc_single");
+  });
+});
+
+describeWithEnv("deleteRaw", { db: true }, () => {
+  test("deletes a setting and clears it from the cache", async () => {
+    await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "loc_del");
+    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe(
+      "loc_del",
+    );
+    await deleteRaw(CONFIG_KEYS.SQUARE_LOCATION_ID);
+    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBeNull();
+    settings.invalidateCache();
+    await settings.loadKeys([CONFIG_KEYS.SQUARE_LOCATION_ID]);
+    expect(settings.square.locationId).toBe("");
+  });
+});
+
+describeWithEnv("executeSettingsBatchReturningValue", { db: true }, () => {
+  test("returns the RETURNING value from a real INSERT", async () => {
+    const value = await executeSettingsBatchReturningValue(
+      {
+        args: [],
+        sql:
+          "INSERT OR REPLACE INTO settings (key, value) " +
+          "VALUES ('test_returning_key', 'stripe') RETURNING value",
+      },
+      [],
+    );
+    expect(value).toBe("stripe");
   });
 });

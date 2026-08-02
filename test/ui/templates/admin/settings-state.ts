@@ -12,6 +12,7 @@ export const defaultSettingsState = (): SettingsPageState => ({
   embedHosts: "",
   enabledFeatures: DEFAULT_ENABLED_FEATURES,
   headerImageUrl: "",
+  lastActivePaymentProvider: "",
   paymentProvider: "",
   squareSandbox: false,
   squareTokenConfigured: false,

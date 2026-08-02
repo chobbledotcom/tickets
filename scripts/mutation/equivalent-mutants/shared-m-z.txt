@@ -11,7 +11,22 @@ src/shared/rest/resource.ts:158:25  ?? → ||   # validationError is an ErrorRes
 
 # settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
 # array, always truthy), so ?? and || agree.
-src/features/settings-bundles.ts:248:41  ?? → ||   # bundle is a readonly array or undefined; an array is truthy
+src/features/settings-bundles.ts:248:40  ?? → ||   # bundle is a readonly array or undefined; an array is truthy
+
+# webhooks.ts: the ?? operators below all have string|undefined on the LHS,
+# where the value is either undefined (absent search param) or a non-empty
+# string (a real param value). Never "" / 0 / false, so ?? and || agree.
+src/features/api/webhooks.ts:110:39  ?? → ||   # getSearchParam returns string|undefined; a search param is never ""
+src/features/api/webhooks.ts:125:62  ?? → ||   # same: getSearchParam result is string|undefined; never ""
+src/features/api/webhooks.ts:136:42  ?? → ||   # singleListingThankYou returns string|""; "" is falsy so ?? and || agree
+src/features/api/webhooks.ts:224:49  ?? → ||   # referer header is string|undefined; "none" is falsy so changing it to "" has same effect
+src/features/api/webhooks.ts:291:26  ?? → ||   # result.detail is string|undefined; a detail string is never ""
+src/features/api/webhooks.ts:310:4   ?? → ||   # singleListingThankYou returns string|""; "" is falsy so ?? and || agree
+src/features/api/webhooks.ts:338:55  ?? → ||   # getWebhookSignatureHeader returns string|null; a header value is never ""
+
+# settings-page.ts: existingPaymentProviderType() returns PaymentProviderType|null;
+# a provider type is a non-empty truthy string, so ?? and || agree.
+src/features/admin/settings-page.ts:128:46  ?? → ||   # existingPaymentProviderType is PaymentProviderType|null; never falsy-but-non-null
 
 # require-provider.ts: getPaymentProviderForExistingPayments() returns
 # PaymentProvider | null; a provider type is a non-empty truthy string, so

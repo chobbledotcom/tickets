@@ -11,8 +11,10 @@
  * `EncryptedUpdateFn`).
  */
 
+import * as v from "valibot";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
+  executeBatchReturningResults,
   executeBatchWithoutCacheInvalidation,
   executeWithoutCacheInvalidation,
   type SqlStatement,
@@ -111,6 +113,29 @@ export const writeRawBatch = async (values: SettingsBatch): Promise<void> => {
   await executeBatchWithoutCacheInvalidation(settingsBatchStatements(values));
   syncWrittenBatch(values);
 };
+
+/** Outer+inner valibot schema for a batch whose first statement is
+ *  `INSERT ... RETURNING value`: exactly one result set with exactly one
+ *  row carrying a string `value`, plus any number of remaining result sets
+ *  (the other batch statements). Parsing `results` through this makes
+ *  `parse(results)[0].rows[0].value` fully type-safe with no local
+ *  invalid-shape branches — valibot owns rejection. */
+const batchReturningValue = v.tupleWithRest(
+  [v.object({ rows: v.tuple([v.object({ value: v.string() })]) })],
+  v.unknown(),
+);
+
+/** Execute a batch whose first statement is `INSERT ... RETURNING value`,
+ *  returning the yielded value from the write round-trip itself (no
+ *  lagging-replica read). */
+export const executeSettingsBatchReturningValue = async (
+  returning: SqlStatement,
+  remaining: SqlStatement[],
+): Promise<string> =>
+  v.parse(
+    batchReturningValue,
+    await executeBatchReturningResults([returning, ...remaining]),
+  )[0].rows[0].value;
 
 /** Delete a setting from the DB, drop it from the raw cache, and bump the
  *  shared version so other isolates reload on their next request. */
