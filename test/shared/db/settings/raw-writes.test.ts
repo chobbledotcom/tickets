@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { executeBatchReturningResults } from "#shared/db/client.ts";
 import {
   deleteRaw,
   executeSettingsBatchReturningValue,
@@ -39,6 +40,15 @@ describeWithEnv("writeRawBatch", { db: true }, () => {
     expect(writeRawBatch([])).rejects.toThrow(
       "Cannot write an empty settings batch",
     );
+  });
+
+  test("marks every key loaded so getCachedRaw reads succeed", async () => {
+    await writeRawBatch([
+      [CONFIG_KEYS.SQUARE_LOCATION_ID, "loc_a"],
+      [CONFIG_KEYS.SUMUP_MERCHANT_CODE, "mc_a"],
+    ]);
+    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe("loc_a");
+    expect(settings.getCachedRaw(CONFIG_KEYS.SUMUP_MERCHANT_CODE)).toBe("mc_a");
   });
 });
 
@@ -93,5 +103,21 @@ describeWithEnv("executeSettingsBatchReturningValue", { db: true }, () => {
       [],
     );
     expect(value).toBe("stripe");
+  });
+
+  test("executeBatchReturningResults does not invalidate the settings cache", async () => {
+    // Pre-load a setting so the cache has it.
+    await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "loc_pre");
+    const before = settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID);
+    // Run a no-op batch through executeBatchReturningResults.
+    await executeBatchReturningResults([
+      {
+        args: ["noop_key", "noop_val"],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      },
+    ]);
+    // If invalidate were true, the cache would have been cleared and this read
+    // would fail the audit (key not declared loaded).
+    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe(before);
   });
 });

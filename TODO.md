@@ -480,30 +480,18 @@ look.
 
 ## Payment aggregate — safety behaviour (PR 1)
 
-*Origin: the first incremental step toward the `base/payment-aggregate` rewrite.
-That branch carries the full aggregate (owner-review cases, queued owner email,
-aggregate activation); this PR lands only the safety property the rest of the
-series depends on, on `main` as it is today.*
-
 New sales and existing payments are now resolved by different questions:
 `getActivePaymentProvider()` / `isPaymentsEnabled()` gate new checkouts;
-`getPaymentProviderForExistingPayments()` resolves the provider for refunds,
-provider reconciliation, replayed callbacks, and completion of already-started
-payment work. When new sales are switched off (provider saved as "none"), the
-existing-payment paths fall back to the last provider the operator activated —
-whose credentials stay stored — so payments captured by that provider stay
-refundable and completable. A site already on `none` before this PR recovers
-when exactly one provider has stored credentials; when multiple do, the operator
-must re-select. `setPaymentProviderNone` reads the current provider from the
-database via an atomic INSERT ... SELECT subquery (evaluated against
-pre-statement state) so a concurrent activation cannot land between the read
-and the write.
+`getPaymentProviderForExistingPayments()` resolves refunds, replayed
+callbacks, and completion. When sales are off, the existing-payment path
+falls back to the last activated provider. A site already on `none`
+recovers when exactly one provider has stored credentials; when multiple
+do, the operator must re-select. `setPaymentProviderNone` reads the
+current provider via an atomic INSERT ... SELECT subquery so a concurrent
+activation cannot land between the read and the write.
 
-The seven accepted safety rules the aggregate must satisfy — including the ones
-not yet implementable on `main` (owner review, queued owner email, aggregate
-activation) — are recorded as acceptance constraints in
-[`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md),
-not implemented ahead of their time.
+The seven accepted safety rules are recorded as acceptance constraints in
+[`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
 
 - **Track the provider each charge was captured with.** `main` stores only the
   opaque `payment_reference` per processed payment, not which provider captured
