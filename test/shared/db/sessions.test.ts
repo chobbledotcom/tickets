@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import { TTL_CACHE_MAX_ENTRIES } from "#fp";
 import {
   getAllCacheStats,
   invalidateCachesForTable,
@@ -232,6 +233,18 @@ describeWithEnv("db > sessions", { db: true }, () => {
     const kept = await getSession("keep");
     expect(kept).not.toBeNull();
     expect(kept?.csrf_token).toBe("csrf-keep");
+  });
+
+  test("unique invalid tokens cannot grow the session cache without bound", async () => {
+    invalidateCachesForTable("sessions");
+
+    const probes = TTL_CACHE_MAX_ENTRIES + 100;
+    for (let i = 0; i < probes; i++) {
+      expect(await getSession(`junk-cookie-${i}`)).toBeNull();
+    }
+
+    const stat = getAllCacheStats().find((s) => s.name === "sessions");
+    expect(stat?.entries).toBeLessThanOrEqual(TTL_CACHE_MAX_ENTRIES);
   });
 
   test("registers a 'sessions' cache stat reflecting cached entries", async () => {
