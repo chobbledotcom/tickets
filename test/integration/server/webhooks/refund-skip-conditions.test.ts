@@ -20,10 +20,14 @@ import {
 
 // jscpd:ignore-end
 
+import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
+
 describeWithEnv(
   "server webhooks > refund skip conditions",
   { db: true },
   () => {
+    const errorSpy = useErrorLogSpy();
+
     test("webhook rejects a paid session with no provider payment reference", async () => {
       await setupStripe();
 
@@ -106,13 +110,21 @@ describeWithEnv(
           mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         expect(response.status).toBe(503);
-        await response.text(); // the plain retry body
+        expect(await response.text()).toBe("Refund failed");
         // The retry is only correct if the refund was genuinely attempted on
         // the captured charge — a 503 returned before the provider call would
         // leave the money with Stripe and nothing asking for it back.
         expect(refundStub.calls.map((call) => call.args)).toEqual([
           ["pi_malformed"],
         ]);
+        // Stripe retries silently, so the log is the operator's only sign
+        // that a captured charge is sitting unrefunded.
+        expect(
+          errorLogged(
+            errorSpy,
+            "Webhook session rejected as malformed_charge (refunded: false)",
+          ),
+        ).toBe(true);
       } finally {
         mockVerify.restore();
         refundStub.restore();

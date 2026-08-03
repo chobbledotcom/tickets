@@ -18,6 +18,8 @@ import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
 
+import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
+
 /** A cancelled (unpaid) checkout session for the given id and items metadata —
  *  the shape every /payment/cancel test stubs, differing only in the id and
  *  which listing/package ids the items carry. */
@@ -25,6 +27,8 @@ const cancelSession = (sessionId: string, items: string) =>
   johnCheckoutSession(sessionId, { items, paid: false });
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
+  const errorSpy = useErrorLogSpy();
+
   describe("GET /payment/cancel", () => {
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/cancel"));
@@ -106,6 +110,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         );
         expect(refundSpy.calls.length).toBe(1);
         expect(refundSpy.calls[0]?.args[0]).toBe("pi_unusable");
+        // The buyer only sees "not found", so the log is the operator's only
+        // record of which session was refused and whether the money went back.
+        expect(
+          errorLogged(
+            errorSpy,
+            "Session rejected as malformed_charge (session=cs_rejected, refunded: true)",
+          ),
+        ).toBe(true);
       } finally {
         refundSpy.restore();
       }

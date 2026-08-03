@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { signPrice, verifyPrice } from "#shared/payment-signature.ts";
+import {
+  parsePriceProof,
+  signPrice,
+  verifyPrice,
+} from "#shared/payment-signature.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const TOTAL = 4500;
@@ -62,7 +66,32 @@ const lcg = (seed: number) => () => {
   return seed / 0x80000000;
 };
 
+/** Proof strings and the total/signature split each must produce, or null when
+ *  the proof is unusable. The signature part keeps its own dots — a base64
+ *  digest can contain them — so only the FIRST dot separates the two halves. */
+const proofSplits: [string, { total: number; sig: string } | null][] = [
+  ["4500.abc123", { sig: "abc123", total: 4500 }],
+  ["0.sig", { sig: "sig", total: 0 }],
+  ["4500.a.b.c", { sig: "a.b.c", total: 4500 }],
+  // A decimal total is not rejected here: the digits before the first dot are
+  // the total and the rest is the signature. It fails at verification instead,
+  // because that signature was never signed for this metadata.
+  ["45.00.abc", { sig: "00.abc", total: 45 }],
+  ["", null],
+  ["4500", null],
+  ["4500.", null],
+  [".abc123", null],
+  ["-1.abc123", null],
+  ["abc.abc123", null],
+];
+
 describeWithEnv("payment price signature", { encryptionKey: true }, () => {
+  for (const [proof, expected] of proofSplits) {
+    test(`splits the proof ${JSON.stringify(proof)}`, () => {
+      expect(parsePriceProof(proof)).toEqual(expected);
+    });
+  }
+
   test("signing the same metadata and total is deterministic", async () => {
     expect(await signPrice(baseMeta(), TOTAL)).toBe(
       await signPrice(baseMeta(), TOTAL),
