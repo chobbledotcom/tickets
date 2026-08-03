@@ -1849,3 +1849,36 @@ method the form declares: a GET carries its values in the query string rather
 than the body. `findForms` already reads the method, so the missing part is the
 sending and the check that no story quietly depended on the old POST — which is
 why it is not a one-line change and did not belong in that PR.
+
+## Record equivalent mutants by something that survives an edit
+
+*Origin: two breakages on PR #2025, both caught by review rather than by any
+check the branch ran.*
+
+`scripts/mutation/equivalent-mutants/*.txt` records each known-equivalent
+mutant as `path:line:column`, and `resolveEntries` in
+`scripts/mutation/equivalent-audit.ts` matches all three exactly. So any edit
+*above* a recorded expression silently invalidates its entry — the mutant stops
+being suppressed and `deno task mutation:audit-equivalents` fails.
+
+It happened twice on one branch. Splitting `test-browser.ts` into `parsing.ts`
+and `forms.ts` moved six entries; then adding a single doc comment above
+`attrValue` moved three of those same entries five lines further down. Neither
+was a change to the recorded expressions themselves.
+
+What makes it bite: `mutation:audit-equivalents` is not part of `deno task
+precommit`, so a fully green precommit says nothing about whether the registry
+still resolves. Both breakages were found by PR reviewers.
+
+Two directions, either of which would help:
+
+- **Key on something stable.** Record the expression text plus its enclosing
+  function name instead of a line and column, so an entry survives anything
+  that does not change the expression itself. This changes the file format and
+  `resolveEntries`, so existing entries need migrating.
+- **Run the audit in `precommit`** (or in CI), so drift fails on the branch
+  that caused it rather than in review. It works in a copy of the checkout and
+  runs no tests, so it is not obviously too slow — worth timing before
+  assuming it is.
+
+The first is the real fix; the second would catch the next one either way.
