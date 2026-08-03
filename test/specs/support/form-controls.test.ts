@@ -11,6 +11,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
   checkboxValueOffered,
+  choicesOffered,
   expectCanReallySend,
   fillInAndSend,
   optionsOffered,
@@ -140,6 +141,32 @@ describe("what a visitor can send", () => {
       expect(() => optionsOffered("<p>nothing here</p>", "date")).toThrow(
         "The page offers no date to choose",
       );
+    });
+  });
+
+  describe("the choices a dropdown offers", () => {
+    test("gives the words a person reads beside the value they send", () => {
+      expect(
+        choicesOffered(chooser(`${PLACEHOLDER}${OPEN_DAY}`), "date"),
+      ).toEqual([
+        { label: "Pick a day", value: "" },
+        { label: "10 August", value: "2026-08-10" },
+      ]);
+    });
+
+    test("reads the words through any markup inside the option", () => {
+      expect(
+        choicesOffered(
+          chooser('<option value="2026-08-11"> <b>11</b> August </option>'),
+          "date",
+        ),
+      ).toEqual([{ label: "11 August", value: "2026-08-11" }]);
+    });
+
+    test("gives an option carrying no value at all an empty one", () => {
+      expect(
+        choicesOffered(chooser("<option selected>Any day</option>"), "date"),
+      ).toEqual([{ label: "Any day", value: "" }]);
     });
   });
 });

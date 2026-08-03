@@ -37,6 +37,7 @@ export const stripeResponseFor = (path: string, method: string): Response => {
           url: "https://example.com/payment/webhook",
         },
       ],
+      has_more: false,
     });
   }
   if (path.startsWith("/v1/webhook_endpoints") && method === "DELETE") {

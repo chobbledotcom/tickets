@@ -17,6 +17,11 @@ describe("findRedundantArg", () => {
     expect(findRedundantArg("padStart", sites)).toBe(null);
   });
 
+  test("ignores the built-in at(-1) last-element idiom", () => {
+    const sites = [site(["-1"]), site(["-1"]), site(["-1"])];
+    expect(findRedundantArg("at", sites)).toBe(null);
+  });
+
   test("ignores callees with fewer than three call sites", () => {
     expect(findRedundantArg("foo", [site(["1"]), site(["1"])])).toBe(null);
   });

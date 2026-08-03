@@ -110,6 +110,7 @@ describeStripe("stripe", () => {
                 url: getPaymentWebhookUrl(),
               },
             ],
+            has_more: false,
           }),
         async () => {
           const result = await stripeApi.testStripeConnection();
@@ -161,6 +162,7 @@ describeStripe("stripe", () => {
                 url: "https://other.com/webhook",
               },
             ],
+            has_more: false,
           }),
         async () => {
           const result = await stripeApi.testStripeConnection();

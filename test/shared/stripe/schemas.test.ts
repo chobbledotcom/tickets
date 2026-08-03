@@ -9,6 +9,7 @@ import {
   StripeDeletedWebhookEndpointSchema,
   StripeExpandedPaymentIntentSchema,
   StripeRefundSchema,
+  StripeWebhookEndpointListSchema,
   StripeWebhookEndpointSchema,
 } from "#shared/stripe/schemas.ts";
 
@@ -94,21 +95,6 @@ describe("Stripe schemas", () => {
     });
   }
 
-  // The two states Stripe reports an endpoint in. A missing one would make the
-  // setup page throw on a real endpoint instead of showing whether it is live.
-  for (const status of ["disabled", "enabled"] as const) {
-    test(`accepts webhook endpoint status ${status}`, () => {
-      expect(
-        v.parse(StripeWebhookEndpointSchema, {
-          enabled_events: [],
-          id: "we_1",
-          status,
-          url: "https://x.test",
-        }).status,
-      ).toBe(status);
-    });
-  }
-
   test("rejects an unknown webhook endpoint status", () => {
     expect(() =>
       v.parse(StripeWebhookEndpointSchema, {
@@ -177,6 +163,23 @@ describe("Stripe schemas", () => {
     ).toThrow();
   });
 
+  // The two states Stripe reports an endpoint in. A missing one would make the
+  // setup page throw on a real endpoint instead of showing whether it is live.
+  test("accepts every supported webhook endpoint status", () => {
+    const statuses = ["disabled", "enabled"] as const;
+    expect(
+      statuses.map(
+        (status) =>
+          v.parse(StripeWebhookEndpointSchema, {
+            enabled_events: [],
+            id: "we_1",
+            status,
+            url: "https://x.test",
+          }).status,
+      ),
+    ).toEqual(statuses);
+  });
+
   test("requires a boolean balance mode", () => {
     expect(() => v.parse(StripeBalanceSchema, { livemode: null })).toThrow();
   });
@@ -188,6 +191,16 @@ describe("Stripe schemas", () => {
         id: "we_1",
       }),
     ).toThrow();
+  });
+
+  test("requires the endpoint listing to say whether more pages follow", () => {
+    expect(() =>
+      v.parse(StripeWebhookEndpointListSchema, { data: [] }),
+    ).toThrow();
+    expect(
+      v.parse(StripeWebhookEndpointListSchema, { data: [], has_more: false })
+        .has_more,
+    ).toBe(false);
   });
 
   test("parses structured Stripe errors", () => {

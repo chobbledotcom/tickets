@@ -53,16 +53,35 @@ const boxFor = (html: string, field: string): string | null => {
   return null;
 };
 
-/** The values a dropdown on the page offers. Throws when the page has no such
- * dropdown, so "the option is missing" and "the control is missing" stay
+/** One choice a dropdown offers: the words somebody reads on the page, and the
+ * value picking it sends. */
+export interface ChoiceOffered {
+  label: string;
+  value: string;
+}
+
+/** Every choice a dropdown on the page offers, in the order it renders them.
+ * Both halves come off the page itself, so a story can name a choice by the
+ * words in front of the person making it. Throws when the page has no such
+ * dropdown, so "the choice is missing" and "the control is missing" stay
  * separate failures. */
-export const optionsOffered = (html: string, field: string): string[] => {
+export const choicesOffered = (
+  html: string,
+  field: string,
+): ChoiceOffered[] => {
   const chooser = chooserFor(html, field);
   if (!chooser) throw new Error(`The page offers no ${field} to choose`);
-  return [...chooser.options.matchAll(/value="([^"]*)"/g)].map(
-    (option) => option[1]!,
-  );
+  return [
+    ...chooser.options.matchAll(/<option\s([^>]*)>([\s\S]*?)<\/option>/g),
+  ].map((option) => ({
+    label: option[2]!.replace(/<[^>]*>/g, "").trim(),
+    value: attribute(option[1]!, "value") ?? "",
+  }));
 };
+
+/** The values a dropdown on the page offers. */
+export const optionsOffered = (html: string, field: string): string[] =>
+  choicesOffered(html, field).map(({ value }) => value);
 
 /** One attribute's value on a control, or null when it does not carry it. */
 const attribute = (tag: string, named: string): string | null =>
