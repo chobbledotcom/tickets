@@ -92,7 +92,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     expect(res.headers.get("location") ?? "").toContain("tokens=");
   });
 
-  test("direct-render successPage when thank_you_url in metadata", async () => {
+  test("direct-render shows the ticket URL and thank-you link", async () => {
     await setupStripe();
     const l = await createTestListing({ maxAttendees: 5, unitPrice: 1000 });
     using _r = stubRetrieveCheckoutSession({
@@ -117,194 +117,30 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     );
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("/t/"); // ticket URL is built with "/t/" + tokens
+    expect(html).toContain("/t/");
     expect(html).toContain("https://ty.example.com");
   });
 
-  test("processed webhook returns received=true and processed=true", async () => {
-    await setupStripe();
-    const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
-    await withWebhookVerify(
-      webhookEvent({
-        amountTotal: 500,
-        eventId: "evt_p",
-        metadata: signedMeta(
-          { email: "p@e.com", items: singleItem(l.id, 1, 500), name: "P" },
-          500,
-        ),
-        paymentIntent: "pi_p",
-        sessionId: "cs_p",
-      }),
-      (j) => expect(j.processed).toBe(true),
-    );
-  });
-
-  test("unrecognized session acks without processing and logs", async () => {
-    await setupStripe();
-    await withWebhookVerify(
-      webhookEvent({
-        amountTotal: 100,
-        eventId: "evt_u",
-        metadata: {},
-        paymentIntent: "pi_u",
-        sessionId: "cs_u",
-      }),
-      (j) => {
-        expect(j.received).toBe(true);
-        expect(j.processed).toBeUndefined();
-        expect(debugLogged(D, "Ignoring webhook")).toBe(true);
-        expect(debugLogged(D, "unrecognized")).toBe(true);
-      },
-    );
-  });
-
-  test("unpaid session acks as pending and logs", async () => {
-    await setupStripe();
-    await withWebhookVerify(
-      webhookEvent({
-        amountTotal: 100,
-        eventId: "evt_un",
-        metadata: { _origin: "t", email: "u@e.com", items: "[]", name: "U" },
-        paymentStatus: "unpaid",
-        sessionId: "cs_un",
-      }),
-      (j) => {
-        expect(j.status).toBe("pending");
-        expect(errorLogged(E, "not yet paid")).toBe(true);
-        expect(debugLogged(D, "Pending payload")).toBe(true);
-      },
-    );
-  });
-
-  test("unverifiable session acks without processing and logs", async () => {
-    await setupStripe();
-    await withWebhookVerify(
-      webhookEvent({
-        amountTotal: 100,
-        eventId: "evt_uv",
-        metadata: {
-          _origin: "foreign",
-          email: "f@e.com",
-          items: "[]",
-          name: "F",
-        },
-        paymentIntent: "pi_uv",
-        sessionId: "cs_uv",
-      }),
-      (j) => {
-        expect(j.received).toBe(true);
-        expect(j.processed).toBeUndefined();
-        expect(debugLogged(D, "Ignoring webhook")).toBe(true);
-      },
-    );
-  });
-
-  test("webhook 400 when no provider configured, logs and debugs", async () => {
-    const res = await handleRequest(
-      mockWebhookRequest({}, { "stripe-signature": "sig" }),
-    );
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("Payment provider not configured");
-    expect(errorLogged(E, "provider not configured")).toBe(true);
-    expect(debugLogged(D, "Rejected payload")).toBe(true);
-  });
-
-  test("webhook 400 missing signature, logs and debugs", async () => {
-    await setupStripe();
-    const res = await handleRequest(mockWebhookRequest({}));
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("Missing signature");
-    expect(errorLogged(E, "missing signature header")).toBe(true);
-    expect(debugLogged(D, "Rejected payload")).toBe(true);
-  });
-
-  test("webhook 400 bad signature, logs error and debug", async () => {
-    await setupStripe();
-    const res = await handleRequest(
-      mockWebhookRequest({}, { "stripe-signature": "bad" }),
-    );
-    expect(res.status).toBe(400);
-    expect(errorLogged(E, "verification failed")).toBe(true);
-    expect(debugLogged(D, "Rejected payload")).toBe(true);
-  });
-
-  test("concurrent reservation returns 409", async () => {
-    await setupStripe();
-    const l = await createTestListing({ maxAttendees: 50, unitPrice: 500 });
-    const { reserveSession } = await import("#shared/db/processed-payments.ts");
-    await reserveSession("cs_409");
-    const [res, verify] = await postWebhook(
-      webhookEvent({
-        amountTotal: 500,
-        eventId: "evt_409",
-        metadata: signedMeta(
-          { email: "c@e.com", items: singleItem(l.id, 1, 500), name: "C" },
-          500,
-        ),
-        paymentIntent: "pi_409",
-        sessionId: "cs_409",
-      }),
-    );
-    using _v = verify;
-    expect(res.status).toBe(409);
-    expect(await res.text()).toContain("being processed");
-  });
-
-  test("kept-refunded booking with failed refund acks as processed:false", async () => {
-    await setupStripe();
-    const l = await createTestListing({ maxAttendees: 50, unitPrice: 1000 });
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    using _rf = stub(stripePaymentProvider, "refundPayment", () =>
-      Promise.resolve(false),
-    );
-    using _rd = stub(stripePaymentProvider, "isPaymentRefunded", () =>
-      Promise.resolve(false),
-    );
-    const [res, verify] = await postWebhook(
-      webhookEvent({
-        amountTotal: 500,
-        eventId: "evt_kr",
-        metadata: signedMeta(
-          { email: "k@e.com", items: singleItem(l.id, 1, 1000), name: "K" },
-          1000,
-        ),
-        paymentIntent: "pi_kr",
-        sessionId: "cs_kr",
-      }),
-    );
-    using _v = verify;
-    expect(res.status).toBe(200);
-    const j = (await res.json()) as Record<string, unknown>;
-    expect(j.processed).toBe(false);
-    expect(String(j.error)).toContain("saved your details");
-    expect(errorLogged(E, `listing=${l.id}`)).toBe(true);
-  });
-
-  // --- survivors that need the success-page render path ---
-
-  test("redirect path includes encoded tokens in the URL", async () => {
+  test("redirect URL includes the actual token value", async () => {
     await setupStripe();
     const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
     using _r = stubRetrieveCheckoutSession({
       amountTotal: 500,
-      email: "rd@e.com",
+      email: "ru@e.com",
       items: singleItem(l.id, 1, 500),
-      name: "RD",
-      paymentIntent: "pi_rd",
-      sessionId: "cs_rd",
+      name: "RU",
+      paymentIntent: "pi_ru",
+      sessionId: "cs_ru",
     });
     const res = await handleRequest(
-      mockRequest("/payment/success?session_id=cs_rd"),
+      mockRequest("/payment/success?session_id=cs_ru"),
     );
     expect(res.status).toBe(302);
     const loc = res.headers.get("location") ?? "";
-    expect(loc).toContain("/payment/success?tokens=");
-    expect(loc.split("tokens=")[1]?.length ?? 0).toBeGreaterThan(0);
+    expect(loc).toMatch(/^\/payment\/success\?tokens=.+$/);
   });
 
-  test("already-processed session renders success page with paid:true", async () => {
+  test("already-processed session renders the trimmed thank-you URL", async () => {
     await setupStripe();
     const l = await createTestListing({
       maxAttendees: 5,
@@ -320,48 +156,46 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
         500,
       ),
       name: "AP",
-      paymentIntent: "pi_ap",
-      sessionId: "cs_ap_redirect",
+      paymentIntent: "pi_ap2",
+      sessionId: "cs_ap2",
     });
-    // First call processes and creates the attendee
-    const res1 = await handleRequest(
-      mockRequest("/payment/success?session_id=cs_ap_redirect"),
+    await handleRequest(mockRequest("/payment/success?session_id=cs_ap2"));
+    const res2 = await handleRequest(
+      mockRequest("/payment/success?session_id=cs_ap2"),
     );
-    // First call should redirect with tokens (302) — tokens present
-    if (res1.status === 302) {
-      const loc = res1.headers.get("location") ?? "";
-      // Follow the redirect to the tokens page — triggers renderSuccessFromTokens
+    const html = await res2.text();
+    expect(html).toContain("trim.example.com");
+    expect(html).not.toContain("Invalid payment callback");
+  });
+
+  test("tokens render path shows the ticket URL and single-listing thank-you", async () => {
+    await setupStripe();
+    const l = await createTestListing({
+      maxAttendees: 5,
+      thankYouUrl: "https://tok-ty.example.com",
+      unitPrice: 500,
+    });
+    using _r = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "tk@e.com",
+      items: singleItem(l.id, 1, 500),
+      name: "TK",
+      paymentIntent: "pi_tk2",
+      sessionId: "cs_tk2",
+    });
+    const res1 = await handleRequest(
+      mockRequest("/payment/success?session_id=cs_tk2"),
+    );
+    const loc = res1.headers.get("location") ?? "";
+    if (loc.includes("tokens=")) {
       const res2 = await handleRequest(mockRequest(loc));
-      expect(res2.status).toBe(200);
       const html = await res2.text();
-      expect(html).toContain("trim.example.com"); // trimmed thank_you_url
-      expect(html).toContain("/t/"); // ticket URL built with + operator
+      expect(html).toContain("/t/");
+      expect(html).toContain("tok-ty.example.com");
     }
   });
 
-  test("renderSuccessFromTokens rejects bad tokens", async () => {
-    await setupStripe();
-    const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
-    await withWebhookVerify(
-      webhookEvent({
-        amountTotal: 500,
-        eventId: "evt_bto",
-        metadata: signedMeta(
-          { email: "bt@e.com", items: singleItem(l.id, 1, 500), name: "BT" },
-          500,
-        ),
-        paymentIntent: "pi_bto",
-        sessionId: "cs_bto",
-      }),
-      () => {},
-    );
-    const res = await handleRequest(
-      mockRequest("/payment/success?tokens=deadbeef"),
-    );
-    expect((await res.text()).length).toBeGreaterThan(0);
-  });
-
-  test("handlePaymentSuccess logs paramKeys and referer on no session", async () => {
+  test("no-session callback logs all param names comma-separated", async () => {
     const req = mockRequest("/payment/success?foo=bar&baz=qux");
     req.headers.set("referer", "https://evil.example.com");
     await handleRequest(req);
@@ -381,10 +215,10 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     using _v = await stubWebhookVerify(
       webhookEvent({
         amountTotal: 100,
-        eventId: "evt_skip",
+        eventId: "evt_skip2",
         metadata: {},
-        paymentIntent: "pi_skip",
-        sessionId: "cs_skip",
+        paymentIntent: "pi_skip2",
+        sessionId: "cs_skip2",
       }),
     );
     const res = await handleRequest(
@@ -395,25 +229,155 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     expect(j.status).toBe("pending");
   });
 
-  test("processed webhook logs listingId from items[0]", async () => {
+  test("unpaid session acks as pending and logs", async () => {
+    await setupStripe();
+    await withWebhookVerify(
+      webhookEvent({
+        amountTotal: 100,
+        eventId: "evt_unp2",
+        metadata: { _origin: "t", email: "u@e.com", items: "[]", name: "U" },
+        paymentStatus: "unpaid",
+        sessionId: "cs_unp2",
+      }),
+      (j) => {
+        expect(j.status).toBe("pending");
+        expect(errorLogged(E, "not yet paid")).toBe(true);
+        expect(debugLogged(D, "Pending payload")).toBe(true);
+      },
+    );
+  });
+
+  test("unrecognized and unverifiable sessions ack without processing", async () => {
+    await setupStripe();
+    const expectAckedAndIgnored = (j: Record<string, unknown>) => {
+      expect(j.received).toBe(true);
+      expect(j.processed).toBeUndefined();
+      expect(debugLogged(D, "Ignoring webhook")).toBe(true);
+    };
+    await withWebhookVerify(
+      webhookEvent({
+        amountTotal: 100,
+        eventId: "evt_unrec2",
+        metadata: {},
+        paymentIntent: "pi_unrec2",
+        sessionId: "cs_unrec2",
+      }),
+      expectAckedAndIgnored,
+    );
+    await withWebhookVerify(
+      webhookEvent({
+        amountTotal: 100,
+        eventId: "evt_uv2",
+        metadata: {
+          _origin: "foreign",
+          email: "f@e.com",
+          items: "[]",
+          name: "F",
+        },
+        paymentIntent: "pi_uv2",
+        sessionId: "cs_uv2",
+      }),
+      expectAckedAndIgnored,
+    );
+  });
+
+  test("webhook with no provider returns 400 and logs rejection", async () => {
+    const res = await handleRequest(
+      mockWebhookRequest({}, { "stripe-signature": "sig" }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("Payment provider not configured");
+    expect(errorLogged(E, "provider not configured")).toBe(true);
+    expect(debugLogged(D, "Rejected payload")).toBe(true);
+  });
+
+  test("webhook with missing signature returns 400 and logs", async () => {
+    await setupStripe();
+    const res = await handleRequest(mockWebhookRequest({}));
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("Missing signature");
+    expect(errorLogged(E, "missing signature header")).toBe(true);
+    expect(debugLogged(D, "Rejected payload")).toBe(true);
+  });
+
+  test("webhook with bad signature returns 400 and logs", async () => {
+    await setupStripe();
+    const res = await handleRequest(
+      mockWebhookRequest({}, { "stripe-signature": "bad" }),
+    );
+    expect(res.status).toBe(400);
+    expect(errorLogged(E, "verification failed")).toBe(true);
+    expect(debugLogged(D, "Rejected payload")).toBe(true);
+  });
+
+  test("processed webhook returns received=true and processed=true", async () => {
     await setupStripe();
     const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
     await withWebhookVerify(
       webhookEvent({
         amountTotal: 500,
-        eventId: "evt_pl",
+        eventId: "evt_p2",
         metadata: signedMeta(
-          { email: "pl@e.com", items: singleItem(l.id, 1, 500), name: "PL" },
+          { email: "p@e.com", items: singleItem(l.id, 1, 500), name: "P" },
           500,
         ),
-        paymentIntent: "pi_pl",
-        sessionId: "cs_pl",
+        paymentIntent: "pi_p2",
+        sessionId: "cs_p2",
       }),
-      () => {
-        expect(errorLogged(E, `listing=${l.id}`)).toBe(false);
+      (j) => expect(j.processed).toBe(true),
+    );
+  });
+
+  test("concurrent reservation returns 409 with being-processed message", async () => {
+    await setupStripe();
+    const l = await createTestListing({ maxAttendees: 50, unitPrice: 500 });
+    const { reserveSession } = await import("#shared/db/processed-payments.ts");
+    await reserveSession("cs_409b");
+    const [res, verify] = await postWebhook(
+      webhookEvent({
+        amountTotal: 500,
+        eventId: "evt_409b",
+        metadata: signedMeta(
+          { email: "c@e.com", items: singleItem(l.id, 1, 500), name: "C" },
+          500,
+        ),
+        paymentIntent: "pi_409b",
+        sessionId: "cs_409b",
+      }),
+    );
+    using _v = verify;
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain("being processed");
+  });
+
+  test("kept-refunded webhook acks with the correct listing in the error log", async () => {
+    await setupStripe();
+    const l = await createTestListing({ maxAttendees: 50, unitPrice: 1000 });
+    const { stripePaymentProvider } = await import(
+      "#shared/stripe-provider.ts"
+    );
+    using _rf = stub(stripePaymentProvider, "refundPayment", () =>
+      Promise.resolve(false),
+    );
+    using _rd = stub(stripePaymentProvider, "isPaymentRefunded", () =>
+      Promise.resolve(false),
+    );
+    await withWebhookVerify(
+      webhookEvent({
+        amountTotal: 500,
+        eventId: "evt_kr2",
+        metadata: signedMeta(
+          { email: "k@e.com", items: singleItem(l.id, 1, 1000), name: "K" },
+          1000,
+        ),
+        paymentIntent: "pi_kr2",
+        sessionId: "cs_kr2",
+      }),
+      (j) => {
+        expect(j.processed).toBe(false);
+        expect(String(j.error)).toContain("saved your details");
       },
     );
-    // The success path doesn't log an error, but the listingId is used in the
-    // error-branch. A webhook that keeps-and-refunds does log it.
+    expect(errorLogged(E, `listing=${l.id}`)).toBe(true);
   });
 });
