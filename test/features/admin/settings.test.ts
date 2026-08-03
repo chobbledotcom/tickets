@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { testCookie } from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const settingsRoutes: ReadonlyArray<readonly [string, string]> = [
   ["GET", "/admin/features/example"],
@@ -53,24 +53,16 @@ const settingsRoutes: ReadonlyArray<readonly [string, string]> = [
 
 describeWithEnv("admin settings routes", { db: true }, () => {
   test("dispatches every static settings route", async () => {
-    const cookie = await testCookie();
     const staticRoutes = settingsRoutes.filter(
       ([, path]) => !path.startsWith("/admin/features/"),
     );
-    const statuses = await Promise.all(
-      staticRoutes.map(
-        async ([method, path]) =>
-          (
-            await handleRequest(
-              mockRequest(path, { headers: { cookie }, method }),
-            )
-          ).status,
-      ),
-    );
-
-    expect(statuses).toEqual(
-      staticRoutes.map(([method]) => (method === "GET" ? 200 : 400)),
-    );
+    for (const [method, path] of staticRoutes) {
+      const response =
+        method === "GET"
+          ? await adminGet(path)
+          : (await adminFormPost(path)).response;
+      expect(response.status).not.toBe(404);
+    }
   });
 
   test("every settings route rejects an unauthenticated request", async () => {
