@@ -12,7 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
-import { extractFormEntries } from "#test-utils/test-browser.ts";
+import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 
 const findByName = async (name: string) =>
   (await getAllListings()).find((l) => l.name === name);

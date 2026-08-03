@@ -3,7 +3,8 @@
  * want — one that keeps what was posted, one that keeps where it went. */
 
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { extractFormEntries, TestBrowser } from "#test-utils/test-browser.ts";
+import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
 
 export const paramsFromEntries = (html: string): URLSearchParams =>
   new URLSearchParams(extractFormEntries(html));

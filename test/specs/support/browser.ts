@@ -5,7 +5,8 @@ import {
   takeDownFromActions,
 } from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
-import { type LinkMatch, TestBrowser } from "#test-utils/test-browser.ts";
+import type { LinkMatch } from "#test-utils/test-browser/parsing.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
 import {
   keepWhatTheyWereTold,
   type ReadAboutOneThing,

@@ -38,10 +38,8 @@ import {
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import {
-  extractFormEntries,
-  type TestBrowser,
-} from "#test-utils/test-browser.ts";
+import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end
 
 /** The listing every scenario here buys a place on. */
