@@ -105,6 +105,23 @@ describe("TestBrowser sending a form", () => {
     );
   });
 
+  it("refuses to press a button that sends nothing", async () => {
+    const { browser } = setupFormSubmit();
+    browser.currentHtml = `
+      <form action="/not-a-submitter">
+        <input name="title" value="Draft">
+        <button type="button" name="action" value="publish">Publish</button>
+      </form>
+    `;
+
+    // The button is there and nothing is stopping a click, but a
+    // `type="button"` one sends no form — so this story would be proving the
+    // site accepts something no visitor could give it.
+    await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+      'The "Publish" button sends nothing',
+    );
+  });
+
   it("downloads bytes without changing the current page", async () => {
     const browser = new TestBrowser();
     browser.currentHtml = "<p>before</p>";

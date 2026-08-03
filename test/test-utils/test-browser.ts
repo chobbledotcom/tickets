@@ -97,6 +97,12 @@ const controlValue = (tag: string, fallback = ""): string =>
 
 const isDisabled = (tag: string): boolean => hasAttr(tag, "disabled");
 
+/** Whether pressing this button really sends its form. A `type="button"` or
+ * `type="reset"` one is rendered and pressable but sends nothing, and a button
+ * declaring no type of its own submits, as a browser has no other default. */
+const pressingSends = (attrs: string): boolean =>
+  (attrValue(attrs, "type") ?? "submit").toLowerCase() === "submit";
+
 const inputType = (tag: string): string =>
   (attrValue(tag, "type") ?? "text").toLowerCase();
 
@@ -248,14 +254,20 @@ const buttonToPress = (
       buttonName?: string | undefined;
       buttonValue?: string;
     }
-  | "switched off" => {
+  | "switched off"
+  | "sends nothing" => {
   const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
   let switchedOff = false;
+  let sendsNothing = false;
   for (const m of regexCollect(buttonRe, body, (x) => x)) {
     if (!stripTags(m[2]!).toLowerCase().trim().includes(lower)) continue;
     const attrs = m[1]!;
     if (isDisabled(attrs)) {
       switchedOff = true;
+      continue;
+    }
+    if (!pressingSends(attrs)) {
+      sendsNothing = true;
       continue;
     }
     return {
@@ -266,7 +278,8 @@ const buttonToPress = (
       buttonValue: attrValue(attrs, "value") ?? "",
     };
   }
-  return switchedOff ? "switched off" : {};
+  if (switchedOff) return "switched off";
+  return sendsNothing ? "sends nothing" : {};
 };
 
 /** Find a form whose body contains the given button text, or throw. Also
@@ -294,24 +307,27 @@ const findFormByButton = (
     );
   const preferred = forms.filter((f) => rendersEveryField(f.body));
   const candidates = preferred.length > 0 ? preferred : forms;
-  let switchedOff = false;
+  let unusable: "switched off" | "sends nothing" | null = null;
   for (const f of candidates) {
     if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
     const pressed = buttonToPress(f.body, lower);
-    // A switched-off button here does not settle it: a later form may carry a
-    // usable button with the same words, and a real person could press that
-    // one. Only give up once every form has been looked at.
-    if (pressed === "switched off") {
-      switchedOff = true;
+    // A button nobody could send with here does not settle it: a later form may
+    // carry a usable button with the same words, and a real person could press
+    // that one. Only give up once every form has been looked at.
+    if (pressed === "switched off" || pressed === "sends nothing") {
+      unusable = pressed;
       continue;
     }
     const { buttonAction, ...button } = pressed;
     return { action: buttonAction ?? f.action, body: f.body, ...button };
   }
-  // Nothing usable anywhere, and at least one button was switched off.
+  // Nothing usable anywhere, and at least one button could not send the form.
   // Submitting anyway would let a test do something nobody could do.
-  if (switchedOff) {
+  if (unusable === "switched off") {
     throw new Error(`The "${buttonText}" button is switched off`);
+  }
+  if (unusable === "sends nothing") {
+    throw new Error(`The "${buttonText}" button sends nothing`);
   }
   const available = forms.map((f) => `  action="${f.action}"`);
   throw new Error(
@@ -558,11 +574,7 @@ export class TestBrowser {
       /<button\b([^>]*?)>/gi,
       form.body,
       (m) => m[1]!,
-    ).filter(
-      (attrs) =>
-        !isDisabled(attrs) &&
-        (attrValue(attrs, "type") ?? "submit").toLowerCase() === "submit",
-    );
+    ).filter((attrs) => !isDisabled(attrs) && pressingSends(attrs));
     if (pressable.length === 0) {
       throw new Error(`The form posting to "${action}" cannot be submitted`);
     }

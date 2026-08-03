@@ -563,6 +563,24 @@ describe("the days a page has ticked", () => {
         what: "sends nothing when an insisted chooser offers no answers at all",
       },
       {
+        // A chooser that starts on a switched-off placeholder is the ordinary
+        // way of saying "pick something" — the placeholder is switched off, the
+        // chooser is not, and it still has no answer.
+        offering: `${NAME_BOX}<select name="tier" required><option value="" disabled selected>Choose a tier</option><option value="gold">Gold</option></select>`,
+        refusedWith: "The tier box must be filled in to send the form",
+        typed: TYPED,
+        what: "sends nothing when an insisted chooser sits on its placeholder",
+      },
+      {
+        // The words on an option are what somebody reads, not flags on the
+        // chooser holding it — this one is not insisted on at all, so sitting
+        // on its empty first choice is nobody's problem.
+        offering: `${NAME_BOX}<select name="tier"><option value="">Not required </option><option value="gold">Gold</option></select>`,
+        sends: { ...TYPED },
+        typed: TYPED,
+        what: "does not read a word on an option as a flag on its chooser",
+      },
+      {
         // A tick, a fixed value, and a control with no name to send under are
         // each somebody else's rule, so none of them holds this form up.
         offering: `${NAME_BOX}<input type="radio" name="pick" required><input type="hidden" name="token" value="" required><input value="" required>`,

@@ -325,9 +325,18 @@ const chosenByDefault = (options: string): string => {
  * never checked either, so neither counts here. */
 const insistedControlsOn = (html: string): InsistedControl[] => {
   const controls: InsistedControl[] = [];
-  const add = (tag: string, holds: string) => {
-    const field = attribute(tag, "name");
-    if (!field || !hasFlag(tag, "required") || hasFlag(tag, "disabled")) return;
+  // Only the control's own attributes are read, never what it wraps: a chooser
+  // holding a switched-off placeholder is not itself switched off, and a word
+  // in an option's label is not a flag.
+  const add = (attributes: string, holds: string) => {
+    const field = attribute(attributes, "name");
+    if (
+      !field ||
+      !hasFlag(attributes, "required") ||
+      hasFlag(attributes, "disabled")
+    ) {
+      return;
+    }
     controls.push({ field, holds });
   };
   for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
@@ -339,12 +348,12 @@ const insistedControlsOn = (html: string): InsistedControl[] => {
   for (const area of html.matchAll(
     /<textarea\s([^>]*)>([\s\S]*?)<\/textarea>/g,
   )) {
-    add(area[0], area[2]!.trim());
+    add(area[1]!, area[2]!.trim());
   }
   for (const chooser of html.matchAll(
     /<select\s([^>]*)>([\s\S]*?)<\/select>/g,
   )) {
-    add(chooser[0], chosenByDefault(chooser[2]!));
+    add(chooser[1]!, chosenByDefault(chooser[2]!));
   }
   return controls;
 };
