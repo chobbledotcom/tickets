@@ -126,31 +126,36 @@ interface UsableCheckbox {
   value: string;
 }
 
-/** Every checkbox on the page a person could actually tick — a switched-off one
- * is not one of them. A box with no value of its own sends "on", the same word
- * a browser sends, so one is still a box somebody can tick. */
-const usableCheckboxesOn = (html: string): UsableCheckbox[] => {
-  const boxes: UsableCheckbox[] = [];
+/** Every input on the page of one kind that somebody could really use, given as
+ * the field it sends under and its whole tag — closing bracket and all, because
+ * the flag test needs something after a name to know it stands alone. A
+ * switched-off one is left out, and so is one with no name, since neither
+ * reaches the site. */
+const usableInputsOfKind = (
+  html: string,
+  kind: string,
+): Array<{ field: string; tag: string }> => {
+  const found: Array<{ field: string; tag: string }> = [];
   for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
-    // The whole tag, closing bracket and all: the flag test needs something
-    // after the name to know it stands alone.
     const tag = box[0];
     const field = attribute(tag, "name");
-    if (
-      attribute(tag, "type") === "checkbox" &&
-      !hasFlag(tag, "disabled") &&
-      field !== null
-    ) {
-      boxes.push({
-        field,
-        insisted: hasFlag(tag, "required"),
-        ticked: hasFlag(tag, "checked"),
-        value: attribute(tag, "value") ?? "on",
-      });
-    }
+    if (attribute(tag, "type") !== kind || field === null) continue;
+    if (hasFlag(tag, "disabled")) continue;
+    found.push({ field, tag });
   }
-  return boxes;
+  return found;
 };
+
+/** Every checkbox on the page a person could actually tick. A box with no value
+ * of its own sends "on", the same word a browser sends, so one is still a box
+ * somebody can tick. */
+const usableCheckboxesOn = (html: string): UsableCheckbox[] =>
+  usableInputsOfKind(html, "checkbox").map(({ field, tag }) => ({
+    field,
+    insisted: hasFlag(tag, "required"),
+    ticked: hasFlag(tag, "checked"),
+    value: attribute(tag, "value") ?? "on",
+  }));
 
 /** Every checkbox on the page for one field that a person could actually
  * tick. */
@@ -319,6 +324,24 @@ const chosenByDefault = (options: string): string => {
   return attribute((marked ?? all[0])?.[1] ?? "", "value") ?? "";
 };
 
+/** Radios sharing one name are one question, so the page is asked about it
+ * once: marking any of them required makes the whole question required, and
+ * what it holds is whichever choice the page has already picked. A switched-off
+ * choice is one nobody could pick, so it answers nothing. */
+const insistedQuestionsOn = (html: string): InsistedControl[] => {
+  const picked = new Map<string, string>();
+  const asked = new Map<string, boolean>();
+  for (const { field, tag } of usableInputsOfKind(html, "radio")) {
+    asked.set(field, (asked.get(field) ?? false) || hasFlag(tag, "required"));
+    if (hasFlag(tag, "checked")) {
+      picked.set(field, attribute(tag, "value") ?? "on");
+    }
+  }
+  return [...asked]
+    .filter(([, insisted]) => insisted)
+    .map(([field]) => ({ field, holds: picked.get(field) ?? "" }));
+};
+
 /** Every control the page insists on, other than its checkboxes — ticking has
  * a rule of its own, because it is not typing. A switched-off control sends
  * nothing and a browser does not hold up a form for one, and a hidden box is
@@ -341,7 +364,7 @@ const insistedControlsOn = (html: string): InsistedControl[] => {
   };
   for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
     const kind = attribute(box[0], "type");
-    // A tick and a hidden value are both somebody else's rule.
+    // A tick, a picked choice, and a fixed value are each somebody else's rule.
     if (kind === "checkbox" || kind === "radio" || kind === "hidden") continue;
     add(box[0], attribute(box[0], "value") ?? "");
   }
@@ -355,7 +378,7 @@ const insistedControlsOn = (html: string): InsistedControl[] => {
   )) {
     add(chooser[1]!, chosenByDefault(chooser[2]!));
   }
-  return controls;
+  return [...controls, ...insistedQuestionsOn(html)];
 };
 
 /** Every control the page insists on has to end up carrying something, the ones

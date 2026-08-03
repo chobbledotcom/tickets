@@ -251,10 +251,40 @@ describe("filling a form in and sending it", () => {
     {
       // A tick, a fixed value, and a control with no name to send under are
       // each somebody else's rule, so none of them holds this form up.
-      offering: `${NAME_BOX}<input type="radio" name="pick" required><input type="hidden" name="token" value="" required><input value="" required>`,
+      offering: `${NAME_BOX}<input type="checkbox" name="agree" value="yes"><input type="hidden" name="token" value="" required><input value="" required>`,
       sends: { ...TYPED },
       typed: TYPED,
       what: "sends when the only empty insisted controls are not typed in",
+    },
+    {
+      // Radios sharing a name are one question. Marking any of them required
+      // makes the question required, and nothing here answers it.
+      offering: `${NAME_BOX}<input type="radio" name="pick" value="a" required><input type="radio" name="pick" value="b">`,
+      refusedWith: "The pick box must be filled in to send the form",
+      typed: TYPED,
+      what: "sends nothing when an insisted question has no choice picked",
+    },
+    {
+      offering: `${NAME_BOX}<input type="radio" name="pick" value="a" required><input type="radio" name="pick" value="b" checked>`,
+      sends: { ...TYPED },
+      typed: TYPED,
+      what: "sends when the page has already picked a choice for the question",
+    },
+    {
+      // A choice with no value of its own sends "on", the same word a browser
+      // sends, so the question counts as answered.
+      offering: `${NAME_BOX}<input type="radio" name="pick" required checked>`,
+      sends: { ...TYPED },
+      typed: TYPED,
+      what: "sends when the picked choice has no value of its own",
+    },
+    {
+      // Nobody could pick a switched-off choice, so the question is left
+      // unanswered even though one of its radios says it is required.
+      offering: `${NAME_BOX}<input type="radio" name="pick" value="a" required disabled checked>`,
+      sends: { ...TYPED },
+      typed: TYPED,
+      what: "sends when the only choice on an insisted question is switched off",
     },
   ];
 

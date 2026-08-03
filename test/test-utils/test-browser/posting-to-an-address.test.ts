@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { TestBrowser } from "#test-utils/test-browser.ts";
-import { postedPathBrowser, useHandler } from "./helpers.ts";
+import { postedPathBrowser, recordingBrowser } from "./helpers.ts";
 
 describe("TestBrowser submitting the one form that posts to an address", () => {
   /** Two rows' worth of identical arrows — the shape this exists for, where
@@ -89,22 +89,34 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
     });
   }
 
+  it("finds the row whose button aims there, not the one declaring it", async () => {
+    const { browser, sent } = recordingBrowser();
+    // No form declares this address; the second row's button aims there, which
+    // is the address a person pressing it really lands on.
+    browser.currentHtml = `
+      <form action="/rows/1/move-up" method="POST"><input name="csrf" value="tok">
+        <button type="submit">▲</button></form>
+      <form action="/rows/2/edit" method="POST"><input name="csrf" value="tok2">
+        <button type="submit" name="go" value="up" formaction="${SECOND_ROW}">▲</button></form>
+    `;
+
+    await browser.submitFormAt(SECOND_ROW);
+
+    expect(sent().path).toBe(SECOND_ROW);
+    const carried = new URLSearchParams(sent().body);
+    expect(carried.get("csrf")).toBe("tok2");
+    // A browser sends the pressed button's own name and value with the form.
+    expect(carried.get("go")).toBe("up");
+  });
+
   it("sends that form's own hidden fields, not the first row's", async () => {
-    const browser = new TestBrowser();
-    let posted = { body: "", path: "" };
-    useHandler(browser, async (request) => {
-      posted = {
-        body: await request.text(),
-        path: new URL(request.url).pathname,
-      };
-      return new Response("<p>moved</p>");
-    });
+    const { browser, sent } = recordingBrowser();
     browser.currentHtml = arrows(pressable);
 
     await browser.submitFormAt(SECOND_ROW);
 
-    expect(posted.path).toBe(SECOND_ROW);
-    expect(new URLSearchParams(posted.body).get("csrf")).toBe("tok2");
+    expect(sent().path).toBe(SECOND_ROW);
+    expect(new URLSearchParams(sent().body).get("csrf")).toBe("tok2");
   });
 
   it("gives back only the body of the form a button belongs to", () => {

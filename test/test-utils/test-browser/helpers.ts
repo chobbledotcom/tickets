@@ -20,31 +20,37 @@ export const useHandler = (
   ).handleRequest = (request) => Promise.resolve(handler(request));
 };
 
-/** A browser whose sends are kept, so a test can read back what was posted. */
+/** A browser that keeps what its last send carried — where it went and what it
+ * said — so a test can read back either, or both. Nothing was sent yet reads
+ * as an empty address and an empty body. */
+export const recordingBrowser = (): {
+  browser: TestBrowser;
+  sent: () => { body: string; path: string };
+} => {
+  const browser = new TestBrowser();
+  let sent = { body: "", path: "" };
+  useHandler(browser, async (request) => {
+    sent = { body: await request.text(), path: new URL(request.url).pathname };
+    return new Response("saved");
+  });
+  return { browser, sent: () => sent };
+};
+
+/** A browser whose sends are read back as what they said. */
 export const setupFormSubmit = (): {
   browser: TestBrowser;
   getParams: () => URLSearchParams;
 } => {
-  const browser = new TestBrowser();
-  let posted = "";
-  useHandler(browser, async (request) => {
-    posted = await request.text();
-    return new Response("saved");
-  });
-  return { browser, getParams: () => new URLSearchParams(posted) };
+  const { browser, sent } = recordingBrowser();
+  return { browser, getParams: () => new URLSearchParams(sent().body) };
 };
 
-/** A browser whose sends are kept by address alone, for the tests about which
- * form a press really belongs to. */
+/** A browser whose sends are read back by address alone, for the tests about
+ * which form a press really belongs to. */
 export const postedPathBrowser = (): {
   browser: TestBrowser;
   postedPath: () => string;
 } => {
-  const browser = new TestBrowser();
-  let path = "";
-  useHandler(browser, (request) => {
-    path = new URL(request.url).pathname;
-    return new Response("saved");
-  });
-  return { browser, postedPath: () => path };
+  const { browser, sent } = recordingBrowser();
+  return { browser, postedPath: () => sent().path };
 };

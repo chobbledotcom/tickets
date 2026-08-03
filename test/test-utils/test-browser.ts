@@ -6,7 +6,7 @@
  */
 
 import { map, pipe } from "#fp";
-import type { FormEntry } from "#test-utils/test-browser/forms.ts";
+import type { FormEntry, FormInfo } from "#test-utils/test-browser/forms.ts";
 import {
   appendFormValue,
   attrValue,
@@ -269,39 +269,50 @@ export class TestBrowser {
     action: string,
     data: Record<string, string | string[]> = {},
   ): Promise<void> {
-    const form = findForms(this.currentHtml).find((f) => f.action === action);
-    if (!form) {
+    const forms = findForms(this.currentHtml);
+    // Every button on a form somebody could press, and where pressing each one
+    // really goes. Only a submit button submits: a `type="button"` or
+    // `type="reset"` one is rendered and pressable but sends nothing. A button
+    // may override its own form's address and method, so its word wins; a form
+    // declaring no method sends by GET, which no route reached this way takes.
+    const pressableOn = (form: FormInfo) =>
+      regexCollect(/<button\b([^>]*?)>/gi, form.body, (m) => m[1]!)
+        .filter((attrs) => !isDisabled(attrs) && pressingSends(attrs))
+        .map((attrs) => ({
+          goesTo: attrValue(attrs, "formaction") ?? form.action,
+          name: attrValue(attrs, "name"),
+          sentBy: (attrValue(attrs, "formmethod") ?? form.method).toLowerCase(),
+          value: attrValue(attrs, "value") ?? "",
+        }));
+    // The form somebody pressing their way to this address would really be on
+    // — which is not always the one declaring it, since a button can aim its
+    // form somewhere else.
+    for (const form of forms) {
+      const pressed = pressableOn(form).find(
+        ({ goesTo, sentBy }) => goesTo === action && sentBy === "post",
+      );
+      if (!pressed) continue;
+      return await this.sendForm(
+        {
+          action,
+          body: form.body,
+          buttonName: pressed.name,
+          buttonValue: pressed.value,
+          entries: extractFormEntries(form.body),
+        },
+        data,
+      );
+    }
+    // Nothing posts there. Which of the three ways it failed decides what to
+    // say, so a story is told what is actually wrong with the page.
+    const declared = forms.find((f) => f.action === action);
+    if (!declared) {
       throw new Error(`No form on this page posts to "${action}"`);
     }
-    // Only a submit button submits: a `type="button"` or `type="reset"` one is
-    // rendered and pressable but sends nothing, and a browser has no default
-    // for a missing type other than submit.
-    const pressable = regexCollect(
-      /<button\b([^>]*?)>/gi,
-      form.body,
-      (m) => m[1]!,
-    ).filter((attrs) => !isDisabled(attrs) && pressingSends(attrs));
-    if (pressable.length === 0) {
+    if (pressableOn(declared).length === 0) {
       throw new Error(`The form posting to "${action}" cannot be submitted`);
     }
-    // Where pressing each button really goes. A button may override its own
-    // form's address and method, so its word wins; a form that declares no
-    // method sends by GET, which no route reached this way accepts.
-    const sends = pressable.map((attrs) => ({
-      goesTo: attrValue(attrs, "formaction") ?? form.action,
-      sentBy: (attrValue(attrs, "formmethod") ?? form.method).toLowerCase(),
-    }));
-    if (
-      !sends.some(
-        ({ goesTo, sentBy }) => goesTo === action && sentBy === "post",
-      )
-    ) {
-      throw new Error(`No button on the form at "${action}" posts there`);
-    }
-    await this.sendForm(
-      { action, body: form.body, entries: extractFormEntries(form.body) },
-      data,
-    );
+    throw new Error(`No button on the form at "${action}" posts there`);
   }
 
   /** Build one form's submission the way a browser does — its own successful
