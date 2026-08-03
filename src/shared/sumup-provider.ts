@@ -16,6 +16,7 @@ import {
   getSumupCheckout,
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
 import {
   isSessionRejection,
@@ -112,15 +113,22 @@ export const sumupPaymentProvider: PaymentProvider = {
     if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
     const checkout = await retrieveCheckoutById(webhookEvent.id);
     if (!checkout) return null;
-    // A blank checkout reference names no staged row — reject the malformed
-    // webhook rather than dereferencing nothing.
-    if (!isResourceId(checkout.reference)) return null;
-    const stored = await getSumupCheckout(checkout.reference);
-    if (!stored) return null;
-    // The staged row must be the one the webhook id proved exists: the provider
-    // response could otherwise name a different staged checkout and this flow
-    // would process the wrong booking's metadata.
-    if (stored.sumupId !== webhookEvent.id) return null;
+    // The reference SumUp echoes back must be the one we generated for this
+    // checkout and staged under this webhook id. If it is blank, unknown, or
+    // another booking's, SumUp has contradicted itself about a checkout we
+    // created. Raise it: the booking is encrypted under that reference, so
+    // without a match we can neither read it nor prove the charge is ours to
+    // refund — and a paid charge is then sitting with SumUp unbooked.
+    const stored = isResourceId(checkout.reference)
+      ? await getSumupCheckout(checkout.reference)
+      : null;
+    if (!stored || stored.sumupId !== webhookEvent.id) {
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: `SumUp checkout ${webhookEvent.id} came back under reference "${checkout.reference}", which is not the one staged for it (status=${checkout.status}, transaction=${checkout.transactionId})`,
+      });
+      return null;
+    }
     const session = buildValidatedSession(checkout, stored.metadata);
     // A charge the boundary could not read: surface the rejection so a paid
     // one still reaches the refund path.

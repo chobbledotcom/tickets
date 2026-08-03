@@ -101,10 +101,12 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             const response = await handleRequest(
               mockRequest("/payment/cancel?session_id=cs_rejected"),
             );
+            // The buyer really was charged, so "not found" would leave them
+            // waiting for a ticket or paying a second time.
             await expectHtmlResponse(
               response,
               400,
-              "Payment session not found",
+              "Your money has been sent back",
             );
           },
         );

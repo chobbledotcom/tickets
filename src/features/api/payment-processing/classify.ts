@@ -7,7 +7,7 @@
 /* jscpd:ignore-start -- import block */
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
-import { refundRejectedSession } from "#routes/api/payment-processing/refunds.ts";
+import { answerRejectedSession } from "#routes/api/payment-processing/refunds.ts";
 import type {
   SessionValidation,
   SignedVerdict,
@@ -41,12 +41,11 @@ const logRedirectError = paymentSessionErrorLogger("redirect");
 const sessionUnavailable = (
   sessionId: string,
   why: string,
-  status = 400,
 ): SessionValidation => {
   logRedirectError(`Session ${why} (session=${sessionId})`);
   return {
     ok: false,
-    response: paymentErrorResponse("Payment session not found", status),
+    response: paymentErrorResponse("Payment session not found"),
   };
 };
 
@@ -147,16 +146,15 @@ export const validatePaidSession = async (
   }
 
   const session = await provider.retrieveSession(sessionId);
-  // A charge the boundary could not read: refund a paid one with a usable
-  // reference so the captured money never disappears, then tell the buyer. A
-  // failed refund is a retryable failure, so revisiting the redirect
-  // re-attempts it.
   if (isSessionRejection(session)) {
-    return sessionUnavailable(
-      sessionId,
-      `rejected as ${session.reason}`,
-      (await refundRejectedSession(session)).status,
-    );
+    return {
+      ok: false,
+      response: await answerRejectedSession(
+        session,
+        sessionId,
+        logRedirectError,
+      ),
+    };
   }
   if (!session) {
     return sessionUnavailable(sessionId, "not found");

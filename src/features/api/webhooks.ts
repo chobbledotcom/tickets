@@ -26,10 +26,10 @@ import {
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
 import {
+  answerRejectedSession,
   failureDetail,
   getPaymentProviderOrLog,
   refundRejectedCharge,
-  refundRejectedSession,
 } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
@@ -253,15 +253,10 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   }
 
   const session = await provider.retrieveSession(sid);
+  // A buyer who cancelled can still land here on a charge the boundary could
+  // not read, so this answers the same way the success redirect does.
   if (isSessionRejection(session)) {
-    // A paid charge the boundary could not read: refund it when the reference
-    // is usable, then show the cancel page rather than a dead error. A failed
-    // refund is surfaced as a retryable error, not hidden behind the page.
-    const outcome = await refundRejectedSession(session);
-    logCancelError(
-      `Session rejected as ${session.reason} (session=${sid}, refunded: ${outcome.refunded})`,
-    );
-    return paymentErrorResponse("Payment session not found", outcome.status);
+    return answerRejectedSession(session, sid, logCancelError);
   }
   if (!session) {
     logCancelError(`Session not found (session=${sid})`);
@@ -420,14 +415,14 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // is refunded rather than acked into limbo — the money was captured, so it
   // must not disappear. A blank-reference rejection cannot be refunded.
   if (isSessionRejection(sessionResult)) {
-    const refunded = await refundRejectedCharge(sessionResult);
+    const outcome = await refundRejectedCharge(sessionResult);
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${refunded})`,
+      detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
     });
     // A required refund that failed must retry: acknowledging would strand the
     // captured charge with no redelivery.
-    if (!refunded) return plainResponse("Refund failed", 503);
+    if (!outcome.settled) return plainResponse("Refund failed", 503);
     return webhookAckResponse({ error: "rejected", processed: false });
   }
 

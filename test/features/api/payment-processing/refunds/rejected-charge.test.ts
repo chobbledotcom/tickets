@@ -109,9 +109,10 @@ describe("tryRefund resource id", () => {
   it("refunds a rejected paid charge whose price proof verifies", async () => {
     expect(
       await withSucceedingRefund(async () => {
-        expect(await refundRejectedCharge(ourRejection("pi_usable"))).toBe(
-          true,
-        );
+        expect(await refundRejectedCharge(ourRejection("pi_usable"))).toEqual({
+          refunded: true,
+          settled: true,
+        });
       }),
     ).toEqual([["pi_usable"]]);
   });
@@ -133,7 +134,7 @@ describe("tryRefund resource id", () => {
           reason: "malformed_charge",
           refundable: true,
         }),
-      ).toBe(true);
+      ).toEqual({ refunded: false, settled: true });
     }));
 
   it("does not refund a rejection whose metadata carries no price proof", () =>
@@ -151,13 +152,13 @@ describe("tryRefund resource id", () => {
           reason: "malformed_charge",
           refundable: true,
         }),
-      ).toBe(true);
+      ).toEqual({ refunded: false, settled: true });
     }));
 
   it("does not refund a blank-reference rejection", () =>
     withStripeProvider(async () => {
-      expect(await refundRejectedCharge({ reason: "blank_reference" })).toBe(
-        true,
+      expect(await refundRejectedCharge({ reason: "blank_reference" })).toEqual(
+        { refunded: false, settled: true },
       );
     }));
 
@@ -165,7 +166,7 @@ describe("tryRefund resource id", () => {
     expect(
       await withSucceedingRefund(async () => {
         expect(await refundRejectedSession(ourRejection("pi_settled"))).toEqual(
-          { refunded: true, status: 400 },
+          { refunded: true, settled: true, status: 400 },
         );
       }),
     ).toEqual([["pi_settled"]]);
@@ -178,6 +179,7 @@ describe("tryRefund resource id", () => {
       await withRefusedRefund(async () => {
         expect(await refundRejectedSession(ourRejection("pi_stuck"))).toEqual({
           refunded: false,
+          settled: false,
           status: 503,
         });
       }),

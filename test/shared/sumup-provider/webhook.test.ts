@@ -6,6 +6,7 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";
 import {
   makeSumupClient,
@@ -17,6 +18,8 @@ import {
 } from "#test-utils/sumup.ts";
 
 describe("sumup-provider resolveWebhookSession", () => {
+  const errorSpy = setupErrorSpy();
+
   beforeEach(async () => {
     await createTestDb();
   });
@@ -123,6 +126,10 @@ describe("sumup-provider resolveWebhookSession", () => {
       await withFetchedSumupCheckout(sumupCheckout({ reference }), async () => {
         expect(await resolveStaged()).toBeNull();
       });
+      // The booking is encrypted under the reference, so an unmatched one
+      // leaves us unable to read it or prove the charge is ours to refund.
+      // Nobody would ever know unless this is raised.
+      expect(errorSpy.contains("is not the one staged for it")).toBe(true);
     });
   }
 

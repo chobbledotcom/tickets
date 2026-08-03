@@ -5,6 +5,7 @@ import {
   classifySessionIntent,
   validatePaidSession,
 } from "#routes/api/payment-processing/classify.ts";
+import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type {
   SessionMetadata,
   ValidatedPaymentSession,
@@ -18,7 +19,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 /** Makes the provider answer with this checkout — or with nothing, for a
  *  checkout it has never heard of — for as long as the test runs. */
 const providerAnswers = async (
-  answer: ValidatedPaymentSession | null,
+  answer: ValidatedPaymentSession | SessionRejection | null,
 ): Promise<Disposable> => {
   const { stub } = await import("@std/testing/mock");
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
@@ -192,6 +193,44 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     if (result.ok) throw new Error("Expected the check to refuse");
     expect(await result.response.text()).toContain("Payment session not found");
     expect(await loggedAbout("redirect", "Session not found")).toBe(true);
+  });
+
+  test("tells a buyer whose unreadable charge was refunded", async () => {
+    await setupStripe();
+    const { stripeApi } = await import("#shared/stripe.ts");
+    const { stub } = await import("@std/testing/mock");
+    using _provider = await providerAnswers({
+      metadata: signedMeta(
+        { email: "refunded@example.com", items: "[]", name: "Refunded" },
+        500,
+      ),
+      paymentReference: "pi_refunded",
+      reason: "malformed_charge",
+      refundable: true,
+    });
+    using _refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_1", status: "succeeded" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_refunded"),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    // They really were charged, so "not found" would leave them waiting for a
+    // ticket, or paying a second time.
+    const page = await result.response.text();
+    expect(page).toContain("Your money has been sent back");
+    expect(page).not.toContain("Payment session not found");
+    expect(
+      await loggedAbout(
+        "redirect",
+        "Session rejected as malformed_charge (session=cs_refunded, refunded: true)",
+      ),
+    ).toBe(true);
   });
 
   // A card that was declined and a buyer who changed their mind come back the

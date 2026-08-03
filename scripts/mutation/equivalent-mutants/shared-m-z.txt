@@ -23,8 +23,8 @@ src/features/api/webhooks.ts:131:62  ?? → ||   # string|"" fallback; "" ?? "" 
 
 # webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
 # false, so "" never returned). ?? null and || null agree.
-src/features/api/webhooks.ts:326:4   ?? → ||   # find(Boolean) → undefined|truthy; never ""
-src/features/api/webhooks.ts:354:55  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
+src/features/api/webhooks.ts:321:4   ?? → ||   # find(Boolean) → undefined|truthy; never ""
+src/features/api/webhooks.ts:349:55  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
 
 # require-provider.ts: getPaymentProviderForExistingPayments() returns
 # Promise<ExistingPaymentProvider>; its awaited PaymentProvider|null value is
