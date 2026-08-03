@@ -31,6 +31,20 @@ const postWebhook = async (event: Parameters<typeof stubWebhookVerify>[0]) => {
   ] as const;
 };
 
+/** Create a listing, stub Stripe to fail refunds, and return the listing. */
+const setupFailedRefundListing = async (price = 1000) => {
+  await setupStripe();
+  const l = await createTestListing({ maxAttendees: 50, unitPrice: price });
+  const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
+  using _rf = stub(stripePaymentProvider, "refundPayment", () =>
+    Promise.resolve(false),
+  );
+  using _rd = stub(stripePaymentProvider, "isPaymentRefunded", () =>
+    Promise.resolve(false),
+  );
+  return l;
+};
+
 describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
   const D = useDebugLogSpy();
   const E = useErrorLogSpy();
@@ -351,17 +365,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
   });
 
   test("kept-refunded webhook acks with the correct listing in the error log", async () => {
-    await setupStripe();
-    const l = await createTestListing({ maxAttendees: 50, unitPrice: 1000 });
-    const { stripePaymentProvider } = await import(
-      "#shared/stripe-provider.ts"
-    );
-    using _rf = stub(stripePaymentProvider, "refundPayment", () =>
-      Promise.resolve(false),
-    );
-    using _rd = stub(stripePaymentProvider, "isPaymentRefunded", () =>
-      Promise.resolve(false),
-    );
+    const l = await setupFailedRefundListing();
     await withWebhookVerify(
       webhookEvent({
         amountTotal: 500,
@@ -379,5 +383,59 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       },
     );
     expect(errorLogged(E, `listing=${l.id}`)).toBe(true);
+  });
+
+  test("empty referer header is logged as empty, not 'none'", async () => {
+    const req = mockRequest("/payment/success?foo=bar");
+    req.headers.set("referer", "");
+    await handleRequest(req);
+    // ?? keeps "" (empty string is not nullish); || would replace it with "none".
+    expect(errorLogged(E, "referer=")).toBe(true);
+    expect(errorLogged(E, "referer=none")).toBe(false);
+  });
+
+  test("redirect error path uses result.error when detail is absent", async () => {
+    await setupStripe();
+    const l = await setupFailedRefundListing();
+    using _rt = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "de@e.com",
+      items: singleItem(l.id, 1, 1000),
+      name: "DE",
+      paymentIntent: "pi_de",
+      sessionId: "cs_de_detail",
+    });
+    const res = await handleRequest(
+      mockRequest("/payment/success?session_id=cs_de_detail"),
+    );
+    expect(await res.text()).toContain("saved your details");
+    expect(errorLogged(E, "[redirect]")).toBe(true);
+  });
+
+  test("already-processed session without thank-you URL renders without redirect", async () => {
+    await setupStripe();
+    const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
+    using _r = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "nt@e.com",
+      items: singleItem(l.id, 1, 500),
+      metadata: signedMeta(
+        { email: "nt@e.com", items: singleItem(l.id, 1, 500), name: "NT" },
+        500,
+      ),
+      name: "NT",
+      paymentIntent: "pi_nt",
+      sessionId: "cs_nt_2",
+    });
+    await handleRequest(mockRequest("/payment/success?session_id=cs_nt_2"));
+    // Second call: no tokens, no explicit thank_you_url, single listing.
+    // SingleleListingThankYou loads the listing's thank_you_url (which is empty).
+    const res2 = await handleRequest(
+      mockRequest("/payment/success?session_id=cs_nt_2"),
+    );
+    expect(res2.status).toBe(200);
+    const html = await res2.text();
+    // No thank-you redirect link (the URL is "").
+    expect(html).not.toContain("meta-refresh");
   });
 });
