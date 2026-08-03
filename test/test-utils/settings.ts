@@ -170,19 +170,18 @@ export const requirePaymentProviderRecovery = async (): Promise<void> => {
 };
 
 /** Store one internally consistent Stripe API key and webhook pair, and select Stripe. */
-export const activateStripe = (
+export const activateStripe = async (
   webhookSecret: string,
   webhookEndpointId = "we_test_endpoint",
   secretKey = "sk_test_mock",
-): Promise<void> =>
-  settings.update.stripe.configure(
-    {
-      secretKey,
-      webhookEndpointId,
-      webhookSecret,
-    },
-    "stripe",
-  );
+): Promise<void> => {
+  await settings.update.stripe.configure({
+    secretKey,
+    webhookEndpointId,
+    webhookSecret,
+  });
+  await settings.update.paymentProvider("stripe");
+};
 
 /** Run `body` with Stripe webhook setup and old-endpoint cleanup succeeding. */
 export const withSuccessfulStripeWebhook = async (

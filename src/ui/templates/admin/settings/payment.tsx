@@ -9,9 +9,15 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  PAYMENT_PROVIDER_IDS,
+  PAYMENT_PROVIDERS,
+  providerCurrencyBlock,
+} from "#shared/payment-providers.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { RadioOption } from "#templates/components/radio-option.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import {
   getSquareAccessTokenFields,
@@ -21,6 +27,61 @@ import {
 } from "#templates/fields/admin.ts";
 
 /* jscpd:ignore-end */
+
+/** One payment-provider choice, switched off with a reason when the site
+ *  currency rules it out. Currency is write-once at setup, so a provider
+ *  already in use can never be switched off underneath the operator. */
+const ProviderOption = ({
+  currency,
+  id,
+  selected,
+}: {
+  currency: string;
+  id: PaymentProviderType;
+  selected: boolean;
+}): JSX.Element => {
+  const currencyBlock = providerCurrencyBlock(id, currency);
+  return (
+    <RadioOption
+      checked={selected}
+      disabled={currencyBlock !== null}
+      name="payment_provider"
+      value={id}
+    >
+      {PAYMENT_PROVIDERS[id].label}
+      {currencyBlock && <small class="notice">{currencyBlock}</small>}
+    </RadioOption>
+  );
+};
+
+export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
+  <SaveForm
+    action="/admin/settings/payment-provider"
+    id="settings-payment-provider"
+    submitLabel={t("settings.save_payment_provider")}
+  >
+    <div class="prose">
+      <h2>{t("settings.payment_provider")}</h2>
+      <p>{t("settings.payment_provider_hint")}</p>
+    </div>
+    <fieldset class="radios">
+      <RadioOption
+        checked={!s.paymentProvider}
+        name="payment_provider"
+        value="none"
+      >
+        {t("settings.payment_none")}
+      </RadioOption>
+      {PAYMENT_PROVIDER_IDS.map((id) => (
+        <ProviderOption
+          currency={s.currency}
+          id={id}
+          selected={s.paymentProvider === id}
+        />
+      ))}
+    </fieldset>
+  </SaveForm>
+);
 
 const shownPaymentProvider = (
   s: SettingsPageState,

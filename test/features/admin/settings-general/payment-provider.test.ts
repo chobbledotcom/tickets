@@ -117,7 +117,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, "Existing payment provider set to stripe");
+      expectFlash(response, "Existing payment provider set to stripe.");
       expect(settings.paymentProviderSetting).toBe("none");
       expect(settings.paymentProvider).toBeNull();
       expect(settings.lastActivePaymentProvider).toBe("stripe");
@@ -150,7 +150,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         { existing_payment_provider: "square" },
       );
 
-      expectFlash(response, "Choose a provider with saved credentials.", false);
+      expectFlash(
+        response,
+        "Provider recovery is unavailable while new sales are on.",
+        false,
+      );
       expect(settings.paymentProvider).toBe("stripe");
       expect(settings.lastActivePaymentProvider).toBe("stripe");
     });

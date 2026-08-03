@@ -7,7 +7,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, withMockBunnyCdnApi } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
-export { requirePaymentProviderRecovery as setAmbiguousPaymentProvider } from "#test-utils/settings.ts";
+export { requirePaymentProviderRecovery } from "#test-utils/settings.ts";
 
 export const advancedPageHtml = async (): Promise<string> =>
   (await adminGet("/admin/settings-advanced")).text();
@@ -79,7 +79,13 @@ export const postSubdomain = async (subdomain: string): Promise<Response> =>
     ),
   );
 
-export const subdomainCheck = (available: boolean) => ({
+type SubdomainCheck = {
+  available: boolean;
+  fullDomain: string;
+  ok: true;
+};
+
+export const subdomainCheck = (available: boolean): SubdomainCheck => ({
   available,
   fullDomain: "mylisting.tickets.example.com",
   ok: true as const,

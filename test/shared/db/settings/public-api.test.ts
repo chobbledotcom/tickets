@@ -130,6 +130,43 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
 
+    test("selects saved credentials while sales are on", async () => {
+      await settings.update.paymentProvider("square");
+
+      await settings.update.paymentProviderAfterCredentialSave("stripe", false);
+
+      expect(settings.paymentProvider).toBe("stripe");
+      expect(settings.paymentProviderSetting).toBe("stripe");
+    });
+
+    test("does not select saved credentials after sales are switched off", async () => {
+      await settings.update.paymentProvider("square");
+      await settings.update.setPaymentProviderNone();
+
+      await settings.update.paymentProviderAfterCredentialSave("stripe", true);
+
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.paymentProviderSetting).toBe("none");
+    });
+
+    test("selects first-time credentials when no provider choice exists", async () => {
+      await settings.update.clearPaymentProvider();
+
+      await settings.update.paymentProviderAfterCredentialSave("stripe", true);
+
+      expect(settings.paymentProvider).toBe("stripe");
+      expect(settings.paymentProviderSetting).toBe("stripe");
+    });
+
+    test("keeps legacy credentials off when no provider choice exists", async () => {
+      await settings.update.clearPaymentProvider();
+
+      await settings.update.paymentProviderAfterCredentialSave("stripe", false);
+
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.paymentProviderSetting).toBe("none");
+    });
+
     test("a second none save keeps the remembered provider", async () => {
       // Saving "none" again must not clear the provider remembered from the
       // first switch-off — existing payments still need it.
@@ -228,30 +265,25 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       webhookSecret: "whsec_replacement",
     };
 
-    test("replaces the current credentials and provider", async () => {
-      await settings.update.stripe.configure(current, "stripe");
-      await settings.update.stripe.configure(replacement, "stripe");
+    test("replaces the current credentials", async () => {
+      await settings.update.stripe.configure(current);
+      await settings.update.stripe.configure(replacement);
 
       expect({
-        paymentProvider: settings.paymentProvider,
-        paymentProviderSetting: settings.paymentProviderSetting,
         secretKey: settings.stripe.secretKey,
         webhookEndpointId: settings.stripe.webhookEndpointId,
         webhookSecret: settings.stripe.webhookSecret,
       }).toEqual({
-        paymentProvider: "stripe",
-        paymentProviderSetting: "stripe",
         ...replacement,
       });
     });
 
-    test("persists the Stripe provider selection", async () => {
-      await settings.update.stripe.configure(replacement, "stripe");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+    test("does not change the payment provider", async () => {
+      await settings.update.paymentProvider("square");
+      await settings.update.stripe.configure(replacement);
 
-      expect(settings.paymentProvider).toBe("stripe");
-      expect(settings.paymentProviderSetting).toBe("stripe");
+      expect(settings.paymentProvider).toBe("square");
+      expect(settings.paymentProviderSetting).toBe("square");
     });
   });
 });

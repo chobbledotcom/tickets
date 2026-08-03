@@ -4,7 +4,7 @@ import { settings } from "#shared/db/settings.ts";
 import {
   describeCustomDomain,
   expectActivityLogged,
-  setAmbiguousPaymentProvider,
+  requirePaymentProviderRecovery,
   withValidatedDomain,
 } from "#test/features/admin/settings-domains/support.ts";
 import {
@@ -35,7 +35,7 @@ describeCustomDomain("POST /admin/settings/custom-domain", (enable) => {
 
   test("blocks changes until payment provider recovery is complete", async () => {
     enable();
-    await setAmbiguousPaymentProvider();
+    await requirePaymentProviderRecovery();
     const { response } = await post("tickets.example.com");
     expectRedirectWithFlash(
       REDIRECT,

@@ -13,6 +13,7 @@ import {
   advancedSettingsRoute,
   settingsClearable,
   settingsHandler,
+  settingsParsedHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
@@ -74,18 +75,25 @@ export const handlePaymentProviderPost = settingsHandler({
 });
 
 /** Record the provider for old payments without turning new sales on. */
-export const handlePaymentProviderRecoveryPost: RequestRoute = settingsHandler({
-  extract: (form) => form.getString("existing_payment_provider"),
-  formId: "settings-payment-provider-recovery",
-  log: (provider) => t("success.existing_payment_provider_set", { provider }),
-  save: (provider) =>
-    settings.update.recoverPaymentProvider(provider as PaymentProviderType),
-  validate: (provider) =>
-    isPaymentProvider(provider) &&
-    existingPaymentProviderState().recoveryChoices.includes(provider)
-      ? null
-      : t("error.invalid_existing_payment_provider"),
-});
+export const handlePaymentProviderRecoveryPost: RequestRoute =
+  settingsParsedHandler<string, PaymentProviderType>({
+    extract: (form) => form.getString("existing_payment_provider"),
+    formId: "settings-payment-provider-recovery",
+    log: (provider) => t("success.existing_payment_provider_set", { provider }),
+    parse: (provider) => {
+      if (settings.paymentProvider) {
+        return {
+          error: t("error.payment_provider_recovery_unavailable"),
+          ok: false,
+        };
+      }
+      return isPaymentProvider(provider) &&
+        existingPaymentProviderState().recoveryChoices.includes(provider)
+        ? { ok: true, value: provider }
+        : { error: t("error.invalid_existing_payment_provider"), ok: false };
+    },
+    save: (provider) => settings.update.recoverPaymentProvider(provider),
+  });
 
 /**
  * Handle POST /admin/settings/embed-hosts - owner only

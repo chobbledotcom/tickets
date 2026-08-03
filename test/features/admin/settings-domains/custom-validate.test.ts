@@ -165,8 +165,9 @@ describeCustomDomain("custom domain validation", (enable) => {
         await adminFormPost("/admin/settings/custom-domain", {
           custom_domain: "tickets.example.com",
         });
-      } catch {
-        // The request test guard may rethrow the provider failure.
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe("network failure");
       } finally {
         bunnyCdnApi.validateCustomDomain = original;
       }

@@ -28,6 +28,8 @@
  *   - `settings/constants.ts`   — `MAX_*_LENGTH` limits + `keyModeOf`
  */
 
+import * as v from "valibot";
+
 import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
 import { isAddressLookupSetting } from "#shared/address-lookup/types.ts";
 import {
@@ -106,7 +108,11 @@ import type {
   SuperuserChoice,
   Theme,
 } from "#shared/types.ts";
-import { isPaymentProvider, isSuperuserChoice } from "#shared/types.ts";
+import {
+  isPaymentProvider,
+  isSuperuserChoice,
+  PaymentProviderSettingSchema,
+} from "#shared/types.ts";
 import { appleWallet } from "#shared/wallets/apple-wallet-settings.ts";
 import { googleWallet } from "#shared/wallets/google-wallet-settings.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
@@ -147,6 +153,18 @@ const providerKeyStatus = (keyName: "stripe_secret_key" | "sumup_api_key") => ({
 });
 
 /** Store the new-sales choice and the provider for existing payments together. */
+const setPaymentProviderSnapshot = (active: PaymentProviderSetting): void => {
+  data.payment_provider = active === "none" ? null : active;
+  data.payment_provider_setting = active;
+};
+
+const syncReturnedPaymentProvider = (active: PaymentProviderSetting): void => {
+  syncStoredSetting(CONFIG_KEYS.PAYMENT_PROVIDER, (values) =>
+    values.set(CONFIG_KEYS.PAYMENT_PROVIDER, active),
+  );
+  setPaymentProviderSnapshot(active);
+};
+
 const storePaymentProvider = async (
   active: PaymentProviderSetting,
   remembered: PaymentProviderType,
@@ -155,8 +173,7 @@ const storePaymentProvider = async (
     [CONFIG_KEYS.PAYMENT_PROVIDER, active],
     [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, remembered],
   ]);
-  data.payment_provider = active === "none" ? null : active;
-  data.payment_provider_setting = active;
+  setPaymentProviderSnapshot(active);
   data.last_active_payment_provider = remembered;
 };
 
@@ -473,6 +490,33 @@ const settingsBase = {
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
       await storePaymentProvider(v, v);
     },
+    paymentProviderAfterCredentialSave: async (
+      provider: PaymentProviderType,
+      activateFromMissing: boolean,
+    ): Promise<void> => {
+      const active = v.parse(
+        PaymentProviderSettingSchema,
+        await executeSettingsBatchReturningValue(
+          {
+            args: [
+              ...PAYMENT_PROVIDER_IDS,
+              activateFromMissing ? 1 : 0,
+              provider,
+            ],
+            sql:
+              "INSERT OR REPLACE INTO settings (key, value) VALUES (" +
+              "'payment_provider', CASE WHEN " +
+              "COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') " +
+              `IN (${PAYMENT_PROVIDER_IDS.map(() => "?").join(", ")}) ` +
+              "OR (? = 1 AND NOT EXISTS (" +
+              "SELECT 1 FROM settings WHERE key = 'payment_provider')) " +
+              "THEN ? ELSE 'none' END) RETURNING value",
+          },
+          [settingsVersionIncrement()],
+        ),
+      );
+      syncReturnedPaymentProvider(active);
+    },
     recoverPaymentProvider: async (v: PaymentProviderType): Promise<void> => {
       await storePaymentProvider("none", v);
     },
@@ -501,14 +545,10 @@ const settingsBase = {
           settingsVersionIncrement(),
         ],
       );
-      syncStoredSetting(CONFIG_KEYS.PAYMENT_PROVIDER, (values) =>
-        values.set(CONFIG_KEYS.PAYMENT_PROVIDER, "none"),
-      );
+      syncReturnedPaymentProvider("none");
       syncStoredSetting(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, (values) =>
         values.set(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, lastActive),
       );
-      data.payment_provider = null;
-      data.payment_provider_setting = "none";
       data.last_active_payment_provider = lastActive;
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
@@ -527,17 +567,13 @@ const settingsBase = {
     },
     // --- Stripe writes ---
     stripe: {
-      configure: async (
-        config: {
-          secretKey: string;
-          webhookSecret: string;
-          webhookEndpointId: string;
-        },
-        provider: "none" | "stripe",
-      ): Promise<void> => {
+      configure: async (config: {
+        secretKey: string;
+        webhookSecret: string;
+        webhookEndpointId: string;
+      }): Promise<void> => {
         // The API key and webhook pair belong to one Stripe account. Save all
-        // three with the current sales state so a failed write leaves the prior
-        // provider usable, while later endpoint cleanup can fail safely.
+        // three together so a failed write leaves the prior credentials usable.
         await writeRawBatch([
           [CONFIG_KEYS.STRIPE_SECRET_KEY, await encrypt(config.secretKey)],
           [
@@ -545,13 +581,10 @@ const settingsBase = {
             await encrypt(config.webhookSecret),
           ],
           [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.webhookEndpointId],
-          [CONFIG_KEYS.PAYMENT_PROVIDER, provider],
         ]);
         data.stripe_secret_key = config.secretKey;
         data.stripe_webhook_secret = config.webhookSecret;
         data.stripe_webhook_endpoint_id = config.webhookEndpointId;
-        data.payment_provider = provider === "stripe" ? provider : null;
-        data.payment_provider_setting = provider;
       },
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
     },

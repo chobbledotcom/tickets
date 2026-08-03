@@ -259,14 +259,11 @@ describeStripe("Stripe webhook cleanup", () => {
 
     for (const entry of cases) {
       test(`reports ${entry.name} as ${entry.expected ? "ok" : "not ok"}`, async () => {
-        await settings.update.stripe.configure(
-          {
-            secretKey: "sk_test_key",
-            webhookEndpointId: "we_own",
-            webhookSecret: "whsec_own",
-          },
-          "stripe",
-        );
+        await settings.update.stripe.configure({
+          secretKey: "sk_test_key",
+          webhookEndpointId: "we_own",
+          webhookSecret: "whsec_own",
+        });
         const client = {
           balance: {
             retrieve: () => Promise.resolve({ livemode: false }),

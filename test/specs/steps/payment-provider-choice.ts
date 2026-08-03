@@ -17,6 +17,18 @@ import { requirePaymentProviderRecovery } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
+const providerInput = (html: string, provider: string): string => {
+  const input = [...html.matchAll(/<input\b[^>]*>/g)]
+    .map(([tag]) => tag)
+    .find(
+      (tag) =>
+        tag.includes('name="existing_payment_provider"') &&
+        tag.includes(`value="${provider}"`),
+    );
+  if (!input) throw new Error(`Missing ${provider} provider input`);
+  return input;
+};
+
 Given(
   "a Stripe test key is saved while Square takes payments",
   async function (this: TicketsWorld): Promise<void> {
@@ -167,12 +179,12 @@ Then(
     expect(browser.currentHtml).toContain(
       'id="settings-payment-provider-recovery"',
     );
-    expect(browser.currentHtml).toMatch(
-      /<input[^>]*name="existing_payment_provider"[^>]*required[^>]*value="stripe"/,
-    );
-    expect(browser.currentHtml).toMatch(
-      /<input[^>]*name="existing_payment_provider"[^>]*required[^>]*value="square"/,
-    );
+    for (const provider of ["stripe", "square"]) {
+      const input = providerInput(browser.currentHtml, provider);
+      expect(input).toContain('name="existing_payment_provider"');
+      expect(input).toContain("required");
+      expect(input).toContain(`value="${provider}"`);
+    }
   },
 );
 
