@@ -31,18 +31,18 @@ const postWebhook = async (event: Parameters<typeof stubWebhookVerify>[0]) => {
   ] as const;
 };
 
-/** Create a listing, stub Stripe to fail refunds, and return the listing. */
-const setupFailedRefundListing = async (price = 1000) => {
+/** Create a listing, configure Stripe, and return stubs for failing refunds. */
+const setupMismatchWithFailingRefund = async (price = 1000) => {
   await setupStripe();
   const l = await createTestListing({ maxAttendees: 50, unitPrice: price });
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
-  using _rf = stub(stripePaymentProvider, "refundPayment", () =>
+  const refundStub = stub(stripePaymentProvider, "refundPayment", () =>
     Promise.resolve(false),
   );
-  using _rd = stub(stripePaymentProvider, "isPaymentRefunded", () =>
+  const refundedStub = stub(stripePaymentProvider, "isPaymentRefunded", () =>
     Promise.resolve(false),
   );
-  return l;
+  return { l, refundedStub, refundStub };
 };
 
 describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
@@ -133,6 +133,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     const html = await res.text();
     expect(html).toContain("/t/");
     expect(html).toContain("https://ty.example.com");
+    expect(html).toContain('data-payment-result="success"');
   });
 
   test("redirect URL includes the actual token value", async () => {
@@ -372,7 +373,10 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
   });
 
   test("kept-refunded webhook acks with the correct listing in the error log", async () => {
-    const l = await setupFailedRefundListing();
+    const { l, refundStub, refundedStub } =
+      await setupMismatchWithFailingRefund();
+    using _rf = refundStub;
+    using _rd = refundedStub;
     await withWebhookVerify(
       webhookEvent({
         amountTotal: 500,
@@ -392,6 +396,86 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     expect(errorLogged(E, `listing=${l.id}`)).toBe(true);
   });
 
+  test("validation-failure refund returns 503 status", async () => {
+    const { l, refundStub, refundedStub } =
+      await setupMismatchWithFailingRefund(1000);
+    using _rf = refundStub;
+    using _rd = refundedStub;
+    const { deactivateTestListing } = await import(
+      "#test-utils/db-helpers/listings.ts"
+    );
+    await deactivateTestListing(l.id);
+    const [res, verify] = await postWebhook(
+      webhookEvent({
+        amountTotal: 1000,
+        eventId: "evt_503v",
+        metadata: signedMeta(
+          { email: "v@e.com", items: singleItem(l.id, 1, 1000), name: "V" },
+          1000,
+        ),
+        paymentIntent: "pi_503v",
+        sessionId: "cs_503v",
+      }),
+    );
+    using _v = verify;
+    expect(res.status).toBe(503);
+  });
+
+  test("already-processed renders data-payment-result=success", async () => {
+    await setupStripe();
+    const l = await createTestListing({
+      maxAttendees: 5,
+      thankYouUrl: "https://ty2.example.com",
+      unitPrice: 500,
+    });
+    using _r = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "ap2@e.com",
+      items: singleItem(l.id, 1, 500),
+      metadata: signedMeta(
+        { email: "ap2@e.com", items: singleItem(l.id, 1, 500), name: "AP2" },
+        500,
+      ),
+      name: "AP2",
+      paymentIntent: "pi_ap_dpr",
+      sessionId: "cs_ap_dpr",
+    });
+    await handleRequest(mockRequest("/payment/success?session_id=cs_ap_dpr"));
+    const res2 = await handleRequest(
+      mockRequest("/payment/success?session_id=cs_ap_dpr"),
+    );
+    const html = await res2.text();
+    expect(html).toContain('data-payment-result="success"');
+  });
+
+  test("already-processed with no thank-you-url renders success without redirect", async () => {
+    await setupStripe();
+    const l = await createTestListing({
+      maxAttendees: 5,
+      thankYouUrl: "",
+      unitPrice: 500,
+    });
+    using _r = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "nt2@e.com",
+      items: singleItem(l.id, 1, 500),
+      metadata: signedMeta(
+        { email: "nt2@e.com", items: singleItem(l.id, 1, 500), name: "NT2" },
+        500,
+      ),
+      name: "NT2",
+      paymentIntent: "pi_nt_dpr",
+      sessionId: "cs_nt_dpr",
+    });
+    await handleRequest(mockRequest("/payment/success?session_id=cs_nt_dpr"));
+    const res2 = await handleRequest(
+      mockRequest("/payment/success?session_id=cs_nt_dpr"),
+    );
+    const html = await res2.text();
+    expect(html).toContain('data-payment-result="success"');
+    expect(html).not.toContain("meta http-equiv");
+  });
+
   test("empty referer header is logged as empty, not 'none'", async () => {
     const req = mockRequest("/payment/success?foo=bar");
     req.headers.set("referer", "");
@@ -402,8 +486,10 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
   });
 
   test("redirect error path uses result.error when detail is absent", async () => {
-    await setupStripe();
-    const l = await setupFailedRefundListing();
+    const { l, refundStub, refundedStub } =
+      await setupMismatchWithFailingRefund(1000);
+    using _rf = refundStub;
+    using _rd = refundedStub;
     using _rt = stubRetrieveCheckoutSession({
       amountTotal: 500,
       email: "de@e.com",
