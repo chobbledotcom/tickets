@@ -101,7 +101,7 @@ export const squarePaymentProvider: PaymentProvider = {
     // dashboard/POS, not by our system), skip silently instead of treating
     // it as an error — avoids noisy logs and 400 responses that trigger
     // Square webhook retries.
-    const session = await this.retrieveSession(orderId);
+    const session = await this.retrieveSession(orderId, paymentId);
     return session ?? "skip";
   },
 
@@ -111,6 +111,7 @@ export const squarePaymentProvider: PaymentProvider = {
      Square fetches the order and its payment from the API). */
   async retrieveSession(
     sessionId: string,
+    paidPaymentId?: string,
   ): Promise<ValidatedPaymentSession | SessionRejection | null> {
     /* jscpd:ignore-end */
     // sessionId is the Square order ID
@@ -126,8 +127,11 @@ export const squarePaymentProvider: PaymentProvider = {
       return null;
     }
 
-    // Determine payment status from the payment itself (most reliable source)
-    const paymentReference = order.tenders?.[0]?.paymentId ?? "";
+    // A webhook carries a payment Square already reported COMPLETED; the
+    // order.tenders list can lag behind it, and reading the order alone would
+    // then call a captured charge unpaid.
+    const paymentReference =
+      order.tenders?.[0]?.paymentId ?? paidPaymentId ?? "";
 
     let paymentStatus: ValidatedPaymentSession["paymentStatus"] = "unpaid";
     if (paymentReference) {

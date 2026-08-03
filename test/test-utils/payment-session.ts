@@ -31,11 +31,12 @@ export const BLANK_SESSION_METADATA: ValidatedPaymentSession["metadata"] = {
   thank_you_url: "",
 };
 
-/** Narrow a provider session result to the session; fail the test on a rejection or null. */
+/** Narrow any provider session result to the session; fail the test on a
+ *  rejection, a skip, or null. */
 export const asSession = (
-  result: ValidatedPaymentSession | SessionRejection | null,
+  result: ValidatedPaymentSession | SessionRejection | "skip" | null,
 ): ValidatedPaymentSession => {
-  if (result === null || isSessionRejection(result)) {
+  if (result === null || result === "skip" || isSessionRejection(result)) {
     throw new Error(`expected a session, got ${JSON.stringify(result)}`);
   }
   return result;

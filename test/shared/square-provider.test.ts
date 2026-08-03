@@ -496,6 +496,45 @@ describe("square-provider", () => {
       );
     });
 
+    test("books a completed payment whose order has no tender yet", async () => {
+      // Square's tenders can lag the payment webhook. Reading the order alone
+      // would call this unpaid, and a captured charge would be acknowledged as
+      // pending — so the webhook's own completed payment id is used.
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_no_tender",
+              metadata: ORDER_META,
+              state: "COMPLETED",
+              totalMoney: money(1000),
+            }),
+          ),
+          payment: stub(squareApi, "retrievePayment", () =>
+            Promise.resolve({ id: "pay_lagging", status: "COMPLETED" }),
+          ),
+        }),
+        async (mocks) => {
+          const result = await squarePaymentProvider.resolveWebhookSession({
+            data: {
+              object: {
+                payment: {
+                  id: "pay_lagging",
+                  order_id: "order_no_tender",
+                  status: "COMPLETED",
+                },
+              },
+            },
+            id: "evt_no_tender",
+            type: "payment.updated",
+          });
+          expect(asSession(result).paymentStatus).toBe("paid");
+          expect(asSession(result).paymentReference).toBe("pay_lagging");
+          expect(mocks.payment.calls[0]!.args).toEqual(["pay_lagging"]);
+        },
+      );
+    });
+
     test("returns skip for non-COMPLETED payment status", async () => {
       const result = await squarePaymentProvider.resolveWebhookSession({
         data: {

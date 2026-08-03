@@ -305,9 +305,14 @@ export interface PaymentProvider {
    * Retrieve and validate a completed checkout session by ID.
    * Returns the validated session, a rejection when the provider reported a
    * paid charge the boundary could not read, or null if not found.
+   *
+   * `paidPaymentId` is a payment the caller has already been told is complete —
+   * a webhook has one, a redirect does not. A provider whose session lags
+   * behind the payment uses it so a captured charge is not read as unpaid.
    */
   retrieveSession(
     sessionId: string,
+    paidPaymentId?: string,
   ): Promise<ValidatedPaymentSession | SessionRejection | null>;
 
   /**
