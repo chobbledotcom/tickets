@@ -69,10 +69,10 @@ src/shared/db/admin-features.ts:51:10  __required_setting_condition__ → ""   #
 src/shared/db/admin-features.ts:51:10  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts:77:49  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
 src/shared/db/migrations/schema/admin-feature-triggers.ts:160:35  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
-src/shared/square-provider.ts:55:48  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
-src/shared/square-provider.ts:56:51  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
-src/shared/square-provider.ts:101:19  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
-src/shared/square-provider.ts:126:59  ?? → ||   # paymentId is string|undefined, and its only falsy string is the empty fallback itself
+src/shared/square-provider.ts:59:48  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts:60:51  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts:105:19  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
+src/shared/square-provider.ts:130:59  ?? → ||   # paymentId is string|undefined, and its only falsy string is the empty fallback itself
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is

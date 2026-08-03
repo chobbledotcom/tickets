@@ -243,7 +243,7 @@ src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separat
 src/shared/sumup.ts:245:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
 src/shared/sumup.ts:284:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 # Stripe provider: payment_intent is nullable(NonEmptyText), so its only non-null values are non-empty; ?? "" and || "" agree.
-src/shared/stripe-provider.ts:55:37  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
+src/shared/stripe-provider.ts:60:39  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 # validation/money.ts's PositiveMoneySchema: the `signed` flag only decides
 # whether a leading "-" is allowed by the pattern, and every string it lets
 # through transforms to a value at or below zero ("-0" included, since -0 >= 1
