@@ -1917,3 +1917,36 @@ same state machine a normal payment uses — `reserveSession` /
 `processed-payments` in `src/shared/db/processed-payments.ts` — with a terminal
 "refused and refunded" outcome, so a later delivery of that session id short
 circuits the way an already-processed payment does.
+
+## Tell a buyer when their money was taken and not (yet) given back
+
+*Origin: Codex review on PR #2021, which added the "your money has been sent
+back" page for a charge the payment boundary refused and refunded.*
+
+That page is only shown when the refund actually went through. Three other
+outcomes still fall back to "Payment session not found", and in each of them the
+buyer really was charged:
+
+- A `blank_reference` rejection: the provider says paid but gave no reference,
+  so no automatic refund is possible at all. They should be asked to get in
+  touch.
+- A `malformed_charge` rejection that is paid but whose reference is unusable —
+  the same situation, reached a different way (`refundable` is
+  `paid && isResourceId(...)`, and the `paid` half is discarded today).
+- A refund the provider refused (`settled: false`, answered 503). The retry will
+  come, so they should be told it is in hand rather than that nothing happened.
+
+A fourth case should keep the generic message: a rejection whose price proof
+does not verify may belong to another site sharing the provider account, and we
+must not tell someone else's buyer anything about their payment.
+
+What it needs: `SessionRejection` carries whether the charge was paid (see
+`malformedChargeRejection` in `src/shared/payment/validated-session.ts`, which
+computes `refundable` from it and drops it), `RejectionOutcome` in
+`src/features/api/payment-processing/refunds.ts` grows a third state for
+"captured, not returned", and `answerRejectedSession` picks between two new
+catalog entries beside `payment.error.refunded` in
+`src/locales/en/payment.json`.
+
+Not done in that PR only because it was at its agreed `src/` line budget; there
+is nothing hard about it.

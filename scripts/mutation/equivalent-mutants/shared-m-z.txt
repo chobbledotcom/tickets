@@ -264,7 +264,7 @@ src/shared/payment-signature.ts:73:53  1 → 0   # sort() only checks for a stri
 
 # Payment vocabulary: the valibot regex message strings only change the error text, never pass/fail.
 src/shared/payment/money.ts:16:26  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
-src/shared/payment/resource-id.ts:13:18  Resource id must contain text → ""   # message text of the resource-id regex; validation outcome is identical
+src/shared/payment/resource-id.ts:17:29  Resource id must be text with no space around it → ""   # message text of the resource-id regex; validation outcome is identical
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while

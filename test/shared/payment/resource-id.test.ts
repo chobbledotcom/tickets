@@ -15,4 +15,18 @@ describe("resource id", () => {
     expect(isResourceId("   ")).toBe(false);
     expect(isResourceId("\t\n")).toBe(false);
   });
+
+  // A padded id is stored and sent back to the provider exactly as it arrived,
+  // so it would be booked as refundable and then match no charge at all.
+  it("refuses an id with space around it", () => {
+    expect(isResourceId(" pi_123")).toBe(false);
+    expect(isResourceId("pi_123 ")).toBe(false);
+    expect(isResourceId(" pi_123 ")).toBe(false);
+    expect(isResourceId("\tpi_123\n")).toBe(false);
+  });
+
+  it("keeps a single character and inner spacing", () => {
+    expect(isResourceId("r")).toBe(true);
+    expect(isResourceId("pi 123")).toBe(true);
+  });
 });
