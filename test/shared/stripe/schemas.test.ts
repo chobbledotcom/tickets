@@ -9,6 +9,7 @@ import {
   StripeDeletedWebhookEndpointSchema,
   StripeExpandedPaymentIntentSchema,
   StripeRefundSchema,
+  StripeWebhookEndpointListSchema,
   StripeWebhookEndpointSchema,
 } from "#shared/stripe/schemas.ts";
 
@@ -151,6 +152,21 @@ describe("Stripe schemas", () => {
     ).toThrow();
   });
 
+  test("accepts every supported webhook endpoint status", () => {
+    const statuses = ["disabled", "enabled"] as const;
+    expect(
+      statuses.map(
+        (status) =>
+          v.parse(StripeWebhookEndpointSchema, {
+            enabled_events: [],
+            id: "we_1",
+            status,
+            url: "https://x.test",
+          }).status,
+      ),
+    ).toEqual(statuses);
+  });
+
   test("requires a boolean balance mode", () => {
     expect(() => v.parse(StripeBalanceSchema, { livemode: null })).toThrow();
   });
@@ -162,6 +178,16 @@ describe("Stripe schemas", () => {
         id: "we_1",
       }),
     ).toThrow();
+  });
+
+  test("requires the endpoint listing to say whether more pages follow", () => {
+    expect(() =>
+      v.parse(StripeWebhookEndpointListSchema, { data: [] }),
+    ).toThrow();
+    expect(
+      v.parse(StripeWebhookEndpointListSchema, { data: [], has_more: false })
+        .has_more,
+    ).toBe(false);
   });
 
   test("parses structured Stripe errors", () => {

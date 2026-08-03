@@ -10,12 +10,32 @@ import { sanitizeStripeError, stripeClientRuntime } from "./runtime.ts";
 import type {
   StripeCreatedWebhookEndpoint,
   StripeWebhookEndpoint,
+  StripeWebhookEndpointList,
 } from "./schemas.ts";
 
+const nextPageCursor = (page: StripeWebhookEndpointList): string => {
+  const lastEndpoint = page.data.at(-1);
+  if (lastEndpoint === undefined) {
+    throw new Error(
+      "Stripe reported more webhook endpoints but returned an empty page",
+    );
+  }
+  return lastEndpoint.id;
+};
+
+// Follows Stripe's list cursor so endpoints beyond the first page are seen.
 const fetchWebhookEndpoints = async (
   client: StripeClient,
-): Promise<StripeWebhookEndpoint[]> =>
-  (await client.webhookEndpoints.list()).data;
+): Promise<StripeWebhookEndpoint[]> => {
+  const endpoints: StripeWebhookEndpoint[] = [];
+  let page = await client.webhookEndpoints.list();
+  endpoints.push(...page.data);
+  while (page.has_more) {
+    page = await client.webhookEndpoints.list(nextPageCursor(page));
+    endpoints.push(...page.data);
+  }
+  return endpoints;
+};
 
 const listStaleEndpointIds = async (
   client: StripeClient,

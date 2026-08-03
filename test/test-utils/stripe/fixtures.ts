@@ -61,7 +61,7 @@ export const okBalance = (livemode: boolean) => () =>
   Promise.resolve(balanceResult(livemode));
 
 /** A webhookEndpoints.list behaviour that resolves to no endpoints. */
-export const noWebhooks = () => Promise.resolve({ data: [] });
+export const noWebhooks = () => Promise.resolve({ data: [], has_more: false });
 
 /**
  * Stubs both the balance check and the webhook-endpoints list for a connection
