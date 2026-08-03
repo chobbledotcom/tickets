@@ -1,5 +1,5 @@
-@story:servicing.telling-people-the-news
-@owner:servicing @risk:low
+@story:pages.telling-people-the-news
+@owner:pages @risk:low
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 @surface:admin
@@ -8,7 +8,7 @@ Feature: An owner tells people the news
   visitor reads it at the post's own address. The News link only appears
   once there is something to read, so nobody is led to an empty page.
 
-  @rule:servicing.a-post-is-read-at-its-own-address
+  @rule:pages.a-post-is-read-at-its-own-address
   @surface:public
   Rule: A post is read at its own address
     Creating a post is confirmed to the owner, and a visitor who was never
@@ -23,7 +23,7 @@ Feature: An owner tells people the news
       And a visitor on the news page reads "Big launch"
       And a visitor following "Big launch" from the news page reads "Doors open Friday."
 
-  @rule:servicing.the-news-link-waits-for-the-first-post
+  @rule:pages.the-news-link-waits-for-the-first-post
   @surface:public
   Rule: The news link waits for the first post
     Before any post exists, the news page finds nothing and no public page
@@ -41,7 +41,7 @@ Feature: An owner tells people the news
       When the owner posts news called "We have opened" saying "Come and see us."
       Then a visitor on the front page is offered a News link
 
-  @rule:servicing.taking-a-post-down-needs-its-exact-name
+  @rule:pages.taking-a-post-down-needs-its-exact-name
   @surface:public
   Rule: Taking a post down needs its exact name
     Deleting a post asks the owner to type its name. A wrong name leaves the

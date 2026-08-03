@@ -1,5 +1,5 @@
-@story:servicing.what-an-editor-can-do
-@owner:servicing @risk:high
+@story:access.what-an-editor-can-do
+@owner:access @risk:high
 @actor:organiser @actor:editor
 @edition:managed @edition:self-hosted
 @surface:admin
@@ -11,7 +11,7 @@ Feature: An owner gives someone the run of the listings, and nothing else
   that run the site — and they hold no key that could open those details even
   if they found a way to the page.
 
-  @rule:servicing.an-editor-sets-up-their-own-account
+  @rule:access.an-editor-sets-up-their-own-account
   Rule: An editor sets up their own account from an invite
     The owner invites them by name and hands over a link. The editor chooses
     their own password on that link, and from then on they log in and land on
@@ -24,7 +24,7 @@ Feature: An owner gives someone the run of the listings, and nothing else
       And Sam logs in
       Then Sam is looking at the listings
 
-  @rule:servicing.an-editor-writes-what-the-site-says
+  @rule:access.an-editor-writes-what-the-site-says
   Rule: An editor writes what the site says
     Making and changing listings is their job, so the pages for it are theirs
     to use and what they save really is saved. Saving leaves them on the thing
@@ -46,7 +46,7 @@ Feature: An owner gives someone the run of the listings, and nothing else
       Then Ceramics is one of the things the site sells
       And the site sells nothing called Pottery
 
-  @rule:servicing.an-editor-is-never-shown-peoples-details-or-money
+  @rule:access.an-editor-is-never-shown-peoples-details-or-money
   Rule: An editor is never shown people's details or money
     Everything about who has booked, what has been earned, and how the site is
     run is closed to an editor. It is not merely unlinked: asking for the page
@@ -78,7 +78,7 @@ Feature: An owner gives someone the run of the listings, and nothing else
       When Sam opens the listings
       Then Sam is shown no takings for Pottery
 
-  @rule:servicing.an-editor-cannot-change-where-peoples-details-are-sent
+  @rule:access.an-editor-cannot-change-where-peoples-details-are-sent
   Rule: An editor cannot change where people's details are sent
     A listing can forward each booking, names and all, to an address the owner
     chose. That address is the owner's alone: it is not on the editor's form,

@@ -1,5 +1,5 @@
-@story:servicing.keeping-only-what-is-needed
-@owner:servicing @risk:high
+@story:records.keeping-only-what-is-needed
+@owner:records @risk:high
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 Feature: The organiser keeps only the personal details the site still needs
@@ -9,7 +9,7 @@ Feature: The organiser keeps only the personal details the site still needs
   to be forgotten, the organiser can delete the note the site keeps about them
   without touching the bookings they made.
 
-  @rule:servicing.records-left-behind-can-be-cleared-out
+  @rule:records.records-left-behind-can-be-cleared-out
   @surface:admin
   Rule: Records left behind by a deleted listing can be cleared out
     The organiser is told how many records are left behind, and chooses how old
@@ -42,7 +42,7 @@ Feature: The organiser keeps only the personal details the site still needs
       When the organiser saves "1 year" and turns automatic deleting off
       Then the page comes back offering "1 year" with automatic deleting off
 
-  @rule:servicing.one-person-can-be-forgotten
+  @rule:records.one-person-can-be-forgotten
   @surface:admin
   Rule: One person can be forgotten without losing their bookings
     The note the site keeps to recognise a returning customer is deleted by the

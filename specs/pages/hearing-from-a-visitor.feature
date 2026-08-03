@@ -1,5 +1,5 @@
-@story:servicing.hearing-from-a-visitor
-@owner:servicing @risk:medium
+@story:pages.hearing-from-a-visitor
+@owner:pages @risk:medium
 @actor:customer @actor:organiser
 @edition:managed @edition:self-hosted
 Feature: A visitor writes to the owner
@@ -8,7 +8,7 @@ Feature: A visitor writes to the owner
   The message leaves as an email to the address the owner gave, and the visitor
   is told plainly whether it went.
 
-  @rule:servicing.the-form-is-there-only-when-the-owner-set-it-up
+  @rule:pages.the-form-is-there-only-when-the-owner-set-it-up
   Rule: The form is there only when the owner set it up
     Taking messages needs two things: the form switched on, and an address for
     them to reach. With either missing there is nothing for a visitor to write
@@ -31,7 +31,7 @@ Feature: A visitor writes to the owner
       When the owner takes away their address
       Then a visitor is offered no form
 
-  @rule:servicing.a-message-reaches-the-owner-and-can-be-replied-to
+  @rule:pages.a-message-reaches-the-owner-and-can-be-replied-to
   Rule: A message reaches the owner, and a reply goes back to the visitor
     The message is sent to the owner's own address, and replying to it answers
     the person who wrote — not the site. Otherwise the owner reads it and has
@@ -45,7 +45,7 @@ Feature: A visitor writes to the owner
       And the message reaches the owner
       And a reply to it would go to "asker@outside.test"
 
-  @rule:servicing.a-sender-claiming-the-owners-own-address-is-flagged
+  @rule:pages.a-sender-claiming-the-owners-own-address-is-flagged
   Rule: A sender claiming the owner's own address is flagged
     Somebody can type any address into the form. When they claim one on the
     owner's own email host the message still arrives, but a reply goes to the
@@ -61,7 +61,7 @@ Feature: A visitor writes to the owner
       And a reply to it would go to the site's own address
       And the owner is warned the sender may be pretending
 
-  @rule:servicing.a-message-that-did-not-go-is-never-called-sent
+  @rule:pages.a-message-that-did-not-go-is-never-called-sent
   Rule: A message that did not go is never called sent
     When the site cannot deliver, the visitor is told so and asked to try
     later. Telling them it was sent would leave them waiting for an answer

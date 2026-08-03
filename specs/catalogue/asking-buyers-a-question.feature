@@ -1,5 +1,5 @@
-@story:servicing.asking-buyers-a-question
-@owner:servicing @risk:medium
+@story:catalogue.asking-buyers-a-question
+@owner:catalogue @risk:medium
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 @surface:admin
@@ -9,7 +9,7 @@ Feature: An owner decides what buyers are asked
   ask it, reads what each buyer said, and can take a question away again by
   typing its text to confirm.
 
-  @rule:servicing.a-question-is-asked-only-where-it-is-assigned
+  @rule:catalogue.a-question-is-asked-only-where-it-is-assigned
   @surface:public
   Rule: A question is asked only where the owner assigned it
     Assigning a question to one listing does not put it on the others. A buyer
@@ -23,7 +23,7 @@ Feature: An owner decides what buyers are asked
       Then a visitor booking the Pottery is offered "Collection day?" with Saturday and Sunday
       And a visitor booking the Kiln is not asked "Collection day?"
 
-  @rule:servicing.a-buyers-own-words-reach-the-owner
+  @rule:catalogue.a-buyers-own-words-reach-the-owner
   @surface:public
   Rule: A buyer's own words reach the owner
     A written question has no answers to offer — the buyer types whatever they
@@ -42,7 +42,7 @@ Feature: An owner decides what buyers are asked
       Given the owner asks buyers to write "Anything we should know?"
       Then the owner is offered no way to add answer choices
 
-  @rule:servicing.taking-a-question-away-needs-its-exact-text
+  @rule:catalogue.taking-a-question-away-needs-its-exact-text
   Rule: Taking a question away needs its exact text
     Deleting a question is deliberate: the owner types the question's text to
     confirm. Text that does not match changes nothing, and buyers go on being
