@@ -166,7 +166,9 @@ describeSquare(() => {
           },
           async () => {
             const result = await squareApi.retrieveOrder("order_edge_total");
-            expect(result!.totalMoney).toEqual(expected);
+            expect(result).not.toBeNull();
+            if (result === null) return;
+            expect(result.totalMoney).toEqual(expected);
           },
         );
       });
@@ -196,7 +198,8 @@ describeSquare(() => {
           // refuse it and the callback refund it.
           const result = await squareApi.retrieveOrder("order_no_total");
           expect(result).not.toBeNull();
-          expect(result!.totalMoney).toEqual({ amount: null, currency: null });
+          if (result === null) return;
+          expect(result.totalMoney).toEqual({ amount: null, currency: null });
         },
       );
     });

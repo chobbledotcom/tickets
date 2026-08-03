@@ -15,6 +15,7 @@ import type {
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { settings } from "#shared/db/settings.ts";
+import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
@@ -45,7 +46,7 @@ const sessionUnavailable = (
   logRedirectError(`Session ${why} (session=${sessionId})`);
   return {
     ok: false,
-    response: paymentErrorResponse("Payment session not found"),
+    response: paymentErrorResponse(t("payment.error.session_not_found")),
   };
 };
 

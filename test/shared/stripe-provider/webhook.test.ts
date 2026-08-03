@@ -113,7 +113,7 @@ describeStripe("stripe-provider resolveWebhookSession", () => {
           type: "checkout.session.completed",
         }),
       ).toBeNull();
-      expect(retrieve.calls[0]?.args).toEqual(["cs_foreign"]);
+      expect(retrieve.calls.map((call) => call.args)).toEqual([["cs_foreign"]]);
     } finally {
       retrieve.restore();
     }

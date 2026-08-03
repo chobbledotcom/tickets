@@ -54,8 +54,8 @@ describeWithEnv(
       await deactivateTestListing(listing.id);
 
       // A paid session with no payment_intent is refused at the provider
-      // boundary (it would be unrefundable), so the webhook resolves no
-      // session and acks without processing — even for a deactivated listing.
+      // boundary as a blank_reference rejection: nothing names the charge, so
+      // there is nothing to refund and the webhook acknowledges it unprocessed.
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
           amountTotal: 500,

@@ -117,19 +117,11 @@ const sumupKeyError = (err: unknown): string => {
 };
 
 /**
- * Normalize a SumUp checkout resource into our internal shape.
+ * Normalize a SumUp checkout into our internal shape. Nothing here may throw:
+ * it runs inside `withClient`, which turns any error into "no session", and the
+ * webhook then acknowledges a paid charge as one it never heard of. So bad
+ * money is carried through for the boundary to refuse, never asserted away.
  *
- * Nothing in here may throw. This runs inside `withClient`, which turns any
- * error into "no session" — and the webhook then acknowledges a paid charge as
- * one it has never heard of, stranding the captured money. So a missing amount
- * and a missing or malformed currency are carried through for the boundary to
- * refuse (the site's currency stands in for the conversion), rather than
- * asserted away into a crash. An over-precise raw amount is flagged instead of
- * rounded silently, so the adapter can refuse the charge and the callback can
- * refund it.
- *
- * checkout_reference is asserted: webhook ids are pre-filtered against our own
- * staging rows before fetching, and a blank one is refused by the adapter.
  * transaction_id only exists once a payment attempt succeeds; older attempts
  * in `transactions` may have FAILED, so the fallback picks the successful one.
  */

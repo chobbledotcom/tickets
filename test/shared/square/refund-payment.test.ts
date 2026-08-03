@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import * as v from "valibot";
 import type { RefundPaymentInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
 import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
@@ -304,32 +305,38 @@ describeSquare(() => {
       });
     });
 
-    /** Assert the boundary schema refused the response before the contract
-     *  checks ran. Those name the payment or the amount they disagreed with,
-     *  so a schema refusal is one whose message says neither. */
-    const expectSchemaRefuses = async (refund: {
-      id: string;
-      status: string;
-      payment_id?: string;
-      amount_money?: { amount: number; currency: string };
-    }): Promise<void> => {
+    /** Assert the boundary schema refused the response over `field`. The name
+     *  is checked, not just the failure: the error text alone does not say
+     *  which field was wrong, so an unrelated fault would otherwise pass. */
+    const expectSchemaRefuses = async (
+      field: string,
+      refund: {
+        id: string;
+        status: string;
+        payment_id?: string;
+        amount_money?: { amount: number; currency: string };
+      },
+    ): Promise<void> => {
       let error: unknown = null;
       try {
         await refundOutcomeFor(refund);
       } catch (err) {
         error = err;
       }
-      expect(error).toBeInstanceOf(Error);
-      expect(String(error)).not.toContain("is for payment");
-      expect(String(error)).not.toContain("does not match payment amount");
+      expect(error).toBeInstanceOf(v.ValiError);
+      const { issues } = error as { issues: v.BaseIssue<unknown>[] };
+      const paths = issues.map((issue) =>
+        issue.path?.map((item) => String(item.key)).join("."),
+      );
+      expect(paths).toContain(`refund.${field}`);
     };
 
     test("refuses a refund whose own id is blank", async () => {
-      await expectSchemaRefuses({ id: "", status: "COMPLETED" });
+      await expectSchemaRefuses("id", { id: "", status: "COMPLETED" });
     });
 
     test("refuses a refund that names no payment", async () => {
-      await expectSchemaRefuses({
+      await expectSchemaRefuses("payment_id", {
         id: "ref_blank_payment",
         payment_id: "",
         status: "COMPLETED",
@@ -337,7 +344,7 @@ describeSquare(() => {
     });
 
     test("refuses a refund whose amount names no currency", async () => {
-      await expectSchemaRefuses({
+      await expectSchemaRefuses("amount_money.currency", {
         amount_money: { amount: 1999, currency: "" },
         id: "ref_blank_currency",
         status: "COMPLETED",

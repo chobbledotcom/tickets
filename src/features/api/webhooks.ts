@@ -51,6 +51,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
+import { t } from "#shared/i18n.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
@@ -260,7 +261,7 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   }
   if (!session) {
     logCancelError(`Session not found (session=${sid})`);
-    return paymentErrorResponse("Payment session not found");
+    return paymentErrorResponse(t("payment.error.session_not_found"));
   }
 
   return cancelPageResponse(session, logCancelError);

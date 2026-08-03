@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import {
+  answerRejectedSession,
   refundRejectedCharge,
-  refundRejectedSession,
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -167,27 +167,46 @@ describe("tryRefund resource id", () => {
       );
     }));
 
-  it("reports a successful rejection refund as a settled 400", async () => {
+  /** Run the callbacks' answer for a rejection, collecting what it logged. */
+  const answerFor = async (
+    reference: string,
+  ): Promise<{ status: number; page: string; logged: string[] }> => {
+    const logged: string[] = [];
+    const response = await answerRejectedSession(
+      ourRejection(reference),
+      `cs_${reference}`,
+      (detail) => logged.push(detail),
+    );
+    return { logged, page: await response.text(), status: response.status };
+  };
+
+  it("tells a buyer whose charge came back, and settles it at 400", async () => {
+    let answer!: Awaited<ReturnType<typeof answerFor>>;
     expect(
       await withSucceedingRefund(async () => {
-        expect(await refundRejectedSession(ourRejection("pi_settled"))).toEqual(
-          { refunded: true, settled: true, status: 400 },
-        );
+        answer = await answerFor("pi_settled");
       }),
     ).toEqual([["pi_settled"]]);
+    expect(answer.status).toBe(400);
+    expect(answer.page).toContain("sent your money back");
+    expect(answer.logged).toEqual([
+      "Session rejected as malformed_charge (session=cs_pi_settled, refunded: true)",
+    ]);
   });
 
-  it("reports a failed rejection refund as a retryable 503", async () => {
-    // The provider refuses the refund and reports nothing refunded, so the
-    // caller must answer retryable rather than acknowledge the charge away.
+  it("asks for a retry at 503 when the provider refuses the refund", async () => {
+    // Nothing came back, so the buyer must not be told it did — and the caller
+    // must retry rather than acknowledge the charge away.
+    let answer!: Awaited<ReturnType<typeof answerFor>>;
     expect(
       await withRefusedRefund(async () => {
-        expect(await refundRejectedSession(ourRejection("pi_stuck"))).toEqual({
-          refunded: false,
-          settled: false,
-          status: 503,
-        });
+        answer = await answerFor("pi_stuck");
       }),
     ).toEqual([["pi_stuck"]]);
+    expect(answer.status).toBe(503);
+    expect(answer.page).not.toContain("sent your money back");
+    expect(answer.logged).toEqual([
+      "Session rejected as malformed_charge (session=cs_pi_stuck, refunded: false)",
+    ]);
   });
 });

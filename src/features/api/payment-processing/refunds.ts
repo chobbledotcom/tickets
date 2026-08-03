@@ -68,7 +68,7 @@ export const getPaymentProviderOrLog = async (
  * "nothing to refund" and "refunded" must never read the same in a log or on
  * a page: one means the buyer is out of pocket, the other means they are not.
  */
-export type RejectionOutcome = { settled: boolean; refunded: boolean };
+type RejectionOutcome = { settled: boolean; refunded: boolean };
 
 /** Nothing of ours was captured, so there is nothing to return. */
 const NOTHING_TO_REFUND: RejectionOutcome = { refunded: false, settled: true };
@@ -103,7 +103,7 @@ export const refundRejectedCharge = async (
  * status a handler answers with — 400 once the charge is settled, 503 when a
  * required refund failed so the caller retries rather than acking it away.
  */
-export const refundRejectedSession = async (
+const refundRejectedSession = async (
   rejection: SessionRejection,
 ): Promise<RejectionOutcome & { status: number }> => {
   const outcome = await refundRejectedCharge(rejection);
@@ -129,7 +129,7 @@ export const answerRejectedSession = async (
   return paymentErrorResponse(
     outcome.refunded
       ? t("payment.error.refunded")
-      : "Payment session not found",
+      : t("payment.error.session_not_found"),
     outcome.status,
   );
 };

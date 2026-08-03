@@ -15,16 +15,16 @@ src/features/settings-bundles.ts:244:40  ?? → ||   # bundle is a readonly arra
 
 # webhooks.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
 # string|undefined; for "" both ?? "" and || "" yield "".
-src/features/api/webhooks.ts:116:39  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/webhooks.ts:117:39  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # webhooks.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
 # both ?? "" and || "" yield "".
-src/features/api/webhooks.ts:131:62  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/webhooks.ts:132:62  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
 # false, so "" never returned). ?? null and || null agree.
-src/features/api/webhooks.ts:321:4   ?? → ||   # find(Boolean) → undefined|truthy; never ""
-src/features/api/webhooks.ts:349:55  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
+src/features/api/webhooks.ts:322:4   ?? → ||   # find(Boolean) → undefined|truthy; never ""
+src/features/api/webhooks.ts:350:55  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
 
 # require-provider.ts: getPaymentProviderForExistingPayments() returns
 # Promise<ExistingPaymentProvider>; its awaited PaymentProvider|null value is
@@ -240,8 +240,8 @@ src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arm
 src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
-src/shared/sumup.ts:252:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
-src/shared/sumup.ts:291:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+src/shared/sumup.ts:244:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
+src/shared/sumup.ts:283:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 # Stripe provider: payment_intent is nullable(NonEmptyText), so its only non-null values are non-empty; ?? "" and || "" agree.
 src/shared/stripe-provider.ts:60:39  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 # validation/money.ts's PositiveMoneySchema: the `signed` flag only decides

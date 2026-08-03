@@ -106,14 +106,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             await expectHtmlResponse(
               response,
               400,
-              "Your money has been sent back",
+              "We have sent your money back",
             );
           },
         );
         expect(refundSpy.calls.length).toBe(1);
         expect(refundSpy.calls[0]?.args[0]).toBe("pi_unusable");
-        // The buyer only sees "not found", so the log is the operator's only
-        // record of which session was refused and whether the money went back.
+        // The buyer's page does not name the session, so the log is the
+        // operator's only record of which one was refused.
         expect(
           errorLogged(
             errorSpy,

@@ -208,7 +208,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
       reason: "malformed_charge",
       refundable: true,
     });
-    using _refund = stub(stripeApi, "refundPayment", () =>
+    using refundStub = stub(stripeApi, "refundPayment", () =>
       Promise.resolve({ id: "re_1", status: "succeeded" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
       >),
@@ -223,7 +223,10 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     // They really were charged, so "not found" would leave them waiting for a
     // ticket, or paying a second time.
     const page = await result.response.text();
-    expect(page).toContain("Your money has been sent back");
+    expect(page).toContain("We have sent your money back");
+    expect(refundStub.calls.map((call) => call.args)).toEqual([
+      ["pi_refunded"],
+    ]);
     expect(page).not.toContain("Payment session not found");
     expect(
       await loggedAbout(
