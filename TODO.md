@@ -1882,3 +1882,37 @@ Two directions, either of which would help:
   assuming it is.
 
 The first is the real fix; the second would catch the next one either way.
+
+## Split the form-control rules into files about one thing each
+
+*Origin: Codex review on PR #2025. Attempted on that branch and backed out —
+see below.*
+
+`test/specs/support/form-controls.ts` is 478 lines, over the ~400 the repo
+asks for, and holds four separate jobs:
+
+- reading a page's attributes (`attribute`, `hasFlag`, `usableInputsOfKind`)
+- what a page offers (`chooserFor`, `boxFor`, `choicesOffered`, the checkbox
+  and question readers)
+- why a value could not be sent (`whyValueCannotBeSent` and the rules under
+  it, plus the insisted-control machinery)
+- the story-facing helpers (`fillInAndSend`, `takeDownFromActions`)
+
+The first three are pure and the last does the sending, so the natural shape
+is `form-controls/reading.ts`, `form-controls/rules.ts`, and a thin
+`form-controls.ts` — the same split already done for `test-browser.ts`.
+
+The churn is smaller than it looks: `fillInAndSend` has 15 importers and stays
+put, and every reader that would move has between one and five
+(`checkboxValueOffered` 5, `tickedCheckboxes` 4, `whyValueCannotBeSent` 3,
+`requireCheckboxOffered` 2, `choicesOffered`/`optionsOffered` 1 each). So
+about a dozen import lines change. Do not add a re-export layer in
+`form-controls.ts` to avoid touching them — that is the alias-export smell the
+repo rules out; point each caller at the file that owns what it uses.
+
+**Why it was backed out:** attempted by slicing the file on line ranges, which
+produced an unterminated comment, duplicated imports and several unresolved
+symbols. Reverted rather than pushed half-done. Whoever picks this up should
+move whole declarations (or use an editor that understands the syntax) rather
+than cutting on line numbers, and lean on `deno task precommit` — the 214
+specs and the coverage gate both exercise this module hard.

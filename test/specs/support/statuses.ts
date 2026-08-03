@@ -29,6 +29,7 @@ import {
   keepWhatTheyWereTold,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
+import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -81,7 +82,15 @@ const statesOnList = (html: string): StateOnList[] => {
   const rows: StateOnList[] = [];
   for (const row of html.split("<tr").slice(1)) {
     const into = row.match(intoOne);
-    if (into) rows.push({ id: Number(into[1]), name: into[2]!.trim(), row });
+    // The name comes back as the page spells it, so "&amp;" is read as the "&"
+    // the organiser typed — otherwise a state they can see could not be found.
+    if (into) {
+      rows.push({
+        id: Number(into[1]),
+        name: decodeEntities(into[2]!).trim(),
+        row,
+      });
+    }
   }
   return rows;
 };

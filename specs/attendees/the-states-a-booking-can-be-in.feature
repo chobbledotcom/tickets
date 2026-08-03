@@ -21,6 +21,11 @@ Feature: The organiser names the states a booking can be in
       When the organiser adds a state called "Waiting"
       Then "Waiting" is one of the states a booking can be in
 
+    @case:statuses.a-name-with-an-and-in-it
+    Scenario: The organiser adds a state with an "and" sign in its name
+      When the organiser adds a state called "Waiting & Ready"
+      Then "Waiting & Ready" is one of the states a booking can be in
+
     @case:statuses.a-state-that-asks-for-a-deposit
     Scenario: The organiser adds a state that asks for a deposit
       When the organiser adds a state called "Reserved" asking for "10%" up front
