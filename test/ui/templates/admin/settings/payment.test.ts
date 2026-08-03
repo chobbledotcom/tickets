@@ -7,13 +7,15 @@ import {
 } from "#shared/payment-providers.ts";
 import {
   BookingFeeForm,
-  ExistingPaymentProviderForm,
-  PaymentProviderForm,
   SquareForm,
   SquareWebhookForm,
   StripeForm,
   SumUpForm,
 } from "#templates/admin/settings/payment.tsx";
+import {
+  ExistingPaymentProviderForm,
+  PaymentProviderForm,
+} from "#templates/admin/settings/payment-provider.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
@@ -219,6 +221,14 @@ describe("settings payment forms", () => {
       expect(render(SumUpForm, { paymentProvider: "stripe" })).toBe("");
     });
 
+    test("stays available for existing SumUp payments while sales are off", () => {
+      const html = render(SumUpForm, {
+        existingPaymentProvider: "sumup",
+        paymentProvider: null,
+      });
+      expect(html).toContain('id="settings-sumup"');
+    });
+
     test("posts the credentials to the SumUp settings route", () => {
       const html = render(SumUpForm, { paymentProvider: "sumup" });
       expect(html).toContain('action="/admin/settings/sumup"');
@@ -256,6 +266,14 @@ describe("settings payment forms", () => {
     test("renders nothing unless Square is the chosen provider", () => {
       expect(render(SquareForm)).toBe("");
       expect(render(SquareForm, { paymentProvider: "stripe" })).toBe("");
+    });
+
+    test("stays available for existing Square payments while sales are off", () => {
+      const html = render(SquareForm, {
+        existingPaymentProvider: "square",
+        paymentProvider: null,
+      });
+      expect(html).toContain('id="settings-square"');
     });
 
     test("posts the access token to the Square settings route", () => {

@@ -138,6 +138,18 @@ describeAdminSettings(() => {
       );
     });
 
+    test("updates credentials without turning sales back on", async () => {
+      await activateStripe("whsec_sales_off");
+      await settings.update.setPaymentProviderNone();
+
+      await stubWebhookAndPostStripe("sk_test_sales_off", async (response) => {
+        expect(response.status).toBe(302);
+        expect(settings.paymentProvider).toBeNull();
+        expect(settings.lastActivePaymentProvider).toBe("stripe");
+        expect(settings.stripe.secretKey).toBe("sk_test_sales_off");
+      });
+    });
+
     test("settings page shows Stripe is not configured initially", async () => {
       await settings.update.paymentProvider("stripe");
       await expectHtml(await adminGet("/admin/settings"), {

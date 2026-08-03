@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { settings } from "#shared/db/settings.ts";
+import {
+  ALL_SETTINGS_KEYS,
+  CONFIG_KEYS,
+  settings,
+} from "#shared/db/settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
@@ -51,6 +55,15 @@ const postSubdomain = async (subdomain: string): Promise<Response> =>
 const advancedPageHtml = async (): Promise<string> => {
   const response = await adminGet("/admin/settings-advanced");
   return response.text();
+};
+
+const setAmbiguousPaymentProvider = async (): Promise<void> => {
+  await settings.update.stripe.secretKey("sk_test_domain_recovery");
+  await settings.update.square.accessToken("square-domain-recovery");
+  await settings.update.setPaymentProviderNone();
+  await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+  settings.invalidateCache();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
 };
 
 /** A subdomain availability result for "mylisting" (available or taken). */
@@ -177,6 +190,22 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
             expect.stringContaining("Bunny CDN is not configured"),
             false,
           );
+        });
+
+        test("blocks a domain change until payment provider recovery is complete", async () => {
+          setBunnyEnv();
+          await setAmbiguousPaymentProvider();
+
+          const { response } = await adminFormPost(
+            "/admin/settings/custom-domain",
+            { custom_domain: "tickets.example.com" },
+          );
+
+          expectErrorFlash(
+            response,
+            "Choose the provider for existing payments before changing your domain.",
+          );
+          expect(settings.customDomain).toBe("");
         });
 
         test("saves and validates domain when validation succeeds", async () => {
@@ -631,6 +660,22 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
             expect(location).toContain("form=settings-host-subdomain");
             expectFlash(response, expect.stringContaining("is available"));
           });
+        });
+
+        test("blocks subdomain registration until payment provider recovery is complete", async () => {
+          setBunnyDnsEnv();
+          await setAmbiguousPaymentProvider();
+
+          const { response } = await adminFormPost(
+            "/admin/settings/host-subdomain",
+            { save: "1", subdomain: "mylisting" },
+          );
+
+          expectErrorFlash(
+            response,
+            "Choose the provider for existing payments before changing your domain.",
+          );
+          expect(settings.bunnySubdomain).toBe("");
         });
 
         test("renders subdomain preview on page after availability check", async () => {

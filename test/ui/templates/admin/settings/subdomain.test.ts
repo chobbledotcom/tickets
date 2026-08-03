@@ -59,12 +59,14 @@ describe("HostSubdomainForm", () => {
     expect(html).toContain("</strong> is available");
     const form = html.match(
       /<form[^>]*action="\/admin\/settings\/host-subdomain"[^>]*>[\s\S]*?<\/form>/,
-    )?.[0];
-    const subdomainInput = form?.match(
-      /<input[^>]*name="subdomain"[^>]*>/,
-    )?.[0];
-    expect(subdomainInput).toContain('type="hidden"');
-    expect(subdomainInput).toContain('value="my-sub"');
+    );
+    expect(form).not.toBeNull();
+    if (form === null) return;
+    const subdomainInput = form[0].match(/<input[^>]*name="subdomain"[^>]*>/);
+    expect(subdomainInput).not.toBeNull();
+    if (subdomainInput === null) return;
+    expect(subdomainInput[0]).toContain('type="hidden"');
+    expect(subdomainInput[0]).toContain('value="my-sub"');
     expect(html).toContain("Confirm registration");
     // Confirm checkbox: defaults to unchecked, carries name="save" + value="1"
     expect(html).not.toContain("checked");
@@ -76,7 +78,7 @@ describe("HostSubdomainForm", () => {
     expect(html).toContain(
       'href="/admin/settings-advanced#settings-host-subdomain"',
     );
-    expect(form).toContain('id="settings-host-subdomain"');
+    expect(form[0]).toContain('id="settings-host-subdomain"');
   });
 
   test("renders the check form when no subdomain is set", () => {
@@ -90,13 +92,17 @@ describe("HostSubdomainForm", () => {
     );
     const form = html.match(
       /<form[^>]*action="\/admin\/settings\/host-subdomain"[^>]*>[\s\S]*?<\/form>/,
-    )?.[0];
-    const subdomainInput = form?.match(
+    );
+    expect(form).not.toBeNull();
+    if (form === null) return;
+    const subdomainInput = form[0].match(
       /<input[^>]*autocomplete="off"[^>]*name="subdomain"[^>]*>/,
-    )?.[0];
-    expect(subdomainInput).toContain('type="text"');
-    expect(form).toContain('id="settings-host-subdomain"');
-    expect(form).toContain("Check");
+    );
+    expect(subdomainInput).not.toBeNull();
+    if (subdomainInput === null) return;
+    expect(subdomainInput[0]).toContain('type="text"');
+    expect(form[0]).toContain('id="settings-host-subdomain"');
+    expect(form[0]).toContain("Check");
     expect(html).toContain("muted");
     expect(html).toContain(".tickets.example");
   });

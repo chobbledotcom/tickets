@@ -3,14 +3,40 @@ import { describe, it as test } from "@std/testing/bdd";
 import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-payment-warning.tsx";
 
 const renderWarning = (paymentProvider: string): string =>
-  String(DomainPaymentWebhookWarning({ paymentProvider }));
+  String(
+    DomainPaymentWebhookWarning({
+      existingPaymentProvider: paymentProvider,
+      paymentProviderRecoveryNeeded: false,
+    }),
+  );
 
 describe("domain payment webhook warning", () => {
   test("is hidden when the provider has no webhook", () => {
-    expect(DomainPaymentWebhookWarning({ paymentProvider: null })).toBeNull();
     expect(
-      DomainPaymentWebhookWarning({ paymentProvider: "sumup" }),
+      DomainPaymentWebhookWarning({
+        existingPaymentProvider: null,
+        paymentProviderRecoveryNeeded: false,
+      }),
     ).toBeNull();
+    expect(
+      DomainPaymentWebhookWarning({
+        existingPaymentProvider: "sumup",
+        paymentProviderRecoveryNeeded: false,
+      }),
+    ).toBeNull();
+  });
+
+  test("links to provider recovery before a domain change", () => {
+    const html = String(
+      DomainPaymentWebhookWarning({
+        existingPaymentProvider: null,
+        paymentProviderRecoveryNeeded: true,
+      }),
+    );
+    expect(html).toContain("Choose the provider for existing payments");
+    expect(html).toContain(
+      'href="/admin/settings#settings-payment-provider-recovery"',
+    );
   });
 
   test("links Square users to their webhook settings", () => {

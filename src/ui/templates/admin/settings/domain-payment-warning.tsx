@@ -12,11 +12,32 @@ import { t } from "#i18n";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
 
 export const DomainPaymentWebhookWarning = ({
-  paymentProvider,
+  existingPaymentProvider,
+  paymentProviderRecoveryNeeded,
 }: {
-  paymentProvider: string | null;
+  existingPaymentProvider: string | null;
+  paymentProviderRecoveryNeeded: boolean;
 }): JSX.Element | null => {
-  if (paymentProvider !== "square" && paymentProvider !== "stripe") return null;
+  if (paymentProviderRecoveryNeeded) {
+    return (
+      <article>
+        <aside role="alert">
+          <p>
+            <strong>{t("settings.domain_recovery_required")}</strong>{" "}
+            <a href="/admin/settings#settings-payment-provider-recovery">
+              {t("settings.domain_recovery_link")}
+            </a>
+            .
+          </p>
+        </aside>
+      </article>
+    );
+  }
+  if (
+    existingPaymentProvider !== "square" &&
+    existingPaymentProvider !== "stripe"
+  )
+    return null;
   return (
     <article>
       <aside role="alert">
@@ -24,7 +45,7 @@ export const DomainPaymentWebhookWarning = ({
           <strong>{t("settings.domain_warning.title")}</strong>{" "}
           {t("settings.domain_warning.body")}
         </p>
-        {paymentProvider === "square"
+        {existingPaymentProvider === "square"
           ? rawParagraph("settings.domain_warning.square")
           : rawParagraph("settings.domain_warning.stripe")}
       </aside>

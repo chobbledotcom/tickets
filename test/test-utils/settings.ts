@@ -159,11 +159,14 @@ export const activateStripe = (
   webhookEndpointId = "we_test_endpoint",
   secretKey = "sk_test_mock",
 ): Promise<void> =>
-  settings.update.stripe.activate({
-    secretKey,
-    webhookEndpointId,
-    webhookSecret,
-  });
+  settings.update.stripe.configure(
+    {
+      secretKey,
+      webhookEndpointId,
+      webhookSecret,
+    },
+    "stripe",
+  );
 
 /** Run `body` with Stripe webhook setup and old-endpoint cleanup succeeding. */
 export const withSuccessfulStripeWebhook = async (

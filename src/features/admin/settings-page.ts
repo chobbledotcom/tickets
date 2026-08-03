@@ -18,10 +18,7 @@ import { getAdminFeatureUsage } from "#shared/db/admin-features.ts";
 import { settings } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
-import {
-  existingPaymentProviderState,
-  existingPaymentProviderType,
-} from "#shared/existing-payment-provider.ts";
+import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
@@ -87,6 +84,7 @@ const getAdvancedSettingsPageState = async (
   const confirmationTemplates = settings.email.templateSet("confirmation");
   const adminTemplates = settings.email.templateSet("admin");
   const cdnResult = bunnyCdnConfigured ? await getCdnHostname() : null;
+  const existingPaymentProvider = existingPaymentProviderState();
   return {
     addressLookupApiKeyConfigured: settings.addressLookup.hasKey,
     addressLookupProvider: settings.addressLookup.provider,
@@ -108,7 +106,7 @@ const getAdvancedSettingsPageState = async (
     emailApiKeyConfigured: settings.email.hasApiKey,
     emailFromAddress: settings.email.fromAddress,
     emailProvider: settings.email.provider,
-    existingPaymentProvider: existingPaymentProviderType(),
+    existingPaymentProvider: existingPaymentProvider.provider,
     externalOrderEnabled: settings.externalOrderEnabled,
     googleWalletConfigured: settings.googleWallet.hasDbConfig,
     googleWalletIssuerId: settings.googleWallet.issuerId,
@@ -130,6 +128,8 @@ const getAdvancedSettingsPageState = async (
       return `Host env (${hostConfig.issuerId})`;
     })(),
     listingColumnOrder: settings.listingColumnOrder,
+    paymentProviderRecoveryNeeded:
+      existingPaymentProvider.recoveryChoices.length > 0,
     scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV),
     showPublicApi: settings.showPublicApi,
     smsGatewayBaseUrl: settings.smsGatewayBaseUrl,

@@ -30,6 +30,7 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
   });
 
   test("labels a provider resolved for existing payments", async () => {
+    await settings.update.stripe.secretKey("sk_test_existing_label");
     await settings.update.paymentProvider("stripe");
     await getPaymentProviderForExistingPayments();
     expect(

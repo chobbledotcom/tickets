@@ -22,10 +22,11 @@ import {
   TERMS_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
-import { configuredPaymentProviderTypes } from "#shared/existing-payment-provider.ts";
+import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { ok } from "#shared/response.ts";
+import type { RequestRoute } from "#shared/response-steps.ts";
 import {
   SETTINGS_FORMS,
   type SettingsFormDefinition,
@@ -73,15 +74,15 @@ export const handlePaymentProviderPost = settingsHandler({
 });
 
 /** Record the provider for old payments without turning new sales on. */
-export const handlePaymentProviderRecoveryPost = settingsHandler({
+export const handlePaymentProviderRecoveryPost: RequestRoute = settingsHandler({
   extract: (form) => form.getString("existing_payment_provider"),
   formId: "settings-payment-provider-recovery",
-  log: (provider) => `Existing payment provider set to ${provider}`,
+  log: (provider) => t("success.existing_payment_provider_set", { provider }),
   save: (provider) =>
     settings.update.recoverPaymentProvider(provider as PaymentProviderType),
   validate: (provider) =>
     isPaymentProvider(provider) &&
-    configuredPaymentProviderTypes().includes(provider)
+    existingPaymentProviderState().recoveryChoices.includes(provider)
       ? null
       : t("error.invalid_existing_payment_provider"),
 });

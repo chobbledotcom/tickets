@@ -17,6 +17,7 @@ import { isBunnyCdnEnabled, isBunnyDnsEnabled } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { DOMAIN_PATTERN } from "#shared/embed-hosts.ts";
+import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { fail, ok } from "#shared/response.ts";
 
 /**
@@ -47,20 +48,30 @@ const runGuardedTask = async (
   return orErrorPage(taskResult, errorPage, formId, (ok) => ok.value);
 };
 
-/** Guard returning an errorPage response when Bunny CDN isn't configured. */
-const requireBunnyCdn = (
-  errorPage: ErrorPageFn,
-  formId: string,
-): ReturnType<ErrorPageFn> | null =>
-  isBunnyCdnEnabled()
-    ? null
-    : errorPage(t("error.bunny_cdn_not_configured"), formId);
+const requireSetting =
+  (ready: () => boolean, errorKey: string) =>
+  (errorPage: ErrorPageFn, formId: string): ReturnType<ErrorPageFn> | null =>
+    ready() ? null : errorPage(t(errorKey), formId);
+
+const requireBunnyCdn = requireSetting(
+  isBunnyCdnEnabled,
+  "error.bunny_cdn_not_configured",
+);
+const requirePaymentProviderRecovery = requireSetting(
+  () => existingPaymentProviderState().recoveryChoices.length === 0,
+  "error.payment_provider_recovery_required",
+);
 
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 export const handleCustomDomainPost = advancedSettingsRoute(
   async (form, errorPage) => {
     const cdnError = requireBunnyCdn(errorPage, "settings-custom-domain");
     if (cdnError) return cdnError;
+    const recoveryError = requirePaymentProviderRecovery(
+      errorPage,
+      "settings-custom-domain",
+    );
+    if (recoveryError) return recoveryError;
 
     const raw = form.getString("custom_domain").toLowerCase();
 
@@ -206,6 +217,12 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
         },
       );
     }
+
+    const recoveryError = requirePaymentProviderRecovery(
+      errorPage,
+      FORM_ID_HOST_SUBDOMAIN,
+    );
+    if (recoveryError) return recoveryError;
 
     // Save: actually register (guarded by current_task)
     return runGuardedTask(
