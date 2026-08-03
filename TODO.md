@@ -53,11 +53,6 @@ operators own the risk of choosing deliberately hostile third-party endpoints.
   context into the shared request handler so production rate limits do not fall
   back to one global bucket. Add direct entrypoint tests that prove two client
   IPs do not share a limiter row.
-- **Bound the invalid-session cache.** `src/features/auth.ts` negative-caches
-  arbitrary invalid session cookies in process memory. Give that cache a size
-  cap or time-based sweep that removes entries without waiting for the same bad
-  token to be seen again, and test that unique junk cookies cannot grow it
-  without bound.
 - **Stop cross-origin redirects from replaying secrets or PII.** The shared
   fetch path in `src/shared/safe-fetch.ts` is used by registration webhooks and
   SMS delivery. Do not let a cross-origin redirect replay attendee data,
