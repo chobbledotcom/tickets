@@ -1,3 +1,11 @@
+/**
+ * What is left of the listing-filter tests once the story "The organiser
+ * narrows a long list down to what they are looking for" tells the journeys:
+ * the arms a story cannot reach (a purchase-only listing, an address nothing
+ * links to, a link whose wrong build leaves the same rows on the page), the
+ * second page that narrows the same way, and the download.
+ */
+
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -23,50 +31,6 @@ const DAILY = {
 
 describeWithEnv("listings type filter", { db: true }, () => {
   describe("admin listings dashboard", () => {
-    test("shows the type filter when more than one type is present", async () => {
-      await createTestListing({ name: "Standard One" });
-      await createTestListing({ name: "Daily One", ...DAILY });
-      const response = await adminGet("/admin");
-      const html = await response.text();
-      expect(html).toContain("Showing:");
-      expect(html).toContain("Standard");
-      expect(html).toContain("Daily");
-      expect(html).toContain('href="/admin/?type=standard"');
-    });
-
-    test("hides the type filter when only one type is present", async () => {
-      await createTestListing({ name: "Standard One" });
-      await createTestListing({ name: "Standard Two" });
-      const response = await adminGet("/admin");
-      const html = await response.text();
-      expect(html).not.toContain("Showing:");
-    });
-
-    // The table is the only place that links a listing to /admin/listing/:id
-    // (the multi-booking builder below the table uses slugs), so asserting on
-    // that link proves the table itself was filtered.
-    test("filters the listing table to standard listings", async () => {
-      const standard = await createTestListing({ name: "Standard One" });
-      const daily = await createTestListing({ name: "Daily One", ...DAILY });
-      const response = await adminGet("/admin?type=standard");
-      const html = await response.text();
-      expect(html).toContain(`href="/admin/listing/${standard.id}"`);
-      expect(html).not.toContain(`href="/admin/listing/${daily.id}"`);
-      // Active filter is bold + underlined; others remain links.
-      expect(html).toContain("<strong><u>Standard</u></strong>");
-      expect(html).toContain('href="/admin/?type=daily"');
-    });
-
-    test("filters the listing table to daily listings", async () => {
-      const standard = await createTestListing({ name: "Standard One" });
-      const daily = await createTestListing({ name: "Daily One", ...DAILY });
-      const response = await adminGet("/admin?type=daily");
-      const html = await response.text();
-      expect(html).toContain(`href="/admin/listing/${daily.id}"`);
-      expect(html).not.toContain(`href="/admin/listing/${standard.id}"`);
-      expect(html).toContain("<strong><u>Daily</u></strong>");
-    });
-
     test("filters the listing table to purchase-only listings", async () => {
       const standard = await createTestListing({ name: "Standard One" });
       const merch = await createTestListing({
@@ -90,42 +54,18 @@ describeWithEnv("listings type filter", { db: true }, () => {
       expect(html).toContain("<strong><u>All</u></strong>");
     });
 
-    test("filters the listing table by selected listing attribute", async () => {
-      const easyListing = await createTestListing({ name: "Easy Listing" });
-      const hardListing = await createTestListing({ name: "Hard Listing" });
-      const difficulty = await createTestAttributeWithOptions("Difficulty", [
-        "Easy",
-        "Hard",
-      ]);
-      await assignTestAttributeOptions(easyListing.id, [
-        difficulty.options[0]!,
-      ]);
-      await assignTestAttributeOptions(hardListing.id, [
-        difficulty.options[1]!,
-      ]);
-
-      const response = await adminGet(
-        `/admin?attribute_${difficulty.id}=${difficulty.options[0]!.id}`,
-      );
-      const html = await response.text();
-
-      expect(html).toContain(`href="/admin/listing/${easyListing.id}"`);
-      expect(html).not.toContain(`href="/admin/listing/${hardListing.id}"`);
-      expect(html).toContain("Difficulty:");
-      expect(html).toContain("<strong><u>Easy</u></strong>");
-      expect(html).toContain(
-        `attribute_${difficulty.id}=${difficulty.options[1]!.id}`,
-      );
-    });
-
-    test("keeps attribute filters in type links and type filters in attribute links", async () => {
-      const standard = await createTestListing({ name: "Standard Easy" });
+    // The other half of this pair — a kind link keeping the chosen wording — is
+    // told by the story "The organiser narrows a long list down to what they
+    // are looking for", by narrowing twice and reading what is left. This half
+    // stays here because no click a story could make tells it apart: dropping
+    // the kind from a wording link and dropping the wording itself leave the
+    // same rows on the page.
+    test("a wording link keeps the chosen listing type", async () => {
       const daily = await createTestListing({ name: "Daily Hard", ...DAILY });
       const difficulty = await createTestAttributeWithOptions("Difficulty", [
         "Easy",
         "Hard",
       ]);
-      await assignTestAttributeOptions(standard.id, [difficulty.options[0]!]);
       await assignTestAttributeOptions(daily.id, [difficulty.options[1]!]);
 
       const response = await adminGet(
@@ -133,14 +73,8 @@ describeWithEnv("listings type filter", { db: true }, () => {
           difficulty.options[1]!.id
         }`,
       );
-      const html = await response.text();
 
-      expect(html).toContain(
-        `/admin/?type=standard&attribute_${difficulty.id}=${
-          difficulty.options[1]!.id
-        }`,
-      );
-      expect(html).toContain(`href="/admin/?type=daily">All</a>`);
+      expect(await response.text()).toContain(`href="/admin/?type=daily">All`);
     });
   });
 
@@ -218,18 +152,6 @@ describeWithEnv("listings type filter", { db: true }, () => {
   describe("public listings page", () => {
     beforeEach(async () => {
       await enablePublicSite();
-    });
-
-    test("lists every type together without a filter bar", async () => {
-      await createTestListing({ name: "Standard One" });
-      await createTestListing({ name: "Daily One", ...DAILY });
-      const html = await expectHtmlResponse(
-        await get("/listings"),
-        200,
-        "Standard One",
-        "Daily One",
-      );
-      expect(html).not.toContain("Showing:");
     });
 
     test("shows selected listing attributes on listing cards", async () => {

@@ -16,7 +16,7 @@ import {
   type MessageLoader,
 } from "#locales/manifest.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { allEnglishMessages } from "#test-utils/i18n.ts";
+import { allEnglishMessages, withColdMessages } from "#test-utils/i18n.ts";
 
 const en = await allEnglishMessages();
 
@@ -289,7 +289,10 @@ describe("i18n", () => {
     const GROUP = "seed-data" as const;
     const KEY = "admin.seeds.title";
 
-    /** Swap the group's loader for the test, then restore it and the state. */
+    /** Swap the group's loader for the test, then restore it and the state.
+     * The whole catalog is loaded back afterwards: these tests share an isolate
+     * with files that expect every group loaded, and leaving the state at
+     * system-only makes the next file's `t()` throw for a missing key. */
     const withLoader = async (
       loader: MessageLoader,
       fn: () => Promise<void>,
@@ -301,7 +304,7 @@ describe("i18n", () => {
         await fn();
       } finally {
         ENGLISH_MESSAGE_LOADERS[GROUP] = original;
-        resetI18nForTest(true);
+        await withColdMessages(() => Promise.resolve());
       }
     };
 
@@ -386,11 +389,11 @@ describe("i18n", () => {
       );
     });
 
-    test("withMessageGroups loads the group before running the work", async () => {
-      resetI18nForTest(true);
-      const message = await withMessageGroups([GROUP], () => t(KEY));
-      expect(message).toBe("Example data");
-      resetI18nForTest(true);
-    });
+    test("withMessageGroups loads the group before running the work", () =>
+      withColdMessages(async () => {
+        expect(await withMessageGroups([GROUP], () => t(KEY))).toBe(
+          "Example data",
+        );
+      }));
   });
 });
