@@ -222,10 +222,8 @@ src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arm
 src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
-src/shared/sumup.ts:135:47  ?? → ||   # the checkout currency is null or non-blank uppercase text, so there is no falsy non-null value and ?? and || agree (blank currencies are normalized to null before this)
-src/shared/sumup.ts:140:15  ?? → ||   # same as above: the currency passed to exceedsCurrencyPrecision is null or non-blank uppercase text
-src/shared/sumup.ts:239:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
-src/shared/sumup.ts:278:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+src/shared/sumup.ts:245:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
+src/shared/sumup.ts:284:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 # Stripe provider: payment_intent is nullable(NonEmptyText), so its only non-null values are non-empty; ?? "" and || "" agree.
 src/shared/stripe-provider.ts:55:37  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
 # Payment vocabulary: the valibot regex message strings only change the error text, never pass/fail.
