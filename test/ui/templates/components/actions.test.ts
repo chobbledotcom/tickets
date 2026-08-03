@@ -9,6 +9,11 @@ import {
   GuideFooter,
   GuideLink,
   Icon,
+  MaybeButtonLink,
+  SaveActions,
+  SaveButton,
+  SaveChangesButton,
+  SpanOrLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
 
@@ -17,6 +22,7 @@ describe("Icon", () => {
     const html = String(Icon({ name: "plus" }));
     expect(html).toContain('class="icon"');
     expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('focusable="false"');
     expect(html).toContain(`href="${ICONS_PATH}#plus"`);
   });
 });
@@ -91,6 +97,79 @@ describe("SubmitButton", () => {
       }),
     );
     expect(html).toContain('id="listing-edit-submit"');
+  });
+
+  test("renders disabled only when requested", () => {
+    expect(
+      String(SubmitButton({ children: "Save", disabled: true, icon: "save" })),
+    ).toContain(" disabled");
+    expect(
+      String(SubmitButton({ children: "Save", icon: "save" })),
+    ).not.toContain(" disabled");
+  });
+});
+
+describe("save buttons", () => {
+  test("renders the form action wrapper and primary save button", () => {
+    const html = String(SaveActions({ children: "Store changes" }));
+    expect(html).toContain('<p class="form-actions">');
+    expect(html).toContain('<button class="primary"');
+    expect(html).toContain("<span>Store changes</span>");
+  });
+
+  test("renders each standard translated label", () => {
+    expect(String(SaveChangesButton())).toContain("<span>Save Changes</span>");
+    expect(String(SaveButton())).toContain("<span>Save</span>");
+  });
+});
+
+describe("conditional links", () => {
+  test("renders SpanOrLink as the requested element", () => {
+    const span = String(
+      SpanOrLink({
+        asSpan: true,
+        children: "Unavailable",
+        href: "/ignored",
+        spanClass: "muted",
+      }),
+    );
+    expect(span).toBe('<span class="muted">Unavailable</span>');
+
+    const link = String(
+      SpanOrLink({
+        asSpan: false,
+        children: "Continue",
+        class: "btn",
+        href: "/next",
+      }),
+    );
+    expect(link).toBe('<a class="btn" href="/next">Continue</a>');
+  });
+
+  test("keeps enabled button links clickable by default", () => {
+    expect(
+      String(
+        MaybeButtonLink({
+          children: "Continue",
+          class: "btn",
+          href: "/next",
+        }),
+      ),
+    ).toBe('<a class="btn" href="/next">Continue</a>');
+  });
+
+  test("renders disabled button links as inert spans", () => {
+    expect(
+      String(
+        MaybeButtonLink({
+          children: "Continue",
+          class: "btn",
+          disabled: true,
+          href: "/next",
+          title: "Not ready",
+        }),
+      ),
+    ).toBe('<span class="btn btn--disabled" title="Not ready">Continue</span>');
   });
 });
 

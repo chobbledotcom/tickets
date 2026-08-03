@@ -153,6 +153,22 @@ export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
   await s.update.paymentProvider("stripe");
 };
 
+/** Set up the ambiguous sales-off state that asks an operator which provider
+ * took existing payments. */
+export const requirePaymentProviderRecovery = async (): Promise<void> => {
+  await settings.update.stripe.secretKey("sk_test_provider_recovery");
+  await settings.update.square.accessToken("square-provider-recovery");
+  await settings.update.setPaymentProviderNone();
+  await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+  settings.invalidateCache();
+  await settings.loadKeys([
+    CONFIG_KEYS.PAYMENT_PROVIDER,
+    CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+    CONFIG_KEYS.STRIPE_SECRET_KEY,
+    CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
+  ]);
+};
+
 /** Store one internally consistent Stripe API key and webhook pair, and select Stripe. */
 export const activateStripe = (
   webhookSecret: string,

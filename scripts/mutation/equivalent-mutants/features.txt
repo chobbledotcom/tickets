@@ -156,7 +156,7 @@ src/features/api/payment-processing/package-pricing.ts:295:51  ?? → ||   # the
 # Payment success replay only loads a listing fallback while thankYouUrl is the
 # empty string, so assignment and append produce the same string for every path.
 src/features/api/webhooks.ts:173:16  = → +=   # the enclosing !thankYouUrl guard narrows the string to "" before this assignment, and "" + fallback equals fallback
-src/ui/templates/admin/settings/payment.tsx:116:51  ?? → ||   # both operands are PaymentProviderType|null; every provider id is non-empty and truthy, while null selects the same fallback under either operator
+src/ui/templates/admin/settings/payment.tsx:27:51  ?? → ||   # both operands are PaymentProviderType|null; every provider id is non-empty and truthy, while null selects the same fallback under either operator
 
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
 src/features/api/folded-booking.ts:87:42  ?? → ||   # childrenByParentId is Map<number, TicketListing[]>; get returns an array (always truthy, even []) or undefined, so ?? and || agree
@@ -169,3 +169,4 @@ src/features/api/folded-booking.ts:381:17  1 → 0   # base.dayCount is read onl
 # placeholder and a throw-only label that can never throw.
 src/features/admin/questions/answers.ts:88:45  0 → 1   # the inserted sortOrder is a placeholder: insertScopedOrderedRow runs order.append in the same transaction, and append sets sort_order from MAX over siblings that explicitly exclude the row itself, then overwrites it unconditionally before commit — the placeholder value is never read by anything
 src/features/admin/questions/forms.ts:32:9  Display as → ""   # requireChoiceOptions reads its label only in its two throw paths: an empty options list, or a value failing an invalid-rule. QUESTION_DISPLAY_TYPES is a non-empty picklist constant and requireChoiceOptions carries no invalid rule, so neither throw is reachable and the label is never read
+src/features/admin/settings-page.ts:132:56  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree

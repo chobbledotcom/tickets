@@ -34,6 +34,7 @@ describe("domain payment webhook warning", () => {
       }),
     );
     expect(html).toContain("Choose the provider for existing payments");
+    expect(html).toContain("</strong> <a");
     expect(html).toContain(
       'href="/admin/settings#settings-payment-provider-recovery"',
     );

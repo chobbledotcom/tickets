@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import type { StripeConnectionTestResult } from "#shared/stripe/endpoints.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -121,6 +122,18 @@ describeAdminSettings(() => {
         expect.stringContaining("Invalid Stripe key format"),
         false,
       );
+    });
+
+    test("rejects configuration in demo mode", async () => {
+      setDemoModeForTest(true);
+      try {
+        const { response } = await adminFormPost("/admin/settings/stripe", {
+          stripe_secret_key: "sk_test_demo",
+        });
+        expectFlash(response, "Cannot configure Stripe in demo mode", false);
+      } finally {
+        setDemoModeForTest(false);
+      }
     });
 
     test("updates Stripe key successfully", async () => {
