@@ -11,6 +11,8 @@
     "dev": "deno task build:static && SERVE_WATCH=--watch deno task serve",
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
     "build:edge": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-edge.ts",
+    "build:desktop": "deno task build:static && deno-desktop desktop --no-check --exclude-unused-npm --allow-env --allow-net --allow-read --allow-write --allow-sys --allow-ffi --include src/ui/static --output dist/desktop/tickets src/desktop.ts",
+    "start:desktop": "deno task build:desktop && start-desktop",
     "bundle:report": "deno task build:edge && deno run -A scripts/bench/bundle-composition/report.ts",
     "build:deploy": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-deploy.ts",
     "deploy:edge": "deno run --env-file --allow-env --allow-read --allow-write --allow-run --allow-net scripts/deploy-edge.ts",

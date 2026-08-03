@@ -203,6 +203,7 @@ const allFiles = [...srcFiles, ...testFiles, ...scriptFiles];
 // Known entry points that are used outside the import graph
 const entryPoints = new Set([
   "src/index.ts", // deno task start
+  "src/desktop.ts", // deno task build:desktop
   "src/edge.ts", // esbuild entry for Bunny CDN
   "src/fp.ts", // import map root alias
   "src/doc.ts", // deno doc generation

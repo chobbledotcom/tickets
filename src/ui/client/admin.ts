@@ -16,6 +16,7 @@ import { initChildCompat } from "./admin/child-compat.ts";
 import { initChildRequired } from "./admin/child-required.ts";
 import { initClosesAtAutofill } from "./admin/closes-at-autofill.ts";
 import { initQuestionVisibility } from "./admin/custom-question-visibility.ts";
+import { initDesktopWindowLinks } from "./admin/desktop-window-links.ts";
 import { initDuplicatePreview } from "./admin/duplicate-preview.ts";
 import { initDurationWarning } from "./admin/duration-warning.ts";
 import { initFillDefaultTemplate } from "./admin/fill-default-template.ts";
@@ -37,6 +38,7 @@ import { initSelectOnClick } from "./admin/select-on-click.ts";
 import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
 
 initSelectOnClick();
+initDesktopWindowLinks();
 initNavSelect();
 initAvailabilityChecker();
 initAttendeeDates();
