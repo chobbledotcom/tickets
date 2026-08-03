@@ -277,6 +277,14 @@ describe("the days a page has ticked", () => {
         ticked: ["on"],
         what: 'reads a box with no value of its own as sending "on"',
       },
+      {
+        // Another attribute ending in the one being read is a different
+        // attribute: a typed-in box labelled `data-type="checkbox"` is not a
+        // checkbox, and `data-name` is not the name a send would carry.
+        offering: `${day("Monday")}<input type="text" data-type="checkbox" name="notes" value="Tuesday"><input type="checkbox" data-name="bookable_days" name="other" value="Sunday" checked>`,
+        ticked: ["Monday"],
+        what: "does not read a longer attribute name as the one asked for",
+      },
     ];
 
   for (const reading of READINGS) {
@@ -506,6 +514,61 @@ describe("the days a page has ticked", () => {
         ticked: { terms: ["on"] },
         typed: TYPED,
         what: 'ticks a box with no value of its own by sending "on"',
+      },
+      {
+        // The story types a name and never mentions the reference box, but a
+        // browser would not send the form while that box sits empty.
+        offering: `${NAME_BOX}<input name="reference" required>`,
+        refusedWith: "The reference box must be filled in to send the form",
+        typed: TYPED,
+        what: "sends nothing when a box the page insists on is left empty",
+      },
+      {
+        offering: `${NAME_BOX}<input name="reference" value="AB-1" required>`,
+        sends: { ...TYPED },
+        typed: TYPED,
+        what: "sends when the page has already filled the box it insists on",
+      },
+      {
+        offering: `${NAME_BOX}<textarea name="reason" required></textarea>`,
+        refusedWith: "The reason box must be filled in to send the form",
+        typed: TYPED,
+        what: "sends nothing when a writing space the page insists on is empty",
+      },
+      {
+        // No option is marked, so a browser would leave the empty first one
+        // showing — which is no answer at all for a chooser it insists on.
+        offering: `${NAME_BOX}<select name="tier" required><option value=""></option><option value="gold">Gold</option></select>`,
+        refusedWith: "The tier box must be filled in to send the form",
+        typed: TYPED,
+        what: "sends nothing when an insisted chooser starts on no answer",
+      },
+      {
+        offering: `${NAME_BOX}<select name="tier" required><option value=""></option><option value="gold" selected>Gold</option></select>`,
+        sends: { ...TYPED },
+        typed: TYPED,
+        what: "sends when an insisted chooser already has an answer picked",
+      },
+      {
+        // Nothing switched off is sent, and a browser holds no form up for it.
+        offering: `${NAME_BOX}<input name="reference" value="" required disabled>`,
+        sends: { ...TYPED },
+        typed: TYPED,
+        what: "sends when the only empty insisted box is switched off",
+      },
+      {
+        offering: `${NAME_BOX}<select name="tier" required></select>`,
+        refusedWith: "The tier box must be filled in to send the form",
+        typed: TYPED,
+        what: "sends nothing when an insisted chooser offers no answers at all",
+      },
+      {
+        // A tick, a fixed value, and a control with no name to send under are
+        // each somebody else's rule, so none of them holds this form up.
+        offering: `${NAME_BOX}<input type="radio" name="pick" required><input type="hidden" name="token" value="" required><input value="" required>`,
+        sends: { ...TYPED },
+        typed: TYPED,
+        what: "sends when the only empty insisted controls are not typed in",
       },
     ];
 

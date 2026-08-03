@@ -29,7 +29,7 @@ const chooserFor = (
   for (const chooser of html.matchAll(
     /<select\s([^>]*)>([\s\S]*?)<\/select>/g,
   )) {
-    if (chooser[1]!.includes(`name="${field}"`)) {
+    if (attribute(chooser[1]!, "name") === field) {
       return { attributes: chooser[1]!, options: chooser[2]! };
     }
   }
@@ -39,7 +39,7 @@ const chooserFor = (
 /** The one option carrying this value, or null when the dropdown has none. */
 const optionFor = (options: string, value: string): string | null => {
   for (const option of options.matchAll(/<option\s([^>]*)>/g)) {
-    if (option[1]!.includes(`value="${value}"`)) return option[0];
+    if (attribute(option[1]!, "value") === value) return option[0];
   }
   return null;
 };
@@ -48,7 +48,7 @@ const optionFor = (options: string, value: string): string | null => {
  * so its attributes can be read. */
 const boxFor = (html: string, field: string): string | null => {
   for (const box of html.matchAll(/<(?:input|textarea)\s([^>]*)>/g)) {
-    if (box[1]!.includes(`name="${field}"`)) return box[0];
+    if (attribute(box[1]!, "name") === field) return box[0];
   }
   return null;
 };
@@ -83,16 +83,20 @@ export const choicesOffered = (
 export const optionsOffered = (html: string, field: string): string[] =>
   choicesOffered(html, field).map(({ value }) => value);
 
-/** One attribute's value on a control, or null when it does not carry it. */
+/** One attribute's value on a control, or null when it does not carry it. The
+ * name has to start the attribute, so a `data-type="checkbox"` is not read as
+ * the `type`. */
 const attribute = (tag: string, named: string): string | null =>
-  tag.match(new RegExp(`${named}="([^"]*)"`))?.[1] ?? null;
+  tag.match(new RegExp(`(?:^|\\s)${named}="([^"]*)"`))?.[1] ?? null;
 
 /** Whether a control carries a bare on/off attribute of its own, like
  * `required` or `disabled`. Quoted values are dropped first and the name has to
  * stand alone, so a box called `not_required`, an `aria-required="false"`, or a
  * hint that happens to say "required" is not mistaken for the real thing. */
 const hasFlag = (tag: string, named: string): boolean =>
-  new RegExp(`\\s${named}(?=[\\s/>])`).test(tag.replace(/="[^"]*"/g, ""));
+  new RegExp(`(?:^|\\s)${named}(?=[\\s/>]|$)`).test(
+    tag.replace(/="[^"]*"/g, ""),
+  );
 
 /** Why a number box will not take this number, or null when it will. A box that
  * only accepts 1 to 3 cannot send 5, however happily a post carrying 5 is
@@ -133,7 +137,7 @@ const usableCheckboxesOn = (html: string): UsableCheckbox[] => {
     const tag = box[0];
     const field = attribute(tag, "name");
     if (
-      tag.includes('type="checkbox"') &&
+      attribute(tag, "type") === "checkbox" &&
       !hasFlag(tag, "disabled") &&
       field !== null
     ) {
@@ -205,14 +209,14 @@ export const whyValueCannotBeSent: WhyFieldCannotCarry = (
 ) => {
   const chooser = chooserFor(html, field);
   if (chooser) {
-    if (chooser.attributes.includes("disabled")) {
+    if (hasFlag(chooser.attributes, "disabled")) {
       return `the ${field} chooser is switched off`;
     }
     // Only the option being picked matters — a placeholder switched off
     // elsewhere in the list is normal and says nothing about this choice.
     const option = optionFor(chooser.options, chosen);
     if (!option) return `the ${field} chooser does not offer "${chosen}"`;
-    if (option.includes("disabled")) {
+    if (hasFlag(option, "disabled")) {
       return `the ${field} option "${chosen}" is switched off`;
     }
     return null;
@@ -244,7 +248,10 @@ const whyBoxCannotCarry: WhyFieldCannotCarry = (box, field, chosen) => {
   if (chosen === "" && hasFlag(box, "required")) {
     return `the ${field} box must be filled in`;
   }
-  if (box.includes('type="hidden"') && !box.includes(`value="${chosen}"`)) {
+  if (
+    attribute(box, "type") === "hidden" &&
+    attribute(box, "value") !== chosen
+  ) {
     return `the ${field} box is fixed at something other than "${chosen}"`;
   }
   return (
@@ -253,13 +260,15 @@ const whyBoxCannotCarry: WhyFieldCannotCarry = (box, field, chosen) => {
   );
 };
 
+/** One rule about a send: the markup somebody was served and the values they
+ * are about to type into it, checked together. Throws when the two make a send
+ * nobody could really have made. */
+type ChecksASend = (html: string, values: Record<string, string>) => void;
+
 /** Everything somebody is about to send has to be something they could really
  * type or pick on the page in front of them, so a story cannot post a value no
  * real browser would have offered. */
-export const expectCanReallySend = (
-  html: string,
-  values: Record<string, string>,
-): void => {
+export const expectCanReallySend: ChecksASend = (html, values) => {
   for (const [field, chosen] of Object.entries(values)) {
     expect(whyValueCannotBeSent(html, field, chosen)).toBeNull();
   }
@@ -295,6 +304,67 @@ const expectCanReallyTick = (
   }
 };
 
+/** One control the page insists on: which field it belongs to, and what it
+ * already holds if nobody types anything into it. */
+interface InsistedControl {
+  field: string;
+  holds: string;
+}
+
+/** What a dropdown sends when nobody touches it: the option marked selected,
+ * or — as in a browser — the first one when the page marks none. */
+const chosenByDefault = (options: string): string => {
+  const all = [...options.matchAll(/<option\s([^>]*)>/g)];
+  const marked = all.find((option) => hasFlag(option[0], "selected"));
+  return attribute((marked ?? all[0])?.[1] ?? "", "value") ?? "";
+};
+
+/** Every control the page insists on, other than its checkboxes — ticking has
+ * a rule of its own, because it is not typing. A switched-off control sends
+ * nothing and a browser does not hold up a form for one, and a hidden box is
+ * never checked either, so neither counts here. */
+const insistedControlsOn = (html: string): InsistedControl[] => {
+  const controls: InsistedControl[] = [];
+  const add = (tag: string, holds: string) => {
+    const field = attribute(tag, "name");
+    if (!field || !hasFlag(tag, "required") || hasFlag(tag, "disabled")) return;
+    controls.push({ field, holds });
+  };
+  for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
+    const kind = attribute(box[0], "type");
+    // A tick and a hidden value are both somebody else's rule.
+    if (kind === "checkbox" || kind === "radio" || kind === "hidden") continue;
+    add(box[0], attribute(box[0], "value") ?? "");
+  }
+  for (const area of html.matchAll(
+    /<textarea\s([^>]*)>([\s\S]*?)<\/textarea>/g,
+  )) {
+    add(area[0], area[2]!.trim());
+  }
+  for (const chooser of html.matchAll(
+    /<select\s([^>]*)>([\s\S]*?)<\/select>/g,
+  )) {
+    add(chooser[0], chosenByDefault(chooser[2]!));
+  }
+  return controls;
+};
+
+/** Every control the page insists on has to end up carrying something, the ones
+ * the story filled in and the ones it never mentioned alike. A browser will not
+ * send a form with a required box empty, so a send that left one blank is a send
+ * nobody could have made. A field the story named says what is sent for it; a
+ * field it did not leaves whatever the page itself put there. */
+const expectNothingInsistedIsEmpty: ChecksASend = (html, values) => {
+  for (const control of insistedControlsOn(html)) {
+    const sending = values[control.field] ?? control.holds;
+    if (sending === "") {
+      throw new Error(
+        `The ${control.field} box must be filled in to send the form`,
+      );
+    }
+  }
+};
+
 /** Somebody fills a page's form in and sends it. Every value they type or pick
  * is checked against the page they were served first, so a story can never
  * send something no real browser would have offered them.
@@ -318,6 +388,7 @@ export const fillInAndSend = async (
   ]);
   expectCanReallySend(form, values);
   expectCanReallyTick(form, ticked);
+  expectNothingInsistedIsEmpty(form, values);
   await browser.submitForm({ ...values, ...ticked }, buttonText);
 };
 
