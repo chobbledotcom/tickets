@@ -11,9 +11,9 @@ test/test-utils/csrf.ts:236:20  ?? → ||  # quantity id capture: string|undefin
 # fallbacks either receive truthy objects/non-empty regex matches, or fall back
 # to the same empty string for the only falsy non-null string value.
 test/test-utils/test-browser/parsing.ts:57:73  ?? → ||   # find(): LinkMatch|undefined; a found object is truthy
-test/test-utils/test-browser/forms.ts:37:26  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
-test/test-utils/test-browser/forms.ts:87:19  ?? → ||  # submitted option tags are non-empty strings when present, otherwise undefined
-test/test-utils/test-browser/forms.ts:208:45  ?? → ||  # button value fallback is "", so empty value and absent value agree
+test/test-utils/test-browser/forms.ts:42:26  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
+test/test-utils/test-browser/forms.ts:92:19  ?? → ||  # submitted option tags are non-empty strings when present, otherwise undefined
+test/test-utils/test-browser/forms.ts:212:45  ?? → ||  # button value fallback is "", so empty value and absent value agree
 test/test-utils/test-browser.ts:133:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
 test/test-utils/test-browser.ts:217:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input
 src/ui/templates/admin/listing-defaults.tsx:105:17  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
