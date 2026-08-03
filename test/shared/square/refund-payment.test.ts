@@ -149,8 +149,19 @@ describeSquare(() => {
             Promise.reject(new Error("Status code: 500 Body: ...")),
         },
         async () => {
-          const result = await squareApi.refundPayment("pay_fail");
-          expect(result).toBe(false);
+          const errorSpy = spy(console, "error");
+          try {
+            expect(await squareApi.refundPayment("pay_fail")).toBe(false);
+            // Returning false is retryable and silent to the caller, so the
+            // log is the only record that Square refused the refund.
+            expect(
+              errorSpy.calls.some((call) =>
+                String(call.args[0]).includes("Status code: 500"),
+              ),
+            ).toBe(true);
+          } finally {
+            errorSpy.restore();
+          }
         },
       );
     });
@@ -291,6 +302,59 @@ describeSquare(() => {
       await expectMalformedThrows({
         refund: { id: "ref_unknown", status: "WAT" },
       });
+    });
+
+    /** Assert the boundary schema refused the response before the contract
+     *  checks ran. Those name the payment or the amount they disagreed with,
+     *  so a schema refusal is one whose message says neither. */
+    const expectSchemaRefuses = async (refund: {
+      id: string;
+      status: string;
+      payment_id?: string;
+      amount_money?: { amount: number; currency: string };
+    }): Promise<void> => {
+      let error: unknown = null;
+      try {
+        await refundOutcomeFor(refund);
+      } catch (err) {
+        error = err;
+      }
+      expect(error).toBeInstanceOf(Error);
+      expect(String(error)).not.toContain("is for payment");
+      expect(String(error)).not.toContain("does not match payment amount");
+    };
+
+    test("refuses a refund whose own id is blank", async () => {
+      await expectSchemaRefuses({ id: "", status: "COMPLETED" });
+    });
+
+    test("refuses a refund that names no payment", async () => {
+      await expectSchemaRefuses({
+        id: "ref_blank_payment",
+        payment_id: "",
+        status: "COMPLETED",
+      });
+    });
+
+    test("refuses a refund whose amount names no currency", async () => {
+      await expectSchemaRefuses({
+        amount_money: { amount: 1999, currency: "" },
+        id: "ref_blank_currency",
+        status: "COMPLETED",
+      });
+    });
+
+    test("reads a zero refund amount and checks it against the payment", async () => {
+      // Zero is a real amount Square can report, so the schema accepts it —
+      // it is the amount check, not the parse, that rejects it against a
+      // £19.99 payment.
+      await expect(
+        refundOutcomeFor({
+          amount_money: { amount: 0, currency: "GBP" },
+          id: "ref_zero",
+          status: "COMPLETED",
+        }),
+      ).rejects.toThrow(/does not match payment amount/);
     });
 
     test("accepts a 1-character id (minLength boundary)", async () => {

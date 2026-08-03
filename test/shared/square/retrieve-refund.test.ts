@@ -129,6 +129,49 @@ describeSquare(() => {
       );
     });
 
+    // Square's own values are carried through untouched, however empty they
+    // look: a zero total is a real free order, and a blank currency is
+    // something the payment boundary must see to refuse. Only a wholly absent
+    // money object becomes null.
+    for (const [name, given, expected] of [
+      [
+        "a zero amount",
+        { amount: BigInt(0), currency: "GBP" },
+        {
+          amount: BigInt(0),
+          currency: "GBP",
+        },
+      ],
+      [
+        "a blank currency",
+        { amount: BigInt(500), currency: "" },
+        {
+          amount: BigInt(500),
+          currency: "",
+        },
+      ],
+    ] as const) {
+      test(`keeps ${name} on the order total`, async () => {
+        await withSquareClient(
+          {
+            ordersGet: () =>
+              Promise.resolve({
+                order: {
+                  id: "order_edge_total",
+                  metadata: { name: "John" },
+                  state: "COMPLETED",
+                  totalMoney: given,
+                },
+              }),
+          },
+          async () => {
+            const result = await squareApi.retrieveOrder("order_edge_total");
+            expect(result!.totalMoney).toEqual(expected);
+          },
+        );
+      });
+    }
+
     test("carries a missing order total through as null", async () => {
       await withSquareClient(
         {
