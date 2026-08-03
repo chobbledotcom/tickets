@@ -292,13 +292,14 @@ describe("db > client transient upstream retry", () => {
   });
 
   test("executeBatchReturningResults does not fire table-cache invalidation", async () => {
+    const table = "returning_results_invalidation_test";
     let invalidated = false;
-    const unregister = registerTableInvalidation(["settings"], () => {
+    const unregister = registerTableInvalidation([table], () => {
       invalidated = true;
     });
     try {
       await executeBatchReturningResults([
-        { args: [], sql: "CREATE TABLE settings (key TEXT, value TEXT)" },
+        { args: [], sql: `CREATE TABLE ${table} (x TEXT)` },
       ]);
       expect(invalidated).toBe(false);
     } finally {
