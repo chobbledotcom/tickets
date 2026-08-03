@@ -249,7 +249,9 @@ describeStripe("Stripe webhook cleanup", () => {
       expect(deleted).toEqual(["we_stale"]);
       // Cleanup must not retry network requests: a slow retry loop would
       // stall the settings save that triggered it.
-      expect(createStub.calls[0].args).toEqual(["sk_test_key", 0]);
+      expect(createStub.calls.map((call) => call.args)).toEqual([
+        ["sk_test_key", 0],
+      ]);
     });
 
     test("deletes explicit IDs without listing an old account", async () => {
