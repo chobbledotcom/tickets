@@ -27,6 +27,11 @@ import {
 const worldWith = (fields: Partial<TicketsWorld>): TicketsWorld =>
   fields as TicketsWorld;
 
+/** A World that can remember things by name, for the lookups that read them
+ * back. */
+const worldRemembering = (): TicketsWorld =>
+  worldWith({ things: namedThings() });
+
 describe("the story's shared lookups", () => {
   test("gives back the listing the story is working on", () => {
     expect(theListing(worldWith({ listingId: 7 }))).toBe(7);
@@ -45,19 +50,11 @@ describe("the story's shared lookups", () => {
   });
 
   describe("what the story kept for somebody", () => {
-    const worldRemembering = (): TicketsWorld =>
-      worldWith({ things: namedThings() });
-
-    test("hands back what was kept under their name", () => {
-      const world = worldRemembering();
-      keepWhatTheyWereTold(world, "the organiser", "Status created");
-      expect(whatTheyWereTold(world, "the organiser")).toBe("Status created");
-    });
-
-    test("keeps each person's own answer apart", () => {
+    test("hands each person back their own answer, not the other's", () => {
       const world = worldRemembering();
       keepWhatTheyWereTold(world, "the organiser", "Status created");
       keepWhatTheyWereTold(world, "the editor", "You cannot do that");
+      expect(whatTheyWereTold(world, "the organiser")).toBe("Status created");
       expect(whatTheyWereTold(world, "the editor")).toBe("You cannot do that");
     });
 
@@ -118,9 +115,6 @@ describe("the story's shared lookups", () => {
   });
 
   describe("keeping what a journey answered", () => {
-    const worldRemembering = (): TicketsWorld =>
-      worldWith({ things: namedThings() });
-
     test("keeps the answer under the name the story reads it by", async () => {
       const world = worldRemembering();
       await keepsAnswerAs("price summary", () => Promise.resolve("£9.00"))(

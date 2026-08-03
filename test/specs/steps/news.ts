@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { ORGANISER } from "#test/specs/support/browser.ts";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
 import {
   newsLinkOfferedOnFrontPage,
@@ -10,7 +11,10 @@ import {
   visitorFollowsNewsLink,
   visitorOnNewsPage,
 } from "#test/specs/support/news.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  keepWhatTheyWereTold,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
@@ -88,14 +92,22 @@ Then(
 When(
   "the owner tries to take down {string} typing {string}",
   async function (this: TicketsWorld, name: string, typed: string) {
-    this.ownerTold = await ownerTakesDownNews(this, name, typed);
+    keepWhatTheyWereTold(
+      this,
+      ORGANISER,
+      await ownerTakesDownNews(this, name, typed),
+    );
   },
 );
 
 When(
   "the owner takes down {string} typing its exact name",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    this.ownerTold = await ownerTakesDownNews(this, name, name);
+    keepWhatTheyWereTold(
+      this,
+      ORGANISER,
+      await ownerTakesDownNews(this, name, name),
+    );
   },
 );
 

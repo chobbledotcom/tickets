@@ -9,8 +9,10 @@ import { settings } from "#shared/db/settings.ts";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
+  keepWhatTheyWereTold,
   requiredWorldValue,
   type TicketsWorld,
+  whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { installRecordingFetch } from "#test-utils/mocks.ts";
@@ -138,13 +140,13 @@ export const visitorWrites = async (
 ): Promise<string> => {
   const browser = await openAsNewcomer(CONTACT_PAGE);
   await fillInAndSend(browser, { email: from, message }, SEND);
-  world.things.remember("told", VISITOR, browser.pageText);
+  keepWhatTheyWereTold(world, VISITOR, browser.pageText);
   return browser.pageText;
 };
 
 /** What the visitor was told the last time they wrote. */
 export const whatVisitorWasTold = (world: TicketsWorld): string =>
-  world.things.require("told", VISITOR);
+  whatTheyWereTold(world, VISITOR);
 
 /** Whether the site asked the spam checker anything at all. */
 export const spamCheckWasAsked = (world: TicketsWorld): boolean =>

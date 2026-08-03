@@ -106,7 +106,7 @@ describeWithEnv("API key manage page", { db: true }, () => {
   });
 
   describe("delete flow", () => {
-    // Sits beside the story `@story:servicing.letting-another-system-in`,
+    // Sits beside the story `@story:access.letting-another-system-in`,
     // which walks the same journey. This keeps the delete route's own line
     // covered: a Cucumber run does not feed the coverage gate.
     test("POST /admin/api-keys/:id/delete removes a key with name confirmation", async () => {

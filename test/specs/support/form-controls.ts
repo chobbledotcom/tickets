@@ -242,15 +242,30 @@ export const expectCanReallySend = (
   }
 };
 
+/** Every box somebody is about to tick — and every box they are about to leave
+ * clear — has to be one the page really offers them. A field sent as an empty
+ * list is a box deliberately left alone, so the page still has to have it: a
+ * form that lost the box altogether would otherwise look the same as one whose
+ * box was never ticked. */
+const expectCanReallyTick = (
+  html: string,
+  ticked: Record<string, string[]>,
+): void => {
+  for (const [field, values] of Object.entries(ticked)) {
+    if (values.length === 0) checkboxValueOffered(html, field);
+    for (const value of values) requireCheckboxOffered(html, field, value);
+  }
+};
+
 /** Somebody fills a page's form in and sends it. Every value they type or pick
  * is checked against the page they were served first, so a story can never
  * send something no real browser would have offered them.
  *
  * Boxes they tick come separately, because a tick is not a typed value: it
  * sends whatever the page's own box carries, several boxes can share one name,
- * and leaving one clear sends nothing at all. The caller reads those values off
- * the page — `checkboxValueOffered` and `tickedCheckboxes` above — so they are
- * already the page's own. */
+ * and leaving one clear sends nothing at all. Those are checked against the
+ * page too — a box the form stopped rendering, or one switched off, fails here
+ * rather than going through as a send nobody could have made. */
 export const fillInAndSend = async (
   browser: TestBrowser,
   values: Record<string, string>,
@@ -258,6 +273,7 @@ export const fillInAndSend = async (
   ticked: Record<string, string[]> = {},
 ): Promise<void> => {
   expectCanReallySend(browser.currentHtml, values);
+  expectCanReallyTick(browser.currentHtml, ticked);
   await browser.submitForm({ ...values, ...ticked }, buttonText);
 };
 

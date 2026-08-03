@@ -22,6 +22,7 @@ import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
 import {
   type ActOnOneThing,
   type ReadAboutOneThing,
+  type ReadsWhatWasKept,
   type TicketsWorld,
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
@@ -111,7 +112,7 @@ export const otherListing: ActOnOneThing = async (world, listing) => {
 };
 
 /** The ticket code the story gave this person. */
-export const ticketOf = whatWasKeptFor("ticket");
+export const ticketOf: ReadsWhatWasKept<"ticket"> = whatWasKeptFor("ticket");
 
 /** Their money is given back, so the ticket should no longer let them in. */
 export const refundTicket = async (

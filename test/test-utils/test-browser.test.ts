@@ -519,6 +519,55 @@ describe("TestBrowser forms", () => {
     expect(browser.currentHtml).toBe("first=1");
   });
 
+  describe("submitting the one form that posts to an address", () => {
+    /** Two rows' worth of identical arrows — the shape this exists for, where
+     * the button's own words cannot tell one row from another. */
+    const arrows = (secondArrow: string) => `
+      <form action="/rows/1/move-up"><input name="csrf" value="tok">
+        <button type="submit">▲</button></form>
+      <form action="/rows/2/move-up"><input name="csrf" value="tok2">
+        ${secondArrow}</form>
+    `;
+
+    const pressable = '<button type="submit">▲</button>';
+
+    it("sends that form's own hidden fields, not the first row's", async () => {
+      const browser = new TestBrowser();
+      let posted = { body: "", path: "" };
+      useHandler(browser, async (request) => {
+        posted = {
+          body: await request.text(),
+          path: new URL(request.url).pathname,
+        };
+        return new Response("<p>moved</p>");
+      });
+      browser.currentHtml = arrows(pressable);
+
+      await browser.submitFormAt("/rows/2/move-up");
+
+      expect(posted.path).toBe("/rows/2/move-up");
+      expect(new URLSearchParams(posted.body).get("csrf")).toBe("tok2");
+    });
+
+    it("refuses an address no form on the page posts to", async () => {
+      const browser = new TestBrowser();
+      browser.currentHtml = arrows(pressable);
+
+      await expect(browser.submitFormAt("/rows/3/move-up")).rejects.toThrow(
+        'No form on this page posts to "/rows/3/move-up"',
+      );
+    });
+
+    it("refuses a form whose only button is switched off", async () => {
+      const browser = new TestBrowser();
+      browser.currentHtml = arrows('<button disabled type="submit">▲</button>');
+
+      await expect(browser.submitFormAt("/rows/2/move-up")).rejects.toThrow(
+        'The form posting to "/rows/2/move-up" cannot be submitted',
+      );
+    });
+  });
+
   it("throws clearly when submitting without button text and the page has no forms", async () => {
     const browser = new TestBrowser();
     browser.currentHtml = "<main>No forms here</main>";

@@ -22,8 +22,10 @@ import {
   type ActOnOneThing,
   type AsksAboutOneThing,
   keepsAnswerAs,
+  keepWhatTheyWereTold,
   type StoryJourney,
   type TicketsWorld,
+  whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
@@ -67,7 +69,7 @@ export const ownerWritesPage = async (
     { content: wordsOnlyOn(name), name, slug: address },
     t("site.pages.create_submit"),
   );
-  world.things.remember("told", OWNER, browser.pageText);
+  keepWhatTheyWereTold(world, OWNER, browser.pageText);
   // The address the owner chose, so a capture can open the page the way a
   // visitor would rather than being told the address a second time.
   leaveEvidencePage(world, ["page-anybody-can-read"], `/page/${address}`);
@@ -172,4 +174,4 @@ export const ownerTriesToTakePageDown: StoryJourney<
 
 /** What the owner was told the last time they wrote a page. */
 export const whatOwnerWasTold = (world: TicketsWorld): string =>
-  world.things.require("told", OWNER);
+  whatTheyWereTold(world, OWNER);

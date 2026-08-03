@@ -142,7 +142,6 @@ export interface TicketsWorld extends World, EvidencePages {
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
-  ownerTold?: string;
   placeholderId?: number;
   questionId?: number;
   raceListing?: string;
@@ -188,16 +187,22 @@ export const keepsAnswerAs =
     journey: StoryJourney<Args, string>,
   ): StoryJourney<Args, void> =>
   async (world, ...args) => {
-    world.things.remember("told", name, await journey(world, ...args));
+    keepWhatTheyWereTold(world, name, await journey(world, ...args));
   };
+
+/** Reading back one kind of thing the story kept for somebody. */
+export type ReadsWhatWasKept<Kind extends ThingKind> = (
+  world: TicketsWorld,
+  who: string,
+) => ThingsByKind[Kind];
 
 /** What the story kept for somebody, or a loud failure when it kept none —
  * their own window, the ticket they hold, what they were last told. Curried on
  * which kind of thing is being asked for, so every reader is one line and they
  * all fail the same way. */
 export const whatWasKeptFor =
-  <Kind extends ThingKind>(kind: Kind) =>
-  (world: TicketsWorld, who: string): ThingsByKind[Kind] =>
+  <Kind extends ThingKind>(kind: Kind): ReadsWhatWasKept<Kind> =>
+  (world, who) =>
     world.things.require(kind, who);
 
 /** Keep what somebody was told the last time they did something, and read it
@@ -211,7 +216,8 @@ export const keepWhatTheyWereTold = (
   world.things.remember("told", who, told);
 };
 
-export const whatTheyWereTold = whatWasKeptFor("told");
+export const whatTheyWereTold: ReadsWhatWasKept<"told"> =
+  whatWasKeptFor("told");
 
 export const requiredWorldValue = <Value>(
   value: Value | null | undefined,

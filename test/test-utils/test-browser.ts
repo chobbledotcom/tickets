@@ -516,10 +516,53 @@ export class TestBrowser {
     data: Record<string, string | string[]>,
     buttonText?: string,
   ): Promise<void> {
-    const { action, body, entries, buttonName, buttonValue } = this.findForm(
-      buttonText,
-      Object.keys(data),
+    await this.sendForm(this.findForm(buttonText, Object.keys(data)), data);
+  }
+
+  /**
+   * Submit the one form on this page that posts to `action`, the way pressing
+   * its own button would: its hidden fields and CSRF token go with it. For a
+   * page that renders many identical forms — one arrow per row — where the
+   * button's words cannot tell them apart. A page with no such form, or one
+   * whose every button is switched off, throws: neither is something a person
+   * could have done.
+   */
+  async submitFormAt(
+    action: string,
+    data: Record<string, string | string[]> = {},
+  ): Promise<void> {
+    const form = findForms(this.currentHtml).find((f) => f.action === action);
+    if (!form) {
+      throw new Error(`No form on this page posts to "${action}"`);
+    }
+    const pressable = regexCollect(
+      /<button\b([^>]*?)>/gi,
+      form.body,
+      (m) => m[1]!,
+    ).filter((attrs) => !isDisabled(attrs));
+    if (pressable.length === 0) {
+      throw new Error(`The form posting to "${action}" cannot be submitted`);
+    }
+    await this.sendForm(
+      { action, body: form.body, entries: extractFormEntries(form.body) },
+      data,
     );
+  }
+
+  /** Build one form's submission the way a browser does — its own successful
+   * controls first, then the pressed button, then whatever the caller typed —
+   * and post it. */
+  private async sendForm(
+    form: {
+      action: string;
+      body: string;
+      entries: FormEntry[];
+      buttonName?: string | undefined;
+      buttonValue?: string | undefined;
+    },
+    data: Record<string, string | string[]>,
+  ): Promise<void> {
+    const { action, body, entries, buttonName, buttonValue } = form;
 
     // Build the form body as URLSearchParams
     const params = new URLSearchParams();

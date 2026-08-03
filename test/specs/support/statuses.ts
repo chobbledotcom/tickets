@@ -11,7 +11,13 @@
 import { expect } from "@std/expect";
 // jscpd:ignore-start
 import { t } from "#i18n";
-import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
+import {
+  type FindsTheWayIn,
+  ORGANISER,
+  openAdminPage,
+  type TakesOneThingDown,
+  takesDownFromList,
+} from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   fillInAndSend,
@@ -166,22 +172,36 @@ export const listShowsDeposit = async (
     t("statuses.badge_reservation", { amount }),
   );
 
-/** The organiser takes a state away, following the way in their list offers
- * and typing a name to confirm. What they are told is kept, because most of
- * these are meant to be refused. */
+/** The link into one state's own page, read off the organiser's list. A link,
+ * not any mention of the address: a state whose row lost its way in is one the
+ * organiser cannot reach either. */
+const linkIntoState: FindsTheWayIn = async (world, name) => {
+  const { browser, id } = await openAtState(world, name);
+  const into = `${THE_LIST}/${id}`;
+  return browser.links.find(({ href }) => href === into)?.href ?? null;
+};
+
+/** The organiser takes a state away, following every way in they really have —
+ * the link on their list, the delete link behind that page's Actions tab —
+ * then typing a name to confirm. */
+const takesStateAway: TakesOneThingDown = takesDownFromList(linkIntoState, {
+  deleteLinkKey: "statuses.delete_button",
+  missing: (name) => `The list offers no way into the state "${name}"`,
+  submitKey: "statuses.delete_button",
+});
+
+/** What they were told is kept, because most of these are meant to be
+ * refused. */
 export const organiserTakesStateAway = async (
   world: TicketsWorld,
   name: string,
   typed: string,
 ): Promise<void> => {
-  const { id } = await openAtState(world, name);
-  const browser = await openAdminPage(world, `${THE_LIST}/${id}/delete`);
-  await fillInAndSend(
-    browser,
-    { confirm_identifier: typed },
-    t("statuses.delete_button"),
+  keepWhatTheyWereTold(
+    world,
+    ORGANISER,
+    await takesStateAway(world, name, typed),
   );
-  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
 /** The arrows the organiser's list offers for moving one state. */

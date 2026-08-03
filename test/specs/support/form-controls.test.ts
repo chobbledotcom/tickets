@@ -377,52 +377,80 @@ describe("the days a page has ticked", () => {
     const NAME_BOX = '<input name="username" value="">';
     const DAY_BOX = '<input type="checkbox" name="days" value="Monday">';
 
+    /** The same person typing and ticking the same thing throughout, so each
+     * example below differs only in what the page offered them. */
+    const TYPED = { username: "sam" };
+    const TICKED = { days: ["Monday"] };
+
     /** One filling-in: what the page offers, what is typed and ticked into it,
-     * and the one send that should come out the other side. */
-    const SENDS: Array<{
+     * and what comes of it — the one send it makes, or the words it is refused
+     * with. A refusal must also leave nothing sent, which is checked for every
+     * one of them. */
+    const FILLINGS: Array<{
       offering: string;
-      sends: Record<string, string | string[]>;
+      refusedWith?: string;
+      sends?: Record<string, string | string[]>;
       ticked?: Record<string, string[]>;
       typed: Record<string, string>;
       what: string;
     }> = [
       {
         offering: NAME_BOX,
-        sends: { username: "sam" },
-        typed: { username: "sam" },
-        what: "the values, naming the button that was pressed",
+        sends: { ...TYPED },
+        typed: TYPED,
+        what: "sends the values, naming the button that was pressed",
       },
       {
         offering: `${NAME_BOX}${DAY_BOX}`,
-        sends: { days: ["Monday"], username: "sam" },
-        ticked: { days: ["Monday"] },
-        typed: { username: "sam" },
-        what: "the boxes that were ticked alongside what was typed",
+        sends: { ...TICKED, ...TYPED },
+        ticked: TICKED,
+        typed: TYPED,
+        what: "sends the boxes that were ticked alongside what was typed",
       },
       {
-        offering: NAME_BOX,
+        offering: `${NAME_BOX}${DAY_BOX}`,
         sends: { days: [] },
         ticked: { days: [] },
         typed: {},
-        what: "a box left clear as nothing at all",
+        what: "sends a box left clear as nothing at all",
+      },
+      {
+        offering: '<input name="username" value="" disabled>',
+        refusedWith: "",
+        typed: TYPED,
+        what: "sends nothing when a value could not really be sent",
+      },
+      {
+        offering: NAME_BOX,
+        refusedWith: 'The page offers no days box sending "Monday"',
+        ticked: TICKED,
+        typed: TYPED,
+        what: "sends nothing when the page offers no such box to tick",
+      },
+      {
+        offering: NAME_BOX,
+        refusedWith: "The page offers no days box to tick",
+        ticked: { days: [] },
+        typed: TYPED,
+        what: "sends nothing when the box left clear is not on the page",
       },
     ];
 
-    for (const example of SENDS) {
-      test(`sends ${example.what}`, async () => {
+    for (const example of FILLINGS) {
+      test(example.what, async () => {
         const page = pageOffering(example.offering);
-        await sendOn(page, example.typed, example.ticked);
-        expect(page.sent).toEqual([
-          { button: "Invite", values: example.sends },
-        ]);
+        const filledIn = sendOn(page, example.typed, example.ticked);
+        if (example.refusedWith === undefined) {
+          await filledIn;
+          expect(page.sent).toEqual([
+            { button: "Invite", values: example.sends },
+          ]);
+          return;
+        }
+        await expect(filledIn).rejects.toThrow(example.refusedWith);
+        expect(page.sent).toEqual([]);
       });
     }
-
-    test("sends nothing when a value could not really be sent", async () => {
-      const page = pageOffering('<input name="username" value="" disabled>');
-      await expect(sendOn(page, { username: "sam" })).rejects.toThrow();
-      expect(page.sent).toEqual([]);
-    });
   });
 
   describe("taking a thing down from its own page", () => {

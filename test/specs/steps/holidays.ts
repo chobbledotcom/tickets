@@ -2,6 +2,7 @@
 
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
+import { ORGANISER } from "#test/specs/support/browser.ts";
 import { ownerLastTold } from "#test/specs/support/buyer-questions.ts";
 import { somethingForSale } from "#test/specs/support/editors.ts";
 import {
@@ -14,7 +15,10 @@ import { listingNamed } from "#test/specs/support/listings.ts";
 import { soleBookingOn } from "#test/specs/support/money.ts";
 import { visitorBooks } from "#test/specs/support/public-booking.ts";
 import { dayFromToday } from "#test/specs/support/stays.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  keepWhatTheyWereTold,
+  type TicketsWorld,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
@@ -84,7 +88,11 @@ Then("the {word} offers the day {int} days from now again", dayOffered(true));
 When(
   "the organiser deletes the holiday {string} typing its exact name",
   async function (this: TicketsWorld, name: string): Promise<void> {
-    this.ownerTold = await organiserDeletesHoliday(this, name, name);
+    keepWhatTheyWereTold(
+      this,
+      ORGANISER,
+      await organiserDeletesHoliday(this, name, name),
+    );
   },
 );
 
