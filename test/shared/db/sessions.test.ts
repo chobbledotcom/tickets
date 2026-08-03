@@ -174,6 +174,11 @@ describeWithEnv("db > sessions", { db: true }, () => {
     );
     expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
 
+    // Midway through the window the entry is still served, so the TTL is a
+    // real span of time, not just "the same instant".
+    time.now = start + 5000;
+    expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
+
     // Past the 10s TTL: the cache entry expires and the DB is re-read.
     time.now = start + 11000;
     expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-new");
