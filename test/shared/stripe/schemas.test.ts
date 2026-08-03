@@ -152,6 +152,21 @@ describe("Stripe schemas", () => {
     ).toThrow();
   });
 
+  test("accepts every supported webhook endpoint status", () => {
+    const statuses = ["disabled", "enabled"] as const;
+    expect(
+      statuses.map(
+        (status) =>
+          v.parse(StripeWebhookEndpointSchema, {
+            enabled_events: [],
+            id: "we_1",
+            status,
+            url: "https://x.test",
+          }).status,
+      ),
+    ).toEqual(statuses);
+  });
+
   test("requires a boolean balance mode", () => {
     expect(() => v.parse(StripeBalanceSchema, { livemode: null })).toThrow();
   });
