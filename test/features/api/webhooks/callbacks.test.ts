@@ -61,7 +61,11 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     const res = await handleRequest(
       mockRequest("/payment/cancel?session_id=cs_missing"),
     );
-    await expectHtmlResponse(res, 400, "Payment session not found");
+    await expectHtmlResponse(
+      res,
+      400,
+      "We could not find this payment session.",
+    );
     expect(errorLogged(E, "Session not found")).toBe(true);
   });
 

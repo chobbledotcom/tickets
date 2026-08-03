@@ -16,17 +16,19 @@ describe("resource id", () => {
     expect(isResourceId("\t\n")).toBe(false);
   });
 
-  // A padded id is stored and sent back to the provider exactly as it arrived,
-  // so it would be booked as refundable and then match no charge at all.
-  it("refuses an id with space around it", () => {
+  // The id is sent back to the provider exactly as it arrived, so any broken
+  // one would be booked as refundable and then match no charge at all —
+  // failing every refund attempt and leaving the webhook retrying for good.
+  it("refuses an id with whitespace anywhere in it", () => {
     expect(isResourceId(" pi_123")).toBe(false);
     expect(isResourceId("pi_123 ")).toBe(false);
     expect(isResourceId(" pi_123 ")).toBe(false);
     expect(isResourceId("\tpi_123\n")).toBe(false);
+    expect(isResourceId("pi 123")).toBe(false);
+    expect(isResourceId("pi\t123")).toBe(false);
   });
 
-  it("keeps a single character and inner spacing", () => {
+  it("keeps a single-character id", () => {
     expect(isResourceId("r")).toBe(true);
-    expect(isResourceId("pi 123")).toBe(true);
   });
 });

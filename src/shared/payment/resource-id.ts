@@ -3,18 +3,18 @@ import * as v from "valibot";
 /**
  * A provider's id for a charge or a refund.
  *
- * A real resource id is text with no space around it — `""` is the boundary's
- * marker for "no resource" (a free session that captured no money), so a charge
- * or refund that claims a resource must carry something more.
+ * A real resource id is unbroken text — `""` is the boundary's marker for "no
+ * resource" (a free session that captured no money), so a charge or refund that
+ * claims a resource must carry something more.
  *
- * Padding is refused rather than trimmed: the id is stored and sent back to the
- * provider exactly as it arrived, and `" pi_123 "` names no charge the provider
- * can find, so a padded id would be booked as refundable and then fail every
- * refund. Trimming would guess at what the provider meant.
+ * No whitespace anywhere, and it is refused rather than trimmed: the id goes
+ * back to the provider exactly as it arrived, and `" pi_123"` or `"pi 123"`
+ * names no charge it can find. Accepting one books the session as refundable
+ * and then fails every refund attempt, so the webhook retries for good.
  */
 const ResourceIdSchema = v.pipe(
   v.string(),
-  v.regex(/^\S(?:.*\S)?$/u, "Resource id must be text with no space around it"),
+  v.regex(/^\S+$/u, "Resource id must be text with no whitespace"),
 );
 type ResourceId = v.InferOutput<typeof ResourceIdSchema>;
 

@@ -53,7 +53,9 @@ describe("square-provider resolveWebhookSession", () => {
         });
         expect(result).not.toBe("skip");
         expect(result).not.toBeNull();
-        expect(mocks.order.calls[0]!.args[0]).toBe("order_nested_456");
+        expect(mocks.order.calls.map((call) => call.args)).toEqual([
+          ["order_nested_456"],
+        ]);
       },
     );
   });

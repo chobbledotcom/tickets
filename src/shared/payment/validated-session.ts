@@ -80,22 +80,13 @@ export const sessionOrRejection = (
   build.ok ? build.session : build.rejection;
 
 /**
- * Assemble the one ValidatedPaymentSession shape every provider adapter
- * returns, validating the charge's money and resource id at this single
- * boundary so every callback reads a well-formed charge. Owns the createdAt
- * rule — the key is left out entirely when the provider gave no usable
- * timestamp — and normalizes the guarded wire metadata into the canonical
- * shape. `metadata` must already have passed hasRequiredSessionMetadata (or
- * come from our own staged checkout row).
+ * The one place a provider's raw session becomes a ValidatedPaymentSession, so
+ * every callback downstream reads a charge that has already been checked.
  *
- * Refuses a charge whose amount is not a non-negative safe whole number or
- * whose currency is missing or not three letters, and a session the provider
- * says was paid but gave no resource id for. A free session
- * (`no_payment_required`) carries no resource id, so a blank one is allowed
- * only when no money was captured. The charge's currency is carried on the
- * session; a paid charge in a currency other than the site's is refused by the
- * callbacks (it cannot be honored at the signed total) rather than here, so
- * its captured money still reaches the refund path.
+ * `metadata` must already have passed hasRequiredSessionMetadata, or come from
+ * our own staged checkout row. A charge in a currency other than the site's is
+ * NOT refused here: it is built, and the callbacks treat it as a price mismatch,
+ * which is what carries its captured money to the refund path.
  */
 export const validatedPaymentSession = (fields: {
   amountTotal: number | null;

@@ -191,7 +191,9 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
-    expect(await result.response.text()).toContain("Payment session not found");
+    expect(await result.response.text()).toContain(
+      "We could not find this payment session.",
+    );
     expect(await loggedAbout("redirect", "Session not found")).toBe(true);
   });
 
@@ -227,7 +229,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     expect(refundStub.calls.map((call) => call.args)).toEqual([
       ["pi_refunded"],
     ]);
-    expect(page).not.toContain("Payment session not found");
+    expect(page).not.toContain("We could not find this payment session.");
     expect(
       await loggedAbout(
         "redirect",

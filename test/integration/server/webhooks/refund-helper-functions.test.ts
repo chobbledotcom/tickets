@@ -50,7 +50,11 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_null_ref"),
         );
-        await expectHtmlResponse(response, 400, "Payment session not found");
+        await expectHtmlResponse(
+          response,
+          400,
+          "We could not find this payment session.",
+        );
         // The rejected session must not leave a processed-payment row behind.
         const { isSessionProcessed } = await import(
           "#shared/db/processed-payments.ts"
