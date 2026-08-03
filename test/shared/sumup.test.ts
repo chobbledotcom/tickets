@@ -1,81 +1,15 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import type { SumUp } from "@sumup/sdk";
-import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { getSumupCheckout } from "#shared/db/sumup-checkouts.ts";
+import { retrieveCheckoutById, sumupApi } from "#shared/sumup.ts";
 import {
-  createCheckout,
-  getTransactionStatus,
-  refundTransaction,
-  retrieveCheckoutById,
-  sumupApi,
-  testSumupConnection,
-} from "#shared/sumup.ts";
-import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-
-/** Methods the fake SumUp client may implement for a given test. */
-type FakeParts = {
-  create?: (body: unknown) => Promise<unknown>;
-  get?: (id: string) => Promise<unknown>;
-  refund?: (merchantCode: string, id: string) => Promise<void>;
-  txnGet?: (merchantCode: string, query: unknown) => Promise<unknown>;
-  merchantGet?: (merchantCode: string) => Promise<unknown>;
-};
-
-/** Build a minimal fake SumUp client exposing only the methods under test. */
-const makeClient = (p: FakeParts): SumUp =>
-  ({
-    checkouts: { create: p.create, get: p.get },
-    merchants: { get: p.merchantGet },
-    transactions: { get: p.txnGet, refund: p.refund },
-  }) as unknown as SumUp;
-
-/** Stub getSumupClient to return the given fake client (or null). */
-const withClient = (client: SumUp | null, body: () => Promise<void>) =>
-  withMocks(() => stub(sumupApi, "getSumupClient", () => client), body);
-
-const intent = {
-  address: "",
-  date: null,
-  email: "alice@example.com",
-  items: [
-    { listingId: 1, name: "Evt", quantity: 2, slug: "evt", unitPrice: 1000 },
-  ],
-  name: "Alice",
-  phone: "",
-  special_instructions: "",
-};
+  makeSumupClient,
+  setupSumupSuite,
+  withSumupClient,
+} from "#test-utils/sumup.ts";
 
 describe("sumup", () => {
-  beforeEach(async () => {
-    await createTestDb();
-    setEffectiveDomainForTest("example.com");
-    settings.setForTest({
-      sumup_api_key: "sk_test_abc",
-      sumup_merchant_code: "MC123",
-    });
-  });
-
-  afterEach(() => {
-    settings.clearTestOverrides();
-    resetDb();
-  });
-
-  // Declared after the database hook: building the test database re-reads the
-  // debug-log suppression flag, so the log spy must be installed after it.
-  const debugSpy = useDebugLogSpy();
-  const errorSpy = setupErrorSpy();
-
-  /** Whether any debug line written by this test carries the given text. */
-  const loggedDebug = (needle: string): boolean =>
-    debugMessages(debugSpy()).some((line: unknown) =>
-      String(line).includes(needle),
-    );
+  const { loggedDebug } = setupSumupSuite();
 
   describe("getSumupClient", () => {
     test("returns null and says why when no API key is configured", () => {
@@ -93,7 +27,7 @@ describe("sumup", () => {
 
   describe("retrieveCheckoutById", () => {
     test("maps major-unit amount to minor units and reads transaction_id", async () => {
-      const client = makeClient({
+      const client = makeSumupClient({
         get: () =>
           Promise.resolve({
             amount: 12.5,
@@ -103,7 +37,7 @@ describe("sumup", () => {
             transaction_id: "txn_a",
           }),
       });
-      await withClient(client, async () => {
+      await withSumupClient(client, async () => {
         const result = await retrieveCheckoutById("co_a");
         expect(result).toEqual({
           amountMinor: 1250,
@@ -117,7 +51,7 @@ describe("sumup", () => {
     });
 
     test("falls back to the SUCCESSFUL transaction, skipping failed attempts", async () => {
-      const client = makeClient({
+      const client = makeSumupClient({
         get: () =>
           Promise.resolve({
             amount: 10,
@@ -130,14 +64,14 @@ describe("sumup", () => {
             ],
           }),
       });
-      await withClient(client, async () => {
+      await withSumupClient(client, async () => {
         const result = await retrieveCheckoutById("co_b");
         expect(result!.transactionId).toBe("txn_ok");
       });
     });
 
     test("defaults the transaction id to empty when nothing succeeded", async () => {
-      const client = makeClient({
+      const client = makeSumupClient({
         get: () =>
           Promise.resolve({
             amount: 10,
@@ -146,14 +80,14 @@ describe("sumup", () => {
             status: "EXPIRED",
           }),
       });
-      await withClient(client, async () => {
+      await withSumupClient(client, async () => {
         const result = await retrieveCheckoutById("co_c");
         expect(result!.transactionId).toBe("");
       });
     });
 
     test("uses the checkout currency for precision and minor-unit conversion", async () => {
-      const client = makeClient({
+      const client = makeSumupClient({
         get: () =>
           Promise.resolve({
             amount: 12.5, // one decimal place; JPY has none
@@ -162,7 +96,7 @@ describe("sumup", () => {
             status: "PAID",
           }),
       });
-      await withClient(client, async () => {
+      await withSumupClient(client, async () => {
         // The conversion and precision check follow the checkout's currency
         // (JPY, no minor places), not the site's (GBP, two places).
         expect(await retrieveCheckoutById("co_jpy")).toEqual(
@@ -172,7 +106,7 @@ describe("sumup", () => {
     });
 
     test("flags a checkout amount more precise than the currency allows", async () => {
-      const client = makeClient({
+      const client = makeSumupClient({
         get: () =>
           Promise.resolve({
             amount: 12.505, // three decimal places in GBP
@@ -181,7 +115,7 @@ describe("sumup", () => {
             status: "PAID",
           }),
       });
-      await withClient(client, async () => {
+      await withSumupClient(client, async () => {
         // The raw major-unit amount cannot be rounded silently: the checkout is
         // flagged so the adapter refuses the charge and the callback refunds it.
         expect(await retrieveCheckoutById("co_overprecise")).toEqual(
@@ -190,301 +124,37 @@ describe("sumup", () => {
       });
     });
 
-    test("falls back to the site currency when the checkout carries none", async () => {
-      const client = makeClient({
-        get: () =>
-          Promise.resolve({
-            amount: 10,
-            checkout_reference: "ref_nocur",
+    // A currency the conversion helpers cannot format — absent, blank, or not
+    // a real code — must never reach them: Intl throws on one, and the throw
+    // would be swallowed here as "no session", stranding a paid charge that
+    // should be refunded. The amount converts with the site's currency (GBP,
+    // two places) instead, and the raw code is carried for the boundary.
+    for (const [name, given, carried] of [
+      ["carries no currency", undefined, null],
+      ["carries a blank currency", "   ", null],
+      ["carries a malformed currency", "GB", "GB"],
+    ] as const) {
+      test(`reads a checkout that ${name}`, async () => {
+        const client = makeSumupClient({
+          get: () =>
+            Promise.resolve({
+              amount: 10,
+              checkout_reference: "ref_cur",
+              currency: given,
+              status: "PAID",
+            }),
+        });
+        await withSumupClient(client, async () => {
+          expect(await retrieveCheckoutById("co_cur")).toEqual({
+            amountMinor: 1000,
+            currency: carried,
+            overPrecise: false,
+            reference: "ref_cur",
             status: "PAID",
-          }),
-      });
-      await withClient(client, async () => {
-        // A response without a currency is not asserted away: the conversion
-        // and precision check use the site's currency (GBP here) and the
-        // currency is carried as null for the boundary to refuse.
-        expect(await retrieveCheckoutById("co_nocur")).toEqual({
-          amountMinor: 1000,
-          currency: null,
-          overPrecise: false,
-          reference: "ref_nocur",
-          status: "PAID",
-          transactionId: "",
+            transactionId: "",
+          });
         });
       });
-    });
-
-    test("treats a blank currency like a missing one", async () => {
-      const client = makeClient({
-        get: () =>
-          Promise.resolve({
-            amount: 10,
-            checkout_reference: "ref_blankcur",
-            currency: "   ",
-            status: "PAID",
-          }),
-      });
-      await withClient(client, async () => {
-        // A blank currency must not reach the conversion helpers (which would
-        // format against it) or the boundary: it is refused like a missing one.
-        expect(await retrieveCheckoutById("co_blankcur")).toEqual(
-          expect.objectContaining({ currency: null }),
-        );
-      });
-    });
-  });
-
-  describe("createCheckout", () => {
-    test("returns null and stores no orphan when merchant code is absent", async () => {
-      settings.setForTest({ sumup_merchant_code: "" });
-      const client = makeClient({ create: () => Promise.resolve({}) });
-      await withClient(client, async () => {
-        expect(await createCheckout(intent, "http://localhost")).toBeNull();
-      });
-    });
-
-    test("creates a hosted checkout, converts the total, and persists metadata + id", async () => {
-      let sentBody: Record<string, unknown> = {};
-      const client = makeClient({
-        create: (body) => {
-          sentBody = body as Record<string, unknown>;
-          return Promise.resolve({
-            checkout_reference: sentBody.checkout_reference,
-            hosted_checkout_url: "https://pay.sumup.com/x",
-            id: "co_created",
-            status: "PENDING",
-          });
-        },
-      });
-      await withClient(client, async () => {
-        const result = await createCheckout(intent, "http://localhost");
-        expect(result).not.toBeNull();
-        expect(result!.url).toBe("https://pay.sumup.com/x");
-        // 2 tickets * 1000 minor units = 2000 minor => 20 major units
-        expect(sentBody.amount).toBe(20);
-        expect(sentBody.currency).toBe("GBP");
-        expect(sentBody.hosted_checkout).toEqual({ enabled: true });
-        expect(sentBody.merchant_code).toBe("MC123");
-        expect(String(sentBody.redirect_url)).toContain(
-          `session_id=${result!.reference}`,
-        );
-        expect(sentBody.return_url).toBe("https://example.com/payment/webhook");
-        // Metadata + SumUp id persisted under the generated reference
-        const stored = await getSumupCheckout(result!.reference);
-        expect(stored!.metadata.name).toBe("Alice");
-        expect(stored!.sumupId).toBe("co_created");
-      });
-    });
-
-    test("derives the major-unit amount from the configured currency", async () => {
-      // CLP is a SumUp-supported zero-decimal currency: 2000 stays 2000.
-      settings.setForTest({ currency: "CLP" });
-      let sentBody: Record<string, unknown> = {};
-      const client = makeClient({
-        create: (body) => {
-          sentBody = body as Record<string, unknown>;
-          return Promise.resolve({
-            hosted_checkout_url: "https://pay.sumup.com/y",
-            id: "co_clp",
-            status: "PENDING",
-          });
-        },
-      });
-      await withClient(client, async () => {
-        await createCheckout(intent, "http://localhost");
-        expect(sentBody.amount).toBe(2000);
-        expect(sentBody.currency).toBe("CLP");
-      });
-    });
-
-    test("returns null and says why when the response lacks an id", async () => {
-      const client = makeClient({
-        create: () =>
-          Promise.resolve({ hosted_checkout_url: "https://pay.sumup.com/z" }),
-      });
-      await withClient(client, async () => {
-        expect(await createCheckout(intent, "http://localhost")).toBeNull();
-      });
-      expect(
-        loggedDebug("Checkout response missing id or hosted_checkout_url"),
-      ).toBe(true);
-    });
-
-    test("returns null when the response lacks a hosted_checkout_url", async () => {
-      const client = makeClient({
-        create: () => Promise.resolve({ id: "co_no_url" }),
-      });
-      await withClient(client, async () => {
-        expect(await createCheckout(intent, "http://localhost")).toBeNull();
-      });
-    });
-
-    test("returns null when the client is unavailable", async () => {
-      await withClient(null, async () => {
-        expect(await createCheckout(intent, "http://localhost")).toBeNull();
-      });
-    });
-  });
-
-  describe("getTransactionStatus", () => {
-    test("returns null when merchant code is absent", async () => {
-      settings.setForTest({ sumup_merchant_code: "" });
-      await withClient(makeClient({}), async () => {
-        expect(await getTransactionStatus("txn")).toBeNull();
-      });
-    });
-
-    test("returns the transaction status", async () => {
-      const client = makeClient({
-        txnGet: () => Promise.resolve({ status: "SUCCESSFUL" }),
-      });
-      await withClient(client, async () => {
-        expect(await getTransactionStatus("txn")).toBe("SUCCESSFUL");
-      });
-    });
-
-    test("reports SumUp's status verbatim, even when it is empty", async () => {
-      const client = makeClient({
-        txnGet: () => Promise.resolve({ status: "" }),
-      });
-      await withClient(client, async () => {
-        expect(await getTransactionStatus("txn")).toBe("");
-      });
-    });
-
-    test("returns null when the status field is absent", async () => {
-      const client = makeClient({ txnGet: () => Promise.resolve({}) });
-      await withClient(client, async () => {
-        expect(await getTransactionStatus("txn")).toBeNull();
-      });
-    });
-  });
-
-  describe("refundTransaction", () => {
-    test("returns false and reports the missing merchant code", async () => {
-      settings.setForTest({ sumup_merchant_code: "" });
-      await withClient(makeClient({}), async () => {
-        expect(await refundTransaction("txn")).toBe(false);
-      });
-      expect(errorSpy.contains("SumUp merchant code")).toBe(true);
-    });
-
-    test("refunds via the transactions API and returns true", async () => {
-      const calls: [string, string][] = [];
-      const client = makeClient({
-        refund: (mc, id) => {
-          calls.push([mc, id]);
-          return Promise.resolve();
-        },
-      });
-      await withClient(client, async () => {
-        expect(await refundTransaction("txn_r")).toBe(true);
-        expect(calls[0]).toEqual(["MC123", "txn_r"]);
-      });
-    });
-
-    test("returns false when the client is unavailable", async () => {
-      await withClient(null, async () => {
-        expect(await refundTransaction("txn")).toBe(false);
-      });
-    });
-  });
-
-  describe("testSumupConnection", () => {
-    const expectMerchantLookupFails = async (
-      errorMessage: string,
-      assertError: (error: string | undefined) => void,
-    ): Promise<void> => {
-      const client = makeClient({
-        merchantGet: () => Promise.reject(new Error(errorMessage)),
-      });
-      await withClient(client, async () => {
-        const result = await testSumupConnection();
-        expect(result.ok).toBe(false);
-        expect(result.apiKey.valid).toBe(false);
-        assertError(result.apiKey.error);
-      });
-    };
-
-    test("reports a missing API key", async () => {
-      settings.setForTest({ sumup_api_key: "" });
-      const result = await testSumupConnection();
-      expect(result.ok).toBe(false);
-      expect(result.apiKey).toEqual({
-        error: "No SumUp API key configured",
-        valid: false,
-      });
-      expect(result.merchant).toEqual({ configured: false });
-    });
-
-    test("reports a missing merchant code", async () => {
-      settings.setForTest({ sumup_merchant_code: "" });
-      const result = await testSumupConnection();
-      expect(result.ok).toBe(false);
-      expect(result.apiKey).toEqual({
-        error: "Merchant code is required to verify the key",
-        valid: false,
-      });
-      expect(result.merchant).toEqual({
-        configured: false,
-        error: "No merchant code configured",
-      });
-    });
-
-    const withMerchantClient = (fn: () => Promise<void>): Promise<void> => {
-      const client = makeClient({ merchantGet: () => Promise.resolve({}) });
-      return withClient(client, fn);
-    };
-
-    test("reports success with key mode, merchant, and currency", () =>
-      withMerchantClient(async () => {
-        const result = await testSumupConnection();
-        expect(result.ok).toBe(true);
-        expect(result.apiKey).toEqual({ mode: "test", valid: true });
-        expect(result.merchant).toEqual({
-          configured: true,
-          merchantCode: "MC123",
-        });
-        expect(result.currency).toEqual({ code: "GBP", supported: true });
-      }));
-
-    test("fails overall when the site currency is unsupported", async () => {
-      settings.setForTest({ currency: "AUD" });
-      await withMerchantClient(async () => {
-        const result = await testSumupConnection();
-        expect(result.ok).toBe(false);
-        expect(result.apiKey.valid).toBe(true);
-        expect(result.currency).toEqual({ code: "AUD", supported: false });
-      });
-    });
-
-    test("reports the key mode as unknown for an unrecognized key prefix", async () => {
-      settings.setForTest({ sumup_api_key: "plainkey" });
-      await withMerchantClient(async () => {
-        const result = await testSumupConnection();
-        expect(result.apiKey.mode).toBe("unknown");
-      });
-    });
-
-    test("turns a 401 from the merchant lookup into actionable guidance", async () => {
-      await expectMerchantLookupFails(
-        '401: {"detail":"Unauthorized."}',
-        (err) => {
-          // The opaque SumUp body is replaced with a hint about the likely causes:
-          // the public-vs-secret key mix-up first, then the cross-account mismatch.
-          expect(err).toContain("401");
-          expect(err).toContain("Public API key");
-          expect(err).toContain("secret API key");
-          expect(err).toContain("same SumUp account");
-          expect(err).not.toContain("detail");
-        },
-      );
-    });
-
-    test("passes non-401 merchant lookup errors through unchanged", async () => {
-      await expectMerchantLookupFails("503 Service Unavailable", (err) => {
-        expect(err).toBe("503 Service Unavailable");
-      });
-    });
+    }
   });
 });

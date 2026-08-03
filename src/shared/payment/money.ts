@@ -17,6 +17,12 @@ const CurrencySchema = v.pipe(
 );
 export type Currency = v.InferOutput<typeof CurrencySchema>;
 
+/** Whether a value is a well-formed currency code. Lets an adapter keep a
+ *  malformed provider code away from `Intl` (which throws on one) while still
+ *  handing the raw code to {@link money} to be refused. */
+export const isCurrency = (value: unknown): value is Currency =>
+  v.is(CurrencySchema, value);
+
 /** Money: a non-negative minor-unit amount paired with its currency. The
  *  amount is already in the smallest unit the currency uses, so two amounts in
  *  the same currency can be compared or summed with no conversion. */

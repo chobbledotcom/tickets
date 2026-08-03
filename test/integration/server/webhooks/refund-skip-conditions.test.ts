@@ -107,6 +107,12 @@ describeWithEnv(
         );
         expect(response.status).toBe(503);
         await response.text(); // the plain retry body
+        // The retry is only correct if the refund was genuinely attempted on
+        // the captured charge — a 503 returned before the provider call would
+        // leave the money with Stripe and nothing asking for it back.
+        expect(refundStub.calls.map((call) => call.args)).toEqual([
+          ["pi_malformed"],
+        ]);
       } finally {
         mockVerify.restore();
         refundStub.restore();

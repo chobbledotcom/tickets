@@ -27,6 +27,7 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { isCurrency } from "#shared/payment/money.ts";
 import {
   assembleCheckoutMetadata,
   type CredentialCheck,
@@ -51,8 +52,9 @@ export type SumupCheckout = {
    *  allows, so the rounded {@link amountMinor} cannot be trusted. The adapter
    *  refuses such a charge; the callback refunds it when money was captured. */
   overPrecise: boolean;
-  /** The three-letter currency the checkout was taken in (upper-cased), or
-   *  null when the provider response carried none — the boundary refuses it. */
+  /** The currency the checkout was taken in, exactly as SumUp gave it (upper-
+   *  cased), or null when the response carried none. A code that is not three
+   *  letters is carried through unchanged so the boundary refuses it. */
   currency: string | null;
   /** Transaction id of the completing payment (refund/payment reference). */
   transactionId: string;
@@ -117,9 +119,10 @@ const sumupKeyError = (err: unknown): string => {
  * Normalize a SumUp checkout resource into our internal shape.
  * amount and checkout_reference are always present on checkouts we created
  * (webhook ids are pre-filtered against our staging rows before fetching), so
- * the SDK's optional types are asserted rather than defaulted. A missing
- * currency is carried as null for the boundary to refuse — an unchecked
- * assertion would throw inside withClient and be swallowed as "no session".
+ * the SDK's optional types are asserted rather than defaulted. A missing or
+ * malformed currency is carried through for the boundary to refuse, and the
+ * site's currency is used for the conversion — throwing here would be
+ * swallowed as "no session" and strand a paid charge instead of refunding it.
  * An over-precise raw amount is flagged (not rounded silently) so the adapter
  * can refuse the charge and the callback can refund it.
  * transaction_id only exists once a payment attempt succeeds; older attempts
@@ -131,14 +134,17 @@ const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
     typeof c.currency === "string" && c.currency.trim() !== ""
       ? c.currency.toUpperCase()
       : null;
+  // Only a well-formed code may reach the currency helpers: Intl throws on
+  // anything else, and that throw would be swallowed here as "no session",
+  // stranding a paid charge the boundary would otherwise refuse and refund.
+  const conversionCurrency = isCurrency(currency)
+    ? currency
+    : settings.currency;
   return {
-    amountMinor: toMinorUnits(amount, currency ?? settings.currency),
+    amountMinor: toMinorUnits(amount, conversionCurrency),
     createdAt: c.date,
     currency,
-    overPrecise: exceedsCurrencyPrecision(
-      amount,
-      currency ?? settings.currency,
-    ),
+    overPrecise: exceedsCurrencyPrecision(amount, conversionCurrency),
     reference: c.checkout_reference!,
     status: c.status,
     transactionId:
