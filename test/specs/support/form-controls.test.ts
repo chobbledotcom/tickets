@@ -270,6 +270,13 @@ describe("the days a page has ticked", () => {
         ticked: ["not-disabled"],
         what: "does not read a word inside a value as a flag of its own",
       },
+      {
+        // A box with no value of its own sends "on", so it is still a box
+        // somebody ticked — dropping it would hide the tick altogether.
+        offering: '<input type="checkbox" name="bookable_days" checked>',
+        ticked: ["on"],
+        what: 'reads a box with no value of its own as sending "on"',
+      },
     ];
 
   for (const reading of READINGS) {
@@ -484,6 +491,21 @@ describe("the days a page has ticked", () => {
         sends: { ...TYPED },
         typed: TYPED,
         what: "sends when the page has already ticked the box it insists on",
+      },
+      {
+        // A box with no value of its own still insists on being ticked, and a
+        // browser would refuse to send the form without it.
+        offering: `${NAME_BOX}<input type="checkbox" name="terms" required>`,
+        refusedWith: "The terms box must be ticked to send the form",
+        typed: TYPED,
+        what: "sends nothing when the insisted box has no value of its own",
+      },
+      {
+        offering: `${NAME_BOX}<input type="checkbox" name="terms" required>`,
+        sends: { terms: ["on"], ...TYPED },
+        ticked: { terms: ["on"] },
+        typed: TYPED,
+        what: 'ticks a box with no value of its own by sending "on"',
       },
     ];
 

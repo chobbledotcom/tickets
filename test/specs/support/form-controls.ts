@@ -122,27 +122,26 @@ interface UsableCheckbox {
   value: string;
 }
 
-/** Every checkbox on the page a person could actually tick — a switched-off
- * one is not one of them, and neither is one carrying no value to send. */
+/** Every checkbox on the page a person could actually tick — a switched-off one
+ * is not one of them. A box with no value of its own sends "on", the same word
+ * a browser sends, so one is still a box somebody can tick. */
 const usableCheckboxesOn = (html: string): UsableCheckbox[] => {
   const boxes: UsableCheckbox[] = [];
   for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
     // The whole tag, closing bracket and all: the flag test needs something
     // after the name to know it stands alone.
     const tag = box[0];
-    const value = attribute(tag, "value");
     const field = attribute(tag, "name");
     if (
       tag.includes('type="checkbox"') &&
       !hasFlag(tag, "disabled") &&
-      field !== null &&
-      value !== null
+      field !== null
     ) {
       boxes.push({
         field,
         insisted: hasFlag(tag, "required"),
         ticked: hasFlag(tag, "checked"),
-        value,
+        value: attribute(tag, "value") ?? "on",
       });
     }
   }
