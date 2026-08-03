@@ -124,6 +124,32 @@ describe("sumup", () => {
       });
     });
 
+    test("reads a checkout that carries no amount", async () => {
+      const client = makeSumupClient({
+        get: () =>
+          Promise.resolve({
+            checkout_reference: "ref_noamount",
+            currency: "GBP",
+            status: "PAID",
+            transaction_id: "txn_noamount",
+          }),
+      });
+      await withSumupClient(client, async () => {
+        // Without an amount there is nothing to convert or precision-check —
+        // and doing either would throw, which is swallowed here as "no
+        // session" and would strand the charge. It is carried as null for the
+        // boundary to refuse, so the paid charge still reaches the refund path.
+        expect(await retrieveCheckoutById("co_noamount")).toEqual({
+          amountMinor: null,
+          currency: "GBP",
+          overPrecise: false,
+          reference: "ref_noamount",
+          status: "PAID",
+          transactionId: "txn_noamount",
+        });
+      });
+    });
+
     // A currency the conversion helpers cannot format — absent, blank, or not
     // a real code — must never reach them: Intl throws on one, and the throw
     // would be swallowed here as "no session", stranding a paid charge that

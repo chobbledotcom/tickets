@@ -1884,3 +1884,36 @@ of the row that was made, rather than falling through to the generic 503.
 Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
+
+## Record a rejected-and-refunded payment session as finished
+
+*Origin: Codex review on PR #2021, which added the automatic refund for a paid
+charge the payment boundary cannot read.*
+
+When a provider callback meets a `malformed_charge` rejection and refunds it,
+nothing durable is written down. No reservation, no processed-payment row, no
+ledger entry says "this session was refused and the money went back". The
+webhook simply acknowledges and moves on
+(`refundRejectedCharge` in `src/features/api/payment-processing/refunds.ts`, and
+its callers in `src/features/api/webhooks.ts` and
+`src/features/api/payment-processing/classify.ts`).
+
+The reviewer's concern is that a later delivery of the same session — a webhook
+redelivery, or the buyer opening the success page — could read it in a
+well-formed shape, still see it as paid, find no record of it, and make a real
+ticket for money that was already returned.
+
+Why it is not being fixed in that PR: every rejection reason is a fixed
+property of the provider's own stored record (an amount that is not a whole
+number of minor units, a missing or malformed currency, a SumUp amount more
+precise than its currency allows). None of those can turn well-formed on a
+later read, so the double-book needs a provider changing a completed session's
+money — which no provider does. The refund itself is already safe to repeat:
+`tryRefund` treats a provider's "already fully refunded" answer as success.
+
+If it is taken on: carry the session id in `SessionRejection`
+(`src/shared/payment/validated-session.ts`), and finish the session through the
+same state machine a normal payment uses — `reserveSession` /
+`processed-payments` in `src/shared/db/processed-payments.ts` — with a terminal
+"refused and refunded" outcome, so a later delivery of that session id short
+circuits the way an already-processed payment does.

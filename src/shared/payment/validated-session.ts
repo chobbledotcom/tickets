@@ -51,13 +51,19 @@ export const isSessionRejection = (
 
 /** The malformed-charge refusal for a provider session. `paid` says whether
  *  the charge captured money; the rejection is refundable only when the
- *  provider also gave a usable resource id. */
+ *  provider also gave a usable resource id.
+ *
+ *  The metadata is unpacked before it is carried. Square folds the small
+ *  fields into one entry to fit its ten-entry cap, but the price proof is
+ *  signed over the unpacked shape — so a rejection holding the packed record
+ *  would fail its own ownership check and a real Square charge would never be
+ *  refunded. */
 export const malformedChargeRejection = (
   paymentReference: string,
   paid: boolean,
   metadata: SessionMetadata,
 ): SessionRejection => ({
-  metadata,
+  metadata: extractSessionMetadata(metadata),
   paymentReference,
   reason: "malformed_charge",
   refundable: paid && isResourceId(paymentReference),

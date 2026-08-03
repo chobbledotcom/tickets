@@ -139,7 +139,12 @@ export const squarePaymentProvider: PaymentProvider = {
 
     return sessionOrRejection(
       validatedPaymentSession({
-        amountTotal: Number(order.totalMoney.amount),
+        // A missing amount stays missing: Number(null) is 0, which the
+        // boundary would accept as a real free order.
+        amountTotal:
+          order.totalMoney.amount === null
+            ? null
+            : Number(order.totalMoney.amount),
         createdAt: toCanonicalIso(order.createdAt),
         currency: order.totalMoney.currency,
         id: order.id,

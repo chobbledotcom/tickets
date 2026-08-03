@@ -6,6 +6,7 @@ import {
 } from "#shared/payment/validated-session.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";
 
 /**
  * The provider boundary: every paid session the live callbacks read is built by
@@ -17,6 +18,16 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
  */
 
 const meta = { items: "[]", name: "Alice" } as SessionMetadata;
+
+/** What the boundary hands on for {@link meta}. A rejection carries this
+ *  canonical shape, not the provider's wire record, because the price proof
+ *  was signed over it. */
+const unpackedMeta = {
+  ...BLANK_SESSION_METADATA,
+  items: "[]",
+  name: "Alice",
+};
+
 const basePaid = {
   createdAt: undefined,
   id: "sess-1",
@@ -111,13 +122,46 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
-        metadata: meta,
+        metadata: unpackedMeta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
       },
     });
     expect(errorSpy.contains("malformed charge")).toBe(true);
+  });
+
+  it("unpacks a Square-packed record into the rejection", () => {
+    // Square folds the small fields into one `b` entry to fit its ten-entry
+    // cap, but the price proof is signed over the unpacked shape. A rejection
+    // holding the packed record would fail its own ownership check, and a real
+    // Square charge would be acknowledged instead of refunded.
+    const build = validatedPaymentSession({
+      ...basePaid,
+      amountTotal: 10.5,
+      currency: "GBP",
+      metadata: {
+        b: JSON.stringify({ date: "2026-08-01", phone: "07700900000" }),
+        email: "a@example.com",
+        items: "[]",
+        name: "Alice",
+        price_proof: "500.sig",
+      } as unknown as SessionMetadata,
+    });
+    expect(build.ok).toBe(false);
+    if (build.ok) return;
+    expect(build.rejection).toEqual({
+      metadata: {
+        ...unpackedMeta,
+        date: "2026-08-01",
+        email: "a@example.com",
+        phone: "07700900000",
+        price_proof: "500.sig",
+      },
+      paymentReference: "pi_123",
+      reason: "malformed_charge",
+      refundable: true,
+    });
   });
 
   it("refuses a negative amount", () => {
@@ -130,7 +174,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
-        metadata: meta,
+        metadata: unpackedMeta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -148,7 +192,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
-        metadata: meta,
+        metadata: unpackedMeta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -166,7 +210,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
-        metadata: meta,
+        metadata: unpackedMeta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -181,7 +225,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
-        metadata: meta,
+        metadata: unpackedMeta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -201,7 +245,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
-        metadata: meta,
+        metadata: unpackedMeta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -221,7 +265,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
-        metadata: meta,
+        metadata: unpackedMeta,
         paymentReference: "pi_123",
         reason: "malformed_charge",
         refundable: true,
@@ -242,7 +286,7 @@ describe("validatedPaymentSession", () => {
     ).toEqual({
       ok: false,
       rejection: {
-        metadata: meta,
+        metadata: unpackedMeta,
         paymentReference: "",
         reason: "malformed_charge",
         refundable: false,

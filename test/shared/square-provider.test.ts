@@ -9,7 +9,10 @@ import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { asSession } from "#test-utils/payment-session.ts";
+import {
+  asSession,
+  BLANK_SESSION_METADATA,
+} from "#test-utils/payment-session.ts";
 
 /** A Square Money value in the given minor units (defaults to GBP). */
 const money = (amount: number, currency = "GBP") => ({
@@ -146,6 +149,38 @@ describe("square-provider", () => {
           expect(debug.calls.at(-1)?.args).toEqual([
             "[Square] Order order_missing not found",
           ]);
+        },
+      );
+    });
+
+    test("hands a paid order with no total to the refund path", async () => {
+      // Square answered without a money object. Number(null) would read as a
+      // real free order, so the halves stay null and the boundary refuses the
+      // charge — leaving the captured payment refundable rather than booked.
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_no_total",
+              metadata: ORDER_META,
+              state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_1" }],
+              totalMoney: { amount: null, currency: null },
+            }),
+          ),
+          payment: stub(squareApi, "retrievePayment", () =>
+            Promise.resolve({ id: "pay_1", status: "COMPLETED" }),
+          ),
+        }),
+        async () => {
+          expect(
+            await squarePaymentProvider.retrieveSession("order_no_total"),
+          ).toEqual({
+            metadata: { ...BLANK_SESSION_METADATA, ...ORDER_META },
+            paymentReference: "pay_1",
+            reason: "malformed_charge",
+            refundable: true,
+          });
         },
       );
     });

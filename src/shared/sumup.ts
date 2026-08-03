@@ -46,8 +46,9 @@ export type SumupCheckout = {
   reference: string;
   /** SumUp checkout lifecycle status. */
   status: CheckoutSuccess["status"];
-  /** Total amount in the app's minor units (rounded from the raw amount). */
-  amountMinor: number;
+  /** Total amount in the app's minor units (rounded from the raw amount), or
+   *  null when the response carried no amount — the boundary refuses it. */
+  amountMinor: number | null;
   /** True when the raw major-unit amount was more precise than the currency
    *  allows, so the rounded {@link amountMinor} cannot be trusted. The adapter
    *  refuses such a charge; the callback refunds it when money was captured. */
@@ -117,19 +118,23 @@ const sumupKeyError = (err: unknown): string => {
 
 /**
  * Normalize a SumUp checkout resource into our internal shape.
- * amount and checkout_reference are always present on checkouts we created
- * (webhook ids are pre-filtered against our staging rows before fetching), so
- * the SDK's optional types are asserted rather than defaulted. A missing or
- * malformed currency is carried through for the boundary to refuse, and the
- * site's currency is used for the conversion — throwing here would be
- * swallowed as "no session" and strand a paid charge instead of refunding it.
- * An over-precise raw amount is flagged (not rounded silently) so the adapter
- * can refuse the charge and the callback can refund it.
+ *
+ * Nothing in here may throw. This runs inside `withClient`, which turns any
+ * error into "no session" — and the webhook then acknowledges a paid charge as
+ * one it has never heard of, stranding the captured money. So a missing amount
+ * and a missing or malformed currency are carried through for the boundary to
+ * refuse (the site's currency stands in for the conversion), rather than
+ * asserted away into a crash. An over-precise raw amount is flagged instead of
+ * rounded silently, so the adapter can refuse the charge and the callback can
+ * refund it.
+ *
+ * checkout_reference is asserted: webhook ids are pre-filtered against our own
+ * staging rows before fetching, and a blank one is refused by the adapter.
  * transaction_id only exists once a payment attempt succeeds; older attempts
  * in `transactions` may have FAILED, so the fallback picks the successful one.
  */
 const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
-  const amount = c.amount!;
+  const amount = typeof c.amount === "number" ? c.amount : null;
   const currency =
     typeof c.currency === "string" && c.currency.trim() !== ""
       ? c.currency.toUpperCase()
@@ -141,10 +146,12 @@ const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
     ? currency
     : settings.currency;
   return {
-    amountMinor: toMinorUnits(amount, conversionCurrency),
+    amountMinor:
+      amount === null ? null : toMinorUnits(amount, conversionCurrency),
     createdAt: c.date,
     currency,
-    overPrecise: exceedsCurrencyPrecision(amount, conversionCurrency),
+    overPrecise:
+      amount !== null && exceedsCurrencyPrecision(amount, conversionCurrency),
     reference: c.checkout_reference!,
     status: c.status,
     transactionId:

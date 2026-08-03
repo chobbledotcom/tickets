@@ -6,6 +6,7 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { BLANK_SESSION_METADATA } from "#test-utils/payment-session.ts";
 import {
   makeSumupClient,
   SUMUP_META,
@@ -35,9 +36,10 @@ describe("sumup-provider resolveWebhookSession", () => {
     sumupPaymentProvider.resolveWebhookSession(listing("co_1"));
 
   /** The refusal a paid charge earns when its money was captured but the
-   *  boundary cannot read its amount or currency. */
+   *  boundary cannot read its amount or currency. The metadata comes back in
+   *  the canonical shape the price proof was signed over, not as staged. */
   const REFUNDABLE_REJECTION = {
-    metadata: SUMUP_META,
+    metadata: { ...BLANK_SESSION_METADATA, ...SUMUP_META },
     paymentReference: "txn",
     reason: "malformed_charge",
     refundable: true,
@@ -70,6 +72,7 @@ describe("sumup-provider resolveWebhookSession", () => {
     ["a malformed paid charge", { currency: "GB" }],
     ["an over-precise paid charge", { overPrecise: true }],
     ["a paid charge with no currency", { currency: null }],
+    ["a paid charge with no amount", { amountMinor: null }],
   ] as const) {
     test(`returns a refundable rejection for ${name}`, async () => {
       await stageSumupCheckout();

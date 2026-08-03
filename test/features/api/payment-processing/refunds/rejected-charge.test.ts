@@ -13,6 +13,12 @@ import { signedMeta, webhookMeta } from "#test-utils/factories.ts";
 
 setupTestEncryptionKey();
 
+/** What Stripe answers a refund it accepted with. */
+const succeededRefund = {
+  id: "re_settled",
+  status: "succeeded",
+} as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>;
+
 /**
  * The refund path is where the live callbacks reject a blank provider resource
  * id — consistently, whatever the provider, because every refund goes through
@@ -25,23 +31,69 @@ setupTestEncryptionKey();
  * false because no provider was resolvable.
  */
 describe("tryRefund resource id", () => {
-  const withStripeProvider = async (
-    run: () => Promise<void>,
+  /** Run `body` with Stripe as the configured provider. */
+  const withStripeConfigured = async (
+    body: () => Promise<void>,
   ): Promise<void> => {
     const original = paymentsApi.getConfiguredProvider;
     paymentsApi.getConfiguredProvider = () => "stripe";
-    const refundSpy = spy(stripeApi, "refundPayment");
-    const intentSpy = spy(stripeApi, "retrievePaymentIntent");
     try {
-      await run();
-      expect(refundSpy.calls.length).toBe(0);
-      expect(intentSpy.calls.length).toBe(0);
+      await body();
     } finally {
-      refundSpy.restore();
-      intentSpy.restore();
       paymentsApi.getConfiguredProvider = original;
     }
   };
+
+  /** Run `body` and prove it never reached Stripe — spies keep the real
+   *  methods, so a call would leave for the provider and be counted here. */
+  const withStripeProvider = (run: () => Promise<void>): Promise<void> =>
+    withStripeConfigured(async () => {
+      const refundSpy = spy(stripeApi, "refundPayment");
+      const intentSpy = spy(stripeApi, "retrievePaymentIntent");
+      try {
+        await run();
+        expect(refundSpy.calls.length).toBe(0);
+        expect(intentSpy.calls.length).toBe(0);
+      } finally {
+        refundSpy.restore();
+        intentSpy.restore();
+      }
+    });
+
+  /** Run `body` with Stripe's refund answering `result`, and return the
+   *  arguments it was actually called with. Stubbed, not spied: a spy keeps
+   *  the real method, so the refund would leave for Stripe itself. */
+  const withRefundAnswering =
+    (result: Awaited<ReturnType<typeof stripeApi.refundPayment>>) =>
+    async (body: () => Promise<void>): Promise<unknown[][]> => {
+      const refundStub = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve(result),
+      );
+      await withStripeConfigured(async () => {
+        try {
+          await body();
+        } finally {
+          refundStub.restore();
+        }
+      });
+      return refundStub.calls.map((call) => call.args);
+    };
+
+  const withSucceedingRefund = withRefundAnswering(succeededRefund);
+  /** Stripe refusing the refund: it reports nothing refunded. */
+  const withRefusedRefund = withRefundAnswering(null);
+
+  /** A refundable malformed-charge rejection this instance signed, so its
+   *  ownership check passes and the refund goes ahead. */
+  const ourRejection = (paymentReference: string) => ({
+    metadata: signedMeta(
+      { email: "a@example.com", items: "[]", name: "A" },
+      500,
+    ),
+    paymentReference,
+    reason: "malformed_charge" as const,
+    refundable: true,
+  });
 
   it("refuses an empty provider resource id before any provider call", () =>
     withStripeProvider(async () => {
@@ -55,25 +107,13 @@ describe("tryRefund resource id", () => {
     }));
 
   it("refunds a rejected paid charge whose price proof verifies", async () => {
-    const original = paymentsApi.getConfiguredProvider;
-    paymentsApi.getConfiguredProvider = () => "stripe";
-    const refundSpy = spy(stripeApi, "refundPayment");
-    try {
-      await refundRejectedCharge({
-        metadata: signedMeta(
-          { email: "a@example.com", items: "[]", name: "A" },
-          500,
-        ),
-        paymentReference: "pi_usable",
-        reason: "malformed_charge",
-        refundable: true,
-      });
-      expect(refundSpy.calls.length).toBe(1);
-      expect(refundSpy.calls[0]?.args[0]).toBe("pi_usable");
-    } finally {
-      refundSpy.restore();
-      paymentsApi.getConfiguredProvider = original;
-    }
+    expect(
+      await withSucceedingRefund(async () => {
+        expect(await refundRejectedCharge(ourRejection("pi_usable"))).toBe(
+          true,
+        );
+      }),
+    ).toEqual([["pi_usable"]]);
   });
 
   it("does not refund a rejection whose price proof does not verify", () =>
@@ -122,55 +162,25 @@ describe("tryRefund resource id", () => {
     }));
 
   it("reports a successful rejection refund as a settled 400", async () => {
-    const original = paymentsApi.getConfiguredProvider;
-    paymentsApi.getConfiguredProvider = () => "stripe";
-    const refundStub = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({
-        id: "re_settled",
-        status: "succeeded",
-      } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
-    );
-    try {
-      expect(
-        await refundRejectedSession({
-          metadata: signedMeta(
-            { email: "a@example.com", items: "[]", name: "A" },
-            500,
-          ),
-          paymentReference: "pi_settled",
-          reason: "malformed_charge",
-          refundable: true,
-        }),
-      ).toEqual({ refunded: true, status: 400 });
-      expect(refundStub.calls.length).toBe(1);
-    } finally {
-      refundStub.restore();
-      paymentsApi.getConfiguredProvider = original;
-    }
+    expect(
+      await withSucceedingRefund(async () => {
+        expect(await refundRejectedSession(ourRejection("pi_settled"))).toEqual(
+          { refunded: true, status: 400 },
+        );
+      }),
+    ).toEqual([["pi_settled"]]);
   });
 
   it("reports a failed rejection refund as a retryable 503", async () => {
-    const original = paymentsApi.getConfiguredProvider;
-    paymentsApi.getConfiguredProvider = () => "stripe";
-    const refundSpy = spy(stripeApi, "refundPayment");
-    try {
-      // The provider refuses the refund and reports nothing refunded, so the
-      // caller must answer retryable rather than acknowledge the charge away.
-      expect(
-        await refundRejectedSession({
-          metadata: signedMeta(
-            { email: "a@example.com", items: "[]", name: "A" },
-            500,
-          ),
-          paymentReference: "pi_stuck",
-          reason: "malformed_charge",
-          refundable: true,
-        }),
-      ).toEqual({ refunded: false, status: 503 });
-      expect(refundSpy.calls.length).toBe(1);
-    } finally {
-      refundSpy.restore();
-      paymentsApi.getConfiguredProvider = original;
-    }
+    // The provider refuses the refund and reports nothing refunded, so the
+    // caller must answer retryable rather than acknowledge the charge away.
+    expect(
+      await withRefusedRefund(async () => {
+        expect(await refundRejectedSession(ourRejection("pi_stuck"))).toEqual({
+          refunded: false,
+          status: 503,
+        });
+      }),
+    ).toEqual([["pi_stuck"]]);
   });
 });

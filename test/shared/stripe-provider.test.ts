@@ -11,7 +11,10 @@ import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { asSession } from "#test-utils/payment-session.ts";
+import {
+  asSession,
+  BLANK_SESSION_METADATA,
+} from "#test-utils/payment-session.ts";
 
 describeStripe("stripe-provider", () => {
   test("identifies its Stripe webhook contract", () => {
@@ -244,6 +247,7 @@ describeStripe("stripe-provider", () => {
           // to the site's, and the charge cannot be trusted without one.
           expect(result).toEqual({
             metadata: {
+              ...BLANK_SESSION_METADATA,
               email: "nocur@example.com",
               items: '[{"e":10,"q":1,"p":0}]',
               name: "No Cur",
@@ -278,6 +282,7 @@ describeStripe("stripe-provider", () => {
             await stripePaymentProvider.retrieveSession("cs_null_amount");
           expect(result).toEqual({
             metadata: {
+              ...BLANK_SESSION_METADATA,
               email: "nullamount@example.com",
               items: '[{"e":1,"q":1,"p":0}]',
               name: "Null Amount User",

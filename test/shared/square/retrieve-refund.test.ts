@@ -129,6 +129,35 @@ describeSquare(() => {
       );
     });
 
+    test("carries a missing order total through as null", async () => {
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: {
+                id: "order_no_total",
+                metadata: {
+                  email: "john@example.com",
+                  items: '[{"e":1,"q":1,"p":0}]',
+                  name: "John",
+                },
+                state: "COMPLETED",
+                tenders: [{ id: "tender_1", paymentId: "pay_no_total" }],
+              },
+            }),
+        },
+        async () => {
+          // Reaching into a missing money object would throw, and the client
+          // wrapper turns a throw into "no order" — so a paid Square charge
+          // would be acknowledged unread. Nulls let the payment boundary
+          // refuse it and the callback refund it.
+          const result = await squareApi.retrieveOrder("order_no_total");
+          expect(result).not.toBeNull();
+          expect(result!.totalMoney).toEqual({ amount: null, currency: null });
+        },
+      );
+    });
+
     test("removes null metadata values from an order", async () => {
       await withSquareClient(
         {
