@@ -36,10 +36,6 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** Where the organiser's own list of states lives. */
 const THE_LIST = "/admin/settings/statuses";
 
-/** The state every site starts with, before the organiser writes any of their
- * own. Stories name it, so a site that stopped seeding it fails them. */
-export const FIRST_STATE = "Confirmed";
-
 /** The two jobs a state can hold, in the story's words and in the box on the
  * form that gives it away. Only these two exist, so a story naming anything
  * else is a story about a job the site does not have. */
