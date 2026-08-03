@@ -30,69 +30,69 @@
         in
         {
           default = pkgs.mkShell {
-            packages =
-              [
-                deno
-                (pkgs.writeShellScriptBin "pc" ''
-                  exec ${deno}/bin/deno task precommit "$@"
-                '')
-                pkgs.biome
-                pkgs.openssl
-                pkgs.buildah
-              ]
-              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
+            packages = [
+              deno
+              (pkgs.writeShellScriptBin "pc" ''
+                exec ${deno}/bin/deno task precommit "$@"
+              '')
+              pkgs.biome
+              pkgs.openssl
+              pkgs.buildah
+            ]
+            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
             shellHook = ''
-              deno_version="$(${deno}/bin/deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
-              if [ "$deno_version" != "${denoVersion}" ]; then
-                echo "tickets requires Deno ${denoVersion}, but the pinned nixpkgs provides $deno_version" >&2
-                return 1
-              fi
+                            deno_version="$(${deno}/bin/deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
+                            if [ "$deno_version" != "${denoVersion}" ]; then
+                              echo "tickets requires Deno ${denoVersion}, but the pinned nixpkgs provides $deno_version" >&2
+                              return 1
+                            fi
 
-              echo "tickets dev shell"
-              echo "  deno task start      - run server"
-              echo "  deno task test       - run tests"
-              echo "  deno task build:edge - build for edge"
-              echo "  deno task screenshot - capture representative pages"
-              echo "  deno task precommit  - typecheck + lint + cpd + build + test"
-              echo "  pc                   - run precommit"
-              echo "  nix run .#docker     - build container image"
-              echo "  nix run .#docker-start - build and run container"
-              # Throwaway defaults for a fresh checkout. ''${VAR-...} fills in
-              # only an unset variable, so the caller's own value wins — even a
-              # deliberately empty one, which must fail startup validation.
-              export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(openssl rand -base64 32)}"
-              export DB_URL="''${DB_URL-:memory:}"
-              export PORT="''${PORT-8080}"
-              export CODEX_SECURITY_PYTHON="''${CODEX_SECURITY_PYTHON-${codexSecurityPython}/bin/python3}"
-              ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-                export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
-                export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}:''${LD_LIBRARY_PATH:-}"
-              ''}
+                            echo "tickets dev shell"
+                            echo "  deno task start      - run server"
+                            echo "  deno task test       - run tests"
+                            echo "  deno task build:edge - build for edge"
+                            echo "  deno task screenshot - capture representative pages"
+                            echo "  deno task precommit  - typecheck + lint + cpd + build + test"
+                            echo "  pc                   - run precommit"
+                            echo "  nix run .#docker     - build container image"
+                            echo "  nix run .#docker-start - build and run container"
+                            # Throwaway defaults for a fresh checkout. ''${VAR-...} fills in
+                            # only an unset variable, so the caller's own value wins — even a
+                            # deliberately empty one, which must fail startup validation.
+                            export DB_ENCRYPTION_KEY="''${DB_ENCRYPTION_KEY-$(openssl rand -base64 32)}"
+                            export DB_URL="''${DB_URL-:memory:}"
+                            export PORT="''${PORT-8080}"
+                            ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+                              export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
+                              export LD_LIBRARY_PATH="${
+                                pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]
+                              }:''${LD_LIBRARY_PATH:-}"
+                            ''}
 
-              install_precommit_hook() {
-                if ! ${pkgs.git}/bin/git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-                  return
-                fi
+                            install_precommit_hook() {
+                              if ! ${pkgs.git}/bin/git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                                return
+                              fi
 
-                hook_path="$(${pkgs.git}/bin/git rev-parse --git-path hooks/pre-commit)"
-                hook_marker="# Installed by tickets flake.nix"
+                              hook_path="$(${pkgs.git}/bin/git rev-parse --git-path hooks/pre-commit)"
+                              hook_marker="# Installed by tickets flake.nix"
 
-                if [ -e "$hook_path" ] && ! grep -Fqx "$hook_marker" "$hook_path"; then
-                  echo "  pre-commit hook already exists; leaving it unchanged"
-                  return
-                fi
+                              if [ -e "$hook_path" ] && ! grep -Fqx "$hook_marker" "$hook_path"; then
+                                echo "  pre-commit hook already exists; leaving it unchanged"
+                                return
+                              fi
 
-                mkdir -p "$(dirname "$hook_path")"
-                cat > "$hook_path" <<'HOOK'
-#!/usr/bin/env sh
-# Installed by tickets flake.nix
-exec deno task precommit
-HOOK
-                chmod +x "$hook_path"
-                echo "  installed pre-commit hook - deno task precommit"
-              }
+                              mkdir -p "$(dirname "$hook_path")"
+                              cat > "$hook_path" <<'HOOK'
+              #!/usr/bin/env sh
+              # Installed by tickets flake.nix
+              exec deno task precommit
+              HOOK
+                              chmod +x "$hook_path"
+                              echo "  installed pre-commit hook - deno task precommit"
+                            }
 
-              install_precommit_hook
+                            install_precommit_hook
             '';
           };
         }
