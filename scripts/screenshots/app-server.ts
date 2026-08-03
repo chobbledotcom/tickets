@@ -69,14 +69,12 @@ const startAppServer = async ({
       Deno.env.set("DB_ENCRYPTION_KEY", DB_KEY);
       Deno.env.set("DB_URL", dbUrl);
       const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.stripe.configure(
-        {
-          secretKey: STRIPE_KEY,
-          webhookEndpointId: "we_screenshots",
-          webhookSecret: "whsec_screenshots",
-        },
-        "stripe",
-      );
+      await settings.update.stripe.configure({
+        secretKey: STRIPE_KEY,
+        webhookEndpointId: "we_screenshots",
+        webhookSecret: "whsec_screenshots",
+      });
+      await settings.update.paymentProvider("stripe");
     },
     stop: run,
   };

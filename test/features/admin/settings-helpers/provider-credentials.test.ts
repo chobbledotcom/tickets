@@ -16,7 +16,7 @@ type Fields = { merchant: string };
 type Config = Parameters<typeof defineProviderCredentialsRoute<Fields>>[0];
 
 const makeProviderRoute = (overrides: Partial<Config> = {}) => {
-  const saveSecret = fn((_value: string, _keepSalesOff: boolean) =>
+  const saveSecret = fn((_value: string, _activateFromMissing: boolean) =>
     Promise.resolve(null),
   ) as unknown as Config["saveSecret"] & ReturnType<typeof fn>;
   const saveFields = fn((_fields: Fields) =>
@@ -64,7 +64,7 @@ describeWithEnv("provider credential route", { db: true }, () => {
       "/admin/settings?form=settings-test-provider#settings-test-provider",
       "Test provider credentials saved",
     )(response);
-    expect(saveSecret).toHaveBeenCalledWith("new-secret", false);
+    expect(saveSecret).toHaveBeenCalledWith("new-secret", true);
     expect(saveFields).toHaveBeenCalledWith({ merchant: "merchant-1" });
     expect(settings.paymentProvider).toBe("stripe");
     expect((await getAllActivityLog()).at(-1)?.message).toBe(
@@ -78,6 +78,38 @@ describeWithEnv("provider credential route", { db: true }, () => {
     await post(routes.save, { merchant: "merchant-1", secret: "new-secret" });
 
     expect(saveSecret).toHaveBeenCalledWith("new-secret", true);
+    expect(settings.paymentProvider).toBeNull();
+    expect(settings.paymentProviderSetting).toBe("none");
+  });
+
+  test("keeps sales off when they are disabled during a credential save", async () => {
+    await settings.update.paymentProvider("square");
+    const saveStarted = Promise.withResolvers<void>();
+    const releaseSave = Promise.withResolvers<void>();
+    const { routes } = makeProviderRoute({
+      saveSecret: async () => {
+        saveStarted.resolve();
+        await releaseSave.promise;
+      },
+    });
+    const saving = post(routes.save, {
+      merchant: "merchant-1",
+      secret: "new-secret",
+    });
+    await saveStarted.promise;
+    await settings.update.setPaymentProviderNone();
+    releaseSave.resolve();
+    await saving;
+
+    expect(settings.paymentProvider).toBeNull();
+    expect(settings.paymentProviderSetting).toBe("none");
+  });
+
+  test("keeps sales off when the legacy provider setting is missing", async () => {
+    await settings.update.clearPaymentProvider();
+    const { routes } = makeProviderRoute({ hasSecret: () => true });
+    await post(routes.save, { merchant: "merchant-1", secret: "" });
+
     expect(settings.paymentProvider).toBeNull();
     expect(settings.paymentProviderSetting).toBe("none");
   });

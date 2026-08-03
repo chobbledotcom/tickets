@@ -7,7 +7,7 @@ import {
   enableBunnyDns,
   expectActivityLogged,
   postSubdomain,
-  setAmbiguousPaymentProvider,
+  requirePaymentProviderRecovery,
   subdomainCheck,
   withSubdomainCheck,
 } from "#test/features/admin/settings-domains/support.ts";
@@ -176,7 +176,7 @@ describeWithEnv(
 
     test("blocks registration until provider recovery is complete", async () => {
       enable();
-      await setAmbiguousPaymentProvider();
+      await requirePaymentProviderRecovery();
       const { response } = await adminFormPost(PATH, {
         save: "1",
         subdomain: "mylisting",

@@ -6,14 +6,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > Stripe settings", { db: true }, () => {
   test("keeps all prior credentials when the endpoint ID write fails", async () => {
-    await settings.update.stripe.configure(
-      {
-        secretKey: "sk_test_old",
-        webhookEndpointId: "we_old",
-        webhookSecret: "whsec_old",
-      },
-      "stripe",
-    );
+    await settings.update.stripe.configure({
+      secretKey: "sk_test_old",
+      webhookEndpointId: "we_old",
+      webhookSecret: "whsec_old",
+    });
     await settings.update.paymentProvider("square");
     await getDb().execute(`
       CREATE TRIGGER fail_stripe_endpoint_id
@@ -26,14 +23,11 @@ describeWithEnv("db > Stripe settings", { db: true }, () => {
 
     try {
       await expect(
-        settings.update.stripe.configure(
-          {
-            secretKey: "sk_test_new",
-            webhookEndpointId: "we_new",
-            webhookSecret: "whsec_new",
-          },
-          "stripe",
-        ),
+        settings.update.stripe.configure({
+          secretKey: "sk_test_new",
+          webhookEndpointId: "we_new",
+          webhookSecret: "whsec_new",
+        }),
       ).rejects.toThrow("endpoint id write failed");
     } finally {
       await getDb().execute("DROP TRIGGER fail_stripe_endpoint_id");

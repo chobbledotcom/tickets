@@ -18,15 +18,13 @@ import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import {
   BookingFeeForm,
+  PaymentProviderForm,
   SquareForm,
   SquareWebhookForm,
   StripeForm,
   SumUpForm,
 } from "#templates/admin/settings/payment.tsx";
-import {
-  ExistingPaymentProviderForm,
-  PaymentProviderForm,
-} from "#templates/admin/settings/payment-provider.tsx";
+import { ExistingPaymentProviderForm } from "#templates/admin/settings/payment-provider.tsx";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
 import { ThemeForm } from "#templates/admin/settings/theme.tsx";

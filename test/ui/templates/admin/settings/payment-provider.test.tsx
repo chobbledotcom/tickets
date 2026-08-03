@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { FormParams } from "#shared/form-data.ts";
+import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import {
   PAYMENT_PROVIDER_IDS,
   PAYMENT_PROVIDERS,
 } from "#shared/payment-providers.ts";
-import {
-  ExistingPaymentProviderForm,
-  PaymentProviderForm,
-} from "#templates/admin/settings/payment-provider.tsx";
+import { PaymentProviderForm } from "#templates/admin/settings/payment.tsx";
+import { ExistingPaymentProviderForm } from "#templates/admin/settings/payment-provider.tsx";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
@@ -106,6 +106,20 @@ describe("settings payment provider forms", () => {
       });
       expect(inputForValue(html, "sumup")).toContain(
         'name="existing_payment_provider"',
+      );
+    });
+
+    test("keeps the submitted provider selected after an error", () => {
+      setSavedFormData(new FormParams("existing_payment_provider=square"));
+      const html = render(ExistingPaymentProviderForm, {
+        paymentProviderRecoveryChoices: ["stripe", "square"],
+      });
+
+      expect(hasCheckedInput(html, "existing_payment_provider", "square")).toBe(
+        true,
+      );
+      expect(hasCheckedInput(html, "existing_payment_provider", "stripe")).toBe(
+        false,
       );
     });
 
