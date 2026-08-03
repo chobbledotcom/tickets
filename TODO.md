@@ -505,6 +505,24 @@ The seven accepted safety rules are recorded as acceptance constraints in
   of one global fallback. Referenced from
   `docs/payment-aggregate-acceptance.md` rule 2.
 
+- **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
+  Review of PR 1 correctly noted that the settings assembly is already over the
+  preferred 400-line size and now also owns provider activation, recovery,
+  credential-state preservation, and cache synchronization. The clean starting
+  point is `src/shared/db/settings/payment-provider.ts`, moving the provider
+  getters and `settings.update` methods together with mirror tests under
+  `test/shared/db/settings/payment-provider/`. This is deferred because that
+  extraction would take PR 1 beyond its strict 800-line source-change limit.
+
+- **Split provider credential routes out of
+  `src/features/admin/settings-helpers.ts`.** The generic helper now also owns
+  `ProviderCredentialsConfig`, `persistProviderCredentials`, and
+  `defineProviderCredentialsRoute`. Move that block to a focused admin settings
+  module and move its mirror tests from
+  `test/features/admin/settings-helpers/provider-credentials.test.ts` with it.
+  This is deferred because doing the move in PR 1 would break the same strict
+  800-line source-change limit.
+
 ## Request performance: consolidate AsyncLocalStorage scopes
 
 `src/features/app/request.ts` enters eleven nested request scopes for locale, client

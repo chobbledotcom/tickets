@@ -148,13 +148,24 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
 
-    test("selects saved credentials while sales are on", async () => {
+    test("keeps a newer active provider during a stale credential save", async () => {
       await settings.update.paymentProvider("square");
 
       await settings.update.paymentProviderAfterCredentialSave("stripe", false);
 
-      expect(settings.paymentProvider).toBe("stripe");
-      expect(settings.paymentProviderSetting).toBe("stripe");
+      expect(settings.paymentProvider).toBe("square");
+      expect(settings.paymentProviderSetting).toBe("square");
+    });
+
+    test("refuses ambiguous activation until the old provider is recovered", async () => {
+      await settings.update.stripe.secretKey("sk_test_ambiguous");
+      await settings.update.square.accessToken("square-ambiguous");
+
+      await expect(settings.update.paymentProvider("stripe")).rejects.toThrow(
+        "Choose the provider for existing payments before enabling new sales",
+      );
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.paymentProviderSetting).toBeNull();
     });
 
     test("does not select saved credentials after sales are switched off", async () => {

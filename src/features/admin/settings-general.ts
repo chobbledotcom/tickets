@@ -13,10 +13,12 @@ import {
   advancedSettingsRoute,
   settingsClearable,
   settingsHandler,
-  settingsParsedHandler,
+  settingsRoute,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
+import { redirect } from "#routes/response.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -72,34 +74,39 @@ export const handlePaymentProviderPost = settingsHandler({
   validate: (v) => {
     if (v === "none") return null;
     if (!isPaymentProvider(v)) return t("error.invalid_payment_provider");
+    if (existingPaymentProviderState().recoveryChoices.length > 0) {
+      return t("error.payment_provider_activation_requires_recovery");
+    }
     // The page switches this off already; refuse it here too.
     return providerCurrencyBlock(v, settings.currency);
   },
 });
 
 /** Record the provider for old payments without turning new sales on. */
-export const handlePaymentProviderRecoveryPost: RequestRoute =
-  settingsParsedHandler<string, PaymentProviderType>({
-    extract: (form) => form.getString("existing_payment_provider"),
-    formId: "settings-payment-provider-recovery",
-    log: (provider) =>
-      t("success.existing_payment_provider_set", {
-        provider: PAYMENT_PROVIDERS[provider].label,
-      }),
-    parse: (provider) => {
-      if (settings.paymentProvider) {
-        return {
-          error: t("error.payment_provider_recovery_unavailable"),
-          ok: false,
-        };
-      }
-      return isPaymentProvider(provider) &&
-        existingPaymentProviderState().recoveryChoices.includes(provider)
-        ? { ok: true, value: provider }
-        : { error: t("error.invalid_existing_payment_provider"), ok: false };
-    },
-    save: (provider) => settings.update.recoverPaymentProvider(provider),
-  });
+export const handlePaymentProviderRecoveryPost: RequestRoute = settingsRoute(
+  async (form, errorPage) => {
+    const formId = "settings-payment-provider-recovery";
+    const provider = form.getString("existing_payment_provider");
+    if (settings.paymentProvider) {
+      return errorPage(
+        t("error.payment_provider_recovery_unavailable"),
+        formId,
+      );
+    }
+    if (
+      !isPaymentProvider(provider) ||
+      !existingPaymentProviderState().recoveryChoices.includes(provider)
+    ) {
+      return errorPage(t("error.invalid_existing_payment_provider"), formId);
+    }
+    await settings.update.recoverPaymentProvider(provider);
+    const message = t("success.existing_payment_provider_set", {
+      provider: PAYMENT_PROVIDERS[provider].label,
+    });
+    await logActivity(message);
+    return redirect("/admin/settings", message, true, { formId });
+  },
+);
 
 /**
  * Handle POST /admin/settings/embed-hosts - owner only

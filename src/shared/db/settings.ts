@@ -166,24 +166,65 @@ const syncReturnedPaymentProvider = (active: PaymentProviderSetting): void => {
   setPaymentProviderSnapshot(active);
 };
 
+const syncLastActivePaymentProvider = (provider: string): void => {
+  syncStoredSetting(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, (values) =>
+    values.set(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, provider),
+  );
+  data.last_active_payment_provider = provider;
+};
+
 const syncDisabledPaymentProvider = (remembered: string): void => {
   syncReturnedPaymentProvider("none");
-  syncStoredSetting(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, (values) =>
-    values.set(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, remembered),
-  );
-  data.last_active_payment_provider = remembered;
+  syncLastActivePaymentProvider(remembered);
 };
+
+const rememberActivePaymentProvider = (
+  remembered: PaymentProviderType,
+  active: PaymentProviderSetting,
+) => ({
+  args: [remembered, active],
+  sql:
+    "INSERT INTO settings (key, value) SELECT 'last_active_payment_provider', ? " +
+    "WHERE (SELECT value FROM settings WHERE key = 'payment_provider') = ? " +
+    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+});
 
 const storePaymentProvider = async (
   active: PaymentProviderSetting,
   remembered: PaymentProviderType,
 ): Promise<void> => {
-  await writeRawBatch([
-    [CONFIG_KEYS.PAYMENT_PROVIDER, active],
-    [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, remembered],
-  ]);
-  setPaymentProviderSnapshot(active);
-  data.last_active_payment_provider = remembered;
+  const stored = v.parse(
+    PaymentProviderSettingSchema,
+    await executeSettingsBatchReturningValue(
+      {
+        args: [
+          CONFIG_KEYS.STRIPE_SECRET_KEY,
+          CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
+          CONFIG_KEYS.SUMUP_API_KEY,
+          active,
+        ],
+        sql:
+          "INSERT OR REPLACE INTO settings (key, value) VALUES (" +
+          "'payment_provider', CASE WHEN " +
+          "COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' " +
+          "AND COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') = '' " +
+          "AND (SELECT COUNT(*) FROM settings WHERE key IN (?, ?, ?) AND value <> '') > 1 " +
+          "THEN 'none' ELSE ? END) " +
+          "RETURNING value",
+      },
+      [
+        rememberActivePaymentProvider(remembered, active),
+        settingsVersionIncrement(),
+      ],
+    ),
+  );
+  if (stored !== active) {
+    throw new Error(
+      "Choose the provider for existing payments before enabling new sales",
+    );
+  }
+  syncReturnedPaymentProvider(active);
+  syncLastActivePaymentProvider(remembered);
 };
 
 const settingsBase = {
@@ -503,24 +544,24 @@ const settingsBase = {
         PaymentProviderSettingSchema,
         await executeSettingsBatchReturningValue(
           {
-            args: [
-              ...PAYMENT_PROVIDER_IDS,
-              activateFromMissing ? 1 : 0,
-              provider,
-            ],
+            args: [provider, provider, activateFromMissing ? 1 : 0, provider],
             sql:
               "INSERT OR REPLACE INTO settings (key, value) VALUES (" +
-              "'payment_provider', CASE WHEN " +
-              "COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') " +
-              `IN (${PAYMENT_PROVIDER_IDS.map(() => "?").join(", ")}) ` +
-              "OR (? = 1 AND NOT EXISTS (" +
-              "SELECT 1 FROM settings WHERE key = 'payment_provider')) " +
-              "THEN ? ELSE 'none' END) RETURNING value",
+              "'payment_provider', CASE " +
+              "WHEN (SELECT value FROM settings WHERE key = 'payment_provider') = ? THEN ? " +
+              "WHEN (? = 1 AND NOT EXISTS (" +
+              "SELECT 1 FROM settings WHERE key = 'payment_provider')) THEN ? " +
+              "ELSE COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') " +
+              "END) RETURNING value",
           },
-          [settingsVersionIncrement()],
+          [
+            rememberActivePaymentProvider(provider, provider),
+            settingsVersionIncrement(),
+          ],
         ),
       );
       syncReturnedPaymentProvider(active);
+      if (active === provider) syncLastActivePaymentProvider(provider);
     },
     recoverPaymentProvider: async (v: PaymentProviderType): Promise<void> => {
       await withTransaction(async (tx) => {

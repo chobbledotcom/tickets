@@ -11,24 +11,12 @@ import {
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { hasCheckedInput } from "#test-utils/csrf.ts";
+import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMockBunnyCdnApi } from "#test-utils/mocks.ts";
 import { requirePaymentProviderRecovery } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
-
-const providerInput = (html: string, provider: string): string => {
-  const input = [...html.matchAll(/<input\b[^>]*>/g)]
-    .map(([tag]) => tag)
-    .find(
-      (tag) =>
-        tag.includes('name="existing_payment_provider"') &&
-        tag.includes(`value="${provider}"`),
-    );
-  if (!input) throw new Error(`Missing ${provider} provider input`);
-  return input;
-};
 
 Given(
   "a Stripe test key is saved while Square takes payments",
@@ -205,7 +193,11 @@ Then(
       'id="settings-payment-provider-recovery"',
     );
     for (const provider of ["stripe", "square"]) {
-      const input = providerInput(browser.currentHtml, provider);
+      const input = inputTagWithValue(
+        browser.currentHtml,
+        provider,
+        "existing_payment_provider",
+      );
       expect(input).toContain('name="existing_payment_provider"');
       expect(input).toContain("required");
       expect(input).toContain(`value="${provider}"`);

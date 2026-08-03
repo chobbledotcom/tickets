@@ -117,47 +117,38 @@ type SettingsMessage<T> =
   | { label: string; log?: undefined }
   | { label?: never; log: (value: T) => string };
 
-type SavedSettingConfig<T> = RedirectOpts &
+type SettingsHandlerConfig<T> = RedirectOpts &
   SettingsMessage<T> & {
+    /** Form ID for flash message targeting (omit for non-settings pages) */
     formId?: string | undefined;
+    /** Extract the value from form data */
+    extract: (form: FormParams) => T;
+    /** Validate the value. Return error string or null if valid. */
+    validate?: ValidateFn<T> | undefined;
+    /** Persist the value */
     save: (value: T) => Promise<void> | void;
   };
-
-type SettingsHandlerConfig<T> = SavedSettingConfig<T> & {
-  /** Extract the value from form data */
-  extract: (form: FormParams) => T;
-  /** Validate the value. Return error string or null if valid. */
-  validate?: ValidateFn<T> | undefined;
-};
-
-type ParsedValue<T> = { ok: true; value: T } | { error: string; ok: false };
-
-type ParsedSettingsHandlerConfig<Input, Output> = SavedSettingConfig<Output> & {
-  extract: (form: FormParams) => Input;
-  parse: (value: Input) => ParsedValue<Output> | Promise<ParsedValue<Output>>;
-};
-
-const saveSetting = async <T>(
-  cfg: SavedSettingConfig<T>,
-  value: T,
-): Promise<Response> => {
-  await cfg.save(value);
-  const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
-  await logActivity(msg);
-  return redirect(
-    pathFor(cfg),
-    msg,
-    true,
-    cfg.formId ? { formId: cfg.formId } : undefined,
-  );
-};
 
 const createSettingsHandler =
   <T>(cfg: SettingsHandlerConfig<T>): SettingsFormHandler =>
   async (form, errorPage) => {
     const value = cfg.extract(form);
-    return afterValidation(cfg.validate, value, errorPage, cfg.formId, () =>
-      saveSetting(cfg, value),
+    return afterValidation(
+      cfg.validate,
+      value,
+      errorPage,
+      cfg.formId,
+      async () => {
+        await cfg.save(value);
+        const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
+        await logActivity(msg);
+        return redirect(
+          pathFor(cfg),
+          msg,
+          true,
+          cfg.formId ? { formId: cfg.formId } : undefined,
+        );
+      },
     );
   };
 
@@ -165,22 +156,15 @@ const createSettingsHandler =
 const settingsHandler = <T>(cfg: SettingsHandlerConfig<T>): RequestRoute =>
   routedSettings(createSettingsHandler<T>)(cfg);
 
-const settingsParsedHandler = <Input, Output>(
-  cfg: ParsedSettingsHandlerConfig<Input, Output>,
-): RequestRoute =>
-  asRoute(cfg, async (form, errorPage) => {
-    const parsed = await cfg.parse(cfg.extract(form));
-    if (!parsed.ok) return errorPage(parsed.error, cfg.formId);
-    return saveSetting(cfg, parsed.value);
-  });
-
 // ── Specialization: toggleHandler ───────────────────────────────────
 
 /** The base every settings field-save config shares: where to redirect, the
  * flash form id, the form field name, its label, and how to persist the value. */
-type SavableFieldConfig<T> = SavedSettingConfig<T> & {
+type SavableFieldConfig<T> = RedirectOpts & {
+  formId?: string | undefined;
   field: string;
   label: string;
+  save: (value: T) => Promise<void> | void;
 };
 
 type ToggleConfig = SavableFieldConfig<boolean>;
@@ -413,16 +397,21 @@ const defineProviderCredentialsRoute = <T>(
       return settingsFlash(cfg.unchangedMessage);
     }
 
-    const saveError = await persistProviderCredentials(
-      cfg,
-      fields,
-      secret,
-      activateFromMissing,
+    const task = await settings.withCurrentTask(
+      `payment-provider-${cfg.provider}`,
+      async () => {
+        const saveError = await persistProviderCredentials(
+          cfg,
+          fields,
+          secret,
+          activateFromMissing,
+        );
+        if (saveError) return errorPage(saveError, cfg.formId);
+        await logActivity(cfg.logMessage);
+        return settingsFlash(cfg.successMessage);
+      },
     );
-    if (saveError) return errorPage(saveError, cfg.formId);
-
-    await logActivity(cfg.logMessage);
-    return settingsFlash(cfg.successMessage);
+    return task.ok ? task.value : errorPage(task.error, cfg.formId);
   });
 
   return { save, test: testRoute(cfg.testFn) };
@@ -449,7 +438,6 @@ export {
   secretFieldHandler,
   settingsClearable,
   settingsHandler,
-  settingsParsedHandler,
   settingsRoute,
   settingsSecret,
   settingsToggle,

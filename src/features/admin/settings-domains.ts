@@ -67,28 +67,9 @@ export const handleCustomDomainPost = advancedSettingsRoute(
   async (form, errorPage) => {
     const cdnError = requireBunnyCdn(errorPage, "settings-custom-domain");
     if (cdnError) return cdnError;
-    const recoveryError = requirePaymentProviderRecovery(
-      errorPage,
-      "settings-custom-domain",
-    );
-    if (recoveryError) return recoveryError;
-
     const raw = form.getString("custom_domain").toLowerCase();
 
-    if (raw === "") {
-      await settings.update.customDomain("");
-      await logActivity("Custom domain cleared");
-      return ok(
-        "/admin/settings-advanced",
-        t("success.custom_domain_cleared"),
-        {
-          formId: "settings-custom-domain",
-        },
-      );
-    }
-
-    // Basic domain validation: must look like a hostname
-    if (!DOMAIN_PATTERN.test(raw)) {
+    if (raw !== "" && !DOMAIN_PATTERN.test(raw)) {
       return errorPage(
         t("error.invalid_domain_format"),
         "settings-custom-domain",
@@ -100,6 +81,20 @@ export const handleCustomDomainPost = advancedSettingsRoute(
       "settings-custom-domain",
       errorPage,
       async () => {
+        const recoveryError = requirePaymentProviderRecovery(
+          errorPage,
+          "settings-custom-domain",
+        );
+        if (recoveryError) return recoveryError;
+        if (raw === "") {
+          await settings.update.customDomain("");
+          await logActivity("Custom domain cleared");
+          return ok(
+            "/admin/settings-advanced",
+            t("success.custom_domain_cleared"),
+            { formId: "settings-custom-domain" },
+          );
+        }
         await settings.update.customDomain(raw);
         await logActivity(`Custom domain set to ${raw}`);
 
@@ -218,18 +213,16 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
       );
     }
 
-    const recoveryError = requirePaymentProviderRecovery(
-      errorPage,
-      FORM_ID_HOST_SUBDOMAIN,
-    );
-    if (recoveryError) return recoveryError;
-
-    // Save: actually register (guarded by current_task)
     return runGuardedTask(
       "host-subdomain",
       FORM_ID_HOST_SUBDOMAIN,
       errorPage,
       async () => {
+        const recoveryError = requirePaymentProviderRecovery(
+          errorPage,
+          FORM_ID_HOST_SUBDOMAIN,
+        );
+        if (recoveryError) return recoveryError;
         const result = await registerBunnySubdomain(raw);
         return orErrorPage(
           result,
