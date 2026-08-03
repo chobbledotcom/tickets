@@ -345,12 +345,17 @@ describe("the days a page has ticked", () => {
     /** A browser stand-in: it holds the page it was served and remembers what
      * was sent, so the helper's own two jobs can be seen separately. */
     const pageOffering = (html: string) => {
-      const sent: Array<{ button: string; values: Record<string, string> }> =
-        [];
+      const sent: Array<{
+        button: string;
+        values: Record<string, string | string[]>;
+      }> = [];
       return {
         browser: {
           currentHtml: html,
-          submitForm: (values: Record<string, string>, button: string) => {
+          submitForm: (
+            values: Record<string, string | string[]>,
+            button: string,
+          ) => {
             sent.push({ button, values });
             return Promise.resolve();
           },
@@ -359,21 +364,63 @@ describe("the days a page has ticked", () => {
       };
     };
 
-    test("sends the values, naming the button that was pressed", async () => {
-      const page = pageOffering('<input name="username" value="">');
+    /** Fill in and send the page the stand-in is serving. Its browser is only
+     * the handful of parts this helper touches, so it is passed as one. */
+    const sendOn = (
+      page: ReturnType<typeof pageOffering>,
+      values: Record<string, string>,
+      ticked?: Record<string, string[]>,
       // deno-lint-ignore no-explicit-any
-      await fillInAndSend(page.browser as any, { username: "sam" }, "Invite");
-      expect(page.sent).toEqual([
-        { button: "Invite", values: { username: "sam" } },
-      ]);
-    });
+    ): Promise<void> =>
+      fillInAndSend(page.browser as any, values, "Invite", ticked);
+
+    const NAME_BOX = '<input name="username" value="">';
+    const DAY_BOX = '<input type="checkbox" name="days" value="Monday">';
+
+    /** One filling-in: what the page offers, what is typed and ticked into it,
+     * and the one send that should come out the other side. */
+    const SENDS: Array<{
+      offering: string;
+      sends: Record<string, string | string[]>;
+      ticked?: Record<string, string[]>;
+      typed: Record<string, string>;
+      what: string;
+    }> = [
+      {
+        offering: NAME_BOX,
+        sends: { username: "sam" },
+        typed: { username: "sam" },
+        what: "the values, naming the button that was pressed",
+      },
+      {
+        offering: `${NAME_BOX}${DAY_BOX}`,
+        sends: { days: ["Monday"], username: "sam" },
+        ticked: { days: ["Monday"] },
+        typed: { username: "sam" },
+        what: "the boxes that were ticked alongside what was typed",
+      },
+      {
+        offering: NAME_BOX,
+        sends: { days: [] },
+        ticked: { days: [] },
+        typed: {},
+        what: "a box left clear as nothing at all",
+      },
+    ];
+
+    for (const example of SENDS) {
+      test(`sends ${example.what}`, async () => {
+        const page = pageOffering(example.offering);
+        await sendOn(page, example.typed, example.ticked);
+        expect(page.sent).toEqual([
+          { button: "Invite", values: example.sends },
+        ]);
+      });
+    }
 
     test("sends nothing when a value could not really be sent", async () => {
       const page = pageOffering('<input name="username" value="" disabled>');
-      await expect(
-        // deno-lint-ignore no-explicit-any
-        fillInAndSend(page.browser as any, { username: "sam" }, "Invite"),
-      ).rejects.toThrow();
+      await expect(sendOn(page, { username: "sam" })).rejects.toThrow();
       expect(page.sent).toEqual([]);
     });
   });

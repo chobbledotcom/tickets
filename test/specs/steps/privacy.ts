@@ -3,6 +3,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
   adaBooks,
   listingStillLists,
@@ -15,10 +16,12 @@ import {
   POTTERY,
   timesTheSiteHasSeen,
   whatTheFormOffers,
-  whatTheOrganiserWasTold,
   whatThePrivacyPageSays,
 } from "#test/specs/support/privacy.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  type TicketsWorld,
+  whatTheyWereTold,
+} from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
 
@@ -78,7 +81,7 @@ Then(
 Then(
   "the organiser is told {int} record was deleted",
   function (this: TicketsWorld, count: number): void {
-    expect(whatTheOrganiserWasTold(this)).toContain(
+    expect(whatTheyWereTold(this, ORGANISER)).toContain(
       t("privacy.orphans.flash_purged", { count }),
     );
   },
@@ -122,7 +125,7 @@ When(
 Then(
   "the organiser is told the record was deleted",
   function (this: TicketsWorld): void {
-    expect(whatTheOrganiserWasTold(this)).toContain(
+    expect(whatTheyWereTold(this, ORGANISER)).toContain(
       t("privacy.erase.flash_done"),
     );
   },
@@ -152,7 +155,7 @@ Then(
 Then(
   "the organiser is told there was nothing to delete",
   function (this: TicketsWorld): void {
-    expect(whatTheOrganiserWasTold(this)).toContain(
+    expect(whatTheyWereTold(this, ORGANISER)).toContain(
       t("privacy.erase.flash_none"),
     );
   },
@@ -161,7 +164,7 @@ Then(
 Then(
   "the organiser is told to enter an email or phone number",
   function (this: TicketsWorld): void {
-    expect(whatTheOrganiserWasTold(this)).toContain(
+    expect(whatTheyWereTold(this, ORGANISER)).toContain(
       t("privacy.erase.error_identifier"),
     );
   },

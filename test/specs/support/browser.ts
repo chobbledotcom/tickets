@@ -6,7 +6,7 @@ import {
 } from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
-import type { TicketsWorld } from "./world.ts";
+import { type TicketsWorld, whatWasKeptFor } from "./world.ts";
 // jscpd:ignore-end
 
 /** Whose browser each story keeps. The organiser's is the story's own, so a
@@ -27,8 +27,7 @@ export const rememberBrowser = (
 /** The window somebody is already looking at. A story that never gave them one
  * has nothing to read, so it says so rather than opening a fresh window and
  * reporting on a page nobody was ever shown. */
-export const browserSeenBy = (world: TicketsWorld, who: string): TestBrowser =>
-  world.things.require("browser", who);
+export const browserSeenBy = whatWasKeptFor("browser");
 
 export const browserOf = (world: TicketsWorld, who: string): TestBrowser =>
   world.things.orMake("browser", who, () => new TestBrowser());

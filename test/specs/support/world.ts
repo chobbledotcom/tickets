@@ -8,6 +8,8 @@ import type { DoorAnswer } from "#test/specs/support/door.ts";
 import type {
   PutsThingsBack,
   RemembersThings,
+  ThingKind,
+  ThingsByKind,
 } from "#test/specs/support/memory.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
 import type {
@@ -188,6 +190,28 @@ export const keepsAnswerAs =
   async (world, ...args) => {
     world.things.remember("told", name, await journey(world, ...args));
   };
+
+/** What the story kept for somebody, or a loud failure when it kept none —
+ * their own window, the ticket they hold, what they were last told. Curried on
+ * which kind of thing is being asked for, so every reader is one line and they
+ * all fail the same way. */
+export const whatWasKeptFor =
+  <Kind extends ThingKind>(kind: Kind) =>
+  (world: TicketsWorld, who: string): ThingsByKind[Kind] =>
+    world.things.require(kind, who);
+
+/** Keep what somebody was told the last time they did something, and read it
+ * back. Every "the organiser is told …" step is one of these two halves, so
+ * they live together rather than once per story. */
+export const keepWhatTheyWereTold = (
+  world: TicketsWorld,
+  who: string,
+  told: string,
+): void => {
+  world.things.remember("told", who, told);
+};
+
+export const whatTheyWereTold = whatWasKeptFor("told");
 
 export const requiredWorldValue = <Value>(
   value: Value | null | undefined,

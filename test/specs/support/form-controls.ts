@@ -242,16 +242,23 @@ export const expectCanReallySend = (
   }
 };
 
-/** Somebody fills a page's form in and sends it. Every value is checked against
- * the page they were served first, so a story can never send something no real
- * browser would have offered them. */
+/** Somebody fills a page's form in and sends it. Every value they type or pick
+ * is checked against the page they were served first, so a story can never
+ * send something no real browser would have offered them.
+ *
+ * Boxes they tick come separately, because a tick is not a typed value: it
+ * sends whatever the page's own box carries, several boxes can share one name,
+ * and leaving one clear sends nothing at all. The caller reads those values off
+ * the page — `checkboxValueOffered` and `tickedCheckboxes` above — so they are
+ * already the page's own. */
 export const fillInAndSend = async (
   browser: TestBrowser,
   values: Record<string, string>,
   buttonText: string,
+  ticked: Record<string, string[]> = {},
 ): Promise<void> => {
   expectCanReallySend(browser.currentHtml, values);
-  await browser.submitForm(values, buttonText);
+  await browser.submitForm({ ...values, ...ticked }, buttonText);
 };
 
 /** Somebody takes a thing down from its own admin page, typing its name to

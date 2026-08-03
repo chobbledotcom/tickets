@@ -15,14 +15,16 @@ import {
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
+  movingRowsOn,
+  type OpensAtOneRow,
+} from "#test/specs/support/reordering.ts";
+import {
   type ActOnOneThing,
   type AsksAboutOneThing,
-  asksIfThereIs,
   keepsAnswerAs,
   type StoryJourney,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { adminFormPost } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -90,10 +92,7 @@ const pageNamed = async (name: string) => {
 
 /** The owner's own list, open, with one page's id to hand. Looking the page up
  * first means a story can never act on one the site does not have. */
-const openList = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<{ browser: TestBrowser; id: number }> => {
+const openList: OpensAtOneRow = async (world, name) => {
   const { id } = await pageNamed(name);
   return { browser: await openAdminPage(world, PAGES_LIST), id };
 };
@@ -122,12 +121,8 @@ const linkIntoPage = offeredForPage((browser, id) => {
   return browser.links.find(({ href }) => into.test(href))?.href ?? null;
 });
 
-/** One page's own move arrow on the owner's list. Its absence is how the site
- * says a page is already at the end, rather than failing. */
-const moveArrowFor = offeredForPage((browser, id, direction: string) => {
-  const arrow = `${PAGES_LIST}/${id}/move-${direction}`;
-  return browser.currentHtml.includes(arrow) ? arrow : null;
-});
+/** The arrows the owner's own list offers for moving one page. */
+const pageArrows = movingRowsOn(PAGES_LIST, openList);
 
 /** The names of the site's pages in the order the owner is offered them, read
  * off their own list. Reading the stored rows instead would pass even if the
@@ -148,17 +143,14 @@ export const pagesInOrder = async (world: TicketsWorld): Promise<string[]> => {
  * than words, and every row has its own, so the story checks the list really
  * offers this page's arrow before pressing it. A page already at the top has no
  * up arrow at all, which is how the site says "no further". */
-export const ownerMovesPageUp: ActOnOneThing = async (world, name) => {
-  const arrow = await moveArrowFor(world, name, "up");
-  if (arrow) await adminFormPost(arrow, {});
-};
+export const ownerMovesPageUp: ActOnOneThing = (world, name) =>
+  pageArrows.move(world, name, "up");
 
 /** Whether the owner's list offers to move one page up at all. A page already
  * at the top has no up arrow, which is how the site says "no further" — so
  * there is no request to send rather than one that quietly does nothing. */
-export const pageIsOfferedAMoveUp: AsksAboutOneThing = asksIfThereIs(
-  (world, name) => moveArrowFor(world, name, "up"),
-);
+export const pageIsOfferedAMoveUp: AsksAboutOneThing = (world, name) =>
+  pageArrows.canMove(world, name, "up");
 
 /** The owner takes a page down, typing a name to confirm. Keeps what they were
  * told, because typing it wrongly is meant to change nothing. */

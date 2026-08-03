@@ -21,7 +21,6 @@ import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   choicesOffered,
-  expectCanReallySend,
   fillInAndSend,
   takeDownFromActions,
   tickedCheckboxes,
@@ -31,10 +30,11 @@ import {
   rememberListing,
 } from "#test/specs/support/listings.ts";
 import { visitorBooks } from "#test/specs/support/public-booking.ts";
-import type {
-  ActOnOneThing,
-  AsksAboutOneThing,
-  TicketsWorld,
+import {
+  type ActOnOneThing,
+  type AsksAboutOneThing,
+  keepWhatTheyWereTold,
+  type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
@@ -79,15 +79,6 @@ const openPrivacyPage = (world: TicketsWorld): Promise<TestBrowser> =>
 export const whatThePrivacyPageSays = async (
   world: TicketsWorld,
 ): Promise<string> => (await openPrivacyPage(world)).pageText;
-
-/** Keep what the organiser was told, so the step that reads it back does not
- * have to send anything itself. */
-const keepWhatTheyWereTold = (world: TicketsWorld, told: string): void => {
-  world.things.remember("told", ORGANISER, told);
-};
-
-export const whatTheOrganiserWasTold = (world: TicketsWorld): string =>
-  world.things.require("told", ORGANISER);
 
 /** How many times the site has seen somebody, found the way the site finds
  * them: by a one-way code made from the email or phone, never by the address
@@ -206,13 +197,13 @@ const pressesOnOrphansForm =
     // The box starts ticked, so a story that clears it is really changing
     // something. A page that came back already clear would make that a no-op.
     expect(tickedCheckboxes(browser.currentHtml, BY_ITSELF)).toContain(tick);
-    const chosen = { [AGE_CHOOSER]: ageOffered(browser.currentHtml, age) };
-    expectCanReallySend(browser.currentHtml, chosen);
-    await browser.submitForm(
-      { ...chosen, [BY_ITSELF]: choice.byItself ? [tick] : [] },
+    await fillInAndSend(
+      browser,
+      { [AGE_CHOOSER]: ageOffered(browser.currentHtml, age) },
       t(choice.pressingKey),
+      { [BY_ITSELF]: choice.byItself ? [tick] : [] },
     );
-    keepWhatTheyWereTold(world, browser.pageText);
+    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
   };
 
 /** The organiser clears out the records left behind, choosing how old one has
@@ -258,7 +249,7 @@ const sendsEraseForm = async (
     { contact_type: CHANNEL_OF[found.by], identifier: found.typing },
     t("privacy.erase.button"),
   );
-  keepWhatTheyWereTold(world, browser.pageText);
+  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
 /** The organiser forgets Ada, found by one of the two ways they are known. */
