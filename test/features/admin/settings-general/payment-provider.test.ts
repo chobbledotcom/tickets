@@ -59,6 +59,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expectFlash(response, "Payment provider disabled");
       expect(settings.paymentProvider).toBeNull();
       expect(settings.paymentProviderSetting).toBe("none");
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
 
     test("refuses a provider that cannot take the site currency", async () => {

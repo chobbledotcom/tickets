@@ -75,14 +75,14 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
   });
 
   test("throws when the current provider setting is corrupt", async () => {
-    await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "broken-provider");
+    await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "mutated");
     await settings.update.stripe.secretKey("sk_test_stored");
     await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "stripe");
     settings.invalidateCache();
     await settings.loadKeys(ALL_SETTINGS_KEYS);
 
     await expect(getPaymentProviderForExistingPayments()).rejects.toThrow(
-      "Invalid payment_provider setting: broken-provider",
+      "Invalid payment_provider setting: mutated",
     );
   });
 

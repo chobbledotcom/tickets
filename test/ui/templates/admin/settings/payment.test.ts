@@ -97,12 +97,24 @@ describe("settings payment forms", () => {
         'action="/admin/settings/payment-provider-recovery"',
       );
       expect(html).toContain('id="settings-payment-provider-recovery"');
+      expect(html).toContain('<div class="prose">');
+      expect(html).toContain('<fieldset class="radios">');
       for (const provider of ["stripe", "square"]) {
         const input = inputForValue(html, provider);
         expect(input).toContain('name="existing_payment_provider"');
         expect(input).toContain("required");
+        expect(input).not.toContain("checked");
       }
       expect(html).toContain("New sales will stay off.");
+    });
+
+    test("shows the recovery form for one configured provider", () => {
+      const html = render(ExistingPaymentProviderForm, {
+        paymentProviderRecoveryChoices: ["sumup"],
+      });
+      expect(inputForValue(html, "sumup")).toContain(
+        'name="existing_payment_provider"',
+      );
     });
 
     test("stays hidden when no recovery choice is needed", () => {

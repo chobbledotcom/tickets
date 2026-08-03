@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import { getActivePaymentProvider } from "#shared/payments.ts";
+import {
+  getActivePaymentProvider,
+  getPaymentProviderForExistingPayments,
+} from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
@@ -23,6 +26,17 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
     await getActivePaymentProvider();
     expect(
       debugLogged(debugSpy, "[Payment] Resolving payment provider: stripe"),
+    ).toBe(true);
+  });
+
+  test("labels a provider resolved for existing payments", async () => {
+    await settings.update.paymentProvider("stripe");
+    await getPaymentProviderForExistingPayments();
+    expect(
+      debugLogged(
+        debugSpy,
+        "[Payment] Resolving payment provider for existing payments: stripe",
+      ),
     ).toBe(true);
   });
 

@@ -90,6 +90,7 @@ describeWithEnv("writeRaw", { db: true }, () => {
   });
 
   test("written keys are not refilled later in the same request", async () => {
+    settings.invalidateCache();
     await runWithRequestCache(async () => {
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
       await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "same_request");
