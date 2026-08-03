@@ -522,10 +522,10 @@ describe("TestBrowser forms", () => {
   describe("submitting the one form that posts to an address", () => {
     /** Two rows' worth of identical arrows — the shape this exists for, where
      * the button's own words cannot tell one row from another. */
-    const arrows = (secondArrow: string) => `
-      <form action="/rows/1/move-up"><input name="csrf" value="tok">
+    const arrows = (secondArrow: string, method = ' method="POST"') => `
+      <form action="/rows/1/move-up" method="POST"><input name="csrf" value="tok">
         <button type="submit">▲</button></form>
-      <form action="/rows/2/move-up"><input name="csrf" value="tok2">
+      <form action="/rows/2/move-up"${method}><input name="csrf" value="tok2">
         ${secondArrow}</form>
     `;
 
@@ -576,6 +576,15 @@ describe("TestBrowser forms", () => {
 
       expect(body).toContain('name="elsewhere"');
       expect(body).not.toContain('name="only_here"');
+    });
+
+    it("refuses a form that would send by GET, having declared no method", async () => {
+      const browser = new TestBrowser();
+      browser.currentHtml = arrows(pressable, "");
+
+      await expect(browser.submitFormAt("/rows/2/move-up")).rejects.toThrow(
+        'The form at "/rows/2/move-up" does not send by POST',
+      );
     });
 
     it("refuses an address no form on the page posts to", async () => {

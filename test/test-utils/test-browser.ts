@@ -178,14 +178,20 @@ export const extractFormEntries = (formHtml: string): FormEntry[] => {
   return entries;
 };
 
-type FormInfo = { action: string; body: string };
+/** One form on the page: where it sends, what it carries, and how it sends —
+ * the method it declares, or the `get` a browser falls back to without one. */
+type FormInfo = { action: string; body: string; method: string };
 
-/** Find all forms in HTML, returning their action and body */
+/** Find all forms in HTML, returning where each sends, how, and what it holds */
 const findForms = (html: string): FormInfo[] =>
   regexCollect(
-    /<form\s[^>]*action="([^"]*)"[^>]*>([\s\S]*?)<\/form>/gi,
+    /<form\s([^>]*action="([^"]*)"[^>]*)>([\s\S]*?)<\/form>/gi,
     html,
-    (m) => ({ action: decodeEntities(m[1]!), body: m[2]! }),
+    (m) => ({
+      action: decodeEntities(m[2]!),
+      body: m[3]!,
+      method: (attrValue(m[1]!, "method") ?? "get").toLowerCase(),
+    }),
   );
 
 /** Extract all checkbox values for a given field name from form HTML */
@@ -544,6 +550,11 @@ export class TestBrowser {
     const form = findForms(this.currentHtml).find((f) => f.action === action);
     if (!form) {
       throw new Error(`No form on this page posts to "${action}"`);
+    }
+    // A form that declares no method sends by GET, which no route reached this
+    // way accepts — so pressing it would go nowhere, whatever this method did.
+    if (form.method !== "post") {
+      throw new Error(`The form at "${action}" does not send by POST`);
     }
     // Only a submit button submits: a `type="button"` or `type="reset"` one is
     // rendered and pressable but sends nothing, and a browser has no default
