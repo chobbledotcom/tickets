@@ -17,10 +17,10 @@ import {
   getVisits,
 } from "#shared/db/contact-preferences.ts";
 // jscpd:ignore-start
-import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
 import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
+  choicesOffered,
   expectCanReallySend,
   fillInAndSend,
   takeDownFromActions,
@@ -162,18 +162,21 @@ export const listingStillLists: AsksAboutOneThing = async (world, name) =>
   (await listingPage(world, name, "/attendees")).containsText(ADA.name);
 
 /** The box on the orphaned-records form that says the site should do the
- * clearing out by itself. */
+ * clearing out by itself, and the dropdown beside it for how old a record has
+ * to be. */
 const BY_ITSELF = "auto_purge";
+const AGE_CHOOSER = "retention";
 
 /** The value the page's own dropdown sends for an age the organiser reads on
- * screen. Stories name the words on the page; how many days that is, is the
- * site's own business. */
-const ageOffered = (label: string): string => {
-  const option = ORPHAN_RETENTION_OPTIONS.find(
-    (offered) => t(offered.labelKey) === label,
+ * screen. Both halves are read off the served page, so a form that put the
+ * wrong words beside an age fails the story: the organiser could not have
+ * chosen the age the story names. */
+const ageOffered = (html: string, label: string): string => {
+  const choice = choicesOffered(html, AGE_CHOOSER).find(
+    (offered) => offered.label === label,
   );
-  if (!option) throw new Error(`The page offers no age called "${label}"`);
-  return option.value;
+  if (!choice) throw new Error(`The page offers no age called "${label}"`);
+  return choice.value;
 };
 
 /** What the page's forms would send if the organiser pressed a button without
@@ -203,7 +206,7 @@ const pressesOnOrphansForm =
     // The box starts ticked, so a story that clears it is really changing
     // something. A page that came back already clear would make that a no-op.
     expect(tickedCheckboxes(browser.currentHtml, BY_ITSELF)).toContain(tick);
-    const chosen = { retention: ageOffered(age) };
+    const chosen = { [AGE_CHOOSER]: ageOffered(browser.currentHtml, age) };
     expectCanReallySend(browser.currentHtml, chosen);
     await browser.submitForm(
       { ...chosen, [BY_ITSELF]: choice.byItself ? [tick] : [] },
@@ -232,13 +235,13 @@ export const whatTheFormOffers = async (
   world: TicketsWorld,
 ): Promise<{ age: string; byItself: boolean }> => {
   const html = (await openPrivacyPage(world)).currentHtml;
-  const set = alreadyFilledIn(html, "retention");
-  const age = ORPHAN_RETENTION_OPTIONS.find((offered) =>
-    set.includes(offered.value),
+  const set = alreadyFilledIn(html, AGE_CHOOSER);
+  const age = choicesOffered(html, AGE_CHOOSER).find(({ value }) =>
+    set.includes(value),
   );
   if (!age) throw new Error("The form is set to no age at all");
   return {
-    age: t(age.labelKey),
+    age: age.label,
     byItself: tickedCheckboxes(html, BY_ITSELF).length > 0,
   };
 };

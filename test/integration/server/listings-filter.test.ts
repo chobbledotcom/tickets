@@ -1,9 +1,12 @@
 /**
- * What is left of the listing-filter tests once the story "The organiser
- * narrows a long list down to what they are looking for" tells the journeys:
- * the arms a story cannot reach (a purchase-only listing, an address nothing
- * links to, a link whose wrong build leaves the same rows on the page), the
- * second page that narrows the same way, and the download.
+ * Narrowing the listings a page shows, in the cases a click cannot reach: a
+ * listing nobody checks in, an address nothing on the site links to, and a link
+ * whose wrong build would leave the very same rows on the page. Also the
+ * listings page's own narrowing and its download, and the details a customer is
+ * shown on the pages they read.
+ *
+ * The organiser's own journey through these filters is told in the story "The
+ * organiser narrows a long list down to what they are looking for".
  */
 
 import { expect } from "@std/expect";
@@ -54,12 +57,10 @@ describeWithEnv("listings type filter", { db: true }, () => {
       expect(html).toContain("<strong><u>All</u></strong>");
     });
 
-    // The other half of this pair — a kind link keeping the chosen wording — is
-    // told by the story "The organiser narrows a long list down to what they
-    // are looking for", by narrowing twice and reading what is left. This half
-    // stays here because no click a story could make tells it apart: dropping
-    // the kind from a wording link and dropping the wording itself leave the
-    // same rows on the page.
+    // Only reading the link itself tells this apart: dropping the kind from a
+    // wording link and dropping the wording altogether leave the very same rows
+    // on the page. The mirror claim — a kind link keeping the chosen wording —
+    // is told by the story, which narrows twice and reads what is left.
     test("a wording link keeps the chosen listing type", async () => {
       const daily = await createTestListing({ name: "Daily Hard", ...DAILY });
       const difficulty = await createTestAttributeWithOptions("Difficulty", [

@@ -2,10 +2,12 @@
  * Tests for the admin Privacy page (GET render + the orphan-purge and GDPR
  * erasure POST handlers).
  *
- * The journeys these routes serve are told in the story "The organiser keeps
- * only the personal details the site still needs"; what is left here is each
- * arm of the two handlers that a story cannot be the only cover of, plus the
- * refusals no rendered form could ever send.
+ * These cover each arm of the two handlers directly, including the refusals no
+ * rendered form could ever send: an age outside the dropdown's own list, and a
+ * "find by" nothing on the page offers. The organiser's journey through the
+ * same page is told in the story "The organiser keeps only the personal details
+ * the site still needs", and a Cucumber run does not count towards coverage, so
+ * the arms below stay covered here.
  *
  * Note on the background prune: most requests flush the fire-and-forget prune
  * scheduler before responding, but POST /admin/privacy/orphans deliberately
@@ -108,6 +110,29 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       method: "POST",
     });
 
+    // A year-old orphan is the point: auto-purge is on by default and the
+    // orphan prune is due on a fresh database, so a save that let the scheduler
+    // run would reap this record under the previous 182-day retention. The
+    // story beside this ("The organiser keeps only the personal details the
+    // site still needs") cannot set that up — every booking it makes is made
+    // just now — so the sharp version of the claim lives here.
+    test("saving with auto-purge switched off does not purge with the old settings", async () => {
+      const id = await insertOrphan(oldIso());
+
+      const { response } = await adminFormPost("/admin/privacy/orphans", {
+        action: "save",
+        retention: "1825",
+      });
+
+      await expectFlashRedirect(
+        "/admin/privacy",
+        "Saved your orphaned-record settings.",
+      )(response);
+      expect(settings.orphanPurgeRetention).toBe("1825");
+      expect(settings.autoPurgeOrphans).toBe(false);
+      expect(await attendeeExists(id)).toBe(true);
+    });
+
     test("keeps auto-purge on when the checkbox is ticked", async () => {
       const { response } = await adminFormPost("/admin/privacy/orphans", {
         action: "save",
@@ -119,10 +144,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       expect(settings.autoPurgeOrphans).toBe(true);
     });
 
-    // Sits beside the story "The organiser keeps only the personal details the
-    // site still needs", which tells the same journey in the organiser's own
-    // words. Kept because the Purge arm of this handler has no other direct
-    // cover, and a Cucumber run does not count towards coverage.
+    // The only direct cover of this handler's Purge arm. The story "The
+    // organiser keeps only the personal details the site still needs" tells the
+    // same journey in the organiser's own words, and a Cucumber run does not
+    // count towards coverage.
     test("deletes matching orphans now, on Purge", async () => {
       const id = await insertOrphan(oldIso());
 
@@ -158,11 +183,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       method: "POST",
     });
 
-    // These three sit beside the story "The organiser keeps only the personal
-    // details the site still needs", which tells the same journeys in the
-    // organiser's own words. They are kept because each is the only direct
-    // cover of its arm of this handler, and a Cucumber run does not count
-    // towards coverage.
+    // These three are the only direct cover of this handler's three arms. The
+    // story "The organiser keeps only the personal details the site still
+    // needs" tells the same journeys in the organiser's own words, and a
+    // Cucumber run does not count towards coverage.
     test("erases a contact record found by email", async () => {
       const hash = await hashEmail("erase-me@example.com");
       await setContactVisits(hash, 1);

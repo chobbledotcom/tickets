@@ -7,7 +7,7 @@
 
 import { expect } from "@std/expect";
 // jscpd:ignore-start
-import { LISTING_FILTERS, listingFilterLabel } from "#shared/listing-filter.ts";
+import { LISTING_FILTERS } from "#shared/listing-filter.ts";
 import {
   browserSeenBy,
   CUSTOMER,
@@ -66,13 +66,16 @@ export const listOffers = (world: TicketsWorld, name: string): boolean => {
 };
 
 /** The kinds of thing a list offers to narrow down to, read off the links it
- * shows. "All" is left out: other ways of narrowing offer an "All" of their
- * own, and it is the kinds themselves that say whether there is a choice to
- * make here at all. */
+ * shows: a narrowing link is one that leads to a list of one kind, and nothing
+ * else on either page does. "All" is left out — other ways of narrowing offer
+ * an "All" of their own, and it is the kinds themselves that say whether there
+ * is a choice to make here at all. The words on the links are deliberately not
+ * read: the list a customer reads is served without the organiser's copy, so
+ * looking one up would fail on a page that never had it. */
 const kindsOfferedBy = (browser: TestBrowser): string[] =>
-  LISTING_FILTERS.filter((kind) => kind !== "all")
-    .map(listingFilterLabel)
-    .filter((label) => browser.links.some(({ text }) => text.trim() === label));
+  LISTING_FILTERS.filter((kind) => kind !== "all").filter((kind) =>
+    browser.links.some(({ href }) => href.includes(`type=${kind}`)),
+  );
 
 /** Nobody looking at this list is offered a choice of kind. */
 export const expectNoChoiceOfKind = (
