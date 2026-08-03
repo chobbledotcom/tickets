@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
-import { executeBatchReturningResults } from "#shared/db/client.ts";
 import {
   deleteRaw,
   executeSettingsBatchReturningValue,
@@ -104,24 +102,6 @@ describeWithEnv("executeSettingsBatchReturningValue", { db: true }, () => {
       [],
     );
     expect(value).toBe("stripe");
-  });
-
-  test("executeBatchReturningResults does not fire table-cache invalidation", async () => {
-    let invalidated = false;
-    const unregister = registerTableInvalidation(["settings"], () => {
-      invalidated = true;
-    });
-    try {
-      await executeBatchReturningResults([
-        {
-          args: ["noop_k", "noop_v"],
-          sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        },
-      ]);
-      expect(invalidated).toBe(false);
-    } finally {
-      unregister();
-    }
   });
 
   test("writeRaw marks the key loaded so snap() audit passes", async () => {

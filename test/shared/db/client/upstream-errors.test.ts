@@ -2,6 +2,7 @@ import { type Client, LibsqlError, type ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   execute,
   executeBatch,
@@ -288,6 +289,21 @@ describe("db > client transient upstream retry", () => {
       ]),
     ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");
     expect(attempts).toBe(1);
+  });
+
+  test("executeBatchReturningResults does not fire table-cache invalidation", async () => {
+    let invalidated = false;
+    const unregister = registerTableInvalidation(["settings"], () => {
+      invalidated = true;
+    });
+    try {
+      await executeBatchReturningResults([
+        { args: [], sql: "CREATE TABLE settings (key TEXT, value TEXT)" },
+      ]);
+      expect(invalidated).toBe(false);
+    } finally {
+      unregister();
+    }
   });
 
   for (const [label, batch] of [
