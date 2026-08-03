@@ -94,6 +94,7 @@ const withRefundRedirect = async (
 
 const mockSession = (id: string): ValidatedPaymentSession => ({
   amountTotal: 1000,
+  currency: "GBP",
   id,
   metadata: webhookMeta({ name: "Buyer" }),
   paymentReference: `pi_${id}`,

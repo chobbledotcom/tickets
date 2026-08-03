@@ -46,6 +46,9 @@ export const webhookEvent = (opts: {
     object: {
       amount_total: opts.amountTotal,
       created: 1_700_000_000,
+      // Stripe sends the currency lower-cased; the boundary canonicalises it,
+      // and refuses a session that carries none.
+      currency: "gbp",
       id: opts.sessionId,
       metadata: opts.metadata,
       payment_intent: opts.paymentIntent ?? null,
