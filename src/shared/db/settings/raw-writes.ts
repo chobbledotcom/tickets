@@ -64,10 +64,7 @@ export const syncStoredSetting = (
   mutate: (values: Map<string, string>) => void,
 ): void => {
   recordSettingsLoaded([key]);
-  syncCache((s) => {
-    mutate(s.values);
-    s.loaded.add(key);
-  });
+  syncCache((s) => mutate(s.values));
 };
 
 /** Mirror a setting value already written by a specialised database statement
@@ -94,15 +91,12 @@ const settingsBatchStatements = (values: SettingsBatch): SqlStatement[] => [
   settingsVersionIncrement(),
 ];
 
-/** Mirror a batch of committed settings writes into the in-memory cache and
- *  mark each key as loaded. Shared by every batch write path. */
+/** Mirror a batch of committed settings writes into the in-memory cache.
+ *  Shared by every batch write path. */
 const syncWrittenBatch = (values: SettingsBatch): void => {
   recordSettingsLoaded(values.map(([key]) => key));
   syncCache((state) => {
-    for (const [key, value] of values) {
-      state.values.set(key, value);
-      state.loaded.add(key);
-    }
+    for (const [key, value] of values) state.values.set(key, value);
   });
 };
 

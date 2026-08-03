@@ -110,21 +110,3 @@ src/shared/db/processed-payments.ts:287:7  processed_payments.failure_data → "
 # resolve.
 src/shared/db/news-posts.ts:147:47  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
 src/features/admin/api-keys.ts:147:75  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
-
-# The cache state's `loaded` Set is written by syncStoredSetting and
-# syncWrittenBatch but never read by any consumer — getRawCached and snap()
-# both go through recordSettingRead -> auditScope, not the cache's loaded Set.
-# Removing these adds is observationally identical.
-src/shared/db/settings/raw-writes.ts:69:5  s.loaded.add(key); → (removed)   # cache loaded Set is never read; recordSettingsLoaded handles the audit
-src/shared/db/settings/raw-writes.ts:104:7  state.loaded.add(key); → (removed)   # same: cache loaded Set is never read; recordSettingsLoaded handles the audit
-
-# client.ts: executeBatchReturningResults passes invalidate=false and
-# retryUpstream=false. invalidate=true would call invalidateForSql which
-# invalidates DB table-scoped caches — but executeBatchReturningResults is
-# only used for settings table writes, where the settings cache is managed
-# by syncStoredSetting/syncCache, not by the table cache. retryUpstream=true
-# would retry transient HTTP errors — but the settings write batch runs in
-# "write" mode against the primary, not a replica, so no upstream retry path
-# is reachable. Both are observationally identical for this call site.
-src/shared/db/client.ts:586:58  false → true   # invalidate: settings writes manage cache via syncStoredSetting, not table cache invalidation
-src/shared/db/client.ts:586:65  false → true   # retryUpstream: write mode goes to primary, no upstream retry path

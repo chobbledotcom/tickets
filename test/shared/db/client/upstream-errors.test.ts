@@ -5,6 +5,7 @@ import { FakeTime } from "@std/testing/time";
 import {
   execute,
   executeBatch,
+  executeBatchReturningResults,
   executeBatchWithoutCacheInvalidation,
   queryBatch,
   queryBatchPrimary,
@@ -258,8 +259,6 @@ describe("db > client transient upstream retry", () => {
   }
 
   test("a write batch without cache invalidation is not retried on a 504", async () => {
-    // It holds writes (script-version markers); a 5xx may have committed
-    // before the gateway timed out, so it never retries upstream errors.
     let attempts = 0;
     setDb(
       clientWithBatch(() => {
@@ -269,6 +268,22 @@ describe("db > client transient upstream retry", () => {
     );
     await expect(
       executeBatchWithoutCacheInvalidation([
+        { args: [], sql: "INSERT INTO settings (key) VALUES ('marker')" },
+      ]),
+    ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");
+    expect(attempts).toBe(1);
+  });
+
+  test("executeBatchReturningResults is not retried on a 504", async () => {
+    let attempts = 0;
+    setDb(
+      clientWithBatch(() => {
+        attempts++;
+        return Promise.reject(upstreamError(504));
+      }),
+    );
+    await expect(
+      executeBatchReturningResults([
         { args: [], sql: "INSERT INTO settings (key) VALUES ('marker')" },
       ]),
     ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");

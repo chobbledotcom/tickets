@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { executeBatchReturningResults } from "#shared/db/client.ts";
 import {
   deleteRaw,
@@ -105,23 +106,27 @@ describeWithEnv("executeSettingsBatchReturningValue", { db: true }, () => {
     expect(value).toBe("stripe");
   });
 
-  test("executeBatchReturningResults does not invalidate the settings cache", async () => {
-    await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "loc_pre");
-    const before = settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID);
-    await executeBatchReturningResults([
-      {
-        args: ["noop_key", "noop_val"],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      },
-    ]);
-    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe(before);
+  test("executeBatchReturningResults does not fire table-cache invalidation", async () => {
+    let invalidated = false;
+    const unregister = registerTableInvalidation(["settings"], () => {
+      invalidated = true;
+    });
+    try {
+      await executeBatchReturningResults([
+        {
+          args: ["noop_k", "noop_v"],
+          sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        },
+      ]);
+      expect(invalidated).toBe(false);
+    } finally {
+      unregister();
+    }
   });
 
   test("writeRaw marks the key loaded so snap() audit passes", async () => {
     await runWithSettingsAudit(async () => {
       await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_snap");
-      // snap() calls recordSettingRead which checks state.loaded.
-      // If loaded.add was removed, this throws "Settings read but not declared".
       settings.square.locationId;
       assertSettingsReadsDeclared("snap-audit");
     });
