@@ -16,6 +16,50 @@ import {
 } from "#test/test-utils/stripe/webhook-mocks.ts";
 import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
 
+const listedEndpoint = (id: string, url: string) => ({
+  enabled_events: ["checkout.session.completed"],
+  id,
+  status: "enabled",
+  url,
+});
+
+type EndpointListPage = {
+  data: ReturnType<typeof listedEndpoint>[];
+  has_more: boolean;
+};
+
+// Serves one listing page per cursor and fails on a cursor it was not given,
+// so a wrong or missing starting_after surfaces as a failed request.
+const pagedEndpointsApi =
+  (pages: ReadonlyMap<string | null, EndpointListPage>, deleted: string[]) =>
+  (url: string, init?: RequestInit): Promise<Response> | null => {
+    if (!url.includes("/v1/webhook_endpoints")) return null;
+    if (init?.method === "DELETE") {
+      const id = new URL(url).pathname.split("/").pop()!;
+      deleted.push(id);
+      return Promise.resolve(Response.json({ deleted: true, id }));
+    }
+    const cursor = new URL(url).searchParams.get("starting_after");
+    const page = pages.get(cursor);
+    if (page === undefined) {
+      throw new Error(`Unexpected listing cursor: ${cursor}`);
+    }
+    return Promise.resolve(Response.json({ ...page, object: "list" }));
+  };
+
+const cleanupWithPagedApi = (
+  pages: ReadonlyMap<string | null, EndpointListPage>,
+  deleted: string[],
+): Promise<void> =>
+  withFetchMock(async (originalFetch) => {
+    installUrlHandler(originalFetch, pagedEndpointsApi(pages, deleted));
+    return await cleanupOldWebhookEndpoints(
+      "sk_test_mock",
+      "https://example.com/payment/webhook",
+      "we_new",
+    );
+  });
+
 describeStripe("Stripe webhook cleanup", () => {
   describe("endpoint cleanup", () => {
     test("deletes old same-URL endpoints, keeping the new one", async () => {
@@ -78,6 +122,52 @@ describeStripe("Stripe webhook cleanup", () => {
       ).rejects.toThrow();
     });
 
+    test("follows the listing cursor to delete strays beyond the first page", async () => {
+      const webhookUrl = "https://example.com/payment/webhook";
+      const deleted: string[] = [];
+      // Three endpoints on page one so the cursor must be the LAST id, not
+      // the second; page two only exists under that exact cursor.
+      const pages = new Map<string | null, EndpointListPage>([
+        [
+          null,
+          {
+            data: [
+              listedEndpoint("we_stray_page_one", webhookUrl),
+              listedEndpoint("we_other", "https://other.example/webhook"),
+              listedEndpoint("we_last", "https://another.example/webhook"),
+            ],
+            has_more: true,
+          },
+        ],
+        [
+          "we_last",
+          {
+            data: [listedEndpoint("we_stray_page_two", webhookUrl)],
+            has_more: false,
+          },
+        ],
+      ]);
+
+      await cleanupWithPagedApi(pages, deleted);
+
+      expect(deleted.toSorted()).toEqual([
+        "we_stray_page_one",
+        "we_stray_page_two",
+      ]);
+    });
+
+    test("fails loudly when Stripe reports more endpoints but sends an empty page", async () => {
+      const deleted: string[] = [];
+      const pages = new Map<string | null, EndpointListPage>([
+        [null, { data: [], has_more: true }],
+      ]);
+
+      await expect(cleanupWithPagedApi(pages, deleted)).rejects.toThrow(
+        "empty page",
+      );
+      expect(deleted).toEqual([]);
+    });
+
     test("also deletes explicit IDs for domain-move cleanup", async () => {
       // After a domain change, the old recorded endpoint is at a different URL
       // and won't appear in the same-URL listing. Pass it explicitly so it
@@ -97,18 +187,8 @@ describeStripe("Stripe webhook cleanup", () => {
           return Promise.resolve(
             Response.json({
               data: [
-                {
-                  enabled_events: ["checkout.session.completed"],
-                  id: "we_stray",
-                  status: "enabled",
-                  url: webhookUrl,
-                },
-                {
-                  enabled_events: ["checkout.session.completed"],
-                  id: "we_old_recorded",
-                  status: "enabled",
-                  url: oldUrl,
-                },
+                listedEndpoint("we_stray", webhookUrl),
+                listedEndpoint("we_old_recorded", oldUrl),
               ],
               has_more: false,
               object: "list",
@@ -148,25 +228,14 @@ describeStripe("Stripe webhook cleanup", () => {
           list: () =>
             Promise.resolve({
               data: [
-                {
-                  enabled_events: ["checkout.session.completed"],
-                  id: "we_keep",
-                  status: "enabled",
-                  url: webhookUrl,
-                },
-                {
-                  enabled_events: ["checkout.session.completed"],
-                  id: "we_stale",
-                  status: "enabled",
-                  url: webhookUrl,
-                },
-                {
-                  enabled_events: ["checkout.session.completed"],
-                  id: "we_unrelated",
-                  status: "enabled",
-                  url: "https://another-tickets.example/payment/webhook",
-                },
+                listedEndpoint("we_keep", webhookUrl),
+                listedEndpoint("we_stale", webhookUrl),
+                listedEndpoint(
+                  "we_unrelated",
+                  "https://another-tickets.example/payment/webhook",
+                ),
               ],
+              has_more: false,
             }),
         },
       } as StripeClient;
@@ -196,7 +265,7 @@ describeStripe("Stripe webhook cleanup", () => {
           },
           list: () => {
             listCalls++;
-            return Promise.resolve({ data: [] });
+            return Promise.resolve({ data: [], has_more: false });
           },
         },
       } as unknown as StripeClient;
@@ -269,7 +338,8 @@ describeStripe("Stripe webhook cleanup", () => {
             retrieve: () => Promise.resolve({ livemode: false }),
           },
           webhookEndpoints: {
-            list: () => Promise.resolve({ data: entry.webhooks }),
+            list: () =>
+              Promise.resolve({ data: entry.webhooks, has_more: false }),
           },
         } as StripeClient;
         const getStub = stub(stripeClientRuntime, "get", () =>

@@ -34,6 +34,7 @@ test("maps every used Stripe operation to its endpoint", async () => {
   await client.paymentIntents.retrieveWithLatestCharge("pi/1");
   await client.refunds.create({ payment_intent: "pi_1" });
   await client.webhookEndpoints.list();
+  await client.webhookEndpoints.list("we/cursor");
   await client.webhookEndpoints.create({
     api_version: "2026-04-22.dahlia",
     enabled_events: ["checkout.session.completed"],
@@ -60,6 +61,11 @@ test("maps every used Stripe operation to its endpoint", async () => {
       path: "/v1/refunds",
     },
     { body: "", method: "GET", path: "/v1/webhook_endpoints?limit=100" },
+    {
+      body: "",
+      method: "GET",
+      path: "/v1/webhook_endpoints?limit=100&starting_after=we%2Fcursor",
+    },
     {
       body: "api_version=2026-04-22.dahlia&enabled_events[0]=checkout.session.completed&url=https%3A%2F%2Fexample.com%2Fpayment%2Fwebhook",
       method: "POST",

@@ -131,7 +131,12 @@ export type StripeDeletedWebhookEndpoint = StripeDeletedWebhookEndpointFields;
 
 export const StripeWebhookEndpointListSchema = v.object({
   data: v.array(StripeWebhookEndpointSchema),
+  has_more: v.boolean(),
 });
+
+export type StripeWebhookEndpointList = v.InferOutput<
+  typeof StripeWebhookEndpointListSchema
+>;
 
 type StripeErrorFields = {
   error: {

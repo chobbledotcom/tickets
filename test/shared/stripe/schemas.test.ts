@@ -9,6 +9,7 @@ import {
   StripeDeletedWebhookEndpointSchema,
   StripeExpandedPaymentIntentSchema,
   StripeRefundSchema,
+  StripeWebhookEndpointListSchema,
   StripeWebhookEndpointSchema,
 } from "#shared/stripe/schemas.ts";
 
@@ -162,6 +163,16 @@ describe("Stripe schemas", () => {
         id: "we_1",
       }),
     ).toThrow();
+  });
+
+  test("requires the endpoint listing to say whether more pages follow", () => {
+    expect(() =>
+      v.parse(StripeWebhookEndpointListSchema, { data: [] }),
+    ).toThrow();
+    expect(
+      v.parse(StripeWebhookEndpointListSchema, { data: [], has_more: false })
+        .has_more,
+    ).toBe(false);
   });
 
   test("parses structured Stripe errors", () => {
