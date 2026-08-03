@@ -12,6 +12,7 @@ import {
   hasCheckedInput,
   hasInputWithValue,
   hasSelectedOption,
+  inputTagWithValue,
   normalizeSingleListingFields,
   requireJoinCsrfToken,
 } from "#test-utils/csrf.ts";
@@ -133,6 +134,13 @@ describe("test-utils — csrf & form helpers", () => {
       expect(hasInputWithValue(html, "quantity_1", "2")).toBe(true);
       expect(hasInputWithValue(html, "quantity_1", "3")).toBe(false);
       expect(hasInputWithValue(html, "quantity_3", "2")).toBe(false);
+    });
+
+    test("inputTagWithValue returns only the requested input tag", () => {
+      expect(inputTagWithValue(html, "3")).toBe(
+        '<input name="quantity_2" value="3">',
+      );
+      expect(inputTagWithValue(html, "missing")).toBe("");
     });
 
     test("hasCheckedInput requires matching name, value, and checked state", () => {

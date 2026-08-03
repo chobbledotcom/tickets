@@ -2,7 +2,12 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import {
+  PAYMENT_PROVIDER_IDS,
+  PAYMENT_PROVIDERS,
+} from "#shared/payment-providers.ts";
+import {
   BookingFeeForm,
+  PaymentProviderForm,
   SquareForm,
   SquareWebhookForm,
   StripeForm,
@@ -11,6 +16,7 @@ import {
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 
 /** Render one payment form over the default state plus the given overrides. */
 const render = (
@@ -20,6 +26,61 @@ const render = (
 
 describe("settings payment forms", () => {
   beforeAll(setupAdminPageTest);
+
+  describe("PaymentProviderForm", () => {
+    test("posts the provider choice to its own settings route", () => {
+      const html = render(PaymentProviderForm);
+      expect(html).toContain('action="/admin/settings/payment-provider"');
+      expect(html).toContain('id="settings-payment-provider"');
+      expect(html).toContain('<div class="prose">');
+      expect(html).toContain('<fieldset class="radios">');
+    });
+
+    test("attaches each registry label to its own radio value", () => {
+      const html = render(PaymentProviderForm);
+      for (const id of PAYMENT_PROVIDER_IDS) {
+        expect(html).toContain(
+          `${inputTagWithValue(html, id)}${PAYMENT_PROVIDERS[id].label}`,
+        );
+      }
+    });
+
+    test("checks exactly the radio matching the saved provider", () => {
+      const values: Array<"none" | (typeof PAYMENT_PROVIDER_IDS)[number]> = [
+        "none",
+        ...PAYMENT_PROVIDER_IDS,
+      ];
+      for (const selected of values) {
+        const html = render(PaymentProviderForm, {
+          paymentProvider: selected === "none" ? null : selected,
+        });
+        for (const value of values) {
+          expect(hasCheckedInput(html, "payment_provider", value)).toBe(
+            value === selected,
+          );
+        }
+      }
+    });
+
+    test("offers every provider when the site currency suits them all", () => {
+      const html = render(PaymentProviderForm, { currency: "GBP" });
+      for (const id of PAYMENT_PROVIDER_IDS) {
+        expect(inputTagWithValue(html, id)).not.toContain("disabled");
+      }
+      expect(html).not.toContain('<small class="notice">');
+    });
+
+    test("switches off a provider that cannot take the site currency", () => {
+      const html = render(PaymentProviderForm, { currency: "JPY" });
+      expect(inputTagWithValue(html, "sumup")).toContain("disabled");
+      expect(inputTagWithValue(html, "stripe")).not.toContain("disabled");
+      expect(inputTagWithValue(html, "square")).not.toContain("disabled");
+      expect(html).toContain(
+        '<small class="notice">SumUp cannot take payments in JPY. ' +
+          "Choose a different payment provider.</small>",
+      );
+    });
+  });
 
   describe("StripeForm", () => {
     test("renders nothing unless Stripe is the chosen provider", () => {
