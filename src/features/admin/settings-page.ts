@@ -18,9 +18,12 @@ import { getAdminFeatureUsage } from "#shared/db/admin-features.ts";
 import { settings } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
+import {
+  existingPaymentProviderState,
+  existingPaymentProviderType,
+} from "#shared/existing-payment-provider.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
-import { existingPaymentProviderType } from "#shared/payments.ts";
 import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { getSuperuserState } from "#shared/superuser.ts";
@@ -39,6 +42,7 @@ const getSettingsPageState = async () => {
     getSuperuserState(),
     getAdminFeatureUsage(),
   ]);
+  const existingPaymentProvider = existingPaymentProviderState();
   return {
     bookingFee: settings.bookingFee,
     businessEmail: settings.businessEmail,
@@ -47,9 +51,10 @@ const getSettingsPageState = async () => {
     currency: settings.currency,
     embedHosts: settings.embedHosts,
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
+    existingPaymentProvider: existingPaymentProvider.provider,
     headerImageUrl: settings.headerImageUrl,
-    lastActivePaymentProvider: existingPaymentProviderType(),
     paymentProvider: settings.paymentProvider,
+    paymentProviderRecoveryChoices: existingPaymentProvider.recoveryChoices,
     squareSandbox: settings.square.sandbox,
     squareTokenConfigured: settings.square.hasToken,
     squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
@@ -103,6 +108,7 @@ const getAdvancedSettingsPageState = async (
     emailApiKeyConfigured: settings.email.hasApiKey,
     emailFromAddress: settings.email.fromAddress,
     emailProvider: settings.email.provider,
+    existingPaymentProvider: existingPaymentProviderType(),
     externalOrderEnabled: settings.externalOrderEnabled,
     googleWalletConfigured: settings.googleWallet.hasDbConfig,
     googleWalletIssuerId: settings.googleWallet.issuerId,
@@ -123,9 +129,7 @@ const getAdvancedSettingsPageState = async (
       if (!hostConfig) return "";
       return `Host env (${hostConfig.issuerId})`;
     })(),
-    lastActivePaymentProvider: existingPaymentProviderType(),
     listingColumnOrder: settings.listingColumnOrder,
-    paymentProvider: settings.paymentProvider,
     scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV),
     showPublicApi: settings.showPublicApi,
     smsGatewayBaseUrl: settings.smsGatewayBaseUrl,

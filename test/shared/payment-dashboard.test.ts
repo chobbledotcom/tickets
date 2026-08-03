@@ -14,8 +14,23 @@ describe("paymentDashboardUrl", () => {
   });
 
   test("returns null when no provider is configured", () => {
-    settings.setForTest({ payment_provider: null });
+    settings.setForTest({
+      payment_provider: null,
+      payment_provider_setting: null,
+    });
     expect(paymentDashboardUrl("pi_123")).toBe(null);
+  });
+
+  test("uses the remembered Stripe provider when new sales are off", () => {
+    settings.setForTest({
+      last_active_payment_provider: "stripe",
+      payment_provider: null,
+      payment_provider_setting: "none",
+      stripe_secret_key: "sk_live_abc",
+    });
+    expect(paymentDashboardUrl("pi_123")).toBe(
+      "https://dashboard.stripe.com/payments/pi_123",
+    );
   });
 
   test("links to the live Stripe dashboard for a live key", () => {

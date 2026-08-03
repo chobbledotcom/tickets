@@ -14,6 +14,7 @@ export type RadioOptionProps = {
   checked: boolean;
   /** Shown but unpickable. Say why beside it. */
   disabled?: boolean | undefined;
+  required?: boolean | undefined;
   children: Child;
 };
 
@@ -22,6 +23,7 @@ export const RadioOption = ({
   value,
   checked,
   disabled,
+  required,
   children,
 }: RadioOptionProps): JSX.Element => (
   <label>
@@ -29,6 +31,7 @@ export const RadioOption = ({
       checked={checked}
       disabled={disabled}
       name={name}
+      required={required}
       type="radio"
       value={value}
     />

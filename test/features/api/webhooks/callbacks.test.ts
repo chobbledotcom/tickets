@@ -2,6 +2,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { settings } from "#shared/db/settings.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -11,11 +13,15 @@ import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 // jscpd:ignore-end
 
-import { errorLogged, useErrorLogSpy } from "#test-utils/log-spy.ts";
+import { errorLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 import {
   setupMismatchWithFailingRefund,
   setupMultiMismatchWithFailingRefund,
 } from "./helpers.ts";
+
+const expectPaymentStored = async (listingId: number): Promise<void> => {
+  expect(await getAttendeesRaw(listingId)).toHaveLength(1);
+};
 
 describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
   const E = useErrorLogSpy();
@@ -29,10 +35,10 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
   });
 
   test("bad-token callback rejects without session_id error", async () => {
-    const html = await (
-      await handleRequest(mockRequest("/payment/success?tokens=bad"))
-    ).text();
-    expect(html).toContain("Invalid payment callback");
+    const response = await handleRequest(
+      mockRequest("/payment/success?tokens=bad"),
+    );
+    await expectHtmlResponse(response, 400, "Invalid payment callback");
     expect(errorLogged(E, "missing session_id")).toBe(false);
   });
 
@@ -59,6 +65,26 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     expect(errorLogged(E, "Session not found")).toBe(true);
   });
 
+  test("cancel renders an existing Stripe session while new sales are off", async () => {
+    await setupStripe();
+    const l = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
+    using _r = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "cancel-off@example.com",
+      items: singleItem(l.id, 1, 500),
+      name: "Cancel off",
+      paymentIntent: "pi_cancel_off",
+      sessionId: "cs_cancel_off",
+    });
+    await settings.update.setPaymentProviderNone();
+
+    const response = await handleRequest(
+      mockRequest("/payment/cancel?session_id=cs_cancel_off"),
+    );
+
+    await expectHtmlResponse(response, 200, "Payment Cancelled", "Try again");
+  });
+
   test("Square orderId redirect processes and includes tokens", async () => {
     await setupStripe();
     const l = await createTestListing({ maxAttendees: 5, unitPrice: 1000 });
@@ -74,7 +100,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?orderId=cs_sq_order"),
     );
     expect(res.status).toBe(302);
-    expect(res.headers.get("location") ?? "").toContain("tokens=");
+    expect(res.headers.get("location")).toContain("tokens=");
   });
 
   test("direct-render shows the ticket URL and thank-you link", async () => {
@@ -122,8 +148,9 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       mockRequest("/payment/success?session_id=cs_ru"),
     );
     expect(res.status).toBe(302);
-    const loc = res.headers.get("location") ?? "";
-    expect(loc).toMatch(/^\/payment\/success\?tokens=.+$/);
+    expect(res.headers.get("location")).toMatch(
+      /^\/payment\/success\?tokens=.+$/,
+    );
   });
 
   test("already-processed session renders the trimmed thank-you URL", async () => {
@@ -146,6 +173,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       sessionId: "cs_ap2",
     });
     await handleRequest(mockRequest("/payment/success?session_id=cs_ap2"));
+    await expectPaymentStored(l.id);
     const res2 = await handleRequest(
       mockRequest("/payment/success?session_id=cs_ap2"),
     );
@@ -172,13 +200,14 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     const res1 = await handleRequest(
       mockRequest("/payment/success?session_id=cs_tk2"),
     );
-    const loc = res1.headers.get("location") ?? "";
-    if (loc.includes("tokens=")) {
-      const res2 = await handleRequest(mockRequest(loc));
-      const html = await res2.text();
-      expect(html).toContain("/t/");
-      expect(html).toContain("tok-ty.example.com");
-    }
+    expect(res1.status).toBe(302);
+    const loc = res1.headers.get("location");
+    expect(loc).toMatch(/tokens=/);
+    if (loc === null) return;
+    const res2 = await handleRequest(mockRequest(loc));
+    const html = await res2.text();
+    expect(html).toContain("/t/");
+    expect(html).toContain("tok-ty.example.com");
   });
 
   test("no-session callback logs all param names comma-separated", async () => {
@@ -210,6 +239,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       sessionId: "cs_ap_dpr",
     });
     await handleRequest(mockRequest("/payment/success?session_id=cs_ap_dpr"));
+    await expectPaymentStored(l.id);
     const res2 = await handleRequest(
       mockRequest("/payment/success?session_id=cs_ap_dpr"),
     );
@@ -237,6 +267,7 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       sessionId: "cs_nt_dpr",
     });
     await handleRequest(mockRequest("/payment/success?session_id=cs_nt_dpr"));
+    await expectPaymentStored(l.id);
     const res2 = await handleRequest(
       mockRequest("/payment/success?session_id=cs_nt_dpr"),
     );
@@ -249,7 +280,6 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     const req = mockRequest("/payment/success?foo=bar");
     req.headers.set("referer", "");
     await handleRequest(req);
-    // ?? keeps "" (empty string is not nullish); || would replace it with "none".
     expect(errorLogged(E, "referer=")).toBe(true);
     expect(errorLogged(E, "referer=none")).toBe(false);
   });
@@ -316,14 +346,12 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
       sessionId: "cs_nt_2",
     });
     await handleRequest(mockRequest("/payment/success?session_id=cs_nt_2"));
-    // Second call: no tokens, no explicit thank_you_url, single listing.
-    // SingleleListingThankYou loads the listing's thank_you_url (which is empty).
+    await expectPaymentStored(l.id);
     const res2 = await handleRequest(
       mockRequest("/payment/success?session_id=cs_nt_2"),
     );
     expect(res2.status).toBe(200);
     const html = await res2.text();
-    // No thank-you redirect link (the URL is "").
     expect(html).not.toContain("meta-refresh");
   });
 });

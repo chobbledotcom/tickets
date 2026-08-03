@@ -486,7 +486,8 @@ New sales and existing payments are now resolved by different questions:
 callbacks, and completion. When sales are off, the existing-payment path
 falls back to the last activated provider. A site already on `none`
 recovers when exactly one provider has stored credentials; when multiple
-do, the operator must re-select. `setPaymentProviderNone` reads the
+do, the operator must choose the provider in a recovery form that keeps new
+sales off. `setPaymentProviderNone` reads the
 current provider via an atomic INSERT ... SELECT subquery so a concurrent
 activation cannot land between the read and the write.
 

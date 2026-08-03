@@ -83,6 +83,47 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
   </SaveForm>
 );
 
+export const ExistingPaymentProviderForm = (
+  s: SettingsPageState,
+): JSX.Element | null =>
+  s.paymentProviderRecoveryChoices.length > 0 ? (
+    <SaveForm
+      action="/admin/settings/payment-provider-recovery"
+      id="settings-payment-provider-recovery"
+      submitLabel={t("settings.payment_recovery_save")}
+    >
+      <div class="prose">
+        <h2>{t("settings.payment_recovery_heading")}</h2>
+        <p>{t("settings.payment_recovery_hint")}</p>
+      </div>
+      <fieldset class="radios">
+        {s.paymentProviderRecoveryChoices.map((provider) => (
+          <RadioOption
+            checked={false}
+            name="existing_payment_provider"
+            required
+            value={provider}
+          >
+            {PAYMENT_PROVIDERS[provider].label}
+          </RadioOption>
+        ))}
+      </fieldset>
+    </SaveForm>
+  ) : null;
+
+const shownPaymentProvider = (
+  s: SettingsPageState,
+): PaymentProviderType | null => s.paymentProvider ?? s.existingPaymentProvider;
+
+const showsPaymentProvider =
+  (provider: PaymentProviderType) =>
+  (s: SettingsPageState): boolean =>
+    shownPaymentProvider(s) === provider;
+
+const showsStripe = showsPaymentProvider("stripe");
+const showsSquare = showsPaymentProvider("square");
+const showsSumUp = showsPaymentProvider("sumup");
+
 /** Test/live mode notice for providers that use sk_test_/sk_live_ keys
  * (Stripe and SumUp). Renders nothing when the mode is unknown. */
 const ApiKeyModeNotice = ({
@@ -209,7 +250,7 @@ const ProviderIntro = ({
 );
 
 export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
-  s.paymentProvider === "stripe" ? (
+  showsStripe(s) ? (
     <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
       <ProviderIntro
         configured={s.stripeKeyConfigured}
@@ -230,7 +271,7 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
   ) : null;
 
 export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
-  s.paymentProvider === "square" ? (
+  showsSquare(s) ? (
     <CsrfForm action="/admin/settings/square" id="settings-square">
       <ProviderIntro
         configured={s.squareTokenConfigured}
@@ -267,7 +308,7 @@ export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
   ) : null;
 
 export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
-  s.paymentProvider === "square" && s.squareTokenConfigured ? (
+  showsSquare(s) && s.squareTokenConfigured ? (
     <SaveForm
       action="/admin/settings/square-webhook"
       id="settings-square-webhook"
@@ -327,7 +368,7 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
   ) : null;
 
 export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
-  s.paymentProvider === "sumup" ? (
+  showsSumUp(s) ? (
     <CsrfForm action="/admin/settings/sumup" id="settings-sumup">
       <ProviderIntro
         configured={s.sumupKeyConfigured}

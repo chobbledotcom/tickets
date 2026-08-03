@@ -45,7 +45,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         </p>
         <input name="subdomain" type="hidden" value={s.subdomainPreview} />
         <DomainPaymentWebhookWarning
-          paymentProvider={s.paymentProvider ?? s.lastActivePaymentProvider}
+          paymentProvider={s.existingPaymentProvider}
         />
         <CheckboxLabel
           checked={false}
@@ -82,7 +82,7 @@ const SubdomainFormContent = (s: AdvancedSettingsPageState): SafeHtml => {
         <span class="muted">{s.bunnyDnsSubdomainSuffix}</span>
       </label>
       <DomainPaymentWebhookWarning
-        paymentProvider={s.paymentProvider ?? s.lastActivePaymentProvider}
+        paymentProvider={s.existingPaymentProvider}
       />
       <SubmitButton icon="search">
         {t("settings.subdomain.check_button")}

@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -18,7 +19,7 @@ import {
   errorLogged,
   useDebugLogSpy,
   useErrorLogSpy,
-} from "#test-utils/log-spy.ts";
+} from "#test-utils/debug-log.ts";
 import {
   webhookEvent,
   withWebhookVerify,
@@ -54,7 +55,7 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       mockWebhookRequest({}, { "stripe-signature": "sig" }),
     );
     expect(res.status).toBe(200);
-    const j = (await res.json()) as Record<string, unknown>;
+    const j = v.parse(v.object({ status: v.string() }), await res.json());
     expect(j.status).toBe("pending");
   });
 

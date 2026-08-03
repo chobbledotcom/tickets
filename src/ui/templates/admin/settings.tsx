@@ -6,7 +6,11 @@ import { t } from "#i18n";
 import type { EnabledFeatures } from "#shared/admin-features.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
+import type {
+  AdminSession,
+  PaymentProviderType,
+  Theme,
+} from "#shared/types.ts";
 import { FeaturesTable } from "#templates/admin/features.tsx";
 import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
@@ -14,6 +18,7 @@ import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import {
   BookingFeeForm,
+  ExistingPaymentProviderForm,
   PaymentProviderForm,
   SquareForm,
   SquareWebhookForm,
@@ -27,12 +32,9 @@ import { ThemeForm } from "#templates/admin/settings/theme.tsx";
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
   stripeKeyMode: string | null;
-  paymentProvider: string | null;
-  /** The provider to show in the domain-change warning when new sales are off.
-   *  Distinct from `paymentProvider` (which controls the active-sales radio and
-   *  stays null when sales are off) so the radio correctly shows "none" while
-   *  the warning still names the provider that captured existing payments. */
-  lastActivePaymentProvider: string | null;
+  paymentProvider: PaymentProviderType | null;
+  existingPaymentProvider: PaymentProviderType | null;
+  paymentProviderRecoveryChoices: PaymentProviderType[];
   /** The site's ISO currency code — decides which providers can be picked. */
   currency: string;
   squareTokenConfigured: boolean;
@@ -82,6 +84,7 @@ export const adminSettingsPage = (
       {ThemeForm(s)}
 
       {PaymentProviderForm(s)}
+      {ExistingPaymentProviderForm(s)}
       {StripeForm(s)}
       {SquareForm(s)}
       {SquareWebhookForm(s)}

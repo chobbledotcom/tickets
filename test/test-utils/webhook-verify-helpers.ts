@@ -1,22 +1,33 @@
+import * as v from "valibot";
 import { handleRequest } from "#routes";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { stubWebhookVerify } from "#test-utils/settings.ts";
 
 type VerifyEvent = Parameters<typeof stubWebhookVerify>[0];
 
+const WebhookResponseSchema = v.object({
+  error: v.optional(v.string()),
+  processed: v.optional(v.boolean()),
+  received: v.optional(v.boolean()),
+  status: v.optional(v.string()),
+});
+
 /** Stub the webhook verify, POST the webhook, run assertions, and restore —
  *  the stub-post-assert-restore scaffold shared by every webhook-verify test. */
 export const withWebhookVerify = async (
   event: VerifyEvent,
-  assertions: (json: Record<string, unknown>) => void | Promise<void>,
+  assertions: (
+    json: v.InferOutput<typeof WebhookResponseSchema>,
+    status: number,
+  ) => void | Promise<void>,
 ): Promise<void> => {
   const verify = await stubWebhookVerify(event);
   try {
     const res = await handleRequest(
       mockWebhookRequest({}, { "stripe-signature": "sig" }),
     );
-    const json = (await res.json()) as Record<string, unknown>;
-    await assertions(json);
+    const json = v.parse(WebhookResponseSchema, await res.json());
+    await assertions(json, res.status);
   } finally {
     verify.restore();
   }

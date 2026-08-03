@@ -1,15 +1,14 @@
 /**
- * Deep links to view a payment on the configured provider's dashboard.
+ * Deep links to view an existing payment on its resolved provider dashboard.
  *
  * The attendee record only stores the provider's payment reference
  * (e.g. a Stripe payment intent id), not which provider produced it.
- * The active provider — and whether it is in test/sandbox mode — comes
- * from settings, so the link is built against the currently configured
- * provider.
+ * The shared existing-payment resolver keeps links available when new sales
+ * are off. Test and sandbox modes come from settings.
  */
 
 import { settings } from "#shared/db/settings.ts";
-import { existingPaymentProviderType } from "#shared/payments.ts";
+import { existingPaymentProviderType } from "#shared/existing-payment-provider.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 /** Build a provider dashboard URL for a single payment reference. */
@@ -26,7 +25,7 @@ const urlBuilders: Record<PaymentProviderType, (id: string) => string> = {
 };
 
 /**
- * Build a link to view a payment on the configured provider's dashboard.
+ * Build a link to view a payment on the resolved provider's dashboard.
  * Returns null when there is no payment id or no provider was ever configured.
  * Uses the shared existing-payment provider resolver so the link stays
  * available when new sales are off.

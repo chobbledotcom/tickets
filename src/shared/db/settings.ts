@@ -145,6 +145,20 @@ const providerKeyStatus = (keyName: "stripe_secret_key" | "sumup_api_key") => ({
   },
 });
 
+/** Store the new-sales choice and the provider for existing payments together. */
+const storePaymentProvider = async (
+  active: PaymentProviderSetting,
+  remembered: PaymentProviderType,
+): Promise<void> => {
+  await writeRawBatch([
+    [CONFIG_KEYS.PAYMENT_PROVIDER, active],
+    [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, remembered],
+  ]);
+  data.payment_provider = active === "none" ? null : active;
+  data.payment_provider_setting = active;
+  data.last_active_payment_provider = remembered;
+};
+
 const settingsBase = {
   // --- Address lookup ---
   addressLookup: {
@@ -456,17 +470,10 @@ const settingsBase = {
       "orphan_purge_retention",
     ),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      // Persist the provider and remember it as the last activated in one
-      // transaction, so a failure between the two writes cannot leave new
-      // sales enabled against a stale remembered provider. The snapshot mirrors
-      // the committed values only after the batch succeeds.
-      await writeRawBatch([
-        [CONFIG_KEYS.PAYMENT_PROVIDER, v],
-        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, v],
-      ]);
-      data.payment_provider = v;
-      data.payment_provider_setting = v;
-      data.last_active_payment_provider = v;
+      await storePaymentProvider(v, v);
+    },
+    recoverPaymentProvider: async (v: PaymentProviderType): Promise<void> => {
+      await storePaymentProvider("none", v);
     },
     setPaymentProviderNone: async (): Promise<void> => {
       // Write LAST_ACTIVE from the current DB state, then clear

@@ -7,39 +7,24 @@ import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 describe("CustomDomainForm", () => {
   beforeAll(setupAdminPageTest);
 
-  test("shows the domain-change warning via lastActive when sales are off", () => {
+  test("shows the domain-change warning when sales are off", () => {
     const html = String(
       CustomDomainForm({
         ...advancedDefaultState,
         bunnyCdnEnabled: true,
-        lastActivePaymentProvider: "stripe",
-        paymentProvider: null,
+        existingPaymentProvider: "stripe",
       }),
     );
     expect(html).toContain("Changing your domain changes your payment webhook");
     expect(html).toContain('href="/admin/settings#settings-stripe"');
   });
 
-  test("hides the warning when no provider is configured (null or empty string)", () => {
-    let html = String(
+  test("hides the warning when no provider is configured", () => {
+    const html = String(
       CustomDomainForm({
         ...advancedDefaultState,
         bunnyCdnEnabled: true,
-        lastActivePaymentProvider: null,
-        paymentProvider: null,
-      }),
-    );
-    expect(html).not.toContain("Changing your domain");
-    expect(html).not.toContain(
-      'action="/admin/settings/custom-domain/validate"',
-    );
-    // `"" ?? "stripe"` is "" but `"" || "stripe"` is "stripe" — distinguishes ?? from ||.
-    html = String(
-      CustomDomainForm({
-        ...advancedDefaultState,
-        bunnyCdnEnabled: true,
-        lastActivePaymentProvider: "stripe",
-        paymentProvider: "",
+        existingPaymentProvider: null,
       }),
     );
     expect(html).not.toContain("Changing your domain");
@@ -52,21 +37,23 @@ describe("CustomDomainForm", () => {
         bunnyCdnEnabled: true,
         bunnySubdomain: "my-sub",
         customDomain: "tickets.example.com",
-        lastActivePaymentProvider: "stripe",
-        paymentProvider: null,
+        existingPaymentProvider: "stripe",
       }),
     );
-    // Form action + id
-    expect(html).toContain('action="/admin/settings/custom-domain"');
-    expect(html).toContain('id="settings-custom-domain"');
+    const form = html.match(
+      /<form[^>]*action="\/admin\/settings\/custom-domain"[^>]*>[\s\S]*?<\/form>/,
+    )?.[0];
+    expect(form).toContain('id="settings-custom-domain"');
     // Prose container around the heading
     expect(html).toContain('class="prose"');
     // Whitespace between the intro sentence and the setup-guide anchor
     expect(html).toContain("your tickets site. <a");
-    // Input field
-    expect(html).toContain('name="custom_domain"');
-    expect(html).toContain('placeholder="tickets.yourdomain.com"');
-    expect(html).toContain('type="text"');
+    const domainInput = form?.match(
+      /<input[^>]*name="custom_domain"[^>]*>/,
+    )?.[0];
+    expect(domainInput).toContain('placeholder="tickets.yourdomain.com"');
+    expect(domainInput).toContain('type="text"');
+    expect(domainInput).toContain('value="tickets.example.com"');
     // Guide link
     expect(html).toContain('href="/admin/guide#custom-domain"');
     // Subdomain note (visible when subdomain is set)

@@ -19,15 +19,11 @@ implemented ahead of its time; this document is the contract, not scaffolding.
 
 The rules below assume that separation holds.
 
-> **Pre-existing `none` sites.** A site that was already on `none` *before*
-> this PR landed has neither `payment_provider` set nor a `last_active`
-> provider recorded. The resolver falls back to the sole provider with stored
-> credentials when exactly one is configured — unambiguous evidence of which
-> provider captured prior payments. When zero or multiple providers have
-> credentials, the resolver returns null and the operator must re-select a
-> provider on the settings page (which sets `last_active` and unblocks
-> refunds/completion). The system never guesses among multiple configured
-> providers.
+> **Sales-off recovery.** A site may have no remembered provider. The resolver
+> uses the sole provider with stored credentials when that choice is clear. If
+> several providers have credentials, the settings page requires the operator
+> to choose which one took the existing payments. Saving that choice records
+> the provider and keeps new sales off. The system never guesses.
 
 ## 1. Failed checkout plus captured money becomes owner review with complete-or-refund choices
 
@@ -65,10 +61,8 @@ batch without review. Future aggregate work.
 
 ## 4. Queued owner email uses the current business address but stored body/buyer facts
 
-The recipient address is read at send time; the body and buyer facts come
-from when the case was raised.
-and the buyer facts it describes come from when the case was raised (so it
-describes what actually happened, not a later state).
+The recipient address is read at send time. The body and buyer facts come from
+when the case was raised, so the message describes what happened then.
 
 *On `main` today:* there is no queued owner-email path; notifications are sent
 inline. This is future aggregate work.
@@ -90,6 +84,5 @@ The "under review" state is future aggregate work.
 The aggregate is only switched on once every owner-case page and action it
 depends on exists. No half-enabled state.
 
-*On `main` today:* there is no aggregate. This is the gate future work must
-clear.
-future work must clear before it takes over any payment path.
+*On `main` today:* there is no aggregate. Future work must clear this gate
+before it takes over any payment path.

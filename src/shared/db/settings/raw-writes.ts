@@ -44,27 +44,22 @@ export const settingUpsert = (key: string, value: string): SqlStatement => ({
   sql: SETTINGS_UPSERT_SQL,
 });
 
-/**
- * After changing one settings row: record it as loaded (a write makes the key's
- * value — or its absence, after a delete — known this request, so reading it
- * back is safe and it counts as available for the read audit), apply `mutate`
- * to the raw cache values, mark the key loaded, and bump the shared version so
- * other isolates reload on their next request.
- */
+/** Notify other isolates after this request has mirrored a settings change. */
 const afterSettingChange = async (sync: () => void): Promise<void> => {
   sync();
   await bumpSettingsVersion();
 };
 
-/** Mirror a setting write into this isolate after its database transaction has
- * committed. This performs no database work, so it cannot turn a successful
- * commit into a failed request. */
+/** Mirror a committed setting and keep later reads on this request in memory. */
 export const syncStoredSetting = (
   key: string,
   mutate: (values: Map<string, string>) => void,
 ): void => {
   recordSettingsLoaded([key]);
-  syncCache((s) => mutate(s.values));
+  syncCache((s) => {
+    mutate(s.values);
+    s.loaded.add(key);
+  });
 };
 
 /** Mirror a setting value already written by a specialised database statement
@@ -96,24 +91,23 @@ const settingsBatchStatements = (values: SettingsBatch): SqlStatement[] => [
 const syncWrittenBatch = (values: SettingsBatch): void => {
   recordSettingsLoaded(values.map(([key]) => key));
   syncCache((state) => {
-    for (const [key, value] of values) state.values.set(key, value);
+    for (const [key, value] of values) {
+      state.values.set(key, value);
+      state.loaded.add(key);
+    }
   });
 };
 
 /** Persist several related settings in one transaction and one version bump. */
 export const writeRawBatch = async (values: SettingsBatch): Promise<void> => {
-  if (values.length === 0)
+  if (values.length === 0) {
     throw new Error("Cannot write an empty settings batch");
+  }
   await executeBatchWithoutCacheInvalidation(settingsBatchStatements(values));
   syncWrittenBatch(values);
 };
 
-/** Outer+inner valibot schema for a batch whose first statement is
- *  `INSERT ... RETURNING value`: exactly one result set with exactly one
- *  row carrying a string `value`, plus any number of remaining result sets
- *  (the other batch statements). Parsing `results` through this makes
- *  `parse(results)[0].rows[0].value` fully type-safe with no local
- *  invalid-shape branches — valibot owns rejection. */
+/** The first batch result must contain exactly one row with a string value. */
 const batchReturningValue = v.tupleWithRest(
   [v.object({ rows: v.tuple([v.object({ value: v.string() })]) })],
   v.unknown(),

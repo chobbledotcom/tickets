@@ -36,7 +36,7 @@ import {
   errorLogged,
   useDebugLogSpy,
   useErrorLogSpy,
-} from "#test-utils/log-spy.ts";
+} from "#test-utils/debug-log.ts";
 import {
   webhookEvent,
   withWebhookVerify,
@@ -199,7 +199,7 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     );
   });
 
-  test("deleted-listing refund uses 404 status", async () => {
+  test("deleted-listing refund is acknowledged with 200 status", async () => {
     await setupStripe();
     await withWebhookVerify(
       webhookEvent({
@@ -212,8 +212,9 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
         paymentIntent: "pi_404",
         sessionId: "cs_404",
       }),
-      (json) => {
+      (json, status) => {
         expect(json.processed).toBe(false);
+        expect(status).toBe(200);
       },
     );
   });
@@ -313,13 +314,19 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
   });
 
   test("validationFailure refunds for non-404 statuses", async () => {
-    const result = await validationFailure(
-      mockSession("cs_410"),
-      { error: "no longer accepting", status: 410 },
-      1,
-    );
-    expect(result.status).toBe(410);
-    expect(result.refunded).toBe(false);
+    await setupStripe();
+    const restore = await stubStripeRefund(true, false);
+    try {
+      const result = await validationFailure(
+        mockSession("cs_410"),
+        { error: "no longer accepting", status: 410 },
+        1,
+      );
+      expect(result.status).toBe(410);
+      expect(result.refunded).toBe(true);
+    } finally {
+      restore();
+    }
   });
 
   test("refuseMismatch returns the price-changed message at 409 and refunds", async () => {

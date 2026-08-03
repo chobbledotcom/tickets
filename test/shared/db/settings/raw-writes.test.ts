@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { getDb } from "#shared/db/client.ts";
 import {
   deleteRaw,
   executeSettingsBatchReturningValue,
@@ -12,7 +14,16 @@ import {
   assertSettingsReadsDeclared,
   runWithSettingsAudit,
 } from "#shared/db/settings-audit.ts";
+import { runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { statementSql } from "#test-utils/record-queries.ts";
+
+const expectSquareLocationAbsent = async (): Promise<void> => {
+  expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBeNull();
+  settings.invalidateCache();
+  await settings.loadKeys([CONFIG_KEYS.SQUARE_LOCATION_ID]);
+  expect(settings.square.locationId).toBe("");
+};
 
 describeWithEnv("writeRawBatch", { db: true }, () => {
   test("persists multiple settings in one batch and mirrors the cache", async () => {
@@ -35,8 +46,8 @@ describeWithEnv("writeRawBatch", { db: true }, () => {
     expect(settings.sumup.merchantCode).toBe("mc_test");
   });
 
-  test("throws on an empty batch", () => {
-    expect(writeRawBatch([])).rejects.toThrow(
+  test("throws on an empty batch", async () => {
+    await expect(writeRawBatch([])).rejects.toThrow(
       "Cannot write an empty settings batch",
     );
   });
@@ -62,7 +73,7 @@ describeWithEnv("writeRaw", { db: true }, () => {
     expect(settings.square.locationId).toBe("loc_single");
   });
 
-  test("registers audit-loaded keys; writeOrDelete empties via deleteRaw", async () => {
+  test("registers audit-loaded keys", async () => {
     await runWithSettingsAudit(async () => {
       await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_one");
       await writeRawBatch([[CONFIG_KEYS.SUMUP_MERCHANT_CODE, "audit_two"]]);
@@ -70,9 +81,42 @@ describeWithEnv("writeRaw", { db: true }, () => {
       settings.getCachedRaw(CONFIG_KEYS.SUMUP_MERCHANT_CODE);
       assertSettingsReadsDeclared("test");
     });
+  });
+
+  test("writeOrDelete persists an empty value by deleting the row", async () => {
     await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "del_target");
     await writeOrDelete(CONFIG_KEYS.SQUARE_LOCATION_ID, "");
-    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBeNull();
+    await expectSquareLocationAbsent();
+  });
+
+  test("written keys are not refilled later in the same request", async () => {
+    await runWithRequestCache(async () => {
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+      await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "same_request");
+      await writeRawBatch([
+        [CONFIG_KEYS.SUMUP_MERCHANT_CODE, "same_request_batch"],
+      ]);
+
+      const db = getDb();
+      const execute = db.execute.bind(db);
+      using reads = stub(db, "execute", (statement) => execute(statement));
+      await settings.loadKeys([
+        CONFIG_KEYS.SQUARE_LOCATION_ID,
+        CONFIG_KEYS.SUMUP_MERCHANT_CODE,
+      ]);
+
+      expect(
+        reads.calls.filter(({ args }) =>
+          statementSql(args[0]).includes("SELECT key, value FROM settings"),
+        ),
+      ).toEqual([]);
+      expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBe(
+        "same_request",
+      );
+      expect(settings.getCachedRaw(CONFIG_KEYS.SUMUP_MERCHANT_CODE)).toBe(
+        "same_request_batch",
+      );
+    });
   });
 });
 
@@ -83,10 +127,7 @@ describeWithEnv("deleteRaw", { db: true }, () => {
       "loc_del",
     );
     await deleteRaw(CONFIG_KEYS.SQUARE_LOCATION_ID);
-    expect(settings.getCachedRaw(CONFIG_KEYS.SQUARE_LOCATION_ID)).toBeNull();
-    settings.invalidateCache();
-    await settings.loadKeys([CONFIG_KEYS.SQUARE_LOCATION_ID]);
-    expect(settings.square.locationId).toBe("");
+    await expectSquareLocationAbsent();
   });
 });
 
@@ -102,6 +143,18 @@ describeWithEnv("executeSettingsBatchReturningValue", { db: true }, () => {
       [],
     );
     expect(value).toBe("stripe");
+  });
+
+  test("rejects a RETURNING result without exactly one row", async () => {
+    await expect(
+      executeSettingsBatchReturningValue(
+        {
+          args: [],
+          sql: "UPDATE settings SET value = value WHERE key = 'missing' RETURNING value",
+        },
+        [],
+      ),
+    ).rejects.toThrow();
   });
 
   test("writeRaw marks the key loaded so snap() audit passes", async () => {

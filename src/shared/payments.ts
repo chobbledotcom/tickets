@@ -11,6 +11,7 @@ import * as v from "valibot";
 import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
+import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
@@ -20,24 +21,6 @@ import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 export const paymentsApi = {
   getConfiguredProvider: (): PaymentProviderType | null =>
     settings.paymentProvider,
-  /** The provider that captured payments before new sales were switched off;
-   *  used to keep existing payments refundable and completable while new
-   *  sales are disabled. */
-  getLastConfiguredProvider: (): PaymentProviderType | null =>
-    settings.lastActivePaymentProvider,
-  /** Recovery for a site that was already on "none" before this PR landed
-   *  (no `payment_provider`, no `last_active_payment_provider`). Returns the
-   *  sole provider with stored credentials when exactly one is configured —
-   *  unambiguous evidence of which provider captured prior payments. Returns
-   *  null when zero or multiple providers have credentials, so the operator
-   *  must re-select rather than having the system guess. */
-  getProviderFromSingleCredential: (): PaymentProviderType | null => {
-    const configured: PaymentProviderType[] = [];
-    if (settings.stripe.hasKey) configured.push("stripe" as const);
-    if (settings.square.hasToken) configured.push("square" as const);
-    if (settings.sumup.hasKey) configured.push("sumup" as const);
-    return configured.length === 1 ? configured[0]! : null;
-  },
 };
 
 /** Re-export from types.ts (canonical definition) */
@@ -353,10 +336,7 @@ const providerLoaders: Record<
     (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
 };
 
-/** Resolve a provider type, log it, and load it. `label` carries which question
- *  is being answered (" for new sales" / " for existing payments") so the log
- *  names the path; `onMissing` lets a caller log a specific message when no
- *  provider resolves. The single load path both resolvers share. */
+/** Resolve a provider type and lazy-load its implementation. */
 const resolveProvider = async (
   resolveType: () => PaymentProviderType | null,
   label: string,
@@ -376,43 +356,18 @@ export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
     logDebug("Payment", "No payment provider configured in settings"),
   );
 
-/** The provider resolved for work on payments that already exist — refunds,
- *  provider reconciliation, replayed callbacks, and completion of an
- *  already-started payment. Null when no provider was ever configured. The
- *  named type for the return of {@link getPaymentProviderForExistingPayments},
- *  shared by every call site that annotates it instead of re-deriving
- *  `Awaited<ReturnType<...>>`. */
+/** Provider implementation for work on an existing payment. */
 export type ExistingPaymentProvider = PaymentProvider | null;
 
 /**
- * Resolve the provider for work on payments that already exist — refunds,
- * provider reconciliation, replayed callbacks, and completion of an
- * already-started payment. New sales use {@link getActivePaymentProvider};
- * this falls back to the last provider the operator activated when new sales
- * are off ("none"), whose credentials stay stored, so disabling new sales
- * never strands money already captured. Returns null only when no provider was
- * ever configured.
+ * Resolve the provider for refunds, callbacks, and completion of payments that
+ * already exist. New sales use {@link getActivePaymentProvider}.
  */
 export const getPaymentProviderForExistingPayments =
   (): Promise<ExistingPaymentProvider> =>
     resolveProvider(
       () =>
-        paymentsApi.getConfiguredProvider() ??
-        paymentsApi.getLastConfiguredProvider() ??
-        paymentsApi.getProviderFromSingleCredential(),
+        existingPaymentProviderState(paymentsApi.getConfiguredProvider())
+          .provider,
       " for existing payments",
     );
-
-/**
- * The sync provider type for existing-payment UI surfaces (dashboard links,
- * domain-change warnings) — the same three-tier fallback as
- * {@link getPaymentProviderForExistingPayments} but without the async provider
- * module load. Returns the provider type, or null when no provider can be
- * resolved. Callers that need to call provider methods must use the async
- * resolver; callers that only need the type (for a URL, a warning gate) use
- * this.
- */
-export const existingPaymentProviderType = (): PaymentProviderType | null =>
-  paymentsApi.getConfiguredProvider() ??
-  paymentsApi.getLastConfiguredProvider() ??
-  paymentsApi.getProviderFromSingleCredential();

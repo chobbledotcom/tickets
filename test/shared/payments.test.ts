@@ -138,6 +138,18 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
     expect(await getPaymentProviderForExistingPayments()).toBeNull();
   });
 
+  test("throws when the current provider setting is corrupt", async () => {
+    await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "broken-provider");
+    await settings.update.stripe.secretKey("sk_test_stored");
+    await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "stripe");
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+    await expect(getPaymentProviderForExistingPayments()).rejects.toThrow(
+      "Invalid payment_provider setting: broken-provider",
+    );
+  });
+
   test("recovers when sumup is the sole configured provider", async () => {
     await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
     await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");

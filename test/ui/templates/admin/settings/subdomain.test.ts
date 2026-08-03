@@ -7,48 +7,35 @@ import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 describe("HostSubdomainForm", () => {
   beforeAll(setupAdminPageTest);
 
-  test("shows the domain-change warning via lastActive when sales are off", () => {
+  test("shows the domain-change warning when sales are off", () => {
     const html = String(
       HostSubdomainForm({
         ...advancedDefaultState,
         bunnyDnsEnabled: true,
-        lastActivePaymentProvider: "square",
-        paymentProvider: null,
+        existingPaymentProvider: "square",
       }),
     );
     expect(html).toContain("Changing your domain changes your payment webhook");
     expect(html).toContain('href="/admin/settings#settings-square-webhook"');
   });
 
-  test("hides the domain-change warning when no provider is configured (null or empty string)", () => {
-    let html = String(
+  test("hides the domain-change warning when no provider is configured", () => {
+    const html = String(
       HostSubdomainForm({
         ...advancedDefaultState,
         bunnyDnsEnabled: true,
-        lastActivePaymentProvider: null,
-        paymentProvider: null,
+        existingPaymentProvider: null,
       }),
     );
     expect(html).not.toContain("Changing your domain");
-    // `paymentProvider ?? lastActive` resolves to "" (not "square") under `??`;
-    // a `||` mutant would fall through to "square" and show the warning.
-    html = String(
+  });
+
+  test("hides the warning on the preview when no provider is configured", () => {
+    const html = String(
       HostSubdomainForm({
         ...advancedDefaultState,
         bunnyDnsEnabled: true,
-        lastActivePaymentProvider: "square",
-        paymentProvider: "",
-      }),
-    );
-    expect(html).not.toContain("Changing your domain");
-    // Same `??` on the subdomain-preview branch (line 48) — rendered when a
-    // preview is set rather than the check form.
-    html = String(
-      HostSubdomainForm({
-        ...advancedDefaultState,
-        bunnyDnsEnabled: true,
-        lastActivePaymentProvider: "square",
-        paymentProvider: "",
+        existingPaymentProvider: null,
         subdomainPreview: "preview",
         subdomainPreviewFullDomain: "preview.example",
       }),
@@ -61,8 +48,7 @@ describe("HostSubdomainForm", () => {
       HostSubdomainForm({
         ...advancedDefaultState,
         bunnyDnsEnabled: true,
-        lastActivePaymentProvider: "square",
-        paymentProvider: null,
+        existingPaymentProvider: "square",
         subdomainPreview: "my-sub",
         subdomainPreviewFullDomain: "my-sub.example.com",
       }),
@@ -71,9 +57,14 @@ describe("HostSubdomainForm", () => {
     expect(html).toContain("is available");
     // Whitespace between the previewed domain and the "is available" suffix
     expect(html).toContain("</strong> is available");
-    // Hidden input: CsrfForm also renders a hidden csrf_token input, so pin
-    // the subdomain input's hidden type via a regex over its own attributes.
-    expect(html).toMatch(/<input[^>]*name="subdomain"[^>]*type="hidden"/);
+    const form = html.match(
+      /<form[^>]*action="\/admin\/settings\/host-subdomain"[^>]*>[\s\S]*?<\/form>/,
+    )?.[0];
+    const subdomainInput = form?.match(
+      /<input[^>]*name="subdomain"[^>]*>/,
+    )?.[0];
+    expect(subdomainInput).toContain('type="hidden"');
+    expect(subdomainInput).toContain('value="my-sub"');
     expect(html).toContain("Confirm registration");
     // Confirm checkbox: defaults to unchecked, carries name="save" + value="1"
     expect(html).not.toContain("checked");
@@ -85,8 +76,7 @@ describe("HostSubdomainForm", () => {
     expect(html).toContain(
       'href="/admin/settings-advanced#settings-host-subdomain"',
     );
-    expect(html).toContain('action="/admin/settings/host-subdomain"');
-    expect(html).toContain('id="settings-host-subdomain"');
+    expect(form).toContain('id="settings-host-subdomain"');
   });
 
   test("renders the check form when no subdomain is set", () => {
@@ -95,15 +85,20 @@ describe("HostSubdomainForm", () => {
         ...advancedDefaultState,
         bunnyDnsEnabled: true,
         bunnyDnsSubdomainSuffix: ".tickets.example",
-        lastActivePaymentProvider: null,
-        paymentProvider: null,
+        existingPaymentProvider: null,
       }),
     );
-    expect(html).toContain('type="text"');
-    expect(html).toMatch(/<input[^>]*autocomplete="off"[^>]*name="subdomain"/);
+    const form = html.match(
+      /<form[^>]*action="\/admin\/settings\/host-subdomain"[^>]*>[\s\S]*?<\/form>/,
+    )?.[0];
+    const subdomainInput = form?.match(
+      /<input[^>]*autocomplete="off"[^>]*name="subdomain"[^>]*>/,
+    )?.[0];
+    expect(subdomainInput).toContain('type="text"');
+    expect(form).toContain('id="settings-host-subdomain"');
+    expect(form).toContain("Check");
     expect(html).toContain("muted");
     expect(html).toContain(".tickets.example");
-    expect(html).toContain("Check");
   });
 
   test("renders the active subdomain state", () => {
