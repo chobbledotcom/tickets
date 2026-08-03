@@ -7,7 +7,23 @@
 
 import { expect } from "@std/expect";
 import { t } from "#i18n";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
+
+/** The parts of a browser that filling a form in really touches: the form one
+ * button belongs to, and the sending of it. Named as those parts rather than as
+ * the whole browser, so a test can stand in for it with just these. */
+export interface FillsInForms {
+  formBodyFor(buttonText: string, fieldNames?: string[]): string;
+  submitForm(
+    values: Record<string, string | string[]>,
+    buttonText?: string,
+  ): Promise<void>;
+}
+
+/** Taking a thing down needs those, plus a way in and the words it lands on. */
+export interface TakesThingsDown extends FillsInForms {
+  clickLink(text: string): Promise<void>;
+  readonly pageText: string;
+}
 
 /** Why a field could not carry a value, or null when it could. Each rule below
  * answers the same question about a different piece of the page, so they share
@@ -157,6 +173,13 @@ const usableCheckboxesOn = (html: string): UsableCheckbox[] =>
     value: attribute(tag, "value") ?? "on",
   }));
 
+/** The answers a question on the page really offers, in the order it renders
+ * them. A choice with no value of its own sends "on", as a browser does. */
+const choicesForQuestion = (html: string, field: string): string[] =>
+  usableInputsOfKind(html, "radio")
+    .filter((choice) => choice.field === field)
+    .map(({ tag }) => attribute(tag, "value") ?? "on");
+
 /** Every checkbox on the page for one field that a person could actually
  * tick. */
 const usableCheckboxes = (html: string, field: string): UsableCheckbox[] =>
@@ -225,6 +248,15 @@ export const whyValueCannotBeSent: WhyFieldCannotCarry = (
       return `the ${field} option "${chosen}" is switched off`;
     }
     return null;
+  }
+  // A question is picked from, not typed into, so the answer has to be one of
+  // the choices really on offer — otherwise a story could keep answering with
+  // a choice the page stopped rendering, or switched off.
+  const choices = choicesForQuestion(html, field);
+  if (choices.length > 0) {
+    return choices.includes(chosen)
+      ? null
+      : `the ${field} question does not offer "${chosen}" (offered: ${choices.join(", ")})`;
   }
   const box = boxFor(html, field);
   if (!box) return `the page has no ${field} to fill in`;
@@ -316,12 +348,15 @@ interface InsistedControl {
   holds: string;
 }
 
-/** What a dropdown sends when nobody touches it: the option marked selected,
- * or — as in a browser — the first one when the page marks none. */
-const chosenByDefault = (options: string): string => {
+/** What a dropdown sends when nobody touches it: the option marked selected —
+ * or, for one that picks a single answer, the first option, since a browser
+ * shows that one. A list that picks many starts with nothing picked at all
+ * unless the page says otherwise, so it sends nothing. */
+const chosenByDefault = (options: string, picksMany: boolean): string => {
   const all = [...options.matchAll(/<option\s([^>]*)>/g)];
   const marked = all.find((option) => hasFlag(option[0], "selected"));
-  return attribute((marked ?? all[0])?.[1] ?? "", "value") ?? "";
+  const showing = marked ?? (picksMany ? undefined : all[0]);
+  return attribute(showing?.[1] ?? "", "value") ?? "";
 };
 
 /** Radios sharing one name are one question, so the page is asked about it
@@ -376,7 +411,10 @@ const insistedControlsOn = (html: string): InsistedControl[] => {
   for (const chooser of html.matchAll(
     /<select\s([^>]*)>([\s\S]*?)<\/select>/g,
   )) {
-    add(chooser[1]!, chosenByDefault(chooser[2]!));
+    add(
+      chooser[1]!,
+      chosenByDefault(chooser[2]!, hasFlag(chooser[1]!, "multiple")),
+    );
   }
   return [...controls, ...insistedQuestionsOn(html)];
 };
@@ -407,7 +445,7 @@ const expectNothingInsistedIsEmpty: ChecksASend = (html, values) => {
  * page too — a box the form stopped rendering, or one switched off, fails here
  * rather than going through as a send nobody could have made. */
 export const fillInAndSend = async (
-  browser: TestBrowser,
+  browser: FillsInForms,
   values: Record<string, string>,
   buttonText: string,
   ticked: Record<string, string[]> = {},
@@ -429,7 +467,7 @@ export const fillInAndSend = async (
  * behind the page's Actions tab, so a thing whose page stopped offering either
  * one is a thing nobody could take down, and the story fails with them. */
 export const takeDownFromActions = async (
-  browser: TestBrowser,
+  browser: TakesThingsDown,
   typed: string,
   labelled: { deleteLink: string; submit: string },
 ): Promise<string> => {

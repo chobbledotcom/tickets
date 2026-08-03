@@ -59,7 +59,9 @@ describe("TestBrowser sending a form", () => {
     expect(params.getAll("features")).toEqual(["email", "sms", "push"]);
     expect(params.get("status")).toBe("draft");
     expect(params.getAll("notes")).toEqual(["line one", "line two"]);
-    expect(params.get("action")).toBe("publish");
+    // The hidden field and the pressed button share a name, and a browser sends
+    // both — the hidden one where it sits, the button's after it.
+    expect(params.getAll("action")).toEqual(["stale", "publish"]);
     expect(browser.currentHtml).toBe("<p>saved</p>");
   });
 
@@ -104,6 +106,23 @@ describe("TestBrowser sending a form", () => {
     await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
       'The "Publish" button is switched off',
     );
+  });
+
+  it("reads a button's own attributes, not longer ones ending the same way", async () => {
+    const { browser, getParams } = setupFormSubmit();
+    browser.currentHtml = `
+      <form action="/save">
+        <input name="title" value="Draft">
+        <button data-name="row-3" data-value="7" name="action" value="publish">Publish</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Publish");
+
+    // `data-name` and `data-value` are somebody else's attributes: the button
+    // sends the name and value it really carries.
+    expect(getParams().get("action")).toBe("publish");
+    expect(getParams().get("row-3")).toBeNull();
   });
 
   it("refuses to press a button that sends nothing", async () => {

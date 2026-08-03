@@ -66,14 +66,12 @@ describe("filling a form in and sending it", () => {
   };
 
   /** Fill in and send the page the stand-in is serving. Its browser is only
-   * the handful of parts this helper touches, so it is passed as one. */
+   * the handful of parts this helper touches, named as those parts. */
   const sendOn = (
     page: ReturnType<typeof pageOffering>,
     values: Record<string, string>,
     ticked?: Record<string, string[]>,
-    // deno-lint-ignore no-explicit-any
-  ): Promise<void> =>
-    fillInAndSend(page.browser as any, values, "Invite", ticked);
+  ): Promise<void> => fillInAndSend(page.browser, values, "Invite", ticked);
 
   const NAME_BOX = '<input name="username" value="">';
   const dayBox = (insisted = "") =>
@@ -279,6 +277,50 @@ describe("filling a form in and sending it", () => {
       what: "sends when the picked choice has no value of its own",
     },
     {
+      // Answering with a choice the page does not offer is answering with
+      // something nobody could have picked.
+      offering: `${NAME_BOX}<input type="radio" name="pick" value="a"><input type="radio" name="pick" value="b">`,
+      refusedWith: 'the pick question does not offer "z" (offered: a, b)',
+      typed: { ...TYPED, pick: "z" },
+      what: "sends nothing when the answer is not one the question offers",
+    },
+    {
+      offering: `${NAME_BOX}<input type="radio" name="pick" value="a"><input type="radio" name="pick" value="b">`,
+      sends: { pick: "b", ...TYPED },
+      typed: { ...TYPED, pick: "b" },
+      what: "sends an answer the question really offers",
+    },
+    {
+      // A switched-off choice is no longer on offer, so answering with it is
+      // answering with something nobody could pick.
+      offering: `${NAME_BOX}<input type="radio" name="pick" value="a" disabled><input type="radio" name="pick" value="b">`,
+      refusedWith: 'the pick question does not offer "a" (offered: b)',
+      typed: { ...TYPED, pick: "a" },
+      what: "sends nothing when the answer picked has been switched off",
+    },
+    {
+      // A choice with no value of its own is answered with "on", the same word
+      // a browser sends, so that is what the question offers.
+      offering: `${NAME_BOX}<input type="radio" name="pick" required>`,
+      sends: { pick: "on", ...TYPED },
+      typed: { ...TYPED, pick: "on" },
+      what: "answers a question whose choice has no value of its own",
+    },
+    {
+      // A list that picks many starts with nothing picked, so a browser would
+      // hold the form up rather than send its first option.
+      offering: `${NAME_BOX}<select name="tiers" multiple required><option value="gold">Gold</option></select>`,
+      refusedWith: "The tiers box must be filled in to send the form",
+      typed: TYPED,
+      what: "sends nothing when an insisted many-answer list has none picked",
+    },
+    {
+      offering: `${NAME_BOX}<select name="tiers" multiple required><option value="gold" selected>Gold</option></select>`,
+      sends: { ...TYPED },
+      typed: TYPED,
+      what: "sends when a many-answer list already has an answer picked",
+    },
+    {
       // Nobody could pick a switched-off choice, so the question is left
       // unanswered even though one of its radios says it is required.
       offering: `${NAME_BOX}<input type="radio" name="pick" value="a" required disabled checked>`,
@@ -332,8 +374,7 @@ describe("taking a thing down from its own page", () => {
 
   /** One take-down, run through the helper the stories use. */
   const takeDown = (page: ReturnType<typeof pageWithActions>) =>
-    // deno-lint-ignore no-explicit-any
-    takeDownFromActions(page.browser as any, "Directions", {
+    takeDownFromActions(page.browser, "Directions", {
       deleteLink: "Delete page",
       submit: "Delete",
     });

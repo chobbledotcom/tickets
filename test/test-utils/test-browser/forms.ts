@@ -14,11 +14,16 @@ import {
 
 export type FormEntry = [name: string, value: string];
 
+/** One attribute's value on a control, or nothing when it does not carry it.
+ * The name has to start the attribute — a word boundary is not enough, since
+ * one sits inside `data-name` too — so a longer attribute ending in the name
+ * being read is not mistaken for it. */
 export const attrValue = (tag: string, name: string): string | undefined =>
-  tag.match(new RegExp(`\\b${name}="([^"]*)"`, "i"))?.[1];
+  tag.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`, "i"))?.[1];
 
+/** Whether a control carries an attribute at all, by the same rule. */
 const hasAttr = (tag: string, name: string): boolean =>
-  new RegExp(`\\b${name}(?:\\s*=|\\s|>|$)`, "i").test(tag);
+  new RegExp(`(?:^|\\s)${name}(?:\\s*=|\\s|>|$)`, "i").test(tag);
 
 const controlName = (tag: string): string | undefined => attrValue(tag, "name");
 
@@ -202,9 +207,8 @@ const buttonToPress = (
     }
     return {
       // A button may aim the form somewhere else, as a real browser honours.
-      // The space boundary keeps a longer attribute like data-formaction out.
-      buttonAction: attrs.match(/(?:^|\s)formaction="([^"]+)"/i)?.[1],
-      buttonName: attrs.match(/name="([^"]+)"/)?.[1],
+      buttonAction: attrValue(attrs, "formaction"),
+      buttonName: attrValue(attrs, "name"),
       buttonValue: attrValue(attrs, "value") ?? "",
     };
   }

@@ -337,9 +337,10 @@ export class TestBrowser {
     for (const [key, value] of entries) {
       params.append(key, value);
     }
-    // Then the clicked button's name/value (matches real browser behavior)
+    // Then the clicked button's own name and value. It is added, never swapped
+    // in: a browser sends every successful control *and* the button, so a form
+    // carrying a hidden field of the same name sends both values, not one.
     if (buttonName && buttonValue !== undefined) {
-      params.delete(buttonName);
       params.append(buttonName, buttonValue);
     }
 
