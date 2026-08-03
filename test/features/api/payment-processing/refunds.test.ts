@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import {
   chargeMismatchSpec,
   deletedListingSpec,
+  failureDetail,
   type RefundCode,
   refundedNoteText,
   refundSpec,
@@ -335,5 +336,28 @@ describeWithEnv("server (refund helper mutations)", { db: true }, () => {
     } finally {
       restore();
     }
+  });
+
+  test("failureDetail uses detail when present and non-empty", () => {
+    const result = {
+      detail: "internal diagnostic",
+      error: "user-facing error",
+      success: false,
+    } as const;
+    expect(failureDetail(result)).toBe("internal diagnostic");
+  });
+
+  test("failureDetail preserves empty detail instead of falling back to error", () => {
+    const result = {
+      detail: "",
+      error: "user-facing error",
+      success: false,
+    } as const;
+    expect(failureDetail(result)).toBe("");
+  });
+
+  test("failureDetail falls back to error when detail is absent", () => {
+    const result = { error: "user-facing error", success: false } as const;
+    expect(failureDetail(result)).toBe("user-facing error");
   });
 });

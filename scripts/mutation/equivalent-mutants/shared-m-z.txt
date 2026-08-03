@@ -13,6 +13,23 @@ src/shared/rest/resource.ts:158:25  ?? → ||   # validationError is an ErrorRes
 # array, always truthy), so ?? and || agree.
 src/features/settings-bundles.ts:248:40  ?? → ||   # bundle is a readonly array or undefined; an array is truthy
 
+# webhooks.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
+# string|undefined; for "" both ?? "" and || "" yield "".
+src/features/api/webhooks.ts:110:39  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+
+# webhooks.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
+# both ?? "" and || "" yield "".
+src/features/api/webhooks.ts:125:62  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+
+# webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
+# false, so "" never returned). ?? null and || null agree.
+src/features/api/webhooks.ts:310:4   ?? → ||   # find(Boolean) → undefined|truthy; never ""
+src/features/api/webhooks.ts:338:55  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
+
+# require-provider.ts: getPaymentProviderForExistingPayments() returns
+# PaymentProvider|null; a provider type is always truthy.
+src/features/admin/require-provider.ts:16:18  ?? → ||   # PaymentProvider|null; never falsy-but-non-null
+
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so
 # `?? fallback` and `|| fallback` always agree. (createScopedValue's ?? is NOT

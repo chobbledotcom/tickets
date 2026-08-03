@@ -261,37 +261,44 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     );
   });
 
-  test("unrecognized and unverifiable sessions ack without processing", async () => {
+  test("unrecognized session acks without processing and logs 'unrecognized'", async () => {
     await setupStripe();
-    const expectAckedAndIgnored = (j: Record<string, unknown>) => {
-      expect(j.received).toBe(true);
-      expect(j.processed).toBeUndefined();
-      expect(debugLogged(D, "Ignoring webhook")).toBe(true);
-    };
     await withWebhookVerify(
       webhookEvent({
         amountTotal: 100,
-        eventId: "evt_unrec2",
+        eventId: "evt_unrec3",
         metadata: {},
-        paymentIntent: "pi_unrec2",
-        sessionId: "cs_unrec2",
+        paymentIntent: "pi_unrec3",
+        sessionId: "cs_unrec3",
       }),
-      expectAckedAndIgnored,
+      (j) => {
+        expect(j.received).toBe(true);
+        expect(j.processed).toBeUndefined();
+        expect(debugLogged(D, "unrecognized payment session")).toBe(true);
+      },
     );
+  });
+
+  test("unverifiable session acks without processing and logs 'unverifiable'", async () => {
+    await setupStripe();
     await withWebhookVerify(
       webhookEvent({
         amountTotal: 100,
-        eventId: "evt_uv2",
+        eventId: "evt_uv3",
         metadata: {
           _origin: "foreign",
           email: "f@e.com",
           items: "[]",
           name: "F",
         },
-        paymentIntent: "pi_uv2",
-        sessionId: "cs_uv2",
+        paymentIntent: "pi_uv3",
+        sessionId: "cs_uv3",
       }),
-      expectAckedAndIgnored,
+      (j) => {
+        expect(j.received).toBe(true);
+        expect(j.processed).toBeUndefined();
+        expect(debugLogged(D, "unverifiable session")).toBe(true);
+      },
     );
   });
 

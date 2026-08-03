@@ -31,6 +31,10 @@ import { addPendingWork } from "#shared/pending-work.ts";
 const PRICE_CHANGED_MESSAGE =
   "The price for this listing changed while you were completing payment.";
 
+/** The diagnostic message from a failed payment result. */
+export const failureDetail = (result: PaymentFailureResult): string =>
+  result.detail ?? result.error;
+
 /**
  * Resolve the provider for refunding or reconciling an existing payment. Falls
  * back to the last activated provider when new sales are off, so refunds keep

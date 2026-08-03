@@ -25,7 +25,10 @@ import {
   formatPaymentError,
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
-import { getPaymentProviderOrLog } from "#routes/api/payment-processing/refunds.ts";
+import {
+  failureDetail,
+  getPaymentProviderOrLog,
+} from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
@@ -133,7 +136,7 @@ const processSessionAndRedirect = async (
     const listingId = validation.data.intent.items[0]?.e;
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `[redirect] ${result.detail ?? result.error}`,
+      detail: `[redirect] ${failureDetail(result)}`,
       listingId,
     });
     return paymentErrorResponse(formatPaymentError(result), result.status);
@@ -288,7 +291,7 @@ const webhookResultResponse = (
   // Log once at the boundary — inner functions pass structured context via detail.
   logError({
     code: ErrorCode.PAYMENT_SESSION,
-    detail: result.detail ?? result.error,
+    detail: failureDetail(result),
     listingId: listingIdForLog,
   });
   logDebug("Webhook", `Failed payload: ${payload}`);
