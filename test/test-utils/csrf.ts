@@ -24,6 +24,9 @@ export const hasInputWithValue = (
   value: string,
 ): boolean => extractInputValue(html, name) === value;
 
+export const inputTagWithValue = (html: string, value: string): string =>
+  html.match(new RegExp(`<input\\b[^>]*value="${value}"[^>]*>`))?.[0] ?? "";
+
 export const hasCheckedInput = (
   html: string,
   name: string,
