@@ -535,11 +535,18 @@ export class TestBrowser {
     if (!form) {
       throw new Error(`No form on this page posts to "${action}"`);
     }
+    // Only a submit button submits: a `type="button"` or `type="reset"` one is
+    // rendered and pressable but sends nothing, and a browser has no default
+    // for a missing type other than submit.
     const pressable = regexCollect(
       /<button\b([^>]*?)>/gi,
       form.body,
       (m) => m[1]!,
-    ).filter((attrs) => !isDisabled(attrs));
+    ).filter(
+      (attrs) =>
+        !isDisabled(attrs) &&
+        (attrValue(attrs, "type") ?? "submit").toLowerCase() === "submit",
+    );
     if (pressable.length === 0) {
       throw new Error(`The form posting to "${action}" cannot be submitted`);
     }

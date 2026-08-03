@@ -434,6 +434,13 @@ describe("the days a page has ticked", () => {
         typed: TYPED,
         what: "sends nothing when the box left clear is not on the page",
       },
+      {
+        offering: `${NAME_BOX}<input type="checkbox" name="days" value="Monday" required>`,
+        refusedWith: "The days box must be ticked to send the form",
+        ticked: { days: [] },
+        typed: TYPED,
+        what: "sends nothing when the box left clear is one the page insists on",
+      },
     ];
 
     for (const example of FILLINGS) {

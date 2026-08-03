@@ -549,6 +549,20 @@ describe("TestBrowser forms", () => {
       expect(new URLSearchParams(posted.body).get("csrf")).toBe("tok2");
     });
 
+    it("presses a button that names no type, which submits by default", async () => {
+      const browser = new TestBrowser();
+      let postedPath = "";
+      useHandler(browser, (request) => {
+        postedPath = new URL(request.url).pathname;
+        return Promise.resolve(new Response("<p>moved</p>"));
+      });
+      browser.currentHtml = arrows("<button>▲</button>");
+
+      await browser.submitFormAt("/rows/2/move-up");
+
+      expect(postedPath).toBe("/rows/2/move-up");
+    });
+
     it("refuses an address no form on the page posts to", async () => {
       const browser = new TestBrowser();
       browser.currentHtml = arrows(pressable);
@@ -558,14 +572,26 @@ describe("TestBrowser forms", () => {
       );
     });
 
-    it("refuses a form whose only button is switched off", async () => {
-      const browser = new TestBrowser();
-      browser.currentHtml = arrows('<button disabled type="submit">▲</button>');
+    for (const unusable of [
+      {
+        markup: '<button disabled type="submit">▲</button>',
+        what: "switched off",
+      },
+      {
+        markup: '<button type="button">▲</button>',
+        what: "not a submit button",
+      },
+      { markup: '<button type="reset">▲</button>', what: "a reset button" },
+    ]) {
+      it(`refuses a form whose only button is ${unusable.what}`, async () => {
+        const browser = new TestBrowser();
+        browser.currentHtml = arrows(unusable.markup);
 
-      await expect(browser.submitFormAt("/rows/2/move-up")).rejects.toThrow(
-        'The form posting to "/rows/2/move-up" cannot be submitted',
-      );
-    });
+        await expect(browser.submitFormAt("/rows/2/move-up")).rejects.toThrow(
+          'The form posting to "/rows/2/move-up" cannot be submitted',
+        );
+      });
+    }
   });
 
   it("throws clearly when submitting without button text and the page has no forms", async () => {
