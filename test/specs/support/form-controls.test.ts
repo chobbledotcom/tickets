@@ -352,6 +352,10 @@ describe("the days a page has ticked", () => {
       return {
         browser: {
           currentHtml: html,
+          // The stand-in serves one form, so the body a button would send is
+          // the whole of it. Which form a button belongs to is the browser's
+          // own job, and is checked against real markup in its own tests.
+          formBodyFor: () => html,
           submitForm: (
             values: Record<string, string | string[]>,
             button: string,
@@ -473,6 +477,7 @@ describe("the days a page has ticked", () => {
             return Promise.resolve();
           },
           currentHtml: '<input name="confirm_identifier" value="">',
+          formBodyFor: () => '<input name="confirm_identifier" value="">',
           pageText: "Page deleted",
           submitForm: (values: Record<string, string>) => {
             sent.push(values);

@@ -563,6 +563,21 @@ describe("TestBrowser forms", () => {
       expect(postedPath).toBe("/rows/2/move-up");
     });
 
+    it("gives back only the body of the form a button belongs to", () => {
+      const browser = new TestBrowser();
+      browser.currentHtml = `
+        <form action="/one"><input name="only_here" value="1">
+          <button type="submit">Save</button></form>
+        <form action="/two"><input name="elsewhere" value="2">
+          <button type="submit">Publish</button></form>
+      `;
+
+      const body = browser.formBodyFor("Publish");
+
+      expect(body).toContain('name="elsewhere"');
+      expect(body).not.toContain('name="only_here"');
+    });
+
     it("refuses an address no form on the page posts to", async () => {
       const browser = new TestBrowser();
       browser.currentHtml = arrows(pressable);

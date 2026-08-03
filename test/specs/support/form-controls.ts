@@ -297,8 +297,14 @@ export const fillInAndSend = async (
   buttonText: string,
   ticked: Record<string, string[]> = {},
 ): Promise<void> => {
-  expectCanReallySend(browser.currentHtml, values);
-  expectCanReallyTick(browser.currentHtml, ticked);
+  // The form this button belongs to, not the whole page: a control in some
+  // other form is one this send could never carry, however present it looks.
+  const form = browser.formBodyFor(buttonText, [
+    ...Object.keys(values),
+    ...Object.keys(ticked),
+  ]);
+  expectCanReallySend(form, values);
+  expectCanReallyTick(form, ticked);
   await browser.submitForm({ ...values, ...ticked }, buttonText);
 };
 

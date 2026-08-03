@@ -520,6 +520,16 @@ export class TestBrowser {
   }
 
   /**
+   * The body of the form a person pressing this button would send. Lets a
+   * caller check what they are about to fill in against that form alone: a
+   * control sitting in some other form on the same page is one this send could
+   * never carry, however present it looks on the page as a whole.
+   */
+  formBodyFor(buttonText: string, fieldNames: string[] = []): string {
+    return this.findForm(buttonText, fieldNames).body;
+  }
+
+  /**
    * Submit the one form on this page that posts to `action`, the way pressing
    * its own button would: its hidden fields and CSRF token go with it. For a
    * page that renders many identical forms — one arrow per row — where the
