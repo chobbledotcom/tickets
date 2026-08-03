@@ -127,11 +127,11 @@ export const squarePaymentProvider: PaymentProvider = {
       return null;
     }
 
-    // A webhook carries a payment Square already reported COMPLETED; the
-    // order.tenders list can lag behind it, and reading the order alone would
-    // then call a captured charge unpaid.
+    // A webhook names the payment Square just reported COMPLETED, so it wins:
+    // the order's tenders can lag behind it entirely, or still lead with an
+    // earlier payment, and either would call this captured charge unpaid.
     const paymentReference =
-      order.tenders?.[0]?.paymentId ?? paidPaymentId ?? "";
+      paidPaymentId ?? order.tenders?.[0]?.paymentId ?? "";
 
     let paymentStatus: ValidatedPaymentSession["paymentStatus"] = "unpaid";
     if (paymentReference) {

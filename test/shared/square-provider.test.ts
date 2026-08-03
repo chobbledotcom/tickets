@@ -530,7 +530,48 @@ describe("square-provider", () => {
           });
           expect(asSession(result).paymentStatus).toBe("paid");
           expect(asSession(result).paymentReference).toBe("pay_lagging");
+          expect(mocks.payment.calls).toHaveLength(1);
           expect(mocks.payment.calls[0]!.args).toEqual(["pay_lagging"]);
+        },
+      );
+    });
+
+    test("prefers the webhook's payment over an earlier tender", async () => {
+      // The order already carries a tender for a previous payment. The webhook
+      // names the one Square just completed, so that is the charge this
+      // session records — and the one a refund would have to reach.
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_two_payments",
+              metadata: ORDER_META,
+              state: "COMPLETED",
+              tenders: [{ id: "tender_old", paymentId: "pay_earlier" }],
+              totalMoney: money(1000),
+            }),
+          ),
+          payment: stub(squareApi, "retrievePayment", () =>
+            Promise.resolve({ id: "pay_latest", status: "COMPLETED" }),
+          ),
+        }),
+        async (mocks) => {
+          const result = await squarePaymentProvider.resolveWebhookSession({
+            data: {
+              object: {
+                payment: {
+                  id: "pay_latest",
+                  order_id: "order_two_payments",
+                  status: "COMPLETED",
+                },
+              },
+            },
+            id: "evt_two_payments",
+            type: "payment.updated",
+          });
+          expect(asSession(result).paymentReference).toBe("pay_latest");
+          expect(mocks.payment.calls).toHaveLength(1);
+          expect(mocks.payment.calls[0]!.args).toEqual(["pay_latest"]);
         },
       );
     });

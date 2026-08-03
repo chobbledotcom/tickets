@@ -1933,8 +1933,14 @@ buyer really was charged:
 - A `malformed_charge` rejection that is paid but whose reference is unusable —
   the same situation, reached a different way (`refundable` is
   `paid && isResourceId(...)`, and the `paid` half is discarded today).
-- A refund the provider refused (`settled: false`, answered 503). The retry will
-  come, so they should be told it is in hand rather than that nothing happened.
+- A refund the provider refused (`settled: false`, answered 503). Careful here:
+  a 503 only asks the *webhook* to be delivered again. The redirect and cancel
+  paths have no retry behind them — they re-attempt only if that person happens
+  to reload the page. So this outcome must not be described to the buyer as
+  being in hand until an unresolved refund is actually written down somewhere
+  and owned by something that will retry it. Recording that state is part of
+  this job, not a follow-up to it, and it overlaps with the durable terminal
+  outcome described in the section above.
 
 A fourth case should keep the generic message: a rejection whose price proof
 does not verify may belong to another site sharing the provider account, and we
