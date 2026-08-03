@@ -6,6 +6,7 @@ import {
   refundRejectedSession,
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
+import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
@@ -31,15 +32,19 @@ const succeededRefund = {
  * false because no provider was resolvable.
  */
 describe("tryRefund resource id", () => {
-  /** Run `body` with Stripe as the configured provider. */
+  /** Run `body` with Stripe as the provider a refund resolves to. The key has
+   *  to be there as well as the choice: an existing payment is only refunded
+   *  through a provider this site still holds credentials for. */
   const withStripeConfigured = async (
     body: () => Promise<void>,
   ): Promise<void> => {
     const original = paymentsApi.getConfiguredProvider;
     paymentsApi.getConfiguredProvider = () => "stripe";
+    settings.setForTest({ stripe_secret_key: "sk_test_rejected_charge" });
     try {
       await body();
     } finally {
+      settings.clearTestOverrides();
       paymentsApi.getConfiguredProvider = original;
     }
   };
