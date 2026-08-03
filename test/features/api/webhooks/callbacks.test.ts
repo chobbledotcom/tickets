@@ -12,7 +12,10 @@ import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 // jscpd:ignore-end
 
 import { errorLogged, useErrorLogSpy } from "#test-utils/log-spy.ts";
-import { setupMismatchWithFailingRefund } from "./helpers.ts";
+import {
+  setupMismatchWithFailingRefund,
+  setupMultiMismatchWithFailingRefund,
+} from "./helpers.ts";
 
 describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
   const E = useErrorLogSpy();
@@ -269,6 +272,32 @@ describeWithEnv("server (payment callback edge cases)", { db: true }, () => {
     );
     expect(await res.text()).toContain("saved your details");
     expect(errorLogged(E, "[redirect]")).toBe(true);
+  });
+
+  test("redirect failure logs the first listing in a multi-listing order", async () => {
+    const { first, items, refundStub, refundedStub, second } =
+      await setupMultiMismatchWithFailingRefund();
+    using _rf = refundStub;
+    using _rd = refundedStub;
+    using _retrieve = stubRetrieveCheckoutSession({
+      amountTotal: 500,
+      email: "multi-redirect@example.com",
+      items,
+      metadata: signedMeta(
+        { email: "multi-redirect@example.com", items, name: "Multi redirect" },
+        2000,
+      ),
+      name: "Multi redirect",
+      paymentIntent: "pi_multi_redirect",
+      sessionId: "cs_multi_redirect",
+    });
+
+    await handleRequest(
+      mockRequest("/payment/success?session_id=cs_multi_redirect"),
+    );
+
+    expect(errorLogged(E, `listing=${first.id}`)).toBe(true);
+    expect(errorLogged(E, `listing=${second.id}`)).toBe(false);
   });
 
   test("already-processed session without thank-you URL renders without redirect", async () => {

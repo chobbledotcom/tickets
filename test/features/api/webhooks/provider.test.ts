@@ -23,7 +23,11 @@ import {
   webhookEvent,
   withWebhookVerify,
 } from "#test-utils/webhook-verify-helpers.ts";
-import { postWebhook, setupMismatchWithFailingRefund } from "./helpers.ts";
+import {
+  postWebhook,
+  setupMismatchWithFailingRefund,
+  setupMultiMismatchWithFailingRefund,
+} from "./helpers.ts";
 
 describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
   const D = useDebugLogSpy();
@@ -204,6 +208,30 @@ describeWithEnv("server (payment webhook edge cases)", { db: true }, () => {
       },
     );
     expect(errorLogged(E, `listing=${l.id}`)).toBe(true);
+  });
+
+  test("multi-listing webhook failure logs the first listing", async () => {
+    const { first, items, refundStub, refundedStub, second } =
+      await setupMultiMismatchWithFailingRefund();
+    using _rf = refundStub;
+    using _rd = refundedStub;
+
+    await withWebhookVerify(
+      webhookEvent({
+        amountTotal: 500,
+        eventId: "evt_multi_log",
+        metadata: signedMeta(
+          { email: "multi-log@example.com", items, name: "Multi log" },
+          2000,
+        ),
+        paymentIntent: "pi_multi_log",
+        sessionId: "cs_multi_log",
+      }),
+      (json) => expect(json.processed).toBe(false),
+    );
+
+    expect(errorLogged(E, `listing=${first.id}`)).toBe(true);
+    expect(errorLogged(E, `listing=${second.id}`)).toBe(false);
   });
 
   test("validation-failure refund returns 503 status", async () => {

@@ -38,3 +38,23 @@ export const setupMismatchWithFailingRefund = async (
   );
   return { l, refundedStub, refundStub };
 };
+
+export const setupMultiMismatchWithFailingRefund = async (): Promise<{
+  first: ListingWithCount;
+  items: string;
+  refundedStub: Restorable;
+  refundStub: Restorable;
+  second: ListingWithCount;
+}> => {
+  const {
+    l: first,
+    refundedStub,
+    refundStub,
+  } = await setupMismatchWithFailingRefund();
+  const second = await createTestListing({ maxAttendees: 50, unitPrice: 1000 });
+  const items = JSON.stringify([
+    { e: first.id, p: 1000, q: 1 },
+    { e: second.id, p: 1000, q: 1 },
+  ]);
+  return { first, items, refundedStub, refundStub, second };
+};
