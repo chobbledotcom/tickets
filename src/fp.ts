@@ -464,14 +464,23 @@ export type TtlCache<K, V> = {
   size: () => number;
 };
 
+/** How many entries a ttlCache may hold before the oldest is dropped. Caches
+ * built on it are best-effort, so dropping an entry only costs a re-fetch —
+ * the cap is what stops attacker-chosen keys (e.g. unique junk session
+ * cookies) growing the map without bound. */
+export const TTL_CACHE_MAX_ENTRIES = 1000;
+
 /**
  * Create a TTL (Time-To-Live) cache.
  * Entries expire after ttlMs milliseconds.
  * Accepts an optional clock function for testing.
+ * Holds at most maxEntries entries: storing a new key at the cap drops the
+ * oldest-stored entry first.
  */
 export const ttlCache = <K, V>(
   ttlMs: number,
   now: () => number = Date.now,
+  maxEntries: number = TTL_CACHE_MAX_ENTRIES,
 ): TtlCache<K, V> => {
   const cache = new Map<K, { value: V; cachedAt: number }>();
   return {
@@ -488,6 +497,11 @@ export const ttlCache = <K, V>(
       return entry.value;
     },
     set: (key: K, value: V): void => {
+      if (cache.size >= maxEntries && !cache.has(key)) {
+        // The Map keeps insertion order, so the first key is the oldest entry.
+        const oldest = cache.keys().next();
+        if (!oldest.done) cache.delete(oldest.value);
+      }
       cache.set(key, { cachedAt: now(), value });
     },
     size: (): number => cache.size,
