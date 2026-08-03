@@ -15,16 +15,16 @@ src/features/settings-bundles.ts:248:40  ?? → ||   # bundle is a readonly arra
 
 # webhooks.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
 # string|undefined; for "" both ?? "" and || "" yield "".
-src/features/api/webhooks.ts:110:39  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/webhooks.ts:113:39  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # webhooks.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
 # both ?? "" and || "" yield "".
-src/features/api/webhooks.ts:125:62  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+src/features/api/webhooks.ts:128:62  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
 
 # webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
 # false, so "" never returned). ?? null and || null agree.
-src/features/api/webhooks.ts:310:4   ?? → ||   # find(Boolean) → undefined|truthy; never ""
-src/features/api/webhooks.ts:338:55  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
+src/features/api/webhooks.ts:313:4   ?? → ||   # find(Boolean) → undefined|truthy; never ""
+src/features/api/webhooks.ts:341:55  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
 
 # require-provider.ts: getPaymentProviderForExistingPayments() returns
 # PaymentProvider|null; a provider type is always truthy.
