@@ -529,7 +529,6 @@ const settingsBase = {
           sql:
             "INSERT INTO settings (key, value) " +
             "SELECT 'payment_provider', 'none' " +
-            "WHERE COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' " +
             "ON CONFLICT(key) DO UPDATE SET value = 'none' " +
             "WHERE settings.value = 'none' RETURNING value",
         });

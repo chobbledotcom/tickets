@@ -80,6 +80,24 @@ describeWithEnv("db > settings public API", { db: true }, () => {
   });
 
   describe("payment provider", () => {
+    const reloadPaymentProviderSettings = async (): Promise<void> => {
+      settings.invalidateCache();
+      await settings.loadKeys([
+        CONFIG_KEYS.PAYMENT_PROVIDER,
+        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+      ]);
+    };
+
+    const expectDisabledWith = (remembered: "stripe" | "square"): void => {
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.paymentProviderSetting).toBe("none");
+      expect(settings.lastActivePaymentProvider).toBe(remembered);
+      expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe("none");
+      expect(
+        settings.getCachedRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER),
+      ).toBe(remembered);
+    };
+
     test("replaces the current provider", async () => {
       await settings.update.paymentProvider("square");
       await settings.update.paymentProvider("stripe");
@@ -167,6 +185,16 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       expect(settings.paymentProviderSetting).toBe("none");
     });
 
+    test("recovery updates the current request snapshot", async () => {
+      await settings.update.clearPaymentProvider();
+
+      await settings.update.recoverPaymentProvider("square");
+
+      expectDisabledWith("square");
+      await reloadPaymentProviderSettings();
+      expectDisabledWith("square");
+    });
+
     test("does not recover over a provider enabled by another request", async () => {
       await settings.update.clearPaymentProvider();
       const { executeWithoutCacheInvalidation } = await import(
@@ -181,11 +209,7 @@ describeWithEnv("db > settings public API", { db: true }, () => {
         settings.update.recoverPaymentProvider("square"),
       ).rejects.toThrow("Payment provider recovery is no longer available");
 
-      settings.invalidateCache();
-      await settings.loadKeys([
-        CONFIG_KEYS.PAYMENT_PROVIDER,
-        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
-      ]);
+      await reloadPaymentProviderSettings();
       expect(settings.paymentProvider).toBe("stripe");
       expect(settings.lastActivePaymentProvider).toBeNull();
     });
@@ -255,24 +279,9 @@ describeWithEnv("db > settings public API", { db: true }, () => {
 
       await settings.update.setPaymentProviderNone();
 
-      // The in-memory snapshot mirrors the committed transaction immediately:
-      // payment_provider is null, last_active is Square (not the stale Stripe).
-      expect(settings.paymentProvider).toBeNull();
-      expect(settings.lastActivePaymentProvider).toBe("square");
-      // The raw cache mirrors the committed batch too (syncStoredSetting ran).
-      expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe("none");
-      expect(
-        settings.getCachedRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER),
-      ).toBe("square");
-
-      // Reload from the DB to confirm the committed values match the snapshot.
-      settings.invalidateCache();
-      await settings.loadKeys([
-        CONFIG_KEYS.PAYMENT_PROVIDER,
-        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
-      ]);
-      expect(settings.paymentProvider).toBeNull();
-      expect(settings.lastActivePaymentProvider).toBe("square");
+      expectDisabledWith("square");
+      await reloadPaymentProviderSettings();
+      expectDisabledWith("square");
     });
   });
 
