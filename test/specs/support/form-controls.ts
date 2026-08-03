@@ -127,21 +127,21 @@ interface UsableCheckbox {
 const usableCheckboxesOn = (html: string): UsableCheckbox[] => {
   const boxes: UsableCheckbox[] = [];
   for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
-    const tag = box[1]!;
+    // The whole tag, closing bracket and all: the flag test needs something
+    // after the name to know it stands alone.
+    const tag = box[0];
     const value = attribute(tag, "value");
     const field = attribute(tag, "name");
     if (
       tag.includes('type="checkbox"') &&
-      !tag.includes("disabled") &&
+      !hasFlag(tag, "disabled") &&
       field !== null &&
       value !== null
     ) {
       boxes.push({
         field,
-        // The whole tag, closing bracket and all: the flag test needs
-        // something after the name to know it stands alone.
-        insisted: hasFlag(box[0], "required"),
-        ticked: tag.includes("checked"),
+        insisted: hasFlag(tag, "required"),
+        ticked: hasFlag(tag, "checked"),
         value,
       });
     }

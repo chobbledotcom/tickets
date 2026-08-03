@@ -188,16 +188,10 @@ export type OpensAtOneRow = (
   name: string,
 ) => Promise<{ browser: TestBrowser; id: number }>;
 
-/** The way into one named row, found on the list that row lives on. A list
- * that renders no link into a row is a row nobody can reach, so this fails
- * rather than answering with nothing — a story that carried on would act on
- * the wrong thing, or on none at all.
- *
- * Curried on how the list is opened and on how that row's own link is told
- * apart from every other link on the page, so each kind of thing declares its
- * way in in one line. A list tells its rows apart by the number the site files
- * each under, or by the name on the row itself, so the row the list was opened
- * at and the name asked for are both handed over. */
+/** The address of the link into one named row, off the list that row lives on.
+ * A list that renders no such link is a row nobody can reach, so this fails
+ * rather than answering with nothing. Each kind of thing says how its list
+ * opens and how its own row's link is told apart from every other link. */
 export const findsTheWayInFrom =
   <Row extends { browser: TestBrowser }>(
     openAt: (world: TicketsWorld, name: string) => Promise<Row>,

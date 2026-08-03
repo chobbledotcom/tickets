@@ -240,31 +240,45 @@ describe("the days a page has ticked", () => {
   const day = (value: string, attributes = "checked") =>
     `<input type="checkbox" name="bookable_days" value="${value}" ${attributes}>`;
 
-  test("lists only the ticked ones", () => {
-    expect(
-      tickedCheckboxes(
-        `${day("Monday")}${day("Tuesday", "")}`,
-        "bookable_days",
-      ),
-    ).toEqual(["Monday"]);
-  });
+  /** What a page offers for its days, and the days somebody looking at it
+   * would see already ticked and could untick again. */
+  const READINGS: Array<{ offering: string; ticked: string[]; what: string }> =
+    [
+      {
+        offering: `${day("Monday")}${day("Tuesday", "")}`,
+        ticked: ["Monday"],
+        what: "lists only the ticked ones",
+      },
+      {
+        // A hidden box carries the value but offers no way to clear it, and a
+        // switched-off checkbox cannot be clicked either.
+        offering: `${day("Monday")}<input type="hidden" name="bookable_days" value="Sunday">${day("Friday", "checked disabled")}`,
+        ticked: ["Monday"],
+        what: "leaves out a day nobody could untick",
+      },
+      {
+        offering: `${day("Monday")}<input type="checkbox" name="fields" value="email" checked>`,
+        ticked: ["Monday"],
+        what: "leaves out another field's ticked boxes",
+      },
+      {
+        // "unchecked" contains "checked" and "not-disabled" contains
+        // "disabled", so a page saying either in a value would otherwise have
+        // its boxes misread — the clear one counted as ticked, the usable one
+        // dropped as switched off.
+        offering: `${day("unchecked", "")}${day("not-disabled")}`,
+        ticked: ["not-disabled"],
+        what: "does not read a word inside a value as a flag of its own",
+      },
+    ];
 
-  test("leaves out a day nobody could untick", () => {
-    // A hidden box carries the value but offers no way to clear it, and a
-    // switched-off checkbox cannot be clicked either.
-    const fixed = '<input type="hidden" name="bookable_days" value="Sunday">';
-    const off = day("Friday", "checked disabled");
-    expect(
-      tickedCheckboxes(`${day("Monday")}${fixed}${off}`, "bookable_days"),
-    ).toEqual(["Monday"]);
-  });
-
-  test("leaves out another field's ticked boxes", () => {
-    const other = '<input type="checkbox" name="fields" value="email" checked>';
-    expect(
-      tickedCheckboxes(`${day("Monday")}${other}`, "bookable_days"),
-    ).toEqual(["Monday"]);
-  });
+  for (const reading of READINGS) {
+    test(reading.what, () => {
+      expect(tickedCheckboxes(reading.offering, "bookable_days")).toEqual(
+        reading.ticked,
+      );
+    });
+  }
 
   describe("the value a page's own box sends", () => {
     test("reads it off the box rather than assuming one", () => {
