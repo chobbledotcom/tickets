@@ -216,7 +216,7 @@ describeWithEnv("db > settings public API", { db: true }, () => {
     });
   });
 
-  describe("Stripe activation", () => {
+  describe("Stripe configuration", () => {
     const current = {
       secretKey: "sk_test_current",
       webhookEndpointId: "we_current",
@@ -229,8 +229,8 @@ describeWithEnv("db > settings public API", { db: true }, () => {
     };
 
     test("replaces the current credentials and provider", async () => {
-      await settings.update.stripe.activate(current);
-      await settings.update.stripe.activate(replacement);
+      await settings.update.stripe.configure(current, "stripe");
+      await settings.update.stripe.configure(replacement, "stripe");
 
       expect({
         paymentProvider: settings.paymentProvider,
@@ -246,7 +246,7 @@ describeWithEnv("db > settings public API", { db: true }, () => {
     });
 
     test("persists the Stripe provider selection", async () => {
-      await settings.update.stripe.activate(replacement);
+      await settings.update.stripe.configure(replacement, "stripe");
       settings.invalidateCache();
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
 

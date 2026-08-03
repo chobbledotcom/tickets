@@ -42,12 +42,14 @@ describeWithEnv(
       const html = await (await adminGet("/admin/settings")).text();
       const form = html.match(
         /<form[^>]*action="\/admin\/settings\/payment-provider-recovery"[^>]*>[\s\S]*?<\/form>/,
-      )?.[0];
-      expect(form).toContain('id="settings-payment-provider-recovery"');
-      expect(form).toMatch(
+      );
+      expect(form).not.toBeNull();
+      if (form === null) return;
+      expect(form[0]).toContain('id="settings-payment-provider-recovery"');
+      expect(form[0]).toMatch(
         /<input[^>]*name="existing_payment_provider"[^>]*required[^>]*value="stripe"/,
       );
-      expect(form).toMatch(
+      expect(form[0]).toMatch(
         /<input[^>]*name="existing_payment_provider"[^>]*required[^>]*value="square"/,
       );
       expect(html).toMatch(/<input[^>]*checked[^>]*value="none"/);

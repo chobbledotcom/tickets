@@ -17,6 +17,7 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
   });
 
   test("returns the active provider when new sales are on", async () => {
+    await settings.update.stripe.secretKey("sk_test_active");
     await settings.update.paymentProvider("stripe");
     expect((await getPaymentProviderForExistingPayments())?.type).toBe(
       "stripe",
@@ -30,6 +31,7 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
   });
 
   test("falls back to the last activated provider when new sales are off", async () => {
+    await settings.update.stripe.secretKey("sk_test_remembered");
     await settings.update.paymentProvider("stripe");
     await settings.update.setPaymentProviderNone();
     expect(settings.paymentProvider).toBeNull();
@@ -46,6 +48,20 @@ describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
 
   test("returns null when sales are off and no provider was ever activated", async () => {
     await settings.update.setPaymentProviderNone();
+    expect(await getPaymentProviderForExistingPayments()).toBeNull();
+  });
+
+  test("does not use a remembered provider whose credentials were removed", async () => {
+    await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
+    await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "stripe");
+    settings.invalidateCache();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+    expect(await getPaymentProviderForExistingPayments()).toBeNull();
+  });
+
+  test("does not use an active provider without credentials", async () => {
+    await settings.update.paymentProvider("stripe");
     expect(await getPaymentProviderForExistingPayments()).toBeNull();
   });
 

@@ -335,25 +335,31 @@ type ProviderCredentialsConfig<T> = {
   /** Persist a newly provided secret and run any provider setup it needs.
    * Return an error string when an expected setup failure should be shown on
    * the form. Thrown failures propagate. */
-  saveSecret: (value: string) => Promise<string | null> | Promise<void>;
+  saveSecret: (
+    value: string,
+    keepSalesOff: boolean,
+  ) => Promise<string | null> | Promise<void>;
   /** Persist the non-secret fields (called on every successful save). */
   saveFields?: (fields: T) => Promise<void> | void;
   /** Connection-test function behind the sibling `/test` route. */
   testFn: () => Promise<unknown>;
 };
 
-/** Persist a validated submission, then select the provider. */
+/** Persist a validated submission without switching sales back on. */
 const persistProviderCredentials = async <T>(
   cfg: ProviderCredentialsConfig<T>,
   fields: T,
   secret: SecretFieldResult,
+  keepSalesOff: boolean,
 ): Promise<string | null> => {
   if (secret.action === "provided") {
-    const error = await cfg.saveSecret(secret.value);
+    const error = await cfg.saveSecret(secret.value, keepSalesOff);
     if (error) return error;
   }
   if (cfg.saveFields) await cfg.saveFields(fields);
-  await settings.update.paymentProvider(cfg.provider);
+  if (!keepSalesOff) {
+    await settings.update.paymentProvider(cfg.provider);
+  }
   return null;
 };
 
@@ -369,6 +375,7 @@ const defineProviderCredentialsRoute = <T>(
   test: (request: Request) => Promise<Response>;
 } => {
   const save = settingsRoute(async (form, errorPage) => {
+    const keepSalesOff = settings.paymentProviderSetting === "none";
     const secret = processSecretField(form, cfg.secretField);
     const fields = cfg.extraFields
       ? cfg.extraFields(form)
@@ -389,7 +396,12 @@ const defineProviderCredentialsRoute = <T>(
       return settingsFlash(cfg.unchangedMessage);
     }
 
-    const saveError = await persistProviderCredentials(cfg, fields, secret);
+    const saveError = await persistProviderCredentials(
+      cfg,
+      fields,
+      secret,
+      keepSalesOff,
+    );
     if (saveError) return errorPage(saveError, cfg.formId);
 
     await logActivity(cfg.logMessage);

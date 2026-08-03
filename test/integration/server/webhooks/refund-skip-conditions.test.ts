@@ -3,7 +3,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import {
+  ALL_SETTINGS_KEYS,
+  CONFIG_KEYS,
+  settings,
+} from "#shared/db/settings.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -146,48 +152,33 @@ describeWithEnv(
       });
       await deactivateTestListing(listing.id);
 
-      // The provider can disappear between the initial webhook check and the
+      const event = checkoutSessionEvent({
+        amountTotal: 500,
+        eventId: "evt_tryrefund_noprov",
+        metadata: signedMeta(
+          {
+            email: "noprov@example.com",
+            items: singleItem(listing.id, 1, 500),
+            name: "No Provider",
+          },
+          500,
+        ),
+        paymentIntent: "pi_tryrefund_noprov",
+        sessionId: "cs_tryrefund_noprov",
+      });
+      // The provider disappears after the initial webhook check but before the
       // refund attempt. The refund stays retryable when no fallback resolves.
-      const { existingPaymentProviderApi } = await import(
-        "#shared/existing-payment-provider.ts"
-      );
-      const { paymentsApi } = await import("#shared/payments.ts");
-      const origGetCurrent = paymentsApi.getConfiguredProvider;
-      let callCount = 0;
-      const mockGetConfigured = stub(
-        paymentsApi,
-        "getConfiguredProvider",
-        () => {
-          callCount++;
-          return callCount <= 1 ? origGetCurrent() : null;
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        async () => {
+          await settings.update.setPaymentProviderNone();
+          await settings.update.stripe.secretKey("");
+          await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
+          settings.invalidateCache();
+          await settings.loadKeys(ALL_SETTINGS_KEYS);
+          return { listing: event, valid: true as const };
         },
-      );
-      const mockGetLast = stub(
-        existingPaymentProviderApi,
-        "getRemembered",
-        () => null,
-      );
-      const mockGetSingle = stub(
-        existingPaymentProviderApi,
-        "getConfigured",
-        () => [],
-      );
-
-      const mockVerify = await stubWebhookVerify(
-        checkoutSessionEvent({
-          amountTotal: 500,
-          eventId: "evt_tryrefund_noprov",
-          metadata: signedMeta(
-            {
-              email: "noprov@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "No Provider",
-            },
-            500,
-          ),
-          paymentIntent: "pi_tryrefund_noprov",
-          sessionId: "cs_tryrefund_noprov",
-        }),
       );
 
       try {
@@ -197,9 +188,6 @@ describeWithEnv(
         expect(await postWebhookForRetry()).toContain("no longer accepting");
       } finally {
         mockVerify.restore();
-        mockGetConfigured.restore();
-        mockGetLast.restore();
-        mockGetSingle.restore();
       }
     });
 

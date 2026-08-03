@@ -56,6 +56,7 @@ describe("paymentDashboardUrl", () => {
   test("links to the production Square dashboard", () => {
     settings.setForTest({
       payment_provider: "square",
+      square_access_token: "square-live-token",
       square_sandbox: false,
     });
     expect(paymentDashboardUrl("pay_1")).toBe(
@@ -66,6 +67,7 @@ describe("paymentDashboardUrl", () => {
   test("links to the sandbox Square dashboard", () => {
     settings.setForTest({
       payment_provider: "square",
+      square_access_token: "square-sandbox-token",
       square_sandbox: true,
     });
     expect(paymentDashboardUrl("pay_1")).toBe(
@@ -74,7 +76,10 @@ describe("paymentDashboardUrl", () => {
   });
 
   test("links to the SumUp dashboard", () => {
-    settings.setForTest({ payment_provider: "sumup" });
+    settings.setForTest({
+      payment_provider: "sumup",
+      sumup_api_key: "sumup-dashboard-key",
+    });
     expect(paymentDashboardUrl("tx_1")).toBe(
       "https://me.sumup.com/sales/transactions/tx_1",
     );

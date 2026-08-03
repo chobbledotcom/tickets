@@ -6,6 +6,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("requirePaymentProvider", { db: true }, () => {
   test("returns the provider when one is configured", async () => {
+    await settings.update.stripe.secretKey("sk_test_required");
     await settings.update.paymentProvider("stripe");
     const provider = await requirePaymentProvider(() =>
       Promise.resolve("missing" as const),
@@ -21,6 +22,7 @@ describeWithEnv("requirePaymentProvider", { db: true }, () => {
   });
 
   test("falls back to the last-active provider when sales are off", async () => {
+    await settings.update.square.accessToken("square-required");
     await settings.update.paymentProvider("square");
     await settings.update.setPaymentProviderNone();
     const provider = await requirePaymentProvider(() =>

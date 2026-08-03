@@ -13,24 +13,13 @@ const providerHasCredentials: Record<PaymentProviderType, () => boolean> = {
 };
 
 /** Providers with credentials stored on this site. */
-export const configuredPaymentProviderTypes = (): PaymentProviderType[] =>
+const configuredPaymentProviderTypes = (): PaymentProviderType[] =>
   pipe(
     map((provider: PaymentProviderType) =>
       providerHasCredentials[provider]() ? provider : null,
     ),
     compact,
   )(PAYMENT_PROVIDER_IDS);
-
-/** Stubbable settings reads used by the existing-payment resolver. */
-export const existingPaymentProviderApi = {
-  getConfigured: configuredPaymentProviderTypes,
-  getCurrent: (): PaymentProviderType | null => settings.paymentProvider,
-  getRaw: (): string | null =>
-    settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER),
-  getRemembered: (): PaymentProviderType | null =>
-    settings.lastActivePaymentProvider,
-  getStored: () => settings.paymentProviderSetting,
-};
 
 export type ExistingPaymentProviderState = {
   provider: PaymentProviderType | null;
@@ -42,20 +31,24 @@ export type ExistingPaymentProviderState = {
  * an ambiguous sales-off site.
  */
 export const existingPaymentProviderState = (
-  current = existingPaymentProviderApi.getCurrent(),
+  current = settings.paymentProvider,
 ): ExistingPaymentProviderState => {
-  if (current) return { provider: current, recoveryChoices: [] };
-
-  const stored = existingPaymentProviderApi.getStored();
-  const raw = existingPaymentProviderApi.getRaw();
+  const stored = settings.paymentProviderSetting;
+  const raw = settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
   if (stored === null && raw !== null && raw !== "") {
     throw new Error(`Invalid payment_provider setting: ${raw}`);
   }
 
-  const remembered = existingPaymentProviderApi.getRemembered();
-  if (remembered) return { provider: remembered, recoveryChoices: [] };
+  const configured = configuredPaymentProviderTypes();
+  if (current && configured.includes(current)) {
+    return { provider: current, recoveryChoices: [] };
+  }
 
-  const configured = existingPaymentProviderApi.getConfigured();
+  const remembered = settings.lastActivePaymentProvider;
+  if (remembered && configured.includes(remembered)) {
+    return { provider: remembered, recoveryChoices: [] };
+  }
+
   const onlyProvider = configured.length === 1 ? configured[0] : undefined;
   return onlyProvider
     ? { provider: onlyProvider, recoveryChoices: [] }

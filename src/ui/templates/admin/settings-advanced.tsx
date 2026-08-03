@@ -62,6 +62,7 @@ export type AdvancedSettingsPageState = {
   listingColumnOrder: string;
   attendeeColumnOrder: string;
   existingPaymentProvider: PaymentProviderType | null;
+  paymentProviderRecoveryNeeded: boolean;
   smsGatewayUsername: string;
   smsGatewayBaseUrl: string;
   smsGatewayPasswordConfigured: boolean;

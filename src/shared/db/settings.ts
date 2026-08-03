@@ -89,6 +89,7 @@ import {
   parseListingDefaults,
   serializeListingDefaults,
 } from "#shared/listing-defaults.ts";
+import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { EMAIL_BODY_KEYS } from "#shared/settings/registry.ts";
 import {
@@ -482,13 +483,13 @@ const settingsBase = {
       // landing before the batch is correctly reflected.
       const lastActive = await executeSettingsBatchReturningValue(
         {
-          args: [],
+          args: [...PAYMENT_PROVIDER_IDS],
           sql:
             "INSERT OR REPLACE INTO settings (key, value) " +
             "SELECT 'last_active_payment_provider', " +
             "COALESCE(CASE " +
             "WHEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
-            "IN ('stripe', 'square', 'sumup') " +
+            `IN (${PAYMENT_PROVIDER_IDS.map(() => "?").join(", ")}) ` +
             "THEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
             "ELSE COALESCE(" +
             "(SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') " +
@@ -526,13 +527,16 @@ const settingsBase = {
     },
     // --- Stripe writes ---
     stripe: {
-      activate: async (config: {
-        secretKey: string;
-        webhookSecret: string;
-        webhookEndpointId: string;
-      }): Promise<void> => {
+      configure: async (
+        config: {
+          secretKey: string;
+          webhookSecret: string;
+          webhookEndpointId: string;
+        },
+        provider: "none" | "stripe",
+      ): Promise<void> => {
         // The API key and webhook pair belong to one Stripe account. Save all
-        // three and select Stripe together so a failed write leaves the prior
+        // three with the current sales state so a failed write leaves the prior
         // provider usable, while later endpoint cleanup can fail safely.
         await writeRawBatch([
           [CONFIG_KEYS.STRIPE_SECRET_KEY, await encrypt(config.secretKey)],
@@ -541,13 +545,13 @@ const settingsBase = {
             await encrypt(config.webhookSecret),
           ],
           [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.webhookEndpointId],
-          [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
+          [CONFIG_KEYS.PAYMENT_PROVIDER, provider],
         ]);
         data.stripe_secret_key = config.secretKey;
         data.stripe_webhook_secret = config.webhookSecret;
         data.stripe_webhook_endpoint_id = config.webhookEndpointId;
-        data.payment_provider = "stripe";
-        data.payment_provider_setting = "stripe";
+        data.payment_provider = provider === "stripe" ? provider : null;
+        data.payment_provider_setting = provider;
       },
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
     },

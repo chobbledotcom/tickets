@@ -42,18 +42,21 @@ describe("CustomDomainForm", () => {
     );
     const form = html.match(
       /<form[^>]*action="\/admin\/settings\/custom-domain"[^>]*>[\s\S]*?<\/form>/,
-    )?.[0];
-    expect(form).toContain('id="settings-custom-domain"');
+    );
+    expect(form).not.toBeNull();
+    if (form === null) return;
+    const formHtml = form[0];
+    expect(formHtml).toContain('id="settings-custom-domain"');
     // Prose container around the heading
     expect(html).toContain('class="prose"');
     // Whitespace between the intro sentence and the setup-guide anchor
     expect(html).toContain("your tickets site. <a");
-    const domainInput = form?.match(
-      /<input[^>]*name="custom_domain"[^>]*>/,
-    )?.[0];
-    expect(domainInput).toContain('placeholder="tickets.yourdomain.com"');
-    expect(domainInput).toContain('type="text"');
-    expect(domainInput).toContain('value="tickets.example.com"');
+    const domainInput = formHtml.match(/<input[^>]*name="custom_domain"[^>]*>/);
+    expect(domainInput).not.toBeNull();
+    if (domainInput === null) return;
+    expect(domainInput[0]).toContain('placeholder="tickets.yourdomain.com"');
+    expect(domainInput[0]).toContain('type="text"');
+    expect(domainInput[0]).toContain('value="tickets.example.com"');
     // Guide link
     expect(html).toContain('href="/admin/guide#custom-domain"');
     // Subdomain note (visible when subdomain is set)
@@ -72,5 +75,17 @@ describe("CustomDomainForm", () => {
     expect(html).not.toContain("Last validated:");
     // Payment name label
     expect(html).toContain("Name:");
+  });
+
+  test("blocks a domain change until provider recovery is complete", () => {
+    const html = String(
+      CustomDomainForm({
+        ...advancedDefaultState,
+        bunnyCdnEnabled: true,
+        paymentProviderRecoveryNeeded: true,
+      }),
+    );
+    expect(html).toContain('<button disabled type="submit">');
+    expect(html).toContain("Choose the provider for existing payments");
   });
 });

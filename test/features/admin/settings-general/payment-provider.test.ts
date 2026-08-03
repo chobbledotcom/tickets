@@ -139,6 +139,21 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(settings.paymentProvider).toBeNull();
       expect(settings.lastActivePaymentProvider).toBeNull();
     });
+
+    test("rejects a stale recovery post after sales were enabled", async () => {
+      await settings.update.stripe.secretKey("sk_test_active");
+      await settings.update.square.accessToken("square-stale-recovery");
+      await settings.update.paymentProvider("stripe");
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider-recovery",
+        { existing_payment_provider: "square" },
+      );
+
+      expectFlash(response, "Choose a provider with saved credentials.", false);
+      expect(settings.paymentProvider).toBe("stripe");
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
+    });
   });
 
   test("logs activity when payment provider is set", async () => {

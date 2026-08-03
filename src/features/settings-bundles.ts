@@ -67,11 +67,7 @@ const PUBLIC_NAV_SETTINGS: readonly string[] = [
   CONFIG_KEYS.TERMS_AND_CONDITIONS,
 ];
 
-/**
- * The active payment provider is resolved at runtime (`getActivePaymentProvider`),
- * so any checkout flow must be able to read all three providers' keys plus
- * country (currency) and the booking fee.
- */
+/** Keys needed to resolve providers for new checkouts and existing payments. */
 const PAYMENT_SETTINGS: readonly string[] = [
   CONFIG_KEYS.PAYMENT_PROVIDER,
   CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
