@@ -297,9 +297,10 @@ describe("db > client transient upstream retry", () => {
     const unregister = registerTableInvalidation([table], () => {
       invalidated = true;
     });
+    setDb(clientWithBatch(() => Promise.resolve([emptyResultSet()])));
     try {
       await executeBatchReturningResults([
-        { args: [], sql: `CREATE TABLE ${table} (x TEXT)` },
+        { args: [], sql: `INSERT INTO ${table} (x) VALUES ('y')` },
       ]);
       expect(invalidated).toBe(false);
     } finally {
