@@ -12,10 +12,13 @@ import { namedThings } from "#test/specs/support/memory.ts";
 import {
   asksIfThereIs,
   keepsAnswerAs,
+  keepWhatTheyWereTold,
   stillThere,
   type TicketsWorld,
   theBooking,
   theListing,
+  whatTheyWereTold,
+  whatWasKeptFor,
 } from "#test/specs/support/world.ts";
 
 // jscpd:ignore-end
@@ -39,6 +42,36 @@ describe("the story's shared lookups", () => {
 
   test("fails loudly when no booking was set up", () => {
     expect(() => theBooking(worldWith({}))).toThrow("the booking");
+  });
+
+  describe("what the story kept for somebody", () => {
+    const worldRemembering = (): TicketsWorld =>
+      worldWith({ things: namedThings() });
+
+    test("hands back what was kept under their name", () => {
+      const world = worldRemembering();
+      keepWhatTheyWereTold(world, "the organiser", "Status created");
+      expect(whatTheyWereTold(world, "the organiser")).toBe("Status created");
+    });
+
+    test("keeps each person's own answer apart", () => {
+      const world = worldRemembering();
+      keepWhatTheyWereTold(world, "the organiser", "Status created");
+      keepWhatTheyWereTold(world, "the editor", "You cannot do that");
+      expect(whatTheyWereTold(world, "the editor")).toBe("You cannot do that");
+    });
+
+    test("fails loudly when the story kept nothing for them", () => {
+      expect(() =>
+        whatTheyWereTold(worldRemembering(), "the organiser"),
+      ).toThrow('the told "the organiser"');
+    });
+
+    test("reads a different kind of thing under the same name", () => {
+      const world = worldRemembering();
+      world.things.remember("ticket", "Ada", "abc123");
+      expect(whatWasKeptFor("ticket")(world, "Ada")).toBe("abc123");
+    });
   });
 
   describe("a record the site still has", () => {

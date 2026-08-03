@@ -70,6 +70,25 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       );
     });
 
+    // The only direct cover of the guard that refuses a status trying to be
+    // both a reservation and the paid default. The story "The organiser names
+    // the states a booking can be in" tells the same refusal in the
+    // organiser's own words, and a Cucumber run does not count towards
+    // coverage.
+    test("rejects a status that is both a reservation and the paid default", async () => {
+      const { response } = await adminFormPost(PATH, {
+        is_paid_default: "1",
+        is_reservation: "1",
+        name: "Contradiction",
+        reservation_amount: "10",
+      });
+      await expectFlashRedirect(
+        `${PATH}/new`,
+        "A paid status can't also be a reservation",
+        false,
+      )(response);
+    });
+
     test("rejects a missing name", async () => {
       const { response } = await adminFormPost(PATH, { name: "" });
       await expectFlashRedirect(
@@ -90,6 +109,21 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/statuses/:id/delete", () => {
+    // The only direct cover of the refusal that keeps the public default. The
+    // story tells it too, in the organiser's own words.
+    test("refuses to delete the public default", async () => {
+      const seed = await seedStatus();
+      await attendeeStatuses.table.insert({ name: "Spare" });
+      const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`, {
+        confirm_identifier: seed.name,
+      });
+      await expectFlashRedirect(
+        `${PATH}/${seed.id}/delete`,
+        "Choose another public default before deleting this status",
+        false,
+      )(response);
+    });
+
     test("refuses to delete a status that is in use", async () => {
       const inUse = await attendeeStatuses.table.insert({ name: "Active" });
       // A current `created` keeps this booking-less attendee out of the
