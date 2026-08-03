@@ -1,18 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { Spy } from "@std/testing/mock";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import {
   getActivePaymentProvider,
   getPaymentProviderForExistingPayments,
 } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { useDebugLogSpy } from "#test-utils/debug-log.ts";
-
-/** True if any captured debug log line includes `needle`. The spy is
- *  per-describe (each describe owns its own `useDebugLogSpy` hooks). */
-const debugLogged = (spy: () => Spy, needle: string): boolean =>
-  spy().calls.some((call) => String(call.args[0]).includes(needle));
+import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describeWithEnv("getActivePaymentProvider", { db: true }, () => {
   const debugSpy = useDebugLogSpy();
@@ -32,6 +26,17 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
     await getActivePaymentProvider();
     expect(
       debugLogged(debugSpy, "[Payment] Resolving payment provider: stripe"),
+    ).toBe(true);
+  });
+
+  test("labels a provider resolved for existing payments", async () => {
+    await settings.update.paymentProvider("stripe");
+    await getPaymentProviderForExistingPayments();
+    expect(
+      debugLogged(
+        debugSpy,
+        "[Payment] Resolving payment provider for existing payments: stripe",
+      ),
     ).toBe(true);
   });
 
@@ -59,48 +64,5 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
     await settings.update.paymentProvider("sumup");
     const provider = await getActivePaymentProvider();
     expect(provider?.type).toBe("sumup");
-  });
-});
-
-describeWithEnv("getPaymentProviderForExistingPayments", { db: true }, () => {
-  const debugSpy = useDebugLogSpy();
-
-  test("returns null when no provider was ever configured", async () => {
-    expect(await getPaymentProviderForExistingPayments()).toBeNull();
-  });
-
-  test("returns the active provider when new sales are on", async () => {
-    await settings.update.paymentProvider("stripe");
-    expect((await getPaymentProviderForExistingPayments())?.type).toBe(
-      "stripe",
-    );
-    expect(
-      debugLogged(
-        debugSpy,
-        "Resolving payment provider for existing payments: stripe",
-      ),
-    ).toBe(true);
-  });
-
-  test("falls back to the last activated provider when new sales are off", async () => {
-    await settings.update.paymentProvider("stripe");
-    await settings.update.setPaymentProviderNone();
-    // New sales are off, but the Stripe provider still resolves so existing
-    // payments can be refunded, reconciled, and completed.
-    expect(settings.paymentProvider).toBeNull();
-    expect((await getPaymentProviderForExistingPayments())?.type).toBe(
-      "stripe",
-    );
-    expect(
-      debugLogged(
-        debugSpy,
-        "Resolving payment provider for existing payments: stripe",
-      ),
-    ).toBe(true);
-  });
-
-  test("returns null when sales are off and no provider was ever activated", async () => {
-    await settings.update.setPaymentProviderNone();
-    expect(await getPaymentProviderForExistingPayments()).toBeNull();
   });
 });

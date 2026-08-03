@@ -11,6 +11,7 @@ import * as v from "valibot";
 import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
+import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
 import type { Currency } from "#shared/payment/money.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
@@ -22,11 +23,6 @@ import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 export const paymentsApi = {
   getConfiguredProvider: (): PaymentProviderType | null =>
     settings.paymentProvider,
-  /** The provider that captured payments before new sales were switched off;
-   *  used to keep existing payments refundable and completable while new
-   *  sales are disabled. */
-  getLastConfiguredProvider: (): PaymentProviderType | null =>
-    settings.lastActivePaymentProvider,
 };
 
 /** Re-export from types.ts (canonical definition) */
@@ -353,10 +349,7 @@ const providerLoaders: Record<
     (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
 };
 
-/** Resolve a provider type, log it, and load it. `label` carries which question
- *  is being answered (" for new sales" / " for existing payments") so the log
- *  names the path; `onMissing` lets a caller log a specific message when no
- *  provider resolves. The single load path both resolvers share. */
+/** Resolve a provider type and lazy-load its implementation. */
 const resolveProvider = async (
   resolveType: () => PaymentProviderType | null,
   label: string,
@@ -376,20 +369,18 @@ export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
     logDebug("Payment", "No payment provider configured in settings"),
   );
 
+/** Provider implementation for work on an existing payment. */
+export type ExistingPaymentProvider = PaymentProvider | null;
+
 /**
- * Resolve the provider for work on payments that already exist — refunds,
- * provider reconciliation, replayed callbacks, and completion of an
- * already-started payment. New sales use {@link getActivePaymentProvider};
- * this falls back to the last provider the operator activated when new sales
- * are off ("none"), whose credentials stay stored, so disabling new sales
- * never strands money already captured. Returns null only when no provider was
- * ever configured.
+ * Resolve the provider for refunds, callbacks, and completion of payments that
+ * already exist. New sales use {@link getActivePaymentProvider}.
  */
 export const getPaymentProviderForExistingPayments =
-  (): Promise<PaymentProvider | null> =>
+  (): Promise<ExistingPaymentProvider> =>
     resolveProvider(
       () =>
-        paymentsApi.getConfiguredProvider() ??
-        paymentsApi.getLastConfiguredProvider(),
+        existingPaymentProviderState(paymentsApi.getConfiguredProvider())
+          .provider,
       " for existing payments",
     );

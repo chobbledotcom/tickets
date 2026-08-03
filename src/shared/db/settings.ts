@@ -51,6 +51,7 @@ import {
   getCacheState,
   getCurrentSettingsVersion,
   prefetchVersion,
+  settingsVersionIncrement,
 } from "#shared/db/settings/cache.ts";
 import { keyModeOf } from "#shared/db/settings/constants.ts";
 import { withCurrentTask } from "#shared/db/settings/current-task.ts";
@@ -59,8 +60,11 @@ import { updateUserPassword } from "#shared/db/settings/password.ts";
 import {
   deleteRaw,
   encryptedUpdate,
+  executeSettingsBatchReturningValue,
   getRawCached,
   plaintextUpdate,
+  settingUpsert,
+  syncStoredSetting,
   writeEncrypted,
   writeOrDelete,
   writeRaw,
@@ -140,6 +144,20 @@ const providerKeyStatus = (keyName: "stripe_secret_key" | "sumup_api_key") => ({
     return keyModeOf(snap(keyName));
   },
 });
+
+/** Store the new-sales choice and the provider for existing payments together. */
+const storePaymentProvider = async (
+  active: PaymentProviderSetting,
+  remembered: PaymentProviderType,
+): Promise<void> => {
+  await writeRawBatch([
+    [CONFIG_KEYS.PAYMENT_PROVIDER, active],
+    [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, remembered],
+  ]);
+  data.payment_provider = active === "none" ? null : active;
+  data.payment_provider_setting = active;
+  data.last_active_payment_provider = remembered;
+};
 
 const settingsBase = {
   // --- Address lookup ---
@@ -246,10 +264,13 @@ const settingsBase = {
   /** The provider that captured payments before new sales were switched off.
    *  Used to refund, reconcile, replay, and complete payments that already
    *  exist while new sales are disabled; null when no provider was ever
-   *  activated. */
+   *  activated. Throws on a non-empty-but-invalid stored value so a corrupt
+   *  settings row is surfaced loudly rather than silently treated as "none". */
   get lastActivePaymentProvider(): PaymentProviderType | null {
     const value = snap("last_active_payment_provider");
-    return isPaymentProvider(value) ? value : null;
+    if (value === "") return null;
+    if (isPaymentProvider(value)) return value;
+    throw new Error(`Invalid last_active_payment_provider setting: ${value}`);
   },
   get listingColumnLayout(): TableLayout<ListingColumnKey> {
     return configurableTableLayouts.listing.parse(snap("listing_column_order"));
@@ -449,27 +470,45 @@ const settingsBase = {
       "orphan_purge_retention",
     ),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
-      data.payment_provider = v;
-      data.payment_provider_setting = v;
-      // Remember the activated provider so existing payments stay serviceable
-      // after new sales are later switched off.
-      await writeRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, v);
-      data.last_active_payment_provider = v;
+      await storePaymentProvider(v, v);
+    },
+    recoverPaymentProvider: async (v: PaymentProviderType): Promise<void> => {
+      await storePaymentProvider("none", v);
     },
     setPaymentProviderNone: async (): Promise<void> => {
-      // Remember the provider being switched off (if any) before clearing it,
-      // so refunds, replayed callbacks, and in-flight completions of payments
-      // that already exist keep resolving the provider that captured them. A
-      // second "none" save leaves the remembered provider in place.
-      const switchedOff = data.payment_provider;
-      if (switchedOff) {
-        await writeRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, switchedOff);
-        data.last_active_payment_provider = switchedOff;
-      }
-      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
+      // Write LAST_ACTIVE from the current DB state, then clear
+      // PAYMENT_PROVIDER — both in one batch. The RETURNING statement's
+      // subqueries read pre-statement state, so a concurrent activation
+      // landing before the batch is correctly reflected.
+      const lastActive = await executeSettingsBatchReturningValue(
+        {
+          args: [],
+          sql:
+            "INSERT OR REPLACE INTO settings (key, value) " +
+            "SELECT 'last_active_payment_provider', " +
+            "COALESCE(CASE " +
+            "WHEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
+            "IN ('stripe', 'square', 'sumup') " +
+            "THEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
+            "ELSE COALESCE(" +
+            "(SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') " +
+            "END, '') " +
+            "RETURNING value",
+        },
+        [
+          settingUpsert(CONFIG_KEYS.PAYMENT_PROVIDER, "none"),
+          settingsVersionIncrement(),
+        ],
+      );
+      syncStoredSetting(CONFIG_KEYS.PAYMENT_PROVIDER, (values) =>
+        values.set(CONFIG_KEYS.PAYMENT_PROVIDER, "none"),
+      );
+      syncStoredSetting(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, (values) =>
+        values.set(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, lastActive),
+      );
       data.payment_provider = null;
       data.payment_provider_setting = "none";
+      data.last_active_payment_provider = lastActive;
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
 

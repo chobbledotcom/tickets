@@ -7,6 +7,7 @@ import {
 } from "#shared/payment-providers.ts";
 import {
   BookingFeeForm,
+  ExistingPaymentProviderForm,
   PaymentProviderForm,
   SquareForm,
   SquareWebhookForm,
@@ -49,10 +50,13 @@ describe("settings payment forms", () => {
     });
 
     test("checks exactly the radio matching the saved provider", () => {
-      const values = ["none", ...PAYMENT_PROVIDER_IDS];
+      const values: Array<"none" | (typeof PAYMENT_PROVIDER_IDS)[number]> = [
+        "none",
+        ...PAYMENT_PROVIDER_IDS,
+      ];
       for (const selected of values) {
         const html = render(PaymentProviderForm, {
-          paymentProvider: selected === "none" ? "" : selected,
+          paymentProvider: selected === "none" ? null : selected,
         });
         for (const value of values) {
           expect(hasCheckedInput(html, "payment_provider", value)).toBe(
@@ -82,10 +86,54 @@ describe("settings payment forms", () => {
     });
   });
 
+  describe("ExistingPaymentProviderForm", () => {
+    test("requires an explicit configured provider while sales stay off", () => {
+      const html = render(ExistingPaymentProviderForm, {
+        existingPaymentProvider: null,
+        paymentProvider: null,
+        paymentProviderRecoveryChoices: ["stripe", "square"],
+      });
+      expect(html).toContain(
+        'action="/admin/settings/payment-provider-recovery"',
+      );
+      expect(html).toContain('id="settings-payment-provider-recovery"');
+      expect(html).toContain('<div class="prose">');
+      expect(html).toContain('<fieldset class="radios">');
+      for (const provider of ["stripe", "square"]) {
+        const input = inputForValue(html, provider);
+        expect(input).toContain('name="existing_payment_provider"');
+        expect(input).toContain("required");
+        expect(input).not.toContain("checked");
+      }
+      expect(html).toContain("New sales will stay off.");
+    });
+
+    test("shows the recovery form for one configured provider", () => {
+      const html = render(ExistingPaymentProviderForm, {
+        paymentProviderRecoveryChoices: ["sumup"],
+      });
+      expect(inputForValue(html, "sumup")).toContain(
+        'name="existing_payment_provider"',
+      );
+    });
+
+    test("stays hidden when no recovery choice is needed", () => {
+      expect(render(ExistingPaymentProviderForm)).toBe("");
+    });
+  });
+
   describe("StripeForm", () => {
     test("renders nothing unless Stripe is the chosen provider", () => {
       expect(render(StripeForm)).toBe("");
       expect(render(StripeForm, { paymentProvider: "square" })).toBe("");
+    });
+
+    test("stays available for existing Stripe payments while sales are off", () => {
+      const html = render(StripeForm, {
+        existingPaymentProvider: "stripe",
+        paymentProvider: null,
+      });
+      expect(html).toContain('id="settings-stripe"');
     });
 
     test("posts the key to the Stripe settings route", () => {
@@ -260,6 +308,15 @@ describe("settings payment forms", () => {
           squareTokenConfigured: true,
         }),
       ).toBe("");
+    });
+
+    test("stays available for existing Square payments while sales are off", () => {
+      const html = render(SquareWebhookForm, {
+        existingPaymentProvider: "square",
+        paymentProvider: null,
+        squareTokenConfigured: true,
+      });
+      expect(html).toContain('id="settings-square-webhook"');
     });
 
     test("posts the signature key to the Square webhook route", () => {

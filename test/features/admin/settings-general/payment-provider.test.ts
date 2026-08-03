@@ -59,6 +59,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expectFlash(response, "Payment provider disabled");
       expect(settings.paymentProvider).toBeNull();
       expect(settings.paymentProviderSetting).toBe("none");
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
 
     test("refuses a provider that cannot take the site currency", async () => {
@@ -103,6 +104,40 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         expect.stringContaining("Invalid payment provider"),
         false,
       );
+    });
+
+    test("recovers the provider for old payments without enabling sales", async () => {
+      await settings.update.stripe.secretKey("sk_test_recovery");
+      await settings.update.square.accessToken("square-recovery");
+      await settings.update.setPaymentProviderNone();
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider-recovery",
+        { existing_payment_provider: "stripe" },
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "Existing payment provider set to stripe");
+      expect(settings.paymentProviderSetting).toBe("none");
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
+      expect(redirectFormId(response)).toBe(
+        "settings-payment-provider-recovery",
+      );
+    });
+
+    test("rejects recovery through a provider without saved credentials", async () => {
+      await settings.update.stripe.secretKey("sk_test_recovery");
+      await settings.update.setPaymentProviderNone();
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider-recovery",
+        { existing_payment_provider: "square" },
+      );
+
+      expectFlash(response, "Choose a provider with saved credentials.", false);
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.lastActivePaymentProvider).toBeNull();
     });
   });
 

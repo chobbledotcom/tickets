@@ -24,6 +24,7 @@ import { isResourceId } from "#shared/payment/resource-id.ts";
 import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
+  type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
@@ -32,6 +33,10 @@ import { addPendingWork } from "#shared/pending-work.ts";
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
   "The price for this listing changed while you were completing payment.";
+
+/** The diagnostic message from a failed payment result. */
+export const failureDetail = (result: PaymentFailureResult): string =>
+  result.detail ?? result.error;
 
 /**
  * Resolve the provider for refunding or reconciling an existing payment. Falls
@@ -44,9 +49,7 @@ export const getPaymentProviderOrLog = async (
   code: ErrorCodeType,
   detail: string,
   listingId?: number,
-): Promise<
-  Awaited<ReturnType<typeof getPaymentProviderForExistingPayments>>
-> => {
+): Promise<ExistingPaymentProvider> => {
   const provider = await getPaymentProviderForExistingPayments();
   if (!provider) logError({ code, detail, listingId });
   return provider;

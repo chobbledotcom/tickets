@@ -90,7 +90,7 @@ describeWithEnv(
         const { stripePaymentProvider } = await import(
           "#shared/stripe-provider.ts"
         );
-        const mockVerify = stub(
+        using _mockVerify = stub(
           stripePaymentProvider,
           "verifyWebhookSignature",
           () =>
@@ -112,17 +112,13 @@ describeWithEnv(
               valid: true as const,
             }),
         );
-        try {
-          const response = await handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          );
-          expect(response.status).toBe(200);
-          const json = (await response.json()) as Record<string, unknown>;
-          expect(json.processed).toBe(true);
-          await expectAttendeeCreatedWithPiiBlob(listing.id);
-        } finally {
-          mockVerify.restore();
-        }
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as Record<string, unknown>;
+        expect(json.processed).toBe(true);
+        await expectAttendeeCreatedWithPiiBlob(listing.id);
       });
 
       test("a handled failure replays the same outcome on a redelivered callback", async () => {
@@ -192,19 +188,15 @@ describeWithEnv(
         const { stripePaymentProvider } = await import(
           "#shared/stripe-provider.ts"
         );
-        const mockRefund = stub(stripePaymentProvider, "refundPayment", () =>
+        using mockRefund = stub(stripePaymentProvider, "refundPayment", () =>
           Promise.resolve(true),
         );
-        try {
-          const response = await submitRefund(ctx);
-          await expectFlashRedirect(
-            `/admin/attendees/${ctx.attendee.id}/actions`,
-            "Refund issued",
-          )(response);
-          expect(mockRefund.calls.length).toBe(1);
-        } finally {
-          mockRefund.restore();
-        }
+        const response = await submitRefund(ctx);
+        await expectFlashRedirect(
+          `/admin/attendees/${ctx.attendee.id}/actions`,
+          "Refund issued",
+        )(response);
+        expect(mockRefund.calls.length).toBe(1);
       });
     });
   },

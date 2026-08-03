@@ -26,6 +26,7 @@ import {
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
 import {
+  failureDetail,
   getPaymentProviderOrLog,
   refundRejectedCharge,
   refundRejectedSession,
@@ -55,6 +56,7 @@ import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
+  type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
   type WebhookEvent,
@@ -137,7 +139,7 @@ const processSessionAndRedirect = async (
     const listingId = validation.data.intent.items[0]?.e;
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `[redirect] ${result.detail ?? result.error}`,
+      detail: `[redirect] ${failureDetail(result)}`,
       listingId,
     });
     return paymentErrorResponse(formatPaymentError(result), result.status);
@@ -302,7 +304,7 @@ const webhookResultResponse = (
   // Log once at the boundary — inner functions pass structured context via detail.
   logError({
     code: ErrorCode.PAYMENT_SESSION,
-    detail: result.detail ?? result.error,
+    detail: failureDetail(result),
     listingId: listingIdForLog,
   });
   logDebug("Webhook", `Failed payload: ${payload}`);
@@ -336,9 +338,7 @@ const authenticateWebhook = async (
 ): Promise<
   | Response
   | {
-      provider: NonNullable<
-        Awaited<ReturnType<typeof getPaymentProviderForExistingPayments>>
-      >;
+      provider: NonNullable<ExistingPaymentProvider>;
       listing: WebhookEvent;
     }
 > => {

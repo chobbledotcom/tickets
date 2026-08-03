@@ -159,6 +159,61 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
       expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
+
+    test("throws on a corrupt non-empty remembered provider", async () => {
+      await settings.setRaw(
+        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+        "garbage",
+      );
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
+      expect(() => settings.lastActivePaymentProvider).toThrow(
+        "Invalid last_active_payment_provider setting: garbage",
+      );
+    });
+
+    test("disabling sales reads the current provider from the database, not the request snapshot", async () => {
+      // Simulate the race: the snapshot loaded Stripe, then a concurrent
+      // activation wrote Square to the DB. setPaymentProviderNone must read
+      // the DB's current provider (Square), not the stale snapshot (Stripe).
+      await settings.update.paymentProvider("stripe");
+      // Write Square directly to the DB (bypassing the snapshot cache), so the
+      // snapshot still holds the stale "stripe" value.
+      const { executeWithoutCacheInvalidation } = await import(
+        "#shared/db/client.ts"
+      );
+      await executeWithoutCacheInvalidation(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        [CONFIG_KEYS.PAYMENT_PROVIDER, "square"],
+      );
+      await executeWithoutCacheInvalidation(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "square"],
+      );
+      // The snapshot still has Stripe from the request-start load.
+      expect(settings.paymentProvider).toBe("stripe");
+
+      await settings.update.setPaymentProviderNone();
+
+      // The in-memory snapshot mirrors the committed transaction immediately:
+      // payment_provider is null, last_active is Square (not the stale Stripe).
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.lastActivePaymentProvider).toBe("square");
+      // The raw cache mirrors the committed batch too (syncStoredSetting ran).
+      expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe("none");
+      expect(
+        settings.getCachedRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER),
+      ).toBe("square");
+
+      // Reload from the DB to confirm the committed values match the snapshot.
+      settings.invalidateCache();
+      await settings.loadKeys([
+        CONFIG_KEYS.PAYMENT_PROVIDER,
+        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+      ]);
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.lastActivePaymentProvider).toBe("square");
+    });
   });
 
   describe("Stripe activation", () => {
