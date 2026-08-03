@@ -12,7 +12,7 @@ import { expect } from "@std/expect";
 // jscpd:ignore-start
 import { t } from "#i18n";
 import {
-  type FindsTheWayIn,
+  findsTheWayInFrom,
   ORGANISER,
   openAdminPage,
   type TakesOneThingDown,
@@ -36,24 +36,31 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 /** Where the organiser's own list of states lives. */
 const THE_LIST = "/admin/settings/statuses";
 
-/** The two jobs a state can hold, in the story's words and in the box on the
- * form that gives it away. Only these two exist, so a story naming anything
- * else is a story about a job the site does not have. */
-const BOX_FOR_JOB: Record<string, string> = {
-  "where a paid booking lands": "is_paid_default",
-  "where new bookings start": "is_public_default",
+/** The jobs a state can hold, in the organiser's own words. Only these exist,
+ * so a story naming anything else is a story about a job the site does not
+ * have — and a new job is a missing entry below rather than a silent miss. */
+type StateJob = "where a paid booking lands" | "where new bookings start";
+
+/** What each job looks like on the pages: the box on the add form that gives
+ * it away, and the badge the list puts beside whichever state holds it. */
+const JOBS: Record<StateJob, { badge: string; box: string }> = {
+  "where a paid booking lands": {
+    badge: "statuses.badge_paid",
+    box: "is_paid_default",
+  },
+  "where new bookings start": {
+    badge: "statuses.badge_public_default",
+    box: "is_public_default",
+  },
 };
 
-/** The badge the list puts beside the state holding one job. */
-const BADGE_FOR_JOB: Record<string, string> = {
-  "where a paid booking lands": "statuses.badge_paid",
-  "where new bookings start": "statuses.badge_public_default",
-};
-
-const boxForJob = (job: string): string => {
-  const box = BOX_FOR_JOB[job];
-  if (!box) throw new Error(`No state can be "${job}"`);
-  return box;
+/** A job named by a story, checked against the ones the site really has. The
+ * words come out of a Feature file, so they are only a `StateJob` once this
+ * has looked. */
+const theJob = (job: string): { badge: string; box: string } => {
+  const known = JOBS[job as StateJob];
+  if (!known) throw new Error(`No state can be "${job}"`);
+  return known;
 };
 
 /** The organiser's own list of states, open in front of them. */
@@ -115,7 +122,7 @@ export interface NewState {
  * job's own box. */
 const boxesToTick = (state: NewState): string[] => [
   ...(state.deposit === undefined ? [] : ["is_reservation"]),
-  ...(state.job === undefined ? [] : [boxForJob(state.job)]),
+  ...(state.job === undefined ? [] : [theJob(state.job).box]),
   ...(state.meansTheBalanceIsPaid ? ["is_paid_default"] : []),
 ];
 
@@ -146,43 +153,44 @@ export const organiserAddsState = async (
   keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
-/** Whether the list marks one state as holding one job, read off that state's
- * own row. */
-export const listMarksStateAs = async (
+/** Whether one state's own row carries a badge. Read off that state's row
+ * alone, so a badge beside somebody else is never taken for this one's. */
+const rowShowsBadge = async (
+  world: TicketsWorld,
+  name: string,
+  badge: string,
+): Promise<boolean> => (await openAtState(world, name)).row.includes(badge);
+
+/** Whether the list marks one state as holding one job. */
+export const listMarksStateAs = (
   world: TicketsWorld,
   name: string,
   job: string,
-): Promise<boolean> => {
-  const badge = BADGE_FOR_JOB[job];
-  if (!badge) throw new Error(`No state can be "${job}"`);
-  return (await openAtState(world, name)).row.includes(t(badge));
-};
+): Promise<boolean> => rowShowsBadge(world, name, t(theJob(job).badge));
 
 /** Whether the list says a state asks for a deposit, and how much. */
-export const listShowsDeposit = async (
+export const listShowsDeposit = (
   world: TicketsWorld,
   name: string,
   amount: string,
 ): Promise<boolean> =>
-  (await openAtState(world, name)).row.includes(
-    t("statuses.badge_reservation", { amount }),
-  );
+  rowShowsBadge(world, name, t("statuses.badge_reservation", { amount }));
 
 /** The link into one state's own page, read off the organiser's list. A link,
  * not any mention of the address: a state whose row lost its way in is one the
  * organiser cannot reach either. */
-const linkIntoState: FindsTheWayIn = async (world, name) => {
-  const { browser, id } = await openAtState(world, name);
-  const into = `${THE_LIST}/${id}`;
-  return browser.links.find(({ href }) => href === into)?.href ?? null;
-};
+const linkIntoState = findsTheWayInFrom(
+  openAtState,
+  ({ id }) =>
+    ({ href }) =>
+      href === `${THE_LIST}/${id}`,
+);
 
 /** The organiser takes a state away, following every way in they really have —
  * the link on their list, the delete link behind that page's Actions tab —
  * then typing a name to confirm. */
 const takesStateAway: TakesOneThingDown = takesDownFromList(linkIntoState, {
   deleteLinkKey: "statuses.delete_button",
-  missing: (name) => `The list offers no way into the state "${name}"`,
   submitKey: "statuses.delete_button",
 });
 

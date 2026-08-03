@@ -1,0 +1,182 @@
+import { expect } from "@std/expect";
+import { describe, it } from "@std/testing/bdd";
+import { TestBrowser } from "#test-utils/test-browser.ts";
+import { postedPathBrowser, setupFormSubmit, useHandler } from "./helpers.ts";
+
+describe("TestBrowser choosing which form a press belongs to", () => {
+  it("presses a usable button in a later form, not the switched-off one", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // A person reading this page can press the second Publish, so naming it
+    // must reach that one rather than stopping at the switched-off first.
+    browser.currentHtml = `
+      <form action="/draft">
+        <button name="action" value="publish" disabled>Publish</button>
+      </form>
+      <form action="/ready">
+        <button name="action" value="publish">Publish</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Publish");
+
+    expect(postedPath()).toBe("/ready");
+  });
+
+  it("prefers the form that renders every field being sent", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // Two forms share the Save wording; only the second renders the field
+    // being filled in, so that is the one a person would submit.
+    browser.currentHtml = `
+      <form action="/toggle">
+        <input type="checkbox" name="enabled" value="true">
+        <button>Save</button>
+      </form>
+      <form action="/words">
+        <textarea name="intro"></textarea>
+        <button>Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ intro: "Welcome" }, "Save");
+
+    expect(postedPath()).toBe("/words");
+  });
+
+  it("posts to the pressed button's formaction, like a real browser", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // A quote button aims the same form at a different address; pressing it
+    // must go where the button points, not where the form does.
+    browser.currentHtml = `
+      <form action="/book">
+        <input name="email" value="a@example.com">
+        <button>Continue</button>
+        <button formaction="/quote" type="submit">Show total</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Show total");
+
+    expect(postedPath()).toBe("/quote");
+  });
+
+  it("ignores a data-formaction attribute when aiming the form", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // Only the real formaction attribute may redirect the submission.
+    browser.currentHtml = `
+      <form action="/book">
+        <input name="email" value="a@example.com">
+        <button data-formaction="/wrong" type="submit">Continue</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Continue");
+
+    expect(postedPath()).toBe("/book");
+  });
+
+  it("ignores a data-name attribute when ranking forms by field", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // Only a real name attribute counts as rendering the field — a longer
+    // attribute like data-name on another form must not win the ranking.
+    browser.currentHtml = `
+      <form action="/decoy">
+        <div data-name="intro"></div>
+        <button>Save</button>
+      </form>
+      <form action="/real">
+        <textarea name="intro"></textarea>
+        <button>Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ intro: "Welcome" }, "Save");
+
+    expect(postedPath()).toBe("/real");
+  });
+
+  it("keeps the first matching form when nothing renders a sent field", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // A field no form renders is a plain override, so form choice falls back
+    // to the first form carrying the button, as it always did.
+    browser.currentHtml = `
+      <form action="/first">
+        <button>Save</button>
+      </form>
+      <form action="/second">
+        <button>Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ extra: "override" }, "Save");
+
+    expect(postedPath()).toBe("/first");
+  });
+
+  it("selects a form by body text even when no button text matches", async () => {
+    const browser = new TestBrowser();
+    let postedPath = "";
+    let posted = "";
+    useHandler(browser, async (request) => {
+      postedPath = new URL(request.url).pathname;
+      posted = await request.text();
+      return new Response("saved");
+    });
+    browser.currentHtml = `
+      <form action="/body-text">
+        <p>Publish this draft</p>
+        <input name="title" value="Draft">
+        <button name="action" value="save">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Publish");
+
+    const params = new URLSearchParams(posted);
+    expect(postedPath).toBe("/body-text");
+    expect(params.get("title")).toBe("Draft");
+    expect(params.has("action")).toBe(false);
+  });
+
+  it("does not submit nameless button values", async () => {
+    const { browser, getParams } = setupFormSubmit();
+    browser.currentHtml = `
+      <form action="/save">
+        <input name="title" value="Draft">
+        <button value="publish">Publish</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Publish");
+
+    const params = getParams();
+    expect(params.get("title")).toBe("Draft");
+    expect(params.has("undefined")).toBe(false);
+  });
+
+  it("presses a usable button when a switched-off one shares its text", async () => {
+    const browser = new TestBrowser();
+    useHandler(browser, () => new Response("saved"));
+    browser.currentHtml = `
+      <form action="/only">
+        <button disabled>Save</button>
+        <button name="action" value="now">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Save");
+
+    expect(browser.currentHtml).toBe("saved");
+  });
+
+  it("throws with available form actions when no button matches", async () => {
+    const browser = new TestBrowser();
+    browser.currentHtml = `
+      <form action="/first"><button>Save</button></form>
+      <form action="/second"><button>Delete</button></form>
+    `;
+
+    await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+      'No form found with button text "Publish". Available forms:\n  action="/first"\n  action="/second"',
+    );
+  });
+});

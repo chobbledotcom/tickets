@@ -112,26 +112,32 @@ const whyNumberIsOutOfRange: WhyFieldCannotCarry = (box, field, chosen) => {
   return null;
 };
 
-/** Every checkbox on the page for one field that a person could actually
- * tick — a switched-off one is not one of them. Each is given as the value it
- * would send, whether it is already ticked, and whether the page insists on it
- * being ticked at all. */
-const usableCheckboxes = (
-  html: string,
-  field: string,
-): Array<{ insisted: boolean; ticked: boolean; value: string }> => {
-  const boxes: Array<{ insisted: boolean; ticked: boolean; value: string }> =
-    [];
+/** One checkbox somebody could really tick: which field it belongs to, the
+ * value ticking it would send, whether the page has ticked it already, and
+ * whether the page insists on it being ticked at all. */
+interface UsableCheckbox {
+  field: string;
+  insisted: boolean;
+  ticked: boolean;
+  value: string;
+}
+
+/** Every checkbox on the page a person could actually tick — a switched-off
+ * one is not one of them, and neither is one carrying no value to send. */
+const usableCheckboxesOn = (html: string): UsableCheckbox[] => {
+  const boxes: UsableCheckbox[] = [];
   for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
     const tag = box[1]!;
     const value = attribute(tag, "value");
+    const field = attribute(tag, "name");
     if (
       tag.includes('type="checkbox"') &&
-      tag.includes(`name="${field}"`) &&
       !tag.includes("disabled") &&
+      field !== null &&
       value !== null
     ) {
       boxes.push({
+        field,
         // The whole tag, closing bracket and all: the flag test needs
         // something after the name to know it stands alone.
         insisted: hasFlag(box[0], "required"),
@@ -142,6 +148,11 @@ const usableCheckboxes = (
   }
   return boxes;
 };
+
+/** Every checkbox on the page for one field that a person could actually
+ * tick. */
+const usableCheckboxes = (html: string, field: string): UsableCheckbox[] =>
+  usableCheckboxesOn(html).filter((box) => box.field === field);
 
 /** Confirm the page offers a box for this field sending exactly this value —
  * ticking a box nobody is shown would prove nothing. Throws otherwise. */
@@ -160,22 +171,10 @@ export const requireCheckboxOffered = (
 
 /** The first box the page offers for one field, or a loud failure — ticking or
  * clearing a box nobody is shown would prove nothing either way. */
-const boxOffered = (
-  html: string,
-  field: string,
-): { insisted: boolean; ticked: boolean; value: string } => {
+const boxOffered = (html: string, field: string): UsableCheckbox => {
   const box = usableCheckboxes(html, field)[0];
   if (!box) throw new Error(`The page offers no ${field} box to tick`);
   return box;
-};
-
-/** Confirm a person could really leave this field's box clear: the page has to
- * offer one, and must not insist on it being ticked — a browser would not let
- * them send the form with a required box unticked. */
-const requireCheckboxCanBeCleared = (html: string, field: string): void => {
-  if (boxOffered(html, field).insisted) {
-    throw new Error(`The ${field} box must be ticked to send the form`);
-  }
 };
 
 /** The value the page's own box for a field sends when ticked — what a person
@@ -271,14 +270,29 @@ export const expectCanReallySend = (
  * clear — has to be one the page really offers them. A field sent as an empty
  * list is a box deliberately left alone, so the page still has to have it: a
  * form that lost the box altogether would otherwise look the same as one whose
- * box was never ticked. */
+ * box was never ticked.
+ *
+ * Then every box the page insists on has to end up ticked, the ones the story
+ * named and the ones it never mentioned alike. A browser will not send a form
+ * with a required box clear, so a send that left one out is a send nobody could
+ * have made, and a story allowed to make it would be proving the site accepts
+ * something no visitor could give it. A field the story named says what is sent
+ * for it; a field it did not leaves the page's own ticks standing. */
 const expectCanReallyTick = (
   html: string,
   ticked: Record<string, string[]>,
 ): void => {
   for (const [field, values] of Object.entries(ticked)) {
-    if (values.length === 0) requireCheckboxCanBeCleared(html, field);
+    // Asked for its own sake: the answer is thrown away, the loud failure when
+    // the page offers no such box is the whole point.
+    if (values.length === 0) boxOffered(html, field);
     for (const value of values) requireCheckboxOffered(html, field, value);
+  }
+  for (const box of usableCheckboxesOn(html).filter((one) => one.insisted)) {
+    const sending = ticked[box.field] ?? (box.ticked ? [box.value] : []);
+    if (!sending.includes(box.value)) {
+      throw new Error(`The ${box.field} box must be ticked to send the form`);
+    }
   }
 };
 

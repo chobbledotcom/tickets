@@ -46,7 +46,6 @@ export const organiserDeletesHoliday: TakesOneThingDown = takesDownFromList(
     Promise.resolve(`/admin/holidays/${world.things.require("record", name)}`),
   {
     deleteLinkKey: "holidays.delete.heading",
-    missing: (name) => `The site filed no holiday under "${name}"`,
     submitKey: "holidays.delete.submit",
   },
 );

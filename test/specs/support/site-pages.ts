@@ -8,16 +8,15 @@ import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import {
+  findsTheWayInFrom,
   newcomerReading,
+  type OpensAtOneRow,
   openAdminPage,
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import {
-  movingRowsOn,
-  type OpensAtOneRow,
-} from "#test/specs/support/reordering.ts";
+import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
   type AsksAboutOneThing,
@@ -28,7 +27,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
-import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 
@@ -99,28 +97,12 @@ const openList: OpensAtOneRow = async (world, name) => {
   return { browser: await openAdminPage(world, PAGES_LIST), id };
 };
 
-/** What the owner's own list offers for one page, or nothing when it offers
- * none. Everything they do to a page is found here first, so a page missing
- * from their list cannot be acted on by the story either. */
-const offeredForPage =
-  <Extra extends unknown[]>(
-    look: (browser: TestBrowser, id: number, ...extra: Extra) => string | null,
-  ) =>
-  async (
-    world: TicketsWorld,
-    name: string,
-    ...extra: Extra
-  ): Promise<string | null> => {
-    const { browser, id } = await openList(world, name);
-    return look(browser, id, ...extra);
-  };
-
 /** The link into one page from the owner's own list. A link, not any mention of
  * the path: a page whose row still has its reorder form but has lost its way in
  * is a page the owner cannot reach. */
-const linkIntoPage = offeredForPage((browser, id) => {
+const linkIntoPage = findsTheWayInFrom(openList, ({ id }) => {
   const into = new RegExp(`^${PAGES_LIST}/${id}(/edit)?$`);
-  return browser.links.find(({ href }) => into.test(href))?.href ?? null;
+  return ({ href }) => into.test(href);
 });
 
 /** The arrows the owner's own list offers for moving one page. */
@@ -160,7 +142,6 @@ export const ownerTakesPageDown: TakesOneThingDown = takesDownFromList(
   linkIntoPage,
   {
     deleteLinkKey: "site.pages.delete_title",
-    missing: (name) => `The list offers no way into ${name}`,
     submitKey: "site.pages.delete_submit",
   },
 );

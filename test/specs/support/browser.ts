@@ -5,9 +5,10 @@ import {
   takeDownFromActions,
 } from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
-import { TestBrowser } from "#test-utils/test-browser.ts";
+import { type LinkMatch, TestBrowser } from "#test-utils/test-browser.ts";
 import {
   keepWhatTheyWereTold,
+  type ReadAboutOneThing,
   type ReadsWhatWasKept,
   type TicketsWorld,
   whatWasKeptFor,
@@ -180,25 +181,45 @@ export const makesRecordThroughForm =
     world.things.remember("record", name, Number(id));
   };
 
-/** The way into one named thing from a list: the link the list renders for it,
- * or nothing when the list offers none. */
-export type FindsTheWayIn = (
+/** A list open at one row: the page somebody is looking at, and the number the
+ * site files that row under. */
+export type OpensAtOneRow = (
   world: TicketsWorld,
   name: string,
-) => Promise<string | null>;
+) => Promise<{ browser: TestBrowser; id: number }>;
+
+/** The way into one named row, found on the list that row lives on. A list
+ * that renders no link into a row is a row nobody can reach, so this fails
+ * rather than answering with nothing — a story that carried on would act on
+ * the wrong thing, or on none at all.
+ *
+ * Curried on how the list is opened and on how that row's own link is told
+ * apart from every other link on the page, so each kind of thing declares its
+ * way in in one line. A list tells its rows apart by the number the site files
+ * each under, or by the name on the row itself, so the row the list was opened
+ * at and the name asked for are both handed over. */
+export const findsTheWayInFrom =
+  <Row extends { browser: TestBrowser }>(
+    openAt: (world: TicketsWorld, name: string) => Promise<Row>,
+    leadsIn: (row: Row, name: string) => (link: LinkMatch) => boolean,
+  ): ReadAboutOneThing =>
+  async (world, name) => {
+    const row = await openAt(world, name);
+    const link = row.browser.links.find(leadsIn(row, name));
+    if (!link) throw new Error(`The list offers no way into "${name}"`);
+    return link.href;
+  };
 
 export const takesDownFromList =
   (
-    wayInto: FindsTheWayIn,
+    wayInto: ReadAboutOneThing,
     labelled: {
       deleteLinkKey: string;
-      missing: (name: string) => string;
       submitKey: string;
     },
   ): TakesOneThingDown =>
   async (world, name, typed) => {
     const wayIn = await wayInto(world, name);
-    if (!wayIn) throw new Error(labelled.missing(name));
     return takeDownFromActions(await openAdminPage(world, wayIn), typed, {
       deleteLink: t(labelled.deleteLinkKey),
       submit: t(labelled.submitKey),

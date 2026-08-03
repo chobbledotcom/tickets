@@ -379,12 +379,23 @@ describe("the days a page has ticked", () => {
       fillInAndSend(page.browser as any, values, "Invite", ticked);
 
     const NAME_BOX = '<input name="username" value="">';
-    const DAY_BOX = '<input type="checkbox" name="days" value="Monday">';
+    const dayBox = (insisted = "") =>
+      `<input type="checkbox" name="days" value="Monday"${insisted}>`;
+    const DAY_BOX = dayBox();
 
     /** The same person typing and ticking the same thing throughout, so each
      * example below differs only in what the page offered them. */
     const TYPED = { username: "sam" };
     const TICKED = { days: ["Monday"] };
+
+    /** Ticking the day and typing the name, and both going through. Two
+     * examples below share it, because a ticked box goes through whether or not
+     * the page insisted on it. */
+    const TICKS_AND_TYPES = {
+      sends: { ...TICKED, ...TYPED },
+      ticked: TICKED,
+      typed: TYPED,
+    };
 
     /** One filling-in: what the page offers, what is typed and ticked into it,
      * and what comes of it — the one send it makes, or the words it is refused
@@ -405,10 +416,8 @@ describe("the days a page has ticked", () => {
         what: "sends the values, naming the button that was pressed",
       },
       {
+        ...TICKS_AND_TYPES,
         offering: `${NAME_BOX}${DAY_BOX}`,
-        sends: { ...TICKED, ...TYPED },
-        ticked: TICKED,
-        typed: TYPED,
         what: "sends the boxes that were ticked alongside what was typed",
       },
       {
@@ -420,7 +429,7 @@ describe("the days a page has ticked", () => {
       },
       {
         offering: '<input name="username" value="" disabled>',
-        refusedWith: "",
+        refusedWith: "the username box is switched off",
         typed: TYPED,
         what: "sends nothing when a value could not really be sent",
       },
@@ -439,11 +448,28 @@ describe("the days a page has ticked", () => {
         what: "sends nothing when the box left clear is not on the page",
       },
       {
-        offering: `${NAME_BOX}<input type="checkbox" name="days" value="Monday" required>`,
+        offering: `${NAME_BOX}${dayBox(" required")}`,
         refusedWith: "The days box must be ticked to send the form",
         ticked: { days: [] },
         typed: TYPED,
         what: "sends nothing when the box left clear is one the page insists on",
+      },
+      {
+        ...TICKS_AND_TYPES,
+        offering: `${NAME_BOX}${dayBox(" required")}`,
+        what: "sends a box the page insists on once it is ticked",
+      },
+      {
+        offering: `${NAME_BOX}<input type="checkbox" name="terms" value="yes" required>`,
+        refusedWith: "The terms box must be ticked to send the form",
+        typed: TYPED,
+        what: "sends nothing when the page insists on a box nobody mentioned",
+      },
+      {
+        offering: `${NAME_BOX}<input type="checkbox" name="terms" value="yes" required checked>`,
+        sends: { ...TYPED },
+        typed: TYPED,
+        what: "sends when the page has already ticked the box it insists on",
       },
     ];
 

@@ -7,21 +7,15 @@
  * submitted from the page in front of the person, so an arrow that is switched
  * off, or whose form the page stopped rendering, fails the story instead of
  * being reached around. A row the list offers no arrow for is one that can go
- * no further, which is how the site says "nowhere left to go" rather than
- * accepting a request that quietly does nothing.
+ * no further, which is how the site says "nowhere left to go" — so a story
+ * asks whether the arrow is there, and pressing one that is not fails.
  */
 
+import type { OpensAtOneRow } from "#test/specs/support/browser.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 export type Direction = "up" | "down";
-
-/** A list open at one row: the page somebody is looking at, and the number the
- * site files that row under. */
-export type OpensAtOneRow = (
-  world: TicketsWorld,
-  name: string,
-) => Promise<{ browser: TestBrowser; id: number }>;
 
 /** Moving one named row around a list. */
 export interface MovesNamedRows {
@@ -31,7 +25,8 @@ export interface MovesNamedRows {
     name: string,
     direction: Direction,
   ): Promise<boolean>;
-  /** Press this row's own arrow. A row with no arrow that way is left alone. */
+  /** Press this row's own arrow. A row the list offers no arrow for is one
+   * nobody could move, so this fails rather than quietly doing nothing. */
   move(world: TicketsWorld, name: string, direction: Direction): Promise<void>;
 }
 
@@ -58,7 +53,12 @@ export const movingRowsOn = (
       (await arrowFor(world, name, direction)).posts !== null,
     move: async (world, name, direction) => {
       const { browser, posts } = await arrowFor(world, name, direction);
-      if (posts) await browser.submitFormAt(posts);
+      if (!posts) {
+        throw new Error(
+          `The list offers no way to move "${name}" ${direction}`,
+        );
+      }
+      await browser.submitFormAt(posts);
     },
   };
 };

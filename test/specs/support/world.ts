@@ -40,7 +40,8 @@ export type ActOnSomeMoney = (
 ) => Promise<void>;
 
 /** Something a story reads back about one of the things the site sells — a
- * page's words, a downloaded file, what an organiser was told. */
+ * page's words, a downloaded file, what an organiser was told, the address of
+ * the link that leads into it. */
 export type ReadAboutOneThing = (
   world: TicketsWorld,
   name: string,

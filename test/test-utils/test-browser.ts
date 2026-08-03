@@ -65,7 +65,7 @@ const regexCollect = <T>(
 };
 
 /** Match info for a found link */
-type LinkMatch = { href: string; text: string };
+export type LinkMatch = { href: string; text: string };
 
 /** Find all links in HTML */
 const findAllLinks = (html: string): LinkMatch[] =>
@@ -551,11 +551,6 @@ export class TestBrowser {
     if (!form) {
       throw new Error(`No form on this page posts to "${action}"`);
     }
-    // A form that declares no method sends by GET, which no route reached this
-    // way accepts — so pressing it would go nowhere, whatever this method did.
-    if (form.method !== "post") {
-      throw new Error(`The form at "${action}" does not send by POST`);
-    }
     // Only a submit button submits: a `type="button"` or `type="reset"` one is
     // rendered and pressable but sends nothing, and a browser has no default
     // for a missing type other than submit.
@@ -570,6 +565,20 @@ export class TestBrowser {
     );
     if (pressable.length === 0) {
       throw new Error(`The form posting to "${action}" cannot be submitted`);
+    }
+    // Where pressing each button really goes. A button may override its own
+    // form's address and method, so its word wins; a form that declares no
+    // method sends by GET, which no route reached this way accepts.
+    const sends = pressable.map((attrs) => ({
+      goesTo: attrValue(attrs, "formaction") ?? form.action,
+      sentBy: (attrValue(attrs, "formmethod") ?? form.method).toLowerCase(),
+    }));
+    if (
+      !sends.some(
+        ({ goesTo, sentBy }) => goesTo === action && sentBy === "post",
+      )
+    ) {
+      throw new Error(`No button on the form at "${action}" posts there`);
     }
     await this.sendForm(
       { action, body: form.body, entries: extractFormEntries(form.body) },

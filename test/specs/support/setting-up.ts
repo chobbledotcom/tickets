@@ -54,16 +54,19 @@ const sendSetup = (
   fillInAndSend(
     browser,
     {
-      accept_agreement: checkboxValueOffered(
-        browser.currentHtml,
-        "accept_agreement",
-      ),
       admin_password: who.password,
       admin_password_confirm: confirmation,
       admin_username: who.name,
       country: "GB",
     },
     t("setup.submit"),
+    // The agreement is a box somebody ticks, not a value they type, and the
+    // page will not send without it.
+    {
+      accept_agreement: [
+        checkboxValueOffered(browser.currentHtml, "accept_agreement"),
+      ],
+    },
   );
 
 /** Whoever is doing the setting up — the story only ever has one of them, and
