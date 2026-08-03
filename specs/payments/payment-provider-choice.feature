@@ -55,3 +55,5 @@ Feature: An organiser chooses a payment provider
       When the organiser chooses Stripe for existing payments
       And the organiser checks whether the host subdomain "mylisting" is available
       Then host subdomain registration is available again
+      When the organiser registers the host subdomain "mylisting"
+      Then the host subdomain "mylisting.tickets" is registered

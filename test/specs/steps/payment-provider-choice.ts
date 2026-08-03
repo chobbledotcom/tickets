@@ -9,6 +9,7 @@ import {
   scenarioBrowser,
   submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -170,6 +171,30 @@ When(
   },
 );
 
+When(
+  "the organiser registers the host subdomain {string}",
+  async function (this: TicketsWorld, subdomain: string): Promise<void> {
+    await withMockBunnyCdnApi(
+      {
+        registerBunnySubdomain: () =>
+          Promise.resolve({
+            fullDomain: `${subdomain}.tickets`,
+            ok: true as const,
+          }),
+      },
+      async () => {
+        const browser = scenarioBrowser(this);
+        await fillInAndSend(
+          browser,
+          { save: "1", subdomain },
+          "Register Subdomain",
+        );
+        expect(browser.currentUrl).toBe("/admin");
+      },
+    );
+  },
+);
+
 Then(
   "the organiser must choose the provider for existing payments",
   function (this: TicketsWorld): void {
@@ -243,5 +268,12 @@ Then(
     expect(browser.pageText).not.toContain(
       "Choose the provider for existing payments before changing your domain.",
     );
+  },
+);
+
+Then(
+  "the host subdomain {string} is registered",
+  function (this: TicketsWorld, domain: string): void {
+    expect(settings.bunnySubdomain).toBe(domain);
   },
 );

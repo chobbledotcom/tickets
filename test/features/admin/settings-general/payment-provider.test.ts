@@ -117,7 +117,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, "Existing payment provider set to stripe.");
+      expectFlash(response, "Existing payment provider set to Stripe.");
       expect(settings.paymentProviderSetting).toBe("none");
       expect(settings.paymentProvider).toBeNull();
       expect(settings.lastActivePaymentProvider).toBe("stripe");

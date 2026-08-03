@@ -167,6 +167,29 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       expect(settings.paymentProviderSetting).toBe("none");
     });
 
+    test("does not recover over a provider enabled by another request", async () => {
+      await settings.update.clearPaymentProvider();
+      const { executeWithoutCacheInvalidation } = await import(
+        "#shared/db/client.ts"
+      );
+      await executeWithoutCacheInvalidation(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
+      );
+
+      await expect(
+        settings.update.recoverPaymentProvider("square"),
+      ).rejects.toThrow("Payment provider recovery is no longer available");
+
+      settings.invalidateCache();
+      await settings.loadKeys([
+        CONFIG_KEYS.PAYMENT_PROVIDER,
+        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+      ]);
+      expect(settings.paymentProvider).toBe("stripe");
+      expect(settings.lastActivePaymentProvider).toBeNull();
+    });
+
     test("a second none save keeps the remembered provider", async () => {
       // Saving "none" again must not clear the provider remembered from the
       // first switch-off — existing payments still need it.

@@ -37,6 +37,7 @@ import {
   parseEnabledFeatures,
 } from "#shared/admin-features.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
+import { withTransaction } from "#shared/db/client.ts";
 import {
   boolUpdate,
   rawUpdate,
@@ -165,6 +166,14 @@ const syncReturnedPaymentProvider = (active: PaymentProviderSetting): void => {
   setPaymentProviderSnapshot(active);
 };
 
+const syncDisabledPaymentProvider = (remembered: string): void => {
+  syncReturnedPaymentProvider("none");
+  syncStoredSetting(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, (values) =>
+    values.set(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, remembered),
+  );
+  data.last_active_payment_provider = remembered;
+};
+
 const storePaymentProvider = async (
   active: PaymentProviderSetting,
   remembered: PaymentProviderType,
@@ -279,11 +288,7 @@ const settingsBase = {
   // --- Google Wallet ---
   googleWallet: googleWallet.createReadSettings(snap as (k: string) => string),
   invalidateCache,
-  /** The provider that captured payments before new sales were switched off.
-   *  Used to refund, reconcile, replay, and complete payments that already
-   *  exist while new sales are disabled; null when no provider was ever
-   *  activated. Throws on a non-empty-but-invalid stored value so a corrupt
-   *  settings row is surfaced loudly rather than silently treated as "none". */
+  /** Keeps existing-payment work available while new sales are off. */
   get lastActivePaymentProvider(): PaymentProviderType | null {
     const value = snap("last_active_payment_provider");
     if (value === "") return null;
@@ -518,7 +523,25 @@ const settingsBase = {
       syncReturnedPaymentProvider(active);
     },
     recoverPaymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      await storePaymentProvider("none", v);
+      await withTransaction(async (tx) => {
+        const active = await tx.execute({
+          args: [],
+          sql:
+            "INSERT INTO settings (key, value) " +
+            "SELECT 'payment_provider', 'none' " +
+            "WHERE COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' " +
+            "ON CONFLICT(key) DO UPDATE SET value = 'none' " +
+            "WHERE settings.value = 'none' RETURNING value",
+        });
+        if (active.rows.length === 0) {
+          throw new Error("Payment provider recovery is no longer available");
+        }
+        await tx.batch([
+          settingUpsert(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, v),
+          settingsVersionIncrement(),
+        ]);
+      });
+      syncDisabledPaymentProvider(v);
     },
     setPaymentProviderNone: async (): Promise<void> => {
       // Write LAST_ACTIVE from the current DB state, then clear
@@ -545,11 +568,7 @@ const settingsBase = {
           settingsVersionIncrement(),
         ],
       );
-      syncReturnedPaymentProvider("none");
-      syncStoredSetting(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, (values) =>
-        values.set(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, lastActive),
-      );
-      data.last_active_payment_provider = lastActive;
+      syncDisabledPaymentProvider(lastActive);
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
 

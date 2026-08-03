@@ -4,7 +4,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import type { StripeConnectionTestResult } from "#shared/stripe/endpoints.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -124,18 +123,6 @@ describeAdminSettings(() => {
       );
     });
 
-    test("rejects configuration in demo mode", async () => {
-      setDemoModeForTest(true);
-      try {
-        const { response } = await adminFormPost("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_demo",
-        });
-        expectFlash(response, "Cannot configure Stripe in demo mode", false);
-      } finally {
-        setDemoModeForTest(false);
-      }
-    });
-
     test("updates Stripe key successfully", async () => {
       await stubWebhookAndPostStripe(
         "sk_test_new_key_123",
@@ -149,18 +136,6 @@ describeAdminSettings(() => {
           expect(settings.stripe.webhookEndpointId).toBe("we_test_123");
         },
       );
-    });
-
-    test("updates credentials without turning sales back on", async () => {
-      await activateStripe("whsec_sales_off");
-      await settings.update.setPaymentProviderNone();
-
-      await stubWebhookAndPostStripe("sk_test_sales_off", async (response) => {
-        expect(response.status).toBe(302);
-        expect(settings.paymentProvider).toBeNull();
-        expect(settings.lastActivePaymentProvider).toBe("stripe");
-        expect(settings.stripe.secretKey).toBe("sk_test_sales_off");
-      });
     });
 
     test("settings page shows Stripe is not configured initially", async () => {

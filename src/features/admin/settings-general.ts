@@ -25,7 +25,10 @@ import {
 import { parseEmbedHosts, validateEmbedHosts } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { providerCurrencyBlock } from "#shared/payment-providers.ts";
+import {
+  PAYMENT_PROVIDERS,
+  providerCurrencyBlock,
+} from "#shared/payment-providers.ts";
 import { ok } from "#shared/response.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import {
@@ -79,7 +82,10 @@ export const handlePaymentProviderRecoveryPost: RequestRoute =
   settingsParsedHandler<string, PaymentProviderType>({
     extract: (form) => form.getString("existing_payment_provider"),
     formId: "settings-payment-provider-recovery",
-    log: (provider) => t("success.existing_payment_provider_set", { provider }),
+    log: (provider) =>
+      t("success.existing_payment_provider_set", {
+        provider: PAYMENT_PROVIDERS[provider].label,
+      }),
     parse: (provider) => {
       if (settings.paymentProvider) {
         return {
