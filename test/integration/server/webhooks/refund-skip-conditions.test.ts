@@ -28,6 +28,15 @@ describeWithEnv(
   () => {
     const errorSpy = useErrorLogSpy();
 
+    /** Deliver the webhook and return the plain body of the retry it earns. */
+    const postWebhookForRetry = async (): Promise<string> => {
+      const response = await handleRequest(
+        mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+      );
+      expect(response.status).toBe(503);
+      return await response.text();
+    };
+
     test("webhook rejects a paid session with no provider payment reference", async () => {
       await setupStripe();
 
@@ -106,11 +115,7 @@ describeWithEnv(
       );
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-        );
-        expect(response.status).toBe(503);
-        expect(await response.text()).toBe("Refund failed");
+        expect(await postWebhookForRetry()).toBe("Refund failed");
         // The retry is only correct if the refund was genuinely attempted on
         // the captured charge — a 503 returned before the provider call would
         // leave the money with Stripe and nothing asking for it back.
@@ -186,14 +191,10 @@ describeWithEnv(
       );
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-        );
         // The payment has a reference but the refund couldn't go through (no
         // provider), so it is retryable: 5xx for the provider to re-deliver once
         // reconfigured, rather than ack a still-charged customer.
-        expect(response.status).toBe(503);
-        expect(await response.text()).toContain("no longer accepting");
+        expect(await postWebhookForRetry()).toContain("no longer accepting");
       } finally {
         mockVerify.restore();
         mockGetConfigured.restore();

@@ -54,7 +54,7 @@ const toValidatedSession = (
     validatedPaymentSession({
       amountTotal: amount_total,
       createdAt: isoFromUnixSeconds(session.created),
-      currency: currency ?? null,
+      currency,
       id,
       metadata,
       paymentReference: payment_intent ?? "",

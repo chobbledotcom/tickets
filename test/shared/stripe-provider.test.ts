@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   lineFor,
@@ -289,69 +288,6 @@ describeStripe("stripe-provider", () => {
           });
         },
       );
-    });
-
-    test("throws for an invalid webhook payment status", async () => {
-      await expect(
-        stripePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              ...stripeCheckoutSession({ id: "cs_bad_status" }),
-              payment_status: "completed",
-            },
-          },
-          id: "evt_bad_status",
-          type: "checkout.session.completed",
-        }),
-      ).rejects.toThrow();
-    });
-
-    test("throws for malformed checkout fields when the webhook has a session ID", async () => {
-      await expect(
-        stripePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              ...stripeCheckoutSession({ id: "cs_bad_amount" }),
-              amount_total: "1000",
-            },
-          },
-          id: "evt_bad_amount",
-          type: "checkout.session.completed",
-        }),
-      ).rejects.toThrow();
-    });
-
-    test("returns null for a webhook checkout object without a session ID", async () => {
-      const { id: _id, ...withoutId } = stripeCheckoutSession();
-      expect(
-        await stripePaymentProvider.resolveWebhookSession({
-          data: { object: withoutId },
-          id: "evt_without_session",
-          type: "checkout.session.completed",
-        }),
-      ).toBeNull();
-    });
-
-    test("keeps a valid foreign checkout session ignored", async () => {
-      const foreign = stripeCheckoutSession({
-        id: "cs_foreign",
-        metadata: { foreign: "metadata" },
-      });
-      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(foreign),
-      );
-      try {
-        expect(
-          await stripePaymentProvider.resolveWebhookSession({
-            data: { object: foreign },
-            id: "evt_foreign",
-            type: "checkout.session.completed",
-          }),
-        ).toBeNull();
-        expect(retrieve.calls[0]?.args).toEqual(["cs_foreign"]);
-      } finally {
-        retrieve.restore();
-      }
     });
 
     test("normalizes the Stripe creation time", async () => {

@@ -94,6 +94,32 @@ describe("Stripe schemas", () => {
     });
   }
 
+  // The two states Stripe reports an endpoint in. A missing one would make the
+  // setup page throw on a real endpoint instead of showing whether it is live.
+  for (const status of ["disabled", "enabled"] as const) {
+    test(`accepts webhook endpoint status ${status}`, () => {
+      expect(
+        v.parse(StripeWebhookEndpointSchema, {
+          enabled_events: [],
+          id: "we_1",
+          status,
+          url: "https://x.test",
+        }).status,
+      ).toBe(status);
+    });
+  }
+
+  test("rejects an unknown webhook endpoint status", () => {
+    expect(() =>
+      v.parse(StripeWebhookEndpointSchema, {
+        enabled_events: [],
+        id: "we_1",
+        status: "paused_some_new_way",
+        url: "https://x.test",
+      }),
+    ).toThrow();
+  });
+
   test("requires the requested latest charge expansion", () => {
     expect(() =>
       v.parse(StripeExpandedPaymentIntentSchema, {

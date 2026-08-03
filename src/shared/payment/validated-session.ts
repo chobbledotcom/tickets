@@ -93,7 +93,9 @@ export const sessionOrRejection = (
  */
 export const validatedPaymentSession = (fields: {
   amountTotal: number | null;
-  currency: string | null;
+  /** Whatever the provider gave, unchanged: absent, blank, and malformed codes
+   *  are all refused here rather than defaulted on the way in. */
+  currency: string | null | undefined;
   createdAt: string | undefined;
   id: string;
   metadata: SessionMetadata;
