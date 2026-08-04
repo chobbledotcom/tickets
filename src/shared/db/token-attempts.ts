@@ -8,7 +8,9 @@
  *
  * Data stored per IP (hashed):
  *   - recent_tokens: JSON array of hashed tokens in the current window (max
- *     MAX_TOKEN_404S entries; cleared to "[]" once locked).
+ *     MAX_TOKEN_404S entries; cleared to "[]" once locked). Only ever written
+ *     by the single recording statement below, which merges inside the
+ *     database — the stored set is never read back into JS.
  *   - window_start: ms-epoch when the current counting window began. When
  *     now - window_start exceeds TOKEN_WINDOW_MS the window tumbles and the
  *     counter resets.
@@ -21,43 +23,71 @@
  */
 
 /* jscpd:ignore-start */
-import * as v from "valibot";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { clearAttemptsFor, lockoutActive } from "#shared/db/attempt-lockout.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import {
+  clearAttemptsFor,
+  isIpLockedOut,
+  makeAttemptRecorder,
+} from "#shared/db/attempt-lockout.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
   TOKEN_WINDOW_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /* jscpd:ignore-end */
 
-type TokenAttemptRow = {
-  recent_tokens: string;
-  locked_until: number | null;
-  window_start: number;
-};
+/** The stored tokens that still count: the saved set while the window is
+ * live, an empty set once the window has tumbled. Params: now, window ms. */
+const LIVE_TOKENS = `CASE
+  WHEN ? - token_attempts.window_start > ? THEN '[]'
+  ELSE token_attempts.recent_tokens
+END`;
 
-const recentTokensJson = defineStoredJson(v.array(v.string()));
+/** The live tokens and this request's tokens as one set (UNION removes
+ * duplicates, so retries of a known token never grow the set).
+ * Params: now, window ms, new-tokens JSON. */
+const UNION_TOKENS = `(
+  SELECT value FROM json_each(${LIVE_TOKENS})
+  UNION
+  SELECT value FROM json_each(?)
+) AS hashedToken`;
 
-const readRow = (hashedIp: string): Promise<TokenAttemptRow | null> =>
-  queryOne<TokenAttemptRow>(
-    "SELECT recent_tokens, locked_until, window_start FROM token_attempts WHERE ip = ?",
-    [hashedIp],
-  );
+const MERGED_COUNT = `(SELECT count(*) FROM ${UNION_TOKENS})`;
+const MERGED_JSON = `(SELECT json_group_array(hashedToken.value) FROM ${UNION_TOKENS})`;
+
+/** One statement tumbles the window, merges the new tokens, and applies the
+ * lockout — all inside the database, so two failures arriving at once can
+ * never lose each other's tokens. Once the merged set reaches the limit the
+ * stored set is cleared to "[]" (no fingerprint kept while locked). */
+const RECORD_FAILURE_SQL = `
+  INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt)
+  VALUES (
+    ?,
+    CASE WHEN json_array_length(?) >= ? THEN '[]' ELSE ? END,
+    CASE WHEN json_array_length(?) >= ? THEN ? ELSE NULL END,
+    ?,
+    ?
+  )
+  ON CONFLICT (ip) DO UPDATE SET
+    recent_tokens = CASE WHEN ${MERGED_COUNT} >= ? THEN '[]' ELSE ${MERGED_JSON} END,
+    locked_until = CASE WHEN ${MERGED_COUNT} >= ? THEN ? ELSE NULL END,
+    window_start = CASE
+      WHEN ? - token_attempts.window_start > ? THEN ?
+      ELSE token_attempts.window_start
+    END,
+    last_attempt = ?
+  RETURNING locked_until`;
+
+const recordFailure = makeAttemptRecorder(RECORD_FAILURE_SQL);
 
 /**
  * Check if IP is currently locked out of token URLs.
  * Clears expired lockouts so the next attempt starts fresh.
  */
-export const isTokenRateLimited = async (ip: string): Promise<boolean> => {
-  const hashedIp = await hmacHash(ip);
-  const row = await readRow(hashedIp);
-  return lockoutActive("token_attempts", hashedIp, row?.locked_until);
-};
+export const isTokenRateLimited = async (ip: string): Promise<boolean> =>
+  isIpLockedOut("token_attempts", await hmacHash(ip));
 
 /**
  * Record one or more failed token lookups (404) for an IP.
@@ -73,40 +103,44 @@ export const recordTokenFailure = async (
 
   const hashedIp = await hmacHash(ip);
   const hashedTokens = await Promise.all(tokens.map((t) => hmacHash(t)));
-  const row = await readRow(hashedIp);
-  const currentMs = nowMs();
+  const newTokensJson = JSON.stringify([...new Set(hashedTokens)]);
+  const current = nowMs();
+  const lockedUntil = current + TOKEN_LOCKOUT_MS;
 
-  const windowValid = row && currentMs - row.window_start <= TOKEN_WINDOW_MS;
-  const windowStart = windowValid ? row.window_start : currentMs;
-  const existing = windowValid
-    ? recentTokensJson.read(
-        row.recent_tokens,
-        `token_attempts.recent_tokens for ${hashedIp}`,
-      )
-    : [];
-
-  const merged = new Set(existing);
-  for (const h of hashedTokens) merged.add(h);
-
-  if (merged.size >= MAX_TOKEN_404S) {
-    const lockedUntil = currentMs + TOKEN_LOCKOUT_MS;
-    await execute(
-      "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, ?, ?, ?)",
-      [hashedIp, "[]", lockedUntil, currentMs, currentMs],
-    );
-    return true;
-  }
-
-  await execute(
-    "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, NULL, ?, ?)",
-    [
-      hashedIp,
-      recentTokensJson.write([...merged], "token_attempts.recent_tokens"),
-      windowStart,
-      currentMs,
-    ],
-  );
-  return false;
+  return recordFailure([
+    hashedIp,
+    // VALUES recent_tokens: a big enough first burst locks immediately
+    newTokensJson,
+    MAX_TOKEN_404S,
+    newTokensJson,
+    // VALUES locked_until
+    newTokensJson,
+    MAX_TOKEN_404S,
+    lockedUntil,
+    // VALUES window_start, last_attempt
+    current,
+    current,
+    // SET recent_tokens: merged count, limit, merged set
+    current,
+    TOKEN_WINDOW_MS,
+    newTokensJson,
+    MAX_TOKEN_404S,
+    current,
+    TOKEN_WINDOW_MS,
+    newTokensJson,
+    // SET locked_until: merged count, limit, lockout deadline
+    current,
+    TOKEN_WINDOW_MS,
+    newTokensJson,
+    MAX_TOKEN_404S,
+    lockedUntil,
+    // SET window_start: tumble to now when the old window has passed
+    current,
+    TOKEN_WINDOW_MS,
+    current,
+    // SET last_attempt
+    current,
+  ]);
 };
 
 /**

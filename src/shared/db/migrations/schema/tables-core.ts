@@ -280,11 +280,16 @@ export const coreTables: [name: string, table: Table][] = [
         ["ip", "TEXT PRIMARY KEY"],
         ["attempts", "INTEGER NOT NULL DEFAULT 0"],
         ["locked_until", "INTEGER"],
+        ["last_attempt", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
           columns: ["locked_until"],
           name: "idx_login_attempts_locked_until",
+        },
+        {
+          columns: ["last_attempt"],
+          name: "idx_login_attempts_last_attempt",
         },
       ],
     },

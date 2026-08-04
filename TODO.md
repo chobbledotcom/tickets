@@ -39,15 +39,6 @@ current trust model. They assume Bunny Edge remains the production runtime,
 site owners are trusted with their own content and integrations, and deployment
 operators own the risk of choosing deliberately hostile third-party endpoints.
 
-- **Make rate-limit writes atomic and bounded.** `src/shared/db/login-attempts.ts`
-  and `src/shared/db/token-attempts.ts` update shared rows with read-then-write
-  sequences, so concurrent attempts can lose increments, and below-threshold
-  rows are not pruned. Fold the login, API-key, booking, address-lookup, and
-  token limiters onto one atomic update/prune shape, with regression tests that
-  drive concurrent attempts. (The expired-lockout cleanup race in
-  `src/shared/db/attempt-lockout.ts` is fixed: the delete is conditional on the
-  observed `locked_until`, so a fresh lockout survives cleanup —
-  `test/shared/db/attempt-lockout.test.ts` proves it.)
 - **Preserve the client IP in production request scopes.** `src/edge.ts`,
   `src/deploy.ts`, and `src/serve-app.ts` should carry the platform connection
   context into the shared request handler so production rate limits do not fall

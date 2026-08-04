@@ -10,7 +10,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { queryOne } from "#shared/db/client.ts";
 import {
   clearTokenAttempts,
   isTokenRateLimited,
@@ -125,17 +125,21 @@ describeWithEnv("db > token-attempts", { db: true }, () => {
       expect(await isTokenRateLimited(ip)).toBe(false);
     });
 
-    test("rejects invalid stored token arrays", async () => {
+    test("concurrent failures each count their distinct token", async () => {
       const ip = "10.0.0.12";
-      const hashedIp = await hmacHash(ip);
-      await execute(
-        "INSERT INTO token_attempts (ip, recent_tokens, window_start, last_attempt) VALUES (?, ?, ?, ?)",
-        [hashedIp, '["valid",2]', Date.now(), Date.now()],
+
+      const results = await Promise.all(
+        makeTokens("race", MAX_TOKEN_404S).map((token) =>
+          recordTokenFailure(ip, [token]),
+        ),
       );
 
-      await expect(recordTokenFailure(ip, ["new"])).rejects.toThrow(
-        `Invalid stored JSON in token_attempts.recent_tokens for ${hashedIp}`,
-      );
+      // Each failure merges its token inside the database, so the last one to
+      // land sees all five distinct tokens and locks. A read-then-write
+      // recorder loses concurrent tokens (all five read an empty set) and
+      // never locks.
+      expect(results.filter((locked) => locked)).toHaveLength(1);
+      expect(await isTokenRateLimited(ip)).toBe(true);
     });
 
     test("locks when a single request supplies MAX_TOKEN_404S distinct tokens", async () => {

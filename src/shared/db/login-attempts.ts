@@ -5,79 +5,66 @@
  * abuse-prone entry points (e.g. public booking). Each call site namespaces its
  * counters with a `prefix` so they never collide — a booking flood can't lock
  * anyone out of logging in, and vice versa. Rows whose lockout has expired are
- * removed on the next check and by database pruning; counter-only rows (no
- * lockout) are left to be overwritten by the next attempt from that IP.
+ * removed on the next check and by database pruning; counter-only rows carry a
+ * `last_attempt` stamp so pruning can remove the stale ones.
  */
 
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { clearAttemptsFor, lockoutActive } from "#shared/db/attempt-lockout.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import {
+  clearAttemptsFor,
+  isIpLockedOut,
+  makeAttemptRecorder,
+} from "#shared/db/attempt-lockout.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 
-type LoginAttemptRow = { attempts: number; locked_until: number | null };
+/** One statement counts the attempt and applies the lockout: the VALUES arm
+ * covers an IP's first attempt, the conflict arm every later one, and both
+ * decide the lockout inside the database — concurrent attempts each land as
+ * their own increment instead of overwriting a shared read. */
+const RECORD_ATTEMPT_SQL = `
+  INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt)
+  VALUES (?, 1, CASE WHEN 1 >= ? THEN ? ELSE NULL END, ?)
+  ON CONFLICT (ip) DO UPDATE SET
+    attempts = login_attempts.attempts + 1,
+    locked_until = CASE
+      WHEN login_attempts.attempts + 1 >= ? THEN ?
+      ELSE NULL
+    END,
+    last_attempt = ?
+  RETURNING locked_until`;
 
-/** Hash the prefixed IP and query its attempt row, then apply the handler */
-const withHashedIpAttempts = async <T>(
-  ip: string,
-  prefix: string,
-  handler: (hashedIp: string, row: LoginAttemptRow | null) => Promise<T>,
-): Promise<T> => {
-  const hashedIp = await hmacHash(`${prefix}${ip}`);
-  const row = await queryOne<LoginAttemptRow>(
-    "SELECT attempts, locked_until FROM login_attempts WHERE ip = ?",
-    [hashedIp],
-  );
-  return handler(hashedIp, row);
-};
-
-/** Check if lockout is active, resetting expired locks. A missing row (no
- * attempts yet) reads as not limited. */
-const checkLockout = (
-  hashedIp: string,
-  row: LoginAttemptRow | null,
-): Promise<boolean> =>
-  lockoutActive("login_attempts", hashedIp, row?.locked_until);
-
-/** Build an attempt recorder with the given threshold/lockout window. */
-const makeRecordAttempt =
-  (maxAttempts: number, lockoutMs: number) =>
-  async (hashedIp: string, row: LoginAttemptRow | null): Promise<boolean> => {
-    const newAttempts = (row?.attempts ?? 0) + 1;
-
-    if (newAttempts >= maxAttempts) {
-      const lockedUntil = nowMs() + lockoutMs;
-      await execute(
-        "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
-        [hashedIp, newAttempts, lockedUntil],
-      );
-      return true;
-    }
-
-    await execute(
-      "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
-      [hashedIp, newAttempts],
-    );
-    return false;
-  };
+const recordAttempt = makeAttemptRecorder(RECORD_ATTEMPT_SQL);
 
 /**
  * Check whether an IP (namespaced by `prefix`) is currently locked out.
  */
-const isIpRateLimited = (ip: string, prefix: string): Promise<boolean> =>
-  withHashedIpAttempts(ip, prefix, checkLockout);
+const isIpRateLimited = async (ip: string, prefix: string): Promise<boolean> =>
+  isIpLockedOut("login_attempts", await hmacHash(`${prefix}${ip}`));
 
 /**
  * Record one attempt for an IP (namespaced by `prefix`), locking it out for
  * `lockoutMs` once `maxAttempts` is reached. Returns true if now locked.
  */
-const recordIpAttempt = (
+const recordIpAttempt = async (
   ip: string,
   prefix: string,
   maxAttempts: number,
   lockoutMs: number,
-): Promise<boolean> =>
-  withHashedIpAttempts(ip, prefix, makeRecordAttempt(maxAttempts, lockoutMs));
+): Promise<boolean> => {
+  const hashedIp = await hmacHash(`${prefix}${ip}`);
+  const current = nowMs();
+  const lockedUntil = current + lockoutMs;
+  return recordAttempt([
+    hashedIp,
+    maxAttempts,
+    lockedUntil,
+    current,
+    maxAttempts,
+    lockedUntil,
+    current,
+  ]);
+};
 
 /**
  * Build a namespaced per-IP limiter: `isLimited` checks the lockout,
