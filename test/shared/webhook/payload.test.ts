@@ -4,8 +4,8 @@
  */
 
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import { type Stub, spy } from "@std/testing/mock";
+import { it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import {
   bookedPackageGroupIds,
   buildWebhookPayload,
@@ -17,7 +17,7 @@ import {
   type makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
 } from "#test-utils/factories.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 
 /** A line booked through `packageGroupId` (0 for a plain line). */
 const packagedEntry = (
@@ -38,24 +38,28 @@ describeWithEnv("webhook payload", { db: true }, () => {
     ).toEqual([1, 7]);
   });
 
-  test("prices a package member from its package's override", () => {
-    const entry = packagedEntry(1);
+  /** The price the payload reports for one line, given a package override that
+   * puts this listing at 750 under `overriddenGroupId`. */
+  const reportedPrice = (
+    entry: RegistrationEntry,
+    overriddenGroupId: number,
+  ): number | undefined => {
     const overrides = new Map([
-      [1, { dayPrices: new Map(), prices: new Map([[entry.listing.id, 750]]) }],
+      [
+        overriddenGroupId,
+        { dayPrices: new Map(), prices: new Map([[entry.listing.id, 750]]) },
+      ],
     ]);
+    return buildWebhookPayload([entry], "GBP", overrides).tickets[0]
+      ?.unit_price;
+  };
 
-    const payload = buildWebhookPayload([entry], "GBP", overrides);
-    expect(payload.tickets[0]?.unit_price).toBe(750);
+  test("prices a package member from its package's override", () => {
+    expect(reportedPrice(packagedEntry(1), 1)).toBe(750);
   });
 
   test("prices a plain line from its own listing, ignoring any override", () => {
-    const entry = makeEntry({ unit_price: 400 });
-    const overrides = new Map([
-      [0, { dayPrices: new Map(), prices: new Map([[entry.listing.id, 750]]) }],
-    ]);
-
-    const payload = buildWebhookPayload([entry], "GBP", overrides);
-    expect(payload.tickets[0]?.unit_price).toBe(400);
+    expect(reportedPrice(makeEntry({ unit_price: 400 }), 0)).toBe(400);
   });
 
   test("reads the paid amount as a plain decimal figure", () => {
@@ -80,15 +84,7 @@ describeWithEnv("webhook payload", { db: true }, () => {
 });
 
 describeWithEnv("webhook sending safety", { db: true }, () => {
-  let fetchSpy: Stub;
-
-  beforeEach(() => {
-    fetchSpy = stubFetch(() => new Response());
-  });
-
-  afterEach(() => {
-    fetchSpy.restore();
-  });
+  const testFetch = stubFetchEachTest(() => new Response());
 
   test("refuses to post to an unsafe address, and says so", async () => {
     const errorSpy = spy(console, "error");
@@ -102,7 +98,7 @@ describeWithEnv("webhook sending safety", { db: true }, () => {
       errorSpy.restore();
     }
 
-    expect(fetchSpy.calls.length).toBe(0);
+    expect(testFetch.calls.length).toBe(0);
     const logged = errorSpy.calls
       .map((call) => String(call.args[0]))
       .join("\n");
@@ -111,8 +107,7 @@ describeWithEnv("webhook sending safety", { db: true }, () => {
   });
 
   test("blames the order's first listing when a send fails", async () => {
-    fetchSpy.restore();
-    fetchSpy = stubFetch(() => new Response("no", { status: 500 }));
+    testFetch.reply(() => new Response("no", { status: 500 }));
     const first = makeEntry({
       id: 11,
       webhook_url: "https://example.com/hook",

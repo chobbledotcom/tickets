@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Stub, spy, stub } from "@std/testing/mock";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
@@ -24,7 +24,7 @@ import {
   makeTestEntry as makeEntry,
   makeTestListing as makeListing,
 } from "#test-utils/factories.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import type { EmailEntry } from "#test-utils/internal.ts";
 
 /** Default single-entry registration (free listing, default attendee) */
@@ -50,21 +50,7 @@ const flushAsync = (): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("webhook", () => {
-  let fetchSpy: Stub;
-
-  beforeEach(() => {
-    fetchSpy = stubFetch(() => new Response());
-  });
-
-  afterEach(() => {
-    fetchSpy.restore();
-  });
-
-  /** Restore current fetch stub and replace with a custom implementation */
-  const restubFetch = (impl: () => Promise<Response>): void => {
-    fetchSpy.restore();
-    fetchSpy = stubFetch(impl);
-  };
+  const fetchSpy = stubFetchEachTest(() => new Response());
 
   /** The parsed JSON body of the first webhook POST the fetch stub captured. */
   const firstWebhookBody = (): WebhookPayload => {
@@ -84,7 +70,7 @@ describe("webhook", () => {
     fetchImpl: () => Promise<Response>,
   ): Promise<string[]> =>
     withErrorSpy(async (errorSpy) => {
-      restubFetch(fetchImpl);
+      fetchSpy.reply(fetchImpl);
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");
       await sendWebhook("https://example.com/webhook", payload);
       return spyFirstArgs(errorSpy.calls);
@@ -423,7 +409,7 @@ describe("webhook", () => {
 
     test("follows a safe redirect with each hop validated manually", async () => {
       let count = 0;
-      restubFetch(() => {
+      fetchSpy.reply(() => {
         count++;
         return Promise.resolve(
           count === 1
@@ -455,7 +441,7 @@ describe("webhook", () => {
     });
 
     test("refuses to follow an unsafe redirect target", async () => {
-      restubFetch(() =>
+      fetchSpy.reply(() =>
         Promise.resolve(
           new Response("", {
             headers: { location: "https://127.0.0.1/final" },
@@ -472,7 +458,7 @@ describe("webhook", () => {
     });
 
     test("does not throw on fetch error", async () => {
-      restubFetch(() => Promise.reject(new Error("Network error")));
+      fetchSpy.reply(() => Promise.reject(new Error("Network error")));
 
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 
@@ -541,7 +527,9 @@ describe("webhook", () => {
     > => {
       await runWithPendingWork(async () => {
         await withErrorSpy(async () => {
-          restubFetch(() => Promise.resolve(new Response("Error", { status })));
+          fetchSpy.reply(() =>
+            Promise.resolve(new Response("Error", { status })),
+          );
           const payload = await buildWebhookPayload(
             registrationEntries ?? defaultEntries(),
             "GBP",

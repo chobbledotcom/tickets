@@ -6,8 +6,7 @@
  */
 
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import type { Stub } from "@std/testing/mock";
+import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import {
@@ -18,22 +17,14 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 /** Enough for the fixed reads, far below one read per line or per package. */
 const REGISTRATION_CALL_LIMIT = 10;
 
 describeWithEnv("registration notification budget", { db: true }, () => {
-  let fetchSpy: Stub;
-
-  beforeEach(() => {
-    fetchSpy = stubFetch(() => new Response());
-  });
-
-  afterEach(() => {
-    fetchSpy.restore();
-  });
+  stubFetchEachTest(() => new Response());
 
   /** One booking line per listing, all sharing one webhook URL. */
   const orderEntries = async (
