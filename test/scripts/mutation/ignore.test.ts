@@ -85,7 +85,7 @@ describe("writing a mutant key onto one line", () => {
   });
 
   test("keeps a path holding a comment mark, a space, an arrow, or all", () => {
-    for (const name of ["a#b.ts", "a b.ts", "a #b.ts", "a→b.ts", "a →#b.ts"]) {
+    for (const name of ["a#b.ts", "a b.ts", "a #b.ts", "a→b.ts", "#a.ts"]) {
       const key = mutantKey(`${projectRoot}/src/${name}`, mutant(1));
 
       expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
@@ -99,6 +99,7 @@ describe("writing a mutant key onto one line", () => {
 
     expect(parseIgnoreLine(`#   ${key}`)).toBe(null);
     expect(parseIgnoreLine(`  # ${key}   # why`)).toBe(null);
+    expect(parseIgnoreLine("#")).toBe(null);
   });
 
   /** Each is a line the loader must refuse rather than turn into a record it

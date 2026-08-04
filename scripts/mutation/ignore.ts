@@ -88,9 +88,12 @@ interface ParsedIgnoreLine {
 
 /** Parse one ignore-file line into a canonical key, or null when blank/comment. */
 export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
-  // A whole-line comment is not an entry, however much of one it quotes.
+  // A comment is a `#` with whitespace after it, which is how every reason and
+  // every note in these files is written. A path beginning with `#` has no
+  // such gap, so an entry for one still reads as an entry rather than as a
+  // comment quoting one.
   const text = line.trimStart();
-  if (text === "" || text.startsWith("#")) return null;
+  if (text === "" || /^#(?:\s|$)/.test(text)) return null;
   // Take the path and anchor off the front by their own shape rather than by
   // hunting for a delimiter: an anchor holds only these characters and ends at
   // the first whitespace after it, so whatever precedes is the path, whichever
