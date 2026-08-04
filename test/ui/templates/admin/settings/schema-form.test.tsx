@@ -8,6 +8,8 @@ const state = {
   attendeeColumnOrder: "",
   bookingFee: "1.5",
   businessEmail: "ops@example.com",
+  calendarFeedsEnabled: false,
+  calendarFeedsGroupBy: "attendees",
   customCss: "body { color: red; }",
   embedHosts: "example.com",
   externalOrderEnabled: true,
@@ -125,6 +127,64 @@ describe("settingsForm multi-field forms", () => {
     expect(html).toContain(
       '<input checked name="underline_links" type="checkbox" value="true">',
     );
+  });
+
+  test("labels a labelFor select separately and selects the saved value", () => {
+    const html = String(
+      settingsForm(SETTINGS_FORMS.calendarFeeds, {
+        calendarFeedsEnabled: true,
+        calendarFeedsGroupBy: "listings",
+      }),
+    );
+
+    expect(html).toContain(
+      '<label for="calendar_feeds_group_by">Group feed entries by</label>',
+    );
+    expect(html).toContain(
+      '<select id="calendar_feeds_group_by" name="calendar_feeds_group_by">',
+    );
+    expect(html).toContain(
+      '<option selected value="listings">Listings</option>',
+    );
+    expect(html).toContain('<option value="attendees">Attendees</option>');
+    expect(html).toContain(
+      '<input checked name="calendar_feeds_enabled" type="checkbox" value="true">',
+    );
+  });
+
+  test("wraps a select inside its label when labelFor is not set", () => {
+    // A probe spec standing in for selects that wrap their label, like the
+    // address lookup provider picker. The registry locks each definition to
+    // its literal values, so the probe needs a cast.
+    const probe = {
+      ...SETTINGS_FORMS.calendarFeeds,
+      fields: [
+        {
+          fieldName: "probe_select",
+          kind: "select",
+          labelKey: "settings.calendar_feeds_group_by",
+          options: [
+            {
+              labelKey: "settings.calendar_feeds_group_by_attendees",
+              value: "attendees",
+            },
+          ],
+          stateField: "calendarFeedsGroupBy",
+        },
+      ],
+    } as unknown as typeof SETTINGS_FORMS.calendarFeeds;
+    const html = String(
+      settingsForm(probe, {
+        calendarFeedsEnabled: false,
+        calendarFeedsGroupBy: "attendees",
+      }),
+    );
+
+    expect(html).toContain(
+      '<label>Group feed entries by<select name="probe_select">',
+    );
+    expect(html).not.toContain('for="probe_select"');
+    expect(html).not.toContain('id="probe_select"');
   });
 });
 

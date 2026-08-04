@@ -75,10 +75,14 @@ type FieldSpecBase = {
   stateField: string;
 };
 
+/** One choice in a radio group or dropdown: the value it posts and the
+ *  catalog key naming it. */
+type ChoiceOption = { value: string; labelKey: string };
+
 /** A radio group: one option per choice, no heading of its own. */
 export type RadiosFieldSpec = FieldSpecBase & {
   kind: "radios";
-  options: readonly { value: string; labelKey: string }[];
+  options: readonly ChoiceOption[];
 };
 
 /** A checkbox that posts `true` when ticked. */
@@ -91,7 +95,16 @@ export type CheckboxFieldSpec = FieldSpecBase & {
   hintKey?: string;
 };
 
-export type FieldSpec = CheckboxFieldSpec | RadiosFieldSpec;
+/** A dropdown. With `labelFor`, the label sits before the select and points
+ *  at it by id; without, the label wraps the select. */
+export type SelectFieldSpec = FieldSpecBase & {
+  kind: "select";
+  labelKey: string;
+  labelFor?: true;
+  options: readonly ChoiceOption[];
+};
+
+export type FieldSpec = CheckboxFieldSpec | RadiosFieldSpec | SelectFieldSpec;
 
 /** A form of several fields saved together by one hand-written route. */
 export type FieldsSettingsFormConfig = SettingsFormIdentity<
@@ -169,6 +182,45 @@ export const SETTINGS_FORM_DEFINITIONS = [
     name: "theme",
     page: "main",
     routeLabel: "Site theme",
+  }),
+  form({
+    action: "/admin/settings/calendar-feeds",
+    copy: {
+      descriptionHtml: true,
+      descriptionKey: "settings.calendar_feeds_hint",
+      submitLabelKey: "settings.save_calendar_feeds",
+      titleKey: "settings.calendar_feeds",
+    },
+    fields: [
+      {
+        fieldName: "calendar_feeds_enabled",
+        kind: "checkbox",
+        labelKey: "settings.calendar_feeds_enabled",
+        stateField: "calendarFeedsEnabled",
+      },
+      {
+        fieldName: "calendar_feeds_group_by",
+        kind: "select",
+        labelFor: true,
+        labelKey: "settings.calendar_feeds_group_by",
+        options: [
+          {
+            labelKey: "settings.calendar_feeds_group_by_attendees",
+            value: "attendees",
+          },
+          {
+            labelKey: "settings.calendar_feeds_group_by_listings",
+            value: "listings",
+          },
+        ],
+        stateField: "calendarFeedsGroupBy",
+      },
+    ],
+    formId: "settings-calendar-feeds",
+    kind: "fields",
+    name: "calendarFeeds",
+    page: "main",
+    routeLabel: "Calendar feeds",
   }),
   form({
     action: "/admin/settings/terms",

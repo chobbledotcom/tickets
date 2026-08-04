@@ -12,9 +12,16 @@
  * the same `===` comparison selects it.
  */
 
+import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 
 export type SelectOption = { value: string; label: Child };
+
+/** Turn `{value, labelKey}` choices into options, translating each label. */
+export const choiceOptions = (
+  choices: readonly { value: string; labelKey: string }[],
+): SelectOption[] =>
+  choices.map((choice) => ({ label: t(choice.labelKey), value: choice.value }));
 
 export const SelectField = ({
   name,
@@ -23,7 +30,7 @@ export const SelectField = ({
   options,
 }: {
   name: string;
-  id?: string;
+  id?: string | undefined;
   value: string;
   options: readonly SelectOption[];
 }): JSX.Element => (

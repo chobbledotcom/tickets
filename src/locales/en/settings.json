@@ -181,7 +181,7 @@
   "settings.sumup.where_to_find": "Where do I find these?",
   "settings.header_image_preview_alt": "Header preview",
   "settings.calendar_feeds": "Calendar feeds",
-  "settings.calendar_feeds_hint": "Enable a read-only authenticated calendar feed for staff API keys. Calendar clients can subscribe with a Bearer API key at",
+  "settings.calendar_feeds_hint": "Enable a read-only authenticated calendar feed for staff API keys. Calendar clients can subscribe with a Bearer API key at <code>/caldav/events.ics</code>",
   "settings.calendar_feeds_enabled": "Enable calendar feeds",
   "settings.calendar_feeds_group_by": "Group feed entries by",
   "settings.calendar_feeds_group_by_attendees": "Attendees",

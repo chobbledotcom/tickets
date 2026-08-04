@@ -74,6 +74,14 @@ const EXPECTED_FORM_ROWS = [
     ["theme", "underline_links"],
     "Site theme",
   ),
+  multi(
+    "calendarFeeds",
+    "main",
+    "/admin/settings/calendar-feeds",
+    "settings-calendar-feeds",
+    ["calendar_feeds_enabled", "calendar_feeds_group_by"],
+    "Calendar feeds",
+  ),
   single(
     "terms",
     "main",

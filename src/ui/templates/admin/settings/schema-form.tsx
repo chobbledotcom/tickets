@@ -10,6 +10,7 @@ import type {
   FieldsSettingsFormConfig,
   FormCopyBase,
   RadiosFieldSpec,
+  SelectFieldSpec,
   SettingsFormFor,
   TextareaSettingsFormConfig,
   TextSettingsFormConfig,
@@ -17,6 +18,10 @@ import type {
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { RadioOption } from "#templates/components/radio-option.tsx";
+import {
+  choiceOptions,
+  SelectField,
+} from "#templates/components/select-field.tsx";
 import { settingsSectionWith } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
@@ -179,12 +184,33 @@ const checkboxField = (spec: CheckboxFieldSpec, state: object): Child => [
   spec.hintKey !== undefined ? <small>{t(spec.hintKey)}</small> : undefined,
 ];
 
+const selectField = (spec: SelectFieldSpec, state: object): Child => {
+  const select = (
+    <SelectField
+      id={spec.labelFor ? spec.fieldName : undefined}
+      name={spec.fieldName}
+      options={choiceOptions(spec.options)}
+      value={stringState(state, spec.stateField)}
+    />
+  );
+  return spec.labelFor ? (
+    [<label for={spec.fieldName}>{t(spec.labelKey)}</label>, select]
+  ) : (
+    <label>
+      {t(spec.labelKey)}
+      {select}
+    </label>
+  );
+};
+
 const renderField = (spec: FieldSpec, state: object): Child => {
   switch (spec.kind) {
     case "checkbox":
       return checkboxField(spec, state);
     case "radios":
       return radiosField(spec, state);
+    case "select":
+      return selectField(spec, state);
   }
 };
 
