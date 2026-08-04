@@ -13,8 +13,8 @@ The codebase already has proven "data table plus one fold" patterns to copy:
 registries, and the `TabDef`/`EntityPageDef` in `entity-pages`. Each item below
 names the exemplar to follow.
 
-Items are ordered hardest-first where the ordering matters (an admin-page
-schema unblocks several dependents).
+Items are ordered hardest-first where the ordering matters (an admin-page schema
+unblocks several dependents).
 
 ---
 
@@ -57,13 +57,15 @@ carries:
 - **`featureFlag?`** — an optional predicate (`isStorageEnabled`,
   `isSupportEnabled`, `isBuilderEnabled`, `settings.features.site`,
   `settings.hasLogistics`, `isReadOnly`).
-- **`subNav?`** — a list of sub-entries, each itself a `{ href, labelKey,
-  guard?, featureFlag? }` (so the "Add X" create links, the Settings sub-pages,
-  etc. are data, not hand-built functions).
+- **`subNav?`** — a list of sub-entries, each itself a
+  `{ href, labelKey,
+  guard?, featureFlag? }` (so the "Add X" create links, the
+  Settings sub-pages, etc. are data, not hand-built functions).
 - **`activeKey`** — the string pages pass to `AdminNav` instead of hand-typing
   `active="/admin/ledger"`.
 
 Fold functions derive:
+
 - `navItemsForRole(adminLevel)` → the top-level nav + sub-navs (replaces
   `topLevelItems`, `editorTopLevelItems`, `sectionsForRole`, all ten `*Sub()`
   builders).
@@ -74,19 +76,20 @@ Fold functions derive:
 - The read-only GET patterns (item 4 below) — derived from which entries have a
   create/edit sub-page.
 
-Migrate `nav.test.tsx`, `server-editor.test.ts`, and `server-owner-routes.test.ts`
-to import constants from the schema instead of re-typing hrefs and role lists.
-The `addLinkSections` table in `nav.test.tsx` becomes a projection of the
-schema's `subNav` entries where the href ends in `/new`.
+Migrate `nav.test.tsx`, `server-editor.test.ts`, and
+`server-owner-routes.test.ts` to import constants from the schema instead of
+re-typing hrefs and role lists. The `addLinkSections` table in `nav.test.tsx`
+becomes a projection of the schema's `subNav` entries where the href ends in
+`/new`.
 
-**Exemplar:** `LISTING_DEFAULT_FIELDS` + `resolveListingDefaults`
-— a typed array with per-entry predicates + a fold that replaces inline
-if/else. The `entity-pages` `EntityPageDef` is the structural model (a section
-is a `basePath` + a `guard` + a list of children, just like a page is a
-`basePath` + a `guard` + a list of tabs).
+**Exemplar:** `LISTING_DEFAULT_FIELDS` + `resolveListingDefaults` — a typed
+array with per-entry predicates + a fold that replaces inline if/else. The
+`entity-pages` `EntityPageDef` is the structural model (a section is a
+`basePath` + a `guard` + a list of children, just like a page is a `basePath` +
+a `guard` + a list of tabs).
 
-**Scope note:** This is the largest item and unblocks items 2, 4, and 8.
-The migration can be gradual: build the schema, have `nav.tsx` consume it first
+**Scope note:** This is the largest item and unblocks items 2, 4, and 8. The
+migration can be gradual: build the schema, have `nav.tsx` consume it first
 (replacing the hand-wired builders), then migrate tests, then derive
 `adminLandingPath` and the read-only patterns.
 
@@ -98,9 +101,9 @@ duplicate patterns), and role-aware detail-vs-edit redirect metadata.
 - `nav.tsx` consumes the schema folds (`visibleTopLevel`, `visibleSections`)
   instead of ~200 lines of hand-wired builders (`editorTopLevelItems`,
   `topLevelItems`, ten `*Sub()` functions, `sectionsForRole`).
-- `nav.test.tsx`'s `addLinkSections` and `withinSectionCases` tables derive
-  from `createLinkSections()` instead of being hand-typed — new sections are
-  covered automatically.
+- `nav.test.tsx`'s `addLinkSections` and `withinSectionCases` tables derive from
+  `createLinkSections()` instead of being hand-typed — new sections are covered
+  automatically.
 - `READ_ONLY_GET_PATTERNS` (item 4) is derived from the schema's
   `readOnlyGetRoutePatterns()`, replacing the hand-maintained 19-regex list.
 - `entityReturnPath` (item 2) is derived from the schema's `detailPath` +
@@ -109,6 +112,7 @@ duplicate patterns), and role-aware detail-vs-edit redirect metadata.
   call `entityReturnPath("/admin/listings", adminLevel, id)` directly.
 
 **Remaining (not yet done):**
+
 - Migrating `server-editor.test.ts` / `server-owner-routes.test.ts` to import
   role expectations from the schema instead of hand-typing route lists.
 - Deriving `adminLandingPath` (`auth.ts:131`) from the schema's first visible
@@ -121,19 +125,19 @@ duplicate patterns), and role-aware detail-vs-edit redirect metadata.
 **Status: Shipped.** The `entityReturnPath(sectionPath, adminLevel, id)`
 function in `admin-pages.ts` derives from the schema's `detailPath` and
 `staffOnlyDetail` fields. Listings and Groups declare `detailPath` +
-`staffOnlyDetail: true` in the schema; `entityReturnPath` sends editors to
-the edit form and staff to the detail page. The old `admin-paths.ts` (which
+`staffOnlyDetail: true` in the schema; `entityReturnPath` sends editors to the
+edit form and staff to the detail page. The old `admin-paths.ts` (which
 hardcoded `/admin/listing` and `/admin/groups` base paths) was deleted; all
 callers now use the generic `entityReturnPath` with the section's basePath.
 
 **Not yet schema-tized** (lower priority — each is a hand-written `redirect`
-call in a single handler): the "back to the list" pattern (questions,
-modifiers, images, sessions, deliveries), the `return_url` honouring pattern
-(attendees, refunds), and the `getRowPath` config in `owner-crud.ts`. These
-could be extended by adding an `afterSave: "detail" | "edit" | "list"` field
-to the schema, but each has per-handler nuances (role-split landing pages,
-`return_url` threading, `formId` anchors) that make a one-size fold less
-clean than the detail-vs-edit rule that shipped.
+call in a single handler): the "back to the list" pattern (questions, modifiers,
+images, sessions, deliveries), the `return_url` honouring pattern (attendees,
+refunds), and the `getRowPath` config in `owner-crud.ts`. These could be
+extended by adding an `afterSave: "detail" | "edit" | "list"` field to the
+schema, but each has per-handler nuances (role-split landing pages, `return_url`
+threading, `formId` anchors) that make a one-size fold less clean than the
+detail-vs-edit rule that shipped.
 
 ---
 
@@ -151,11 +155,11 @@ test's expected-keys list was updated to include the newly-surfaced entry.
 
 ## 4. Read-only mode patterns — derive from the admin-page schema
 
-**Status: Shipped.** The read-only GET patterns in `features/app/read-only.ts` are now
-derived from the schema's `readOnlyGetRoutePatterns()` fold, which collects
-every subNav create-link href plus every section's `mutatingGetRoutes`
-(edit/delete/duplicate/create-variant patterns). A `routePatternToRegex`
-helper converts `:id` → `\d+` and `:type`/`:ref` → `[^/]+` at module load.
+**Status: Shipped.** The read-only GET patterns in `features/app/read-only.ts`
+are now derived from the schema's `readOnlyGetRoutePatterns()` fold, which
+collects every subNav create-link href plus every section's `mutatingGetRoutes`
+(edit/delete/duplicate/create-variant patterns). A `routePatternToRegex` helper
+converts `:id` → `\d+` and `:type`/`:ref` → `[^/]+` at module load.
 
 The hand-maintained 19-regex list was replaced. **Fixed 3 gaps**: the original
 list was missing `/admin/servicing/new`, `/admin/modifiers/new`, and
@@ -174,15 +178,15 @@ consolidate them, but the list is stable and low-risk.
 ## 5. Form field options derived from picklist schemas
 
 **Status: Shipped.** The `picklistOptions(schema, labelKeyPrefix)` helper
-(`src/ui/templates/fields/picklist-options.ts`) builds a field's `options`
-list from any picklist schema's `.options`, labelling each value via
-`${labelKeyPrefix}.${value}`. Every field the table above named now derives
-from its schema: `listing_type` and the contact `fields` checkbox group
+(`src/ui/templates/fields/picklist-options.ts`) builds a field's `options` list
+from any picklist schema's `.options`, labelling each value via
+`${labelKeyPrefix}.${value}`. Every field the table above named now derives from
+its schema: `listing_type` and the contact `fields` checkbox group
 (`fields/listing.ts` — `ListingTypeSchema`/`ContactFieldSchema`), all four
 modifier selects (`fields/modifier.ts` — `CalcKindSchema`,
-`ModifierDirectionSchema`, `ModifierTriggerSchema`, `ModifierScopeSchema`),
-and `admin_level` (`fields/admin.ts` — `AdminLevelSchema`). Adding an enum
-member surfaces in the form the moment its translation exists.
+`ModifierDirectionSchema`, `ModifierTriggerSchema`, `ModifierScopeSchema`), and
+`admin_level` (`fields/admin.ts` — `AdminLevelSchema`). Adding an enum member
+surfaces in the form the moment its translation exists.
 
 The `calc_value` bounds concern is addressed at the save boundary:
 `validateModifier` (`src/features/admin/modifiers.ts`) runs
@@ -198,31 +202,31 @@ feedback.
 **Status: Shipped.** `src/shared/booking/price-tree.ts` models each tier as a
 `PriceRuleSpec` (`appliesTo` / `build` / `evaluate`) in the exhaustive
 `PRICE_RULES` map keyed by `PriceRuleKind`, and the precedence is the
-`PRICE_RULE_PRECEDENCE` ordered array (`OVERRIDE > PAY_MORE > DAY_PRICE >
-BASE`). The `orderedKinds` helper makes the precedence list exhaustive at
-compile time, so a new tier added to the `PriceRule` union is a type error in
-BOTH tables until it has a spec and a precedence slot — no silent
-fall-through. `selectPriceRule` is the one selector shared by the tree
-builder's `derivePriceRule` (`build-tree.ts`) and `packageMemberPriceRule`
-(webhooks, payment revalidation), and `effectivePrice` dispatches through the
-same table's `evaluate`.
+`PRICE_RULE_PRECEDENCE` ordered array
+(`OVERRIDE > PAY_MORE > DAY_PRICE >
+BASE`). The `orderedKinds` helper makes the
+precedence list exhaustive at compile time, so a new tier added to the
+`PriceRule` union is a type error in BOTH tables until it has a spec and a
+precedence slot — no silent fall-through. `selectPriceRule` is the one selector
+shared by the tree builder's `derivePriceRule` (`build-tree.ts`) and
+`packageMemberPriceRule` (webhooks, payment revalidation), and `effectivePrice`
+dispatches through the same table's `evaluate`.
 
 ---
 
 ## 7. Edge compatibility error precedence as a data table
 
-**Status: Shipped.** `edgeFieldError` (`listing-parents-rules.ts`) is now a
-fold over `EDGE_ERROR_RULES` — an ordered array of `{ rejects, error }`
-entries whose order IS the precedence (parent-renewal > child-renewal >
-daily-type > duration): the first rule a pairing breaks decides the error, or
-null when the edge is allowed. Each rule carries its own message builder (a
-shared `childError` factory covers the child-blaming rules; the parent-renewal
-rule names the parent), so adding a 5th rule is one new entry in its
-precedence slot, never another `if` arm. The tests
-(`test/shared/listing-parents-rules.test.ts`) build expected messages from the
-same i18n keys via `t()` instead of re-typing the English copy, with guards
-that the resolved messages are real interpolated copy (naming the blamed
-listing) rather than raw-key fallbacks.
+**Status: Shipped.** `edgeFieldError` (`listing-parents-rules.ts`) is now a fold
+over `EDGE_ERROR_RULES` — an ordered array of `{ rejects, error }` entries whose
+order IS the precedence (parent-renewal > child-renewal > daily-type >
+duration): the first rule a pairing breaks decides the error, or null when the
+edge is allowed. Each rule carries its own message builder (a shared
+`childError` factory covers the child-blaming rules; the parent-renewal rule
+names the parent), so adding a 5th rule is one new entry in its precedence slot,
+never another `if` arm. The tests (`test/shared/listing-parents-rules.test.ts`)
+build expected messages from the same i18n keys via `t()` instead of re-typing
+the English copy, with guards that the resolved messages are real interpolated
+copy (naming the blamed listing) rather than raw-key fallbacks.
 
 ---
 
@@ -230,15 +234,14 @@ listing) rather than raw-key fallbacks.
 
 **Status: Shipped.** `src/shared/capacity-rules.ts` is the pure declarative
 table: each `CapacityRule` (`dateLessCap`, `perDateCap`, `groupPoolCap`,
-`parentChildUnits`, `adminOverbookBypass`) carries an `appliesTo` predicate
-over the listing facets (`listing_type` × `customisable_days`), and
+`parentChildUnits`, `adminOverbookBypass`) carries an `appliesTo` predicate over
+the listing facets (`listing_type` × `customisable_days`), and
 `allCapacityFacets()` enumerates every combination for exhaustive tests. Both
-enforcement surfaces derive from the same declaration (stage 2): the inline
-SQL guard builds its type predicates from `capacityRuleTypeSql`
+enforcement surfaces derive from the same declaration (stage 2): the inline SQL
+guard builds its type predicates from `capacityRuleTypeSql`
 (`src/shared/db/capacity.ts`), and the JS preflight
 (`src/shared/db/attendees/capacity.ts`) imports the same rules — so the
-preflight and the write-time guard can never disagree about which check
-applies.
+preflight and the write-time guard can never disagree about which check applies.
 
 ---
 
@@ -246,12 +249,12 @@ applies.
 
 **Status: Shipped.** `planBookingPayment` in
 `src/shared/booking/payment-plan.ts` resolves the effective unit price and
-returns a discriminated plan: open checkout at that price, or create the
-booking directly with its provider-less balance. `processBooking` executes the
-plan instead of separately deciding whether payment is needed, resolving the
-price twice, and calculating the balance in its IO path. Table-driven direct
-tests cover listing and custom prices, free bookings, provider-disabled
-balances, and the exact one-minor-unit checkout boundary.
+returns a discriminated plan: open checkout at that price, or create the booking
+directly with its provider-less balance. `processBooking` executes the plan
+instead of separately deciding whether payment is needed, resolving the price
+twice, and calculating the balance in its IO path. Table-driven direct tests
+cover listing and custom prices, free bookings, provider-disabled balances, and
+the exact one-minor-unit checkout boundary.
 
 ---
 
@@ -259,14 +262,14 @@ balances, and the exact one-minor-unit checkout boundary.
 
 **Status: Shipped.** `src/shared/attendee-failures.ts` declares the failure
 reason literals once and composes them into precise Valibot schemas for attendee
-creation, attendee updates, and shared message formatting. `CreateAttendeeResult`
-and `UpdateAttendeeAtomicResult` derive their reason types from those schemas.
-The old `capacity-error.ts` string fallback is gone: an
-exhaustive `Record<AttendeeFailureReason, messageBuilder>` now handles every
+creation, attendee updates, and shared message formatting.
+`CreateAttendeeResult` and `UpdateAttendeeAtomicResult` derive their reason
+types from those schemas. The old `capacity-error.ts` string fallback is gone:
+an exhaustive `Record<AttendeeFailureReason, messageBuilder>` now handles every
 known recoverable reason. `BookingResult` no longer has a parallel
 `creation_failed` outcome: an atomic capacity loss is the same `sold_out`
-outcome as the preflight check. Encryption keys are request/setup invariants,
-so attendee writes use them directly instead of checking for their presence or
+outcome as the preflight check. Encryption keys are request/setup invariants, so
+attendee writes use them directly instead of checking for their presence or
 turning their absence into a recoverable reason. Adding a recoverable reason is
 a compile error until every dispatcher handles it.
 
@@ -297,18 +300,18 @@ pattern to content string fields.
 **Shipped (items 1–10):**
 
 - **Item 1 (admin-page schema)** — the schema, nav.tsx migration, and
-  nav.test.tsx migration are done. Remaining: `adminLandingPath` derivation
-  and `server-editor.test.ts` / `server-owner-routes.test.ts` migration.
+  nav.test.tsx migration are done. Remaining: `adminLandingPath` derivation and
+  `server-editor.test.ts` / `server-owner-routes.test.ts` migration.
 - **Item 2 (redirect targets)** — `entityReturnPath` is schema-driven;
-  `admin-paths.ts` is deleted. The "back to list" / `return_url` patterns
-  remain per-handler (lower priority — per-handler nuances make a clean fold
-  harder).
+  `admin-paths.ts` is deleted. The "back to list" / `return_url` patterns remain
+  per-handler (lower priority — per-handler nuances make a clean fold harder).
 - **Item 3 (limits unification)** — done; `MAX_IMAGE_SIZE` bug fixed.
 - **Item 4 (read-only patterns)** — `READ_ONLY_GET_PATTERNS` is schema-derived;
-  3 gaps fixed. `READ_ONLY_SAFE_PATHS` remains hand-maintained (stable, low-risk).
+  3 gaps fixed. `READ_ONLY_SAFE_PATHS` remains hand-maintained (stable,
+  low-risk).
 - **Item 5 (picklist form options)** — `picklistOptions` derives every listing,
-  modifier, and invite-user select from its valibot schema; `calc_value`
-  bounds enforced at save via `modifierValueError`.
+  modifier, and invite-user select from its valibot schema; `calc_value` bounds
+  enforced at save via `modifierValueError`.
 - **Item 6 (price-rule precedence)** — `PRICE_RULES` + `PRICE_RULE_PRECEDENCE`
   in `price-tree.ts`; `selectPriceRule`/`effectivePrice` share the one table,
   exhaustiveness compile-enforced by `orderedKinds`.

@@ -89,23 +89,23 @@ processes with `--no-code-cache`. The change keeps authentication, migrations,
 Markdown, and storage available but stops generic static requests from
 evaluating them before they are needed.
 
-| Variant | Bundle import | First `/robots.txt` | Combined |
-| --- | ---: | ---: | ---: |
-| Main | 235.9 ms | 13.0 ms | 250.9 ms |
-| Lean base graph | **181.9 ms** | **10.8 ms** | **193.3 ms** |
+| Variant         | Bundle import | First `/robots.txt` |     Combined |
+| --------------- | ------------: | ------------------: | -----------: |
+| Main            |      235.9 ms |             13.0 ms |     250.9 ms |
+| Lean base graph |  **181.9 ms** |         **10.8 ms** | **193.3 ms** |
 
 The median paired combined improvement was **49.1 ms**. The middle half of
-paired runs improved by 27.5–80.2 ms. The generated bundle grew by 723 bytes,
-so this is evaluation deferral rather than a transfer-size win. The changes
-that produced it are:
+paired runs improved by 27.5–80.2 ms. The generated bundle grew by 723 bytes, so
+this is evaluation deferral rather than a transfer-size win. The changes that
+produced it are:
 
 - import the shared session-key error without evaluating the authentication
   feature;
 - load admin API authentication only after its path matches;
 - load migration execution only for database-backed requests;
 - keep the generic page layout independent of storage; and
-- keep generic error pages independent of the broad public template and
-  Markdown graph.
+- keep generic error pages independent of the broad public template and Markdown
+  graph.
 
 ## Cold `/listings`
 
@@ -131,28 +131,28 @@ made in the same session in this container.
 
 Cold request:
 
-| Simulated latency | Before | After | Round trips before | Round trips after |
-| --- | ---: | ---: | ---: | ---: |
-| 0 ms | 86 ms | **48 ms** | 119 | **30** |
-| 5 ms | 167 ms | **114 ms** | 119 | **30** |
-| 10 ms | 238 ms | **176 ms** | 119 | **30** |
-| 20 ms | 378 ms | **297 ms** | 119 | **30** |
+| Simulated latency | Before |      After | Round trips before | Round trips after |
+| ----------------- | -----: | ---------: | -----------------: | ----------------: |
+| 0 ms              |  86 ms |  **48 ms** |                119 |            **30** |
+| 5 ms              | 167 ms | **114 ms** |                119 |            **30** |
+| 10 ms             | 238 ms | **176 ms** |                119 |            **30** |
+| 20 ms             | 378 ms | **297 ms** |                119 |            **30** |
 
 Second request in the same process:
 
-| Simulated latency | Before | After | Round trips before | Round trips after |
-| --- | ---: | ---: | ---: | ---: |
-| 0 ms | 24 ms | **8 ms** | 114 | **25** |
-| 5 ms | 97 ms | **71 ms** | 114 | **25** |
-| 10 ms | 154 ms | **121 ms** | 114 | **25** |
-| 20 ms | 273 ms | **221 ms** | 114 | **25** |
+| Simulated latency | Before |      After | Round trips before | Round trips after |
+| ----------------- | -----: | ---------: | -----------------: | ----------------: |
+| 0 ms              |  24 ms |   **8 ms** |                114 |            **25** |
+| 5 ms              |  97 ms |  **71 ms** |                114 |            **25** |
+| 10 ms             | 154 ms | **121 ms** |                114 |            **25** |
+| 20 ms             | 273 ms | **221 ms** |                114 |            **25** |
 
 The median balanced-cycle four-point slope fell from about 14.9 to 12.1
-sequential round trips cold, and from 12.4 to 10.5 warm. This proves the change removed
-latency-critical stages rather than only collapsing calls that were already
-parallel. At zero fake latency, the cold median fell by 38 ms (44%). At 20 ms,
-it fell by 81 ms (21%). Median absolute deviations were at most 9.1 ms for the
-baseline cold samples and 2.3 ms for the optimized cold samples.
+sequential round trips cold, and from 12.4 to 10.5 warm. This proves the change
+removed latency-critical stages rather than only collapsing calls that were
+already parallel. At zero fake latency, the cold median fell by 38 ms (44%). At
+20 ms, it fell by 81 ms (21%). Median absolute deviations were at most 9.1 ms
+for the baseline cold samples and 2.3 ms for the optimized cold samples.
 
 <details>
 <summary>Raw cold / warm request samples in milliseconds</summary>
@@ -199,11 +199,11 @@ memberships, and capacity reads. With 14 groups, the page made 119 round trips.
 
 ## What the request benchmark excludes
 
-The request child statically imports `serve-app.ts` before its request clock.
-It therefore includes route-triggered module evaluation, database work,
-rendering, response encoding, and pending work, but excludes Deno startup and
-the eager app module graph. It uses source modules and local SQLite so the
-database can be wrapped deterministically.
+The request child statically imports `serve-app.ts` before its request clock. It
+therefore includes route-triggered module evaluation, database work, rendering,
+response encoding, and pending work, but excludes Deno startup and the eager app
+module graph. It uses source modules and local SQLite so the database can be
+wrapped deterministically.
 
 Use `bundle-load.ts` for the one-file parse/evaluation measurement and
 `first-request.ts` for request work and network-depth measurement. Do not add
@@ -213,8 +213,8 @@ their medians and call the result an end-to-end production observation.
 
 - `test/lib/server-public/listings-query-scaling.test.ts` proves total query
   count stays fixed as regular groups or packages are added. It also proves a
-  listing shared by several groups is projected once before being mapped back
-  to each group.
+  listing shared by several groups is projected once before being mapped back to
+  each group.
 - Existing public listings, package, ticket, and site-page tests lock the
   rendered behavior and dead-link gates.
 - `test/lib/cold-boot-queries.test.ts` continues to lock the four-query general

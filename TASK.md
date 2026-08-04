@@ -8,8 +8,8 @@ You are picking up a deferred follow-up from PR #1678 "Split questions.ts up".
 replaces every listed attendee's answers (delete old, insert new). It currently
 runs as **two separate committed batches**:
 
-1. `executeBatch([... DELETE FROM attendee_answers WHERE attendee_id = ? ...])` —
-   the DELETE batch (commits on its own)
+1. `executeBatch([... DELETE FROM attendee_answers WHERE attendee_id = ? ...])`
+   — the DELETE batch (commits on its own)
 2. `getOrCreateStringIds(...)` — interns free-text strings (itself a
    `executeBatchWithResults` write batch: INSERT OR IGNORE + UPDATE `created` +
    a read-your-own-writes SELECT)
@@ -23,11 +23,11 @@ with no answers until a manual re-save.
 The PR reply deferred this to a follow-up, explaining the real constraint:
 libsql's `getDb().batch()` always starts its own implicit transaction, so
 wrapping the two `executeBatch` calls in `withTransaction` would NOT make them
-atomic — each `executeBatch` still commits as its own transaction. True atomicity
-requires **threading a `TxScope` through `getOrCreateStringIds`** (replacing its
-internal `executeBatchWithResults` with per-statement `tx.execute`), so the whole
-DELETE + string-intern + INSERT flow runs inside one interactive write
-transaction.
+atomic — each `executeBatch` still commits as its own transaction. True
+atomicity requires **threading a `TxScope` through `getOrCreateStringIds`**
+(replacing its internal `executeBatchWithResults` with per-statement
+`tx.execute`), so the whole DELETE + string-intern + INSERT flow runs inside one
+interactive write transaction.
 
 That follow-up is this task.
 
@@ -37,17 +37,20 @@ Rework `saveAttendeeAnswers` so the DELETE, string interning, and INSERT all run
 inside one `withTransaction`, committing (or rolling back) as one. This means:
 
 1. `getOrCreateStringIds` must accept an optional `TxScope` (or be callable as
-   `getOrCreateStringIdsTx(tx, texts)`) so its INSERT OR IGNORE + UPDATE `created`
-   + SELECT all run on the open transaction's `tx.execute` instead of a separate
-   `executeBatchWithResults` batch.
-2. `saveAttendeeAnswers` wraps its whole body in `withTransaction(async (tx) => {
-   ... })`, using `tx.execute` for the DELETE statements and the INSERT
-   statements (instead of `executeBatch`), and calling the transactional
-   `getOrCreateStringIds` for string interning.
-3. The `questionIdsByAnswerId` and `existingQuestionIds` reads between the DELETE
-   and INSERT must also run on the same `tx` (they currently use `queryAll` /
-   `columnMapByIds`, which start their own read transactions — these need to run
-   on the tx too so they see the DELETE's effects within the transaction).
+   `getOrCreateStringIdsTx(tx, texts)`) so its INSERT OR IGNORE + UPDATE
+   `created`
+   - SELECT all run on the open transaction's `tx.execute` instead of a separate
+     `executeBatchWithResults` batch.
+2. `saveAttendeeAnswers` wraps its whole body in
+   `withTransaction(async (tx) => {
+   ... })`, using `tx.execute` for the
+   DELETE statements and the INSERT statements (instead of `executeBatch`), and
+   calling the transactional `getOrCreateStringIds` for string interning.
+3. The `questionIdsByAnswerId` and `existingQuestionIds` reads between the
+   DELETE and INSERT must also run on the same `tx` (they currently use
+   `queryAll` / `columnMapByIds`, which start their own read transactions —
+   these need to run on the tx too so they see the DELETE's effects within the
+   transaction).
 
 ## Key files (read these first)
 
@@ -86,8 +89,8 @@ inside one `withTransaction`, committing (or rolling back) as one. This means:
    VALUES batches (one statement per attendee per answer-type) — keep that
    batched-statement shape so the transaction doesn't exceed the round-trip
    limit. Do NOT switch to one `tx.execute` per individual row.
-4. **Keep the existing normalization and statement-building logic intact** — only
-   change the execution boundary (separate batches → one transaction).
+4. **Keep the existing normalization and statement-building logic intact** —
+   only change the execution boundary (separate batches → one transaction).
 5. **Cache invalidation**: `withTransaction` fires cache invalidations after a
    successful commit, driven by the written SQL. The current separate
    `executeBatch` calls invalidate per-batch. The transactional version should
@@ -109,7 +112,8 @@ git rebase origin/main
 
 ## Verification
 
-Run these from the worktree root (`/home/user/git/tickets-4-save-attendee-answers-tx`):
+Run these from the worktree root
+(`/home/user/git/tickets-4-save-attendee-answers-tx`):
 
 ```bash
 # Typecheck (incl. test files — mirrors CI)
@@ -132,8 +136,8 @@ deno task test:files test/lib/server-attendees.test.ts
 deno task precommit
 ```
 
-Add a regression test that would have caught the gap the reviewer identified:
-a save that fails during the INSERT phase (e.g. by stubbing the INSERT to throw)
+Add a regression test that would have caught the gap the reviewer identified: a
+save that fails during the INSERT phase (e.g. by stubbing the INSERT to throw)
 should leave the attendee's existing answers intact (the DELETE rolled back),
 not empty. AGENTS.md: "Every bug fix ships with a regression test."
 

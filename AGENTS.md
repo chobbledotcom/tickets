@@ -1054,11 +1054,12 @@ query logging and table-scoped cache invalidation stay automatic.
   profile and stable catalog
 - `deno task specs:files <feature>... [--tags <expression>]` - Run selected
   Features through the shared harness
-- `deno task lint` - Format and lint all code with Biome (`check --write`;
-  auto-fixes in place). Biome is the sole formatter and linter.
-- `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no
-  `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code
-  that _would_ be reformatted, without touching the checkout. This is the lint
+- `deno task lint` - Format Markdown with Deno, then format and lint code with
+  Biome (`check --write`; auto-fixes in place).
+- `deno task lint:ci` - Strict, read-only formatting and lint. Runs
+  `deno fmt --check` for Markdown and Biome `check --error-on-warnings` for
+  code. Fails on lint warnings (e.g. cognitive complexity) and on any file that
+  would be reformatted, without touching the checkout. This is the lint
   `deno task precommit` runs in **every** environment, so a clean `precommit`
   locally means the lint step will pass in CI too. Run `deno task lint` to
   auto-fix before re-running.

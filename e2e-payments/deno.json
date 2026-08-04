@@ -6,6 +6,12 @@
   "tasks": {
     "e2e": "deno run -A src/main.ts"
   },
+  "fmt": {
+    "include": [
+      "**/*.md"
+    ],
+    "lineWidth": 80
+  },
   "imports": {
     "playwright": "npm:playwright@1.61.1",
     "#scripts/": "../scripts/",

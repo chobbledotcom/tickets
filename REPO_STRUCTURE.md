@@ -47,7 +47,8 @@ src/
 
 ## Build/tooling conventions
 
-- Client bundle inputs live in `src/ui/client` and outputs are emitted to `src/ui/static`.
+- Client bundle inputs live in `src/ui/client` and outputs are emitted to
+  `src/ui/static`.
 - Runtime entrypoints are `src/index.ts` and `src/edge.ts`.
 - Static file route handlers read from `src/ui/static`.
 

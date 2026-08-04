@@ -23,9 +23,8 @@ export interface Step {
 export const getSteps = (): Step[] => {
   const deno = Deno.execPath();
   return [
-    // Always run the read-only `lint:ci` (Biome `check --error-on-warnings`) so
-    // precommit is exactly as strict locally as in CI: it fails on lint warnings
-    // and on code that *would* be reformatted, without modifying the checkout.
+    // Always run read-only `lint:ci` (Deno Markdown + Biome code checks) so
+    // local precommit is exactly as strict as CI without changing the checkout.
     // Run `deno task lint` separately to auto-fix formatting before committing.
     { cmd: [deno, "task", "lint:ci"], name: "lint" },
     { cmd: [deno, "task", "typecheck"], name: "typecheck" },

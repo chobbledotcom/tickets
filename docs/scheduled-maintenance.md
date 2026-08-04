@@ -32,15 +32,15 @@ the child's **Scheduled maintenance** tab to set up an older child.
 
 ## Uptime Kuma
 
-Use Uptime Kuma 2.4 or newer. Set all three credentials on the builder to
-manage monitors from each built site's **Scheduled maintenance** tab:
+Use Uptime Kuma 2.4 or newer. Set all three credentials on the builder to manage
+monitors from each built site's **Scheduled maintenance** tab:
 
 - `UPTIME_KUMA_URL`
 - `UPTIME_KUMA_USERNAME`
 - `UPTIME_KUMA_PASSWORD`
 
-You can also set `UPTIME_KUMA_INTERVAL_MINUTES` to any positive whole number.
-It defaults to `15`.
+You can also set `UPTIME_KUMA_INTERVAL_MINUTES` to any positive whole number. It
+defaults to `15`.
 
 The tab connects to Uptime Kuma only while you view it or add a monitor. It
 shows a monitor that already checks the site's `/scheduled` URL under the
@@ -51,8 +51,8 @@ The key is sent in the request header, never in the monitor name or URL.
 
 ## Change A Child Key
 
-Key rotation is not automatic. A host operator must replace a compromised key
-on the child and in its Uptime Kuma monitor together.
+Key rotation is not automatic. A host operator must replace a compromised key on
+the child and in its Uptime Kuma monitor together.
 
 ## CDN Rules
 
