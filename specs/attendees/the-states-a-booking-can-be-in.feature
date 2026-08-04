@@ -20,6 +20,7 @@ Feature: The organiser names the states a booking can be in
     Scenario: The organiser adds a plain state
       When the organiser adds a state called "Waiting"
       Then "Waiting" is one of the states a booking can be in
+      And the list puts no marker beside "Waiting"
 
     @case:statuses.a-name-with-an-and-in-it
     Scenario: The organiser adds a state with an "and" sign in its name

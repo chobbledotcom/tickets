@@ -41,11 +41,12 @@ export type ActOnSomeMoney = (
 
 /** Something a story reads back about one of the things the site sells — a
  * page's words, a downloaded file, what an organiser was told, the address of
- * the link that leads into it. */
-export type ReadAboutOneThing = (
+ * the link that leads into it. Readers that hand back several answers rather
+ * than one say so: `ReadAboutOneThing<string[]>`. */
+export type ReadAboutOneThing<Answer = string> = (
   world: TicketsWorld,
   name: string,
-) => Promise<string>;
+) => Promise<Answer>;
 
 /** The listing a money story is working on, and the booking on it. Both are
  * set up before any step that uses them, so a story that lost one is a story

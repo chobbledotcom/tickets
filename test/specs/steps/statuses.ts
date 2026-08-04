@@ -7,6 +7,7 @@ import { ORGANISER } from "#test/specs/support/browser.ts";
 import {
   listMarksStateAs,
   listShowsDeposit,
+  markersOnRow,
   organiserAddsState,
   organiserHasAddedState,
   organiserMovesStateUp,
@@ -123,6 +124,13 @@ Then(
     job: string,
   ): Promise<void> {
     expect(await listMarksStateAs(this, name, job)).toBe(true);
+  },
+);
+
+Then(
+  "the list puts no marker beside {string}",
+  async function (this: TicketsWorld, name: string): Promise<void> {
+    expect(await markersOnRow(this, name)).toEqual([]);
   },
 );
 

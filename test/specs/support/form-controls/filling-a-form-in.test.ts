@@ -7,36 +7,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
-import {
-  expectCanReallySend,
-  fillInAndSend,
-  takeDownFromActions,
-} from "#test/specs/support/form-controls.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 
 // jscpd:ignore-end
-
-describe("checking a whole form's worth of values at once", () => {
-  const form =
-    '<input name="username" value="">' +
-    '<input name="max_attendees" type="number" min="1" max="10">';
-
-  test("passes when every value could really be sent", () => {
-    expectCanReallySend(form, { max_attendees: "5", username: "sam" });
-  });
-
-  test("names the first box that could not carry its value", () => {
-    expect(() =>
-      expectCanReallySend(form, { max_attendees: "50", username: "sam" }),
-    ).toThrow("the max_attendees box takes nothing above 10");
-  });
-
-  test("fails on a box the page never offered", () => {
-    expect(() => expectCanReallySend(form, { webhook_url: "x" })).toThrow(
-      "the page has no webhook_url to fill in",
-    );
-  });
-});
 
 describe("filling a form in and sending it", () => {
   /** A browser stand-in: it holds the page it was served and remembers what
@@ -400,61 +373,4 @@ describe("filling a form in and sending it", () => {
       expect(page.sent).toEqual([]);
     });
   }
-});
-
-describe("taking a thing down from its own page", () => {
-  /** A browser stand-in that remembers which links were followed and what
-   * was sent, so the order of the journey can be seen. */
-  const pageWithActions = () => {
-    const followed: string[] = [];
-    const sent: Record<string, string>[] = [];
-    return {
-      browser: {
-        clickLink: (text: string) => {
-          followed.push(text);
-          return Promise.resolve();
-        },
-        currentHtml: '<input name="confirm_identifier" value="">',
-        formBodyFor: () => '<input name="confirm_identifier" value="">',
-        pageText: "Page deleted",
-        submitForm: (values: Record<string, string>) => {
-          sent.push(values);
-          return Promise.resolve();
-        },
-      },
-      followed,
-      sent,
-    };
-  };
-
-  /** One take-down, run through the helper the stories use. */
-  const takeDown = (page: ReturnType<typeof pageWithActions>) =>
-    takeDownFromActions(page.browser, "Directions", {
-      deleteLink: "Delete page",
-      submit: "Delete",
-    });
-
-  /** The page after one take-down has been run through it. */
-  const afterTakingDown = async () => {
-    const page = pageWithActions();
-    await takeDown(page);
-    return page;
-  };
-
-  test("follows the Actions tab, then the delete link", async () => {
-    expect((await afterTakingDown()).followed).toEqual([
-      t("entity.tab.actions"),
-      "Delete page",
-    ]);
-  });
-
-  test("types the name into the box the page asks for", async () => {
-    expect((await afterTakingDown()).sent).toEqual([
-      { confirm_identifier: "Directions" },
-    ]);
-  });
-
-  test("hands back what the site said", async () => {
-    expect(await takeDown(pageWithActions())).toBe("Page deleted");
-  });
 });

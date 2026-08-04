@@ -27,6 +27,7 @@ import {
   type ActOnOneThing,
   type AsksAboutOneThing,
   keepWhatTheyWereTold,
+  type ReadAboutOneThing,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
@@ -162,21 +163,25 @@ export const organiserAddsState = async (
   keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
 };
 
-/** Whether one state's own row carries a badge. Read off that state's row
- * alone, so a badge beside somebody else is never taken for this one's. */
+/** Every marker on one state's own row. Read off that state's row alone, so a
+ * marker beside somebody else is never taken for this one's.
+ *
+ * Only the little markers count, not the whole row's words: a state may be
+ * called "Paid", and its own name is no evidence that the site marked it as
+ * where a paid booking lands. */
+const MARKER = /<span class="badge[^"]*">([\s\S]*?)<\/span>/g;
+
+export const markersOnRow: ReadAboutOneThing<string[]> = async (world, name) =>
+  [...(await openAtState(world, name)).row.matchAll(MARKER)].map((marker) =>
+    marker[1]!.trim(),
+  );
+
+/** Whether one state's own row carries a marker. */
 const rowShowsBadge = async (
   world: TicketsWorld,
   name: string,
   badge: string,
-): Promise<boolean> => {
-  // Only the little markers on the row count, not the whole row's words: a
-  // state may be called "Paid", and its own name is no evidence that the site
-  // marked it as where a paid booking lands.
-  const { row } = await openAtState(world, name);
-  return [...row.matchAll(/<span class="badge[^"]*">([\s\S]*?)<\/span>/g)].some(
-    (marker) => marker[1]!.trim() === badge,
-  );
-};
+): Promise<boolean> => (await markersOnRow(world, name)).includes(badge);
 
 /** Whether the list marks one state as holding one job. */
 export const listMarksStateAs = (
