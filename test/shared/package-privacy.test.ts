@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#shared/db/groups.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
+import { groups } from "#shared/db/groups.ts";
 import {
   concealLineNames,
-  ctxStandInNames,
   concealMemberNames,
+  ctxStandInNames,
   memberStandInName,
   namesConcealed,
   packagePrivacy,

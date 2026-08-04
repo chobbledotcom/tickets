@@ -49,9 +49,9 @@ import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
   concealLineNames,
+  ctxStandInNames,
   namesConcealed,
   packagePrivacy,
-  ctxStandInNames,
 } from "#shared/package-privacy.ts";
 import type { Group } from "#shared/types.ts";
 

@@ -26,10 +26,7 @@ import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { answerModifierQuantities } from "#shared/db/modifier-resolve.ts";
 import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  concealLineNames,
-  ctxStandInNames,
-} from "#shared/package-privacy.ts";
+import { concealLineNames, ctxStandInNames } from "#shared/package-privacy.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
 import {
   applyQrTokenOverride,
