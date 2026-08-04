@@ -9,8 +9,8 @@ import { it as test } from "@std/testing/bdd";
 import { type Stub, spy, stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import type { BuiltSiteRow } from "#shared/db/built-sites/types.ts";
 import {
-  type BuiltSite,
   insertBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
@@ -43,7 +43,7 @@ const tierEntry = (
 const siteWithToken = async (
   name: string,
   token: string,
-): Promise<{ site: BuiltSite; tokenIndex: string }> => {
+): Promise<{ site: BuiltSiteRow; tokenIndex: string }> => {
   const site = await insertBuiltSite(
     name,
     `${token}.test.net`,
