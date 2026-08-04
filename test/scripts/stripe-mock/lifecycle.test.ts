@@ -16,6 +16,7 @@ import {
   expectPortAvailable,
   expectPortOpen,
   expectStripeMockFails,
+  retryWhilePortTaken,
   withHeldPort,
   withUnusedPort,
 } from "#test/test-utils/stripe-mock/ports.ts";
@@ -94,26 +95,54 @@ describe("starting stripe-mock", () => {
 
   test("gives a mock time to shut itself down before killing it", async () => {
     await withTempStripeMockPaths(async (paths) => {
-      const note = join(paths.binDir, "stopped-cleanly");
-      await writeSlowToStopMock(paths, note);
+      let round = 0;
+      await retryWhilePortTaken(async () => {
+        // Fresh notes each round, so a leftover from an earlier stolen-port
+        // round can never speak for this one.
+        round += 1;
+        const note = join(paths.binDir, `stopped-cleanly-${round}`);
+        const bound = join(paths.binDir, `bound-${round}`);
+        await writeSlowToStopMock(paths, note, bound);
 
-      await withUnusedPort(async (port) => {
-        const stripeMock = await startStripeMock({
-          budgetMs: 1000,
-          delayMs: 10,
-          paths,
-          port,
-          // Far longer than the mock's shutdown, so a busy machine cannot make
-          // this read as an impatient stopper. A CI runner under two parallel
-          // suite runs has starved the mock past 10 seconds, so the allowance
-          // is generous — a healthy stop returns on exit, never on this timer.
-          stopTimeoutMs: 60_000,
+        let portWasTaken = false;
+        await withUnusedPort(async (port) => {
+          let stripeMock: Awaited<ReturnType<typeof startStripeMock>>;
+          try {
+            stripeMock = await startStripeMock({
+              budgetMs: 1000,
+              delayMs: 10,
+              paths,
+              port,
+              // Far longer than the mock's shutdown, so a busy machine cannot
+              // make this read as an impatient stopper. A CI runner under two
+              // parallel suite runs has starved the mock past 10 seconds, so
+              // the allowance is generous — a healthy stop returns on exit,
+              // never on this timer.
+              stopTimeoutMs: 60_000,
+            });
+          } catch (error) {
+            if (!String(error).includes(STRIPE_MOCK_FAILED_TO_START)) {
+              throw error;
+            }
+            // Our mock lost its port to another test between picking it and
+            // binding it, so it died without ever listening. Try again.
+            portWasTaken = true;
+            return;
+          }
+          if (!(await pathExists(bound))) {
+            // The start found something else already listening and adopted
+            // it — our mock never ran, so there is nothing to judge here.
+            await stripeMock.stop();
+            portWasTaken = true;
+            return;
+          }
+          await expectPortOpen(port);
+
+          await stripeMock.stop();
+
+          expect(await pathExists(note)).toBe(true);
         });
-        await expectPortOpen(port);
-
-        await stripeMock.stop();
-
-        expect(await pathExists(note)).toBe(true);
+        return portWasTaken;
       });
     });
   });
