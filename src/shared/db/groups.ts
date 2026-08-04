@@ -40,7 +40,7 @@ import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import {
-  getGroupDayPrices,
+  getGroupDayPricesByGroupIds,
   groupDayPriceStatements,
   groupFlatPriceStatements,
   PRICE_TYPE_GROUP,
@@ -239,32 +239,16 @@ export const groupExists = (id: number): Promise<boolean> =>
 export const getListingsByGroupId: LoadGroupListings = listingsInGroup(false);
 
 /**
- * Validate that a listing is compatible with a group's existing listings.
- * Every listing in a group must share both the same {@link ListingType} and
- * the same `customisable_days` setting, so the shared booking form can show a
- * single day-count selector (or none) for the whole group.
- * Returns an error message if mismatched, null if OK.
- * Pass excludeListingId to skip a specific listing (for edit-self case).
- */
-export const validateGroupListingType = async (
-  groupId: number,
-  listingType: ListingType,
-  customisableDays: boolean,
-  excludeListingId?: number,
-): Promise<string | null> =>
-  groupListingTypeError(
-    await getListingsByGroupId(groupId),
-    listingType,
-    customisableDays,
-    excludeListingId,
-  );
-
-/**
- * The in-memory core of {@link validateGroupListingType}: given a group's
- * already-loaded members, return the homogeneity error (or null). Callers that
- * validate many groups at once batch the member reads (see
- * {@link getListingsByGroupIds}) and drive this directly, so they never issue
- * one sibling query per group and trip the N+1 read guard.
+ * Given a group's already-loaded members, return the homogeneity error (or
+ * null): every listing in a group must share both the same {@link ListingType}
+ * and the same `customisable_days` setting, so the shared booking form can show
+ * a single day-count selector (or none) for the whole group. Pass
+ * `excludeListingId` to skip a specific listing (for the edit-self case).
+ *
+ * Callers load the members themselves — one group's with
+ * {@link getListingsByGroupId}, many groups' with {@link getListingsByGroupIds}
+ * — so validating a batch never issues one sibling query per listing and trips
+ * the N+1 read guard.
  */
 export const groupListingTypeError = (
   allSiblings: readonly ListingWithCount[],
@@ -676,17 +660,57 @@ export const packageMemberMaps = (
   quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
 });
 
-/** A package group's full pricing state in one load: its membership rows, the
- * flat override + quantity maps ({@link packageMemberMaps}), and each
- * customisable member's per-day overrides — the shape the booking flow, the
- * webhook payload, and the payment revalidation all consume. */
-export const loadPackageMemberPricing = async (groupId: number) => {
-  const [rows, dayPrices] = await Promise.all([
-    getGroupPackagePrices(groupId),
-    getGroupDayPrices(groupId),
-  ]);
-  return { ...packageMemberMaps(rows), dayPrices, rows };
+/** A package group's full pricing state: its membership rows, the flat override
+ * + quantity maps ({@link packageMemberMaps}), and each customisable member's
+ * per-day overrides — the shape the booking flow, the webhook payload, and the
+ * payment revalidation all consume. */
+export type PackageMemberPricing = {
+  rows: GroupListing[];
+  prices: Map<number, number>;
+  quantities: Map<number, number>;
+  dayPrices: Map<number, Map<number, number>>;
 };
+
+/** The full pricing state of SEVERAL package groups, keyed by group id, in two
+ * reads however many groups are asked for — an order that books many packages
+ * would otherwise spend two round-trips per package and eat the request's
+ * subrequest budget. Every requested group is present; one with no membership
+ * rows reads as empty maps. */
+export const loadPackageMemberPricingByGroupIds = async (
+  groupIds: number[],
+): Promise<Map<number, PackageMemberPricing>> => {
+  const [rowsByGroup, dayPricesByGroup] = await Promise.all([
+    getGroupPackagePricesByGroupIds(groupIds),
+    getGroupDayPricesByGroupIds(groupIds),
+  ]);
+  return new Map(
+    groupIds.map((groupId) => {
+      const rows = rowsByGroup.get(groupId) ?? [];
+      return [
+        groupId,
+        {
+          ...packageMemberMaps(rows),
+          dayPrices: requiredMapValue(
+            dayPricesByGroup,
+            groupId,
+            "Missing package day prices",
+          ),
+          rows,
+        },
+      ];
+    }),
+  );
+};
+
+/** One package group's full pricing state, through the shared many-group path. */
+export const loadPackageMemberPricing = async (
+  groupId: number,
+): Promise<PackageMemberPricing> =>
+  requiredMapValue(
+    await loadPackageMemberPricingByGroupIds([groupId]),
+    groupId,
+    "Missing package pricing",
+  );
 
 /** The membership rows for several groups in one query, keyed by group id, so a
  * list endpoint can hydrate every group's package members without a per-group

@@ -9,6 +9,7 @@ import {
   getListingsByGroupId,
   getListingsByGroupIds,
   groupExists,
+  groupListingTypeError,
   groups,
   isHiddenPackageMember,
   listingGroups,
@@ -16,7 +17,6 @@ import {
   packageMembersError,
   setGroupListingsActive,
   setGroupPackageMembers,
-  validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -135,13 +135,21 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
       name: "Custom Member",
     });
     expect(
-      await validateGroupListingType(customGroup.id, "standard", false),
+      groupListingTypeError(
+        await getListingsByGroupId(customGroup.id),
+        "standard",
+        false,
+      ),
     ).toBe(t("error.group_customisable_days_expected"));
 
     const fixedGroup = await createTestGroup({ name: "Fixed Group" });
     await createTestListing({ groupId: fixedGroup.id, name: "Fixed Member" });
     expect(
-      await validateGroupListingType(fixedGroup.id, "standard", true),
+      groupListingTypeError(
+        await getListingsByGroupId(fixedGroup.id),
+        "standard",
+        true,
+      ),
     ).toBe(t("error.group_customisable_days_unexpected"));
   });
 
@@ -153,9 +161,13 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
       name: "Daily Type Member",
     });
 
-    expect(await validateGroupListingType(group.id, "standard", false)).toBe(
-      t("error.group_listing_type_mismatch", { type: "daily" }),
-    );
+    expect(
+      groupListingTypeError(
+        await getListingsByGroupId(group.id),
+        "standard",
+        false,
+      ),
+    ).toBe(t("error.group_listing_type_mismatch", { type: "daily" }));
   });
 
   test("matching customisable-day settings are accepted", async () => {
@@ -169,7 +181,11 @@ describeWithEnv("db > group validation contracts", { db: true }, () => {
     });
 
     expect(
-      await validateGroupListingType(group.id, "standard", true),
+      groupListingTypeError(
+        await getListingsByGroupId(group.id),
+        "standard",
+        true,
+      ),
     ).toBeNull();
   });
 

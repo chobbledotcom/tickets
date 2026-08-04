@@ -6,12 +6,20 @@
  * export mirrors the on-screen attendee table.
  */
 
-import { compact, filter, map, pipe, sort, unique } from "#fp";
+import {
+  compact,
+  filter,
+  map,
+  pipe,
+  requiredMapValue,
+  sort,
+  unique,
+} from "#fp";
 import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity/groups.ts";
-import { getGroupById, listingGroups } from "#shared/db/groups.ts";
+import { getGroupsById, listingGroups } from "#shared/db/groups.ts";
 import {
   type AttendeeQuestionData,
   getAttendeeAnswersBatch,
@@ -120,16 +128,25 @@ export const loadGroupContext = async (
   listing: ListingWithCount,
   dateFilter: string | null,
 ): Promise<GroupContext | undefined> => {
+  const groupIds = await listingGroups.getIds(listing.id);
+  const groupsById = await getGroupsById();
+  const capped = groupIds.flatMap((groupId) => {
+    const group = groupsById.get(groupId);
+    return group && group.max_attendees > 0 ? [group] : [];
+  });
+  if (capped.length === 0) return;
+  const remainingMap = await getGroupRemainingByGroupId(
+    capped.map((group) => group.id),
+    dateFilter,
+  );
   let tightest: { ctx: GroupContext; remaining: number } | undefined;
-  for (const groupId of await listingGroups.getIds(listing.id)) {
-    const group = await getGroupById(groupId);
-    if (!group || group.max_attendees <= 0) continue;
-    const remainingMap = await getGroupRemainingByGroupId(
-      [group.id],
-      dateFilter,
+  for (const group of capped) {
+    // max_attendees > 0 guarantees the helper returns an entry for the group.
+    const remaining = requiredMapValue(
+      remainingMap,
+      group.id,
+      "Missing group remaining",
     );
-    // group.max_attendees > 0 guarantees the helper returns an entry for it.
-    const remaining = remainingMap.get(group.id) as number;
     if (tightest === undefined || remaining < tightest.remaining) {
       tightest = {
         ctx: { attendeeCount: group.max_attendees - remaining, group },
