@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { createFreeReservation } from "#routes/public/ticket-payment.ts";
+import {
+  createFreeReservation,
+  MODIFIER_SOLD_OUT_MESSAGE,
+} from "#routes/public/ticket-payment.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
@@ -111,6 +114,60 @@ describeWithEnv("free reservation construction", { db: true }, () => {
         remainingBalance: 0,
       });
       expect(create.calls[0]!.args[1].legs).toEqual([]);
+    });
+  });
+
+  describe("refusals", () => {
+    test("says an extra sold out while the buyer was checking out", async () => {
+      const listing = testListingWithCount({ id: 8 });
+      using _create = stub(attendeesApi, "createBookingAtomic", () =>
+        Promise.resolve("sold-out" as never),
+      );
+
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        items: [checkoutItemFor(listing, { unitPrice: 0 })],
+        ledgerOrder: null,
+        listings: [buildTicketListing(listing, false, undefined)],
+        modifierUsages: [{ amountApplied: 0, modifierId: 1, quantity: 1 }],
+      });
+
+      expect(result).toEqual({
+        error: MODIFIER_SOLD_OUT_MESSAGE,
+        success: false,
+      });
+      expect(MODIFIER_SOLD_OUT_MESSAGE).toContain("sold out");
+    });
+
+    test("names the order's first listing when it will not fit", async () => {
+      const first = testListingWithCount({ id: 9, name: "First choice" });
+      const second = testListingWithCount({ id: 10, name: "Second choice" });
+      using _create = stub(attendeesApi, "createAttendeeAtomic", () =>
+        Promise.resolve({
+          reason: "capacity_exceeded",
+          success: false,
+        } as never),
+      );
+
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        items: [
+          checkoutItemFor(first, { unitPrice: 0 }),
+          checkoutItemFor(second, { unitPrice: 0 }),
+        ],
+        ledgerOrder: null,
+        listings: [first, second].map((listing) =>
+          buildTicketListing(listing, false, undefined),
+        ),
+        modifierUsages: [],
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toContain("First choice");
+      expect(result.error).not.toContain("Second choice");
     });
   });
 });

@@ -115,4 +115,4 @@ src/shared/db/groups.ts:728:44  ?? → ||   # rowsByGroup.get(): GroupListing[]|
 src/shared/db/groups.ts:736:13  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
 src/shared/db/groups.ts:752:5  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every requested group id, so the single-group lookup always finds its own id
 src/features/admin/api-groups.ts:250:11  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
-src/shared/db/groups.ts:161:33  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree
+src/shared/db/groups.ts:161:39  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree

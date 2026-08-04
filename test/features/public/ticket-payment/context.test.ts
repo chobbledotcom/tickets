@@ -21,6 +21,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { withSetting } from "#test-utils/settings.ts";
 
 const allDays = [
   "Monday",
@@ -155,5 +156,77 @@ describeWithEnv("ticket context branches", { db: true }, () => {
     expect(
       ctx.dates.map((date) => new Date(`${date}T00:00:00Z`).getUTCDay()),
     ).toEqual(ctx.dates.map(() => 1));
+  });
+
+  test("shows a group's own terms ahead of the site's", async () => {
+    const group = await createTestGroup({
+      name: "Termed group",
+      termsAndConditions: "Group rules",
+    });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 5,
+      name: "Termed member",
+    });
+
+    const ctx = await withSetting(
+      { terms_and_conditions: "Site rules" },
+      async () => getTicketContext([await ticketListing(member.id)], group),
+    );
+    expect(ctx.terms).toBe("Group rules");
+  });
+
+  test("falls back to the site's terms for a group that has none", async () => {
+    const group = await createTestGroup({ name: "Untermed group" });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 5,
+      name: "Untermed member",
+    });
+
+    const ctx = await withSetting(
+      { terms_and_conditions: "Site rules" },
+      async () => getTicketContext([await ticketListing(member.id)], group),
+    );
+    expect(ctx.terms).toBe("Site rules");
+  });
+
+  test("shows no terms at all when neither the group nor the site has any", async () => {
+    const group = await createTestGroup({ name: "Termless group" });
+    const member = await createTestListing({
+      groupId: group.id,
+      maxAttendees: 5,
+      name: "Termless member",
+    });
+
+    const ctx = await withSetting({ terms_and_conditions: "" }, async () =>
+      getTicketContext([await ticketListing(member.id)], group),
+    );
+    expect(ctx.terms).toBe("");
+  });
+
+  test("falls back to the site's terms on a page with no group", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      name: "Plain page listing",
+    });
+
+    const ctx = await withSetting(
+      { terms_and_conditions: "Site rules" },
+      async () => getTicketContext([await ticketListing(listing.id)]),
+    );
+    expect(ctx.terms).toBe("Site rules");
+  });
+
+  test("shows no terms on a page with neither a group nor site terms", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      name: "Termless page listing",
+    });
+
+    const ctx = await withSetting({ terms_and_conditions: "" }, async () =>
+      getTicketContext([await ticketListing(listing.id)]),
+    );
+    expect(ctx.terms).toBe("");
   });
 });
