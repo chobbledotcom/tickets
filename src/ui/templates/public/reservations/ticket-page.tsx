@@ -11,7 +11,11 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
-import { bookableChildIds } from "#shared/booking/model.ts";
+import { cartConflictMessages } from "#shared/booking/cart-conflicts.ts";
+import {
+  bookableChildIds,
+  customisableLengthItems,
+} from "#shared/booking/model.ts";
 import { packageLimitInfo } from "#shared/booking/package-cap.ts";
 import { explicitStandaloneIds } from "#shared/booking/page-packages.ts";
 import { daysAgo } from "#shared/dates.ts";
@@ -111,6 +115,7 @@ export const ticketPage = ({
   slugs,
   error,
   dates,
+  cartDateItems = [],
   terms,
   questions,
   questionListingMap,
@@ -264,27 +269,35 @@ export const ticketPage = ({
       {allUnavailable || isReadOnly() ? (
         <ErrorNote>{unavailableMessage(allClosed, isSingleListing)}</ErrorNote>
       ) : (
-        <TicketPageForm
-          actionUrl={actionUrl}
-          addOns={addOns}
-          dates={dates}
-          dayCountPriceFor={dayCountPriceFor}
-          dayCounts={dayCounts}
-          durationDays={dateDurationDays}
-          fields={fields}
-          hasCustomisable={hasCustomisable}
-          hasDaily={hasDaily}
-          hideQuantity={hideQuantity}
-          isPackage={singlePackagePage}
-          isSingleListing={isSingleListing}
-          listingRows={listingRows}
-          prefill={prefill}
-          promoCodesEnabled={promoCodesEnabled}
-          questionListingMap={questionListingMap}
-          questions={pageQuestions}
-          slugs={slugs}
-          terms={terms}
-        />
+        <>
+          {cartConflictMessages({
+            dateItems: cartDateItems,
+            lengthItems: customisableLengthItems(listings),
+          }).map((conflict) => (
+            <ErrorNote>{conflict}</ErrorNote>
+          ))}
+          <TicketPageForm
+            actionUrl={actionUrl}
+            addOns={addOns}
+            dates={dates}
+            dayCountPriceFor={dayCountPriceFor}
+            dayCounts={dayCounts}
+            durationDays={dateDurationDays}
+            fields={fields}
+            hasCustomisable={hasCustomisable}
+            hasDaily={hasDaily}
+            hideQuantity={hideQuantity}
+            isPackage={singlePackagePage}
+            isSingleListing={isSingleListing}
+            listingRows={listingRows}
+            prefill={prefill}
+            promoCodesEnabled={promoCodesEnabled}
+            questionListingMap={questionListingMap}
+            questions={pageQuestions}
+            slugs={slugs}
+            terms={terms}
+          />
+        </>
       )}
     </Layout>,
   );
