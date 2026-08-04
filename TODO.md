@@ -1,5 +1,29 @@
 # TODO — remaining follow-ups
 
+## Numbered SQL parameters — adopt the pattern beyond the limiters (from PR #2040)
+
+PR #2040 rewrote the two rate-limiter upserts (`src/shared/db/login-attempts.ts`,
+`src/shared/db/token-attempts.ts`) to use SQLite's numbered parameters
+(`?1`..`?6`), with each number given a named fragment constant (`NOW`,
+`TOKEN_LIMIT`, …) that the SQL template interpolates. That turned a 25-slot
+repeated positional args array into one value per meaning. Follow-ups:
+
+- **Sweep other multi-use statements.** Any statement that binds the same value
+  more than once is a candidate — look for args arrays that repeat a variable
+  (e.g. correlated subqueries in `src/shared/db/prune.ts` whose cutoff is bound
+  twice, and the bigger hand-built statements under `src/shared/db/`). Plain
+  single-use `?` statements are fine as they are.
+- **Consider a small define-style helper.** Something like
+  `defineStatement({ ip: v.string(), now: v.number() }, (p) => sql\`... ${p.ip}
+  ...\`)` could hand back `{ sql, bind({ip, now}) }` so the parameter order
+  lives in one place and callers pass an object instead of an ordered array —
+  the same schema-first shape as `defineTable`/`defineForm`. Only worth it if
+  the sweep finds enough call sites; two files may not justify the machinery.
+- Starting point: the fragment-constant pattern at the top of
+  `src/shared/db/token-attempts.ts`.
+
+---
+
 This file tracks work that was planned but **not yet done** when the root-level
 planning/design docs were retired (they had served their purpose once the bulk
 of each feature shipped). Each section is written to stand on its own — you
