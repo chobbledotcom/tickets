@@ -3,7 +3,6 @@ import { createReadStream } from "node:fs";
 import type { ClientRequest, IncomingMessage } from "node:http";
 import { request as httpsRequest, type RequestOptions } from "node:https";
 import { assertExists } from "@std/assert";
-import { once } from "#fp";
 import {
   checkLocalSnapshot,
   type SnapshotClientFactory,
@@ -112,21 +111,27 @@ const readResponse = (
  * awaits when the server closes the connection while the body is still being
  * sent (deno ext/node polyfill, `ClientRequest._writeHeader`). The request
  * also emits a normal "error" event for the failed write, so the upload still
- * rejects with a real error; this listener only stops the duplicate internal
- * rejection from crashing the process. */
+ * rejects with a real error; the watch below only stops the duplicate
+ * internal rejection from crashing the process. */
 const POLYFILL_BODY_STREAM_ERROR =
   "Failed to fetch: request body stream errored";
 
-const ignorePolyfillBodyStreamDefect = once(() => {
-  globalThis.addEventListener("unhandledrejection", (event) => {
+/** Ignore node:http's duplicate rejection while an upload is in flight.
+ * Returns a function that stands the watch down again, so an unrelated
+ * request failing the same way after the upload still fails loudly. */
+const watchPolyfillBodyStreamDefect = (): (() => void) => {
+  const ignoreDefect = (event: PromiseRejectionEvent) => {
     if (
       event.reason instanceof TypeError &&
       event.reason.message === POLYFILL_BODY_STREAM_ERROR
     ) {
       event.preventDefault();
     }
-  });
-});
+  };
+  globalThis.addEventListener("unhandledrejection", ignoreDefect);
+  return () =>
+    globalThis.removeEventListener("unhandledrejection", ignoreDefect);
+};
 
 const sendDatabaseFile = async (
   url: URL,
@@ -136,7 +141,7 @@ const sendDatabaseFile = async (
   signal?: AbortSignal,
   transport: DatabaseUploadTransport = secureUploadTransport,
 ): Promise<UploadResponse> => {
-  ignorePolyfillBodyStreamDefect();
+  const standDown = watchPolyfillBodyStreamDefect();
   const response = Promise.withResolvers<UploadResponse>();
   const options: RequestOptions = {
     headers: {
@@ -172,6 +177,10 @@ const sendDatabaseFile = async (
   } finally {
     file.destroy();
     await fileClosed.promise;
+    // The duplicate rejection surfaces at the end of the task that broke the
+    // write, so wait one timer turn before standing the watch down.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    standDown();
   }
 };
 

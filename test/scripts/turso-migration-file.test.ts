@@ -251,16 +251,8 @@ describe("Turso migration file", () => {
       ).rejects.toThrow("connection reset mid-upload");
     }));
 
-  test("ignores only the duplicate body-stream rejection from node:http", () =>
+  test("ignores the duplicate body-stream rejection only mid-upload", () =>
     withTempDir(async (dir) => {
-      // Any upload installs the safety listener; this one fails fast.
-      const request = fakeRequest();
-      await expect(
-        uploadThroughScript(dir, request, () => {
-          request.destroy(new Error("install trigger"));
-        }),
-      ).rejects.toThrow("install trigger");
-
       const prevented = (reason: unknown): boolean => {
         const event = new PromiseRejectionEvent("unhandledrejection", {
           cancelable: true,
@@ -270,15 +262,28 @@ describe("Turso migration file", () => {
         globalThis.dispatchEvent(event);
         return event.defaultPrevented;
       };
-      expect(
-        prevented(
-          new TypeError("Failed to fetch: request body stream errored"),
-        ),
-      ).toBe(true);
+      const defect = () =>
+        new TypeError("Failed to fetch: request body stream errored");
+
+      // Hold the upload open: the scripted transport never answers. The
+      // watch is up by the time the transport runs, so wait for that.
+      const started = Promise.withResolvers<void>();
+      const request = fakeRequest();
+      const upload = uploadThroughScript(dir, request, () => {
+        started.resolve();
+      });
+      await started.promise;
+
+      expect(prevented(defect())).toBe(true);
       expect(
         prevented(new Error("Failed to fetch: request body stream errored")),
       ).toBe(false);
       expect(prevented(new TypeError("some other failure"))).toBe(false);
+
+      request.destroy(new Error("cut mid-upload"));
+      await expect(upload).rejects.toThrow("cut mid-upload");
+      // Once the upload has settled the watch is down again.
+      expect(prevented(defect())).toBe(false);
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>
