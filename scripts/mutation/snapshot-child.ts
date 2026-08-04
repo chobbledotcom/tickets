@@ -6,12 +6,14 @@
  */
 
 import { resolve } from "@std/path";
+import { processExists } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-import { keepRunClaimFresh } from "./isolation-lock.ts";
+import { ageRunClaimToStale, keepRunClaimFresh } from "./isolation-lock.ts";
 import {
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
+  MUTATION_SUPERVISOR_PID_ENV,
   MUTATION_WORK_ROOT_ENV,
 } from "./isolation-state.ts";
 
@@ -33,9 +35,17 @@ const runValue = (name: string): string => {
   return value;
 };
 
-const runRootFromEnv = (): string => {
+type SnapshotRunHome = { runRoot: string; supervisorPid: number };
+
+const runHomeFromEnv = (): SnapshotRunHome => {
   runValue(MUTATION_RUN_ID_ENV);
   const runRoot = runValue(MUTATION_RUN_ROOT_ENV);
+  const supervisorPid = Number(runValue(MUTATION_SUPERVISOR_PID_ENV));
+  if (!Number.isInteger(supervisorPid) || supervisorPid <= 0) {
+    throw new Error(
+      `${MUTATION_SUPERVISOR_PID_ENV} must be a process id, not ${runValue(MUTATION_SUPERVISOR_PID_ENV)}.`,
+    );
+  }
   const workRoot = resolve(runValue(MUTATION_WORK_ROOT_ENV));
   // The copy it says it is in must be the one it is running from. Anything
   // else means these values belong to another run, and the work would land in
@@ -45,18 +55,28 @@ const runRootFromEnv = (): string => {
       `A snapshot child says it works in ${workRoot}, but it is running in ${resolve(projectRoot)}.`,
     );
   }
-  return runRoot;
+  return { runRoot, supervisorPid };
 };
 
 const workUnderFreshClaim = async <Result>(
-  runRoot: string,
+  { runRoot, supervisorPid }: SnapshotRunHome,
   body: () => Promise<Result>,
 ): Promise<Result> => {
-  const stopTouching = await keepRunClaimFresh({ root: runRoot });
+  const record = { root: runRoot };
+  const claim = await keepRunClaimFresh(record);
   try {
     return await body();
   } finally {
-    await stopTouching();
+    try {
+      await claim.stopTouching();
+    } finally {
+      // With the supervisor gone, nobody is left to release the claim; age
+      // it so the run reads as over the moment this child ends, instead of
+      // staying "live" for a whole stale window.
+      if (!processExists(supervisorPid)) {
+        await ageRunClaimToStale(record, claim.ownedBy);
+      }
+    }
   }
 };
 
@@ -64,4 +84,4 @@ const workUnderFreshClaim = async <Result>(
  * clear-up cannot take the copy even if the supervisor is killed outright. */
 export const runSnapshotChild = <Result>(
   body: () => Promise<Result>,
-): Promise<Result> => workUnderFreshClaim(runRootFromEnv(), body);
+): Promise<Result> => workUnderFreshClaim(runHomeFromEnv(), body);

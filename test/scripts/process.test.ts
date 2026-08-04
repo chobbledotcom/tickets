@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   INHERIT_STDIO,
+  processExists,
   removeTree,
   runDeno,
   stopProcess,
@@ -72,6 +73,11 @@ describe("script process helpers", () => {
 
     expect(result.code).toBe(7);
     expect(result.success).toBe(false);
+  });
+
+  test("checks process liveness without spawning a shell command", () => {
+    expect(processExists(Deno.pid)).toBe(true);
+    expect(processExists(99_999_999)).toBe(false);
   });
 
   test("stops a child process gracefully and closes resources", async () => {

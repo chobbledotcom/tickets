@@ -92,6 +92,21 @@ const holdClaimUntilReleased = async (
   return { holding, release: () => released.resolve() };
 };
 
+/** Count every look at the claim at `path`, letting the reads go through. */
+const countClaimReads = (
+  path: string,
+  counter: { reads: number },
+): Disposable => {
+  const readTextFile = Deno.readTextFile;
+  return stub(Deno, "readTextFile", ((
+    target: string | URL,
+    options?: Deno.ReadFileOptions,
+  ) => {
+    if (`${target}` === path) counter.reads += 1;
+    return readTextFile(target, options);
+  }) as typeof Deno.readTextFile);
+};
+
 describe("taking a claim", () => {
   test("takes a free claim, writing who holds it and since when", async () => {
     await withClaimDir(async (path) => {
@@ -241,7 +256,12 @@ const settle = (): Promise<void> =>
 
 /** Step the fake clock, letting each touch settle before the next fires. */
 const tickBy = async (time: FakeTime, ...steps: number[]): Promise<void> => {
-  for (const step of steps) await time.tickAsync(step);
+  for (const step of steps) {
+    await time.tickAsync(step);
+    // A touch is a guarded read-then-write of real files; give it real
+    // event-loop time to land before the clock moves on.
+    await settle();
+  }
 };
 
 type FakeHold = {
@@ -272,8 +292,10 @@ describe("keeping a claim fresh while it is held", () => {
       // Two rounds, so the touch after a touch is proven too — not just the
       // first one armed when the claim was taken.
       for (let round = 0; round < 2; round += 1) {
-        // Age the record as if the holder had stalled for a long while.
-        await writeClaim(path, `kept\n${Date.now() - 40}`);
+        // Age the record — keeping its owner — as if the holder had
+        // stalled for a long while without anyone taking the claim.
+        const [owner] = (await Deno.readTextFile(path)).split("\n");
+        await writeClaim(path, `${owner}\n${Date.now() - 40}`);
         expect(await claimIsFresh(path, 25)).toBe(false);
 
         await time.tickAsync(5);
@@ -361,10 +383,14 @@ describe("keeping a claim fresh while it is held", () => {
       }) as unknown as typeof setTimeout);
 
       await withTestClaim(path, () => Promise.resolve());
+      const counter = { reads: 0 };
+      using _read = countClaimReads(path, counter);
       for (const touch of lateTouches) touch();
 
-      // Real time for the wrongly started write to land, if there was one.
+      // Real time for anything wrongly started to land, if there was any.
       await settle();
+      // The late touch bailed before so much as looking at the claim.
+      expect(counter.reads).toBe(0);
       await expect(Deno.stat(path)).rejects.toThrow();
     });
   });
@@ -393,12 +419,6 @@ const failClaimTouches = (
   }) as typeof Deno.writeTextFile);
 };
 
-/** End the hold, expecting the holder to hear its claim was let go stale. */
-const expectHoldLostFreshness = (held: FakeHold["held"]): Promise<void> => {
-  held.release();
-  return expect(held.holding).rejects.toThrow("could not be kept fresh");
-};
-
 /** Hold the claim while its touches fail, on a clock the scenario drives;
  * calling `recover` lets touches land again from then on. */
 const holdWhileTouchesFail = async (
@@ -423,48 +443,19 @@ const holdWhileTouchesFail = async (
   });
 };
 
-describe("a holder whose touches stop landing", () => {
-  test("hears about it once the touches have failed for a whole stale window", async () => {
+describe("a holder whose touches stop landing or land elsewhere", () => {
+  test("carries on when every touch fails but the claim stays its own", async () => {
     await withClaimDir((path) =>
       holdWhileTouchesFail(path, async ({ held, time }) => {
-        // Failures at 10, 20, 30 and 40ms: by the last one the record has
-        // gone unwritten for the whole 30ms window, so for anyone reading
-        // the file the holder walked away — the work cannot end quietly.
+        // The file ages unwritten for the whole window — but nobody took the
+        // claim, so no duplicate work can have started and the hold may end
+        // quietly.
         await tickBy(time, 10, 10, 10, 10);
 
-        await expectHoldLostFreshness(held);
+        held.release();
+        await held.holding;
+        await expect(Deno.stat(path)).rejects.toThrow();
       }),
-    );
-  });
-
-  test("hears about it even when the touches recover too late", async () => {
-    await withClaimDir((path) =>
-      holdWhileTouchesFail(path, async ({ held, recover, time }) => {
-        // The outage spanned the window, so the claim may already be
-        // somebody else's; a touch landing afterwards cannot unhappen that.
-        await tickBy(time, 10, 10, 10, 10);
-        recover();
-        await tickBy(time, 10);
-
-        await expectHoldLostFreshness(held);
-      }),
-    );
-  });
-
-  test("hears about it when the hold ends mid-outage spanning the window", async () => {
-    await withClaimDir((path) =>
-      holdWhileTouchesFail(
-        path,
-        async ({ held, time }) => {
-          // Failures at 20 and 40ms, then 19ms more of silence: 39ms since
-          // the record was last written, with no touch left to notice —
-          // only the release can tell the claim was let go stale.
-          await tickBy(time, 20, 20, 19);
-
-          await expectHoldLostFreshness(held);
-        },
-        20,
-      ),
     );
   });
 
@@ -474,7 +465,6 @@ describe("a holder whose touches stop landing", () => {
         await tickBy(time, 10);
         recover();
         await tickBy(time, 10, 5);
-        await settle();
 
         // Touched again after the blip: fresh, judged against a window far
         // smaller than the time since the claim was first written.
@@ -486,22 +476,121 @@ describe("a holder whose touches stop landing", () => {
   });
 });
 
+/** Hold the claim on a fake clock, then let a taker's record land over it.
+ * Dispose the clock with `using` at the call site. */
+const holdThenLoseClaim = async (
+  path: string,
+  touchMs?: number,
+): Promise<FakeHold & { takenRecord: string }> => {
+  const { held, time } = await holdOnFakeClock(path, touchMs);
+  await writeClaim(path, `new-owner\n${Date.now()}`);
+  return { held, takenRecord: await Deno.readTextFile(path), time };
+};
+
+describe("a holder whose claim is taken while it works", () => {
+  test("stops touching and reports a claim another taker now holds", async () => {
+    await withClaimDir(async (path) => {
+      // A taker judged the aged claim abandoned and took it.
+      const { held, takenRecord, time } = await holdThenLoseClaim(path);
+      using _clock = time;
+
+      // The next touch finds somebody else's name and must not write.
+      await tickBy(time, 10, 10);
+
+      expect(await Deno.readTextFile(path)).toBe(takenRecord);
+      held.release();
+      await expect(held.holding).rejects.toThrow("was lost while the work ran");
+      // The new owner's record is left exactly as it was.
+      expect(await Deno.readTextFile(path)).toBe(takenRecord);
+    });
+  });
+
+  test("reports a claim that vanished mid-run without re-creating it", async () => {
+    await withClaimDir(async (path) => {
+      const { held, time } = await holdOnFakeClock(path);
+      using _clock = time;
+      // A taker took the aged claim, finished, and released it.
+      await Deno.remove(path);
+
+      await tickBy(time, 10, 10);
+
+      held.release();
+      await expect(held.holding).rejects.toThrow("was lost while the work ran");
+      await expect(Deno.stat(path)).rejects.toThrow();
+    });
+  });
+
+  test("stops looking at a claim it has learned is lost", async () => {
+    await withClaimDir(async (path) => {
+      const { held, time } = await holdThenLoseClaim(path);
+      using _clock = time;
+      const counter = { reads: 0 };
+      using _read = countClaimReads(path, counter);
+
+      // The touch that discovers the loss is the last look it takes.
+      await tickBy(time, 10);
+      const readsAtDiscovery = counter.reads;
+      await tickBy(time, 10, 10, 10);
+
+      expect(readsAtDiscovery).toBeGreaterThan(0);
+      expect(counter.reads).toBe(readsAtDiscovery);
+      held.release();
+      await expect(held.holding).rejects.toThrow("was lost while the work ran");
+    });
+  });
+
+  test("reports at release a taking no touch was awake to see", async () => {
+    await withClaimDir(async (path) => {
+      // Touches far rarer than the hold is long: the only ownership check
+      // left is the release's own.
+      const { held, takenRecord, time } = await holdThenLoseClaim(path, 60_000);
+      using _clock = time;
+
+      await tickBy(time, 40);
+
+      held.release();
+      await expect(held.holding).rejects.toThrow("was lost while the work ran");
+      expect(await Deno.readTextFile(path)).toBe(takenRecord);
+    });
+  });
+});
+
 describe("keeping somebody else's claim fresh for them", () => {
   test("touches it from the very first moment, keeping their name on it", async () => {
     await withClaimDir(async (path) => {
       await writeClaim(path, `their-supervisor\n${LONG_AGO_MS}`);
 
-      const stopTouching = await keepClaimFresh(path, {
+      const claim = await keepClaimFresh(path, {
         staleMs: FRESH_FOR_MS,
         touchMs: FRESH_FOR_MS,
       });
+      expect(claim.ownedBy).toBe("their-supervisor");
       expect(await claimIsFresh(path, FRESH_FOR_MS)).toBe(true);
-      await stopTouching();
+      await claim.stopTouching();
 
       // Stopping never removes the claim: it stays theirs to release.
       expect(
         (await Deno.readTextFile(path)).startsWith("their-supervisor"),
       ).toBe(true);
+    });
+  });
+
+  test("reports a claim taken while it was being kept fresh", async () => {
+    await withClaimDir(async (path) => {
+      await writeClaim(path, `their-supervisor\n${Date.now()}`);
+      using time = new FakeTime();
+      const claim = await keepClaimFresh(path, { staleMs: 30, touchMs: 10 });
+      await writeClaim(path, `new-owner\n${Date.now()}`);
+
+      await tickBy(time, 10);
+
+      await expect(claim.stopTouching()).rejects.toThrow(
+        "was lost while the work ran",
+      );
+      // Not the keeper's to touch or remove: the new owner's record stays.
+      expect((await Deno.readTextFile(path)).startsWith("new-owner")).toBe(
+        true,
+      );
     });
   });
 
@@ -565,11 +654,11 @@ describe("releasing a claim", () => {
     });
   });
 
-  test("leaves a claim that has since become somebody else's", async () => {
+  test("reports a claim that has since become somebody else's, leaving it", async () => {
     await withClaimDir(async (path) => {
-      await withTestClaim(path, () =>
-        writeClaim(path, `new-owner\n${Date.now()}`),
-      );
+      await expect(
+        withTestClaim(path, () => writeClaim(path, `new-owner\n${Date.now()}`)),
+      ).rejects.toThrow("was lost while the work ran");
 
       expect((await Deno.readTextFile(path)).startsWith("new-owner")).toBe(
         true,
@@ -577,9 +666,37 @@ describe("releasing a claim", () => {
     });
   });
 
-  test("says nothing when the claim is already gone", async () => {
+  test("frees the claim even when the work itself fails", async () => {
     await withClaimDir(async (path) => {
-      await withTestClaim(path, () => Deno.remove(path));
+      await expect(
+        withTestClaim(path, () => Promise.reject(new Error("the work broke"))),
+      ).rejects.toThrow("the work broke");
+
+      await expect(Deno.stat(path)).rejects.toThrow();
+    });
+  });
+
+  test("notes a lost claim alongside the work's own failure", async () => {
+    await withClaimDir(async (path) => {
+      await expect(
+        withTestClaim(path, async () => {
+          await writeClaim(path, `new-owner\n${Date.now()}`);
+          throw new Error("the work broke");
+        }),
+      ).rejects.toThrow(/the work broke.*was lost while the work ran/s);
+
+      // The new owner's record is not the failed work's to remove.
+      expect((await Deno.readTextFile(path)).startsWith("new-owner")).toBe(
+        true,
+      );
+    });
+  });
+
+  test("reports a claim that is already gone as lost", async () => {
+    await withClaimDir(async (path) => {
+      await expect(
+        withTestClaim(path, () => Deno.remove(path)),
+      ).rejects.toThrow("was lost while the work ran");
 
       await expect(Deno.stat(path)).rejects.toThrow();
     });

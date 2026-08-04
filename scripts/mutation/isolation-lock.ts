@@ -12,9 +12,9 @@
 
 import { type LockBody, withFileLock } from "#scripts/lock-file.ts";
 import {
+  ageClaimToStale,
   claimIsFresh,
   keepClaimFresh,
-  type StopTouching,
   withClaim,
   withClaimGuard,
 } from "#scripts/stale-claim.ts";
@@ -73,8 +73,15 @@ export const withRunClaimGuard = <Result>(
  * supervisor killed without cleaning up cannot cost a live child its copy. */
 export const keepRunClaimFresh = (
   record: Pick<MutationRunRecord, "root">,
-): Promise<StopTouching> =>
+): ReturnType<typeof keepClaimFresh> =>
   keepClaimFresh(runClaimPath(record), RUN_CLAIM_SETTINGS);
+
+/** Age the run's claim so it reads as walked away — for a child whose
+ * supervisor died and so can never release it. */
+export const ageRunClaimToStale = (
+  record: Pick<MutationRunRecord, "root">,
+  ownedBy: string,
+): Promise<void> => ageClaimToStale(runClaimPath(record), ownedBy);
 
 /**
  * Hold the checkout's copy-back lock. Every run brings its kept files back

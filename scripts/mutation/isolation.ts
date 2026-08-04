@@ -36,6 +36,7 @@ import {
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
+  MUTATION_SUPERVISOR_PID_ENV,
   MUTATION_WORK_ROOT_ENV,
   type MutationRunRecord,
   markFinished,
@@ -91,6 +92,9 @@ const childEnv = (
     [MUTATION_SNAPSHOT_CHILD_ENV]: "1",
     [MUTATION_RUN_ID_ENV]: id,
     [MUTATION_RUN_ROOT_ENV]: runRootPath,
+    // The child keeps the run's claim fresh, and needs to know whether this
+    // supervisor is still alive to release it when the child ends.
+    [MUTATION_SUPERVISOR_PID_ENV]: String(Deno.pid),
     [MUTATION_WORK_ROOT_ENV]: snapshotRoot,
   });
 

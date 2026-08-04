@@ -22,6 +22,7 @@ import {
   withFileLock,
 } from "#scripts/lock-file.ts";
 import { nullIfNotFound, rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { delay } from "#shared/now.ts";
 
 /** How a claim is kept fresh, and when it counts as walked away from. */
@@ -111,49 +112,72 @@ const removeClaim = async (path: string): Promise<void> => {
   }
 };
 
-const removeClaimIfOwned = async (
+const claimLostError = (path: string): Error =>
+  new Error(
+    `The claim at ${path} was lost while the work ran: another taker judged it walked away and took or removed it, so the same work may also have run elsewhere.`,
+  );
+
+/**
+ * Run `act` under the takers' guard, but only while the claim is still the
+ * given owner's; answers whether it was. A paused holder may have been
+ * stolen from, and acting blindly then would trample the new owner's record.
+ */
+const whileStillOwned = (
   path: string,
   owner: string,
-): Promise<void> => {
-  try {
-    if ((await readClaimRecord(path)).owner === owner) {
-      await Deno.remove(path);
-    }
-  } catch (error) {
-    rethrowUnlessNotFound(error);
+  act: () => Promise<void>,
+): Promise<boolean> =>
+  withClaimGuard(path, async () => {
+    const record = await nullIfNotFound(readClaimRecord(path));
+    if (record === null || record.owner !== owner) return false;
+    await act();
+    return true;
+  });
+
+const touchIfStillOurs = (path: string, owner: string): Promise<boolean> =>
+  whileStillOwned(path, owner, () => writeClaimTime(path, owner));
+
+/** Remove the claim at release. Anything but our own claim there means the
+ * work ran unprotected for a while, which cannot end quietly. */
+const releaseOwnClaim = async (path: string, owner: string): Promise<void> => {
+  if (!(await whileStillOwned(path, owner, () => removeClaim(path)))) {
+    throw claimLostError(path);
   }
 };
 
-/** Stops touching a claim, and throws if the holding was not kept safe. */
+/**
+ * Age the claim so the next look judges it walked away — for a helper whose
+ * owner is gone and can never release it. Somebody else's claim is left be.
+ */
+export const ageClaimToStale = async (
+  path: string,
+  owner: string,
+): Promise<void> => {
+  await whileStillOwned(path, owner, () =>
+    Deno.writeTextFile(path, `${owner}\n1`),
+  );
+};
+
+/** Stops touching a claim, and throws if the claim was seen lost meanwhile. */
 export type StopTouching = () => Promise<void>;
 
 const startClaimTouching = (
   path: string,
   owner: string,
-  { staleMs, touchMs }: StaleClaimSettings,
+  { touchMs }: StaleClaimSettings,
 ): StopTouching => {
   let stopped = false;
+  let claimLost = false;
   let timeout = setTimeout(touchClaim, touchMs);
   let latestTouch: Promise<void> = Promise.resolve();
-  let failingSince: number | null = null;
-  let wentUnfreshed = false;
 
   const scheduleNextTouch = () => {
-    if (stopped) return;
+    if (stopped || claimLost) return;
     timeout = setTimeout(touchClaim, touchMs);
   };
 
-  const touchLanded = () => {
-    failingSince = null;
-    scheduleNextTouch();
-  };
-
-  // Touches failing for a whole stale window leave the file reading as
-  // walked away from, so another taker may hold the claim now. That cannot
-  // be made safe after the fact — only reported, once the holder stops.
-  const touchFailed = () => {
-    failingSince ??= Date.now();
-    if (Date.now() - failingSince >= staleMs) wentUnfreshed = true;
+  const touchOutcome = (stillOurs: boolean) => {
+    if (!stillOurs) claimLost = true;
     scheduleNextTouch();
   };
 
@@ -161,7 +185,12 @@ const startClaimTouching = (
     // A timer can fire in the very moment of the stop; a touch that went
     // ahead then could re-create the claim file after release removed it.
     if (stopped) return;
-    latestTouch = writeClaimTime(path, owner).then(touchLanded, touchFailed);
+    // A write that failed is left alone: the file just ages, and the
+    // ownership checks here and at release notice anything that let happen.
+    latestTouch = touchIfStillOurs(path, owner).then(
+      touchOutcome,
+      scheduleNextTouch,
+    );
   }
 
   return async (): Promise<void> => {
@@ -170,14 +199,7 @@ const startClaimTouching = (
     // A touch already under way finishes without booking another, because
     // both writing and scheduling check the flag above.
     await latestTouch;
-    if (
-      wentUnfreshed ||
-      (failingSince !== null && Date.now() - failingSince >= staleMs)
-    ) {
-      throw new Error(
-        `The claim at ${path} could not be kept fresh: its file went unwritten for longer than ${staleMs}ms, so another taker may have removed it and done the same work.`,
-      );
-    }
+    if (claimLost) throw claimLostError(path);
   };
 };
 
@@ -199,7 +221,7 @@ const heldClaim = (
       try {
         await stopTouching();
       } finally {
-        await removeClaimIfOwned(path, owner);
+        await releaseOwnClaim(path, owner);
       }
     },
   };
@@ -236,15 +258,18 @@ const tryTakeClaim = (
 export const keepClaimFresh = async (
   path: string,
   settings: StaleClaimSettings,
-): Promise<StopTouching> => {
+): Promise<{ ownedBy: string; stopTouching: StopTouching }> => {
   const { owner } = await readClaimRecord(path);
   if (owner === undefined) {
     throw new Error(
       `The claim at ${path} names no owner to keep it fresh for.`,
     );
   }
-  await writeClaimTime(path, owner);
-  return startClaimTouching(path, owner, settings);
+  if (!(await touchIfStillOurs(path, owner))) throw claimLostError(path);
+  return {
+    ownedBy: owner,
+    stopTouching: startClaimTouching(path, owner, settings),
+  };
 };
 
 /**
@@ -268,16 +293,32 @@ const takeClaim = async (
   }
 };
 
-/** Take the claim, do the work, and let the claim go — even on failure. */
+/**
+ * Take the claim, do the work, and let the claim go — even on failure. A
+ * release that finds the claim lost fails the work; when the work had
+ * already failed on its own, that failure stays the story, with the loss
+ * noted alongside it.
+ */
 export const withClaim = async <Result>(
   path: string,
   settings: StaleClaimSettings & ClaimWait,
   body: LockBody<Result>,
 ): Promise<Result> => {
   const claim = await takeClaim(path, settings);
+  let result: Result;
   try {
-    return await body();
-  } finally {
-    await claim.release();
+    result = await body();
+  } catch (failure) {
+    try {
+      await claim.release();
+    } catch (releaseFailure) {
+      throw new Error(
+        `${errorMessage(failure)}; and letting the claim go then found more wrong: ${errorMessage(releaseFailure)}`,
+        { cause: failure },
+      );
+    }
+    throw failure;
   }
+  await claim.release();
+  return result;
 };

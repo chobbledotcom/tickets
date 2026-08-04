@@ -1,3 +1,5 @@
+import nodeProcess from "node:process";
+
 /** Wire a child process's three stdio streams straight to the parent's — for
  *  interactive or inherited runs where the child shares the same terminal. */
 export const INHERIT_STDIO = {
@@ -63,6 +65,16 @@ const beforeTimeout = async (
     return await Promise.race([status.then(() => true), delayed]);
   } finally {
     clearTimeout(timeout);
+  }
+};
+
+/** Is a process with this id alive right now? Signal 0 probes without sending. */
+export const processExists = (pid: number): boolean => {
+  try {
+    nodeProcess.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
   }
 };
 
