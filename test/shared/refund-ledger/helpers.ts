@@ -37,8 +37,8 @@ export const refundReference = (
   reference: string,
   sessionIds: readonly string[],
 ): RefundPaymentReference => ({
-  providerRefunded: true,
   reference,
+  refundState: "completed",
   sessionIds,
 });
 

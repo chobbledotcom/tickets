@@ -11,8 +11,9 @@
  * - Refunds operate on the transaction id (paymentReference), not the checkout
  *
  * Amounts: the app models money in minor units (e.g. pence); SumUp's API uses
- * major units. We convert at the boundary using the configured currency's
- * decimal places (the shared currency helpers).
+ * major units. A retrieved checkout converts using the currency SumUp returned
+ * with it, so a charge taken in another currency is read at its own decimal
+ * places rather than the site's; an unusable code falls back to the site's.
  */
 
 /* jscpd:ignore-start */
@@ -27,6 +28,7 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { isCurrency } from "#shared/payment/money.ts";
 import {
   assembleCheckoutMetadata,
   type CredentialCheck,
@@ -35,6 +37,7 @@ import {
 import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
+import { exceedsCurrencyPrecision } from "#shared/validation/money.ts";
 
 /* jscpd:ignore-end */
 
@@ -44,8 +47,14 @@ export type SumupCheckout = {
   reference: string;
   /** SumUp checkout lifecycle status. */
   status: CheckoutSuccess["status"];
-  /** Total amount in the app's minor units. */
-  amountMinor: number;
+  /** Total amount in the app's minor units, or null when the response carried
+   *  no amount, or one finer than the currency can hold — rounding that would
+   *  book an amount SumUp never took. The boundary refuses a null either way. */
+  amountMinor: number | null;
+  /** The currency the checkout was taken in, exactly as SumUp gave it (upper-
+   *  cased), or null when the response carried none. A code that is not three
+   *  letters is carried through unchanged so the boundary refuses it. */
+  currency: string | null;
   /** Transaction id of the completing payment (refund/payment reference). */
   transactionId: string;
   /** Checkout creation time (ISO 8601), from SumUp's `date` field. */
@@ -106,23 +115,42 @@ const sumupKeyError = (err: unknown): string => {
 };
 
 /**
- * Normalize a SumUp checkout resource into our internal shape.
- * amount and checkout_reference are always present on checkouts we created
- * (webhook ids are pre-filtered against our staging rows before fetching),
- * so the SDK's optional types are asserted rather than defaulted.
+ * Normalize a SumUp checkout into our internal shape. Nothing here may throw:
+ * it runs inside `withClient`, which turns any error into "no session", and the
+ * webhook then acknowledges a paid charge as one it never heard of. So bad
+ * money is carried through for the boundary to refuse, never asserted away.
+ *
  * transaction_id only exists once a payment attempt succeeds; older attempts
  * in `transactions` may have FAILED, so the fallback picks the successful one.
  */
-const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => ({
-  amountMinor: toMinorUnits(c.amount!),
-  createdAt: c.date,
-  reference: c.checkout_reference!,
-  status: c.status,
-  transactionId:
-    c.transaction_id ??
-    c.transactions?.find((t) => t.status === "SUCCESSFUL")?.id ??
-    "",
-});
+const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
+  const amount = typeof c.amount === "number" ? c.amount : null;
+  const currency =
+    typeof c.currency === "string" && c.currency.trim() !== ""
+      ? c.currency.toUpperCase()
+      : null;
+  // Only a well-formed code may reach the currency helpers: Intl throws on
+  // anything else, and that throw would be swallowed here as "no session",
+  // stranding a paid charge the boundary would otherwise refuse and refund.
+  const conversionCurrency = isCurrency(currency)
+    ? currency
+    : settings.currency;
+  // An amount finer than the currency can hold would round to something SumUp
+  // never charged, so it is as unreadable as an absent one.
+  const readable =
+    amount !== null && !exceedsCurrencyPrecision(amount, conversionCurrency);
+  return {
+    amountMinor: readable ? toMinorUnits(amount, conversionCurrency) : null,
+    createdAt: c.date,
+    currency,
+    reference: c.checkout_reference!,
+    status: c.status,
+    transactionId:
+      c.transaction_id ??
+      c.transactions?.find((t) => t.status === "SUCCESSFUL")?.id ??
+      "",
+  };
+};
 
 /**
  * Stubbable API for testing — mirrors stripeApi/squareApi so the provider

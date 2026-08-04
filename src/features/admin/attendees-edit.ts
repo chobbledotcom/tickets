@@ -36,6 +36,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
+import type { RefundState } from "#shared/payment/refund-state.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 /* jscpd:ignore-start */
@@ -90,16 +91,16 @@ const refreshProviderRefunds = async (
   for (const group of chunk(PROVIDER_REFUND_CONCURRENCY)([...references])) {
     refreshed.push(
       ...(await Promise.all(
-        group.map(async (reference) =>
-          reference.providerRefunded
-            ? reference
-            : {
-                ...reference,
-                providerRefunded: await provider.isPaymentRefunded(
-                  reference.reference,
-                ),
-              },
-        ),
+        group.map(async (reference) => {
+          if (reference.refundState === "completed") return reference;
+          // A legacy charge ("unknown") is queried like any other: the provider
+          // answer turns it into a known "completed" or "none".
+          const refunded = await provider.isPaymentRefunded(
+            reference.reference,
+          );
+          const refundState: RefundState = refunded ? "completed" : "none";
+          return { ...reference, refundState };
+        }),
       )),
     );
   }
@@ -107,8 +108,8 @@ const refreshProviderRefunds = async (
 };
 
 const hasProviderRefund = (
-  reference: Pick<RefundPaymentReference, "providerRefunded">,
-): boolean => reference.providerRefunded;
+  reference: Pick<RefundPaymentReference, "refundState">,
+): boolean => reference.refundState === "completed";
 
 /** After the provider confirms the refund, record it in the ledger and add a
  *  resolving note if the attendee is a quantity-0 placeholder. Returns null on

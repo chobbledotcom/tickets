@@ -157,6 +157,7 @@ const preparationResult = (options: PreparationOptions) => {
   };
   const session: ValidatedPaymentSession = {
     amountTotal: 1000,
+    currency: "GBP",
     id: "cs_preparation_failure",
     metadata: webhookMeta({ name: "Buyer" }),
     paymentReference: "pi_preparation_failure",

@@ -1,5 +1,6 @@
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   flashConsumed,
   getFlash,
@@ -26,6 +27,11 @@ export const CsrfForm = ({
     {...rest}
   >
     <input name="csrf_token" type="hidden" value={getCurrentCsrfToken()} />
+    {(action.startsWith("/admin/settings") ||
+      action.startsWith("/admin/features/") ||
+      action === "/admin/listing-defaults") && (
+      <input name="settings_version" type="hidden" value={settings.version} />
+    )}
     {rest.id && rest.id === getFlashFormId() && !flashConsumed() && (
       <Flash error={getFlash().error} success={getFlash().success} />
     )}

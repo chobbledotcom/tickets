@@ -1,28 +1,44 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import { getActivePaymentProvider } from "#shared/payments.ts";
+import {
+  getActivePaymentProvider,
+  getPaymentProviderForExistingPayments,
+} from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { debugLogged, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describeWithEnv("getActivePaymentProvider", { db: true }, () => {
   const debugSpy = useDebugLogSpy();
-  const debugLogged = (needle: string): boolean =>
-    debugSpy().calls.some((call) => String(call.args[0]).includes(needle));
 
   test("returns null when no provider is configured", async () => {
     expect(await getActivePaymentProvider()).toBeNull();
     expect(
-      debugLogged("[Payment] No payment provider configured in settings"),
+      debugLogged(
+        debugSpy,
+        "[Payment] No payment provider configured in settings",
+      ),
     ).toBe(true);
   });
 
   test("logs the provider it resolves under the Payment category", async () => {
     await settings.update.paymentProvider("stripe");
     await getActivePaymentProvider();
-    expect(debugLogged("[Payment] Resolving payment provider: stripe")).toBe(
-      true,
-    );
+    expect(
+      debugLogged(debugSpy, "[Payment] Resolving payment provider: stripe"),
+    ).toBe(true);
+  });
+
+  test("labels a provider resolved for existing payments", async () => {
+    await settings.update.stripe.secretKey("sk_test_existing_label");
+    await settings.update.paymentProvider("stripe");
+    await getPaymentProviderForExistingPayments();
+    expect(
+      debugLogged(
+        debugSpy,
+        "[Payment] Resolving payment provider for existing payments: stripe",
+      ),
+    ).toBe(true);
   });
 
   test("returns null for a provider type the module doesn't recognise", async () => {

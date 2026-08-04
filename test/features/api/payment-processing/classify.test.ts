@@ -5,6 +5,7 @@ import {
   classifySessionIntent,
   validatePaidSession,
 } from "#routes/api/payment-processing/classify.ts";
+import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type {
   SessionMetadata,
   ValidatedPaymentSession,
@@ -18,7 +19,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 /** Makes the provider answer with this checkout — or with nothing, for a
  *  checkout it has never heard of — for as long as the test runs. */
 const providerAnswers = async (
-  answer: ValidatedPaymentSession | null,
+  answer: ValidatedPaymentSession | SessionRejection | null,
 ): Promise<Disposable> => {
   const { stub } = await import("@std/testing/mock");
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
@@ -32,8 +33,10 @@ const providerAnswers = async (
 const paidSession = (
   metadata: Partial<SessionMetadata> = {},
   amountTotal = 500,
+  currency = "GBP",
 ): ValidatedPaymentSession => ({
   amountTotal,
+  currency,
   id: "cs_classify",
   metadata: {
     ...signedMeta(
@@ -66,6 +69,18 @@ describeWithEnv("telling whether a checkout is ours", { db: true }, () => {
     await setupStripe();
 
     expect(await classifySession(paidSession({}, 900))).toEqual({
+      agreed: 500,
+      verdict: "mismatch",
+    });
+  });
+
+  test("calls it a mismatch when the provider charged in another currency", async () => {
+    // The proof is ours and the amount matches, but a charge in a different
+    // currency cannot be honored at the signed total — it must be refunded,
+    // not booked, so the captured money is never stranded.
+    await setupStripe();
+
+    expect(await classifySession(paidSession({}, 500, "USD"))).toEqual({
       agreed: 500,
       verdict: "mismatch",
     });
@@ -176,8 +191,51 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the check to refuse");
-    expect(await result.response.text()).toContain("Payment session not found");
+    expect(await result.response.text()).toContain(
+      "We could not find this payment session.",
+    );
     expect(await loggedAbout("redirect", "Session not found")).toBe(true);
+  });
+
+  test("tells a buyer whose unreadable charge was refunded", async () => {
+    await setupStripe();
+    const { stripeApi } = await import("#shared/stripe.ts");
+    const { stub } = await import("@std/testing/mock");
+    using _provider = await providerAnswers({
+      metadata: signedMeta(
+        { email: "refunded@example.com", items: "[]", name: "Refunded" },
+        500,
+      ),
+      paymentReference: "pi_refunded",
+      reason: "malformed_charge",
+      refundable: true,
+    });
+    using refundStub = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_1", status: "succeeded" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+
+    const result = await runWithPendingWork(() =>
+      validatePaidSession("cs_refunded"),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected the check to refuse");
+    // They really were charged, so "not found" would leave them waiting for a
+    // ticket, or paying a second time.
+    const page = await result.response.text();
+    expect(page).toContain("We have sent your money back");
+    expect(refundStub.calls.map((call) => call.args)).toEqual([
+      ["pi_refunded"],
+    ]);
+    expect(page).not.toContain("We could not find this payment session.");
+    expect(
+      await loggedAbout(
+        "redirect",
+        "Session rejected as malformed_charge (session=cs_refunded, refunded: true)",
+      ),
+    ).toBe(true);
   });
 
   // A card that was declined and a buyer who changed their mind come back the
@@ -187,6 +245,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     await setupStripe();
     using _provider = await providerAnswers({
       amountTotal: 0,
+      currency: "GBP",
       id: "cs_failed",
       metadata: webhookMeta({
         items: singleItem(99999, 1, 0),
@@ -208,6 +267,7 @@ describeWithEnv("checking a checkout before it is used", { db: true }, () => {
     await setupStripe();
     using _provider = await providerAnswers({
       amountTotal: 500,
+      currency: "GBP",
       id: "cs_unpaid",
       metadata: webhookMeta({ name: "Still Going" }),
       paymentReference: "",

@@ -35,6 +35,7 @@ export const paymentSession = (
 ): ValidatedPaymentSession => ({
   amountTotal,
   createdAt: "2026-07-01T12:00:00.000Z",
+  currency: "GBP",
   id,
   metadata: webhookMeta({
     email: intent.email,

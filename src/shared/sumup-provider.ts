@@ -16,10 +16,15 @@ import {
   getSumupCheckout,
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
+import { isResourceId } from "#shared/payment/resource-id.ts";
+import {
+  isSessionRejection,
+  type SessionRejection,
+  validatedPaymentSession,
+} from "#shared/payment/validated-session.ts";
 import {
   makeCreateCheckoutSession,
   toCanonicalIso,
-  validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
@@ -46,14 +51,17 @@ const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
 
 /** Build a validated session from a fetched checkout and its staged metadata.
  * The metadata was written by our own buildItemsMetadata, so it always carries
- * the required fields. */
+ * the required fields. Returns a rejection when the checkout's charge or
+ * resource id is malformed (the boundary validates both), so a paid charge the
+ * boundary cannot read still reaches the refund path. */
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession =>
+): ValidatedPaymentSession | SessionRejection =>
   validatedPaymentSession({
     amountTotal: checkout.amountMinor,
     createdAt: toCanonicalIso(checkout.createdAt),
+    currency: checkout.currency,
     id: checkout.reference,
     metadata: metadata as SessionMetadata,
     paymentReference: checkout.transactionId,
@@ -83,16 +91,37 @@ export const sumupPaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null> {
+  ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null> {
     if (!webhookEvent.id) return null;
     // Unsigned webhooks: only fetch checkouts we created. Spam or another
     // integration's listings are acknowledged without an API call.
     if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
+    // The staging row already proved this checkout is ours, so a failed fetch
+    // is SumUp being unreachable rather than a checkout we never made.
+    // Throwing answers retryably; acknowledging is terminal, and a paid
+    // checkout would be left with the money taken and no booking.
     const checkout = await retrieveCheckoutById(webhookEvent.id);
-    if (!checkout) return null;
-    // Non-null: the pre-filter just matched this id to a staging row
-    const stored = (await getSumupCheckout(checkout.reference))!;
+    if (!checkout) {
+      throw new Error(`SumUp checkout ${webhookEvent.id} could not be read`);
+    }
+    // The reference SumUp echoes back must be the one we generated for this
+    // checkout and staged under this webhook id. If it is blank, unknown, or
+    // another booking's, SumUp has contradicted itself about a checkout we
+    // created. Raise it: the booking is encrypted under that reference, so
+    // without a match we can neither read it nor prove the charge is ours to
+    // refund — and a paid charge is then sitting with SumUp unbooked.
+    const stored = isResourceId(checkout.reference)
+      ? await getSumupCheckout(checkout.reference)
+      : null;
+    if (!stored || stored.sumupId !== webhookEvent.id) {
+      throw new Error(
+        `SumUp checkout ${webhookEvent.id} came back under reference "${checkout.reference}", which is not the one staged for it (status=${checkout.status}, transaction=${checkout.transactionId})`,
+      );
+    }
     const session = buildValidatedSession(checkout, stored.metadata);
+    // A charge the boundary could not read: surface the rejection so a paid
+    // one still reaches the refund path.
+    if (isSessionRejection(session)) return session;
     // Not yet (or never) paid: acknowledge without processing.
     return session.paymentStatus === "paid" ? session : "skip";
   },
@@ -103,7 +132,7 @@ export const sumupPaymentProvider: PaymentProvider = {
      Square fetches the order and its payment from the API). */
   async retrieveSession(
     sessionId: string,
-  ): Promise<ValidatedPaymentSession | null> {
+  ): Promise<ValidatedPaymentSession | SessionRejection | null> {
     /* jscpd:ignore-end */
     // sessionId is our checkout_reference (set on the redirect URL); the
     // staged row carries the SumUp id for a direct fetch. An empty sumupId

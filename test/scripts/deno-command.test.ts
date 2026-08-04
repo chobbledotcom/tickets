@@ -14,7 +14,11 @@ describe("denoNpmArgs", () => {
   });
 
   test("keeps just the scaffold when there are no extra args", () => {
-    expect(denoNpmArgs("biome", [])).toEqual(["run", "-A", "npm:biome"]);
+    expect(denoNpmArgs("jscpd@5.0.12", [])).toEqual([
+      "run",
+      "-A",
+      "npm:jscpd@5.0.12",
+    ]);
   });
 });
 

@@ -105,7 +105,7 @@ describeSquare(() => {
         order: {
           lineItems: [
             {
-              basePriceMoney: { amount: BigInt(100), currency: "USD" },
+              basePriceMoney: { amount: BigInt(100), currency: "GBP" },
               name: "T",
               note: "T",
               quantity: "1",
@@ -137,7 +137,7 @@ describeSquare(() => {
         order: {
           lineItems: [
             {
-              basePriceMoney: { amount: BigInt(100), currency: "USD" },
+              basePriceMoney: { amount: BigInt(100), currency: "GBP" },
               name: "T",
               note: "T",
               quantity: "1",
@@ -179,7 +179,7 @@ describeSquare(() => {
                 { id: "t_1", payment_id: "pay_1" },
                 { id: "t_2", payment_id: "pay_fallback", paymentId: "" },
               ],
-              total_money: { amount: 5000, currency: "USD" },
+              total_money: { amount: 5000, currency: "GBP" },
             },
           }),
         ),
@@ -197,7 +197,7 @@ describeSquare(() => {
       expect(result.order?.tenders?.[1]?.paymentId).toBe("");
       expect(result.order!.state).toBe("COMPLETED");
       expect(result.order!.totalMoney!.amount).toBe(BigInt(5000));
-      expect(result.order!.totalMoney!.currency).toBe("USD");
+      expect(result.order!.totalMoney!.currency).toBe("GBP");
     });
 
     test("orders.get handles missing total_money", async () => {
@@ -274,7 +274,7 @@ describeSquare(() => {
         Promise.resolve(
           jsonResponse({
             payment: {
-              amount_money: { amount: 2000, currency: "USD" },
+              amount_money: { amount: 2000, currency: "GBP" },
               id: "pay_2",
               order_id: "ord_2",
               status: "COMPLETED",

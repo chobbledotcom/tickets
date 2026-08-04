@@ -58,6 +58,7 @@ export const withStripeSuccess = async (
   const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
       amount_total: order.total,
+      currency: "gbp",
       id: sessionId,
       metadata,
       payment_intent: order.paymentIntent,

@@ -1,14 +1,12 @@
 import {
-  getActivePaymentProvider,
+  getPaymentProviderForExistingPayments,
   type PaymentProvider,
 } from "#shared/payments.ts";
 
-/** The active payment provider, or the caller's `onMissing` fallback (a redirect
- * or error Response) when none is configured. The refund and refresh POSTs share
- * this "need a provider before we touch money" guard instead of each re-checking. */
+/** Uses the existing-payment provider so refunds still work while sales are off. */
 export const requirePaymentProvider = async <T>(
   onMissing: () => T,
 ): Promise<PaymentProvider | T> => {
-  const provider = await getActivePaymentProvider();
+  const provider = await getPaymentProviderForExistingPayments();
   return provider ?? onMissing();
 };

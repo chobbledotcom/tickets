@@ -25,6 +25,7 @@ describeWithEnv(
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
+          currency: "gbp",
           id: "cs_no_items",
           metadata: {
             email: "john@example.com",
@@ -170,6 +171,7 @@ describeWithEnv(
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
+          currency: "gbp",
           id: "cs_foreign_site_token",
           metadata: {
             email: "renew@example.com",

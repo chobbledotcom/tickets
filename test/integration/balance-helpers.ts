@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import type { StripeCheckoutSession } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   createNonReservationAttendee,
@@ -108,34 +109,38 @@ export const balanceSession = (
     chargedAmount?: number;
     eventId?: number;
     over?: Record<string, unknown>;
-    meta?: Record<string, unknown>;
+    meta?: Record<string, string>;
   } = {},
-) =>
-  ({
-    amount_total: chargedAmount,
-    id,
-    metadata: {
-      ...signMeta(
-        webhookMeta({
-          balance_attendee_id: String(attendeeId),
-          items: JSON.stringify([{ e: eventId, p: signedAmount, q: 1 }]),
-          name: "Balance payment",
-        }),
-        signedAmount,
-      ),
-      ...meta,
-    },
-    payment_intent: id.replace(/^cs_/, "pi_"),
-    payment_status: "paid",
-    ...over,
-  }) as unknown as Awaited<
-    ReturnType<typeof stripeApi.retrieveCheckoutSession>
-  >;
+): StripeCheckoutSession => ({
+  amount_total: chargedAmount,
+  created: 1_700_000_000,
+  currency: "gbp",
+  id,
+  metadata: {
+    ...signMeta(
+      webhookMeta({
+        balance_attendee_id: String(attendeeId),
+        items: JSON.stringify([{ e: eventId, p: signedAmount, q: 1 }]),
+        name: "Balance payment",
+      }),
+      signedAmount,
+    ),
+    ...meta,
+  },
+  payment_intent: id.replace(/^cs_/, "pi_"),
+  payment_status: "paid",
+  url: null,
+  ...over,
+});
 
 /** Stub retrieveCheckoutSession to return a {@link balanceSession}. */
 export const stubBalanceSession = (
   ...args: Parameters<typeof balanceSession>
-) =>
+): Stub<
+  typeof stripeApi,
+  Parameters<typeof stripeApi.retrieveCheckoutSession>,
+  Promise<Awaited<ReturnType<typeof stripeApi.retrieveCheckoutSession>>>
+> =>
   stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve(balanceSession(...args)),
   );

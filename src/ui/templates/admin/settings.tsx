@@ -6,7 +6,11 @@ import { t } from "#i18n";
 import type { EnabledFeatures } from "#shared/admin-features.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
+import type {
+  AdminSession,
+  PaymentProviderType,
+  Theme,
+} from "#shared/types.ts";
 import { FeaturesTable } from "#templates/admin/features.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
 import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
@@ -18,13 +22,16 @@ import {
   StripeForm,
   SumUpForm,
 } from "#templates/admin/settings/payment.tsx";
+import { ExistingPaymentProviderForm } from "#templates/admin/settings/payment-provider.tsx";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
 
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
   stripeKeyMode: string | null;
-  paymentProvider: string | null;
+  paymentProvider: PaymentProviderType | null;
+  existingPaymentProvider: PaymentProviderType | null;
+  paymentProviderRecoveryChoices: PaymentProviderType[];
   /** The site's ISO currency code — decides which providers can be picked. */
   currency: string;
   squareTokenConfigured: boolean;
@@ -74,6 +81,7 @@ export const adminSettingsPage = (
       {settingsForm(SETTINGS_FORMS.theme, s)}
 
       {PaymentProviderForm(s)}
+      {ExistingPaymentProviderForm(s)}
       {StripeForm(s)}
       {SquareForm(s)}
       {SquareWebhookForm(s)}
