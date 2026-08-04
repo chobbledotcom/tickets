@@ -94,6 +94,8 @@ scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it a
 
 # Isolated mutation runs: the exit code before any path has set one.
 scripts/mutation/isolation.ts:216:20  1 → 0   # every path overwrites this before it is returned: the claim always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
+scripts/mutation/isolation.ts:161:25  0 → 1   # keepFiles' interrupted arm only runs once wasInterrupted() has latched true, and finishChild then takes the `interrupted ? 130` branch, so the number this arm hands back is never read
+scripts/mutation/isolation.ts:195:62  ?? → ||   # run.copyBack is a list or undefined, and a list — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
 src/shared/db/migrations.ts:252:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
 
 # Cucumber runs: telling Cucumber to be strict, when we already reject the

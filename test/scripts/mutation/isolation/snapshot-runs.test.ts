@@ -8,6 +8,7 @@ import {
 } from "#scripts/mutation/isolation.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
+  copyBackLockPath,
   createRunId,
   MUTATION_RECORD_FILE,
   MUTATION_SNAPSHOT_CHILD_ENV,
@@ -66,6 +67,9 @@ describe("running mutation inside a snapshot", () => {
       expect(record.args).toEqual(["src/a.ts", join(root, "test/a.test.ts")]);
       // The child is gone by the time the record settles, and its id with it.
       expect(record.pid).toBeUndefined();
+      // Nothing to bring back, so the shared copy-back lock is never taken —
+      // a run with no kept files must not queue behind one that has them.
+      expect(await pathExists(copyBackLockPath(root))).toBe(false);
     });
   });
 
