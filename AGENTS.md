@@ -67,11 +67,12 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 ## Preferences
 
 - **Plan behavior before code**: Follow [PR_WORKFLOW.md](PR_WORKFLOW.md) for
-  every non-trivial change. Fill in its behavior contract before implementation:
-  trusted facts, valid states, commands, failures, retries, races, and owner
-  choices. Schemas describe facts, state transitions describe changes, and
-  transactions or revision checks protect concurrent changes. Do not start
-  coding while any of those parts is still implicit.
+  every non-trivial change. The assigned agent must fill in the behavior
+  contract, challenge it, and ask a human to approve it before implementation.
+  The contract covers trusted facts, valid states, commands, failures, retries,
+  races, and owner choices. Schemas describe facts, state transitions describe
+  changes, and transactions or revision checks protect concurrent changes. Do
+  not start coding while any part is implicit or awaiting human approval.
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
 - **Plain language for functional code**: Keep the functional style, but name helpers and write comments in simple domain words. Avoid CS jargon in code (`predicate`, `cohort`, `projection`, `fold`, `atom`, etc.) when a plain phrase works. A helper should explain itself like "Keeps only children that can still be booked for this ticket." Write for someone without a CS degree; a ten-year-old should understand the comment and the method name, even if the implementation uses `map`, `filter`, or `reduce`.
 - **Comments describe current code**: Do not leave comments that compare current code with an old implementation or explain what the code replaced. They do not help someone understand the code as it works now. Git history preserves the old code if anyone needs it. Delete stale historical comments when you find them.

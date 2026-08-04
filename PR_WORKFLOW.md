@@ -4,6 +4,11 @@ Use this workflow for every non-trivial feature, bug fix, or refactor. The work
 must happen in this order. Do not start with implementation and discover the
 behavior through review.
 
+One assigned agent owns the plan from start to finish. The agent may use
+subagents to research the codebase or challenge a detail, but it must assemble,
+check, and present one complete plan itself. A person reviews that plan before
+implementation starts.
+
 The aim is a small pull request whose behavior is complete, whose invalid states
 are hard to represent, and whose failure paths are decided before code exists.
 
@@ -158,10 +163,11 @@ Choose the smallest shared interface that makes every case explicit.
 Do not make a schema wider merely to look complete. Every field must be needed
 by the current behavior, and every required current fact must be present.
 
-### 4. Review the design as an attacker
+### 4. Challenge the design yourself
 
-Before coding, ask another person or agent to challenge the contract. At a
-minimum, ask:
+The assigned agent must try to break its own contract before presenting the
+plan. It may ask a subagent to investigate a risk, but responsibility for every
+answer stays with the assigned agent. At a minimum, ask:
 
 - What if the external call succeeds and the local write fails?
 - What if the callback is replayed?
@@ -208,7 +214,30 @@ Keep each PR under the repository's source-line limit. If a complete behavior
 does not fit, split by a smaller complete invariant. Do not split one invariant
 into dormant layers.
 
-### 6. Write behavior tests first
+### 6. Ask a human to approve the plan
+
+After the assigned agent has completed the behavior contract, shared contract,
+adversarial review, and PR slices, it must stop and present the plan to a human.
+Do not write tests or implementation code yet.
+
+The review request must summarize:
+
+- the current-system value;
+- trusted facts and observed facts;
+- valid states and state transitions;
+- failures, retries, replays, and races;
+- genuine owner choices;
+- security and privacy boundaries;
+- proposed vertical PRs and source budgets;
+- the tests that will prove each contract row;
+- every question where a product choice is still possible.
+
+The human must explicitly approve the plan. Silence, a previous broad goal, or
+approval of an earlier draft is not approval of the current contract. If the
+human changes a decision, the agent updates the plan, repeats its own challenge,
+and asks for approval again.
+
+### 7. Write behavior tests first
 
 Turn the contract tables into tests before implementation.
 
@@ -223,7 +252,7 @@ Turn the contract tables into tests before implementation.
 Confirm each new regression test fails for the expected reason. A test that was
 green before implementation does not prove the missing behavior.
 
-### 7. Implement the hardest invariant first
+### 8. Implement the hardest invariant first
 
 Build the pure rule and shared contract before route wiring. Then connect the
 real production caller and delete the displaced path in the same PR.
@@ -238,7 +267,7 @@ While implementing:
 - do not add compatibility wrappers for internal callers;
 - do not add exports used only by tests.
 
-### 8. Use fast feedback while behavior is moving
+### 9. Use fast feedback while behavior is moving
 
 Run the narrowest useful checks during implementation:
 
@@ -251,7 +280,7 @@ Do not repeatedly run the full suite or mutation gate while the behavior is
 still changing. Those checks prove a stable candidate; they are expensive ways
 to discover that the design is unfinished.
 
-### 9. Stop and redesign when patches spread
+### 10. Stop and redesign when patches spread
 
 Stop adding local fixes and return to the behavior contract when any of these
 happens:
@@ -264,9 +293,10 @@ happens:
 - source churn approaches the PR limit before the behavior is complete.
 
 Update the plan first. Replace the weak shared contract rather than stacking
-guards around it.
+guards around it. Ask the human to approve the changed contract before resuming
+implementation.
 
-### 10. Review the complete diff
+### 11. Review the complete diff
 
 Before the expensive gates, inspect the whole PR against its parent.
 
@@ -283,7 +313,7 @@ Check that:
 - the source-line count remains below the limit;
 - unrelated cleanup is absent or recorded separately.
 
-### 11. Run final gates once the candidate is stable
+### 12. Run final gates once the candidate is stable
 
 Run focused mutation testing for the changed pure rules first. Kill meaningful
 survivors with stronger behavior assertions, not tests of implementation detail.
@@ -299,7 +329,7 @@ Do not use mutation testing to invent the behavior contract. It can show that an
 existing assertion is weak; it cannot show that a missing state, race, or
 external failure was never designed.
 
-### 12. Finish the pull request
+### 13. Finish the pull request
 
 - Rebase or synchronize the branch with its current parent.
 - Recalculate source and total changed lines against that parent.
@@ -321,7 +351,7 @@ The final description must name:
 - tests and mutation commands run;
 - known fault or plan rows completed.
 
-### 13. Merge a stack from the bottom
+### 14. Merge a stack from the bottom
 
 Do not merge an upper PR while its parent is moving or unapproved. After the
 bottom PR changes or merges, synchronize every higher layer, rerun its source
@@ -345,6 +375,7 @@ Implementation may start only when all of these are true:
 - The adversarial review has no unanswered question.
 - The PR is a complete vertical behavior within its source budget.
 - The tests that will prove the contract are named.
+- A human explicitly approved the latest version of the plan.
 
 ## Done
 
