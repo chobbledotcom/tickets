@@ -184,7 +184,7 @@ export const flashProps = (
 const curriedAdminPage =
   <FlashArgs extends unknown[]>(
     title: string,
-    active: string,
+    active: NavActive,
     flash: (...args: FlashArgs) => JSX.Element | null,
   ) =>
   (session: AdminSession, ...flashArgs: FlashArgs) =>
@@ -213,7 +213,7 @@ const adminOpenerFor =
   <FlashArgs extends unknown[]>(
     flash: (...args: FlashArgs) => JSX.Element | null,
   ) =>
-  (title: string, active = "/admin/settings") =>
+  (title: string, active: NavActive = "/admin/settings") =>
     curriedAdminPage(title, active, flash);
 
 /** List-page admin opener: takes the page title (and optional `active`),

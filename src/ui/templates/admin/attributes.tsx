@@ -17,7 +17,7 @@ import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { warningDeletePage } from "#templates/admin/confirm-page.tsx";
 import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
 import {
   FormSections,
@@ -256,40 +256,8 @@ export const adminAttributeOptionEditPage = (
     </>,
   );
 
-const attributeConfirmPage = ({
-  action,
-  buttonText,
-  error,
-  heading,
-  label,
-  name,
-  prompt,
-  session,
-  warning,
-}: {
-  action: string;
-  buttonText: string;
-  error: string | undefined;
-  heading: string;
-  label: string;
-  name: string;
-  prompt: { args: Record<string, string>; key: string };
-  session: AdminSession;
-  warning: JSX.Element;
-}): string =>
-  ConfirmPage({
-    action,
-    active: "/admin/attributes",
-    buttonText,
-    error,
-    heading,
-    label,
-    name,
-    prompt,
-    session,
-    title: heading,
-    warning,
-  });
+/** The warning-led delete page on the attributes nav. */
+const attributeDeletePage = warningDeletePage("/admin/attributes");
 
 export const adminAttributeDeletePage = (
   attribute: AttributeWithOptions,
@@ -297,20 +265,22 @@ export const adminAttributeDeletePage = (
   error?: string | undefined,
 ): string => {
   const name = attributeNameFlat(attribute.name);
-  return attributeConfirmPage({
-    action: `/admin/attributes/${attribute.id}/delete`,
-    buttonText: t("attributes.delete.submit"),
-    error,
-    heading: t("attributes.delete.heading"),
-    label: t("attributes.delete.confirm_label"),
-    name,
-    prompt: {
-      args: { name },
-      key: "attributes.delete.confirm_prompt",
+  return attributeDeletePage(
+    {
+      action: `/admin/attributes/${attribute.id}/delete`,
+      buttonText: t("attributes.delete.submit"),
+      heading: t("attributes.delete.heading"),
+      label: t("attributes.delete.confirm_label"),
+      name,
+      prompt: {
+        args: { name },
+        key: "attributes.delete.confirm_prompt",
+      },
+      warning: <p>{t("attributes.delete.warning")}</p>,
     },
     session,
-    warning: <p>{t("attributes.delete.warning")}</p>,
-  });
+    error,
+  );
 };
 
 export const adminAttributeOptionDeletePage = (
@@ -319,27 +289,29 @@ export const adminAttributeOptionDeletePage = (
   session: AdminSession,
   error?: string | undefined,
 ): string =>
-  attributeConfirmPage({
-    action: `/admin/attributes/${attribute.id}/options/${option.id}/delete`,
-    buttonText: t("attributes.delete_option.submit"),
-    error,
-    heading: t("attributes.delete_option.heading"),
-    label: t("attributes.delete_option.confirm_label"),
-    name: option.text,
-    prompt: {
-      args: { text: option.text },
-      key: "attributes.delete_option.confirm_prompt",
+  attributeDeletePage(
+    {
+      action: `/admin/attributes/${attribute.id}/options/${option.id}/delete`,
+      buttonText: t("attributes.delete_option.submit"),
+      heading: t("attributes.delete_option.heading"),
+      label: t("attributes.delete_option.confirm_label"),
+      name: option.text,
+      prompt: {
+        args: { text: option.text },
+        key: "attributes.delete_option.confirm_prompt",
+      },
+      warning: (
+        <p>
+          {t("attributes.delete_option.warning", {
+            attribute: attributeNameFlat(attribute.name),
+            option: option.text,
+          })}
+        </p>
+      ),
     },
     session,
-    warning: (
-      <p>
-        {t("attributes.delete_option.warning", {
-          attribute: attributeNameFlat(attribute.name),
-          option: option.text,
-        })}
-      </p>
-    ),
-  });
+    error,
+  );
 
 type ListingAttributesPanelProps = ListingPanelProps & {
   attributes: AttributeWithOptions[];

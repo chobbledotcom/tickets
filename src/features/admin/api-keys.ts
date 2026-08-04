@@ -29,7 +29,6 @@ import {
   getApiKeyForUser,
   getApiKeysForUser,
 } from "#shared/db/api-keys.ts";
-import { defineForm } from "#shared/forms/definition.ts";
 import {
   type ApiKeyDisplay,
   adminApiDocsPage,
@@ -37,20 +36,8 @@ import {
   adminApiKeysPage,
   apiKeySummaryRows,
 } from "#templates/admin/api-keys.tsx";
-/* jscpd:ignore-end */
 
-export const apiKeyForm = defineForm({
-  fields: [
-    {
-      label: "Name",
-      maxlength: 100,
-      name: "name",
-      placeholder: "e.g. CI Pipeline",
-      required: true,
-      type: "text" as const,
-    },
-  ] as const,
-});
+/* jscpd:ignore-end */
 
 /** Owner-guarded handler that loads the caller's API keys up front. */
 const withOwnerApiKeys = withOwnerData((session) =>
@@ -124,7 +111,7 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
     await deleteApiKey(id, session.userId);
   },
   path: "/admin/api-keys/:apiKeyId/delete",
-  render: (apiKey, session) => adminApiKeyDeletePage(apiKey, session),
+  render: adminApiKeyDeletePage,
   successMessage: "API key deleted",
   successRedirect: "/admin/api-keys",
 });

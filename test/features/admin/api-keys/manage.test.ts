@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getApiKeysForUser, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import {
+  expectFlashRedirect,
+  followRedirectWithFlash,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -135,14 +138,36 @@ describeWithEnv("API key manage page", { db: true }, () => {
         })
       ).response;
 
-      // The delete-confirmation page has no error slot of its own; the Layout
-      // backstop renders the mismatch error, so the operator actually sees it.
       await expectFlashRedirect(
         `/admin/api-keys/${id}/delete`,
         expect.stringContaining("API key name does not match"),
         false,
       )(response);
       expect(await getApiKeysForUser(1)).toHaveLength(1);
+    });
+
+    test("mismatched-name POST re-renders the page with the error notice", async () => {
+      const { id } = await createTestApiKeyFull("My Key");
+
+      const post = (
+        await adminFormPost(`/admin/api-keys/${id}/delete`, {
+          confirm_identifier: "Wrong Name",
+        })
+      ).response;
+      const followed = await followRedirectWithFlash(
+        post,
+        handleRequest,
+        await testCookie(),
+      );
+
+      expect(followed.status).toBe(200);
+      const html = await followed.text();
+      // The confirmation page renders the error in its own flash slot — inside
+      // the page content, after the admin nav — not via the pre-nav Layout
+      // backstop that catches pages that dropped their error.
+      const navIndex = html.indexOf('class="active" href="/admin/api-keys"');
+      const errorIndex = html.indexOf("API key name does not match");
+      expect(errorIndex).toBeGreaterThan(navIndex);
     });
 
     test("POST /admin/api-keys/:id/delete returns 404 for nonexistent key", async () => {

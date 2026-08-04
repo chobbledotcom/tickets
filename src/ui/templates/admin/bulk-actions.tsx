@@ -332,6 +332,8 @@ type BulkConfirmConfig = {
  *  with the bulk-actions back-link, the standard confirm-form label/name, and
  *  the caller's `children` body (which receives the computed count for its
  *  i18n placeholders). */
+// Calls ConfirmPage directly: the page is built from a group AND its listings,
+// not the single (entity, session, error?) shape entityDeletePage builds.
 const bulkConfirmPage = (
   group: Group,
   listings: ListingWithCount[],

@@ -447,8 +447,7 @@ const templateDelete = createConfirmedHandlers<{ id: number; subject: string }>(
       await deleteEmailTemplate(id);
     },
     path: "/admin/emails/templates/:id/delete",
-    render: (template, session, error) =>
-      bulkEmailTemplateDeletePage(session, template, error),
+    render: bulkEmailTemplateDeletePage,
     successMessage: "Template deleted.",
     successRedirect: `${COMPOSE_PATH}?audience=active`,
   },

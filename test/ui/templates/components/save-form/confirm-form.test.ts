@@ -60,6 +60,18 @@ describe("ConfirmForm", () => {
     expect(html).toContain('value="/back"');
   });
 
+  test("renders the form with the given id", () => {
+    const html = String(
+      ConfirmForm({
+        action: "/x",
+        buttonText: "OK",
+        confirmName: false,
+        id: "restore-confirm",
+      }),
+    );
+    expect(html).toContain('id="restore-confirm"');
+  });
+
   test("renders hidden inputs for each hiddenFields entry", () => {
     const html = String(
       ConfirmForm({

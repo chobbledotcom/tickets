@@ -20,7 +20,7 @@ import { renderFields } from "#shared/forms/rendering.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { warningDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
   driftedRowItems,
   type ExpectedActualItem,
@@ -452,11 +452,13 @@ export const adminAnswerRecalculatePage = (
     title: t("questions.recalculate.heading", { text: answer.text }),
   });
 
-/** The question and answer delete-confirmation pages share one confirm shell:
- *  same `/admin/questions` nav and the standard `<prefix>.submit/heading/
- *  confirm_label/confirm_prompt` locale keys, differing only in action URL,
- *  confirmed name, page title, and warning copy. Parameterising the locale
- *  prefix keeps the repeated `t()` block in one place. */
+/** The warning-led delete page on the questions nav. */
+const questionsDeletePage = warningDeletePage("/admin/questions");
+
+/** The question and answer delete pages differ only in action URL, confirmed
+ *  name, page title, and warning copy — the rest of their wording comes from
+ *  the standard `<prefix>.submit/heading/confirm_label/confirm_prompt` locale
+ *  keys, derived here in one place. */
 const questionDeleteConfirmPage = (
   opts: {
     action: string;
@@ -468,19 +470,23 @@ const questionDeleteConfirmPage = (
   },
   error?: string,
 ): string =>
-  ConfirmPage({
-    action: opts.action,
-    active: "/admin/questions",
-    buttonText: t(`${opts.prefix}.submit`),
+  questionsDeletePage(
+    {
+      action: opts.action,
+      buttonText: t(`${opts.prefix}.submit`),
+      heading: t(`${opts.prefix}.heading`),
+      label: t(`${opts.prefix}.confirm_label`),
+      name: opts.name,
+      prompt: {
+        args: { text: opts.name },
+        key: `${opts.prefix}.confirm_prompt`,
+      },
+      title: opts.title,
+      warning: opts.warning,
+    },
+    opts.session,
     error,
-    heading: t(`${opts.prefix}.heading`),
-    label: t(`${opts.prefix}.confirm_label`),
-    name: opts.name,
-    prompt: { args: { text: opts.name }, key: `${opts.prefix}.confirm_prompt` },
-    session: opts.session,
-    title: opts.title,
-    warning: opts.warning,
-  });
+  );
 
 /** Question delete confirmation page */
 export const adminQuestionDeletePage = (
