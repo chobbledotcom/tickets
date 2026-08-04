@@ -24,8 +24,8 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       sql: "DELETE FROM listing_attribute_options WHERE listing_id = ?",
     },
     {
-      args: [listingId, listingId],
-      sql: "DELETE FROM listing_parents WHERE parent_listing_id = ? OR child_listing_id = ?",
+      args: [listingId],
+      sql: "DELETE FROM listing_parents WHERE parent_listing_id = ?1 OR child_listing_id = ?1",
     },
     {
       args: [listingId],

@@ -656,15 +656,14 @@ const applyBookingDecisions = (
           targetId,
           item.listingId,
           item.startAt,
-          item.startAt,
           item.parentListingId,
           item.packageGroupId,
         ],
         sql: `DELETE FROM listing_attendees
-              WHERE attendee_id = ? AND listing_id = ?
-              AND (start_at IS ? OR start_at = ?)
-              AND parent_listing_id = ?
-              AND package_group_id = ?`,
+              WHERE attendee_id = ?1 AND listing_id = ?2
+              AND (start_at IS ?3 OR start_at = ?3)
+              AND parent_listing_id = ?4
+              AND package_group_id = ?5`,
       });
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),
