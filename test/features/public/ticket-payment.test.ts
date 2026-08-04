@@ -577,11 +577,13 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         buildTicketListing(listing, false, undefined),
       ]);
       expect(items).toHaveLength(1);
-      expect(items[0]!.id).toBe(listing.id);
-      expect(items[0]!.name).toBe("Windowed");
       // The last day in the 3-day window can't fit a 5-day span, yet it's still
       // offered as a start because availability is computed for a single day.
-      expect(items[0]!.dates).toContain(addDays(todayInTz("UTC"), 3));
+      expect(items[0]).toMatchObject({
+        dates: expect.arrayContaining([addDays(todayInTz("UTC"), 3)]),
+        id: listing.id,
+        name: "Windowed",
+      });
     });
 
     test("skips non-daily listings entirely", async () => {

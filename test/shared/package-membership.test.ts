@@ -53,6 +53,16 @@ describe("packageMemberError", () => {
     ).toBe(t("error.package_member_is_addon", { name: "Face Paint" }));
   });
 
+  test("the add-on rule wins over hidden child gating", () => {
+    expect(
+      packageMemberError(
+        listing("Day Pass"),
+        edges({ childIds: [9], parentIds: [7] }),
+        true,
+      ),
+    ).toBe(t("error.package_member_is_addon", { name: "Day Pass" }));
+  });
+
   test("blocks a child-gating member only when the package is hidden", () => {
     expect(
       packageMemberError(listing("Day Pass"), edges({ childIds: [9] }), true),

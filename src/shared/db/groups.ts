@@ -436,8 +436,16 @@ export const packageMembersError = async (
     packageMemberError(
       listing,
       {
-        childIds: childrenByParent.get(listing.id)!,
-        parentIds: parentsByChild.get(listing.id)!,
+        childIds: requiredMapValue(
+          childrenByParent,
+          listing.id,
+          "Missing listing child edges",
+        ),
+        parentIds: requiredMapValue(
+          parentsByChild,
+          listing.id,
+          "Missing listing parent edges",
+        ),
       },
       hideListings,
     ),
