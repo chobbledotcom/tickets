@@ -5,8 +5,8 @@ import { stub } from "@std/testing/mock";
 import {
   claimIsFresh,
   type HeldClaim,
-  takeClaim,
   tryTakeClaim,
+  withClaim,
 } from "#scripts/stale-claim.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
@@ -232,32 +232,37 @@ describe("releasing a claim", () => {
 });
 
 describe("waiting for a claim", () => {
-  test("gets the claim once its holder lets go", async () => {
+  test("does the work once the claim's holder lets go, then frees it", async () => {
     await withClaimDir(async (path) => {
       const first = await tryTakeClaim(path, SETTINGS);
       setTimeout(() => void first!.release(), 20);
 
-      const second = await takeClaim(path, {
-        ...SETTINGS,
-        name: "the test claim",
-        retryMs: 1,
-        timeoutMs: 5_000,
-      });
-      await second.release();
+      const answer = await withClaim(
+        path,
+        { ...SETTINGS, name: "the test claim", retryMs: 1, timeoutMs: 5_000 },
+        () => Promise.resolve("worked"),
+      );
+
+      expect(answer).toBe("worked");
+      await expect(Deno.stat(path)).rejects.toThrow();
     });
   });
 
   test("gives up by name when the holder never lets go", async () => {
     await withClaimDir(async (path) => {
       await withTakenClaim(path, async () => {
+        let ranAnyway = false;
         await expect(
-          takeClaim(path, {
-            ...SETTINGS,
-            name: "the test claim",
-            retryMs: 1,
-            timeoutMs: 20,
-          }),
+          withClaim(
+            path,
+            { ...SETTINGS, name: "the test claim", retryMs: 1, timeoutMs: 20 },
+            () => {
+              ranAnyway = true;
+              return Promise.resolve();
+            },
+          ),
         ).rejects.toThrow("Timed out waiting for the test claim");
+        expect(ranAnyway).toBe(false);
       });
     });
   });

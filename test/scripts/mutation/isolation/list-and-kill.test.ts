@@ -21,6 +21,7 @@ import {
 import {
   finishedChild,
   type KillCall,
+  recordKillCalls,
   stubCommand,
   writeRecords,
 } from "./helpers.ts";
@@ -136,9 +137,7 @@ describe("listing, signalling and cleaning isolated runs", () => {
       await writeRunClaim(done);
 
       const calls: KillCall[] = [];
-      using _kill = stub(Deno, "kill", ((pid, signal) => {
-        calls.push({ pid, signal });
-      }) as typeof Deno.kill);
+      using _kill = recordKillCalls(calls);
 
       expect(
         await runQuietMutationCommand(["--kill", runIdNamed("live")], root),
@@ -180,9 +179,7 @@ describe("listing, signalling and cleaning isolated runs", () => {
       await writeRunRecord(orphaned);
 
       const calls: KillCall[] = [];
-      using _kill = stub(Deno, "kill", ((pid, signal) => {
-        calls.push({ pid, signal });
-      }) as typeof Deno.kill);
+      using _kill = recordKillCalls(calls);
 
       expect(
         await runQuietMutationCommand(["--kill", runIdNamed("orphaned")], root),

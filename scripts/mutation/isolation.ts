@@ -26,7 +26,7 @@ import {
   removeWorkSnapshot,
   reportRemoveFailure,
 } from "./isolation-cleanup.ts";
-import { takeRunClaim, withCopyBackLock } from "./isolation-lock.ts";
+import { withCopyBackLock, withRunClaim } from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
 import {
   copyMutationSnapshot,
@@ -177,8 +177,7 @@ export const runInSnapshot = async (
   let record = newRunRecord(id, args, root);
   // Claimed before the record's first write and held until the snapshot is
   // gone, so there is no moment when a clear-up can see this run unowned.
-  const claim = await takeRunClaim(record);
-  try {
+  return await withRunClaim(record, async () => {
     await writeRunRecord(record);
 
     let child: Deno.ChildProcess | null = null;
@@ -236,9 +235,7 @@ export const runInSnapshot = async (
     offTerminationSignals(stopChild);
     await removeWorkSnapshot(record);
     return exitCode;
-  } finally {
-    await claim.release();
-  }
+  });
 };
 
 export const runMutationInSnapshot: MutationCommandRunner = (

@@ -1,8 +1,9 @@
 /* jscpd:ignore-start */
 import { join } from "node:path";
+import type { LockBody } from "#scripts/lock-file.ts";
 import { removeTree } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-import { type StaleClaimSettings, takeClaim } from "#scripts/stale-claim.ts";
+import { type StaleClaimSettings, withClaim } from "#scripts/stale-claim.ts";
 
 /* jscpd:ignore-end */
 
@@ -21,12 +22,22 @@ export type StripeMockPaths = {
   binaryPath: string;
 };
 
-/** A task run while a lock is held, giving back its result. */
-export type LockBody<T> = () => Promise<T>;
-
 /** Ensure the bin directory (and any parents) exists. */
-export const ensureBinDir = (paths: StripeMockPaths): Promise<void> =>
+const ensureBinDir = (paths: StripeMockPaths): Promise<void> =>
   Deno.mkdir(paths.binDir, { recursive: true });
+
+/**
+ * A guard on a file in the bin folder: say how the file holds callers out,
+ * get back "make the folder, then hold the guard around the work". The
+ * install lock here and the start lock in stripe-mock.ts are both one of
+ * these.
+ */
+export const binDirGuard =
+  (holdAt: (paths: StripeMockPaths) => <T>(body: LockBody<T>) => Promise<T>) =>
+  async <T>(paths: StripeMockPaths, body: LockBody<T>): Promise<T> => {
+    await ensureBinDir(paths);
+    return holdAt(paths)(body);
+  };
 
 export type StripeMockCommands = {
   chmod: string;
@@ -112,23 +123,15 @@ const installLockSettings = ({
   touchMs,
 });
 
-const withInstallLock = async <T>(
-  paths: StripeMockPaths,
-  options: StripeMockInstallOptions,
-  body: LockBody<T>,
-): Promise<T> => {
-  await ensureBinDir(paths);
-  const claim = await takeClaim(installLockPath(paths), {
-    ...installLockSettings(options),
-    name: "stripe-mock install lock",
-  });
-
-  try {
-    return await body();
-  } finally {
-    await claim.release();
-  }
-};
+const installLockHolder = (options: StripeMockInstallOptions) =>
+  binDirGuard(
+    (paths) => (body) =>
+      withClaim(
+        installLockPath(paths),
+        { ...installLockSettings(options), name: "stripe-mock install lock" },
+        body,
+      ),
+  );
 
 const commandsWithDefaults = (
   commands: Partial<StripeMockCommands> | undefined,
@@ -200,7 +203,7 @@ export const downloadStripeMock = async (
   const { paths = defaultStripeMockPaths } = options;
   if (await stripeMockBinaryExists(paths)) return;
 
-  await withInstallLock(paths, options, async () => {
+  await installLockHolder(options)(paths, async () => {
     if (await stripeMockBinaryExists(paths)) return;
     await installStripeMock(paths, commandsWithDefaults(options.commands));
   });

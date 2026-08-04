@@ -154,6 +154,12 @@ export const withCapturedStopChild = async (
 
 export type KillCall = { pid: number; signal: Deno.Signal | undefined };
 
+/** Note every signal sent instead of sending it, so a test can read them. */
+export const recordKillCalls = (calls: KillCall[]): Disposable =>
+  stub(Deno, "kill", ((pid: number, signal?: Deno.Signal) => {
+    calls.push({ pid, signal });
+  }) as typeof Deno.kill);
+
 /** `Deno.Command` is a class, so stubbing it needs a looser view of `Deno`. */
 type DenoCommandShim = { Command: (...args: unknown[]) => unknown };
 const denoCommand = Deno as unknown as DenoCommandShim;

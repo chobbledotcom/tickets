@@ -10,6 +10,9 @@
 import { dirname } from "@std/path";
 import { nullIfNotFound, statOrNull } from "#scripts/not-found.ts";
 
+/** A task run while a lock or claim is held, giving back its result. */
+export type LockBody<Result> = () => Promise<Result>;
+
 /** Open (creating if needed) a file to hold an advisory lock. */
 const openLockFile = (path: string): Promise<Deno.FsFile> =>
   Deno.open(path, { create: true, read: true, write: true });
@@ -42,7 +45,7 @@ const sameFileAt = async (
  */
 export const withFileLock = async <Result>(
   path: string,
-  body: () => Promise<Result>,
+  body: LockBody<Result>,
 ): Promise<Result> => {
   for (;;) {
     await Deno.mkdir(dirname(path), { recursive: true });

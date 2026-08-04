@@ -10,12 +10,8 @@
  * that may since have been handed to somebody else.
  */
 
-import { withFileLock } from "#scripts/lock-file.ts";
-import {
-  claimIsFresh,
-  type HeldClaim,
-  takeClaim,
-} from "#scripts/stale-claim.ts";
+import { type LockBody, withFileLock } from "#scripts/lock-file.ts";
+import { claimIsFresh, withClaim } from "#scripts/stale-claim.ts";
 import {
   copyBackLockPath,
   type MutationRunRecord,
@@ -32,17 +28,23 @@ export const RUN_CLAIM_STALE_MS = 30_000;
 
 const RUN_CLAIM_TOUCH_MS = 1_000;
 
-/** Take a fresh run's claim. A run id is new, so its claim is always free. */
-export const takeRunClaim = (
+/** Hold this run's claim while the whole run happens. A run id is brand new,
+ * so its claim is always free to take. */
+export const withRunClaim = <Result>(
   record: Pick<MutationRunRecord, "id" | "root">,
-): Promise<HeldClaim> =>
-  takeClaim(runClaimPath(record), {
-    name: `the claim on isolated mutation run ${record.id}`,
-    retryMs: 0,
-    staleMs: RUN_CLAIM_STALE_MS,
-    timeoutMs: 0,
-    touchMs: RUN_CLAIM_TOUCH_MS,
-  });
+  body: LockBody<Result>,
+): Promise<Result> =>
+  withClaim(
+    runClaimPath(record),
+    {
+      name: `the claim on isolated mutation run ${record.id}`,
+      retryMs: 0,
+      staleMs: RUN_CLAIM_STALE_MS,
+      timeoutMs: 0,
+      touchMs: RUN_CLAIM_TOUCH_MS,
+    },
+    body,
+  );
 
 /** Is this run's folder still somebody's? Only its own supervisor writes and
  * touches the claim, so a fresh one is the run's, never a clear-up's. */
@@ -57,5 +59,5 @@ export const runClaimIsFresh = (
  */
 export const withCopyBackLock = <Result>(
   root: string,
-  run: () => Promise<Result>,
+  run: LockBody<Result>,
 ): Promise<Result> => withFileLock(copyBackLockPath(root), run);

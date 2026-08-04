@@ -3,8 +3,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   runClaimIsFresh,
-  takeRunClaim,
   withCopyBackLock,
+  withRunClaim,
 } from "#scripts/mutation/isolation-lock.ts";
 import {
   copyBackLockPath,
@@ -33,15 +33,17 @@ const runAt = (root: string, name: string): { id: string; root: string } => ({
 });
 
 describe("the claim a supervisor holds on its run", () => {
-  test("puts the claim inside the run's own folder and frees it on release", async () => {
+  test("claims the run's own folder for the work and frees it after", async () => {
     await withTempDir(async (root) => {
       const record = runAt(root, "mutation-new");
 
-      const claim = await takeRunClaim(record);
-      expect(await pathExists(runClaimPath(record))).toBe(true);
-      expect(await runClaimIsFresh(record)).toBe(true);
+      const answer = await withRunClaim(record, async () => {
+        expect(await pathExists(runClaimPath(record))).toBe(true);
+        expect(await runClaimIsFresh(record)).toBe(true);
+        return 7;
+      });
 
-      await claim.release();
+      expect(answer).toBe(7);
       expect(await pathExists(runClaimPath(record))).toBe(false);
       expect(await runClaimIsFresh(record)).toBe(false);
     });
@@ -51,10 +53,17 @@ describe("the claim a supervisor holds on its run", () => {
     await withTempDir(async (root) => {
       const record = runAt(root, "mutation-taken");
       await writeRunClaim(record);
+      let ranAnyway = false;
 
-      await expect(takeRunClaim(record)).rejects.toThrow(
+      await expect(
+        withRunClaim(record, () => {
+          ranAnyway = true;
+          return Promise.resolve();
+        }),
+      ).rejects.toThrow(
         "Timed out waiting for the claim on isolated mutation run mutation-taken",
       );
+      expect(ranAnyway).toBe(false);
     });
   });
 

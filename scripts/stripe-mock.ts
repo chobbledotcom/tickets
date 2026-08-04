@@ -13,10 +13,9 @@ import { stripeMock } from "#src/shared/stripe/mock.ts";
 import { withFileLock } from "./lock-file.ts";
 import { stopProcess, stopProcessNow } from "./process.ts";
 import {
+  binDirGuard,
   defaultStripeMockPaths,
   downloadStripeMock,
-  ensureBinDir,
-  type LockBody,
   type StripeMockCommands,
   type StripeMockInstallOptions,
   type StripeMockPaths,
@@ -224,13 +223,9 @@ const captureStreamText = (
 const stripeMockStartLockPath = (paths: StripeMockPaths): string =>
   join(paths.binDir, START_LOCK_NAME);
 
-const withStripeMockStartLock = async <T>(
-  paths: StripeMockPaths,
-  body: LockBody<T>,
-): Promise<T> => {
-  await ensureBinDir(paths);
-  return withFileLock(stripeMockStartLockPath(paths), body);
-};
+const withStripeMockStartLock = binDirGuard(
+  (paths) => (body) => withFileLock(stripeMockStartLockPath(paths), body),
+);
 
 const resolveStripeMockPort = (
   options: StartStripeMockOptions,

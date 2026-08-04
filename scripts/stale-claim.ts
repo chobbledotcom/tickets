@@ -16,7 +16,7 @@
  * the file version, shared by the stripe-mock install and mutation runs.
  */
 
-import { withFileLock } from "#scripts/lock-file.ts";
+import { type LockBody, withFileLock } from "#scripts/lock-file.ts";
 import { nullIfNotFound, rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { delay } from "#shared/now.ts";
 
@@ -90,19 +90,12 @@ export const claimIsFresh = async (
   return age !== null && age < staleMs;
 };
 
-const removeStaleClaim = async (
-  path: string,
-  staleMs: number,
-): Promise<boolean> => {
+/** Remove the claim, treating one already cleared by another taker as gone. */
+const removeClaim = async (path: string): Promise<void> => {
   try {
-    if ((await claimAgeMs(path)) < staleMs) return false;
     await Deno.remove(path);
-    return true;
   } catch (error) {
-    // NotFound: another taker already cleared the stale claim — it's gone
-    // either way, which is exactly what this returns true for.
     rethrowUnlessNotFound(error);
-    return true;
   }
 };
 
@@ -184,7 +177,8 @@ export const tryTakeClaim = (
       await createClaim(path, owner);
     } catch (error) {
       if (!(error instanceof Deno.errors.AlreadyExists)) throw error;
-      if (!(await removeStaleClaim(path, settings.staleMs))) return null;
+      if (await claimIsFresh(path, settings.staleMs)) return null;
+      await removeClaim(path);
       await createClaim(path, owner);
     }
     return heldClaim(path, owner, settings.touchMs);
@@ -195,7 +189,7 @@ export const tryTakeClaim = (
  * out. Whoever holds it keeps touching it, so a wait that ends without the
  * claim means a live holder, not an abandoned one.
  */
-export const takeClaim = async (
+const takeClaim = async (
   path: string,
   settings: StaleClaimSettings & ClaimWait,
 ): Promise<HeldClaim> => {
@@ -208,5 +202,19 @@ export const takeClaim = async (
       throw new Error(`Timed out waiting for ${settings.name}`);
     }
     await delay(settings.retryMs);
+  }
+};
+
+/** Take the claim, do the work, and let the claim go — even on failure. */
+export const withClaim = async <Result>(
+  path: string,
+  settings: StaleClaimSettings & ClaimWait,
+  body: LockBody<Result>,
+): Promise<Result> => {
+  const claim = await takeClaim(path, settings);
+  try {
+    return await body();
+  } finally {
+    await claim.release();
   }
 };
