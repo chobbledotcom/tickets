@@ -1595,9 +1595,25 @@ even though the starter did try the number of times it was asked to. Handing out
 ports so no two tests can receive the same one would fix this too; short of that,
 the count is the wrong thing to measure.
 
----
+## The Turso upload suite once died on CI with no diagnostic at all
 
-## The gap between a mutation child ending and its supervisor taking the lock
+*Origin: CI on PR #2039, a branch that touches nothing this suite uses.*
+
+`test/scripts/turso-migration-file.test.ts` failed once on CI as
+`fail Turso migration file — at unknown location — No TAP diagnostic was
+emitted for this failure.` The first five cases had passed and the remaining
+seven never reported, so the whole describe died between two cases rather
+than an assertion failing. The suite passed five consecutive local runs, and
+the branch does not touch the upload code, so this is a timing flake on a
+loaded runner, not a regression.
+
+The suspect is the seam between case five and case six: five is the last one
+driving a real `Deno.serve` server through node's `http.request`, and a
+socket torn down by `server.shutdown()` after the case has already finished
+can surface as an error owned by nobody — which is exactly what "no
+diagnostic, unknown location" looks like. If it happens again, start there:
+`withUploadServer`'s shutdown ordering, and whether the node client's socket
+is closed before the server is told to shut down.
 
 *Raised by Codex on [PR #1976](https://github.com/chobbledotcom/tickets/pull/1976),
 about `scripts/mutation/isolation.ts` and `scripts/mutation/isolation-cleanup.ts`.*
