@@ -27,7 +27,11 @@ export const CsrfForm = ({
     {...rest}
   >
     <input name="csrf_token" type="hidden" value={getCurrentCsrfToken()} />
-    <input name="settings_version" type="hidden" value={settings.version} />
+    {(action.startsWith("/admin/settings") ||
+      action.startsWith("/admin/features/") ||
+      action === "/admin/listing-defaults") && (
+      <input name="settings_version" type="hidden" value={settings.version} />
+    )}
     {rest.id && rest.id === getFlashFormId() && !flashConsumed() && (
       <Flash error={getFlash().error} success={getFlash().success} />
     )}

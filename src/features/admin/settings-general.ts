@@ -18,7 +18,7 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { redirect } from "#routes/response.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
