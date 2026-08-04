@@ -22,7 +22,7 @@ import {
   hasRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { reportInvariant } from "#shared/invariant-errors.ts";
+import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -151,7 +151,7 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     if (!posted) {
       return refundError(
         attendeeId,
-        reportInvariant("error.refund_not_recorded", { attendeeId, listingId }),
+        reportRefundNotRecorded({ attendeeId, listingId }),
         returnUrl,
       );
     }

@@ -34,7 +34,7 @@ import {
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { reportInvariant } from "#shared/invariant-errors.ts";
+import { reportRefundNotRecorded } from "#shared/invariant-errors.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
@@ -146,7 +146,7 @@ const recordConfirmedRefund = async (
   if (!posted) {
     return errorRedirect(
       `/admin/attendees/${attendeeId}`,
-      reportInvariant("error.refund_not_recorded", { attendeeId, listingId }),
+      reportRefundNotRecorded({ attendeeId, listingId }),
     );
   }
   // Always delete the stale "could NOT be refunded" note when the refund is
