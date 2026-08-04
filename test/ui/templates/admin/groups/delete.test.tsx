@@ -31,6 +31,19 @@ describe("adminGroupDeletePage", () => {
     );
   });
 
+  test("escapes the group name inside the confirm copy", () => {
+    const tricky = testGroup({
+      id: 6,
+      name: "Fish & Chips <b>",
+      slug: "fish-chips",
+    });
+
+    const html = adminGroupDeletePage(tricky, OWNER_SESSION);
+
+    expect(html).toContain("<strong>Fish &amp; Chips &lt;b&gt;</strong>");
+    expect(html).not.toContain("Chips <b>");
+  });
+
   test("renders a non-dangerous submit button", () => {
     const html = adminGroupDeletePage(group, OWNER_SESSION);
 
