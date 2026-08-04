@@ -106,6 +106,24 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
     });
 
+    test("requires ambiguous existing payments to be recovered before enabling sales", async () => {
+      await settings.update.stripe.secretKey("sk_test_ambiguous");
+      await settings.update.square.accessToken("square-ambiguous");
+      await settings.update.setPaymentProviderNone();
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        { payment_provider: "stripe" },
+      );
+
+      expectFlash(
+        response,
+        "Choose the provider for existing payments before enabling new sales.",
+        false,
+      );
+      expect(settings.paymentProvider).toBeNull();
+    });
+
     test("recovers the provider for old payments without enabling sales", async () => {
       await settings.update.stripe.secretKey("sk_test_recovery");
       await settings.update.square.accessToken("square-recovery");
@@ -117,13 +135,18 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, "Existing payment provider set to stripe.");
+      expectFlash(response, "Existing payment provider set to Stripe.");
       expect(settings.paymentProviderSetting).toBe("none");
       expect(settings.paymentProvider).toBeNull();
       expect(settings.lastActivePaymentProvider).toBe("stripe");
       expect(redirectFormId(response)).toBe(
         "settings-payment-provider-recovery",
       );
+
+      await adminFormPost("/admin/settings/payment-provider", {
+        payment_provider: "stripe",
+      });
+      expect(settings.paymentProvider).toBe("stripe");
     });
 
     test("rejects recovery through a provider without saved credentials", async () => {
@@ -142,8 +165,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("rejects a stale recovery post after sales were enabled", async () => {
       await settings.update.stripe.secretKey("sk_test_active");
-      await settings.update.square.accessToken("square-stale-recovery");
       await settings.update.paymentProvider("stripe");
+      await settings.update.square.accessToken("square-stale-recovery");
 
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider-recovery",

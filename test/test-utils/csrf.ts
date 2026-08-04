@@ -24,8 +24,16 @@ export const hasInputWithValue = (
   value: string,
 ): boolean => extractInputValue(html, name) === value;
 
-export const inputTagWithValue = (html: string, value: string): string =>
-  html.match(new RegExp(`<input\\b[^>]*value="${value}"[^>]*>`))?.[0] ?? "";
+export const inputTagWithValue = (
+  html: string,
+  value: string,
+  name?: string,
+): string =>
+  (html.match(/<input\b[^>]*>/g) ?? []).find(
+    (tag) =>
+      tag.includes(`value="${value}"`) &&
+      (name === undefined || tag.includes(`name="${name}"`)),
+  ) ?? "";
 
 export const hasCheckedInput = (
   html: string,

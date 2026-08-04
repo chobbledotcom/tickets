@@ -140,6 +140,11 @@ describe("test-utils — csrf & form helpers", () => {
       expect(inputTagWithValue(html, "3")).toBe(
         '<input name="quantity_2" value="3">',
       );
+      expect(inputTagWithValue(html, "email", "other")).toBe(
+        '<input type="checkbox" name="other" value="email" checked>',
+      );
+      expect(inputTagWithValue(html, "email", "missing")).toBe("");
+      expect(inputTagWithValue("", "missing")).toBe("");
       expect(inputTagWithValue(html, "missing")).toBe("");
     });
 

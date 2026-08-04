@@ -25,6 +25,7 @@
   "settings.domain_recovery_required": "Choose the provider for existing payments before changing your domain.",
   "settings.domain_recovery_link": "Choose a provider",
   "error.payment_provider_recovery_required": "Choose the provider for existing payments before changing your domain.",
+  "error.payment_provider_activation_requires_recovery": "Choose the provider for existing payments before enabling new sales.",
   "settings.stripe.heading": "Stripe Settings",
   "settings.stripe.configured_hint": "A Stripe secret key is currently configured. Enter a new key below to replace it.",
   "settings.stripe.not_configured_hint": "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments.",

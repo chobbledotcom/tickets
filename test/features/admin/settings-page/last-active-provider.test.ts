@@ -5,6 +5,7 @@ import {
   CONFIG_KEYS,
   settings,
 } from "#shared/db/settings.ts";
+import { hasCheckedInput, inputTagWithValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -46,13 +47,15 @@ describeWithEnv(
       expect(form).not.toBeNull();
       if (form === null) return;
       expect(form[0]).toContain('id="settings-payment-provider-recovery"');
-      expect(form[0]).toMatch(
-        /<input[^>]*name="existing_payment_provider"[^>]*required[^>]*value="stripe"/,
-      );
-      expect(form[0]).toMatch(
-        /<input[^>]*name="existing_payment_provider"[^>]*required[^>]*value="square"/,
-      );
-      expect(html).toMatch(/<input[^>]*checked[^>]*value="none"/);
+      for (const provider of ["stripe", "square"]) {
+        const input = inputTagWithValue(
+          form[0],
+          provider,
+          "existing_payment_provider",
+        );
+        expect(input).toContain("required");
+      }
+      expect(hasCheckedInput(html, "payment_provider", "none")).toBe(true);
     });
   },
 );

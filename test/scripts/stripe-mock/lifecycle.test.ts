@@ -104,8 +104,10 @@ describe("starting stripe-mock", () => {
           paths,
           port,
           // Far longer than the mock's shutdown, so a busy machine cannot make
-          // this read as an impatient stopper.
-          stopTimeoutMs: 10_000,
+          // this read as an impatient stopper. A CI runner under two parallel
+          // suite runs has starved the mock past 10 seconds, so the allowance
+          // is generous — a healthy stop returns on exit, never on this timer.
+          stopTimeoutMs: 60_000,
         });
         await expectPortOpen(port);
 

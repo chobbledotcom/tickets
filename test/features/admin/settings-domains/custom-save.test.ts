@@ -99,6 +99,23 @@ describeCustomDomain("POST /admin/settings/custom-domain", (enable) => {
     });
   }
 
+  test("does not clear the domain while another settings task runs", async () => {
+    enable();
+    await settings.update.customDomain("tickets.example.com");
+    await settings.update.currentTask("payment-provider-stripe");
+    try {
+      const { response } = await post("");
+      expectRedirectWithFlash(
+        REDIRECT,
+        "Another task is already in progress",
+        false,
+      )(response);
+      expect(settings.customDomain).toBe("tickets.example.com");
+    } finally {
+      await settings.update.currentTask("");
+    }
+  });
+
   test("rejects an invalid domain", async () => {
     enable();
     const { response } = await post("not a domain!");

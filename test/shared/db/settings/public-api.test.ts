@@ -80,6 +80,24 @@ describeWithEnv("db > settings public API", { db: true }, () => {
   });
 
   describe("payment provider", () => {
+    const reloadPaymentProviderSettings = async (): Promise<void> => {
+      settings.invalidateCache();
+      await settings.loadKeys([
+        CONFIG_KEYS.PAYMENT_PROVIDER,
+        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
+      ]);
+    };
+
+    const expectDisabledWith = (remembered: "stripe" | "square"): void => {
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.paymentProviderSetting).toBe("none");
+      expect(settings.lastActivePaymentProvider).toBe(remembered);
+      expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe("none");
+      expect(
+        settings.getCachedRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER),
+      ).toBe(remembered);
+    };
+
     test("replaces the current provider", async () => {
       await settings.update.paymentProvider("square");
       await settings.update.paymentProvider("stripe");
@@ -130,13 +148,24 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
 
-    test("selects saved credentials while sales are on", async () => {
+    test("keeps a newer active provider during a stale credential save", async () => {
       await settings.update.paymentProvider("square");
 
       await settings.update.paymentProviderAfterCredentialSave("stripe", false);
 
-      expect(settings.paymentProvider).toBe("stripe");
-      expect(settings.paymentProviderSetting).toBe("stripe");
+      expect(settings.paymentProvider).toBe("square");
+      expect(settings.paymentProviderSetting).toBe("square");
+    });
+
+    test("refuses ambiguous activation until the old provider is recovered", async () => {
+      await settings.update.stripe.secretKey("sk_test_ambiguous");
+      await settings.update.square.accessToken("square-ambiguous");
+
+      await expect(settings.update.paymentProvider("stripe")).rejects.toThrow(
+        "Choose the provider for existing payments before enabling new sales",
+      );
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.paymentProviderSetting).toBeNull();
     });
 
     test("does not select saved credentials after sales are switched off", async () => {
@@ -165,6 +194,35 @@ describeWithEnv("db > settings public API", { db: true }, () => {
 
       expect(settings.paymentProvider).toBeNull();
       expect(settings.paymentProviderSetting).toBe("none");
+    });
+
+    test("recovery updates the current request snapshot", async () => {
+      await settings.update.clearPaymentProvider();
+
+      await settings.update.recoverPaymentProvider("square");
+
+      expectDisabledWith("square");
+      await reloadPaymentProviderSettings();
+      expectDisabledWith("square");
+    });
+
+    test("does not recover over a provider enabled by another request", async () => {
+      await settings.update.clearPaymentProvider();
+      const { executeWithoutCacheInvalidation } = await import(
+        "#shared/db/client.ts"
+      );
+      await executeWithoutCacheInvalidation(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
+      );
+
+      await expect(
+        settings.update.recoverPaymentProvider("square"),
+      ).rejects.toThrow("Payment provider recovery is no longer available");
+
+      await reloadPaymentProviderSettings();
+      expect(settings.paymentProvider).toBe("stripe");
+      expect(settings.lastActivePaymentProvider).toBeNull();
     });
 
     test("a second none save keeps the remembered provider", async () => {
@@ -232,24 +290,9 @@ describeWithEnv("db > settings public API", { db: true }, () => {
 
       await settings.update.setPaymentProviderNone();
 
-      // The in-memory snapshot mirrors the committed transaction immediately:
-      // payment_provider is null, last_active is Square (not the stale Stripe).
-      expect(settings.paymentProvider).toBeNull();
-      expect(settings.lastActivePaymentProvider).toBe("square");
-      // The raw cache mirrors the committed batch too (syncStoredSetting ran).
-      expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe("none");
-      expect(
-        settings.getCachedRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER),
-      ).toBe("square");
-
-      // Reload from the DB to confirm the committed values match the snapshot.
-      settings.invalidateCache();
-      await settings.loadKeys([
-        CONFIG_KEYS.PAYMENT_PROVIDER,
-        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
-      ]);
-      expect(settings.paymentProvider).toBeNull();
-      expect(settings.lastActivePaymentProvider).toBe("square");
+      expectDisabledWith("square");
+      await reloadPaymentProviderSettings();
+      expectDisabledWith("square");
     });
   });
 

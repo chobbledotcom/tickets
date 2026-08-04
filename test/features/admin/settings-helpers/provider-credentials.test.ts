@@ -52,6 +52,27 @@ const post = async (
     ),
   );
 
+const saveCredentialsWhile = async (
+  changeSetting: () => Promise<void>,
+): Promise<void> => {
+  const saveStarted = Promise.withResolvers<void>();
+  const releaseSave = Promise.withResolvers<void>();
+  const { routes } = makeProviderRoute({
+    saveSecret: async () => {
+      saveStarted.resolve();
+      await releaseSave.promise;
+    },
+  });
+  const saving = post(routes.save, {
+    merchant: "merchant-1",
+    secret: "new-secret",
+  });
+  await saveStarted.promise;
+  await changeSetting();
+  releaseSave.resolve();
+  await saving;
+};
+
 describeWithEnv("provider credential route", { db: true }, () => {
   test("saves credentials, selects the provider, and logs the change", async () => {
     const { routes, saveFields, saveSecret } = makeProviderRoute();
@@ -84,25 +105,35 @@ describeWithEnv("provider credential route", { db: true }, () => {
 
   test("keeps sales off when they are disabled during a credential save", async () => {
     await settings.update.paymentProvider("square");
-    const saveStarted = Promise.withResolvers<void>();
-    const releaseSave = Promise.withResolvers<void>();
-    const { routes } = makeProviderRoute({
-      saveSecret: async () => {
-        saveStarted.resolve();
-        await releaseSave.promise;
-      },
-    });
-    const saving = post(routes.save, {
-      merchant: "merchant-1",
-      secret: "new-secret",
-    });
-    await saveStarted.promise;
-    await settings.update.setPaymentProviderNone();
-    releaseSave.resolve();
-    await saving;
+    await saveCredentialsWhile(settings.update.setPaymentProviderNone);
 
     expect(settings.paymentProvider).toBeNull();
     expect(settings.paymentProviderSetting).toBe("none");
+  });
+
+  test("keeps a provider selected during a stale credential save", async () => {
+    await settings.update.paymentProvider("stripe");
+    await saveCredentialsWhile(() => settings.update.paymentProvider("square"));
+
+    expect(settings.paymentProvider).toBe("square");
+    expect(settings.lastActivePaymentProvider).toBe("square");
+  });
+
+  test("does not save credentials while another settings task runs", async () => {
+    await settings.update.currentTask("custom-domain");
+    try {
+      const { routes, saveFields, saveSecret } = makeProviderRoute();
+      const response = await post(routes.save, {
+        merchant: "merchant-1",
+        secret: "new-secret",
+      });
+
+      expectFlash(response, "Another task is already in progress", false);
+      expect(saveSecret).not.toHaveBeenCalled();
+      expect(saveFields).not.toHaveBeenCalled();
+    } finally {
+      await settings.update.currentTask("");
+    }
   });
 
   test("keeps sales off when the legacy provider setting is missing", async () => {
