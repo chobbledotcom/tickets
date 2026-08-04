@@ -21,7 +21,10 @@ import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { SelectField } from "#templates/components/select-field.tsx";
+import {
+  choiceOptions,
+  SelectField,
+} from "#templates/components/select-field.tsx";
 /* jscpd:ignore-end */
 
 export type PrivacyPageData = {
@@ -39,10 +42,7 @@ const RetentionSelect = ({ selected }: { selected: string }): JSX.Element => (
     {t("privacy.orphans.retention_label")}
     <SelectField
       name="retention"
-      options={ORPHAN_RETENTION_OPTIONS.map((option) => ({
-        label: t(option.labelKey),
-        value: option.value,
-      }))}
+      options={choiceOptions(ORPHAN_RETENTION_OPTIONS)}
       value={selected}
     />
   </label>

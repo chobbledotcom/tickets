@@ -117,12 +117,27 @@ type SettingsMessage<T> =
   | { label: string; log?: undefined }
   | { label?: never; log: (value: T) => string };
 
+/** Where the handler's value comes from: a custom `extract` function (with the
+ * form field name as optional metadata), or — for a plain string setting —
+ * just the field name, which doubles as the extract. */
+type SettingsValueSource<T> =
+  | {
+      /** Extract the value from form data */
+      extract: (form: FormParams) => T;
+      /** Form field name (metadata only when `extract` is custom) */
+      field?: string | undefined;
+    }
+  | {
+      extract?: undefined;
+      /** Form field name — also the default extract (`form.getString`) */
+      field: [T] extends [string] ? string : never;
+    };
+
 type SettingsHandlerConfig<T> = RedirectOpts &
-  SettingsMessage<T> & {
+  SettingsMessage<T> &
+  SettingsValueSource<T> & {
     /** Form ID for flash message targeting (omit for non-settings pages) */
     formId?: string | undefined;
-    /** Extract the value from form data */
-    extract: (form: FormParams) => T;
     /** Validate the value. Return error string or null if valid. */
     validate?: ValidateFn<T> | undefined;
     /** Persist the value */
@@ -130,9 +145,15 @@ type SettingsHandlerConfig<T> = RedirectOpts &
   };
 
 const createSettingsHandler =
-  <T>(cfg: SettingsHandlerConfig<T>): SettingsFormHandler =>
+  <T = string>(cfg: SettingsHandlerConfig<T>): SettingsFormHandler =>
   async (form, errorPage) => {
-    const value = cfg.extract(form);
+    const value =
+      cfg.extract !== undefined
+        ? cfg.extract(form)
+        : // `extract` may only be omitted for a plain string setting that
+          // names its `field` (see SettingsValueSource), so the named
+          // field's string is the value.
+          (form.getString(cfg.field) as T);
     return afterValidation(
       cfg.validate,
       value,
@@ -153,8 +174,9 @@ const createSettingsHandler =
   };
 
 /** Convenience: createSettingsHandler + route wrapping */
-const settingsHandler = <T>(cfg: SettingsHandlerConfig<T>): RequestRoute =>
-  routedSettings(createSettingsHandler<T>)(cfg);
+const settingsHandler = <T = string>(
+  cfg: SettingsHandlerConfig<T>,
+): RequestRoute => routedSettings(createSettingsHandler<T>)(cfg);
 
 // ── Specialization: toggleHandler ───────────────────────────────────
 

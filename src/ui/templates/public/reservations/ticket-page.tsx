@@ -22,7 +22,6 @@ import {
 } from "#shared/booking/model.ts";
 import { packageLimitInfo } from "#shared/booking/package-cap.ts";
 import {
-  concealedMemberIds,
   explicitStandaloneIds,
   type PagePackage,
 } from "#shared/booking/page-packages.ts";
@@ -31,6 +30,7 @@ import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
+import { ctxStandInNames } from "#shared/package-privacy.ts";
 import type { ItemImageColumns, ListingWithCount } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -115,14 +115,19 @@ const resolveTicketHeader = ({
 
 /** The page's cart conflict notes. A concealed package member's name is never
  * public (a hidden package shows only its package name), so concealed members
- * are dropped from the facts before any message could name them — their
- * clashes fall back to the selectors' plain empty copy. */
+ * are dropped from the facts — resolved through the page's stand-ins, like
+ * every other buyer-facing surface — before any message could name them.
+ * Their clashes fall back to the selectors' plain empty copy. */
 const cartConflicts = (
   cartDateItems: readonly CartDateItem[],
   listings: TicketListing[],
   packages: readonly PagePackage[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
 ): string[] => {
-  const concealed = concealedMemberIds(packages);
+  const concealed = ctxStandInNames({
+    childrenByParentId: childrenByParentId ?? new Map(),
+    packages,
+  }).byListingId;
   return cartConflictMessages({
     dateItems: cartDateItems.filter((item) => !concealed.has(item.id)),
     lengthItems: customisableLengthItems(
@@ -298,7 +303,12 @@ export const ticketPage = ({
         <TicketPageForm
           actionUrl={actionUrl}
           addOns={addOns}
-          cartConflicts={cartConflicts(cartDateItems, listings, packages)}
+          cartConflicts={cartConflicts(
+            cartDateItems,
+            listings,
+            packages,
+            childrenByParentId,
+          )}
           dates={dates}
           dayCountPriceFor={dayCountPriceFor}
           dayCounts={dayCounts}

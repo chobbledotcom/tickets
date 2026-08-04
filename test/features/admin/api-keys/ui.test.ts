@@ -52,7 +52,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
     test("serves the name box with its label, hint, bound, and required flag", async () => {
       // The expected attributes are written out here so a changed form
       // definition fails this test instead of moving the expectation along.
-      const { apiKeyForm } = await import("#routes/admin/api-keys.ts");
+      const { apiKeyForm } = await import("#routes/admin/api-keys-form.ts");
       const html = apiKeyForm.render();
       expect(html).toContain("Name");
       const input = inputNamed(html, "name");

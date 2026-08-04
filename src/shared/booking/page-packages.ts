@@ -1,3 +1,4 @@
+import type { PackagePrices } from "#shared/db/groups.ts";
 import type { Group } from "#shared/types.ts";
 
 /**
@@ -39,20 +40,12 @@ export type PagePackage = TreePackage & {
   readonly terms: string;
 };
 
-/** The pricing maps a package's membership rows resolve to (the shape
- * `loadPackageMemberPricing` returns). */
-type MemberPricing = {
-  prices: Map<number, number>;
-  quantities: Map<number, number>;
-  dayPrices: Map<number, Map<number, number>>;
-};
-
 /** Build one {@link PagePackage} from its group row, its page members (in
  * display order), and its loaded member pricing. */
 export const buildPagePackage = (
   group: Group,
   memberListingIds: readonly number[],
-  pricing: MemberPricing,
+  pricing: PackagePrices,
 ): PagePackage => ({
   dayPrices: pricing.dayPrices,
   description: group.description,
@@ -87,12 +80,6 @@ export const packageMemberIds = (
   packages: readonly TreePackage[],
 ): Set<number> => new Set(packages.flatMap((pkg) => [...pkg.memberListingIds]));
 
-/** The member ids of packages that hide their listings — names buyer surfaces
- * must never show (only the package name is public). */
-export const concealedMemberIds = (
-  packages: readonly TreePackage[],
-): Set<number> => packageMemberIds(packages.filter((pkg) => pkg.hideListings));
-
 /** The member listings a page ALSO sells standalone: those the visitor added
  * by the listing's own slug (beside its package). Non-members always sell
  * standalone, so they are not listed here; on a package-less page the set is
@@ -104,7 +91,9 @@ export const explicitStandaloneIds = (
   slugs: readonly string[],
 ): Set<number> => {
   const memberIds = packageMemberIds(packages);
-  const concealedIds = concealedMemberIds(packages);
+  const concealedIds = packageMemberIds(
+    packages.filter((pkg) => pkg.hideListings),
+  );
   const slugSet = new Set(slugs);
   return new Set(
     listings

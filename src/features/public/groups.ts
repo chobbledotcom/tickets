@@ -2,22 +2,27 @@
  * Group ticket context and routing
  */
 
+import { compact, requiredMapValue, uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
 import {
   computeGroupSlugIndex,
-  getActiveListingsByGroupId,
   getGroupBySlugIndex,
   groupListings,
+  groups,
+  readGroupMembersWith,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { sortListings } from "#shared/sort-listings.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
+import type { Group, Holiday, ListingWithCount } from "#shared/types.ts";
 import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 
 /** A group resolved with its buyer-visible active listings. */
-type GroupWithListings = { group: Group; listings: ListingWithCount[] };
+export type GroupWithListings = {
+  group: Group;
+  listings: ListingWithCount[];
+};
 
 /** Build a by-slug group loader: resolve the slug to its group (null for an
  * unknown slug), then hand the group to the given loader. The one place every
@@ -70,30 +75,66 @@ export const loadBookablePackageBySlug = async (
   return loaded?.group.is_package ? loaded : null;
 };
 
-/** Load a COMPLETE package group by slug for a multi-item cart page, or null
- * (unknown slug, not a package, no members, or a member was deactivated — an
- * incomplete bundle must never sell partially). Unlike the single
- * `/ticket/<group>` gate this does NOT require the bundle to still fit: a cart
- * renders a sold-out package as a dimmed section so the rest of the cart still
- * books, mirroring the order gallery's sold-out cards. */
-export const loadCartPackageBySlug = groupListingsLoader(async (group) =>
-  group.is_package ? completePackageListings(group) : null,
-);
-
-/** The package's members when the bundle is complete, else null. */
-const completePackageListings = async (
-  group: Group,
-): Promise<GroupWithListings | null> => {
-  const [members, allMemberIds, holidays] = await Promise.all([
-    getActiveListingsByGroupId(group.id),
-    groupListings.getIds(group.id),
-    getActiveHolidays(),
-  ]);
-  if (members.length === 0 || members.length < allMemberIds.length) {
-    return null;
-  }
-  return { group, listings: sortListings(members, holidays) };
+/** Load the COMPLETE package group behind each cart slug, in slug order, with
+ * null for a slug that names no live complete package (unknown slug, not a
+ * package, no members, or a member was deactivated — an incomplete bundle must
+ * never sell partially). Unlike the single `/ticket/<group>` gate this does NOT
+ * require the bundle to still fit: a cart renders a sold-out package as a
+ * dimmed section so the rest of the cart still books, mirroring the order
+ * gallery's sold-out cards.
+ *
+ * Every slug's group, members, membership, and the holiday list are read
+ * together, so a long cart URL costs a fixed handful of reads instead of four
+ * per slug — enough to exhaust the request's subrequest budget on its own. */
+export const loadCartPackagesBySlugs = async (
+  slugs: readonly string[],
+): Promise<(GroupWithListings | null)[]> => {
+  const noPackages = slugs.map(() => null);
+  if (slugs.length === 0) return noPackages;
+  const slugIndices = await Promise.all(slugs.map(computeGroupSlugIndex));
+  const bySlug = await groups.cache.getByKeys(slugIndices);
+  const packages = uniqueBy((group: Group) => group.id)(
+    compact(bySlug).filter((group) => group.is_package),
+  );
+  if (packages.length === 0) return noPackages;
+  const { members: membersByGroup, more } = await readGroupMembersWith(
+    packages,
+    (groupIds) =>
+      Promise.all([groupListings.getIdsByKeys(groupIds), getActiveHolidays()]),
+    true,
+  );
+  const [memberIdsByGroup, holidays] = more;
+  const completeById = new Map(
+    packages.map((group) => [
+      group.id,
+      completePackageListings(
+        group,
+        requiredMapValue(membersByGroup, group.id, "Missing package members"),
+        requiredMapValue(
+          memberIdsByGroup,
+          group.id,
+          "Missing package membership",
+        ),
+        holidays,
+      ),
+    ]),
+  );
+  return bySlug.map((group) =>
+    group === null ? null : (completeById.get(group.id) ?? null),
+  );
 };
+
+/** The package's members, sorted for display, when the bundle is complete —
+ * every member row still resolves to an active listing. Null otherwise. */
+const completePackageListings = (
+  group: Group,
+  members: readonly ListingWithCount[],
+  allMemberIds: readonly number[],
+  holidays: Holiday[],
+): GroupWithListings | null =>
+  members.length === 0 || members.length < allMemberIds.length
+    ? null
+    : { group, listings: sortListings([...members], holidays) };
 
 /** Handle group ticket page by slug. With `mode: "calculate"` a POST prices the
  * group booking as a quote instead of completing it. */

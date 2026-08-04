@@ -6,6 +6,7 @@
  * mid-checkout.
  */
 
+import { unique } from "#fp";
 import {
   anyPackageBundleMismatch,
   expectedItemPrice,
@@ -27,34 +28,35 @@ import {
 } from "#shared/booking/signed-metadata.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { resolveNamesConcealed } from "#shared/package-privacy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 
-/** Load a listing by ID or return a 404 "Listing not found" error payload. */
-const loadListingOr404 = async (
-  listingId: number,
-): Promise<
-  | {
-      ok: true;
-      listing: NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>;
-    }
-  | { ok: false; error: string; status: 404 }
-> => {
-  const listing = await getListingWithCount(listingId);
+/** Every listing the order's lines name, keyed by id, in one read — a line
+ * whose listing was deleted mid-checkout is simply absent, and its line then
+ * fails 404 below. */
+const loadOrderListings = async (
+  intent: BookingIntent,
+): Promise<Map<number, ListingWithCount>> => {
+  const listingIds = unique(intent.items.map((item) => item.e));
+  const listings = await getListingsWithCountsByIds(listingIds);
+  return new Map(
+    listings.flatMap((listing, index) =>
+      listing === null ? [] : [[listingIds[index]!, listing] as const],
+    ),
+  );
+};
+
+/** Judge one already-loaded line against the current listing: gone, closed, or
+ * good to price. */
+const validateListingForPayment = (
+  listing: ListingWithCount | undefined,
+  includeListingName: boolean,
+): ListingValidation => {
   if (!listing) {
     return { error: "Listing not found", ok: false, status: 404 };
   }
-  return { listing, ok: true };
-};
-
-const validateListingForPayment = async (
-  listingId: number,
-  includeListingName = false,
-): Promise<ListingValidation> => {
-  const loaded = await loadListingOr404(listingId);
-  if (!loaded.ok) return loaded;
-  const listing = loaded.listing;
   const name = includeListingName ? listing.name : undefined;
   if (!listing.active) {
     return {
@@ -151,9 +153,13 @@ export const validateAllItems = async (
   const staleNonStandaloneChild =
     (standaloneLineIds.length > 0 || allocations.length > 0) &&
     (await hasStaleStandaloneChild(intent));
+  const listingsById = await loadOrderListings(intent);
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
-    const vp = await validateListingForPayment(item.e, includeListingName);
+    const vp = validateListingForPayment(
+      listingsById.get(item.e),
+      includeListingName,
+    );
     if (!vp.ok) return validationFailure(session, vp, item.e);
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package

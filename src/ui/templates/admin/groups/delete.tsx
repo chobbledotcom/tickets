@@ -1,4 +1,5 @@
 import { t } from "#i18n";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { Group } from "#shared/types.ts";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 
@@ -8,7 +9,10 @@ export const adminGroupDeletePage = entityDeletePage((group: Group) => ({
   active: { section: "/admin/groups" },
   buttonText: t("groups.delete.submit"),
   confirm: {
-    args: { name: `<strong>${group.name}</strong>`, slug: group.slug },
+    args: {
+      name: `<strong>${escapeHtml(group.name)}</strong>`,
+      slug: escapeHtml(group.slug),
+    },
     key: "groups.delete.confirm",
   },
   danger: false,

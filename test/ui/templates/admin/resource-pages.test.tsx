@@ -49,7 +49,6 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
     addSubmit: "Create synthetic widget",
     addTitle: "New synthetic widget",
     deleteButton: "Delete synthetic widget",
-    deleteLabel: "Widget name",
     deleteTitle: "Delete synthetic widget",
     listTitle: "Synthetic widgets",
   },

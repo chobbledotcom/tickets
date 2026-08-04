@@ -3,7 +3,7 @@
  */
 
 import { intersect } from "@std/collections";
-import { compact, unique } from "#fp";
+import { compact, requiredMapValue, unique } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -56,7 +56,7 @@ import {
   getHiddenPackageMemberIds,
   isHiddenPackageMember,
   listingGroups,
-  loadPackageMemberPricing,
+  loadPackageMemberPricingByGroupIds,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
@@ -79,14 +79,11 @@ import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
-  type PackageStandIns,
-  packageStandIns,
-} from "#shared/package-privacy.ts";
-import {
   type CheckoutIntent,
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   availableDayCounts,
@@ -198,31 +195,44 @@ export const checkAvailability = (
     date,
   );
 
-/** Load one group's package pricing and shape it into the {@link PagePackage}
- * the booking flow carries — the group's display fields plus its member
- * quantity/price maps, scoped to the members actually on the page. */
+/** One package on a booking page: the group, and the members that survived the
+ * page's own drops. */
+export type PagePackageEntry = {
+  group: Group;
+  memberListingIds: readonly number[];
+};
+
+/** Load every listed package's pricing in one batch and shape each into the
+ * {@link PagePackage} the booking flow carries — the group's display fields
+ * plus its member quantity/price maps, scoped to the members actually on the
+ * page. A cart naming many packages costs the same two reads as one. */
+export const loadPagePackages = async (
+  entries: readonly PagePackageEntry[],
+): Promise<PagePackage[]> => {
+  const pricingByGroup = await loadPackageMemberPricingByGroupIds(
+    entries.map((entry) => entry.group.id),
+  );
+  return entries.map((entry) =>
+    buildPagePackage(
+      entry.group,
+      entry.memberListingIds,
+      requiredMapValue(
+        pricingByGroup,
+        entry.group.id,
+        "Missing package pricing",
+      ),
+    ),
+  );
+};
+
+/** One group's page package, through the shared many-package path. */
 export const loadPagePackage = async (
   group: Group,
   memberListingIds: readonly number[],
 ): Promise<PagePackage> =>
-  buildPagePackage(
-    group,
-    memberListingIds,
-    await loadPackageMemberPricing(group.id),
-  );
-
-/** This page's hidden-package stand-ins: every HIDDEN package's name by group
- * id (for its tagged lines) and by member/child listing id (for folded-child
- * lines and error text). Buyer-facing line names and error text resolve
- * through these maps so a concealed member is never named. Empty when nothing
- * on the page is concealed. */
-export const ctxStandInNames = (
-  ctx: Pick<TicketCtx, "packages" | "childrenByParentId">,
-): PackageStandIns =>
-  packageStandIns(ctx.packages, (memberId) =>
-    (ctx.childrenByParentId.get(memberId) ?? []).map(
-      (child) => child.listing.id,
-    ),
+  requireValue(
+    (await loadPagePackages([{ group, memberListingIds }]))[0],
+    `Missing page package for group ${group.id}`,
   );
 
 export const handlePaymentFlow = (

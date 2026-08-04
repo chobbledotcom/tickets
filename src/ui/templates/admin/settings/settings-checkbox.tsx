@@ -11,7 +11,7 @@ export const SettingsCheckbox = ({
   checked: boolean;
   name: string;
   label: string;
-  labelClass?: string;
+  labelClass?: string | undefined;
 }): JSX.Element => (
   <label class={labelClass}>
     <input checked={checked} name={name} type="checkbox" value="true" /> {label}

@@ -119,7 +119,6 @@ export const getHolidayPages = (): ReturnType<
       addSubmit: t("holidays.add.submit"),
       addTitle: t("holidays.add.title"),
       deleteButton: t("holidays.delete.submit"),
-      deleteLabel: t("holidays.delete.confirm_label"),
       deleteTitle: t("holidays.delete.heading"),
       listTitle: t("terms.holidays"),
     },

@@ -102,6 +102,14 @@ describe("combinedPackageTerms", () => {
     expect(combined).toBe("No mud\n\nBring wellies");
   });
 
+  test("shows a lone package's terms rather than the fallback", () => {
+    const combined = combinedPackageTerms(
+      [pagePackage(7, [1], { terms: "x" })],
+      "House terms",
+    );
+    expect(combined).toBe("x");
+  });
+
   test("falls back when no package carries terms", () => {
     const combined = combinedPackageTerms(
       [pagePackage(7, [1], { terms: "" })],
@@ -181,10 +189,19 @@ describe("stampChildRowPackages", () => {
 
   test("never overwrites a row's own package tag", () => {
     const rows = stampChildRowPackages(
-      [{ packageGroupId: 8, parentListingId: 1 }],
-      new Map([[1, 7]]),
+      [
+        { packageGroupId: 8, parentListingId: 1 },
+        { packageGroupId: 1, parentListingId: 2 },
+      ],
+      new Map([
+        [1, 7],
+        [2, 7],
+      ]),
     );
-    expect(rows).toEqual([{ packageGroupId: 8, parentListingId: 1 }]);
+    expect(rows).toEqual([
+      { packageGroupId: 8, parentListingId: 1 },
+      { packageGroupId: 1, parentListingId: 2 },
+    ]);
   });
 
   test("stamps a child row that carries no package tag at all", () => {
