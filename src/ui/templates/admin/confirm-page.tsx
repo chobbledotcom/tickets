@@ -39,10 +39,6 @@ export type ConfirmPageProps = {
   /** The ConfirmForm identifier shown as the "type this to confirm" target. */
   name: string;
   returnUrl?: string | undefined;
-  /** Optional ConfirmForm id (e.g. for the test/restore-confirm form). */
-  id?: string | undefined;
-  /** Optional hidden form fields passed to ConfirmForm. */
-  hiddenFields?: Record<string, string>;
   /** Whether to render the form with `danger` styling. */
   danger?: boolean | undefined;
   /** Whether to skip the "type the name to confirm" input (just an
@@ -79,6 +75,63 @@ export const entityDeletePage =
   (entity, session, error) =>
     ConfirmPage({ ...build(entity), error, session });
 
+/** What a {@link warningDeletePage} says: everything but the nav highlight,
+ *  which the curried factory binds. `title` falls back to the heading. */
+export type WarningDeleteProps = {
+  action: string;
+  buttonText: string;
+  heading: string;
+  label: string;
+  name: string;
+  prompt: TCall;
+  title?: string;
+  warning: Child;
+};
+
+/** Delete confirmation page that opens with a warning paragraph — the shape
+ *  the question, answer, attribute, and attribute-option delete pages share.
+ *  Binds the nav highlight; the returned function takes the page's wording,
+ *  the viewer's session, and the rejected-submit error. */
+export const warningDeletePage = (
+  active: NavActive,
+): ((
+  props: WarningDeleteProps,
+  session: AdminSession,
+  error?: string,
+) => string) =>
+  entityDeletePage(({ title, ...props }: WarningDeleteProps) => ({
+    ...props,
+    active,
+    title: title ?? props.heading,
+  }));
+
+/** Type-the-name delete confirmation page for a record with an `id` and a
+ *  `name` living under `base` (e.g. "/admin/site/news"). `messages` is the
+ *  i18n prefix carrying `.delete_title`, `.delete_submit`, `.delete_prompt`
+ *  (with a `{name}` slot), and `.name_label`. */
+export const prefixedDeletePage = (
+  messages: string,
+  base: string,
+): ((
+  entity: { id: number; name: string },
+  session: AdminSession,
+  error?: string,
+) => string) =>
+  entityDeletePage((entity: { id: number; name: string }) => {
+    const title = t(`${messages}.delete_title`);
+    return {
+      action: `${base}/${entity.id}/delete`,
+      active: base,
+      buttonText: t(`${messages}.delete_submit`),
+      danger: true,
+      heading: title,
+      label: t(`${messages}.name_label`),
+      name: entity.name,
+      prompt: { args: { name: entity.name }, key: `${messages}.delete_prompt` },
+      title,
+    };
+  });
+
 export const ConfirmPage = ({
   title,
   active,
@@ -90,8 +143,6 @@ export const ConfirmPage = ({
   label,
   name,
   returnUrl,
-  id,
-  hiddenFields,
   danger,
   confirmName,
   warning,
@@ -112,8 +163,6 @@ export const ConfirmPage = ({
         action={action}
         buttonText={buttonText}
         {...(danger !== undefined ? { danger } : {})}
-        {...(hiddenFields !== undefined ? { hiddenFields } : {})}
-        {...(id !== undefined ? { id } : {})}
         {...(confirmName !== undefined ? { confirmName } : {})}
         label={label}
         name={name}

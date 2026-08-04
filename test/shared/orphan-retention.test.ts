@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ChoiceOption } from "#shared/choice.ts";
 import {
   DEFAULT_ORPHAN_RETENTION,
   isOrphanRetentionValue,
   ORPHAN_RETENTION_OPTIONS,
-  type OrphanRetentionOption,
   orphanRetentionCutoffIso,
 } from "#shared/orphan-retention.ts";
 
@@ -14,7 +14,7 @@ const NOW = 1_700_000_000_000;
 /** The exact offered dropdown options, in display order — pins every
  *  labelKey/value literal so a typo'd i18n key or day count is caught here,
  *  not as a missing-translation throw or a silently wrong purge window. */
-const EXPECTED_OPTIONS: readonly OrphanRetentionOption[] = [
+const EXPECTED_OPTIONS: readonly ChoiceOption[] = [
   { labelKey: "privacy.retention.immediately", value: "0" },
   { labelKey: "privacy.retention.6_months", value: "182" },
   { labelKey: "privacy.retention.1_year", value: "365" },

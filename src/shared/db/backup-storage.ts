@@ -18,13 +18,15 @@ export const isRemoteDatabase = (): boolean =>
  * are filed under "local", so backups never land in a nameless folder.
  */
 export const dbName = (url: string = requireEnv("DB_URL")): string => {
-  const host = databaseHostFor(url);
-  if (host === "local") return "local";
+  if (databaseHostFor(url) === "local") return "local";
 
-  const first = new URL(url).hostname.split(".")[0]!;
-  if (host !== "bunny") return first;
+  const { hostname } = new URL(url);
+  const first = hostname.split(".")[0]!;
 
-  // Bunny DB hostnames: {uuid}-{name}.lite.bunnydb.net — drop the UUID prefix
+  // Only Bunny's lite connection addresses carry a UUID prefix to drop
+  // ({uuid}-{name}.lite.bunnydb.net); every other remote host keeps its
+  // full first hostname segment.
+  if (!hostname.endsWith(".lite.bunnydb.net")) return first;
   const dashIdx = first.indexOf("-");
   return dashIdx === -1 ? first : first.slice(dashIdx + 1);
 };
@@ -70,7 +72,7 @@ const BACKUP_CLOCK_SKEW_MS = 5 * 60 * 1000;
 /** True when a backup taken at `takenAtMs` satisfies the freshness gate at
  *  `nowMs`: younger than `maxAgeMs`, and no further ahead of the clock than
  *  the skew allowance. */
-export const backupIsFresh = (
+const backupIsFresh = (
   takenAtMs: number,
   nowMs: number,
   maxAgeMs: number,

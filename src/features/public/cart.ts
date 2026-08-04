@@ -13,18 +13,17 @@
  * can be booked beyond stock.
  */
 
-import { uniqueBy } from "#fp";
+import { unique, uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
 import { getListingsBySlugs } from "#shared/db/listings/records.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { dropHiddenPackageMembers } from "./discovery.ts";
-import { loadCartPackageBySlug } from "./groups.ts";
+import { type GroupWithListings, loadCartPackagesBySlugs } from "./groups.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
   dropChildListings,
   getTicketContext,
-  loadPagePackage,
+  loadPagePackages,
 } from "./ticket-payment.ts";
 import {
   type BySlugsHandler,
@@ -37,12 +36,31 @@ type CartItem =
   | { kind: "listing"; listing: ListingWithCount }
   | { kind: "package"; group: Group; members: ListingWithCount[] };
 
+/** The complete package behind each slug that names no listing, keyed by slug.
+ * Slugs are unique across listings and packages, so only the leftovers can name
+ * a package — and they all resolve in one batch rather than a lookup per slug. */
+const cartPackagesBySlug = async (
+  slugs: string[],
+  listings: (ListingWithCount | null)[],
+): Promise<Map<string, GroupWithListings>> => {
+  const packageSlugs = unique(
+    slugs.filter((_, index) => (listings[index] ?? null) === null),
+  );
+  const packages = await loadCartPackagesBySlugs(packageSlugs);
+  return new Map(
+    packages.flatMap((pkg, index) =>
+      pkg === null ? [] : [[packageSlugs[index]!, pkg] as const],
+    ),
+  );
+};
+
 /** Resolve a cart's slugs to items, or null when no slug names a package (the
  * plain multi-listing path owns that case, with its stricter 404 rules). */
 const resolveCartSlugs = async (
   slugs: string[],
 ): Promise<CartItem[] | null> => {
   const listings = await getListingsBySlugs(slugs);
+  const packagesBySlug = await cartPackagesBySlug(slugs, listings);
   const items: CartItem[] = [];
   const standaloneIds = new Set<number>();
   const packageGroupIds = new Set<number>();
@@ -57,8 +75,8 @@ const resolveCartSlugs = async (
       items.push({ kind: "listing", listing });
       continue;
     }
-    const pkg = await loadCartPackageBySlug(slug);
-    if (pkg === null || packageGroupIds.has(pkg.group.id)) continue;
+    const pkg = packagesBySlug.get(slug);
+    if (pkg === undefined || packageGroupIds.has(pkg.group.id)) continue;
     packageGroupIds.add(pkg.group.id);
     items.push({ group: pkg.group, kind: "package", members: pkg.listings });
     anyPackage = true;
@@ -123,18 +141,20 @@ export const handleCartBySlugs: BySlugsHandler<
   const survivingIds = new Set(withoutChildren.map((listing) => listing.id));
   const activeListings =
     await buildTicketListingsWithGroupCapacity(withoutChildren);
-  const packages: PagePackage[] = [];
-  for (const item of items) {
-    if (item.kind !== "package") continue;
-    packages.push(
-      await loadPagePackage(
-        item.group,
-        item.members
-          .map((member) => member.id)
-          .filter((id) => survivingIds.has(id)),
-      ),
-    );
-  }
+  const packages = await loadPagePackages(
+    items.flatMap((item) =>
+      item.kind === "package"
+        ? [
+            {
+              group: item.group,
+              memberListingIds: item.members
+                .map((member) => member.id)
+                .filter((id) => survivingIds.has(id)),
+            },
+          ]
+        : [],
+    ),
+  );
   return handleTicket({
     getContext: (listings) => getTicketContext(listings, undefined, packages),
     listings: activeListings,

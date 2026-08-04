@@ -359,29 +359,3 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
       />
     </CsrfForm>
   ) : null;
-
-export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
-  s.paymentProvider ? (
-    <SaveForm
-      action="/admin/settings/booking-fee"
-      id="settings-booking-fee"
-      submitLabel={t("settings.save_booking_fee")}
-    >
-      <div class="prose">
-        <h2>{t("settings.booking_fee")}</h2>
-        <p>{t("settings.booking_fee_hint")}</p>
-      </div>
-      <label>
-        {t("settings.booking_fee_label")}
-        <input
-          max="10"
-          min="0"
-          name="booking_fee"
-          required
-          step="0.1"
-          type="number"
-          value={s.bookingFee}
-        />
-      </label>
-    </SaveForm>
-  ) : null;

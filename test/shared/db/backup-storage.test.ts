@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import {
   BACKUP_REQUIRED_WITHIN_MS,
   backupDir,
-  backupIsFresh,
   backupKey,
   backupLeaf,
   backupTimestamp,
@@ -71,11 +71,17 @@ describeWithEnv("backup storage", { db: true }, () => {
     });
 
     test("keeps the full first segment for hosts it does not recognise", () => {
-      // Only Bunny hostnames carry a UUID prefix to drop. Stripping the first
-      // dashed part from other hosts would file distinct databases in one
-      // folder — "alpha-db" and "beta-db" must not both become "db".
+      // Only Bunny's lite hostnames carry a UUID prefix to drop. Stripping
+      // the first dashed part from other hosts would file distinct databases
+      // in one folder — "alpha-db" and "beta-db" must not both become "db".
       expect(dbName("https://alpha-db.example.com")).toBe("alpha-db");
       expect(dbName("https://beta-db.example.com")).toBe("beta-db");
+    });
+
+    test("keeps the full first segment for a Bunny hostname outside the lite shape", () => {
+      // Only {uuid}-{name}.lite.bunnydb.net addresses carry a UUID prefix;
+      // any other Bunny-owned hostname must not lose its first dashed part.
+      expect(dbName("libsql://alpha-db.bunnydb.net")).toBe("alpha-db");
     });
 
     test("returns the full segment for a Bunny hostname with no dash", () => {
@@ -183,34 +189,45 @@ describeWithEnv("backup storage", { db: true }, () => {
     });
   });
 
-  describe("backupIsFresh", () => {
+  describe("hasRecentBackup", () => {
+    const seedBackup = (when: Date) =>
+      uploadRaw(new Uint8Array([1]), backupKey(backupTimestamp(when)));
+
     const MAX = BACKUP_REQUIRED_WITHIN_MS;
-    const NOW = 1_700_000_000_000;
+    const NOW = new Date("2024-06-01T12:00:00.000Z").getTime();
     // Deliberately restates the documented five-minute skew allowance rather
     // than importing it, so changing the allowance is a conscious test edit.
     const SKEW = 5 * 60 * 1000;
 
-    test("fresh from the moment it is taken until the window closes", () => {
-      expect(backupIsFresh(NOW, NOW, MAX)).toBe(true);
-      expect(backupIsFresh(NOW - MAX + 1, NOW, MAX)).toBe(true);
+    // Pins the clock at NOW so the freshness boundaries are exact.
+    const gateWithBackupAt = async (takenAtMs: number): Promise<boolean> => {
+      using _time = new FakeTime(NOW);
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      await seedBackup(new Date(takenAtMs));
+      return await hasRecentBackup();
+    };
+
+    test("fresh from the moment it is taken until the window closes", async () => {
+      expect(await gateWithBackupAt(NOW)).toBe(true);
+      expect(await gateWithBackupAt(NOW - MAX + 1)).toBe(true);
     });
 
-    test("no longer fresh exactly at the window edge", () => {
-      expect(backupIsFresh(NOW - MAX, NOW, MAX)).toBe(false);
+    test("no longer fresh exactly at the window edge", async () => {
+      expect(await gateWithBackupAt(NOW - MAX)).toBe(false);
     });
 
-    test("tolerates a timestamp ahead of the clock up to the skew allowance", () => {
-      expect(backupIsFresh(NOW + SKEW, NOW, MAX)).toBe(true);
+    test("tolerates a backup dated ahead of the clock up to the skew allowance", async () => {
+      // Out-of-band backups come from machines whose clocks can run a
+      // little ahead; a just-taken backup must still open the gate.
+      expect(await gateWithBackupAt(NOW + SKEW)).toBe(true);
     });
 
-    test("rejects a timestamp further ahead than the skew allowance", () => {
-      expect(backupIsFresh(NOW + SKEW + 1, NOW, MAX)).toBe(false);
+    test("rejects a backup dated further ahead than the skew allowance", async () => {
+      // A wrongly future-dated file must not satisfy the gate — a negative
+      // age is not a young age.
+      expect(await gateWithBackupAt(NOW + SKEW + 1)).toBe(false);
     });
-  });
-
-  describe("hasRecentBackup", () => {
-    const seedBackup = (when: Date) =>
-      uploadRaw(new Uint8Array([1]), backupKey(backupTimestamp(when)));
 
     test("true when a backup is within the freshness window", async () => {
       using tmpDir = tempDir();
@@ -257,24 +274,6 @@ describeWithEnv("backup storage", { db: true }, () => {
         true,
       );
       expect(await hasRecentBackup(60 * 60 * 1000, "tickets")).toBe(false);
-    });
-
-    test("a backup dated far in the future is not fresh", async () => {
-      // A wrongly future-dated file must not satisfy the gate — a negative
-      // age is not a young age.
-      using tmpDir = tempDir();
-      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
-      await seedBackup(new Date(Date.now() + 24 * 60 * 60 * 1000));
-      expect(await hasRecentBackup()).toBe(false);
-    });
-
-    test("a backup dated slightly ahead of us still counts (clock skew)", async () => {
-      // Out-of-band backups come from machines whose clocks can run a
-      // little ahead; a just-taken backup must still open the gate.
-      using tmpDir = tempDir();
-      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
-      await seedBackup(new Date(Date.now() + 60_000));
-      expect(await hasRecentBackup()).toBe(true);
     });
 
     test("false when no backups exist", async () => {

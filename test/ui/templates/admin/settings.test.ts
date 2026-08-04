@@ -50,4 +50,25 @@ describe("adminSettingsPage", () => {
     });
     expect(hasCheckedInput(html, "calendar_feeds_enabled", "true")).toBe(true);
   });
+
+  test("hides the booking fee form until a payment provider is chosen", () => {
+    const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
+    expect(html).not.toContain('action="/admin/settings/booking-fee"');
+  });
+
+  test("asks for a booking fee percentage between 0 and 10", () => {
+    const html = adminSettingsPage(OWNER_SESSION, {
+      ...defaultSettingsState(),
+      bookingFee: "2.5",
+      paymentProvider: "stripe",
+    });
+    expect(html).toContain('action="/admin/settings/booking-fee"');
+    expect(html).toContain('id="settings-booking-fee"');
+    const input = html.match(/<input[^>]*name="booking_fee"[^>]*>/)?.[0];
+    expect(input).toContain('type="number"');
+    expect(input).toContain('min="0"');
+    expect(input).toContain('max="10"');
+    expect(input).toContain('step="0.1"');
+    expect(input).toContain('value="2.5"');
+  });
 });

@@ -18,7 +18,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
@@ -298,12 +298,8 @@ export const bulkEmailComposePage = (
  * re-type the template's subject, matching the typed-identifier delete flow used
  * for other named resources.
  */
-export const bulkEmailTemplateDeletePage = (
-  session: AdminSession,
-  template: { id: number; subject: string },
-  error?: string,
-): string =>
-  ConfirmPage({
+export const bulkEmailTemplateDeletePage = entityDeletePage(
+  (template: { id: number; subject: string }) => ({
     action: `/admin/emails/templates/${template.id}/delete`,
     active: NAV_ACTIVE,
     buttonText: t("bulk_email.delete_template_submit"),
@@ -316,13 +312,12 @@ export const bulkEmailTemplateDeletePage = (
         <p>{t("bulk_email.delete_template_prompt")}</p>
       </>
     ),
-    error,
     heading: t("bulk_email.delete_template_heading"),
     label: t("bulk_email.subject_label"),
     name: template.subject,
-    session,
     title: t("bulk_email.delete_template_heading"),
-  });
+  }),
+);
 
 export type BulkEmailPreviewState = {
   draft: BulkEmailDraft;

@@ -162,7 +162,6 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
     addSubmit: t("statuses.form_create_button"),
     addTitle: t("statuses.form_title_add"),
     deleteButton: t("statuses.delete_button"),
-    deleteLabel: t("common.name"),
     deleteTitle: t("statuses.delete_title"),
     listTitle: t("statuses.attendee_statuses_page_title"),
   },
