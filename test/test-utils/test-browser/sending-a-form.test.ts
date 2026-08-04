@@ -251,6 +251,25 @@ describe("TestBrowser sending a form", () => {
     expect(getParams().get("agree")).toBeNull();
   });
 
+  it("ticks every box on offer, and none in a switched-off group", async () => {
+    const { browser, getParams } = setupFormSubmit();
+    browser.currentHtml = `
+      <form action="/save" method="POST">
+        <input type="checkbox" name="days" value="Monday">
+        <fieldset disabled><legend>Extras</legend>
+          <input type="checkbox" name="days" value="Sunday">
+        </fieldset>
+        <button type="submit">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ days: ALL_CHECKBOXES }, "Save");
+
+    // Ticking them all means the ones on offer — a box in a switched-off group
+    // is not one of them, however much it looks like the others.
+    expect(getParams().getAll("days")).toEqual(["Monday"]);
+  });
+
   it("refuses to press a button in a switched-off group", async () => {
     const { browser } = setupFormSubmit();
     browser.currentHtml = `

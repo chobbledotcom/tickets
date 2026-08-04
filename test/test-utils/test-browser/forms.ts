@@ -171,13 +171,13 @@ export const findForms = (html: string): FormInfo[] =>
   );
 
 /** Extract all checkbox values for a given field name from form HTML */
-const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
+const extractCheckboxValues = (form: string, fieldName: string): string[] =>
   regexCollect(
     new RegExp(
       `<input\\b[^>]*\\sname="${escapeForRegex(fieldName)}"[^>]*>`,
       "gi",
     ),
-    formHtml,
+    withoutSwitchedOffGroups(form),
     (m) => m[0],
   )
     .filter((tag) => !isDisabled(tag))
