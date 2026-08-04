@@ -15,7 +15,6 @@ import {
   deleteSession,
   getAllSessions,
   getSession,
-  SESSION_CACHE_MAX_ENTRIES,
 } from "#shared/db/sessions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -243,13 +242,16 @@ describeWithEnv("db > sessions", { db: true }, () => {
   test("unique invalid tokens cannot grow the session cache without bound", async () => {
     invalidateCachesForTable("sessions");
 
-    const probes = SESSION_CACHE_MAX_ENTRIES + 100;
+    // The bound this test pins is the session cache's documented contract:
+    // at most 1,000 entries (SESSION_CACHE_MAX_ENTRIES in sessions.ts).
+    const cap = 1000;
+    const probes = cap + 100;
     for (let i = 0; i < probes; i++) {
       expect(await getSession(`junk-cookie-${i}`)).toBeNull();
     }
 
     const stat = getAllCacheStats().find((s) => s.name === "sessions");
-    expect(stat?.entries).toBeLessThanOrEqual(SESSION_CACHE_MAX_ENTRIES);
+    expect(stat?.entries).toBeLessThanOrEqual(cap);
   });
 
   test("registers a 'sessions' cache stat reflecting cached entries", async () => {
