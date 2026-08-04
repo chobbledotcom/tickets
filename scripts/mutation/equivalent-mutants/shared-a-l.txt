@@ -72,7 +72,7 @@ src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.u
 src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.charged~0ek3sg6  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
 src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.refunded~1mw8ezt  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
 src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
-src/shared/square-provider.ts::squarePaymentProvider.retrieveSession.paymentReference~0bdoqfb  ?? → ||   # paymentId is string|undefined, and its only falsy string is the empty fallback itself
+src/shared/square-provider.ts::squarePaymentProvider.retrieveSession.paymentReference~1nqjvuw  ?? → ||   # the tender's paymentId is string|undefined, and its only falsy string is the empty fallback itself
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is

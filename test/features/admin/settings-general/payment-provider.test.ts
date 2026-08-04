@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { getCurrentSettingsVersion, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -59,6 +59,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expectFlash(response, "Payment provider disabled");
       expect(settings.paymentProvider).toBeNull();
       expect(settings.paymentProviderSetting).toBe("none");
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
 
     test("refuses a provider that cannot take the site currency", async () => {
@@ -103,6 +104,149 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         expect.stringContaining("Invalid payment provider"),
         false,
       );
+    });
+
+    test("requires ambiguous existing payments to be recovered before enabling sales", async () => {
+      await settings.update.stripe.secretKey("sk_test_ambiguous");
+      await settings.update.square.accessToken("square-ambiguous");
+      await settings.update.setPaymentProviderNone();
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        { payment_provider: "stripe" },
+      );
+
+      expectFlash(
+        response,
+        "Choose the provider for existing payments before enabling new sales.",
+        false,
+      );
+      expect(settings.paymentProvider).toBeNull();
+    });
+
+    test("does not change the provider while another settings task runs", async () => {
+      await settings.update.currentTask("custom-domain");
+      try {
+        const { response } = await adminFormPost(
+          "/admin/settings/payment-provider",
+          { payment_provider: "stripe" },
+        );
+
+        expectFlash(response, "Another task is already in progress", false);
+        expect(settings.paymentProvider).toBeNull();
+      } finally {
+        await settings.update.currentTask("");
+      }
+    });
+
+    test("does not apply a provider choice from a stale settings page", async () => {
+      const staleVersion = await getCurrentSettingsVersion();
+      await settings.update.theme("dark");
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        {
+          payment_provider: "stripe",
+          settings_version: String(staleVersion),
+        },
+      );
+
+      expectFlash(
+        response,
+        "Settings changed. Reload the page and try again.",
+        false,
+      );
+      expect(settings.paymentProvider).toBeNull();
+    });
+
+    test("rejects a malformed settings revision", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        { payment_provider: "stripe", settings_version: "not-a-number" },
+      );
+
+      expectFlash(
+        response,
+        "Settings changed. Reload the page and try again.",
+        false,
+      );
+      expect(settings.paymentProvider).toBeNull();
+    });
+
+    test("recovers the provider for old payments without enabling sales", async () => {
+      await settings.update.stripe.secretKey("sk_test_recovery");
+      await settings.update.square.accessToken("square-recovery");
+      await settings.update.setPaymentProviderNone();
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider-recovery",
+        { existing_payment_provider: "stripe" },
+      );
+
+      expect(response.status).toBe(302);
+      expectFlash(response, "Existing payment provider set to Stripe.");
+      expect(settings.paymentProviderSetting).toBe("none");
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
+      expect(redirectFormId(response)).toBe(
+        "settings-payment-provider-recovery",
+      );
+
+      await adminFormPost("/admin/settings/payment-provider", {
+        payment_provider: "stripe",
+      });
+      expect(settings.paymentProvider).toBe("stripe");
+    });
+
+    test("does not recover while another settings task runs", async () => {
+      await settings.update.stripe.secretKey("sk_test_recovery");
+      await settings.update.square.accessToken("square-recovery");
+      await settings.update.setPaymentProviderNone();
+      await settings.update.currentTask("custom-domain");
+      try {
+        const { response } = await adminFormPost(
+          "/admin/settings/payment-provider-recovery",
+          { existing_payment_provider: "stripe" },
+        );
+
+        expectFlash(response, "Another task is already in progress", false);
+        expect(settings.lastActivePaymentProvider).toBeNull();
+      } finally {
+        await settings.update.currentTask("");
+      }
+    });
+
+    test("rejects recovery through a provider without saved credentials", async () => {
+      await settings.update.stripe.secretKey("sk_test_recovery");
+      await settings.update.setPaymentProviderNone();
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider-recovery",
+        { existing_payment_provider: "square" },
+      );
+
+      expectFlash(response, "Choose a provider with saved credentials.", false);
+      expect(settings.paymentProvider).toBeNull();
+      expect(settings.lastActivePaymentProvider).toBeNull();
+    });
+
+    test("rejects a stale recovery post after sales were enabled", async () => {
+      await settings.update.stripe.secretKey("sk_test_active");
+      await settings.update.paymentProvider("stripe");
+      await settings.update.square.accessToken("square-stale-recovery");
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider-recovery",
+        { existing_payment_provider: "square" },
+      );
+
+      expectFlash(
+        response,
+        "Provider recovery is unavailable while new sales are on.",
+        false,
+      );
+      expect(settings.paymentProvider).toBe("stripe");
+      expect(settings.lastActivePaymentProvider).toBe("stripe");
     });
   });
 

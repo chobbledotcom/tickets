@@ -23,6 +23,7 @@ const balanceSession = (
 > => ({
   amount_total: amount,
   created: 1_782_000_000,
+  currency: "gbp",
   id: sessionId,
   metadata: signedMeta(
     {

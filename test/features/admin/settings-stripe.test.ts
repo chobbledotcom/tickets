@@ -317,7 +317,7 @@ describeAdminSettings(() => {
           expect(settings.stripe.secretKey).toBe("sk_test_new_key");
           expect(settings.stripe.webhookEndpointId).toBe("we_new");
           expect(settings.stripe.webhookSecret).toBe("whsec_new");
-          expect(settings.paymentProvider).toBe("stripe");
+          expect(settings.paymentProvider).toBe("square");
         },
       );
     });

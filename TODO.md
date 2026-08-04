@@ -456,6 +456,74 @@ they are. Nothing further planned here.
 
 ---
 
+## Payment-processing review follow-ups (from PR #1692)
+
+Both items describe behaviour that predates the payment-processing split (the
+code was moved verbatim from the old `payment-processing.ts` monolith). They are
+recorded here because the split PR was a pure reorganisation — changing this
+behaviour there would be out of scope — and CodeRabbit flagged them as worth a
+look.
+
+- **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
+  `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
+  `validateAllItems` calls `getListingWithCount` once per item in a loop, and
+  `loadPackagePricingByGroup` makes two sequential round-trips per group. Under
+  the edge subrequest budget these accumulate for larger orders. Fix direction:
+  add/use a batched `getListingsWithCount(ids)` for all order listing ids at once
+  and group the package-pricing loads, preserving the existing validation and
+  fail-closed behaviour. See the "Respect the subrequest budget" guidance in
+  AGENTS.md.
+
+## Payment aggregate — safety behaviour (PR 1)
+
+New sales and existing payments are now resolved by different questions:
+`getActivePaymentProvider()` / `isPaymentsEnabled()` gate new checkouts;
+`getPaymentProviderForExistingPayments()` resolves refunds, replayed
+callbacks, and completion. When sales are off, the existing-payment path
+falls back to the last activated provider. A site already on `none`
+recovers when exactly one provider has stored credentials; when multiple
+do, the operator must choose the provider in a recovery form that keeps new
+sales off. `setPaymentProviderNone` reads the
+current provider via an atomic INSERT ... SELECT subquery so a concurrent
+activation cannot land between the read and the write.
+
+The seven accepted safety rules are recorded as acceptance constraints in
+[`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
+
+- **Track the provider each charge was captured with.** `main` stores only the
+  opaque `payment_reference` per processed payment, not which provider captured
+  it. So after an operator switches providers (Stripe → Square) and then selects
+  "none", the last-active fallback resolves every payment through Square, and
+  an older Stripe charge cannot be refunded or reconciled against the provider
+  that captured it. This predates PR 1 and is future aggregate work. Fix
+  direction: store the provider type on each `processed_payments` row at capture
+  time and dispatch existing-payment work from that per-charge provider instead
+  of one global fallback. Referenced from
+  `docs/payment-aggregate-acceptance.md` rule 2.
+
+- **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
+  Review of PR 1 correctly noted that the settings assembly is already over the
+  preferred 400-line size and now also owns provider activation, recovery,
+  credential-state preservation, and cache synchronization. The clean starting
+  point is `src/shared/db/settings/payment-provider.ts`, moving the provider
+  getters and `settings.update` methods together with mirror tests under
+  `test/shared/db/settings/payment-provider/`. This is deferred because that
+  extraction would take PR 1 beyond its strict 800-line source-change limit.
+
+- **Split provider credential routes out of
+  `src/features/admin/settings-helpers.ts`.** The generic helper now also owns
+  `ProviderCredentialsConfig`, `persistProviderCredentials`, and
+  `defineProviderCredentialsRoute`. Move that block to a focused admin settings
+  module and move its mirror tests from
+  `test/features/admin/settings-helpers/provider-credentials.test.ts` with it.
+  This is deferred because doing the move in PR 1 would break the same strict
+  800-line source-change limit.
+
+- **Split `src/features/api/webhooks.ts` below 400 lines.** Move the payment
+  callback and webhook processing paths into focused modules. This predates PR
+  1 and is deferred because the split would exceed its strict source-change
+  limit.
+
 ## Request performance: consolidate AsyncLocalStorage scopes
 
 `src/features/app/request.ts` enters eleven nested request scopes for locale, client
@@ -1732,6 +1800,102 @@ Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
 
+## Record a foreign-currency charge in the money history without pretending it is ours
+
+*Origin: Codex review on PR #2021, which sent a charge taken in the wrong
+currency down the existing mismatch-and-refund path.*
+
+The money history holds one currency — the site's. When a charge arrives in a
+different one, `classify.ts` sends it through the ordinary mismatch flow, and
+`storeRefundPlaceholder` in
+`src/features/api/payment-processing/store-refund.ts` writes
+`session.amountTotal` straight into that history. The number is right but the
+currency is not, so a 1,000 yen charge on a pounds site is filed as £10. The
+refund itself is unaffected — that goes back through the provider in the
+currency it was taken — but the operator's cash history reads wrong, and if the
+refund fails it names the wrong amount as still held.
+
+Two ways out: give the money history a currency of its own so a foreign charge
+can be filed honestly, or keep these charges out of it and record them
+somewhere that does not claim a site-currency total.
+
+Why it is not fixed in that PR: either way changes what the money history can
+hold — a stored currency per entry, plus every reader and every total that
+today assumes one currency. That is a change to the accounting store, well
+past a PR about reading provider money safely, and the wrong thing to bolt on
+without deciding which of the two shapes we want.
+
+## Record a rejected-and-refunded payment session as finished
+
+*Origin: Codex review on PR #2021, which added the automatic refund for a paid
+charge the payment boundary cannot read.*
+
+When a provider callback meets a `malformed_charge` rejection and refunds it,
+nothing durable is written down. No reservation, no processed-payment row, no
+ledger entry says "this session was refused and the money went back". The
+webhook simply acknowledges and moves on
+(`refundRejectedCharge` in `src/features/api/payment-processing/refunds.ts`, and
+its callers in `src/features/api/webhooks.ts` and
+`src/features/api/payment-processing/classify.ts`).
+
+The reviewer's concern is that a later delivery of the same session — a webhook
+redelivery, or the buyer opening the success page — could read it in a
+well-formed shape, still see it as paid, find no record of it, and make a real
+ticket for money that was already returned.
+
+Why it is not being fixed in that PR: every rejection reason is a fixed
+property of the provider's own stored record (an amount that is not a whole
+number of minor units, a missing or malformed currency, a SumUp amount more
+precise than its currency allows). None of those can turn well-formed on a
+later read, so the double-book needs a provider changing a completed session's
+money — which no provider does. The refund itself is already safe to repeat:
+`tryRefund` treats a provider's "already fully refunded" answer as success.
+
+If it is taken on: carry the session id in `SessionRejection`
+(`src/shared/payment/validated-session.ts`), and finish the session through the
+same state machine a normal payment uses — `reserveSession` /
+`processed-payments` in `src/shared/db/processed-payments.ts` — with a terminal
+"refused and refunded" outcome, so a later delivery of that session id short
+circuits the way an already-processed payment does.
+
+## Tell a buyer when their money was taken and not (yet) given back
+
+*Origin: Codex review on PR #2021, which added the "your money has been sent
+back" page for a charge the payment boundary refused and refunded.*
+
+That page is only shown when the refund actually went through. Three other
+outcomes still fall back to "Payment session not found", and in each of them the
+buyer really was charged:
+
+- A `blank_reference` rejection: the provider says paid but gave no reference,
+  so no automatic refund is possible at all. They should be asked to get in
+  touch.
+- A `malformed_charge` rejection that is paid but whose reference is unusable —
+  the same situation, reached a different way (`refundable` is
+  `paid && isResourceId(...)`, and the `paid` half is discarded today).
+- A refund the provider refused (`settled: false`, answered 503). Careful here:
+  a 503 only asks the *webhook* to be delivered again. The redirect and cancel
+  paths have no retry behind them — they re-attempt only if that person happens
+  to reload the page. So this outcome must not be described to the buyer as
+  being in hand until an unresolved refund is actually written down somewhere
+  and owned by something that will retry it. Recording that state is part of
+  this job, not a follow-up to it, and it overlaps with the durable terminal
+  outcome described in the section above.
+
+A fourth case should keep the generic message: a rejection whose price proof
+does not verify may belong to another site sharing the provider account, and we
+must not tell someone else's buyer anything about their payment.
+
+What it needs: `SessionRejection` carries whether the charge was paid (see
+`malformedChargeRejection` in `src/shared/payment/validated-session.ts`, which
+computes `refundable` from it and drops it), `RejectionOutcome` in
+`src/features/api/payment-processing/refunds.ts` grows a third state for
+"captured, not returned", and `answerRejectedSession` picks between two new
+catalog entries beside `payment.error.refunded` in
+`src/locales/en/payment.json`.
+
+Not done in that PR only because it was at its agreed `src/` line budget; there
+is nothing hard about it.
 ## Record equivalent mutants by something that survives an edit
 
 *Origin: two breakages on PR #2025, both caught by review rather than by any

@@ -16,6 +16,7 @@ import { makeParent } from "#test-utils/parents.ts";
  *  session has no payment to point at. */
 const cancelledSession = (items: string): ValidatedPaymentSession => ({
   amountTotal: 0,
+  currency: "GBP",
   id: "cs_cancelled",
   metadata: webhookMeta({
     email: "john@example.com",

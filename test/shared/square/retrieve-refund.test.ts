@@ -41,7 +41,7 @@ describeSquare(() => {
                   { id: "tender_1", paymentId: "pay_abc" },
                   { id: "tender_2", paymentId: null },
                 ],
-                totalMoney: { amount: BigInt(2000), currency: "USD" },
+                totalMoney: { amount: BigInt(2000), currency: "GBP" },
               },
             }),
         },
@@ -65,7 +65,7 @@ describeSquare(() => {
                 metadata: undefined,
                 state: "OPEN",
                 tenders: undefined,
-                totalMoney: { amount: BigInt(0), currency: "USD" },
+                totalMoney: { amount: BigInt(0), currency: "GBP" },
               },
             }),
         },
@@ -91,7 +91,7 @@ describeSquare(() => {
                   removed_null: null,
                   stored_key: "stored value",
                 },
-                totalMoney: { amount: BigInt(0), currency: "USD" },
+                totalMoney: { amount: BigInt(0), currency: "GBP" },
               },
             }),
         },
@@ -125,6 +125,81 @@ describeSquare(() => {
           expect(result).not.toBeNull();
           expect(result!.totalMoney.amount).toBe(BigInt(7500));
           expect(result!.totalMoney.currency).toBe("GBP");
+        },
+      );
+    });
+
+    // Square's own values are carried through untouched, however empty they
+    // look: a zero total is a real free order, and a blank currency is
+    // something the payment boundary must see to refuse. Only a wholly absent
+    // money object becomes null.
+    for (const [name, given, expected] of [
+      [
+        "a zero amount",
+        { amount: BigInt(0), currency: "GBP" },
+        {
+          amount: BigInt(0),
+          currency: "GBP",
+        },
+      ],
+      [
+        "a blank currency",
+        { amount: BigInt(500), currency: "" },
+        {
+          amount: BigInt(500),
+          currency: "",
+        },
+      ],
+    ] as const) {
+      test(`keeps ${name} on the order total`, async () => {
+        await withSquareClient(
+          {
+            ordersGet: () =>
+              Promise.resolve({
+                order: {
+                  id: "order_edge_total",
+                  metadata: { name: "John" },
+                  state: "COMPLETED",
+                  totalMoney: given,
+                },
+              }),
+          },
+          async () => {
+            const result = await squareApi.retrieveOrder("order_edge_total");
+            expect(result).not.toBeNull();
+            if (result === null) return;
+            expect(result.totalMoney).toEqual(expected);
+          },
+        );
+      });
+    }
+
+    test("carries a missing order total through as null", async () => {
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: {
+                id: "order_no_total",
+                metadata: {
+                  email: "john@example.com",
+                  items: '[{"e":1,"q":1,"p":0}]',
+                  name: "John",
+                },
+                state: "COMPLETED",
+                tenders: [{ id: "tender_1", paymentId: "pay_no_total" }],
+              },
+            }),
+        },
+        async () => {
+          // Reaching into a missing money object would throw, and the client
+          // wrapper turns a throw into "no order" — so a paid Square charge
+          // would be acknowledged unread. Nulls let the payment boundary
+          // refuse it and the callback refund it.
+          const result = await squareApi.retrieveOrder("order_no_total");
+          expect(result).not.toBeNull();
+          if (result === null) return;
+          expect(result.totalMoney).toEqual({ amount: null, currency: null });
         },
       );
     });
@@ -218,7 +293,7 @@ describeSquare(() => {
           paymentsGet: () =>
             Promise.resolve({
               payment: {
-                amountMoney: { amount: BigInt(1000), currency: "USD" },
+                amountMoney: { amount: BigInt(1000), currency: "GBP" },
                 id: "pay_wrapper",
                 orderId: "order_wrapper",
                 status: "COMPLETED",

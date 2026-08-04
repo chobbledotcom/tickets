@@ -46,7 +46,7 @@ const refundReferenceAtProvider = async (
   const attendeeId = candidate.attendee.id;
   const paymentReference = reference.reference;
   try {
-    if (reference.providerRefunded) return "refunded";
+    if (reference.refundState === "completed") return "refunded";
     if (await provider.refundPayment(paymentReference)) return "refunded";
     if (await provider.isPaymentRefunded(paymentReference)) return "refunded";
     logError({

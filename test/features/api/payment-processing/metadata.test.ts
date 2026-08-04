@@ -39,6 +39,7 @@ const session = (
 ): ValidatedPaymentSession => ({
   amountTotal: 100,
   createdAt,
+  currency: "GBP",
   id: "cs_1",
   metadata: { ...bareMetadata, ...metadata },
   paymentReference: "pi_1",

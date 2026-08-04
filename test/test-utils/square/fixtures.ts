@@ -1,9 +1,13 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { afterEach, beforeEach } from "@std/testing/bdd";
+import { type Spy, spy, stub } from "@std/testing/mock";
+import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square.ts";
 import { createMockClient } from "#test/test-utils/square/harness.ts";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 type MockImpls = Parameters<typeof createMockClient>[0];
@@ -74,4 +78,41 @@ export const configureSquare = async (
   if (opts.webhookSignatureKey !== undefined) {
     await settings.update.square.webhookSignatureKey(opts.webhookSignatureKey);
   }
+};
+
+/** A Square Money value in the given minor units (defaults to GBP). */
+export const squareMoney = (
+  amount: number,
+  currency = "GBP",
+): { amount: bigint; currency: string } => ({
+  amount: BigInt(amount),
+  currency,
+});
+
+/** The canonical order metadata for a single-ticket Square checkout. */
+export const SQUARE_ORDER_META = {
+  email: "alice@example.com",
+  items: '[{"e":1,"q":1,"p":0}]',
+  name: "Alice",
+};
+
+/**
+ * Give a Square provider suite a database, a site domain, and a readable debug
+ * log. Call it inside a describe block — it registers that block's hooks, and
+ * hands back the spy the "why did this skip?" assertions read.
+ */
+export const setupSquareProviderSuite = (): (() => Spy) => {
+  let debug: Spy;
+  beforeEach(async () => {
+    await createTestDb();
+    setEffectiveDomainForTest("example.com");
+    setSuppressDebugLogs(false);
+    debug = spy(console, "debug");
+  });
+  afterEach(() => {
+    debug.restore();
+    setSuppressDebugLogs(null);
+    resetDb();
+  });
+  return () => debug;
 };

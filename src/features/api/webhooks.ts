@@ -25,7 +25,12 @@ import {
   formatPaymentError,
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
-import { getPaymentProviderOrLog } from "#routes/api/payment-processing/refunds.ts";
+import {
+  answerRejectedSession,
+  failureDetail,
+  getPaymentProviderOrLog,
+  refundRejectedCharge,
+} from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { getFromEmailIfConfigured } from "#routes/public/ticket-routes.ts";
@@ -46,11 +51,14 @@ import { getSearchParam } from "#routes/url.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
+import { t } from "#shared/i18n.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
-  getActivePaymentProvider,
+  type ExistingPaymentProvider,
+  getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
@@ -132,7 +140,7 @@ const processSessionAndRedirect = async (
     const listingId = validation.data.intent.items[0]?.e;
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `[redirect] ${result.detail ?? result.error}`,
+      detail: `[redirect] ${failureDetail(result)}`,
       listingId,
     });
     return paymentErrorResponse(formatPaymentError(result), result.status);
@@ -237,16 +245,23 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
 const logCancelError = paymentSessionErrorLogger("cancel");
 
 const handlePaymentCancel = withSessionId(async (sid) => {
-  const provider = await getActivePaymentProvider();
+  // A buyer who cancels may do so after the operator switched new sales off, so
+  // resolve the provider that captured the payment rather than the new-sales gate.
+  const provider = await getPaymentProviderForExistingPayments();
   if (!provider) {
     logCancelError(`No provider configured (session=${sid})`);
     return paymentErrorResponse("Payment provider not configured");
   }
 
   const session = await provider.retrieveSession(sid);
+  // A buyer who cancelled can still land here on a charge the boundary could
+  // not read, so this answers the same way the success redirect does.
+  if (isSessionRejection(session)) {
+    return answerRejectedSession(session, sid, logCancelError);
+  }
   if (!session) {
     logCancelError(`Session not found (session=${sid})`);
-    return paymentErrorResponse("Payment session not found");
+    return paymentErrorResponse(t("payment.error.session_not_found"));
   }
 
   return cancelPageResponse(session, logCancelError);
@@ -285,7 +300,7 @@ const webhookResultResponse = (
   // Log once at the boundary — inner functions pass structured context via detail.
   logError({
     code: ErrorCode.PAYMENT_SESSION,
-    detail: result.detail ?? result.error,
+    detail: failureDetail(result),
     listingId: listingIdForLog,
   });
   logDebug("Webhook", `Failed payload: ${payload}`);
@@ -319,9 +334,7 @@ const authenticateWebhook = async (
 ): Promise<
   | Response
   | {
-      provider: NonNullable<
-        Awaited<ReturnType<typeof getActivePaymentProvider>>
-      >;
+      provider: NonNullable<ExistingPaymentProvider>;
       listing: WebhookEvent;
     }
 > => {
@@ -376,7 +389,7 @@ const authenticateWebhook = async (
 const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Read raw body bytes FIRST, before any async work. The Bunny Edge runtime
   // can garbage-collect the underlying request body resource during awaits
-  // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
+  // (e.g. dynamic imports in getPaymentProviderForExistingPayments), causing "BadResource:
   // Cannot read body as underlying resource unavailable" errors.
   const payloadBytes = new Uint8Array(await request.arrayBuffer());
   const payload = new TextDecoder().decode(payloadBytes);
@@ -397,6 +410,21 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   if (sessionResult === "skip") {
     return webhookAckResponse({ status: "pending" });
+  }
+
+  // A charge the boundary could not read: a paid one with a usable reference
+  // is refunded rather than acked into limbo — the money was captured, so it
+  // must not disappear. A blank-reference rejection cannot be refunded.
+  if (isSessionRejection(sessionResult)) {
+    const outcome = await refundRejectedCharge(sessionResult);
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
+    });
+    // A required refund that failed must retry: acknowledging would strand the
+    // captured charge with no redelivery.
+    if (!outcome.settled) return plainResponse("Refund failed", 503);
+    return webhookAckResponse({ error: "rejected", processed: false });
   }
 
   if (!sessionResult) {

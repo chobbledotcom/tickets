@@ -76,7 +76,13 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     transactionId: string,
   ) =>
     stub(sumupApi, "retrieveCheckoutById", () =>
-      Promise.resolve({ amountMinor: 1000, reference, status, transactionId }),
+      Promise.resolve({
+        amountMinor: 1000,
+        currency: "GBP",
+        reference,
+        status,
+        transactionId,
+      }),
     );
 
   test("processes an unsigned SumUp webhook end to end, idempotently", async () => {

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import * as v from "valibot";
 import type { RefundPaymentInput } from "#shared/square.ts";
 import { squareApi } from "#shared/square.ts";
 import { withSquareClient } from "#test/test-utils/square/fixtures.ts";
@@ -20,7 +21,7 @@ describeSquare(() => {
       // calls — an edge case the guard handles safely by returning false).
       const retrieveStub = stub(squareApi, "retrievePayment", () =>
         Promise.resolve({
-          amountMoney: { amount: BigInt(1500), currency: "USD" },
+          amountMoney: { amount: BigInt(1500), currency: "GBP" },
           id: "pay_no_client",
           status: "COMPLETED",
         }),
@@ -61,7 +62,7 @@ describeSquare(() => {
           paymentsGet: () =>
             Promise.resolve({
               payment: {
-                amountMoney: { amount: BigInt(4200), currency: "USD" },
+                amountMoney: { amount: BigInt(4200), currency: "GBP" },
                 id: "pay_refund_me",
                 orderId: "order_refund",
                 status: "COMPLETED",
@@ -70,7 +71,7 @@ describeSquare(() => {
           refundsRefundPayment: () =>
             Promise.resolve({
               refund: {
-                amount_money: { amount: 4200, currency: "USD" },
+                amount_money: { amount: 4200, currency: "GBP" },
                 id: "refund_123",
                 payment_id: "pay_refund_me",
                 status: "COMPLETED",
@@ -89,7 +90,7 @@ describeSquare(() => {
             ?.args[0] as RefundPaymentInput;
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
-          expect(refundArgs.amountMoney.currency).toBe("USD");
+          expect(refundArgs.amountMoney.currency).toBe("GBP");
           expect(refundArgs.idempotencyKey).toBe(
             "94jKDa73RqRmoCUbDHE2CCc5rNAMtKDdSERbYIImwK0",
           );
@@ -149,8 +150,19 @@ describeSquare(() => {
             Promise.reject(new Error("Status code: 500 Body: ...")),
         },
         async () => {
-          const result = await squareApi.refundPayment("pay_fail");
-          expect(result).toBe(false);
+          const errorSpy = spy(console, "error");
+          try {
+            expect(await squareApi.refundPayment("pay_fail")).toBe(false);
+            // Returning false is retryable and silent to the caller, so the
+            // log is the only record that Square refused the refund.
+            expect(
+              errorSpy.calls.some((call) =>
+                String(call.args[0]).includes("Status code: 500"),
+              ),
+            ).toBe(true);
+          } finally {
+            errorSpy.restore();
+          }
         },
       );
     });
@@ -293,6 +305,65 @@ describeSquare(() => {
       });
     });
 
+    /** Assert the boundary schema refused the response over `field`. The name
+     *  is checked, not just the failure: the error text alone does not say
+     *  which field was wrong, so an unrelated fault would otherwise pass. */
+    const expectSchemaRefuses = async (
+      field: string,
+      refund: {
+        id: string;
+        status: string;
+        payment_id?: string;
+        amount_money?: { amount: number; currency: string };
+      },
+    ): Promise<void> => {
+      let error: unknown = null;
+      try {
+        await refundOutcomeFor(refund);
+      } catch (err) {
+        error = err;
+      }
+      expect(error).toBeInstanceOf(v.ValiError);
+      const { issues } = error as { issues: v.BaseIssue<unknown>[] };
+      const paths = issues.map((issue) =>
+        issue.path?.map((item) => String(item.key)).join("."),
+      );
+      expect(paths).toContain(`refund.${field}`);
+    };
+
+    test("refuses a refund whose own id is blank", async () => {
+      await expectSchemaRefuses("id", { id: "", status: "COMPLETED" });
+    });
+
+    test("refuses a refund that names no payment", async () => {
+      await expectSchemaRefuses("payment_id", {
+        id: "ref_blank_payment",
+        payment_id: "",
+        status: "COMPLETED",
+      });
+    });
+
+    test("refuses a refund whose amount names no currency", async () => {
+      await expectSchemaRefuses("amount_money.currency", {
+        amount_money: { amount: 1999, currency: "" },
+        id: "ref_blank_currency",
+        status: "COMPLETED",
+      });
+    });
+
+    test("reads a zero refund amount and checks it against the payment", async () => {
+      // Zero is a real amount Square can report, so the schema accepts it —
+      // it is the amount check, not the parse, that rejects it against a
+      // £19.99 payment.
+      await expect(
+        refundOutcomeFor({
+          amount_money: { amount: 0, currency: "GBP" },
+          id: "ref_zero",
+          status: "COMPLETED",
+        }),
+      ).rejects.toThrow(/does not match payment amount/);
+    });
+
     test("accepts a 1-character id (minLength boundary)", async () => {
       // A 1-char id is the documented minimum (Square: Min Length 1). This
       // catches a minLength(1)→minLength(2) mutant that would reject it.
@@ -310,7 +381,7 @@ describeSquare(() => {
           paymentsGet: () =>
             Promise.resolve({
               payment: {
-                amountMoney: { amount: BigInt(1500), currency: "USD" },
+                amountMoney: { amount: BigInt(1500), currency: "GBP" },
                 id: paymentId,
                 orderId: "order_malformed",
                 status: "COMPLETED",

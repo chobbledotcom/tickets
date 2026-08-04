@@ -7,15 +7,16 @@ import {
   packByReferenceCount,
 } from "#routes/admin/refunds/waves.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import type { RefundState } from "#shared/payment/refund-state.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
-type Ref = { reference: string; providerRefunded?: boolean };
+type Ref = { reference: string; refundState?: RefundState };
 
 const candidate = (references: Ref[], id = 42): RefundCandidate => ({
   attendee: { id } as RefundCandidate["attendee"],
-  references: references.map(({ reference, providerRefunded = false }) => ({
-    providerRefunded,
+  references: references.map(({ reference, refundState = "none" }) => ({
     reference,
+    refundState,
     sessionIds: [`sess_${reference}`],
   })),
 });
@@ -153,7 +154,7 @@ describe("admin refund provider", () => {
           return Promise.resolve(false);
         },
       },
-      candidate([{ providerRefunded: true, reference: "pi_pre" }]),
+      candidate([{ reference: "pi_pre", refundState: "completed" }]),
       7,
       marker.mark,
     );

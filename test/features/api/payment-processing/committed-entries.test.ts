@@ -35,6 +35,7 @@ const checkedLine = async (listingId: number): Promise<ValidatedItem[]> => {
  *  under is read here, but it is built whole so nothing is pretended. */
 const session = (): ValidatedPaymentSession => ({
   amountTotal: 1000,
+  currency: "GBP",
   id: "cs_committed",
   metadata: webhookMeta({ name: "Signed Buyer" }),
   paymentReference: "pi_committed",

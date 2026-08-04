@@ -37,6 +37,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
     const session = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 1500,
+        currency: "gbp",
         id: "cs_balance_unsigned",
         metadata: {
           balance_attendee_id: String(attendeeId),
