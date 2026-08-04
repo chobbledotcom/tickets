@@ -7,7 +7,7 @@
 
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
+import type { Stub } from "@std/testing/mock";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import type { WebhookAttendee } from "#shared/email.ts";
 import {
