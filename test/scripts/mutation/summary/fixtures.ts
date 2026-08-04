@@ -17,6 +17,7 @@ export const fakeResult = (
   detectedBy: status === "killed" ? "direct-tests" : null,
   file,
   mutant: {
+    anchor: `fn${line}`,
     column: 3,
     end: 1,
     line,
