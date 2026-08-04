@@ -8,6 +8,7 @@ import {
   listRegistryFiles,
   loadIgnoreList,
   mutantKey,
+  parseIgnoreLine,
   registryFilePath,
 } from "#scripts/mutation/ignore.ts";
 import type { MutantResult } from "#scripts/mutation/summary.ts";
@@ -83,6 +84,12 @@ describe("writing a mutant key onto one line", () => {
     );
   });
 
+  test("keeps a comment mark inside a path, which no space precedes", () => {
+    const key = mutantKey(`${projectRoot}/src/a#b.ts`, mutant(1));
+
+    expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
+  });
+
   test("tells a leading tab from a leading space", () => {
     expect(keyFor("\tab")).not.toBe(keyFor(" ab"));
     expect(keyFor("\tab")).toContain(" %09ab\u2192");
@@ -125,8 +132,7 @@ describe("mutation ignore list", () => {
   });
 
   /** A line that neither parses nor reads as a comment is a record that would
-   * silently stop suppressing its mutant — which is how an ordinal separator
-   * clashing with the comment marker once dropped 145 entries unnoticed. */
+   * otherwise stop suppressing its mutant without saying so. */
   test("fails on a line that is neither a comment nor an entry", async () => {
     using temp = tempFile({ prefix: "mutation-ignore-" });
     await Deno.writeTextFile(temp.path, "not a valid entry\n");

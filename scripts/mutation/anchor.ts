@@ -67,14 +67,19 @@ const nameOf = (node: NamedNode): string | null => {
  * contributes nothing: naming by them would move the anchor when surrounding
  * code is merely re-nested. `Property` earns its place because so much of this
  * codebase is config objects and dispatch maps — without it, two callbacks in
- * one object share a name and can only be told apart by their order. */
+ * one object share a name and can only be told apart by their order. A named
+ * function expression and an enum member are here for the same reason: both
+ * carry a name in places nothing else does, such as an array or a call. */
 const NAMING_TYPES = new Set([
   "ClassDeclaration",
+  "ClassExpression",
   "FunctionDeclaration",
+  "FunctionExpression",
   "MethodDefinition",
   "Property",
   "PropertyDefinition",
   "TSEnumDeclaration",
+  "TSEnumMember",
   "TSInterfaceDeclaration",
   "TSModuleDeclaration",
   "TSTypeAliasDeclaration",

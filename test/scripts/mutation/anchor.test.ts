@@ -80,6 +80,20 @@ describe("naming what a mutant sits inside", () => {
     );
   });
 
+  /** A named function expression carries its name where nothing else does —
+   * inside an array, or as a call argument. */
+  test("names a function expression by its own name", () => {
+    expect(
+      nameOf(
+        nullishAnchor("const xs = [function read(x) { return x ?? 0 }];\n"),
+      ),
+    ).toBe("xs.read");
+  });
+
+  test("names an enum member, not just its enum", () => {
+    expect(nameOf(nullishAnchor("enum E { A = 1 ?? 0 }\n"))).toBe("E.A");
+  });
+
   test("anchors code inside no declaration on the file itself", () => {
     expect(nameOf(nullishAnchor("export default globalThis.x ?? 0;\n"))).toBe(
       "%3cfile%3e",
@@ -170,6 +184,15 @@ describe("telling apart mutants that share a name", () => {
     ).map((m) => m.anchor);
 
     expect(anchors.map(nameOf)).toEqual(["o.first", "o.second"]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
+  });
+
+  test("tells apart identical function expressions by their names", () => {
+    const anchors = nullishMutants(
+      'const xs = [function first(x) { return x ?? "" }, function second(x) { return x ?? "" }];\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual(["xs.first", "xs.second"]);
     expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
   });
 

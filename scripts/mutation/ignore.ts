@@ -78,7 +78,7 @@ export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
 export const mutantKey = (file: string, mutant: Mutant): string =>
   mutantKeyForPath(rel(file), mutant);
 
-export interface ParsedIgnoreLine {
+interface ParsedIgnoreLine {
   anchor: string;
   key: string;
   newOperator: string;
@@ -88,7 +88,9 @@ export interface ParsedIgnoreLine {
 
 /** Parse one ignore-file line into a canonical key, or null when blank/comment. */
 export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
-  const body = line.replace(/#.*$/, "").trim();
+  // The reason is always spaced away from the entry, so only a `#` after
+  // whitespace starts one — which leaves a path free to hold its own.
+  const body = line.replace(/(?:^|\s)#.*$/, "").trim();
   if (body === "") return null;
   // The "from" side is `.*?` (not `.+?`): an already-empty string literal
   // mutates with an empty display label (see stringLiteralMutants), so a
