@@ -3,6 +3,7 @@
  * Shared by client bundle (admin.ts) and server code.
  */
 
+import { commaParts } from "#shared/split.ts";
 import {
   CONTACT_FIELDS,
   type ContactField,
@@ -12,12 +13,7 @@ import {
 
 /** Parse a comma-separated fields string into individual ContactField names */
 export const parseListingFields = (fields: ListingFields): ContactField[] =>
-  fields
-    ? fields
-        .split(",")
-        .map((f) => f.trim())
-        .filter(isContactField)
-    : [];
+  commaParts(fields).filter(isContactField);
 
 /** Ensure "email" is included in an listing fields setting */
 export const withRequiredEmail = (fields: ListingFields): ListingFields => {

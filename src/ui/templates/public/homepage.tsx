@@ -9,7 +9,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { Group } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
   compareGroupsByName,

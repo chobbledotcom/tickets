@@ -23,7 +23,7 @@ import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { SubmitForm } from "#templates/components/submit-form.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { TextFields } from "#templates/components/text-fields.tsx";
@@ -242,11 +242,11 @@ export const adminDuplicateGroupPage: BulkActionPage = (
         </p>
       </div>
 
-      <SubmitForm
+      <SaveForm
         action={`/admin/groups/${group.id}/bulk-actions/duplicate`}
         data-duplicate-preview
         data-timezone={tz}
-        icon="plus"
+        submitIcon="plus"
         id="duplicate-group-form"
         submitLabel={t("bulk_actions.submit_duplicate")}
       >
@@ -310,7 +310,7 @@ export const adminDuplicateGroupPage: BulkActionPage = (
         <script id="duplicate-preview-listings" type="application/json">
           <Raw html={listingsJson} />
         </script>
-      </SubmitForm>
+      </SaveForm>
     </>,
   );
 };

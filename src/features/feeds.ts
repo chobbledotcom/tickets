@@ -39,7 +39,7 @@ import {
   loadSortedListings,
 } from "#shared/sort-listings.ts";
 import type { Attendee, NewsPostSummary } from "#shared/types.ts";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
 export const escapeIcs = (text: string): string =>

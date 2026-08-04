@@ -10,7 +10,7 @@
 import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 
 /** URL schemes permitted in links and images. */
 const SAFE_URL_SCHEMES = ["http:", "https:", "mailto:", "tel:"] as const;

@@ -18,6 +18,7 @@ import {
   type Listing,
   type SortableListing,
 } from "#shared/types.ts";
+import { DAY_MS } from "#shared/now.ts";
 
 /** Month names for display */
 const MONTH_NAMES = [
@@ -394,9 +395,9 @@ export const formatDateRangeLabel = (
   if (!endIso) return formatDateLabel(startDate);
   const startMs = new Date(startIso).getTime();
   const endMs = new Date(endIso).getTime();
-  const diffDays = Math.round((endMs - startMs) / 86_400_000);
+  const diffDays = Math.round((endMs - startMs) / DAY_MS);
   if (diffDays <= 1) return formatDateLabel(startDate);
-  const lastDay = new Date(endMs - 86_400_000).toISOString().slice(0, 10);
+  const lastDay = new Date(endMs - DAY_MS).toISOString().slice(0, 10);
   return formatDateRangeLabelCompactEn(startDate, lastDay);
 };
 
@@ -408,7 +409,7 @@ export const bookedSpanDays = (
 ): number => {
   if (!startIso || !endIso) return 1;
   const diffDays = Math.round(
-    (new Date(endIso).getTime() - new Date(startIso).getTime()) / 86_400_000,
+    (new Date(endIso).getTime() - new Date(startIso).getTime()) / DAY_MS,
   );
   return diffDays > 1 ? diffDays : 1;
 };
@@ -485,7 +486,7 @@ export const daysAgo = (utcIso: string): number | null => {
   if (calDate >= todayStr) return null;
   const listingMs = new Date(`${calDate}T00:00:00Z`).getTime();
   const todayMs = new Date(`${todayStr}T00:00:00Z`).getTime();
-  return Math.round((todayMs - listingMs) / (1000 * 60 * 60 * 24));
+  return Math.round((todayMs - listingMs) / DAY_MS);
 };
 
 /**

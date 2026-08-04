@@ -80,7 +80,6 @@ declare global {
   }
 }
 
-export { escapeHtml };
 
 /** Void elements that should not have closing tags.
  * Frozen so the renderer's global void-element rules can't be mutated by an

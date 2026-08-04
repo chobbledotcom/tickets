@@ -11,7 +11,7 @@ import {
 import type { EmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
 import { getEnv } from "#shared/env.ts";
-import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import type { SuperuserChoice } from "#shared/types.ts";

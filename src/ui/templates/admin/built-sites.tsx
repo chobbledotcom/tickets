@@ -5,7 +5,8 @@ import {
 } from "#shared/db/built-sites/types.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { booleanToCheckbox } from "#shared/forms/values.ts";
-import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
 import {

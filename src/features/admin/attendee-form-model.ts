@@ -44,6 +44,7 @@ import {
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
+import { DAY_MS } from "#shared/now.ts";
 
 // ---------------------------------------------------------------------------
 // Field-name constants — single source of truth for template + parser
@@ -206,7 +207,7 @@ export const bookingDurationDays = (
   if (!booking.start_at || !booking.end_at) return null;
   const ms =
     new Date(booking.end_at).getTime() - new Date(booking.start_at).getTime();
-  const days = Math.round(ms / 86_400_000);
+  const days = Math.round(ms / DAY_MS);
   return days >= 1 ? days : null;
 };
 

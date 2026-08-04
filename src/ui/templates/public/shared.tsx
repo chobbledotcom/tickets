@@ -17,7 +17,8 @@ import {
   leveledNav,
   nodeLis,
 } from "#templates/components/nav.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags, the

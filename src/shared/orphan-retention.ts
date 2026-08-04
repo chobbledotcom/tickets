@@ -8,7 +8,7 @@
  * labels, and how an age maps to a cut-off timestamp.
  */
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { DAY_MS } from "#shared/now.ts";
 
 /** One selectable retention age: its stored value (whole days) and label key. */
 export type OrphanRetentionOption = {

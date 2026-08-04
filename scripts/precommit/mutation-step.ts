@@ -53,7 +53,7 @@
  */
 
 import { selectMutationTests } from "#scripts/mutation/test-map.ts";
-import { nonBlankLines } from "#shared/lines.ts";
+import { nonBlankLines } from "#shared/split.ts";
 import type { RunCommand } from "./git.ts";
 
 /** A changed-source count above this almost certainly means the local base ref

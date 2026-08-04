@@ -51,7 +51,7 @@ import {
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
-import { nowIso } from "#shared/now.ts";
+import { DAY_MS, nowIso } from "#shared/now.ts";
 import { type Attendee, clampDurationDays } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -195,7 +195,7 @@ const saveServicingAnswers = (
 const durationDaysFromRow = (row: ListingAttendeeRow): number | undefined => {
   if (!row.start_at || !row.end_at) return;
   const ms = new Date(row.end_at).getTime() - new Date(row.start_at).getTime();
-  return clampDurationDays(Math.round(ms / 86_400_000));
+  return clampDurationDays(Math.round(ms / DAY_MS));
 };
 
 const bookingFromRow = (row: ListingAttendeeRow): ListingBooking => {

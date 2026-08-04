@@ -19,6 +19,7 @@ import type {
   TextareaField,
 } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { commaParts } from "#shared/split.ts";
 import {
   firstIssueMessage,
   normalizeSlug,
@@ -109,11 +110,7 @@ export const getUsernameFieldBase = (): InputField<"username"> & {
 
 /** Validate listing fields setting (comma-separated contact field names) */
 export const validateListingFields = (value: string): string | null => {
-  const parts = value
-    .split(",")
-    .map((v) => v.trim())
-    .filter((v) => v);
-  for (const part of parts) {
+  for (const part of commaParts(value)) {
     if (!isContactField(part)) {
       return t("fields.validation.invalid_contact_field", { part });
     }
@@ -129,18 +126,9 @@ export const validateUpdateTier = (value: string): string | null =>
 const isValidDayName = (s: string): boolean =>
   (VALID_DAY_NAMES as readonly string[]).includes(s);
 
-/**
- * Split a comma-separated string into trimmed, non-empty tokens
- */
-export const splitCsv = (value: string): string[] =>
-  value
-    .split(",")
-    .map((d) => d.trim())
-    .filter((d) => d);
-
 /** Validate bookable days (comma-separated day names) */
 export const validateBookableDays = (value: string): string | null => {
-  const days = splitCsv(value);
+  const days = commaParts(value);
   if (days.length === 0) return t("fields.validation.days_required");
   for (const day of days) {
     if (!isValidDayName(day)) {

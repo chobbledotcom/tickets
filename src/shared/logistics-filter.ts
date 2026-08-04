@@ -6,7 +6,7 @@
  */
 
 import { renderFilterBar } from "#shared/filter-bar.ts";
-import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { LogisticsAgent } from "#shared/types.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 

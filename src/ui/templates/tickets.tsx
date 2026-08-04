@@ -19,7 +19,7 @@ import {
 } from "#shared/package-privacy.ts";
 import { clampDurationDays } from "#shared/types.ts";
 import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
 /** Alias export used by ticket templates */

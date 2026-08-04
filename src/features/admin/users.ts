@@ -46,7 +46,7 @@ import {
 } from "#shared/db/users.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { nowMs } from "#shared/now.ts";
+import { DAY_MS, nowMs } from "#shared/now.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import type { LogisticsAgent, User } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
@@ -69,7 +69,7 @@ import {
 /* jscpd:ignore-end */
 
 /** Invite link expiry: 7 days */
-const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+const INVITE_EXPIRY_MS = 7 * DAY_MS;
 
 /** Valid admin levels */
 /** The logistics agents an owner can assign — only when logistics is enabled. */

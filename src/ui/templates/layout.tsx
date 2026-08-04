@@ -13,12 +13,9 @@ import { demoBanner, isDemoMode } from "#shared/demo/mode.ts";
 import { flashConsumed } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms/flash.tsx";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
-import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import type { Theme } from "#shared/types.ts";
 import { renderAdminFooter } from "#templates/admin/footer.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
-
-export { escapeHtml };
 
 interface LayoutProps {
   /** Page parts that must stay directly inside main, such as the navigation

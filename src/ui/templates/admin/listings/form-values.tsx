@@ -6,7 +6,7 @@ import {
   entityToFieldValues,
   type FieldValues,
 } from "#shared/forms/values.ts";
-import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import {
   hasAnyListingDefault,
   type ListingDefaultField,

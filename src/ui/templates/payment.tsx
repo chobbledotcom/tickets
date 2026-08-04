@@ -9,7 +9,8 @@ import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { LabelledParas } from "#templates/components/labelled-para.tsx";
 import { NewTabLink } from "#templates/components/new-tab-link.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "#templates/public/prose-page.tsx";
 
 /**

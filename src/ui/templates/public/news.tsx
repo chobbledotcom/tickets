@@ -17,7 +17,7 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { NewsPost, NewsPostCard } from "#shared/types.ts";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { seoContentPage } from "./content-page.tsx";
 import {
   PublicImageGallery,

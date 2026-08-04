@@ -10,8 +10,9 @@ import {
   type TextareaField,
 } from "#shared/forms/field.ts";
 import { getSavedFieldValue } from "#shared/forms/saved-data.ts";
+import { commaParts } from "#shared/split.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
-import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { PriceInput } from "#templates/components/price-input.tsx";
 /* jscpd:ignore-end */
 
@@ -108,7 +109,7 @@ const renderChoiceFieldInput = (
     renderCheckboxGroup(
       field.name,
       field.options,
-      new Set(value ? value.split(",").map((item) => item.trim()) : []),
+      new Set(commaParts(value)),
     ),
   );
 };

@@ -16,7 +16,7 @@ import {
 import type { GroupWithMembers } from "#shared/types.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
   compareGroupsByName,

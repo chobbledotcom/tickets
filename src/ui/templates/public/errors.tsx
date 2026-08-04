@@ -4,7 +4,8 @@ import { getRenewalUrl } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "./prose-page.tsx";
 
 /* jscpd:ignore-end */

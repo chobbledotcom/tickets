@@ -7,7 +7,7 @@ import {
   type SelectedAttributeFilters,
 } from "#shared/listing-attribute-filter.ts";
 import type { ListingFilter } from "#shared/listing-filter.ts";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 
 export type ListingAttributeFilterView = {
   activeAttributeFilters: SelectedAttributeFilters;

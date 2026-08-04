@@ -3,7 +3,7 @@
 /* jscpd:ignore-start */
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import type { ItemImageColumns } from "#shared/types.ts";
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 /* jscpd:ignore-end */
 
 /** OpenGraph meta tags for a public listing page. */

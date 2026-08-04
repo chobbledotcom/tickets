@@ -21,6 +21,7 @@ import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import { joinStatements, type SqlStatement } from "#shared/db/client.ts";
 import { clampDurationDays } from "#shared/types.ts";
+import { DAY_MS } from "#shared/now.ts";
 
 /** A half-open [startAt, endAt) window of whole days, as timestamps. Also
  * the shape of an attendee's booked windows on the Logistics tab. */
@@ -40,7 +41,7 @@ export type DayRange = { startAt: string; endAt: string };
 export const dateToRange = (date: string, durationDays = 1): DayRange => {
   const days = clampDurationDays(durationDays);
   const ms = new Date(`${date}T00:00:00Z`).getTime();
-  const endIso = new Date(ms + days * 86_400_000).toISOString();
+  const endIso = new Date(ms + days * DAY_MS).toISOString();
   return { endAt: endIso, startAt: `${date}T00:00:00Z` };
 };
 

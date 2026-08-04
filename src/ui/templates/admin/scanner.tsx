@@ -8,7 +8,8 @@ import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { Layout } from "#templates/layout.tsx";
 
 /** Ticket option for the manual check-in autocomplete */
 export interface TicketOption {

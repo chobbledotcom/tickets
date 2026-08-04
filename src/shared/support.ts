@@ -20,7 +20,7 @@ import {
   resolveMessageEmailConfig,
 } from "#shared/inbound-message.ts";
 import { SUPPORT_FORM_NAG_DAYS } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
+import { DAY_MS, nowMs } from "#shared/now.ts";
 import { getAdminEmailAddress } from "#shared/superuser.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 
@@ -90,7 +90,7 @@ export const supportNagFor = (
   if (!last) return null;
   const ago = formatTimeAgo(last, nowMsValue);
   if (!ago) return null;
-  const windowMs = days * 86_400_000;
+  const windowMs = days * DAY_MS;
   return nowMsValue - Date.parse(last) <= windowMs ? ago : null;
 };
 

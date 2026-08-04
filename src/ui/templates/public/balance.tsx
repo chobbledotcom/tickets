@@ -8,7 +8,7 @@ import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import type { OrderLine, OrderSummary } from "#shared/db/attendees/balance.ts";
 import { defineTable } from "#shared/tables/definition.ts";
-import { SubmitForm } from "#templates/components/submit-form.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { renderTable } from "#templates/components/table.tsx";
 import { prosePage, simplePublicPage } from "./prose-page.tsx";
 import { AmountLine } from "./shared.tsx";
@@ -52,9 +52,8 @@ export const balancePaymentPage = (
         amount={amount}
         label={`${t("public_balance.balance_due")}:`}
       />
-      <SubmitForm
+      <SaveForm
         action={`/pay/${token}`}
-        icon="save"
         submitLabel={t("public_balance.pay_amount_now", {
           amount: formatCurrency(amount),
         })}
