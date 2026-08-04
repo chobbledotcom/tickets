@@ -1588,9 +1588,12 @@ ones that noticed, because they are the ones that assert a failure. Worth
 looking at whether ports should be handed out so that no two tests in a run can
 ever receive the same one.
 
-It has since been seen once more, in `test/scripts/stripe-mock/lifecycle.test.ts`
+It has since been seen more, in `test/scripts/stripe-mock/lifecycle.test.ts`
 ("stops trying once the mock has been started as many times as asked", on CI for
-PR #1968), with a second symptom worth knowing about. That test counts how many
+PR #1968, and "gives a mock time to shut itself down before killing it", on CI
+for PR #2032 — the latter now hardened: the fixture notes when it wins its
+port, and the test retries on a fresh port when that note is missing), with a
+second symptom worth knowing about. That test counts how many
 times the fake mock was started and expects one start per try asked for. A try
 whose freshly picked port already has something listening on it is abandoned
 *before* the mock is started, so the count comes up short and the test fails —
