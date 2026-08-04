@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   createRunId,
   isRunId,
-  markFinished,
   markChildEnded,
+  markFinished,
   markInterrupted,
   markRunning,
   newRunRecord,
