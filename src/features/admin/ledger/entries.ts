@@ -26,7 +26,7 @@ import {
   updateManualLedgerEntry,
 } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
@@ -39,8 +39,8 @@ import {
   ledgerEntryForm,
 } from "#templates/admin/ledger/entry-form.ts";
 import {
-  adminLedgerEntryAddPage,
   adminLedgerEntryEditPage,
+  adminLedgerEntryNewPage,
 } from "#templates/admin/ledger/entry-pages.tsx";
 import type { LedgerNames } from "#templates/admin/ledger.tsx";
 
@@ -183,7 +183,7 @@ export const handleLedgerEntryAddGet: TypedRouteHandler<"GET /admin/ledger/:type
       loadAddableAccount(type, ref),
       (loaded) => accountStatementPath(loaded.account),
       (loaded, error, returnUrl) =>
-        adminLedgerEntryAddPage({
+        adminLedgerEntryNewPage({
           ...loaded,
           error,
           returnUrl,

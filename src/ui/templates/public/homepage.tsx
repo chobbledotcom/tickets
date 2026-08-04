@@ -5,11 +5,11 @@ import type { TicketListing } from "#shared/booking/model.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#shared/dates.ts";
 import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { Group } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
 import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
   compareGroupsByName,

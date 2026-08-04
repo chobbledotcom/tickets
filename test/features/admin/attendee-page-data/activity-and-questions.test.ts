@@ -6,7 +6,7 @@ import {
   loadAttendeeActivityPreview,
   loadQuestionsForExisting,
 } from "#routes/admin/attendee-page-data.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { assignQuestion } from "#test/shared/db/questions/helpers.ts";

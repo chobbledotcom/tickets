@@ -39,9 +39,9 @@ export const seedDraft = async (draft: BulkEmailDraft) =>
     ),
   });
 
-/** Seed a two-attendee listing where one attendee has unsubscribed, then
- * save a marketing draft targeting it. Shared by the preview and send
- * tests that both check unsubscribed recipients are excluded. */
+/** Seed a two-attendee listing where one attendee has unsubscribed, then save
+ * a marketing draft targeting it. Shared by the preview and send tests that
+ * own the direct cover of the skipping branches. */
 export const seedMarketingDraftWithUnsubscriber = async () => {
   const listing = await seedListingWithAttendees();
   await unsubscribeHash(await hashEmail("alice@example.com"));

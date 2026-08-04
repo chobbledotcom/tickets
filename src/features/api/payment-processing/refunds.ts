@@ -13,7 +13,7 @@ import type {
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { t } from "#shared/i18n.ts";
 import {
   ErrorCode,

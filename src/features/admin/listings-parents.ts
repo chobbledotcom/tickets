@@ -11,7 +11,7 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { listingGroups, packageChildEdgeConflict } from "#shared/db/groups.ts";
 import {
   hydrateListingLinks,

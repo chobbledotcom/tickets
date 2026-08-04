@@ -61,10 +61,35 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
   });
 
   test("sends a tagged test error and confirms delivery", async () => {
-    const { requests, response } = await sendAcceptedSentryTest();
-    expectDebugRedirect(response);
-    expectFlash(response, "Sentry test sent.");
-    expect(requests).toBe(1);
+    using _env = withEnv({ SENTRY_URL: SENTRY_DSN });
+    const envelopes: string[] = [];
+    using _fetchStub = stubFetch((_url, init) => {
+      const body = init?.body;
+      if (body === undefined || body === null) {
+        throw new Error("Sentry request had no body");
+      }
+      envelopes.push(
+        typeof body === "string"
+          ? body
+          : new TextDecoder().decode(body as BufferSource),
+      );
+      return new Response(null, { status: 200 });
+    });
+    try {
+      const { response } = await adminFormPost("/admin/debug/sentry");
+      expectDebugRedirect(response);
+      expectFlash(response, "Sentry test sent.");
+      // The exact values sendSentryTest (src/shared/sentry.ts) writes today —
+      // keep these literals in sync with that source.
+      expect(envelopes).toHaveLength(1);
+      expect(envelopes[0]).toContain(
+        "Test Sentry notification from the admin debug page.",
+      );
+      expect(envelopes[0]).toContain('"source":"admin-debug"');
+      expect(envelopes[0]).toContain('"test":"true"');
+    } finally {
+      resetSentry();
+    }
   });
 
   test("sends the diagnostic while the site is read-only", async () => {

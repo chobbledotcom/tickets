@@ -2,7 +2,8 @@
  * Embed host validation and parsing utilities
  */
 
-import { filter, map, pipe } from "#fp";
+import { map } from "#fp";
+import { commaParts } from "#shared/split.ts";
 
 /** Matches a valid hostname like "example.com" or "sub.example.com" */
 export const DOMAIN_PATTERN =
@@ -36,10 +37,7 @@ export const validateHostPattern = (host: string): string | null => {
  * Filters out empty strings from trailing commas etc.
  */
 export const parseEmbedHosts = (input: string): string[] =>
-  pipe(
-    map((s: string) => s.trim().toLowerCase()),
-    filter((s) => s !== ""),
-  )(input.split(","));
+  map((host: string) => host.toLowerCase())(commaParts(input));
 
 /**
  * Validate a comma-separated list of host patterns.

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
-import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import {
   AttendeeAnswersTable,

@@ -2,7 +2,7 @@ import { formGuard, OWNER_FORM } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";

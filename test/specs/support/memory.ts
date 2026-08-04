@@ -16,6 +16,9 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** Every kind of thing a story can keep by name, and what each name holds. */
 export interface ThingsByKind {
+  /** The addresses of the people a story booked onto one listing, in the order
+   * it booked them. */
+  booked: string[];
   /** Somebody's own window on the site: the organiser's, a customer's. */
   browser: TestBrowser;
   /** Things sold together under one name. */

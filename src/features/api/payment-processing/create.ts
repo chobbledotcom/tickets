@@ -35,7 +35,7 @@ import type {
 } from "#shared/checkout-pricing.ts";
 /* jscpd:ignore-end */
 import { formatCurrency } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {

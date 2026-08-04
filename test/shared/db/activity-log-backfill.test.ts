@@ -3,11 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
+import { getAllActivityLog, logActivity } from "#shared/db/activity-log.ts";
 import {
   backfillActivityLogBatch,
   runActivityLogBackfill,
 } from "#shared/db/activity-log-backfill.ts";
-import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";

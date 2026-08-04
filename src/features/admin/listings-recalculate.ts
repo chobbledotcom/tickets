@@ -12,7 +12,7 @@ import {
   createRecalculatePageRenderer,
 } from "#routes/admin/aggregate-recalculation.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   getListingAggregateRecalculation,
   LISTING_AGGREGATE_FIELDS,

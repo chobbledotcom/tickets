@@ -11,6 +11,7 @@ import {
   widestDatedEntry,
 } from "#shared/dates.ts";
 import type { PackageDisplay } from "#shared/db/groups.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import {
@@ -19,7 +20,6 @@ import {
 } from "#shared/package-privacy.ts";
 import { clampDurationDays } from "#shared/types.ts";
 import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
 /** Alias export used by ticket templates */

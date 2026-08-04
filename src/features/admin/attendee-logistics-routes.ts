@@ -32,7 +32,7 @@ import type { AuthSession } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 /* jscpd:ignore-end */
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";

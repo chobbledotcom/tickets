@@ -3,7 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 
 test("keeps the complete built-site route catalog exact", async () => {
-  expect(Object.keys(await ADMIN_AREA_LOADERS.builtSites.load())).toEqual([
+  // Key order carries no behaviour (the router matches by specificity),
+  // so the catalog is compared as a sorted list.
+  expect(
+    Object.keys(await ADMIN_AREA_LOADERS.builtSites.load()).toSorted(),
+  ).toEqual([
     "GET /admin/built-sites",
     "GET /admin/built-sites/:id",
     "GET /admin/built-sites/:id/:tab",

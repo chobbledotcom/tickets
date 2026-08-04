@@ -10,7 +10,7 @@ import {
   createEntityHandler,
 } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import {
   decryptAttendeeOrNull,

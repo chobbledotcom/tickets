@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * QR scanner routes for admin check-in
@@ -14,7 +15,7 @@ import {
   resolveEntries,
   type TokenEntry,
 } from "#routes/tickets/token-utils.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import type { AttendeeWithBookings } from "#shared/db/attendee-types.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
@@ -173,7 +174,7 @@ const processScan = async (
   body: Record<string, unknown>,
 ): Promise<Response> => {
   if (typeof body.token !== "string") {
-    return jsonResponse({ error: "Missing token" }, 400);
+    return apiErrorResponse("Missing token");
   }
   const privateKey = await getRequestPrivateKey();
   if (!privateKey) {
@@ -181,7 +182,7 @@ const processScan = async (
       code: ErrorCode.KEY_DERIVATION,
       detail: "Scanner: private key unavailable",
     });
-    return jsonResponse({ error: "Decryption unavailable" }, 500);
+    return apiErrorResponse("Decryption unavailable", 500);
   }
   return scanToken(
     listingId,

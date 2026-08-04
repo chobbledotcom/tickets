@@ -15,7 +15,7 @@ import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getRefundPaymentReferences,

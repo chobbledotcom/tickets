@@ -8,6 +8,8 @@ import { t } from "#i18n";
 import {
   CONTENT_FORM,
   CONTENT_MULTIPART,
+  contentPage,
+  contentResponsePage,
   formGuard,
   requireContentOr,
   withAuth,
@@ -16,7 +18,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { groups } from "#shared/db/groups.ts";
 import {
   deleteImageRecord,
@@ -74,20 +76,15 @@ const imageHandlers = {
     ),
 };
 
-const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> = (request) =>
-  requireContentOr(request, async (session) => {
-    applyFlash(request);
-    const images = isStorageEnabled() ? await getAllImages() : [];
-    return htmlResponse(adminImagesPage(images, session));
-  });
+const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> = contentPage(
+  async (session) =>
+    adminImagesPage(isStorageEnabled() ? await getAllImages() : [], session),
+);
 
-const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> = (
-  request,
-) =>
-  requireContentOr(request, (session) => {
-    applyFlash(request);
-    return withStorageEnabled(() => htmlResponse(adminImageNewPage(session)));
-  });
+const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> =
+  contentResponsePage((session) =>
+    withStorageEnabled(() => htmlResponse(adminImageNewPage(session))),
+  );
 
 const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   request,

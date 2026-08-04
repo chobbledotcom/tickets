@@ -19,10 +19,12 @@ import {
 } from "#test/specs/support/listings.ts";
 import { visitorBooks } from "#test/specs/support/public-booking.ts";
 import { dayFromToday, openStayListing } from "#test/specs/support/stays.ts";
-import type {
-  ActOnOneThing,
-  ReadAboutOneThing,
-  TicketsWorld,
+import {
+  type ActOnOneThing,
+  type ReadAboutOneThing,
+  type ReadsWhatWasKept,
+  type TicketsWorld,
+  whatWasKeptFor,
 } from "#test/specs/support/world.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -110,8 +112,7 @@ export const otherListing: ActOnOneThing = async (world, listing) => {
 };
 
 /** The ticket code the story gave this person. */
-export const ticketOf = (world: TicketsWorld, who: string): string =>
-  world.things.require("ticket", who);
+export const ticketOf: ReadsWhatWasKept<"ticket"> = whatWasKeptFor("ticket");
 
 /** Their money is given back, so the ticket should no longer let them in. */
 export const refundTicket = async (

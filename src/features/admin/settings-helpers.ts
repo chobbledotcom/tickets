@@ -18,7 +18,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { isMaskSentinel } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -127,6 +127,7 @@ type SettingsHandlerConfig<T> = RedirectOpts &
     validate?: ValidateFn<T> | undefined;
     /** Persist the value */
     save: (value: T) => Promise<void> | void;
+    taskName?: string | undefined;
   };
 
 const createSettingsHandler =
@@ -139,7 +140,14 @@ const createSettingsHandler =
       errorPage,
       cfg.formId,
       async () => {
-        await cfg.save(value);
+        if (cfg.taskName) {
+          const task = await settings.withCurrentTask(
+            cfg.taskName,
+            () => Promise.resolve(cfg.save(value)),
+            form.getOptionalInt("settings_version"),
+          );
+          if (!task.ok) return errorPage(task.error, cfg.formId);
+        } else await cfg.save(value);
         const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
         await logActivity(msg);
         return redirect(
@@ -410,6 +418,7 @@ const defineProviderCredentialsRoute = <T>(
         await logActivity(cfg.logMessage);
         return settingsFlash(cfg.successMessage);
       },
+      form.getOptionalInt("settings_version"),
     );
     return task.ok ? task.value : errorPage(task.error, cfg.formId);
   });

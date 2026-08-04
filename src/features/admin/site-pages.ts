@@ -21,7 +21,7 @@ import {
 } from "#routes/entity.ts";
 import { errorRedirect } from "#routes/response.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { groupExists } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import { getListingOfferFlags } from "#shared/db/listings/catalog.ts";

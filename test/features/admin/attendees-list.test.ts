@@ -189,7 +189,7 @@ describeWithEnv("the attendees browser", { db: true }, () => {
     test("notes that the attendee list was exported", async () => {
       await twoBookedListings();
       await csvBody();
-      const { getAllActivityLog } = await import("#shared/db/activityLog.ts");
+      const { getAllActivityLog } = await import("#shared/db/activity-log.ts");
       const entries = await withTestSession(() => getAllActivityLog(20));
       expect(entries.map((entry) => entry.message)).toContain(
         "Attendees CSV exported",

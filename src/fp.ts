@@ -468,10 +468,17 @@ export type TtlCache<K, V> = {
  * Create a TTL (Time-To-Live) cache.
  * Entries expire after ttlMs milliseconds.
  * Accepts an optional clock function for testing.
+ * Give maxEntries a value to bound the cache: storing a new key at the cap
+ * drops the oldest-stored entry first. Bound any cache whose keys can be
+ * chosen from outside (e.g. unknown session cookies), so a flood of unique
+ * keys cannot grow it without limit. Leave it unset for caches whose keyspace
+ * our own data already bounds — the keyed entity caches rely on holding every
+ * row of their table.
  */
 export const ttlCache = <K, V>(
   ttlMs: number,
   now: () => number = Date.now,
+  maxEntries?: number,
 ): TtlCache<K, V> => {
   const cache = new Map<K, { value: V; cachedAt: number }>();
   return {
@@ -488,6 +495,13 @@ export const ttlCache = <K, V>(
       return entry.value;
     },
     set: (key: K, value: V): void => {
+      // Deleting first re-inserts a refreshed key at the newest position, so
+      // the Map's first key is always the oldest-stored entry.
+      cache.delete(key);
+      if (maxEntries !== undefined && cache.size >= maxEntries) {
+        const oldest = cache.keys().next();
+        if (!oldest.done) cache.delete(oldest.value);
+      }
       cache.set(key, { cachedAt: now(), value });
     },
     size: (): number => cache.size,

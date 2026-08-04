@@ -9,7 +9,7 @@ import { firstProblem } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   getGroupsById,
   getListingsByGroupIds,

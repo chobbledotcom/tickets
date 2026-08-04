@@ -15,7 +15,8 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
-import { extractFormEntries, TestBrowser } from "#test-utils/test-browser.ts";
+import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
+import { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** Invalidate every in-process cache after a fresh-install / destructive DB write. */
 export const invalidateAllCaches = (): void => {

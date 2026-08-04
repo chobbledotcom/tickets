@@ -7,31 +7,31 @@
  * real reader inside the test owner's session context (see {@link
  * withTestSession}). A test that merely wants to assert "this action was
  * logged" can therefore call them exactly like the real functions — just
- * import from `#test-utils` instead of `#shared/db/activityLog.ts`.
+ * import from `#test-utils` instead of `#shared/db/activity-log.ts`.
  *
  * `logActivity` (a write) needs no session, so it is re-exported unchanged for
  * the convenience of files that both write and read the log.
  *
  * Tests that exercise the encryption itself, or the no-session fail-closed
- * path, should import the real readers from `#shared/db/activityLog.ts`.
+ * path, should import the real readers from `#shared/db/activity-log.ts`.
  */
 
 import { encrypt } from "#shared/crypto/encryption.ts";
 import type {
   ActivityLogEntry,
   ListingWithActivityLog,
-} from "#shared/db/activityLog.ts";
+} from "#shared/db/activity-log.ts";
 import {
   getAllActivityLog as realGetAllActivityLog,
   getAttendeeActivityLog as realGetAttendeeActivityLog,
   getListingActivityLog as realGetListingActivityLog,
   getListingWithActivityLogOrNull as realGetListingWithActivityLogOrNull,
-} from "#shared/db/activityLog.ts";
+} from "#shared/db/activity-log.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
-export { logActivity } from "#shared/db/activityLog.ts";
+export { logActivity } from "#shared/db/activity-log.ts";
 
 /** Insert a row encrypted with DB_ENCRYPTION_KEY (the pre-migration format). */
 export const insertLegacyActivity = async (

@@ -150,7 +150,7 @@ export const adminApiKeysPage = (
 /**
  * Admin API key delete confirmation page
  */
-export const adminDeleteApiKeyPage = (
+export const adminApiKeyDeletePage = (
   apiKey: { id: number; name: string },
   session: AdminSession,
 ): string =>

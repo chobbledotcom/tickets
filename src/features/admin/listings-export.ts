@@ -10,7 +10,7 @@ import { csvResponse, listingAttendeesLoader } from "#routes/admin/actions.ts";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { getAttendeeIdsWithPaymentReference } from "#shared/db/payment-references.ts";
 import { settings } from "#shared/db/settings.ts";
 import {

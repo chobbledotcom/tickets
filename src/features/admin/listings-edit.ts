@@ -25,7 +25,7 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   checkGroupCapAfterDurationChange,
   recomputeListingBookingRanges,

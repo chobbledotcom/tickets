@@ -21,7 +21,7 @@ import {
   type ActivityLogEntry,
   getAllActivityLog,
   logActivity,
-} from "#shared/db/activityLog.ts";
+} from "#shared/db/activity-log.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getNewestAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getUpcomingServicingEvents } from "#shared/db/attendees/servicing.ts";
@@ -50,7 +50,7 @@ import type { ListingWithCount } from "#shared/types.ts";
 import {
   type ActivityLogRefs,
   adminGlobalActivityLogPage,
-} from "#templates/admin/activityLog.tsx";
+} from "#templates/admin/activity-log.tsx";
 import {
   adminDashboardPage,
   adminListingsPage,

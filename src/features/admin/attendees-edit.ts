@@ -18,7 +18,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne } from "#shared/db/client.ts";

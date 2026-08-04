@@ -35,8 +35,8 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminSession, Attendee } from "#shared/types.ts";
 import {
-  adminAddNotePage,
-  adminDeleteNotePage,
+  adminNoteDeletePage,
+  adminNoteNewPage,
 } from "#templates/admin/attendee-notes.tsx";
 
 /* jscpd:ignore-end */
@@ -93,7 +93,7 @@ const renderAddNote = (
   status?: number,
 ): Response =>
   htmlResponse(
-    adminAddNotePage({
+    adminNoteNewPage({
       attendeeId: attendee.id,
       attendeeName: attendee.name,
       error,
@@ -148,7 +148,7 @@ const handleAddNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/not
 const handleDeleteNoteGet: TypedRouteHandler<"GET /admin/attendee/:attendeeId/note/:noteId/delete"> =
   noteHandlers.get((note, session, request, { attendeeId }) =>
     htmlResponse(
-      adminDeleteNotePage({
+      adminNoteDeletePage({
         error: applyFlash(request).error,
         note,
         returnUrl: returnTarget(

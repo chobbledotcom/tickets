@@ -5,8 +5,15 @@ import {
   takeDownFromActions,
 } from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
+import type { LinkMatch } from "#test-utils/test-browser/parsing.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
-import type { TicketsWorld } from "./world.ts";
+import {
+  keepWhatTheyWereTold,
+  type ReadAboutOneThing,
+  type ReadsWhatWasKept,
+  type TicketsWorld,
+  whatWasKeptFor,
+} from "./world.ts";
 // jscpd:ignore-end
 
 /** Whose browser each story keeps. The organiser's is the story's own, so a
@@ -27,8 +34,8 @@ export const rememberBrowser = (
 /** The window somebody is already looking at. A story that never gave them one
  * has nothing to read, so it says so rather than opening a fresh window and
  * reporting on a page nobody was ever shown. */
-export const browserSeenBy = (world: TicketsWorld, who: string): TestBrowser =>
-  world.things.require("browser", who);
+export const browserSeenBy: ReadsWhatWasKept<"browser"> =
+  whatWasKeptFor("browser");
 
 export const browserOf = (world: TicketsWorld, who: string): TestBrowser =>
   world.things.orMake("browser", who, () => new TestBrowser());
@@ -48,7 +55,7 @@ export const takesDownFromOwnPage =
     const browser = await openPage(world);
     await browser.clickLink(deleteLabel);
     await fillInAndSend(browser, { confirm_identifier: typed }, deleteLabel);
-    world.ownerTold = browser.pageText;
+    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
   };
 
 /** Forget the Scenario's browser, so the next ask starts a fresh one. Use this
@@ -169,24 +176,45 @@ export const makesRecordThroughForm =
   async (world, name, fields) => {
     const browser = await openAdminPage(world, labelled.formPath);
     await fillInAndSend(browser, fields, labelled.button);
-    world.ownerTold = browser.pageText;
+    keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
     const id = browser.currentUrl.match(labelled.filedAt)?.[1];
     if (!id) throw new Error(`No page address for the new "${name}"`);
     world.things.remember("record", name, Number(id));
   };
 
+/** A list open at one row: the page somebody is looking at, and the number the
+ * site files that row under. */
+export type OpensAtOneRow = (
+  world: TicketsWorld,
+  name: string,
+) => Promise<{ browser: TestBrowser; id: number }>;
+
+/** The address of the link into one named row, off the list that row lives on.
+ * A list that renders no such link is a row nobody can reach, so this fails
+ * rather than answering with nothing. Each kind of thing says how its list
+ * opens and how its own row's link is told apart from every other link. */
+export const findsTheWayInFrom =
+  <Row extends { browser: TestBrowser }>(
+    openAt: (world: TicketsWorld, name: string) => Promise<Row>,
+    leadsIn: (row: Row, name: string) => (link: LinkMatch) => boolean,
+  ): ReadAboutOneThing =>
+  async (world, name) => {
+    const row = await openAt(world, name);
+    const link = row.browser.links.find(leadsIn(row, name));
+    if (!link) throw new Error(`The list offers no way into "${name}"`);
+    return link.href;
+  };
+
 export const takesDownFromList =
   (
-    wayInto: (world: TicketsWorld, name: string) => Promise<string | null>,
+    wayInto: ReadAboutOneThing,
     labelled: {
       deleteLinkKey: string;
-      missing: (name: string) => string;
       submitKey: string;
     },
   ): TakesOneThingDown =>
   async (world, name, typed) => {
     const wayIn = await wayInto(world, name);
-    if (!wayIn) throw new Error(labelled.missing(name));
     return takeDownFromActions(await openAdminPage(world, wayIn), typed, {
       deleteLink: t(labelled.deleteLinkKey),
       submit: t(labelled.submitKey),

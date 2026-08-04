@@ -14,18 +14,12 @@ import {
   validateCustomDomain,
 } from "#shared/bunny-cdn.ts";
 import { isBunnyCdnEnabled, isBunnyDnsEnabled } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import { DOMAIN_PATTERN } from "#shared/embed-hosts.ts";
 import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { fail, ok } from "#shared/response.ts";
 
-/**
- * Given a result that either succeeded or failed with an `error` string, show
- * the failure on `formId`, or hand the successful result to `onOk`. Every
- * domain step here follows this shape:
- * check `.ok`, show the error on the form, otherwise carry on.
- */
 const orErrorPage = <S extends { ok: true }, R>(
   result: S | { ok: false; error: string },
   errorPage: ErrorPageFn,
@@ -33,20 +27,6 @@ const orErrorPage = <S extends { ok: true }, R>(
   onOk: (ok: S) => R | Promise<R>,
 ): ReturnType<ErrorPageFn> | R | Promise<R> =>
   result.ok ? onOk(result) : errorPage(result.error, formId);
-
-/**
- * Run a task guarded by the global current-task lock, returning the task's
- * Response on success or a 409 error page when another task holds the lock.
- */
-const runGuardedTask = async (
-  taskName: string,
-  formId: string,
-  errorPage: ErrorPageFn,
-  task: () => Promise<Response>,
-): Promise<Response> => {
-  const taskResult = await settings.withCurrentTask(taskName, task);
-  return orErrorPage(taskResult, errorPage, formId, (ok) => ok.value);
-};
 
 const requireSetting =
   (ready: () => boolean, errorKey: string) =>
@@ -57,10 +37,25 @@ const requireBunnyCdn = requireSetting(
   isBunnyCdnEnabled,
   "error.bunny_cdn_not_configured",
 );
-const requirePaymentProviderRecovery = requireSetting(
+const requireRecovery = requireSetting(
   () => existingPaymentProviderState().recoveryChoices.length === 0,
   "error.payment_provider_recovery_required",
 );
+/** Run a domain command while no other settings task is active. */
+const runGuardedTask = async (
+  taskName: string,
+  formId: string,
+  errorPage: ErrorPageFn,
+  expectedVersion: number | null,
+  needsRecovery: boolean,
+  task: () => Promise<Response>,
+): Promise<Response> => {
+  const run = needsRecovery
+    ? () => Promise.resolve(requireRecovery(errorPage, formId) ?? task())
+    : task;
+  const result = await settings.withCurrentTask(taskName, run, expectedVersion);
+  return orErrorPage(result, errorPage, formId, (ok) => ok.value);
+};
 
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 export const handleCustomDomainPost = advancedSettingsRoute(
@@ -80,12 +75,9 @@ export const handleCustomDomainPost = advancedSettingsRoute(
       "custom-domain",
       "settings-custom-domain",
       errorPage,
+      form.getOptionalInt("settings_version"),
+      true,
       async () => {
-        const recoveryError = requirePaymentProviderRecovery(
-          errorPage,
-          "settings-custom-domain",
-        );
-        if (recoveryError) return recoveryError;
         if (raw === "") {
           await settings.update.customDomain("");
           await logActivity("Custom domain cleared");
@@ -124,7 +116,7 @@ export const handleCustomDomainPost = advancedSettingsRoute(
 
 /** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
 export const handleCustomDomainValidatePost = advancedSettingsRoute(
-  (_form, errorPage) => {
+  (form, errorPage) => {
     const cdnError = requireBunnyCdn(
       errorPage,
       "settings-custom-domain-validate",
@@ -143,6 +135,8 @@ export const handleCustomDomainValidatePost = advancedSettingsRoute(
       "custom-domain-validate",
       "settings-custom-domain-validate",
       errorPage,
+      form.getOptionalInt("settings_version"),
+      false,
       async () => {
         const result = await validateCustomDomain(customDomain);
         return orErrorPage(
@@ -217,12 +211,9 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
       "host-subdomain",
       FORM_ID_HOST_SUBDOMAIN,
       errorPage,
+      form.getOptionalInt("settings_version"),
+      true,
       async () => {
-        const recoveryError = requirePaymentProviderRecovery(
-          errorPage,
-          FORM_ID_HOST_SUBDOMAIN,
-        );
-        if (recoveryError) return recoveryError;
         const result = await registerBunnySubdomain(raw);
         return orErrorPage(
           result,

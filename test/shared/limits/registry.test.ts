@@ -11,7 +11,7 @@ import {
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
-  parsePositiveInt,
+  positiveIntOrDefault,
 } from "#shared/limits.ts";
 
 const metadata = LIMIT_ENTRIES.map(({ defaultValue, envKey, label, unit }) => [
@@ -153,7 +153,7 @@ describe("limit registry contract", () => {
   });
 
   test("parses one but rejects hexadecimal notation", () => {
-    expect(parsePositiveInt("1", 99)).toBe(1);
-    expect(parsePositiveInt("0x10", 99)).toBe(99);
+    expect(positiveIntOrDefault("1", 99)).toBe(1);
+    expect(positiveIntOrDefault("0x10", 99)).toBe(99);
   });
 });

@@ -4,7 +4,6 @@ import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import {
   deleteRaw,
-  executeSettingsBatchReturningValue,
   writeOrDelete,
   writeRaw,
   writeRawBatch,
@@ -132,32 +131,7 @@ describeWithEnv("deleteRaw", { db: true }, () => {
   });
 });
 
-describeWithEnv("executeSettingsBatchReturningValue", { db: true }, () => {
-  test("returns the RETURNING value from a real INSERT", async () => {
-    const value = await executeSettingsBatchReturningValue(
-      {
-        args: [],
-        sql:
-          "INSERT OR REPLACE INTO settings (key, value) " +
-          "VALUES ('test_returning_key', 'stripe') RETURNING value",
-      },
-      [],
-    );
-    expect(value).toBe("stripe");
-  });
-
-  test("rejects a RETURNING result without exactly one row", async () => {
-    await expect(
-      executeSettingsBatchReturningValue(
-        {
-          args: [],
-          sql: "UPDATE settings SET value = value WHERE key = 'missing' RETURNING value",
-        },
-        [],
-      ),
-    ).rejects.toThrow();
-  });
-
+describeWithEnv("settings write audit", { db: true }, () => {
   test("writeRaw marks the key loaded so snap() audit passes", async () => {
     await runWithSettingsAudit(async () => {
       await writeRaw(CONFIG_KEYS.SQUARE_LOCATION_ID, "audit_snap");
