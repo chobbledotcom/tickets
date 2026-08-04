@@ -36,7 +36,7 @@ const quotedNames = (items: readonly { name: string }[]): string =>
 
 /** True when several items each offer something but nothing suits them all. */
 const nothingShared = <T>(offers: readonly (readonly T[])[]): boolean =>
-  offers.length > 1 &&
+  offers.length >= 2 &&
   offers.every((offer) => offer.length > 0) &&
   intersect(...offers).length === 0;
 

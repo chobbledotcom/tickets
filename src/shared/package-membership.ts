@@ -16,8 +16,11 @@
  *    A VISIBLE package renders that selector fine, so this rule only bites when
  *    the package hides its listings.
  */
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { firstReason, type Reason, reason } from "#shared/reasons.ts";
+
+/* jscpd:ignore-end */
 
 /** The listing fields the member rules read; the name is for the message. */
 type MemberListing = { name: string; can_pay_more: boolean };

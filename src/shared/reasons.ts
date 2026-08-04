@@ -30,13 +30,20 @@ export const reason =
   (...args) =>
     blocks(...args) ? message(...args) : null;
 
-/** The first reason that blocks the case, or null when none does. List order
- * IS precedence: a case that breaks several rules reports the one declared
- * first, so the most fundamental rule goes first. Later reasons are not
- * evaluated after a hit, so they may assume the earlier rules passed. */
-export const firstReason =
-  <Args extends readonly unknown[]>(reasons: readonly Reason<Args>[]) =>
-  (...args: Args): string | null => {
+/** A runner takes a rule list and gives back the function of the case — the
+ * one shared signature of `firstReason` and `allReasons`. */
+type ReasonRunner<Out> = <Args extends readonly unknown[]>(
+  reasons: readonly Reason<Args>[],
+) => (...args: Args) => Out;
+
+/** The first reason that blocks the case, or null when none does — itself a
+ * {@link Reason}, so rule lists compose. List order IS precedence: a case that
+ * breaks several rules reports the one declared first, so the most fundamental
+ * rule goes first. Later reasons are not evaluated after a hit, so they may
+ * assume the earlier rules passed. */
+export const firstReason: ReasonRunner<string | null> =
+  (reasons) =>
+  (...args) => {
     for (const why of reasons) {
       const message = why(...args);
       if (message !== null) return message;
@@ -46,7 +53,7 @@ export const firstReason =
 
 /** Every reason that blocks the case, in declaration order — for surfaces that
  * must name every problem at once rather than refuse on the first. */
-export const allReasons =
-  <Args extends readonly unknown[]>(reasons: readonly Reason<Args>[]) =>
-  (...args: Args): string[] =>
-    mapNotNullish((why: Reason<Args>) => why(...args))(reasons);
+export const allReasons: ReasonRunner<string[]> =
+  (reasons) =>
+  (...args) =>
+    mapNotNullish((why: (typeof reasons)[number]) => why(...args))(reasons);

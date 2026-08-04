@@ -269,35 +269,31 @@ export const ticketPage = ({
       {allUnavailable || isReadOnly() ? (
         <ErrorNote>{unavailableMessage(allClosed, isSingleListing)}</ErrorNote>
       ) : (
-        <>
-          {cartConflictMessages({
+        <TicketPageForm
+          actionUrl={actionUrl}
+          addOns={addOns}
+          cartConflicts={cartConflictMessages({
             dateItems: cartDateItems,
             lengthItems: customisableLengthItems(listings),
-          }).map((conflict) => (
-            <ErrorNote>{conflict}</ErrorNote>
-          ))}
-          <TicketPageForm
-            actionUrl={actionUrl}
-            addOns={addOns}
-            dates={dates}
-            dayCountPriceFor={dayCountPriceFor}
-            dayCounts={dayCounts}
-            durationDays={dateDurationDays}
-            fields={fields}
-            hasCustomisable={hasCustomisable}
-            hasDaily={hasDaily}
-            hideQuantity={hideQuantity}
-            isPackage={singlePackagePage}
-            isSingleListing={isSingleListing}
-            listingRows={listingRows}
-            prefill={prefill}
-            promoCodesEnabled={promoCodesEnabled}
-            questionListingMap={questionListingMap}
-            questions={pageQuestions}
-            slugs={slugs}
-            terms={terms}
-          />
-        </>
+          })}
+          dates={dates}
+          dayCountPriceFor={dayCountPriceFor}
+          dayCounts={dayCounts}
+          durationDays={dateDurationDays}
+          fields={fields}
+          hasCustomisable={hasCustomisable}
+          hasDaily={hasDaily}
+          hideQuantity={hideQuantity}
+          isPackage={singlePackagePage}
+          isSingleListing={isSingleListing}
+          listingRows={listingRows}
+          prefill={prefill}
+          promoCodesEnabled={promoCodesEnabled}
+          questionListingMap={questionListingMap}
+          questions={pageQuestions}
+          slugs={slugs}
+          terms={terms}
+        />
       )}
     </Layout>,
   );
