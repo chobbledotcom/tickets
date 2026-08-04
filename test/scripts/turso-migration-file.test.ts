@@ -1,6 +1,9 @@
 // test-groups: run-alone
 
+import { EventEmitter } from "node:events";
+import type { ClientRequest, IncomingMessage } from "node:http";
 import { request as httpRequest } from "node:http";
+import { Writable } from "node:stream";
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { join, toFileUrl } from "@std/path";
@@ -58,6 +61,37 @@ const withUploadServer = async (
     await server.finished;
   }
 };
+
+/** A request stub that swallows the piped file bytes. */
+const fakeRequest = (): Writable =>
+  new Writable({ write: (_chunk, _encoding, done) => done() });
+
+/** A transport that plays a scripted sequence of events once the upload
+ * starts, instead of talking to a real server. */
+const scriptedTransport = (
+  request: Writable,
+  play: (receive: (response: IncomingMessage) => void) => void,
+): DatabaseUploadTransport => ({
+  request: (_url, _options, receive) => {
+    queueMicrotask(() => play(receive));
+    return request as unknown as ClientRequest;
+  },
+});
+
+/** Upload a small file through a scripted transport and return the result. */
+const uploadThroughScript = (
+  dir: string,
+  request: Writable,
+  play: (receive: (response: IncomingMessage) => void) => void,
+): Promise<void> =>
+  Deno.writeTextFile(join(dir, "database.sqlite"), "sqlite bytes").then(() =>
+    uploadTursoDatabaseFile(
+      join(dir, "database.sqlite"),
+      TEST_TURSO_CREDENTIALS,
+      undefined,
+      scriptedTransport(request, play),
+    ),
+  );
 
 describe("Turso migration file", () => {
   test("accepts a complete SQLite file prepared for Turso", () =>
@@ -148,7 +182,11 @@ describe("Turso migration file", () => {
       await Deno.writeTextFile(path, "sqlite bytes");
 
       await withUploadServer(
-        () => new Response("invalid", { status: 400 }),
+        async (request) => {
+          // Read the whole upload first so the reply never races the body.
+          await request.arrayBuffer();
+          return new Response("invalid", { status: 400 });
+        },
         async (dbUrl, transport) => {
           await expect(
             uploadTursoDatabaseFile(
@@ -160,6 +198,86 @@ describe("Turso migration file", () => {
           ).rejects.toThrow("Upload database failed (400): invalid");
         },
       );
+    }));
+
+  // Regression: a server that answers before the whole body is sent breaks
+  // the upload write. The caller must get the server's answer or the write
+  // error as a normal rejection — never a process-killing internal error.
+  test("still rejects when the server replies before the upload finishes", () =>
+    withTempDir(async (dir) => {
+      const path = join(dir, "database.sqlite");
+      // Big enough that the client cannot finish writing before the 400 lands.
+      await Deno.writeFile(path, new Uint8Array(8_000_000));
+
+      await withUploadServer(
+        () => new Response("invalid", { status: 400 }),
+        async (dbUrl, transport) => {
+          await expect(
+            uploadTursoDatabaseFile(
+              path,
+              uploadCredentials(dbUrl),
+              undefined,
+              transport,
+            ),
+          ).rejects.toThrow(
+            /Upload database failed \(400\): invalid|error writing a body to connection/,
+          );
+        },
+      );
+    }));
+
+  test("prefers the server's answer over a later write error", () =>
+    withTempDir(async (dir) => {
+      const request = fakeRequest();
+      const reply = Object.assign(new EventEmitter(), { statusCode: 400 });
+      await expect(
+        uploadThroughScript(dir, request, (receive) => {
+          receive(reply as unknown as IncomingMessage);
+          reply.emit("data", new TextEncoder().encode("invalid"));
+          request.destroy(new Error("error writing a body to connection"));
+          reply.emit("end");
+        }),
+      ).rejects.toThrow("Upload database failed (400): invalid");
+    }));
+
+  test("rejects a write error when no reply has arrived", () =>
+    withTempDir(async (dir) => {
+      const request = fakeRequest();
+      await expect(
+        uploadThroughScript(dir, request, () => {
+          request.destroy(new Error("connection reset mid-upload"));
+        }),
+      ).rejects.toThrow("connection reset mid-upload");
+    }));
+
+  test("ignores only the duplicate body-stream rejection from node:http", () =>
+    withTempDir(async (dir) => {
+      // Any upload installs the safety listener; this one fails fast.
+      const request = fakeRequest();
+      await expect(
+        uploadThroughScript(dir, request, () => {
+          request.destroy(new Error("install trigger"));
+        }),
+      ).rejects.toThrow("install trigger");
+
+      const prevented = (reason: unknown): boolean => {
+        const event = new PromiseRejectionEvent("unhandledrejection", {
+          cancelable: true,
+          promise: Promise.resolve(),
+          reason,
+        });
+        globalThis.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+      expect(
+        prevented(
+          new TypeError("Failed to fetch: request body stream errored"),
+        ),
+      ).toBe(true);
+      expect(
+        prevented(new Error("Failed to fetch: request body stream errored")),
+      ).toBe(false);
+      expect(prevented(new TypeError("some other failure"))).toBe(false);
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>
