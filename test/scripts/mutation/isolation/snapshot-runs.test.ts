@@ -380,9 +380,11 @@ describe("running mutation inside a snapshot", () => {
         })();
         const record = await waitForRunningRecord(root);
 
-        expect(getStopChild()).toBeDefined();
-        getStopChild()?.();
-        getStopChild()?.();
+        const stopChild = getStopChild();
+        expect(stopChild).toBeDefined();
+        if (!stopChild) return;
+        stopChild();
+        stopChild();
         // The forced stop takes the claim down — under the takers' guard,
         // so a child touch mid-write cannot put it back — and then exits:
         // the run reads as over at once, not after a whole stale window.
