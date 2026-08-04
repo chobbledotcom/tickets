@@ -187,6 +187,50 @@ export const findForms = (html: string): FormInfo[] =>
     }),
   );
 
+/** One button somebody could press, and what pressing it really does. */
+export interface Pressable {
+  goesTo: string;
+  name: string | undefined;
+  sentBy: string;
+  value: string;
+}
+
+/** Every button on a form somebody could press, and where pressing each one
+ * really goes. Only a submit button submits: a `type="button"` or `type="reset"`
+ * one is rendered and pressable but sends nothing. A button may override its own
+ * form's address and method, so its word wins; a form declaring no method sends
+ * by GET, which no route reached this way takes. */
+export const pressableOn = (form: FormInfo): Pressable[] =>
+  regexCollect(
+    /<button\b([^>]*?)>/gi,
+    withoutSwitchedOffGroups(form.body),
+    (m) => m[1]!,
+  )
+    .filter((attrs) => !isDisabled(attrs) && pressingSends(attrs))
+    .map((attrs) => ({
+      goesTo: attrValue(attrs, "formaction") ?? form.action,
+      name: attrValue(attrs, "name"),
+      sentBy: (attrValue(attrs, "formmethod") ?? form.method).toLowerCase(),
+      value: attrValue(attrs, "value") ?? "",
+    }));
+
+/** The form somebody pressing their way to an address would really be on, and
+ * the button that takes them — not always the form declaring the address, since
+ * a button can aim its own form somewhere else. Nothing when the page offers no
+ * way there at all. */
+export const wayToPost = (
+  html: string,
+  action: string,
+): { form: FormInfo; pressed: Pressable } | null => {
+  for (const form of findForms(html)) {
+    const pressed = pressableOn(form).find(
+      ({ goesTo, sentBy }) => goesTo === action && sentBy === "post",
+    );
+    if (pressed) return { form, pressed };
+  }
+  return null;
+};
+
 /** Extract all checkbox values for a given field name from form HTML */
 const extractCheckboxValues = (form: string, fieldName: string): string[] =>
   regexCollect(

@@ -142,4 +142,38 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
       'No form on this page posts to "/rows/3/move-up"',
     );
   });
+
+  /**
+   * Asking whether a page offers a way somewhere, rather than being told after
+   * trying. A page can render a button for an action and still offer nobody a
+   * way to take it, which is what a disabled Send button is.
+   */
+  describe("asking whether the page offers a way there at all", () => {
+    const offersAWayTo = (secondArrow: string): boolean => {
+      const browser = new TestBrowser();
+      browser.currentHtml = arrows(secondArrow);
+      return browser.offersAWayToPost(SECOND_ROW);
+    };
+
+    it("says yes when a button really posts there", () => {
+      expect(offersAWayTo(pressable)).toBe(true);
+    });
+
+    it("says no when the only button there is switched off", () => {
+      expect(offersAWayTo('<button disabled type="submit">▲</button>')).toBe(
+        false,
+      );
+    });
+
+    it("says no when the only button there sends nothing", () => {
+      expect(offersAWayTo('<button type="button">▲</button>')).toBe(false);
+    });
+
+    it("says no for an address no form on the page posts to", () => {
+      const browser = new TestBrowser();
+      browser.currentHtml = arrows(pressable);
+
+      expect(browser.offersAWayToPost("/rows/3/move-up")).toBe(false);
+    });
+  });
 });

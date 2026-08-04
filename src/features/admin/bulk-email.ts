@@ -14,6 +14,7 @@ import { defineRoutes } from "#routes/router.ts";
  * button (formaction="/admin/emails/templates") creates or updates a template.
  */
 
+import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   formPost,
@@ -243,7 +244,7 @@ const validateFormBody = async (
 ): Promise<Response | ValidatedEmailForm> => {
   const target = await targetFromForm(form);
   if (!target) {
-    return errorRedirect(COMPOSE_PATH, "That listing no longer exists.");
+    return errorRedirect(COMPOSE_PATH, t("bulk_email.listing_gone"));
   }
   const validation = validateDraftInput({
     body: form.getString("body"),
@@ -279,7 +280,7 @@ const validatedEmailPost = (
 /** POST /admin/emails/preview — validate, persist the draft, redirect to preview. */
 const handlePreviewPost = validatedEmailPost(async (fields) => {
   await saveDraft({ ...fields });
-  return ok(PREVIEW_PATH, "Review your email below before sending.");
+  return ok(PREVIEW_PATH, t("bulk_email.review_before_sending"));
 });
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
@@ -326,19 +327,16 @@ const handlePreviewGet = ownerResponsePage(async (session) => {
 const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
   const draft = await parseSavedDraft(await requireRequestPrivateKey());
   if (!draft) {
-    return errorRedirect(COMPOSE_PATH, "There's no email to send.");
+    return errorRedirect(COMPOSE_PATH, t("bulk_email.no_draft"));
   }
   const { privateKey, recipients, config } = await loadSendContext(
     draft.target,
   );
   if (!config) {
-    return errorRedirect(
-      PREVIEW_PATH,
-      "Configure your own email provider before sending bulk email.",
-    );
+    return errorRedirect(PREVIEW_PATH, t("bulk_email.no_provider"));
   }
   if (recipients.length === 0) {
-    return errorRedirect(PREVIEW_PATH, "There are no recipients to send to.");
+    return errorRedirect(PREVIEW_PATH, t("bulk_email.no_recipients"));
   }
   const unsubscribed = draft.marketing
     ? await getUnsubscribedHashSet()
@@ -352,10 +350,7 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
     unsubscribed,
   });
   if (payload.recipients.length === 0) {
-    return errorRedirect(
-      PREVIEW_PATH,
-      "Everyone in this audience has unsubscribed.",
-    );
+    return errorRedirect(PREVIEW_PATH, t("bulk_email.all_unsubscribed"));
   }
   const result = await sendBulkEmails(config, payload);
   await recordContacts(
@@ -374,9 +369,11 @@ const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
   );
   return ok(
     COMPOSE_PATH,
-    `Sent to ${recipientLabel} via ${
-      EMAIL_PROVIDER_LABELS[config.provider]
-    }. ${providerSummary}`,
+    t("bulk_email.sent_flash", {
+      count: result.attempted,
+      provider: EMAIL_PROVIDER_LABELS[config.provider],
+      summary: providerSummary,
+    }),
   );
 });
 
