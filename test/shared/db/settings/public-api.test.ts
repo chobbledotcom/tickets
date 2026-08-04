@@ -80,6 +80,16 @@ describeWithEnv("db > settings public API", { db: true }, () => {
   });
 
   describe("payment provider", () => {
+    test("rejects missing and invalid provider values", async () => {
+      const update = settings.update.paymentProvider as (
+        provider: string,
+      ) => Promise<void>;
+      await expect(update("")).rejects.toThrow("Invalid payment provider");
+      await expect(update("invalid")).rejects.toThrow(
+        "Invalid payment provider: invalid",
+      );
+    });
+
     const reloadPaymentProviderSettings = async (): Promise<void> => {
       settings.invalidateCache();
       await settings.loadKeys([

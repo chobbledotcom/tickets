@@ -54,8 +54,6 @@ export const withCurrentTask = async <T>(
       [CONFIG_KEYS.SETTINGS_VERSION],
     );
     const currentVersion = Number(version.rows[0]?.value);
-    if (!Number.isInteger(currentVersion))
-      throw new Error("Missing settings version");
     return expectedVersion !== undefined && expectedVersion !== currentVersion
       ? staleTask()
       : { error: "Another task is already in progress", ok: false };

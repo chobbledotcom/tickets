@@ -159,6 +159,20 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(settings.paymentProvider).toBeNull();
     });
 
+    test("rejects a malformed settings revision", async () => {
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        { payment_provider: "stripe", settings_version: "not-a-number" },
+      );
+
+      expectFlash(
+        response,
+        "Settings changed. Reload the page and try again.",
+        false,
+      );
+      expect(settings.paymentProvider).toBeNull();
+    });
+
     test("recovers the provider for old payments without enabling sales", async () => {
       await settings.update.stripe.secretKey("sk_test_recovery");
       await settings.update.square.accessToken("square-recovery");
@@ -182,6 +196,24 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         payment_provider: "stripe",
       });
       expect(settings.paymentProvider).toBe("stripe");
+    });
+
+    test("does not recover while another settings task runs", async () => {
+      await settings.update.stripe.secretKey("sk_test_recovery");
+      await settings.update.square.accessToken("square-recovery");
+      await settings.update.setPaymentProviderNone();
+      await settings.update.currentTask("custom-domain");
+      try {
+        const { response } = await adminFormPost(
+          "/admin/settings/payment-provider-recovery",
+          { existing_payment_provider: "stripe" },
+        );
+
+        expectFlash(response, "Another task is already in progress", false);
+        expect(settings.lastActivePaymentProvider).toBeNull();
+      } finally {
+        await settings.update.currentTask("");
+      }
     });
 
     test("rejects recovery through a provider without saved credentials", async () => {
