@@ -4,13 +4,19 @@ import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type {
   BooleanSettingsFormConfig,
+  CheckboxFieldSpec,
   FieldFormCopy,
+  FieldSpec,
+  FieldsSettingsFormConfig,
   FormCopyBase,
-  SettingsFormDefinition,
+  RadiosFieldSpec,
+  SettingsFormFor,
   TextareaSettingsFormConfig,
   TextSettingsFormConfig,
 } from "#shared/settings/forms.ts";
+import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
+import { RadioOption } from "#templates/components/radio-option.tsx";
 import { settingsSectionWith } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
@@ -149,16 +155,60 @@ const booleanForm = (
     />,
   );
 
+const radiosField = (spec: RadiosFieldSpec, state: object): JSX.Element => (
+  <fieldset class="radios">
+    {spec.options.map((option) => (
+      <RadioOption
+        checked={stringState(state, spec.stateField) === option.value}
+        name={spec.fieldName}
+        value={option.value}
+      >
+        {t(option.labelKey)}
+      </RadioOption>
+    ))}
+  </fieldset>
+);
+
+const checkboxField = (spec: CheckboxFieldSpec, state: object): Child => [
+  <SettingsCheckbox
+    checked={booleanState(state, spec.stateField)}
+    label={t(spec.labelKey)}
+    labelClass={spec.labelClass}
+    name={spec.fieldName}
+  />,
+  spec.hintKey !== undefined ? <small>{t(spec.hintKey)}</small> : undefined,
+];
+
+const renderField = (spec: FieldSpec, state: object): Child => {
+  switch (spec.kind) {
+    case "checkbox":
+      return checkboxField(spec, state);
+    case "radios":
+      return radiosField(spec, state);
+  }
+};
+
+const fieldsForm = (
+  definition: FieldsSettingsFormConfig,
+  state: object,
+): JSX.Element =>
+  formSection(
+    definition,
+    definition.fields.map((spec) => renderField(spec, state)),
+  );
+
 /** Render a settings form from its registry definition. The definition's
- * `stateField` must be a real field of the page state handed in, so a typo'd
+ * state fields must be real fields of the page state handed in, so a typo'd
  * or misplaced definition fails to compile instead of rendering blank. */
 export const settingsForm = <S extends object>(
-  definition: Extract<SettingsFormDefinition, { stateField: keyof S & string }>,
+  definition: SettingsFormFor<S>,
   state: S,
 ): JSX.Element => {
   switch (definition.kind) {
     case "boolean":
       return booleanForm(definition, state);
+    case "fields":
+      return fieldsForm(definition, state);
     case "text":
       return textForm(definition, state);
     case "textarea":

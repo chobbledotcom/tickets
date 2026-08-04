@@ -21,7 +21,6 @@ import {
 } from "#templates/admin/settings/payment.tsx";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
-import { ThemeForm } from "#templates/admin/settings/theme.tsx";
 
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
@@ -73,7 +72,7 @@ export const adminSettingsPage = (
     <>
       {settingsForm(SETTINGS_FORMS.businessEmail, s)}
       {HeaderImageForm(s)}
-      {ThemeForm(s)}
+      {settingsForm(SETTINGS_FORMS.theme, s)}
 
       {PaymentProviderForm(s)}
       {StripeForm(s)}

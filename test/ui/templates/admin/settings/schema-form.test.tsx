@@ -14,6 +14,8 @@ const state = {
   listingColumnOrder: "",
   showPublicApi: true,
   termsAndConditions: "Be kind.",
+  theme: "light",
+  underlineLinks: false,
 };
 
 const htmlFor = (name: keyof typeof SETTINGS_FORMS): string =>
@@ -83,6 +85,45 @@ describe("settingsForm", () => {
     expect(html).toContain('name="external_order_enabled"');
     expect(html).toContain(
       '<input checked name="external_order_enabled" type="radio" value="true">',
+    );
+  });
+});
+
+describe("settingsForm multi-field forms", () => {
+  const themeState = { theme: "dark", underlineLinks: false };
+
+  test("checks exactly the radio matching the saved value", () => {
+    const html = String(settingsForm(SETTINGS_FORMS.theme, themeState));
+
+    expect(html).toContain('<fieldset class="radios">');
+    expect(html).toContain(
+      '<input checked name="theme" type="radio" value="dark">',
+    );
+    expect(html).toContain('<input name="theme" type="radio" value="light">');
+  });
+
+  test("renders the checkbox with its class and hint, unchecked", () => {
+    const html = String(settingsForm(SETTINGS_FORMS.theme, themeState));
+
+    expect(html).toContain('<label class="checkbox">');
+    expect(html).toContain(
+      '<input name="underline_links" type="checkbox" value="true">',
+    );
+    expect(html).toContain(
+      "<small>Underline links everywhere, including the navigation.",
+    );
+  });
+
+  test("checks the checkbox when the setting is on", () => {
+    const html = String(
+      settingsForm(SETTINGS_FORMS.theme, {
+        theme: "light",
+        underlineLinks: true,
+      }),
+    );
+
+    expect(html).toContain(
+      '<input checked name="underline_links" type="checkbox" value="true">',
     );
   });
 });

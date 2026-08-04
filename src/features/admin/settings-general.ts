@@ -27,7 +27,7 @@ import { providerCurrencyBlock } from "#shared/payment-providers.ts";
 import { ok } from "#shared/response.ts";
 import {
   SETTINGS_FORMS,
-  type SettingsFormDefinition,
+  type SingleFieldSettingsForm,
 } from "#shared/settings/forms.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import {
@@ -37,14 +37,14 @@ import {
 } from "#shared/types.ts";
 import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
 
-const formRoute = (definition: SettingsFormDefinition) => ({
+const formRoute = (definition: SingleFieldSettingsForm) => ({
   advanced: definition.page === "advanced",
   field: definition.fieldName,
   formId: definition.formId,
   label: definition.routeLabel,
 });
 
-const formLocation = (definition: SettingsFormDefinition) => {
+const formLocation = (definition: SingleFieldSettingsForm) => {
   const { label: _, ...location } = formRoute(definition);
   return location;
 };

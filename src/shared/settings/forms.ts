@@ -28,17 +28,24 @@ export type FieldFormCopy = FormCopyBase & {
 
 type BooleanFormCopy = FormCopyBase;
 
-type SettingsFormBase<Copy extends FormCopyBase> = {
+/** What every settings form declares, whatever its shape: where it lives,
+ *  where it posts, and its heading copy. */
+type SettingsFormIdentity<Copy extends FormCopyBase> = {
   name: string;
   page: SettingsFormPage;
-  key: ConfigKey;
   action: string;
   formId: string;
-  fieldName: string;
   routeLabel: string;
-  stateField: string;
   copy: Copy;
 };
+
+/** A form that edits exactly one setting through one form field. */
+type SettingsFormBase<Copy extends FormCopyBase> =
+  SettingsFormIdentity<Copy> & {
+    key: ConfigKey;
+    fieldName: string;
+    stateField: string;
+  };
 
 export type TextSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
   kind: "text";
@@ -62,8 +69,41 @@ export type BooleanSettingsFormConfig = SettingsFormBase<BooleanFormCopy> & {
   kind: "boolean";
 };
 
+/** One field inside a multi-field form. */
+type FieldSpecBase = {
+  fieldName: string;
+  stateField: string;
+};
+
+/** A radio group: one option per choice, no heading of its own. */
+export type RadiosFieldSpec = FieldSpecBase & {
+  kind: "radios";
+  options: readonly { value: string; labelKey: string }[];
+};
+
+/** A checkbox that posts `true` when ticked. */
+export type CheckboxFieldSpec = FieldSpecBase & {
+  kind: "checkbox";
+  labelKey: string;
+  /** Class for the wrapping label (omitted for an unstyled label). */
+  labelClass?: string;
+  /** Small plain note rendered after the checkbox. */
+  hintKey?: string;
+};
+
+export type FieldSpec = CheckboxFieldSpec | RadiosFieldSpec;
+
+/** A form of several fields saved together by one hand-written route. */
+export type FieldsSettingsFormConfig = SettingsFormIdentity<
+  FormCopyBase & { submitLabelKey: string }
+> & {
+  kind: "fields";
+  fields: readonly FieldSpec[];
+};
+
 type SettingsFormConfig =
   | BooleanSettingsFormConfig
+  | FieldsSettingsFormConfig
   | TextSettingsFormConfig
   | TextareaSettingsFormConfig;
 
@@ -97,6 +137,38 @@ export const SETTINGS_FORM_DEFINITIONS = [
     page: "main",
     routeLabel: "Business email",
     stateField: "businessEmail",
+  }),
+  form({
+    action: "/admin/settings/theme",
+    copy: {
+      descriptionKey: "settings.theme_hint",
+      submitLabelKey: "settings.save_theme",
+      titleKey: "settings.theme",
+    },
+    fields: [
+      {
+        fieldName: "theme",
+        kind: "radios",
+        options: [
+          { labelKey: "settings.theme_light", value: "light" },
+          { labelKey: "settings.theme_dark", value: "dark" },
+        ],
+        stateField: "theme",
+      },
+      {
+        fieldName: "underline_links",
+        hintKey: "settings.underline_links_hint",
+        kind: "checkbox",
+        labelClass: "checkbox",
+        labelKey: "settings.underline_links",
+        stateField: "underlineLinks",
+      },
+    ],
+    formId: "settings-theme",
+    kind: "fields",
+    name: "theme",
+    page: "main",
+    routeLabel: "Site theme",
   }),
   form({
     action: "/admin/settings/terms",
@@ -257,6 +329,20 @@ export const SETTINGS_FORM_DEFINITIONS = [
 
 export type SettingsFormDefinition = (typeof SETTINGS_FORM_DEFINITIONS)[number];
 export type SettingsFormName = SettingsFormDefinition["name"];
+
+/** The definitions that edit one setting through one form field. */
+export type SingleFieldSettingsForm = Exclude<
+  SettingsFormDefinition,
+  { kind: "fields" }
+>;
+
+/** The definitions whose state fields all exist on page state `S` — so a
+ *  definition rendered against the wrong page fails to compile. */
+export type SettingsFormFor<S> = Extract<
+  SettingsFormDefinition,
+  | { stateField: keyof S & string }
+  | { kind: "fields"; fields: readonly { stateField: keyof S & string }[] }
+>;
 
 type SettingFormFor<Name extends SettingsFormName> = Extract<
   SettingsFormDefinition,
