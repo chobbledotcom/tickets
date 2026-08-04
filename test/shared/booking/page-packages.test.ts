@@ -109,6 +109,15 @@ describe("combinedPackageTerms", () => {
     );
     expect(combined).toBe("House terms");
   });
+
+  test("a single short terms text still wins over the fallback", () => {
+    // Any non-empty terms count — even one character, from one package.
+    const combined = combinedPackageTerms(
+      [pagePackage(7, [1], { terms: "x" })],
+      "House terms",
+    );
+    expect(combined).toBe("x");
+  });
 });
 
 describe("soleParentPackageIds", () => {
@@ -176,5 +185,14 @@ describe("stampChildRowPackages", () => {
       new Map([[1, 7]]),
     );
     expect(rows).toEqual([{ packageGroupId: 8, parentListingId: 1 }]);
+  });
+
+  test("stamps a child row that carries no package tag at all", () => {
+    // An absent packageGroupId reads exactly like an explicit 0: unstamped.
+    const rows = stampChildRowPackages(
+      [{ parentListingId: 1 }],
+      new Map([[1, 7]]),
+    );
+    expect(rows).toEqual([{ packageGroupId: 7, parentListingId: 1 }]);
   });
 });

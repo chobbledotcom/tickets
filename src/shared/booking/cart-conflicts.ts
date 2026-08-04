@@ -50,11 +50,11 @@ const nothingShared = <T>(offers: readonly (readonly T[])[]): boolean =>
  * clash; anything else falls back to the selectors' plain empty copy. */
 const CART_CONFLICT_REASONS: readonly Reason<[CartFacts]>[] = [
   // An item with no dates of its own: the problem is that item, not the mix.
-  // When EVERY item is dateless there are no "others" left to book, so the
-  // message would give an impossible instruction — the selector's plain "no
-  // dates" copy covers that case instead.
+  // Speaks only when SOME items still have dates: when every item is dateless
+  // there are no "others" left to book (and a single-item page has nothing to
+  // book the others without), so the selector's plain "no dates" copy covers
+  // those cases instead.
   ({ dateItems }) => {
-    if (dateItems.length < 2) return null;
     const dateless = dateItems.filter((item) => item.dates.length === 0);
     return dateless.length > 0 && dateless.length < dateItems.length
       ? t("public.ticket.cart_item_no_dates", {
