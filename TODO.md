@@ -1076,28 +1076,6 @@ state.
 
 ---
 
-## Backup storage edge cases
-
-*Origin: CodeRabbit review of PR #1837.*
-
-PR #1837 only moves the existing backup storage helpers out of
-`src/shared/db/backup.ts`; it deliberately preserves their behavior. These
-possible behavior changes need separate decisions and regression tests:
-
-- **Keep every database namespace non-empty and distinct.** `dbName` in
-  `src/shared/db/backup-storage.ts` returns an empty name for a parseable local
-  `file:` URL and strips the first dashed part from non-Bunny hostnames. Decide
-  the supported URL schemes and hostnames, return a named local folder for local
-  URLs, and only remove Bunny DB's UUID prefix for `.lite.bunnydb.net`. Start
-  with tests for `file:database.db` and two distinct dashed HTTPS hostnames.
-- **Reject future-dated backups from the update gate.** `hasRecentBackup` in
-  `src/shared/db/backup-storage.ts` treats every future timestamp as recent
-  because its age is negative. Decide how much clock skew is acceptable, then
-  require a non-negative age (or a documented tolerance) before applying the
-  maximum age. Add a test with a future backup filename.
-
----
-
 ## Checkout stage attendee cleanup
 
 *Origin: Codex review of PR #1840.*
@@ -1186,50 +1164,6 @@ of scope for #1873, and a starting point.*
   This is a structural refactor (no behavior change); add a regression test
   that re-runs the no-`../` rule against a fixture file via the extracted
   helpers to prove parity with the inline implementation.
----
-
-## Admin debug test coverage follow-ups
-
-*Origin: CodeRabbit review of PR #1875 ("Move admin debug tests and add a
-template rendering test"). PR #1875 is test-only: it `git mv`s
-`test/lib/server-debug*.test.ts` into `test/features/admin/debug/`, extracts
-shared state into `test/test-utils/debug.ts`, and adds a direct-rendering test.
-CodeRabbit raised two findings that are valid as code-quality observations but
-out of scope for that PR's brief — recorded here for a follow-up.*
-
-- **Inspect the Sentry test envelope, not only the request count.** In
-  `test/features/admin/debug/sentry.test.ts` (around lines 63-68), the
-  "sends a tagged test error and confirms delivery" test stubs `fetch` with the
-  shared `stubFetch` helper and asserts only that one request was made. It does
-  not prove the emitted event is tagged or carries the intended test-error
-  message. Replace the shared stub with a local fetch recorder inside that test,
-  then assert the captured Sentry envelope body contains the literal message
-  `"Test Sentry notification from the admin debug page."` and the
-  `source=admin-debug` / `test=true` tags (the literal values
-  `src/shared/sentry.ts` `sendSentryTest` writes today — keep them in sync with
-  that source when the follow-up lands). Retain the existing request-count,
-  redirect, and flash assertions. Starting point: read `sendSentryTest` in
-  `src/shared/sentry.ts` (lines ~74-101) to confirm the exact envelope values,
-  then look at `test/test-utils/fetch-stub.ts` to see what the shared stub
-  exposes today.
-- **Assert semantic debug sections, not CSS-class counts.** In
-  `test/ui/templates/admin/debug/rendering.test.tsx` (around lines 38-40), the
-  "keeps the debug navigation and section structure" test asserts the page
-  contains exactly 3 `class="prose"` and 13 `class="table-scroll"` occurrences.
-  Those counts couple the test to presentation wrappers, so a layout change can
-  fail it without changing page behaviour. PR #1875 carried these counts in
-  because the brief explicitly asked for them as the current-main contract; a
-  follow-up can replace them with assertions on the rendered section headings.
-  Keep the `href="/admin/debug"` link assertion. Maintain the expected heading
-  set as an explicit literal list inside the test (`t("debug.section.build")`,
-  `t("debug.section.runtime")`, etc.) — do **not** derive it from
-  `DEBUG_SECTIONS` in `src/ui/templates/admin/debug.tsx`: deriving the oracle
-  from the same source list the template renders against lets a removed or
-  renamed section pass undetected when both the rendering and the oracle shift
-  in lockstep. An independent literal list makes a section addition/removal/rename
-  a deliberate test review, which is the only way the test catches the failure
-  mode it is meant to catch.
-
 ---
 
 ## Recover paid SumUp checkouts without a webhook or redirect
