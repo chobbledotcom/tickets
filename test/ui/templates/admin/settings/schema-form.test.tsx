@@ -1,10 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 
 const state = {
+  addressLookupApiKeyConfigured: false,
+  addressLookupProvider: "none",
   attendeeColumnOrder: "",
   bookingFee: "1.5",
   businessEmail: "ops@example.com",
@@ -152,39 +155,39 @@ describe("settingsForm multi-field forms", () => {
     );
   });
 
-  test("wraps a select inside its label when labelFor is not set", () => {
-    // A probe spec standing in for selects that wrap their label, like the
-    // address lookup provider picker. The registry locks each definition to
-    // its literal values, so the probe needs a cast.
-    const probe = {
-      ...SETTINGS_FORMS.calendarFeeds,
-      fields: [
-        {
-          fieldName: "probe_select",
-          kind: "select",
-          labelKey: "settings.calendar_feeds_group_by",
-          options: [
-            {
-              labelKey: "settings.calendar_feeds_group_by_attendees",
-              value: "attendees",
-            },
-          ],
-          stateField: "calendarFeedsGroupBy",
-        },
-      ],
-    } as unknown as typeof SETTINGS_FORMS.calendarFeeds;
+  test("builds select options at render time and masks a stored secret", () => {
     const html = String(
-      settingsForm(probe, {
-        calendarFeedsEnabled: false,
-        calendarFeedsGroupBy: "attendees",
+      settingsForm(SETTINGS_FORMS.addressLookup, {
+        addressLookupApiKeyConfigured: true,
+        addressLookupProvider: "easypostcodes",
       }),
     );
 
+    // No labelFor: the label wraps the select, and the select has no id.
     expect(html).toContain(
-      '<label>Group feed entries by<select name="probe_select">',
+      '<label>Provider<select name="address_lookup_provider">',
     );
-    expect(html).not.toContain('for="probe_select"');
-    expect(html).not.toContain('id="probe_select"');
+    expect(html).toContain(
+      '<option value="none">None (type addresses manually)</option>',
+    );
+    expect(html).toContain('<option selected value="easypostcodes">');
+    const secret = html.match(
+      /<input[^>]*name="address_lookup_api_key"[^>]*>/,
+    )?.[0];
+    expect(secret).toContain('type="password"');
+    expect(secret).toContain(`value="${MASK_SENTINEL}"`);
+  });
+
+  test("leaves the secret input empty when nothing is stored", () => {
+    const html = String(
+      settingsForm(SETTINGS_FORMS.addressLookup, {
+        addressLookupApiKeyConfigured: false,
+        addressLookupProvider: "none",
+      }),
+    );
+
+    expect(html).not.toContain(MASK_SENTINEL);
+    expect(html).toContain('<option selected value="none">');
   });
 });
 

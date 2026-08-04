@@ -159,6 +159,14 @@ const EXPECTED_FORM_ROWS = [
     "Public API",
     "showPublicApi",
   ),
+  multi(
+    "addressLookup",
+    "advanced",
+    "/admin/settings/address-lookup",
+    "settings-address-lookup",
+    ["address_lookup_provider", "address_lookup_api_key"],
+    "Address lookup",
+  ),
   single(
     "externalOrder",
     "advanced",
@@ -207,8 +215,10 @@ const specCopyKeys = (definition: SettingsFormDefinition): string[] =>
         ...("hintKey" in spec && spec.hintKey !== undefined
           ? [spec.hintKey]
           : []),
-        ...("options" in spec
-          ? spec.options.map((option) => option.labelKey)
+        ...("placeholderKey" in spec ? [spec.placeholderKey] : []),
+        // Built-at-render options carry final labels, not catalog keys.
+        ...("options" in spec && Array.isArray(spec.options)
+          ? spec.options.map((option: { labelKey: string }) => option.labelKey)
           : []),
       ])
     : [];

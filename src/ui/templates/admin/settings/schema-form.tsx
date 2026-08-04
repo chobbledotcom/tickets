@@ -10,13 +10,15 @@ import type {
   FieldsSettingsFormConfig,
   FormCopyBase,
   RadiosFieldSpec,
+  SecretFieldSpec,
   SelectFieldSpec,
-  SettingsFormFor,
   TextareaSettingsFormConfig,
   TextSettingsFormConfig,
-} from "#shared/settings/forms.ts";
+} from "#shared/settings/form-schema.ts";
+import type { SettingsFormFor } from "#shared/settings/forms.ts";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
+import { MaskedInput } from "#templates/components/masked-input.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
 import {
   choiceOptions,
@@ -189,7 +191,11 @@ const selectField = (spec: SelectFieldSpec, state: object): Child => {
     <SelectField
       id={spec.labelFor ? spec.fieldName : undefined}
       name={spec.fieldName}
-      options={choiceOptions(spec.options)}
+      options={
+        typeof spec.options === "function"
+          ? spec.options()
+          : choiceOptions(spec.options)
+      }
       value={stringState(state, spec.stateField)}
     />
   );
@@ -203,12 +209,23 @@ const selectField = (spec: SelectFieldSpec, state: object): Child => {
   );
 };
 
+const secretField = (spec: SecretFieldSpec, state: object): JSX.Element => (
+  <MaskedInput
+    configured={booleanState(state, spec.configuredStateField)}
+    label={t(spec.labelKey)}
+    name={spec.fieldName}
+    placeholder={t(spec.placeholderKey)}
+  />
+);
+
 const renderField = (spec: FieldSpec, state: object): Child => {
   switch (spec.kind) {
     case "checkbox":
       return checkboxField(spec, state);
     case "radios":
       return radiosField(spec, state);
+    case "secret":
+      return secretField(spec, state);
     case "select":
       return selectField(spec, state);
   }

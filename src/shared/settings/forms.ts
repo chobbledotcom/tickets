@@ -1,124 +1,12 @@
 import { t } from "#i18n";
-import { CONFIG_KEYS, type ConfigKey } from "#shared/settings/keys.ts";
+import { ADDRESS_LOOKUP_PROVIDERS } from "#shared/address-lookup/providers.ts";
+import {
+  ADDRESS_LOOKUP_SETTINGS,
+  type AddressLookupSetting,
+} from "#shared/address-lookup/types.ts";
+import type { SettingsFormConfig } from "#shared/settings/form-schema.ts";
+import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
-
-export type SettingsFormPage = "main" | "advanced";
-
-export type FormCopyBase = {
-  titleKey: string;
-  descriptionKey: string;
-  /** `true` renders the trusted-HTML description inside the usual paragraph;
-   * `"block"` renders it bare, for catalog values carrying their own block
-   * markup (their own `<p>` tags). */
-  descriptionHtml?: true | "block";
-};
-
-export type FieldFormCopy = FormCopyBase & {
-  labelKey: string;
-  labelHint?: "formatting";
-  /** Placeholder: a catalog key, or text built at render time (for example a
-   * default template). Set at most one; omit both for no placeholder. */
-  placeholderKey?: string;
-  placeholderText?: () => string;
-  submitLabelKey: string;
-  /** Small note under the field: a catalog key, or text built at render time. */
-  footerKey?: string;
-  footerText?: () => string;
-};
-
-type BooleanFormCopy = FormCopyBase;
-
-/** What every settings form declares, whatever its shape: where it lives,
- *  where it posts, and its heading copy. */
-type SettingsFormIdentity<Copy extends FormCopyBase> = {
-  name: string;
-  page: SettingsFormPage;
-  action: string;
-  formId: string;
-  routeLabel: string;
-  copy: Copy;
-};
-
-/** A form that edits exactly one setting through one form field. */
-type SettingsFormBase<Copy extends FormCopyBase> =
-  SettingsFormIdentity<Copy> & {
-    key: ConfigKey;
-    fieldName: string;
-    stateField: string;
-  };
-
-export type TextSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
-  kind: "text";
-  inputType: "email" | "text" | "number" | "url";
-  /** Input constraints, forwarded to the rendered field as-is. */
-  min?: string;
-  max?: string;
-  step?: string;
-  minlength?: number;
-  required?: true;
-  /** Show the placeholder as the value when nothing is saved yet. */
-  valueFallback?: "placeholder";
-};
-
-export type TextareaSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
-  kind: "textarea";
-  markdownPreview?: true;
-};
-
-export type BooleanSettingsFormConfig = SettingsFormBase<BooleanFormCopy> & {
-  kind: "boolean";
-};
-
-/** One field inside a multi-field form. */
-type FieldSpecBase = {
-  fieldName: string;
-  stateField: string;
-};
-
-/** One choice in a radio group or dropdown: the value it posts and the
- *  catalog key naming it. */
-type ChoiceOption = { value: string; labelKey: string };
-
-/** A radio group: one option per choice, no heading of its own. */
-export type RadiosFieldSpec = FieldSpecBase & {
-  kind: "radios";
-  options: readonly ChoiceOption[];
-};
-
-/** A checkbox that posts `true` when ticked. */
-export type CheckboxFieldSpec = FieldSpecBase & {
-  kind: "checkbox";
-  labelKey: string;
-  /** Class for the wrapping label (omitted for an unstyled label). */
-  labelClass?: string;
-  /** Small plain note rendered after the checkbox. */
-  hintKey?: string;
-};
-
-/** A dropdown. With `labelFor`, the label sits before the select and points
- *  at it by id; without, the label wraps the select. */
-export type SelectFieldSpec = FieldSpecBase & {
-  kind: "select";
-  labelKey: string;
-  labelFor?: true;
-  options: readonly ChoiceOption[];
-};
-
-export type FieldSpec = CheckboxFieldSpec | RadiosFieldSpec | SelectFieldSpec;
-
-/** A form of several fields saved together by one hand-written route. */
-export type FieldsSettingsFormConfig = SettingsFormIdentity<
-  FormCopyBase & { submitLabelKey: string }
-> & {
-  kind: "fields";
-  fields: readonly FieldSpec[];
-};
-
-type SettingsFormConfig =
-  | BooleanSettingsFormConfig
-  | FieldsSettingsFormConfig
-  | TextSettingsFormConfig
-  | TextareaSettingsFormConfig;
 
 const form = <const Definition extends SettingsFormConfig>(
   definition: Definition,
@@ -130,6 +18,13 @@ const availableTags = (layout: { keys: readonly string[] }): string =>
   `${t("settings.column_order.available")} ${layout.keys
     .map((key) => `{{${key}}}`)
     .join(", ")}`;
+
+/** Picklist label: "none" is translated copy, real providers show their
+ *  brand. */
+const addressProviderLabel = (provider: AddressLookupSetting): string =>
+  provider === "none"
+    ? t("address_lookup.settings.provider_none")
+    : ADDRESS_LOOKUP_PROVIDERS[provider].label;
 
 export const SETTINGS_FORM_DEFINITIONS = [
   form({
@@ -363,6 +258,40 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "showPublicApi",
   }),
   form({
+    action: "/admin/settings/address-lookup",
+    copy: {
+      descriptionHtml: "block",
+      descriptionKey: "address_lookup.settings.description",
+      submitLabelKey: "address_lookup.settings.save",
+      titleKey: "address_lookup.settings.title",
+    },
+    fields: [
+      {
+        fieldName: "address_lookup_provider",
+        kind: "select",
+        labelKey: "address_lookup.settings.provider",
+        options: () =>
+          ADDRESS_LOOKUP_SETTINGS.map((provider) => ({
+            label: addressProviderLabel(provider),
+            value: provider,
+          })),
+        stateField: "addressLookupProvider",
+      },
+      {
+        configuredStateField: "addressLookupApiKeyConfigured",
+        fieldName: "address_lookup_api_key",
+        kind: "secret",
+        labelKey: "address_lookup.settings.api_key",
+        placeholderKey: "address_lookup.settings.api_key_placeholder",
+      },
+    ],
+    formId: "settings-address-lookup",
+    kind: "fields",
+    name: "addressLookup",
+    page: "advanced",
+    routeLabel: "Address lookup",
+  }),
+  form({
     action: "/admin/settings/external-order",
     copy: {
       descriptionKey: "settings.advanced.external_order_hint",
@@ -393,7 +322,13 @@ export type SingleFieldSettingsForm = Exclude<
 export type SettingsFormFor<S> = Extract<
   SettingsFormDefinition,
   | { stateField: keyof S & string }
-  | { kind: "fields"; fields: readonly { stateField: keyof S & string }[] }
+  | {
+      kind: "fields";
+      fields: readonly (
+        | { stateField: keyof S & string }
+        | { configuredStateField: keyof S & string }
+      )[];
+    }
 >;
 
 type SettingFormFor<Name extends SettingsFormName> = Extract<
