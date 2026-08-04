@@ -21,17 +21,19 @@ import { nowMs } from "#shared/now.ts";
 /** One statement counts the attempt and applies the lockout: the VALUES arm
  * covers an IP's first attempt, the conflict arm every later one, and both
  * decide the lockout inside the database — concurrent attempts each land as
- * their own increment instead of overwriting a shared read. */
+ * their own increment instead of overwriting a shared read.
+ * Numbered parameters: ?1 hashed IP · ?2 the attempt limit · ?3 the lockout
+ * deadline · ?4 now. */
 const RECORD_ATTEMPT_SQL = `
   INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt)
-  VALUES (?, 1, CASE WHEN 1 >= ? THEN ? ELSE NULL END, ?)
+  VALUES (?1, 1, CASE WHEN 1 >= ?2 THEN ?3 ELSE NULL END, ?4)
   ON CONFLICT (ip) DO UPDATE SET
     attempts = login_attempts.attempts + 1,
     locked_until = CASE
-      WHEN login_attempts.attempts + 1 >= ? THEN ?
+      WHEN login_attempts.attempts + 1 >= ?2 THEN ?3
       ELSE NULL
     END,
-    last_attempt = ?
+    last_attempt = ?4
   RETURNING locked_until`;
 
 const recordAttempt = makeAttemptRecorder(RECORD_ATTEMPT_SQL);
@@ -54,16 +56,8 @@ const recordIpAttempt = async (
 ): Promise<boolean> => {
   const hashedIp = await hmacHash(`${prefix}${ip}`);
   const current = nowMs();
-  const lockedUntil = current + lockoutMs;
-  return recordAttempt([
-    hashedIp,
-    maxAttempts,
-    lockedUntil,
-    current,
-    maxAttempts,
-    lockedUntil,
-    current,
-  ]);
+  // One value per numbered parameter, in ?1..?4 order.
+  return recordAttempt([hashedIp, maxAttempts, current + lockoutMs, current]);
 };
 
 /**

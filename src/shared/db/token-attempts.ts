@@ -38,24 +38,35 @@ import { nowMs } from "#shared/now.ts";
 
 /* jscpd:ignore-end */
 
+/** The numbered parameters every fragment below shares:
+ *  ?1 hashed IP · ?2 this request's tokens as a JSON array · ?3 the distinct-
+ *  token limit · ?4 the lockout deadline · ?5 now · ?6 the window length. */
+const IP = "?1";
+const NEW_TOKENS = "?2";
+const TOKEN_LIMIT = "?3";
+const LOCK_DEADLINE = "?4";
+const NOW = "?5";
+const WINDOW_MS = "?6";
+
 /** The stored tokens that still count: the saved set while the window is
- * live, an empty set once the window has tumbled. Params: now, window ms. */
+ * live, an empty set once the window has tumbled. */
 const LIVE_TOKENS = `CASE
-  WHEN ? - token_attempts.window_start > ? THEN '[]'
+  WHEN ${NOW} - token_attempts.window_start > ${WINDOW_MS} THEN '[]'
   ELSE token_attempts.recent_tokens
 END`;
 
 /** The live tokens and this request's tokens as one set (UNION removes
- * duplicates, so retries of a known token never grow the set).
- * Params: now, window ms, new-tokens JSON. */
+ * duplicates, so retries of a known token never grow the set). */
 const UNION_TOKENS = `(
   SELECT value FROM json_each(${LIVE_TOKENS})
   UNION
-  SELECT value FROM json_each(?)
+  SELECT value FROM json_each(${NEW_TOKENS})
 ) AS hashedToken`;
 
 const MERGED_COUNT = `(SELECT count(*) FROM ${UNION_TOKENS})`;
 const MERGED_JSON = `(SELECT json_group_array(hashedToken.value) FROM ${UNION_TOKENS})`;
+
+const LOCK_IS_ACTIVE = `token_attempts.locked_until > ${NOW}`;
 
 /** One statement tumbles the window, merges the new tokens, and applies the
  * lockout — all inside the database, so two failures arriving at once can
@@ -66,28 +77,28 @@ const MERGED_JSON = `(SELECT json_group_array(hashedToken.value) FROM ${UNION_TO
 const RECORD_FAILURE_SQL = `
   INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt)
   VALUES (
-    ?,
-    CASE WHEN json_array_length(?) >= ? THEN '[]' ELSE ? END,
-    CASE WHEN json_array_length(?) >= ? THEN ? ELSE NULL END,
-    ?,
-    ?
+    ${IP},
+    CASE WHEN json_array_length(${NEW_TOKENS}) >= ${TOKEN_LIMIT} THEN '[]' ELSE ${NEW_TOKENS} END,
+    CASE WHEN json_array_length(${NEW_TOKENS}) >= ${TOKEN_LIMIT} THEN ${LOCK_DEADLINE} ELSE NULL END,
+    ${NOW},
+    ${NOW}
   )
   ON CONFLICT (ip) DO UPDATE SET
     recent_tokens = CASE
-      WHEN token_attempts.locked_until > ? THEN token_attempts.recent_tokens
-      WHEN ${MERGED_COUNT} >= ? THEN '[]'
+      WHEN ${LOCK_IS_ACTIVE} THEN token_attempts.recent_tokens
+      WHEN ${MERGED_COUNT} >= ${TOKEN_LIMIT} THEN '[]'
       ELSE ${MERGED_JSON}
     END,
     locked_until = CASE
-      WHEN token_attempts.locked_until > ? THEN token_attempts.locked_until
-      WHEN ${MERGED_COUNT} >= ? THEN ?
+      WHEN ${LOCK_IS_ACTIVE} THEN token_attempts.locked_until
+      WHEN ${MERGED_COUNT} >= ${TOKEN_LIMIT} THEN ${LOCK_DEADLINE}
       ELSE NULL
     END,
     window_start = CASE
-      WHEN ? - token_attempts.window_start > ? THEN ?
+      WHEN ${NOW} - token_attempts.window_start > ${WINDOW_MS} THEN ${NOW}
       ELSE token_attempts.window_start
     END,
-    last_attempt = ?
+    last_attempt = ${NOW}
   RETURNING locked_until`;
 
 const recordFailure = makeAttemptRecorder(RECORD_FAILURE_SQL);
@@ -113,45 +124,16 @@ export const recordTokenFailure = async (
 
   const hashedIp = await hmacHash(ip);
   const hashedTokens = await Promise.all(tokens.map((t) => hmacHash(t)));
-  const newTokensJson = JSON.stringify([...new Set(hashedTokens)]);
   const current = nowMs();
-  const lockedUntil = current + TOKEN_LOCKOUT_MS;
 
+  // One value per numbered parameter, in ?1..?6 order.
   return recordFailure([
     hashedIp,
-    // VALUES recent_tokens: a big enough first burst locks immediately
-    newTokensJson,
+    JSON.stringify([...new Set(hashedTokens)]),
     MAX_TOKEN_404S,
-    newTokensJson,
-    // VALUES locked_until
-    newTokensJson,
-    MAX_TOKEN_404S,
-    lockedUntil,
-    // VALUES window_start, last_attempt
-    current,
-    current,
-    // SET recent_tokens: active-lock guard, merged count, limit, merged set
-    current,
+    current + TOKEN_LOCKOUT_MS,
     current,
     TOKEN_WINDOW_MS,
-    newTokensJson,
-    MAX_TOKEN_404S,
-    current,
-    TOKEN_WINDOW_MS,
-    newTokensJson,
-    // SET locked_until: active-lock guard, merged count, limit, deadline
-    current,
-    current,
-    TOKEN_WINDOW_MS,
-    newTokensJson,
-    MAX_TOKEN_404S,
-    lockedUntil,
-    // SET window_start: tumble to now when the old window has passed
-    current,
-    TOKEN_WINDOW_MS,
-    current,
-    // SET last_attempt
-    current,
   ]);
 };
 
