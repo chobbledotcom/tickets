@@ -8,12 +8,7 @@ import { columnMapByIds } from "#shared/db/query.ts";
 import type { BatchLookup } from "#shared/request-cache.ts";
 import type { ListingType } from "#shared/types.ts";
 import { getListingGroupMembership, useListingById } from "./listing.ts";
-import {
-  daySpan,
-  expandDailyRange,
-  type IntervalRow,
-  perDayLoads,
-} from "./range.ts";
+import { daySpan, type IntervalRow, perDayLoads } from "./range.ts";
 import type { ListingForGroupLookup, PerIdDayLoader } from "./types.ts";
 
 /* jscpd:ignore-end */
@@ -137,23 +132,6 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
       days.map((day) => [day, max_attendees - base - loads.get(day)!]),
     );
   })(caps);
-};
-
-/** Tightest remaining group capacity over a whole daily span. */
-export const getGroupRemainingForSpan = async (
-  groupIds: number[],
-  date: string | null,
-  spanDays = 1,
-): Promise<RemainingMap> => {
-  if (date === null) return getGroupRemainingByGroupId(groupIds, null);
-  const days = expandDailyRange(date, spanDays);
-  const perDay = await getGroupPerDayRemaining(groupIds, days);
-  return new Map(
-    [...perDay].map(([groupId, byDay]) => [
-      groupId,
-      Math.min(...days.map((day) => byDay.get(day)!)),
-    ]),
-  );
 };
 
 /** Date-less remaining for capped groups reached from cumulative listings. */
