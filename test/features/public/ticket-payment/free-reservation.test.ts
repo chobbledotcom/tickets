@@ -143,7 +143,7 @@ describeWithEnv("free reservation construction", { db: true }, () => {
         Promise.resolve({
           reason: "capacity_exceeded",
           success: false,
-        } as never),
+        } as const),
       );
 
       const result = await createFreeReservation({
