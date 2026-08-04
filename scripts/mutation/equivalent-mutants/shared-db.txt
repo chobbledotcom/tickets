@@ -116,3 +116,4 @@ src/shared/db/groups.ts:736:13  Missing package day prices → ""   # getGroupDa
 src/shared/db/groups.ts:752:5  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every requested group id, so the single-group lookup always finds its own id
 src/features/admin/api-groups.ts:250:11  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
 src/shared/db/groups.ts:161:33  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree
+src/shared/db/activity-log.ts:204:5  Activity log row missing → ""   # logActivities returns one row per activity it was given, so the single-activity call always has its row and requireValue never raises this message

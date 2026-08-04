@@ -10,9 +10,12 @@ import {
   packageMemberPriceRule,
 } from "#shared/booking/price-tree.ts";
 import { bookedSpanDays } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activity-log.ts";
+import { logActivities, logActivity } from "#shared/db/activity-log.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
-import { loadPackageMemberPricing } from "#shared/db/groups.ts";
+import {
+  loadPackageMemberPricingByGroupIds,
+  type PackageMemberPricing,
+} from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -111,37 +114,31 @@ export type RegistrationEntry = {
  * positive amount or an explicit free `0`; members with no override are absent)
  * and each customisable member's per-day overrides (day count → minor units) —
  * the loader's shape, minus the fields the payload never reads. */
-type PackageGroupPricing = Pick<
-  Awaited<ReturnType<typeof loadPackageMemberPricing>>,
-  "prices" | "dayPrices"
->;
+type PackageGroupPricing = Pick<PackageMemberPricing, "prices" | "dayPrices">;
 
 /** Per-group package pricing, loaded once per payload for the order's package
  * groups. */
 type PackageOverrides = ReadonlyMap<number, PackageGroupPricing>;
 
-/** Load the package price overrides for every package group in `entries`, so a
- * package member's full unit price can be reported from its configured override
- * rather than the amount collected. */
-const loadPackageOverrides = async (
-  entries: RegistrationEntry[],
-): Promise<PackageOverrides> => {
-  const groupIds = unique(
+/** The packages an order books through: each line carries the group it was
+ * booked under, or 0 for a plain line, and each package is listed once. */
+export const bookedPackageGroupIds = (
+  entries: readonly RegistrationEntry[],
+): number[] =>
+  unique(
     mapNotNullish((e: RegistrationEntry) =>
       e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
     )(entries),
   );
-  return new Map(
-    await Promise.all(
-      groupIds.map(
-        async (groupId): Promise<[number, PackageGroupPricing]> => [
-          groupId,
-          await loadPackageMemberPricing(groupId),
-        ],
-      ),
-    ),
-  );
-};
+
+/** Load the package price overrides for every package group in `entries`, so a
+ * package member's full unit price can be reported from its configured override
+ * rather than the amount collected. Every package on the order is priced in one
+ * batch, so a long order costs the same reads as a short one. */
+const loadPackageOverrides = (
+  entries: RegistrationEntry[],
+): Promise<PackageOverrides> =>
+  loadPackageMemberPricingByGroupIds(bookedPackageGroupIds(entries));
 
 /** The full per-unit price for a booking line: the shared checkout evaluation
  * ({@link packageMemberPriceRule} + {@link effectivePrice}) over the span
@@ -364,13 +361,13 @@ export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
   siteTokenIndex?: string,
 ): Promise<void> => {
-  for (const { listing, attendee } of entries) {
-    await logActivity(
-      `Attendee registered for '${listing.name}'`,
+  await logActivities(
+    entries.map(({ listing, attendee }) => ({
+      attendeeId: attendee.id,
       listing,
-      attendee.id,
-    );
-  }
+      message: `Attendee registered for '${listing.name}'`,
+    })),
+  );
   const currency = settings.currency;
   addPendingWork(sendRegistrationWebhooks(entries, currency));
   addPendingWork(sendRegistrationEmails(entries, currency));
