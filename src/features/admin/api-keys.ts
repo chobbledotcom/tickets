@@ -1,3 +1,4 @@
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin API key management routes
@@ -11,7 +12,6 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPage,
-  entityTabRoutes,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { withOwnerData } from "#routes/admin/owner-route.ts";

@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { ownerFormById } from "#routes/entity.ts";
 import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
@@ -13,10 +14,8 @@ import { defineRoutes } from "#routes/router.ts";
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
 import {
   createOwnerCrudHandlers,
-  crudRoutes,
   operationResponse,
 } from "#routes/admin/owner-crud.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";

@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
 /**
@@ -10,11 +11,7 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
-import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
-import {
-  createOwnerCrudHandlers,
-  crudRoutes,
-} from "#routes/admin/owner-crud.ts";
+import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { OWNER_FORM } from "#routes/auth.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import {

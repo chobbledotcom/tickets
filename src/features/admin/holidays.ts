@@ -4,11 +4,8 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
-import {
-  createOwnerCrudHandlers,
-  crudRoutes,
-} from "#routes/admin/owner-crud.ts";
+import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
 import {

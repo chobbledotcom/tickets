@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 
 /**
@@ -8,7 +9,6 @@ import { defineRoutes } from "#routes/router.ts";
 
 import { compact } from "#fp";
 import { t } from "#i18n";
-import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
 import {
   createContentCrudHandlers,
   createCrudHandlers,

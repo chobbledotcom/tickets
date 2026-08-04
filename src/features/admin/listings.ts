@@ -1,4 +1,4 @@
-import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { idRouteFor } from "#routes/entity.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**

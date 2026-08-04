@@ -2,7 +2,7 @@
  * Entity pages — the impure shell of the tabbed admin "edit X" framework
  * `defineEntityPage` turns one declarative page definition
  * (tabs of typed sections) into handlers the feature file binds with
- * {@link entityTabRoutes}:
+ * `entityTabRoutes` (#routes/admin/route-tables.ts):
  *
  *   ...entityTabRoutes("/admin/attendees", attendeePage, "attendeeId"),
  *
@@ -23,7 +23,6 @@
 import type { AuthSession, SessionGuard } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
-import type { TypedRouteHandler } from "#routes/router.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
 import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
@@ -347,40 +346,6 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
     });
 
   return { path, renderPage, renderTab };
-};
-
-/** The two GET routes every entity page owns: the bare detail path (default
- * tab) and its `/:tab` variant. */
-export type EntityTabRoutes<Base extends string, Param extends string> = {
-  [K in
-    | `GET ${Base}/:${Param}`
-    | `GET ${Base}/:${Param}/:tab`]: TypedRouteHandler<K>;
-};
-
-/** Bind an entity page's two GET routes, ready to spread into the section's
- * route table. `param` is the route's id parameter name; it must keep the
- * router's numeric-param convention (`id` or `…Id`) so the page receives a
- * parsed number. */
-export const entityTabRoutes = <
-  Base extends string,
-  Param extends "id" | `${string}Id` = "id",
->(
-  base: Base,
-  page: Pick<EntityPage<never>, "renderTab">,
-  param?: Param,
-): EntityTabRoutes<Base, Param> => {
-  const name: Param = param ?? ("id" as Param);
-  const idOf = (params: Record<Param, number>): number => params[name];
-  return {
-    [`GET ${base}/:${name}`]: (
-      request: Request,
-      params: Record<Param, number>,
-    ) => page.renderTab(request, idOf(params), ""),
-    [`GET ${base}/:${name}/:tab`]: (
-      request: Request,
-      params: Record<Param, number> & { tab: string },
-    ) => page.renderTab(request, idOf(params), params.tab),
-  } as EntityTabRoutes<Base, Param>;
 };
 
 /** A tab section that renders custom markup from a loader — the common shape

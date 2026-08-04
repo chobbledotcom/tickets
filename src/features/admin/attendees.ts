@@ -1,11 +1,11 @@
 /* jscpd:ignore-start */
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin attendee management routes
  */
 
 import { t } from "#i18n";
-import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";

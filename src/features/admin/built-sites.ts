@@ -1,16 +1,13 @@
 import { mapValues } from "@std/collections";
 import { t } from "#i18n";
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin built site management routes - owner only
  */
 
 /* jscpd:ignore-start */
-import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
-import {
-  createOwnerCrudHandlers,
-  crudRoutes,
-} from "#routes/admin/owner-crud.ts";
+import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { ownerPage } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";

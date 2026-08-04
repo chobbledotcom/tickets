@@ -6,13 +6,13 @@ import {
   createRecalculatePageRenderer,
   parseEditableAggregateForm,
 } from "#routes/admin/aggregate-recalculation.ts";
-import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
 import {
   defineEditEntityPage,
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
-import { createCrudHandlers, crudRoutes } from "#routes/admin/owner-crud.ts";
+import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
