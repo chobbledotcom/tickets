@@ -27,10 +27,25 @@ describe("settingsForm", () => {
   });
 
   test("renders an empty text value when the state has no value", () => {
-    const html = String(settingsForm(SETTINGS_FORMS.businessEmail, {}));
+    const html = String(
+      settingsForm(SETTINGS_FORMS.businessEmail, { businessEmail: undefined }),
+    );
 
     expect(html).toContain('name="business_email"');
     expect(html).toContain('value=""');
+  });
+
+  test("uses the definition's declared formId as the form id", () => {
+    // A probe definition whose formId differs from the id derived from its
+    // action, so a fallback to derivation would fail this test. The registry
+    // locks formId to its literal value, so the probe needs a cast.
+    const probe = {
+      ...SETTINGS_FORMS.businessEmail,
+      formId: "settings-probe",
+    } as unknown as typeof SETTINGS_FORMS.businessEmail;
+    const html = String(settingsForm(probe, state));
+
+    expect(html).toContain('id="settings-probe"');
   });
 
   test("renders schema footer copy for text settings", () => {

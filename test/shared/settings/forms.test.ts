@@ -7,7 +7,7 @@ import {
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 
-const en = await allEnglishMessages(["settings"]);
+const en = await allEnglishMessages(["settings", "address-lookup", "sms"]);
 
 type ExpectedFormRow = readonly [
   keyof typeof SETTINGS_FORMS,
@@ -158,8 +158,11 @@ describe("settings form schema", () => {
     );
   });
 
-  test("uses unique names, actions, form ids, and field names", () => {
-    for (const field of ["name", "action", "formId", "fieldName"] as const) {
+  // Field names are deliberately not unique across forms: two forms may post
+  // the same field name to different actions (e.g. both column-order forms
+  // post "column_order").
+  test("uses unique names, actions, and form ids", () => {
+    for (const field of ["name", "action", "formId"] as const) {
       const all = values(field);
       expect(new Set(all).size).toBe(all.length);
     }

@@ -76,7 +76,6 @@ export const handlePaymentProviderPost = settingsHandler({
  */
 export const handleEmbedHostsPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.embedHosts),
-  extract: (form) => form.getString(SETTINGS_FORMS.embedHosts.fieldName),
   log: (v) =>
     v === ""
       ? t("success.embed_hosts_removed")
@@ -110,7 +109,6 @@ export const handleTermsPost = settingsHandler({
  */
 export const handleCustomCssPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.customCss),
-  extract: (form) => form.getString(SETTINGS_FORMS.customCss.fieldName),
   log: (v) => (v === "" ? "Custom CSS removed" : "Custom CSS updated"),
   save: (v) => settings.update.customCss(v),
   validate: (v) =>

@@ -46,6 +46,7 @@ const formSection = (
     {
       action: definition.action,
       description: description(definition),
+      id: definition.formId,
       submitLabel: submitLabel(definition),
       title: t(definition.copy.titleKey),
     },
@@ -127,9 +128,12 @@ const booleanForm = (
     />,
   );
 
-export const settingsForm = (
-  definition: SettingsFormDefinition,
-  state: object,
+/** Render a settings form from its registry definition. The definition's
+ * `stateField` must be a real field of the page state handed in, so a typo'd
+ * or misplaced definition fails to compile instead of rendering blank. */
+export const settingsForm = <S extends object>(
+  definition: Extract<SettingsFormDefinition, { stateField: keyof S & string }>,
+  state: S,
 ): JSX.Element => {
   switch (definition.kind) {
     case "boolean":
