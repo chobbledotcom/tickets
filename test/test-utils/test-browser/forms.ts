@@ -100,8 +100,43 @@ const formSelectEntries = (tag: string): FormEntry[] => {
   return entries;
 };
 
+/** The markup with every switched-off group's insides taken out. A
+ * `<fieldset disabled>` switches off every control inside it: a browser sends
+ * none of them, none can be pressed, and no form is held up waiting for one.
+ * Only the group's first legend stays, which is still usable.
+ *
+ * Nesting is counted rather than guessed, so a group written inside a
+ * switched-off group does not end the reckoning early and leave the controls
+ * after it looking usable. */
+export const withoutSwitchedOffGroups = (html: string): string => {
+  const groupTags = /<(\/?)fieldset([^>]*)>/gi;
+  let kept = "";
+  let copiedTo = 0;
+  let depth = 0;
+  let insideFrom = 0;
+  let found = groupTags.exec(html);
+  while (found !== null) {
+    const closing = found[1] === "/";
+    if (depth === 0 && !closing && hasAttr(found[2]!, "disabled")) {
+      kept += html.slice(copiedTo, found.index);
+      depth = 1;
+      insideFrom = found.index + found[0].length;
+    } else if (depth > 0) {
+      depth += closing ? -1 : 1;
+      if (depth === 0) {
+        const inside = html.slice(insideFrom, found.index);
+        kept += inside.match(/<legend[^>]*>[\s\S]*?<\/legend>/)?.[0] ?? "";
+        copiedTo = found.index + found[0].length;
+      }
+    }
+    found = groupTags.exec(html);
+  }
+  return kept + html.slice(copiedTo);
+};
+
 /** Extract successful form controls in browser submission order. */
-export const extractFormEntries = (formHtml: string): FormEntry[] => {
+export const extractFormEntries = (form: string): FormEntry[] => {
+  const formHtml = withoutSwitchedOffGroups(form);
   const entries: FormEntry[] = [];
   const controlRe =
     /<input\b[^>]*>|<select\b[^>]*>[\s\S]*?<\/select>|<textarea\b[^>]*>[\s\S]*?<\/textarea>/gi;
@@ -195,10 +230,14 @@ const buttonToPress = (
   const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
   let switchedOff = false;
   let sendsNothing = false;
+  // What is left once every switched-off group goes. A button missing from it
+  // is one its group switched off, which comes to the same thing as its own
+  // switch being set, for anybody trying to press it.
+  const stillThere = withoutSwitchedOffGroups(body);
   for (const m of regexCollect(buttonRe, body, (x) => x)) {
     if (!stripTags(m[2]!).toLowerCase().trim().includes(lower)) continue;
     const attrs = m[1]!;
-    if (isDisabled(attrs)) {
+    if (isDisabled(attrs) || !stillThere.includes(m[0])) {
       switchedOff = true;
       continue;
     }

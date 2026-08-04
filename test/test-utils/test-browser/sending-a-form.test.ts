@@ -228,6 +228,47 @@ describe("TestBrowser sending a form", () => {
     expect(sent().query).toBe("?town=Leeds");
   });
 
+  it("sends nothing for controls in a switched-off group", async () => {
+    const { browser, getParams } = setupFormSubmit();
+    browser.currentHtml = `
+      <form action="/save" method="POST">
+        <input name="title" value="Draft">
+        <fieldset disabled>
+          <legend>Extras</legend>
+          <input name="note" value="kept back">
+          <input type="checkbox" name="agree" value="yes" checked>
+        </fieldset>
+        <button type="submit">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Save");
+
+    // A browser sends nothing from a switched-off group, however filled in it
+    // looks, so neither does this.
+    expect(getParams().get("title")).toBe("Draft");
+    expect(getParams().get("note")).toBeNull();
+    expect(getParams().get("agree")).toBeNull();
+  });
+
+  it("refuses to press a button in a switched-off group", async () => {
+    const { browser } = setupFormSubmit();
+    browser.currentHtml = `
+      <form action="/save" method="POST">
+        <input name="title" value="Draft">
+        <fieldset disabled><legend>Extras</legend>
+          <button type="submit">Save</button>
+        </fieldset>
+      </form>
+    `;
+
+    // The button is rendered and says nothing about itself, but its group is
+    // switched off, so nobody could press it.
+    await expect(browser.submitForm({}, "Save")).rejects.toThrow(
+      'The "Save" button is switched off',
+    );
+  });
+
   it("downloads bytes without changing the current page", async () => {
     const browser = new TestBrowser();
     browser.currentHtml = "<p>before</p>";

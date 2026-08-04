@@ -16,6 +16,7 @@ import {
   isDisabled,
   pressingSends,
   throwNoForm,
+  withoutSwitchedOffGroups,
 } from "#test-utils/test-browser/forms.ts";
 import type { LinkMatch } from "#test-utils/test-browser/parsing.ts";
 import {
@@ -279,7 +280,11 @@ export class TestBrowser {
     // may override its own form's address and method, so its word wins; a form
     // declaring no method sends by GET, which no route reached this way takes.
     const pressableOn = (form: FormInfo) =>
-      regexCollect(/<button\b([^>]*?)>/gi, form.body, (m) => m[1]!)
+      regexCollect(
+        /<button\b([^>]*?)>/gi,
+        withoutSwitchedOffGroups(form.body),
+        (m) => m[1]!,
+      )
         .filter((attrs) => !isDisabled(attrs) && pressingSends(attrs))
         .map((attrs) => ({
           goesTo: attrValue(attrs, "formaction") ?? form.action,

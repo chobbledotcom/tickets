@@ -7,6 +7,7 @@
 
 import { expect } from "@std/expect";
 import { t } from "#i18n";
+import { withoutSwitchedOffGroups } from "#test-utils/test-browser/forms.ts";
 
 /** The parts of a browser that filling a form in really touches: the form one
  * button belongs to, and the sending of it. Named as those parts rather than as
@@ -116,24 +117,6 @@ const hasFlag = (tag: string, named: string): boolean =>
   new RegExp(`(?:^|\\s)${named}(?=[\\s/>]|$)`).test(
     tag.replace(/="[^"]*"/g, ""),
   );
-
-/** The page with every switched-off group's controls taken out of it. A
- * `<fieldset disabled>` switches off everything inside it, so nobody can type
- * in, tick or pick any of it — the controls are still on the page, but a
- * browser sends none of them and holds the form up for none of them either.
- * The group's first legend stays, because that part is still usable.
- *
- * Nested groups are not unpicked: the outer one's end closes the reckoning, so
- * a group inside a switched-off group is left alone. No page here writes one. */
-const emptiedIfSwitchedOff = (group: string): string => {
-  const attributes = group.match(/^<fieldset([^>]*)>/)![1]!;
-  if (!hasFlag(attributes, "disabled")) return group;
-  const legend = group.match(/<legend[^>]*>[\s\S]*?<\/legend>/);
-  return legend === null ? "" : legend[0];
-};
-
-const withoutSwitchedOffGroups = (html: string): string =>
-  html.replace(/<fieldset[^>]*>[\s\S]*?<\/fieldset>/g, emptiedIfSwitchedOff);
 
 /** Why a number box will not take this number, or null when it will. A box that
  * only accepts 1 to 3 cannot send 5, however happily a post carrying 5 is
