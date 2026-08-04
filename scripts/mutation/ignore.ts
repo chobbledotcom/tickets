@@ -88,22 +88,30 @@ interface ParsedIgnoreLine {
 
 /** Parse one ignore-file line into a canonical key, or null when blank/comment. */
 export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
-  // The reason is always spaced away from the entry, so only a `#` after
-  // whitespace starts one — which leaves a path free to hold its own.
-  const body = line.replace(/(?:^|\s)#.*$/, "").trim();
-  if (body === "") return null;
+  // A whole-line comment is not an entry, however much of one it quotes.
+  const text = line.trimStart();
+  if (text === "" || text.startsWith("#")) return null;
+  // Past that, only the `to` side can be followed by a reason, so that is the
+  // only place a `#` starts one. Everything before the arrow is read as
+  // written, which leaves a path free to hold a `#`, a space, or both. `from`
+  // and `to` are escaped, so the first arrow on the line is always this one.
+  const arrow = text.indexOf("→");
+  if (arrow < 0) return null;
+  const newOperator = text
+    .slice(arrow + 1)
+    .replace(/\s#.*$/, "")
+    .trim();
+  if (newOperator === "") return null;
   // The "from" side is `.*?` (not `.+?`): an already-empty string literal
   // mutates with an empty display label (see stringLiteralMutants), so a
-  // legitimate key can have nothing between the location and the arrow.
-  // An anchor never holds a `::`, so the LAST one ends the path — which leaves
-  // the path free to hold a space. Neither holds whitespace after that, so the
-  // first run of it ends the location and starts the `from → to`.
-  const match = body.match(/^(.+)::(\S+)\s+(.*?)\s*→\s*(.+?)$/);
+  // legitimate key can have nothing between the location and the arrow. An
+  // anchor never holds a `::`, so the last one ends the path.
+  const match = text.slice(0, arrow).match(/^(.+)::(\S+)\s+(.*?)\s*$/);
   return match
     ? {
         anchor: match[2]!,
-        key: `${match[1]}::${match[2]} ${match[3]}→${match[4]}`,
-        newOperator: match[4]!,
+        key: `${match[1]}::${match[2]} ${match[3]}→${newOperator}`,
+        newOperator,
         operator: match[3]!,
         sourcePath: match[1]!,
       }

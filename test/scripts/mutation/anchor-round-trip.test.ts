@@ -19,7 +19,8 @@ const SAMPLES = [
   "test/test-utils/test-browser.ts",
 ];
 
-/** Awkward shapes that are legal TypeScript and have broken this before. */
+/** Legal TypeScript whose text reaches into a registry line — a name or a
+ * literal holding a character the line itself uses. */
 const AWKWARD = [
   ['class R { "read it"(x) { return x ?? 0; } }\n', "a name holding a space"],
   [

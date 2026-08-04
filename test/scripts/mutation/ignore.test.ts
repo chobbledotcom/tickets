@@ -84,10 +84,38 @@ describe("writing a mutant key onto one line", () => {
     );
   });
 
-  test("keeps a comment mark inside a path, which no space precedes", () => {
-    const key = mutantKey(`${projectRoot}/src/a#b.ts`, mutant(1));
+  test("keeps a path holding a comment mark, a space, or both", () => {
+    for (const name of ["a#b.ts", "a b.ts", "a #b.ts"]) {
+      const key = mutantKey(`${projectRoot}/src/${name}`, mutant(1));
 
-    expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
+      expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
+    }
+  });
+
+  /** The registry README documents the format by quoting example entries, so a
+   * comment line can look exactly like one. */
+  test("reads a commented-out entry as a comment, not an entry", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    expect(parseIgnoreLine(`#   ${key}`)).toBe(null);
+    expect(parseIgnoreLine(`  # ${key}   # why`)).toBe(null);
+  });
+
+  /** Each is a line the loader must refuse rather than turn into a record it
+   * would then fail to resolve. */
+  test("refuses a line whose fields do not make an entry", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    // Nothing on the `to` side but a reason.
+    expect(parseIgnoreLine(`${key.split("→")[0]}→   # why`)).toBe(null);
+    // An arrow, but nothing that reads as a path and an anchor before it.
+    expect(parseIgnoreLine("not an entry → nor this")).toBe(null);
+  });
+
+  test("reads a reason that holds an arrow of its own", () => {
+    const key = mutantKey(`${projectRoot}/src/example.ts`, mutant(1));
+
+    expect(parseIgnoreLine(`${key}   # turns a → into b`)?.key).toBe(key);
   });
 
   test("tells a leading tab from a leading space", () => {

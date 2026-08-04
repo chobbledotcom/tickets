@@ -248,6 +248,27 @@ describe("Turso migration file", () => {
       ).rejects.toThrow("Upload database failed (400): invalid");
     }));
 
+  /**
+   * Regression: node throws an "error" event nothing is listening for. A
+   * request raises one when the write breaks, and the file stopping because of
+   * that destroys the request with an error of its own — so taking the
+   * listeners off after the first left the second to crash the whole file from
+   * a place no caller could catch it.
+   */
+  test("survives a second error on the same request", () =>
+    withTempDir(async (dir) => {
+      const request = fakeRequest();
+      await expect(
+        uploadThroughScript(dir, request, () => {
+          request.emit("error", new Error("write broke"));
+        }),
+      ).rejects.toThrow("write broke");
+
+      expect(() =>
+        request.emit("error", new Error("and the file stopped too")),
+      ).not.toThrow();
+    }));
+
   test("rejects a write error when no reply has arrived", () =>
     withTempDir(async (dir) => {
       const request = fakeRequest();

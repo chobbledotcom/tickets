@@ -120,14 +120,10 @@ const POLYFILL_BODY_STREAM_ERROR =
 /**
  * Ignore node:http's duplicate rejection, from the first upload onwards.
  *
- * Nothing tells us when the internal task that broke the write will surface
- * its rejection, so a watch that stands down once the upload settles is a
- * race. Losing it leaves the rejection uncaught, which aborts the whole test
- * module and reports as a failure with no location at all.
- *
- * The watch is narrow about *what* it ignores instead of *when*: this exact
- * message is built by the polyfill's own internals and no code of ours can
- * produce it, so a real failure never reaches this branch.
+ * Nothing says when the internal task that broke the write will surface its
+ * rejection, so the watch cannot be narrow about *when*. It is narrow about
+ * *what* instead: this exact message is built by the polyfill's own internals
+ * and no code of ours can produce it, so a real failure never reaches here.
  */
 const watchPolyfillBodyStreamDefect = once(() => {
   globalThis.addEventListener("unhandledrejection", (event) => {
@@ -167,13 +163,17 @@ const sendDatabaseFile = async (
   const file = createReadStream(path);
   const fileClosed = Promise.withResolvers<void>();
   file.once("close", fileClosed.resolve);
-  // A request error stops the file quietly — destroying it with the error
-  // would re-raise it as a file error and hide the server's answer below.
-  request.once("error", () => file.destroy());
-  // The server can answer (e.g. reject the upload) before the whole body is
-  // sent; the write then fails, but the server's answer is the real outcome,
-  // so only a write error with no response in flight rejects here.
-  request.once("error", (error) => {
+  // A request can raise "error" more than once — the write breaking, and then
+  // the file stopping because of it, which destroys the request with an error
+  // of its own. node throws an "error" nothing is listening for, from a place
+  // no caller can catch, so this listener stays on for the request's whole life.
+  request.on("error", (error) => {
+    // Stop the file quietly: destroying it *with* the error would re-raise it
+    // as a file error and hide the server's answer below.
+    file.destroy();
+    // The server can answer (e.g. reject the upload) before the whole body is
+    // sent; the write then fails, but the server's answer is the real outcome,
+    // so only a write error with no response in flight rejects here.
     if (!responded) response.reject(error);
   });
   file.once("error", request.destroy.bind(request));
