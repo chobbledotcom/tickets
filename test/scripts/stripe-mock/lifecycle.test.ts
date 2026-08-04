@@ -95,6 +95,31 @@ describe("starting stripe-mock", () => {
 
   test("gives a mock time to shut itself down before killing it", async () => {
     await withTempStripeMockPaths(async (paths) => {
+      // Starts our mock on the port, or null when the start reports failure —
+      // our mock lost the port to another test between picking and binding
+      // it, so it died without ever listening. Any other error still throws.
+      const startOnPortOrNull = async (port: number) => {
+        try {
+          return await startStripeMock({
+            budgetMs: 1000,
+            delayMs: 10,
+            paths,
+            port,
+            // Far longer than the mock's shutdown, so a busy machine cannot
+            // make this read as an impatient stopper. A CI runner under two
+            // parallel suite runs has starved the mock past 10 seconds, so
+            // the allowance is generous — a healthy stop returns on exit,
+            // never on this timer.
+            stopTimeoutMs: 60_000,
+          });
+        } catch (error) {
+          if (!String(error).includes(STRIPE_MOCK_FAILED_TO_START)) {
+            throw error;
+          }
+          return null;
+        }
+      };
+
       let round = 0;
       await retryWhilePortTaken(async () => {
         // Fresh notes each round, so a leftover from an earlier stolen-port
@@ -106,33 +131,11 @@ describe("starting stripe-mock", () => {
 
         let portWasTaken = false;
         await withUnusedPort(async (port) => {
-          let stripeMock: Awaited<ReturnType<typeof startStripeMock>>;
-          try {
-            stripeMock = await startStripeMock({
-              budgetMs: 1000,
-              delayMs: 10,
-              paths,
-              port,
-              // Far longer than the mock's shutdown, so a busy machine cannot
-              // make this read as an impatient stopper. A CI runner under two
-              // parallel suite runs has starved the mock past 10 seconds, so
-              // the allowance is generous — a healthy stop returns on exit,
-              // never on this timer.
-              stopTimeoutMs: 60_000,
-            });
-          } catch (error) {
-            if (!String(error).includes(STRIPE_MOCK_FAILED_TO_START)) {
-              throw error;
-            }
-            // Our mock lost its port to another test between picking it and
-            // binding it, so it died without ever listening. Try again.
-            portWasTaken = true;
-            return;
-          }
-          if (!(await pathExists(bound))) {
-            // The start found something else already listening and adopted
-            // it — our mock never ran, so there is nothing to judge here.
-            await stripeMock.stop();
+          const stripeMock = await startOnPortOrNull(port);
+          // No bound note means our mock never got the port: the start found
+          // something else already listening and adopted it. Ask again.
+          if (stripeMock === null || !(await pathExists(bound))) {
+            await stripeMock?.stop();
             portWasTaken = true;
             return;
           }
