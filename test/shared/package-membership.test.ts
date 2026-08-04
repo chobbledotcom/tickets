@@ -3,11 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
   packageChildEdgeError,
-  packageMemberBlock,
-  packageMemberBlockError,
+  packageMemberError,
 } from "#shared/package-membership.ts";
 
-/** Build the edge set the block rule reads (empty by default). */
+/** Build the edge set the member rules read (empty by default). */
 const edges = (
   over: { childIds?: number[]; parentIds?: number[] } = {},
 ): { childIds: number[]; parentIds: number[] } => ({
@@ -15,49 +14,64 @@ const edges = (
   parentIds: over.parentIds ?? [],
 });
 
-describe("packageMemberBlock", () => {
+/** A named listing with the given pay-more flag. */
+const listing = (
+  name: string,
+  canPayMore = false,
+): { name: string; can_pay_more: boolean } => ({
+  can_pay_more: canPayMore,
+  name,
+});
+
+describe("packageMemberError", () => {
+  // Each blocking case asserts the complete localized message: which rule won
+  // AND that the listing name interpolates into it.
   test("blocks a pay-what-you-want listing regardless of edges or hide flag", () => {
     // Decided by the listing alone: even with no edges and a visible package.
-    expect(packageMemberBlock({ can_pay_more: true }, edges(), false)).toBe(
-      "pay_more",
-    );
+    expect(
+      packageMemberError(listing("Balloon Ride", true), edges(), false),
+    ).toBe(t("error.package_member_pay_more", { name: "Balloon Ride" }));
+  });
+
+  test("the pay-what-you-want rule wins over the add-on rule", () => {
+    expect(
+      packageMemberError(
+        listing("Balloon Ride", true),
+        edges({ parentIds: [7] }),
+        false,
+      ),
+    ).toBe(t("error.package_member_pay_more", { name: "Balloon Ride" }));
   });
 
   test("blocks a listing that is another listing's add-on (has a parent)", () => {
     expect(
-      packageMemberBlock(
-        { can_pay_more: false },
+      packageMemberError(
+        listing("Face Paint"),
         edges({ parentIds: [7] }),
         false,
       ),
-    ).toBe("is_addon");
+    ).toBe(t("error.package_member_is_addon", { name: "Face Paint" }));
   });
 
   test("blocks a child-gating member only when the package is hidden", () => {
     expect(
-      packageMemberBlock(
-        { can_pay_more: false },
-        edges({ childIds: [9] }),
-        true,
-      ),
-    ).toBe("gates_children_hidden");
+      packageMemberError(listing("Day Pass"), edges({ childIds: [9] }), true),
+    ).toBe(
+      t("error.package_member_gates_children_hidden", { name: "Day Pass" }),
+    );
   });
 
   test("allows a child-gating member on a VISIBLE package", () => {
     // The visible package renders the child selector, so gating is fine.
     expect(
-      packageMemberBlock(
-        { can_pay_more: false },
-        edges({ childIds: [9] }),
-        false,
-      ),
+      packageMemberError(listing("Day Pass"), edges({ childIds: [9] }), false),
     ).toBeNull();
   });
 
   test("treats an omitted hide flag as not hidden", () => {
     expect(
-      packageMemberBlock(
-        { can_pay_more: false },
+      packageMemberError(
+        listing("Day Pass"),
         edges({ childIds: [9] }),
         undefined,
       ),
@@ -65,37 +79,11 @@ describe("packageMemberBlock", () => {
   });
 
   test("allows a hidden-package member that gates NO children", () => {
-    expect(
-      packageMemberBlock({ can_pay_more: false }, edges(), true),
-    ).toBeNull();
+    expect(packageMemberError(listing("Day Pass"), edges(), true)).toBeNull();
   });
 
   test("allows a plain fixed-price listing with no edges", () => {
-    expect(
-      packageMemberBlock({ can_pay_more: false }, edges(), false),
-    ).toBeNull();
-  });
-});
-
-describe("packageMemberBlockError", () => {
-  // Each case asserts the complete localized message: which key the block maps
-  // to AND that the listing name interpolates into it.
-  test("names the listing and the pay-what-you-want reason", () => {
-    expect(packageMemberBlockError("Balloon Ride", "pay_more")).toBe(
-      t("error.package_member_pay_more", { name: "Balloon Ride" }),
-    );
-  });
-
-  test("names the listing and the add-on reason", () => {
-    expect(packageMemberBlockError("Face Paint", "is_addon")).toBe(
-      t("error.package_member_is_addon", { name: "Face Paint" }),
-    );
-  });
-
-  test("names the listing and the hidden-gate reason", () => {
-    expect(packageMemberBlockError("Day Pass", "gates_children_hidden")).toBe(
-      t("error.package_member_gates_children_hidden", { name: "Day Pass" }),
-    );
+    expect(packageMemberError(listing("Day Pass"), edges(), false)).toBeNull();
   });
 });
 

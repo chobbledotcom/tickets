@@ -57,10 +57,9 @@ import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { equals, inList } from "#shared/db/where-clauses.ts";
 import {
   type PackageChildEdgeBlock,
-  type PackageMemberBlock,
-  packageMemberBlock,
-  packageMemberBlockError,
+  packageMemberError,
 } from "#shared/package-membership.ts";
+import { firstReason } from "#shared/reasons.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 import type {
   Group,
@@ -271,26 +270,45 @@ export const groupListingTypeError = (
   listingType: ListingType,
   customisableDays: boolean,
   excludeListingId?: number,
-): string | null => {
-  const siblings = allSiblings.filter((e) => e.id !== excludeListingId);
-  const typeMismatch = siblings.find((e) => e.listing_type !== listingType);
-  if (typeMismatch) {
-    return t("error.group_listing_type_mismatch", {
-      type: typeMismatch.listing_type,
-    });
-  }
-  const customisableMismatch = siblings.find(
-    (e) => e.customisable_days !== customisableDays,
+): string | null =>
+  groupHomogeneityError(
+    allSiblings.filter((listing) => listing.id !== excludeListingId),
+    listingType,
+    customisableDays,
   );
-  if (customisableMismatch) {
-    return t(
-      customisableMismatch.customisable_days
-        ? "error.group_customisable_days_expected"
-        : "error.group_customisable_days_unexpected",
+
+/** The group-homogeneity rules as data, in precedence order: every member must
+ * share one listing type, then one customisable-days setting, so the group's
+ * single date/day-count selector can serve them all. Each rule finds the
+ * clashing sibling and builds its message from that evidence. */
+const groupHomogeneityError = firstReason<
+  [
+    siblings: readonly ListingWithCount[],
+    listingType: ListingType,
+    customisableDays: boolean,
+  ]
+>([
+  (siblings, listingType) => {
+    const mismatch = siblings.find(
+      (sibling) => sibling.listing_type !== listingType,
     );
-  }
-  return null;
-};
+    return mismatch
+      ? t("error.group_listing_type_mismatch", { type: mismatch.listing_type })
+      : null;
+  },
+  (siblings, _listingType, customisableDays) => {
+    const mismatch = siblings.find(
+      (sibling) => sibling.customisable_days !== customisableDays,
+    );
+    return mismatch
+      ? t(
+          mismatch.customisable_days
+            ? "error.group_customisable_days_expected"
+            : "error.group_customisable_days_unexpected",
+        )
+      : null;
+  },
+]);
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
@@ -378,51 +396,34 @@ export const packageChildEdgeConflict = async (
   return null;
 };
 
-/** The first member of `listings` that can't be packaged, paired with the
- * reason it's blocked — or null when every listing is a valid member. Judged
- * against ONE batched edge load (two queries for the whole member list, never
- * one per member). The pricing/add-on/hidden-gate rules themselves live in the
- * shared {@link packageMemberBlock}. Generic over the listing shape so the
- * caller gets its own row back (with the name) to build the error. */
-const firstUnpackageableMember = async <
-  L extends { id: number; can_pay_more: boolean },
->(
-  listings: readonly L[],
+/** The member-naming package error for the first listing in `listings` that
+ * can't be a package member (pay-what-you-want, an add-on of another listing,
+ * or — on a hidden package — a member gating its own children), or null when
+ * every listing is a valid member. Judged against ONE batched edge load (two
+ * queries for the whole member list, never one per member); the rules and
+ * their messages live in the shared {@link packageMemberError}. The one place
+ * every package save (group form, add-listings, listing form/API, catalog
+ * import) turns an unpackageable member into its user-facing message. */
+export const packageMembersError = async (
+  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
   hideListings: boolean | undefined,
-): Promise<{ listing: L; block: PackageMemberBlock } | null> => {
+): Promise<string | null> => {
   const listingIds = listings.map((listing) => listing.id);
   const [childrenByParent, parentsByChild] = await Promise.all([
     listingChildren.getIdsByKeys(listingIds),
     listingParents.getIdsByKeys(listingIds),
   ]);
-  const blocked = mapNotNullish((listing: L) => {
-    const block = packageMemberBlock(
+  const blocked = mapNotNullish((listing: (typeof listings)[number]) =>
+    packageMemberError(
       listing,
       {
         childIds: childrenByParent.get(listing.id)!,
         parentIds: parentsByChild.get(listing.id)!,
       },
       hideListings,
-    );
-    return block ? { block, listing } : null;
-  })(listings);
+    ),
+  )(listings);
   return blocked[0] ?? null;
-};
-
-/** The member-naming package error for the first listing in `listings` that
- * can't be a package member (pay-what-you-want, an add-on of another listing,
- * or — on a hidden package — a member gating its own children), or null when
- * every listing is a valid member. The one place every package save (group
- * form, add-listings, listing form/API, catalog import) turns an unpackageable
- * member into its user-facing message. */
-export const packageMembersError = async (
-  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
-  hideListings: boolean | undefined,
-): Promise<string | null> => {
-  const offender = await firstUnpackageableMember(listings, hideListings);
-  return offender
-    ? packageMemberBlockError(offender.listing.name, offender.block)
-    : null;
 };
 
 /** Package-group display info for grouping a booking's lines under the package

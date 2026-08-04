@@ -17,52 +17,65 @@
  *    the package hides its listings.
  */
 import { t } from "#i18n";
+import { firstReason, type Reason, reason } from "#shared/reasons.ts";
 
-/** Why a listing can't be a package member (null means it can). */
-export type PackageMemberBlock =
-  | "pay_more"
-  | "is_addon"
-  | "gates_children_hidden";
+/** The listing fields the member rules read; the name is for the message. */
+type MemberListing = { name: string; can_pay_more: boolean };
 
-/** The parent/child edges touching a listing, as the block rule reads them. */
+/** The parent/child edges touching a listing, as the member rules read them. */
 type MemberEdges = {
   childIds: readonly number[];
   parentIds: readonly number[];
 };
 
-/**
- * The reason a listing can't be a package member, or null when it can. Pure:
- * the caller supplies the listing's pay-more flag, its touching edges, and
- * whether the package hides its listings.
- */
-export const packageMemberBlock = (
-  listing: { can_pay_more: boolean },
-  edges: MemberEdges,
-  // Undefined (an input that omitted the flag) reads as "not hidden".
-  hidePackageListings: boolean | undefined,
-): PackageMemberBlock | null => {
-  if (listing.can_pay_more) return "pay_more";
-  if (edges.parentIds.length > 0) return "is_addon";
-  if (hidePackageListings && edges.childIds.length > 0) {
-    return "gates_children_hidden";
-  }
-  return null;
-};
+/** A member rule over the listing, its touching edges, and whether the package
+ * hides its listings (an input that omitted the flag reads as "not hidden"). */
+type MemberReason = Reason<
+  [
+    listing: MemberListing,
+    edges: MemberEdges,
+    hidePackageListings: boolean | undefined,
+  ]
+>;
+
+/** A member rule whose message names the blocked listing. Every message begins
+ * "Packages cannot contain …" so the operator sees which of their listings is
+ * the problem and exactly how to fix it. */
+const memberReason = (
+  messageKey: string,
+  blocks: (
+    listing: MemberListing,
+    edges: MemberEdges,
+    hidePackageListings: boolean | undefined,
+  ) => boolean,
+): MemberReason =>
+  reason(blocks, (listing) =>
+    t(`error.package_member_${messageKey}`, { name: listing.name }),
+  );
+
+/** The member rules as data, in precedence order. */
+const PACKAGE_MEMBER_RULES: readonly MemberReason[] = [
+  memberReason("pay_more", (listing) => listing.can_pay_more),
+  memberReason("is_addon", (_listing, edges) => edges.parentIds.length > 0),
+  memberReason(
+    "gates_children_hidden",
+    (_listing, edges, hidePackageListings) =>
+      hidePackageListings === true && edges.childIds.length > 0,
+  ),
+];
 
 /**
- * The user-facing error for a blocked package member, naming the listing and
- * the specific reason. Every message begins "Packages cannot contain …" so the
- * operator sees which of their listings is the problem and exactly how to fix
- * it, instead of one catch-all listing every rule at once.
+ * The user-facing error naming the listing and the specific reason it can't be
+ * a package member, or null when it can. Pure: the caller supplies the
+ * listing's name and pay-more flag, its touching edges, and whether the
+ * package hides its listings.
  */
-export const packageMemberBlockError = (
-  name: string,
-  block: PackageMemberBlock,
-): string => t(`error.package_member_${block}`, { name });
+export const packageMemberError: MemberReason =
+  firstReason(PACKAGE_MEMBER_RULES);
 
 /**
  * Why a would-be parent/child edge conflicts with package membership — distinct
- * from {@link PackageMemberBlock} (which is about a listing JOINING a package):
+ * from {@link packageMemberError} (which is about a listing JOINING a package):
  *  - `gate_in_hidden`: the listing gaining children is in a HIDDEN package, so
  *    its add-on selector would name the listings the package conceals;
  *  - `child_is_member`: a chosen child belongs to a package, so it can't also

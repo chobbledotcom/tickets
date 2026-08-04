@@ -11,6 +11,7 @@
  */
 
 import { t } from "#i18n";
+import { firstReason, type Reason, reason } from "#shared/reasons.ts";
 import {
   availableDayCounts,
   clampDurationDays,
@@ -70,18 +71,17 @@ export const durationsCompatible = (
     : childDuration === parentFixedDuration(parent);
 };
 
-/** One edge rule: `rejects` says whether a parent/child pairing breaks it, and
- * `error` builds its user-facing message. */
-type EdgeRule = {
-  readonly error: (parent: EdgeListing, child: EdgeListing) => string;
-  readonly rejects: (parent: EdgeListing, child: EdgeListing) => boolean;
-};
+/** A parent/child rule as a {@link Reason} over the pairing. */
+type EdgeReason = Reason<[parent: EdgeListing, child: EdgeListing]>;
 
-/** A message builder for the rules whose error names the child. */
-const childError =
-  (messageKey: string) =>
-  (_parent: EdgeListing, child: EdgeListing): string =>
-    t(`listings_table.${messageKey}`, { name: child.name });
+/** An edge rule whose message names the child. */
+const childReason = (
+  messageKey: string,
+  blocks: (parent: EdgeListing, child: EdgeListing) => boolean,
+): EdgeReason =>
+  reason(blocks, (_parent, child) =>
+    t(`listings_table.${messageKey}`, { name: child.name }),
+  );
 
 /** Every parent→child field rule as data, most fundamental first — the order IS
  * the precedence: the first rule a pairing breaks decides the error, so a
@@ -89,25 +89,25 @@ const childError =
  * a parent, then can't be a child, then a daily child needs a daily parent,
  * then the child's span must match the one it inherits. Adding a rule is one
  * new entry in its precedence slot, never another `if` arm. */
-const EDGE_ERROR_RULES: readonly EdgeRule[] = [
-  {
-    error: (parent) =>
+const EDGE_ERROR_RULES: readonly EdgeReason[] = [
+  reason(
+    (parent) => parent.months_per_unit > 0,
+    (parent) =>
       t("listings_table.children_err_parent_renewal", { name: parent.name }),
-    rejects: (parent) => parent.months_per_unit > 0,
-  },
-  {
-    error: childError("children_err_child_renewal"),
-    rejects: (_parent, child) => child.months_per_unit > 0,
-  },
-  {
-    error: childError("children_err_child_daily"),
-    rejects: (parent, child) =>
+  ),
+  childReason(
+    "children_err_child_renewal",
+    (_parent, child) => child.months_per_unit > 0,
+  ),
+  childReason(
+    "children_err_child_daily",
+    (parent, child) =>
       child.listing_type === "daily" && parent.listing_type !== "daily",
-  },
-  {
-    error: childError("children_err_child_duration"),
-    rejects: (parent, child) => !durationsCompatible(parent, child),
-  },
+  ),
+  childReason(
+    "children_err_child_duration",
+    (parent, child) => !durationsCompatible(parent, child),
+  ),
 ];
 
 /**
@@ -116,11 +116,4 @@ const EDGE_ERROR_RULES: readonly EdgeRule[] = [
  * breaks — or null when the edge is allowed. Field-only: structural nesting is
  * checked separately by the editor.
  */
-export const edgeFieldError = (
-  parent: EdgeListing,
-  child: EdgeListing,
-): string | null =>
-  EDGE_ERROR_RULES.find((rule) => rule.rejects(parent, child))?.error(
-    parent,
-    child,
-  ) ?? null;
+export const edgeFieldError: EdgeReason = firstReason(EDGE_ERROR_RULES);

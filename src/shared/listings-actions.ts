@@ -40,10 +40,7 @@ import {
 } from "#shared/db/modifier-resolve.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
-import {
-  packageMemberBlock,
-  packageMemberBlockError,
-} from "#shared/package-membership.ts";
+import { packageMemberError } from "#shared/package-membership.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-api.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
@@ -101,8 +98,8 @@ type ListingUpdateCheck = (
  * not be priced by the buyer, may never itself be another listing's add-on
  * CHILD (it is only sold as part of its bundle), and may gate its own children
  * only on a VISIBLE package — a hidden package collapses members to the package
- * name, so a member's child selector would leak them. Shares the rule with the
- * group-side save via {@link packageMemberBlock}. (Brand-new child edges
+ * name, so a member's child selector would leak them. Shares the rules with the
+ * group-side save via {@link packageMemberError}. (Brand-new child edges
  * submitted on the same write are caught before the row commits in the API's
  * prepareChildEdges.) */
 const packageMembershipError = async (
@@ -112,21 +109,20 @@ const packageMembershipError = async (
   existingId: number | undefined,
 ): Promise<string | null> => {
   if (!group.is_package) return null;
-  // Pay-what-you-want is decided by the listing alone — no edge read needed.
-  if (canPayMore) return packageMemberBlockError(name, "pay_more");
-  // A create has no edges yet; only an existing listing can be an add-on child
-  // or gate its own children.
-  if (existingId === undefined) return null;
-  const [childIds, parentIds] = await Promise.all([
-    listingChildren.getIds(existingId),
-    listingParents.getIds(existingId),
-  ]);
-  const block = packageMemberBlock(
-    { can_pay_more: false },
+  // A create has no edges yet, and pay-what-you-want is decided by the listing
+  // alone — either way the rules run without an edge read.
+  const [childIds, parentIds] =
+    existingId === undefined || canPayMore
+      ? [[], []]
+      : await Promise.all([
+          listingChildren.getIds(existingId),
+          listingParents.getIds(existingId),
+        ]);
+  return packageMemberError(
+    { can_pay_more: canPayMore, name },
     { childIds, parentIds },
     group.hide_package_listings,
   );
-  return block ? packageMemberBlockError(name, block) : null;
 };
 
 const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
