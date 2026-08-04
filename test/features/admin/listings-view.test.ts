@@ -18,13 +18,14 @@ import { listingQuestions } from "#shared/db/questions/queries.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { createQuestionWithAnswers } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createDailyTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { withTestSession } from "#test-utils/session.ts";
+import { getTestAuthSession, withTestSession } from "#test-utils/session.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 /** Enough for the fixed reads, far below one read per group. */
@@ -71,6 +72,7 @@ describeWithEnv("listing detail group context", { db: true }, () => {
     const listing = await listingInCappedGroups("Tightest", [20, 3, 11]);
 
     const context = await loadGroupContext(listing, null);
+    expect(context).toBeDefined();
     expect(context?.group.max_attendees).toBe(3);
     expect(context?.attendeeCount).toBe(0);
   });
@@ -83,57 +85,68 @@ describeWithEnv("listing detail group context", { db: true }, () => {
 });
 
 describeWithEnv("listing detail attendee filtering", { db: true }, () => {
-  const attendeeOn = (id: number, date: string | null): Attendee =>
-    ({ date, id }) as Attendee;
+  /** Two real daily bookings, the later date first, with the daily listing the
+   * earlier one books. */
+  const bookedOnTwoDates = async (
+    label: string,
+  ): Promise<{ listing: ListingWithCount; attendees: Attendee[] }> => {
+    const early = await createDailyTestAttendee(
+      `${label} early`,
+      `${label.toLowerCase()}-early@example.com`,
+      "2026-08-01",
+      { name: `${label} early listing` },
+    );
+    const late = await createDailyTestAttendee(
+      `${label} late`,
+      `${label.toLowerCase()}-late@example.com`,
+      "2026-08-02",
+      { name: `${label} late listing` },
+    );
+    const listing = await getListingWithCount(early.listing.id);
+    if (!listing) throw new Error("Daily listing was not created");
+    return { attendees: [late.attendee, early.attendee], listing };
+  };
 
-  test("keeps only the attendees booked for the chosen date", () => {
-    const first = attendeeOn(1, "2026-08-01");
-    const second = attendeeOn(2, "2026-08-02");
+  test("keeps only the attendees booked for the chosen date", async () => {
+    const { attendees } = await bookedOnTwoDates("Filtered");
 
-    expect(filterByDate([first, second], "2026-08-01")).toEqual([first]);
+    expect(filterByDate(attendees, "2026-08-01")).toEqual([attendees[1]]);
   });
 
-  test("keeps every attendee when no date was chosen", () => {
-    const attendees = [attendeeOn(1, "2026-08-01"), attendeeOn(2, null)];
+  test("keeps every attendee when no date was chosen", async () => {
+    const { attendees } = await bookedOnTwoDates("Unfiltered");
 
     expect(filterByDate(attendees, null)).toEqual(attendees);
   });
 
   test("offers the booked dates for a daily listing", async () => {
-    const listing = await createTestListing({
-      listingType: "daily",
-      maximumDaysAfter: 30,
-      minimumDaysBefore: 0,
-      name: "Daily detail listing",
-    });
-    const attendees = [
-      attendeeOn(1, "2026-08-02"),
-      attendeeOn(2, "2026-08-01"),
-    ];
+    const { attendees, listing } = await bookedOnTwoDates("Daily");
+    const session = await getTestAuthSession();
 
     const handler = filteredAttendeesHandler(
-      mockRequest("/admin/listings/1?date=2026-08-01"),
+      mockRequest(`/admin/listings/${listing.id}?date=2026-08-01`),
       (ctx) => {
         expect(ctx.dateFilter).toBe("2026-08-01");
         expect(ctx.availableDates.map((d) => d.value)).toEqual([
           "2026-08-01",
           "2026-08-02",
         ]);
-        expect(ctx.filteredByDate.map((a) => a.id)).toEqual([2]);
+        expect(ctx.filteredByDate.map((a) => a.id)).toEqual([attendees[1]?.id]);
         return new Response("ok");
       },
     );
-    await handler(listing, attendees, { adminLevel: "owner" });
+    await handler(listing, attendees, session);
   });
 
   test("offers no dates for a standard listing", async () => {
+    const { attendees } = await bookedOnTwoDates("Standard");
     const listing = await createTestListing({
       name: "Standard detail listing",
     });
-    const attendees = [attendeeOn(1, "2026-08-02")];
+    const session = await getTestAuthSession();
 
     const handler = filteredAttendeesHandler(
-      mockRequest("/admin/listings/1?date=2026-08-01"),
+      mockRequest(`/admin/listings/${listing.id}?date=2026-08-01`),
       (ctx) => {
         expect(ctx.dateFilter).toBeNull();
         expect(ctx.availableDates).toEqual([]);
@@ -141,7 +154,7 @@ describeWithEnv("listing detail attendee filtering", { db: true }, () => {
         return new Response("ok");
       },
     );
-    await handler(listing, attendees, { adminLevel: "owner" });
+    await handler(listing, attendees, session);
   });
 });
 

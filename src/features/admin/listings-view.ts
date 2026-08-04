@@ -19,7 +19,7 @@ import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity/groups.ts";
-import { getGroupsById, listingGroups } from "#shared/db/groups.ts";
+import { getGroupsByIds, listingGroups } from "#shared/db/groups.ts";
 import {
   type AttendeeQuestionData,
   getAttendeeAnswersBatch,
@@ -129,7 +129,7 @@ export const loadGroupContext = async (
   dateFilter: string | null,
 ): Promise<GroupContext | undefined> => {
   const groupIds = await listingGroups.getIds(listing.id);
-  const groupsById = await getGroupsById();
+  const groupsById = await getGroupsByIds(groupIds);
   const capped = groupIds.flatMap((groupId) => {
     const group = groupsById.get(groupId);
     return group && group.max_attendees > 0 ? [group] : [];

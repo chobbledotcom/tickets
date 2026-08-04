@@ -96,11 +96,11 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       new Map([[named.id, 700]]),
     );
     // An entry that names no quantity includes one of that member.
-    expect(
-      (await getGroupPackagePrices(group.id)).find(
-        ({ listing_id }) => listing_id === named.id,
-      )?.quantity,
-    ).toBe(1);
+    const namedRow = (await getGroupPackagePrices(group.id)).find(
+      ({ listing_id }) => listing_id === named.id,
+    );
+    if (!namedRow) throw new Error("The named member has no membership row");
+    expect(namedRow.quantity).toBe(1);
 
     await setGroupPackageMembers(group.id, []);
 

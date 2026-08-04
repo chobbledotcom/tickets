@@ -71,6 +71,7 @@ describeWithEnv("public package slug loading", { db: true }, () => {
     const group = await packageWithMembers("Bookable bundle", 1);
 
     const loaded = await loadBookablePackageBySlug(group.slug);
+    expect(loaded).not.toBeNull();
     expect(loaded?.group.id).toBe(group.id);
     expect(loaded?.listings).toHaveLength(1);
   });
@@ -114,20 +115,24 @@ describeWithEnv("cart package resolution", { db: true }, () => {
     const slugs = await packageSlugs("Resolved", 3);
 
     const resolved = await loadCartPackagesBySlugs(slugs);
+    expect(resolved.every((pkg) => pkg !== null)).toBe(true);
     expect(resolved.map((pkg) => pkg?.group.slug)).toEqual(slugs);
   });
 
   test("resolves a cart holding a single package", async () => {
-    const [slug] = await packageSlugs("Alone", 1);
+    const slugs = await packageSlugs("Alone", 1);
 
-    const resolved = await loadCartPackagesBySlugs([slug!]);
-    expect(resolved.map((pkg) => pkg?.group.slug)).toEqual([slug]);
+    const resolved = await loadCartPackagesBySlugs(slugs);
+    expect(resolved.map((pkg) => pkg?.group.slug)).toEqual(slugs);
   });
 
   test("drops a package whose member was deactivated", async () => {
     const group = await packageWithMembers("Broken bundle", 2);
-    const members = await loadCartPackagesBySlugs([group.slug]);
-    await deactivateTestListing(members[0]!.listings[0]!.id);
+    const [loaded] = await loadCartPackagesBySlugs([group.slug]);
+    if (!loaded) throw new Error("The complete package did not resolve");
+    const [firstMember] = loaded.listings;
+    if (!firstMember) throw new Error("The package has no members to drop");
+    await deactivateTestListing(firstMember.id);
 
     expect(await loadCartPackagesBySlugs([group.slug])).toEqual([null]);
   });

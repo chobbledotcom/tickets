@@ -145,6 +145,22 @@ export const getAllGroupNames = (): Promise<Map<number, string>> =>
 export const getGroupById = (id: number): Promise<Group | null> =>
   rawGroupsTable.read.one({ id });
 
+/** Several groups by id in one query, read straight from the table like
+ * {@link getGroupById} — a page that acts on a listing's groups sees the stored
+ * rows, not a cached copy that another edge may already have changed. An id
+ * with no row is simply absent from the map. */
+export const getGroupsByIds = async (
+  ids: readonly number[],
+): Promise<Map<number, Group>> =>
+  ids.length === 0
+    ? new Map()
+    : mapById(identity<Group>)(
+        await rawGroupsTable.read.many(
+          {},
+          { where: inList("id", [...new Set(ids)]) },
+        ),
+      );
+
 /**
  * Get a single group by slug_index (from cache)
  */
