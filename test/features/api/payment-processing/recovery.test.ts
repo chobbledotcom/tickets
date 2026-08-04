@@ -39,6 +39,7 @@ const checkedLine = (listing: ListingWithCount): ValidatedItem[] =>
 
 const session = (id: string): ValidatedPaymentSession => ({
   amountTotal: 1000,
+  currency: "GBP",
   id,
   metadata: webhookMeta({ name: "Buyer" }),
   paymentReference: `pi_${id}`,

@@ -26,8 +26,10 @@ import {
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
 import {
+  answerRejectedSession,
   failureDetail,
   getPaymentProviderOrLog,
+  refundRejectedCharge,
 } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
@@ -49,7 +51,9 @@ import { getSearchParam } from "#routes/url.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
+import { t } from "#shared/i18n.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { isSessionRejection } from "#shared/payment/validated-session.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
@@ -250,9 +254,14 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   }
 
   const session = await provider.retrieveSession(sid);
+  // A buyer who cancelled can still land here on a charge the boundary could
+  // not read, so this answers the same way the success redirect does.
+  if (isSessionRejection(session)) {
+    return answerRejectedSession(session, sid, logCancelError);
+  }
   if (!session) {
     logCancelError(`Session not found (session=${sid})`);
-    return paymentErrorResponse("Payment session not found");
+    return paymentErrorResponse(t("payment.error.session_not_found"));
   }
 
   return cancelPageResponse(session, logCancelError);
@@ -401,6 +410,21 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   if (sessionResult === "skip") {
     return webhookAckResponse({ status: "pending" });
+  }
+
+  // A charge the boundary could not read: a paid one with a usable reference
+  // is refunded rather than acked into limbo — the money was captured, so it
+  // must not disappear. A blank-reference rejection cannot be refunded.
+  if (isSessionRejection(sessionResult)) {
+    const outcome = await refundRejectedCharge(sessionResult);
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Webhook session rejected as ${sessionResult.reason} (refunded: ${outcome.refunded})`,
+    });
+    // A required refund that failed must retry: acknowledging would strand the
+    // captured charge with no redelivery.
+    if (!outcome.settled) return plainResponse("Refund failed", 503);
+    return webhookAckResponse({ error: "rejected", processed: false });
   }
 
   if (!sessionResult) {

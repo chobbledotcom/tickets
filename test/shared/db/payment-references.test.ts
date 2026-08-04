@@ -62,11 +62,11 @@ describeWithEnv("db > payment references", { db: true }, () => {
       "pi_recorded",
       "pi_legacy_ignored",
     ]);
-    // The legacy payment_id falls through `legacyReference`, which sets
-    // providerRefunded:false — distinguish false from true on a legacy entry.
+    // The legacy payment_id falls through `legacyReference`, which marks an
+    // unobserved refund "unknown" — distinguish that from "completed".
     expect(firstRefs.at(-1)).toEqual({
-      providerRefunded: false,
       reference: "pi_legacy_ignored",
+      refundState: "unknown",
       sessionIds: [],
     });
     expect(references.get(secondId)?.map((entry) => entry.reference)).toEqual([
@@ -124,8 +124,8 @@ describeWithEnv("db > payment references", { db: true }, () => {
 
     expect(references.get(attendeeId)).toEqual([
       {
-        providerRefunded: false,
         reference: "pi_merged_legacy",
+        refundState: "unknown",
         sessionIds: [],
       },
     ]);
@@ -199,7 +199,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
         await getTestPrivateKey(),
       )
     ).get(attendeeId)!;
-    expect(before[0]!.providerRefunded).toBe(false);
+    expect(before[0]!.refundState).toBe("none");
 
     await markPaymentReferencesProviderRefunded(before);
 
@@ -209,7 +209,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
         await getTestPrivateKey(),
       )
     ).get(attendeeId)!;
-    expect(after[0]!.providerRefunded).toBe(true);
+    expect(after[0]!.refundState).toBe("completed");
   });
 
   test("legacyMergePaymentReferenceStatement returns null for empty source payment id", async () => {
@@ -284,8 +284,8 @@ describeWithEnv("db > payment references", { db: true }, () => {
 
     expect(references.get(attendeeId)).toEqual([
       {
-        providerRefunded: false,
         reference: "pi_shared",
+        refundState: "none",
         sessionIds: [
           "sess_shared_b_earlier",
           "sess_shared_d_earlier",
@@ -318,8 +318,8 @@ describeWithEnv("db > payment references", { db: true }, () => {
     );
     await markPaymentReferencesProviderRefunded([
       {
-        providerRefunded: false,
         reference: "pi_shared_refunded",
+        refundState: "none",
         sessionIds: ["sess_refunded_a"],
       },
     ]);
@@ -331,10 +331,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
 
     expect(references.get(attendeeId)).toEqual([
       {
-        providerRefunded: true,
         reference: "pi_shared_refunded",
         // Ordered by processed_at; both sessions carried this reference, so
         // both session ids remain attached after the merge.
+        refundState: "completed",
         sessionIds: ["sess_refunded_a", "sess_refunded_b"],
       },
     ]);

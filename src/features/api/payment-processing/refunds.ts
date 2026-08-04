@@ -12,7 +12,9 @@ import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
+import { paymentErrorResponse } from "#routes/payment-response.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
+import { t } from "#shared/i18n.ts";
 import {
   ErrorCode,
   type ErrorCodeType,
@@ -20,6 +22,9 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { isResourceId } from "#shared/payment/resource-id.ts";
+import type { SessionRejection } from "#shared/payment/validated-session.ts";
+import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   type ExistingPaymentProvider,
   getPaymentProviderForExistingPayments,
@@ -52,6 +57,62 @@ export const getPaymentProviderOrLog = async (
   return provider;
 };
 
+/** What became of a rejected session's charge. `settled` means nothing is left
+ *  owing; `refunded` means money actually moved. They are kept apart because
+ *  "nothing to refund" and "refunded" must never read alike in a log or on a
+ *  page — one leaves the buyer out of pocket, the other does not. */
+type RejectionOutcome = { settled: boolean; refunded: boolean };
+
+/** Nothing of ours was captured, so there is nothing to return. */
+const NOTHING_TO_REFUND: RejectionOutcome = { refunded: false, settled: true };
+
+/**
+ * Refund a paid charge the provider boundary could not read, when its
+ * reference is usable. A blank-reference rejection names no charge to refund.
+ */
+export const refundRejectedCharge = async (
+  rejection: SessionRejection,
+): Promise<RejectionOutcome> => {
+  if (rejection.reason === "blank_reference" || !rejection.refundable) {
+    return NOTHING_TO_REFUND;
+  }
+  // Refund only a charge we can prove is ours: the price proof in the metadata
+  // is signed with this instance's key, so a session belonging to another
+  // instance sharing the provider account verifies false and its charge is
+  // left alone.
+  const parsed = parsePriceProof(rejection.metadata.price_proof);
+  if (
+    parsed === null ||
+    !(await verifyPrice(rejection.metadata, parsed.total, parsed.sig))
+  ) {
+    return NOTHING_TO_REFUND;
+  }
+  const refunded = await tryRefund(rejection.paymentReference);
+  return { refunded, settled: refunded };
+};
+
+/**
+ * The answer a buyer-facing callback gives for a rejected session. A charge
+ * left unsettled answers 503, so the caller comes back for it rather than
+ * acknowledging money that is still out there.
+ */
+export const answerRejectedSession = async (
+  rejection: SessionRejection,
+  sessionId: string,
+  log: (detail: string) => void,
+): Promise<Response> => {
+  const { refunded, settled } = await refundRejectedCharge(rejection);
+  log(
+    `Session rejected as ${rejection.reason} (session=${sessionId}, refunded: ${refunded})`,
+  );
+  return paymentErrorResponse(
+    refunded
+      ? t("payment.error.refunded")
+      : t("payment.error.session_not_found"),
+    settled ? 400 : 503,
+  );
+};
+
 /**
  * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
  * Logs an error if refund fails.
@@ -60,7 +121,11 @@ export const tryRefund = async (
   paymentReference: string,
   listingId?: number,
 ): Promise<boolean> => {
-  if (!paymentReference) return false;
+  // A blank or whitespace-only provider resource id names no charge to refund,
+  // so the refund is refused before any provider call. The provider boundary
+  // already rejects a paid session with a blank id; this is the safety net for
+  // a reference that reaches here from a stored or legacy row.
+  if (!isResourceId(paymentReference)) return false;
 
   const provider = await getPaymentProviderOrLog(
     ErrorCode.PAYMENT_REFUND,

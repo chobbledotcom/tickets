@@ -4,20 +4,26 @@
  * ours before anything downstream processes or refunds it.
  */
 
+/* jscpd:ignore-start -- import block */
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
+import { answerRejectedSession } from "#routes/api/payment-processing/refunds.ts";
 import type {
   SessionValidation,
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { settings } from "#shared/db/settings.ts";
+import { t } from "#shared/i18n.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import { verifyPrice } from "#shared/payment-signature.ts";
+import { isSessionRejection } from "#shared/payment/validated-session.ts";
+import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
 import {
   getPaymentProviderForExistingPayments,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
+/* jscpd:ignore-end */
 
 /** Makes a logger that records a payment-session error, prefixed with the
  * payment step it happened on (e.g. "redirect", "cancel"). */
@@ -32,17 +38,20 @@ export const paymentSessionErrorLogger =
 /** Log a payment session error with redirect context prefix */
 const logRedirectError = paymentSessionErrorLogger("redirect");
 
+/** A session that could not be read: log why and return the shared refusal. */
+const sessionUnavailable = (
+  sessionId: string,
+  why: string,
+): SessionValidation => {
+  logRedirectError(`Session ${why} (session=${sessionId})`);
+  return {
+    ok: false,
+    response: paymentErrorResponse(t("payment.error.session_not_found")),
+  };
+};
+
 /** Raise a checkout we can prove is ours but whose booking will not read. */
 const logUnreadableBooking = paymentSessionErrorLogger("booking");
-
-/** Split the `total.sig` price proof into a non-negative integer total and a
- * non-empty signature, or null when the field is absent or malformed. */
-const parsePriceProof = (
-  proof: string,
-): { total: number; sig: string } | null => {
-  const match = /^(\d+)\.(.+)$/.exec(proof);
-  return match ? { sig: match[2]!, total: Number(match[1]) } : null;
-};
 
 /**
  * Evaluate a session's price proof against its metadata:
@@ -92,6 +101,12 @@ export const classifySession = async (
 ): Promise<SessionClass> => {
   const evaluation = await evaluatePriceProof(session);
   if (evaluation === null || !evaluation.valid) return { verdict: "ignore" };
+  // A charge in a currency other than the site's cannot be honored at the
+  // signed total — the amount is in the wrong unit — so it is refused like any
+  // other mismatch and refunded rather than dropped.
+  if (session.currency !== settings.currency.toUpperCase()) {
+    return { agreed: evaluation.total, verdict: "mismatch" };
+  }
   return session.amountTotal === evaluation.total
     ? { agreed: evaluation.total, verdict: "trusted" }
     : { agreed: evaluation.total, verdict: "mismatch" };
@@ -132,12 +147,18 @@ export const validatePaidSession = async (
   }
 
   const session = await provider.retrieveSession(sessionId);
-  if (!session) {
-    logRedirectError(`Session not found (session=${sessionId})`);
+  if (isSessionRejection(session)) {
     return {
       ok: false,
-      response: paymentErrorResponse("Payment session not found"),
+      response: await answerRejectedSession(
+        session,
+        sessionId,
+        logRedirectError,
+      ),
     };
+  }
+  if (!session) {
+    return sessionUnavailable(sessionId, "not found");
   }
 
   // Declined or expired checkout: SumUp's hosted page has a single redirect

@@ -1813,6 +1813,102 @@ Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
 
+## Record a foreign-currency charge in the money history without pretending it is ours
+
+*Origin: Codex review on PR #2021, which sent a charge taken in the wrong
+currency down the existing mismatch-and-refund path.*
+
+The money history holds one currency — the site's. When a charge arrives in a
+different one, `classify.ts` sends it through the ordinary mismatch flow, and
+`storeRefundPlaceholder` in
+`src/features/api/payment-processing/store-refund.ts` writes
+`session.amountTotal` straight into that history. The number is right but the
+currency is not, so a 1,000 yen charge on a pounds site is filed as £10. The
+refund itself is unaffected — that goes back through the provider in the
+currency it was taken — but the operator's cash history reads wrong, and if the
+refund fails it names the wrong amount as still held.
+
+Two ways out: give the money history a currency of its own so a foreign charge
+can be filed honestly, or keep these charges out of it and record them
+somewhere that does not claim a site-currency total.
+
+Why it is not fixed in that PR: either way changes what the money history can
+hold — a stored currency per entry, plus every reader and every total that
+today assumes one currency. That is a change to the accounting store, well
+past a PR about reading provider money safely, and the wrong thing to bolt on
+without deciding which of the two shapes we want.
+
+## Record a rejected-and-refunded payment session as finished
+
+*Origin: Codex review on PR #2021, which added the automatic refund for a paid
+charge the payment boundary cannot read.*
+
+When a provider callback meets a `malformed_charge` rejection and refunds it,
+nothing durable is written down. No reservation, no processed-payment row, no
+ledger entry says "this session was refused and the money went back". The
+webhook simply acknowledges and moves on
+(`refundRejectedCharge` in `src/features/api/payment-processing/refunds.ts`, and
+its callers in `src/features/api/webhooks.ts` and
+`src/features/api/payment-processing/classify.ts`).
+
+The reviewer's concern is that a later delivery of the same session — a webhook
+redelivery, or the buyer opening the success page — could read it in a
+well-formed shape, still see it as paid, find no record of it, and make a real
+ticket for money that was already returned.
+
+Why it is not being fixed in that PR: every rejection reason is a fixed
+property of the provider's own stored record (an amount that is not a whole
+number of minor units, a missing or malformed currency, a SumUp amount more
+precise than its currency allows). None of those can turn well-formed on a
+later read, so the double-book needs a provider changing a completed session's
+money — which no provider does. The refund itself is already safe to repeat:
+`tryRefund` treats a provider's "already fully refunded" answer as success.
+
+If it is taken on: carry the session id in `SessionRejection`
+(`src/shared/payment/validated-session.ts`), and finish the session through the
+same state machine a normal payment uses — `reserveSession` /
+`processed-payments` in `src/shared/db/processed-payments.ts` — with a terminal
+"refused and refunded" outcome, so a later delivery of that session id short
+circuits the way an already-processed payment does.
+
+## Tell a buyer when their money was taken and not (yet) given back
+
+*Origin: Codex review on PR #2021, which added the "your money has been sent
+back" page for a charge the payment boundary refused and refunded.*
+
+That page is only shown when the refund actually went through. Three other
+outcomes still fall back to "Payment session not found", and in each of them the
+buyer really was charged:
+
+- A `blank_reference` rejection: the provider says paid but gave no reference,
+  so no automatic refund is possible at all. They should be asked to get in
+  touch.
+- A `malformed_charge` rejection that is paid but whose reference is unusable —
+  the same situation, reached a different way (`refundable` is
+  `paid && isResourceId(...)`, and the `paid` half is discarded today).
+- A refund the provider refused (`settled: false`, answered 503). Careful here:
+  a 503 only asks the *webhook* to be delivered again. The redirect and cancel
+  paths have no retry behind them — they re-attempt only if that person happens
+  to reload the page. So this outcome must not be described to the buyer as
+  being in hand until an unresolved refund is actually written down somewhere
+  and owned by something that will retry it. Recording that state is part of
+  this job, not a follow-up to it, and it overlaps with the durable terminal
+  outcome described in the section above.
+
+A fourth case should keep the generic message: a rejection whose price proof
+does not verify may belong to another site sharing the provider account, and we
+must not tell someone else's buyer anything about their payment.
+
+What it needs: `SessionRejection` carries whether the charge was paid (see
+`malformedChargeRejection` in `src/shared/payment/validated-session.ts`, which
+computes `refundable` from it and drops it), `RejectionOutcome` in
+`src/features/api/payment-processing/refunds.ts` grows a third state for
+"captured, not returned", and `answerRejectedSession` picks between two new
+catalog entries beside `payment.error.refunded` in
+`src/locales/en/payment.json`.
+
+Not done in that PR only because it was at its agreed `src/` line budget; there
+is nothing hard about it.
 ## Record equivalent mutants by something that survives an edit
 
 *Origin: two breakages on PR #2025, both caught by review rather than by any

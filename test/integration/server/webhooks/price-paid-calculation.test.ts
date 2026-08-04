@@ -34,6 +34,7 @@ const followPaymentRedirectAndGetAttendees = async (
   const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
       amount_total: session.amountTotal,
+      currency: "gbp",
       id: session.sessionId,
       metadata: signMeta(
         webhookMeta({

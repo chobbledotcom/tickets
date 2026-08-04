@@ -55,6 +55,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 500,
+          currency: "gbp",
           id: "cs_token_verify",
           metadata: signMeta(
             {
