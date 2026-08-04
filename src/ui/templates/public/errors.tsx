@@ -1,10 +1,10 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { getRenewalUrl } from "#shared/env.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "./prose-page.tsx";
 

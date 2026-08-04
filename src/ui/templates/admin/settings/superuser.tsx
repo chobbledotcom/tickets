@@ -1,7 +1,7 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
 import type { SuperuserChoice } from "#shared/types.ts";

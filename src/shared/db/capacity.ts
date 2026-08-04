@@ -20,8 +20,8 @@ import type { InValue } from "@libsql/client";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import { joinStatements, type SqlStatement } from "#shared/db/client.ts";
-import { clampDurationDays } from "#shared/types.ts";
 import { DAY_MS } from "#shared/now.ts";
+import { clampDurationDays } from "#shared/types.ts";
 
 /** A half-open [startAt, endAt) window of whole days, as timestamps. Also
  * the shape of an attendee's booked windows on the Logistics tab. */

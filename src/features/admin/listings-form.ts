@@ -37,6 +37,7 @@ import {
 } from "#shared/listings-actions.ts";
 import { defineResource } from "#shared/rest/resource.ts";
 import { normalizeSlug } from "#shared/slug.ts";
+import { commaParts } from "#shared/split.ts";
 import {
   type DayPrices,
   type ListingType,
@@ -49,7 +50,6 @@ import {
   type ListingEditFormValues,
   type ListingFormValues,
 } from "#templates/fields/listing.ts";
-import { commaParts } from "#shared/split.ts";
 
 /* jscpd:ignore-end */
 

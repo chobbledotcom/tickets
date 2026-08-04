@@ -24,6 +24,7 @@ import {
   listingCatalogFields,
 } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { commaParts } from "#shared/split.ts";
 import {
   isContactField,
   ListingTypeSchema,
@@ -113,12 +114,7 @@ const ContactFieldSchema = v.custom<string>(
  * a typo ("fax") is a field error rather than a silently-dropped entry. */
 const FieldsSchema = v.pipe(
   v.string(),
-  v.transform((value) =>
-    value
-      .split(",")
-      .map((part) => part.trim())
-      .filter((part) => part),
-  ),
+  v.transform(commaParts),
   v.array(ContactFieldSchema),
   v.transform((parts) => parts.join(",")),
 );

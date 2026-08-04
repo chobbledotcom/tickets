@@ -5,6 +5,7 @@ import type { TicketListing } from "#shared/booking/model.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { listingOptionKey, packageOptionKey } from "#shared/order/options.ts";
 import {
@@ -16,7 +17,6 @@ import {
 import type { GroupWithMembers } from "#shared/types.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
   compareGroupsByName,

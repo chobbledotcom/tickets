@@ -4,12 +4,12 @@
 
 import { t } from "#i18n";
 import { getIframeMode } from "#shared/iframe.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { LabelledParas } from "#templates/components/labelled-para.tsx";
 import { NewTabLink } from "#templates/components/new-tab-link.tsx";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "#templates/public/prose-page.tsx";
 

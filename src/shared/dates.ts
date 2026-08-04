@@ -5,6 +5,7 @@
 import { filter, once } from "#fp";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
+import { DAY_MS } from "#shared/now.ts";
 import {
   formatDatetimeInTz,
   formatDatetimeShortInTz,
@@ -18,7 +19,6 @@ import {
   type Listing,
   type SortableListing,
 } from "#shared/types.ts";
-import { DAY_MS } from "#shared/now.ts";
 
 /** Month names for display */
 const MONTH_NAMES = [

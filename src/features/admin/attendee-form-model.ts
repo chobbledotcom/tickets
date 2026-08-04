@@ -31,6 +31,7 @@ import type {
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { DAY_MS } from "#shared/now.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type ContactInfo,
@@ -44,7 +45,6 @@ import {
   validatePhone,
   validateSpecialInstructions,
 } from "#templates/fields/validators.ts";
-import { DAY_MS } from "#shared/now.ts";
 
 // ---------------------------------------------------------------------------
 // Field-name constants — single source of truth for template + parser

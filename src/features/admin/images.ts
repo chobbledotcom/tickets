@@ -76,10 +76,10 @@ const imageHandlers = {
     ),
 };
 
-const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> =
-  contentPage(async (session) =>
+const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> = contentPage(
+  async (session) =>
     adminImagesPage(isStorageEnabled() ? await getAllImages() : [], session),
-  );
+);
 
 const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> =
   contentResponsePage((session) =>

@@ -80,7 +80,6 @@ declare global {
   }
 }
 
-
 /** Void elements that should not have closing tags.
  * Frozen so the renderer's global void-element rules can't be mutated by an
  * importer (the table is exported only so tests can enumerate it). */

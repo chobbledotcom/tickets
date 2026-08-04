@@ -19,12 +19,12 @@ import type {
   TextareaField,
 } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { commaParts } from "#shared/split.ts";
 import {
   firstIssueMessage,
   normalizeSlug,
   validateSlug,
 } from "#shared/slug.ts";
+import { commaParts } from "#shared/split.ts";
 import { isValidDatetime } from "#shared/timezone.ts";
 import { isContactField } from "#shared/types.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";

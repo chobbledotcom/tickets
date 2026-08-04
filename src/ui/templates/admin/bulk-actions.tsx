@@ -246,8 +246,8 @@ export const adminDuplicateGroupPage: BulkActionPage = (
         action={`/admin/groups/${group.id}/bulk-actions/duplicate`}
         data-duplicate-preview
         data-timezone={tz}
-        submitIcon="plus"
         id="duplicate-group-form"
+        submitIcon="plus"
         submitLabel={t("bulk_actions.submit_duplicate")}
       >
         <TextField

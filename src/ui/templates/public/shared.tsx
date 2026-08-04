@@ -3,6 +3,7 @@ import { t } from "#i18n";
 import { isContactFormActive } from "#shared/contact-form.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -17,7 +18,6 @@ import {
   leveledNav,
   nodeLis,
 } from "#templates/components/nav.tsx";
-import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
