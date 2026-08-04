@@ -2,10 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { generateMutants } from "#scripts/mutation/generate.ts";
 
-/** The anchors of every mutant a source produces, in source order. */
-const anchorsOf = (source: string): string[] =>
-  generateMutants(source, "/tmp/example.ts", true).map((m) => m.anchor);
-
 /** Every `?? → ||` mutant a source produces, in source order. */
 const nullishMutants = (source: string) =>
   generateMutants(source, "/tmp/example.ts", true).filter(
@@ -21,54 +17,81 @@ const nullishAnchor = (source: string): string => {
   return found[0]!.anchor;
 };
 
-describe("anchoring a mutant on what it sits inside", () => {
+/** The name half of an anchor — what it sits inside, without the fingerprint
+ * of the expression itself. */
+const nameOf = (anchor: string): string => anchor.split("~")[0]!;
+
+describe("naming what a mutant sits inside", () => {
   test("names the function a mutant sits in", () => {
-    expect(nullishAnchor("const read = (x) => x ?? 0;\n")).toBe("read");
+    expect(nameOf(nullishAnchor("const read = (x) => x ?? 0;\n"))).toBe("read");
   });
 
   test("names a plain function declaration", () => {
-    expect(nullishAnchor("function read(x) { return x ?? 0; }\n")).toBe("read");
+    expect(nameOf(nullishAnchor("function read(x) { return x ?? 0; }\n"))).toBe(
+      "read",
+    );
   });
 
   test("joins nested names outermost first", () => {
     expect(
-      nullishAnchor("const outer = () => { const inner = (x) => x ?? 0; };\n"),
+      nameOf(
+        nullishAnchor(
+          "const outer = () => { const inner = (x) => x ?? 0; };\n",
+        ),
+      ),
     ).toBe("outer.inner");
   });
 
   test("names a class method by its class and its own name", () => {
-    expect(nullishAnchor("class Reader { read(x) { return x ?? 0; } }\n")).toBe(
-      "Reader.read",
-    );
+    expect(
+      nameOf(nullishAnchor("class Reader { read(x) { return x ?? 0; } }\n")),
+    ).toBe("Reader.read");
   });
 
   test("names a method whose name is written as a string", () => {
     expect(
-      nullishAnchor('class Reader { "read-it"(x) { return x ?? 0; } }\n'),
+      nameOf(
+        nullishAnchor('class Reader { "read-it"(x) { return x ?? 0; } }\n'),
+      ),
     ).toBe("Reader.read-it");
   });
 
-  /** An empty name says nothing about where the mutant is, so the member
-   * contributes nothing and the anchor falls back to its class. */
   test("skips a member whose written name is empty", () => {
-    expect(nullishAnchor('class Reader { ""(x) { return x ?? 0; } }\n')).toBe(
-      "Reader",
+    expect(
+      nameOf(nullishAnchor('class Reader { ""(x) { return x ?? 0; } }\n')),
+    ).toBe("Reader");
+  });
+
+  test("anchors code inside no declaration on the file itself", () => {
+    expect(nameOf(nullishAnchor("export default globalThis.x ?? 0;\n"))).toBe(
+      "%3cfile%3e",
     );
   });
 
-  test("anchors top-level code on the file itself", () => {
-    expect(nullishAnchor("export default globalThis.x ?? 0;\n")).toBe("<file>");
+  /** An anchor goes into a registry line, where a space would end it early and
+   * a `#` would start its reason. */
+  test("encodes a name holding a space", () => {
+    expect(
+      nameOf(nullishAnchor('class R { "read it"(x) { return x ?? 0; } }\n')),
+    ).toBe("R.read%20it");
   });
 
-  /** The whole point: an edit above a recorded expression must not move it. */
-  test("keeps the anchor when unrelated lines are added above", () => {
+  test("encodes a name holding a comment mark", () => {
+    expect(
+      nameOf(nullishAnchor('class R { "a#b"(x) { return x ?? 0; } }\n')),
+    ).toBe("R.a%23b");
+  });
+});
+
+describe("keeping an anchor still while code around it moves", () => {
+  test("survives unrelated lines added above", () => {
     const before = "const read = (x) => x ?? 0;\n";
     const after = `// a new comment\nimport "./elsewhere.ts";\nconst other = () => 1;\n${before}`;
 
     expect(nullishAnchor(after)).toBe(nullishAnchor(before));
   });
 
-  test("keeps the anchor when the enclosing function grows above it", () => {
+  test("survives the enclosing function growing above it", () => {
     const before = "const read = (x) => {\n  return x ?? 0;\n};\n";
     const after =
       "const read = (x) => {\n  const noted = String(x);\n  return x ?? 0;\n};\n";
@@ -76,33 +99,60 @@ describe("anchoring a mutant on what it sits inside", () => {
     expect(nullishAnchor(after)).toBe(nullishAnchor(before));
   });
 
-  test("numbers mutants of one kind that share a name, in source order", () => {
-    const nullish = nullishMutants(
-      "const read = (a, b) => [a ?? 0, b ?? 1];\n",
-    );
+  /**
+   * The case an ordinal alone could not survive: another mutant of the same
+   * kind appearing *earlier* in the same function. Numbering would shift every
+   * anchor below it, quietly pointing each recorded entry at its neighbour.
+   */
+  test("survives a same-kind mutant inserted above it", () => {
+    const before = "const read = (a, b) => [a ?? 0, b ?? 1];\n";
+    const after = "const read = (a, b, c) => [c ?? 9, a ?? 0, b ?? 1];\n";
 
-    expect(nullish.map((m) => m.anchor)).toEqual(["read@1", "read@2"]);
+    const kept = nullishMutants(after).map((m) => m.anchor);
+
+    for (const anchor of nullishMutants(before).map((m) => m.anchor)) {
+      expect(kept).toContain(anchor);
+    }
   });
 
-  /** Numbering is scoped to one `from → to`, so the numeric mutants sitting
-   * beside these nullish ones are each unique and stay unnumbered. */
-  test("leaves a kind with only one mutant in a name unnumbered", () => {
-    const anchors = anchorsOf("const read = (a, b) => [a ?? 0, b ?? 1];\n");
+  test("moves when the expression it names is edited", () => {
+    const before = "const read = (x) => x ?? 0;\n";
+    const after = "const read = (x) => x ?? 1;\n";
 
-    expect(anchors.filter((a) => a === "read").length).toBeGreaterThan(0);
+    expect(nullishAnchor(after)).not.toBe(nullishAnchor(before));
+  });
+
+  test("moves when the function it sits in is renamed", () => {
+    const before = "const read = (x) => x ?? 0;\n";
+    const after = "const fetchIt = (x) => x ?? 0;\n";
+
+    expect(nullishAnchor(after)).not.toBe(nullishAnchor(before));
+  });
+});
+
+describe("telling apart mutants that share a name", () => {
+  test("gives different expressions different anchors", () => {
+    const anchors = nullishMutants(
+      "const read = (a, b) => [a ?? 0, b ?? 1];\n",
+    ).map((m) => m.anchor);
+
+    expect(new Set(anchors).size).toBe(2);
+  });
+
+  /** Character-identical expressions under one name are indistinguishable, so
+   * they fall back to source order. */
+  test("numbers expressions that are character-identical", () => {
+    const anchors = nullishMutants(
+      "const read = (a) => [a ?? 0, a ?? 0];\n",
+    ).map((m) => m.anchor);
+
+    expect(anchors.map((a) => a.slice(a.lastIndexOf("@")))).toEqual([
+      "@1",
+      "@2",
+    ]);
   });
 
   test("leaves a lone mutant unnumbered", () => {
-    expect(nullishAnchor("const read = (x) => x ?? 0;\n")).toBe("read");
-  });
-
-  /** Numbering is per kind, so a different mutation beside a recorded one
-   * leaves its number alone. */
-  test("numbers each kind of mutation separately", () => {
-    const nullish = nullishMutants(
-      "const read = (a, b) => [a ?? 0, b || 1];\n",
-    );
-
-    expect(nullish.map((m) => m.anchor)).toEqual(["read"]);
+    expect(nullishAnchor("const read = (x) => x ?? 0;\n")).not.toContain("@");
   });
 });

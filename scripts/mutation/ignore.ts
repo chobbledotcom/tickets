@@ -8,20 +8,16 @@
  * it is recorded here and suppressed from the survivor count — letting the
  * tester gate CI on genuinely *new* survivors.
  *
- * Works for every mutation kind, not just `?? → ||`: an entry is matched by the
- * thing the mutant sits inside and the displayed `from → to`, so it mirrors a
- * survivor line from the report. The file format is one entry per line, plus an
- * optional reason:
+ * Works for every mutation kind, not just `?? → ||`. One entry per line, plus
+ * an optional reason:
  *
  *   path::anchor  from → to   # why it is equivalent
  *
- * The anchor is what the mutant sits inside — a function, method, or value —
- * with `#n` when several mutants of the same kind share it (see anchor.ts).
- * Entries used to record `path:line:column`, which any edit *above* the
- * recorded expression silently invalidated; an anchor moves only when the thing
- * it names does. `ignoreListProblems` still re-checks — at run time, only for
- * the files actually being mutated — that each entry lines up with a real
- * surviving mutant, so a stale/redundant/duplicate entry fails the run.
+ * The anchor names what the mutant sits inside and fingerprints the expression
+ * it mutates (see anchor.ts), so it moves only when that expression does.
+ * `ignoreListProblems` re-checks — at run time, for the files actually being
+ * mutated — that each entry lines up with a real surviving mutant, so a
+ * stale/redundant/duplicate entry fails the run.
  */
 
 import { fromFileUrl, join } from "@std/path";
@@ -54,11 +50,25 @@ export const listRegistryFiles = async (
   );
 };
 
-/** Canonical key for a mutant at a project-relative path. Anchored on what the
- * mutant sits inside rather than where it sits, so an edit elsewhere in the
- * file leaves it alone — see anchor.ts. */
+/**
+ * A mutated literal carries its own text into the displayed `from → to`, where
+ * three things would not survive being written to a line and read back: a `#`
+ * reads as the start of the reason, a newline ends the line outright, and
+ * whitespace at either edge is absorbed by the spacing around the arrow — which
+ * would let `"; "` and `";"` share one key. Each is escaped; interior spaces
+ * are left alone, so a removed statement still reads as itself.
+ */
+const escapeForLine = (text: string): string =>
+  text
+    .replaceAll("%", "%25")
+    .replaceAll("#", "%23")
+    .replaceAll("\n", "%0a")
+    .replace(/^\s+/, (run) => "%20".repeat(run.length))
+    .replace(/\s+$/, (run) => "%20".repeat(run.length));
+
+/** Canonical key for a mutant at a project-relative path. */
 export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
-  `${relPath}::${mutant.anchor} ${mutant.operator}→${mutant.newOperator}`;
+  `${relPath}::${mutant.anchor} ${escapeForLine(mutant.operator)}→${escapeForLine(mutant.newOperator)}`;
 
 /** Canonical key for a mutant given its absolute source path. */
 export const mutantKey = (file: string, mutant: Mutant): string =>
@@ -126,10 +136,9 @@ export const loadIgnoreList = async (
 /**
  * Every entry in one registry file's text.
  *
- * A line that is neither blank nor a comment but does not parse is a record
- * that would silently stop suppressing its mutant, so it raises rather than
- * being skipped: a registry quietly missing part of itself reads exactly like
- * one that never had those entries.
+ * A line that is neither blank nor a comment but does not parse raises, because
+ * a registry quietly missing part of itself reads exactly like one that never
+ * held those entries.
  */
 export const parseRegistryText = (
   text: string,

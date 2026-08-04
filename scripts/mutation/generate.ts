@@ -48,7 +48,7 @@ export interface Mutant extends RawMutant {
 
 /** A mutant before it has been told what it sits inside. The generators build
  * these; `generateMutants` anchors them on the way out. */
-export interface RawMutant {
+interface RawMutant {
   column: number;
   end: number;
   line: number;
@@ -452,7 +452,7 @@ export const generateMutants = (
   const raw = flatMap((entry: { inNonRuntime: boolean; node: AstNode }) =>
     entry.inNonRuntime ? [] : mutate(entry.node),
   )([...walk(program)]);
-  return anchorMutants(program, raw);
+  return anchorMutants(program, content, raw);
 };
 
 /** Apply a mutant to the original source, returning the mutated source. */

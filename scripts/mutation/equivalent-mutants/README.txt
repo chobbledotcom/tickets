@@ -18,19 +18,24 @@
 # Format — one entry per line, plus a reason:
 #   <path>::<anchor>  <from> → <to>   # why it is equivalent
 #
-# The anchor names the thing the mutant sits inside — a function, a method, a
-# value — with nested names joined by dots:
+# The anchor names what the mutant sits inside — a function, a method, a value,
+# nested names joined by dots — then `~` and a fingerprint of the expression it
+# mutates:
 #
-#   src/fp.ts::collectionCache.generation  0 → 1   # ...
+#   src/fp.ts::collectionCache.generation~0dbfxl4  0 → 1   # ...
 #
-# Where several mutants of the SAME kind sit inside one name they are numbered
-# in source order, `@1`, `@2`. The ordinal uses `@` and not `#`, because a line
-# ends with a `#` comment and a `#` in the anchor would start one early.
+# Both halves come from the code, so an entry that resolves has found the
+# expression it was recorded against. An anchor moves only when that expression
+# is edited or its enclosing name changes — never because code around it moved.
 #
-# Entries used to record <path>:<line>:<col>, which meant any edit ABOVE a
-# recorded expression silently invalidated it. An anchor moves only when the
-# thing it names does: renaming its function, or adding another mutant of the
-# same kind inside that function. Both are real changes to what was recorded.
+# Two mutants sharing a name, a `from → to`, AND character-identical text are
+# indistinguishable; those take `@1`, `@2` in source order.
+#
+# Anything that would not survive a line — a space, the `#` that starts this
+# comment, a newline, whitespace at either edge of a literal — is
+# percent-encoded. `%23` is a `#`; `%20` is a space.
+#
+# The path must be written exactly as the canonical project-relative path.
 #
 # Do NOT list a mutant whose output the linter or type checker rejects. Biome's
 # noDoubleEquals rule rejects every `=== → ==` and `!== → !=` mutant. The runner

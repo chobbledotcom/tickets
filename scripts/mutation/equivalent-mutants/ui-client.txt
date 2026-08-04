@@ -3,88 +3,88 @@
 # --- External order widget (src/ui/client/order.ts) ----------------------------
 # URL matches and catalog entries are either non-empty strings/objects or absent,
 # so these nullish and truthy fallbacks have the same result.
-src/ui/client/order.ts::ticketSlug  ?? → ||   # RegExp match group is a non-empty slug or undefined
-src/ui/client/order.ts::resolveListing  ?? → ||   # catalogEntry returns a CatalogEntry object or undefined
-src/ui/client/order.ts::CartController.reconcile  ?? → ||   # merged quantities are positive integers, so an existing sum is truthy
-src/ui/client/order.ts::parseAddQuantity  0 → 1   # quantity 1 takes the fallback 1 instead of returning 1
+src/ui/client/order.ts::ticketSlug~1n6h8xd  ?? → ||   # RegExp match group is a non-empty slug or undefined
+src/ui/client/order.ts::resolveListing~16cfn2p  ?? → ||   # catalogEntry returns a CatalogEntry object or undefined
+src/ui/client/order.ts::CartController.reconcile~0ml52tv  ?? → ||   # merged quantities are positive integers, so an existing sum is truthy
+src/ui/client/order.ts::parseAddQuantity~1lqvqq7  0 → 1   # quantity 1 takes the fallback 1 instead of returning 1
 
 # reconcile runs once on a new controller whose notice starts empty. The only
 # production caller of add always passes parseAddQuantity's positive result.
-src/ui/client/order.ts::CartController.reconcile@2  = → +=   # empty notice plus the message equals the message
-src/ui/client/order.ts::CartController.add  1 → 0   # add's default is unused; its only caller always supplies quantity
+src/ui/client/order.ts::CartController.reconcile~1kadcbh  = → +=   # empty notice plus the message equals the message
+src/ui/client/order.ts::CartController.add~0o3iajo  1 → 0   # add's default is unused; its only caller always supplies quantity
 
 # Every `= → +=` below writes to a newly-created DOM element property whose DOM
 # default is "". Concatenating the assigned text onto "" is exactly assignment.
-src/ui/client/order.ts::CartController.renderBody@1  = → +=   # fresh heading textContent
-src/ui/client/order.ts::CartController.renderBody@2  = → +=   # fresh notice paragraph className
-src/ui/client/order.ts::CartController.renderBody@3  = → +=   # fresh notice paragraph textContent
-src/ui/client/order.ts::CartController.renderBody@6  = → +=   # fresh subtotal paragraph className
-src/ui/client/order.ts::CartController.renderBody@7  = → +=   # fresh subtotal paragraph textContent
-src/ui/client/order.ts::CartController.renderBody@8  = → +=   # fresh caveat paragraph className
-src/ui/client/order.ts::CartController.renderBody@9  = → +=   # fresh caveat paragraph textContent
-src/ui/client/order.ts::CartController.renderBody@10  = → +=   # fresh empty paragraph textContent
-src/ui/client/order.ts::CartController.renderRow@1  = → +=   # fresh row className
-src/ui/client/order.ts::CartController.renderRow@2  = → +=   # fresh name span className
-src/ui/client/order.ts::CartController.renderRow@3  = → +=   # fresh name span textContent
-src/ui/client/order.ts::CartController.renderRow@4  = → +=   # fresh price span className
-src/ui/client/order.ts::CartController.renderRow@5  = → +=   # fresh price span textContent
-src/ui/client/order.ts::CartController.buildContinue  = → +=   # fresh Continue button textContent
-src/ui/client/order.ts::buildButton@2  = → +=   # fresh count span className
-src/ui/client/order.ts::buildButton@3  = → +=   # fresh count span textContent
-src/ui/client/order.ts::buildButton@4  = → +=   # fresh cart label span textContent
-src/ui/client/order.ts::buildCloseButton  = → +=   # fresh Close button textContent
-src/ui/client/order.ts::buildStepper@1  = → +=   # fresh stepper span className
-src/ui/client/order.ts::buildStepper@3  = → +=   # fresh decrease button textContent
-src/ui/client/order.ts::buildStepper@4  = → +=   # fresh quantity span textContent
-src/ui/client/order.ts::buildStepper@6  = → +=   # fresh increase button textContent
-src/ui/client/order.ts::buildStepper@8  = → +=   # fresh Remove button textContent
-src/ui/client/order.ts::buildStyles  = → +=   # fresh style element textContent
+src/ui/client/order.ts::CartController.renderBody~1e8gima  = → +=   # fresh heading textContent
+src/ui/client/order.ts::CartController.renderBody~0769utr  = → +=   # fresh notice paragraph className
+src/ui/client/order.ts::CartController.renderBody~0js9e3o  = → +=   # fresh notice paragraph textContent
+src/ui/client/order.ts::CartController.renderBody~13qv4xh  = → +=   # fresh subtotal paragraph className
+src/ui/client/order.ts::CartController.renderBody~0iu2k0x  = → +=   # fresh subtotal paragraph textContent
+src/ui/client/order.ts::CartController.renderBody~16aouo5  = → +=   # fresh caveat paragraph className
+src/ui/client/order.ts::CartController.renderBody~1w4sxpr  = → +=   # fresh caveat paragraph textContent
+src/ui/client/order.ts::CartController.renderBody~1bt1hfd  = → +=   # fresh empty paragraph textContent
+src/ui/client/order.ts::CartController.renderRow~0lyd29l  = → +=   # fresh row className
+src/ui/client/order.ts::CartController.renderRow~0h48s6p  = → +=   # fresh name span className
+src/ui/client/order.ts::CartController.renderRow~0stiinw  = → +=   # fresh name span textContent
+src/ui/client/order.ts::CartController.renderRow~011y5kf  = → +=   # fresh price span className
+src/ui/client/order.ts::CartController.renderRow~0phsvtz  = → +=   # fresh price span textContent
+src/ui/client/order.ts::CartController.buildContinue~1gwymsv  = → +=   # fresh Continue button textContent
+src/ui/client/order.ts::buildButton~0cxcdrz  = → +=   # fresh count span className
+src/ui/client/order.ts::buildButton~0nqcdm1  = → +=   # fresh count span textContent
+src/ui/client/order.ts::buildButton~1w5f3kd  = → +=   # fresh cart label span textContent
+src/ui/client/order.ts::buildCloseButton~1xbr2yg  = → +=   # fresh Close button textContent
+src/ui/client/order.ts::buildStepper~0fr2ph0  = → +=   # fresh stepper span className
+src/ui/client/order.ts::buildStepper~0e91dik  = → +=   # fresh decrease button textContent
+src/ui/client/order.ts::buildStepper~1wclfso  = → +=   # fresh quantity span textContent
+src/ui/client/order.ts::buildStepper~0hr9vid  = → +=   # fresh increase button textContent
+src/ui/client/order.ts::buildStepper~01m8w0s  = → +=   # fresh Remove button textContent
+src/ui/client/order.ts::buildStyles~1mep807  = → +=   # fresh style element textContent
 
 # buildButton's initial values are overwritten by the constructor's render
 # before the button is exposed.
-src/ui/client/order.ts::buildButton  true → false   # constructor render immediately sets hidden from the cart count
-src/ui/client/order.ts::buildButton  0 → ""   # constructor render immediately writes the current numeric count
+src/ui/client/order.ts::buildButton~054o62q  true → false   # constructor render immediately sets hidden from the cart count
+src/ui/client/order.ts::buildButton~0nqcdm1  0 → ""   # constructor render immediately writes the current numeric count
 
 # The widget owns this global registry: before init it is undefined, afterwards
 # it is an object. Both are mapped to the same object by these operators.
-src/ui/client/order.ts::init.registry  ?? → ||   # registry is Record<string, unknown>|undefined
+src/ui/client/order.ts::init.registry~1udjxut  ?? → ||   # registry is Record<string, unknown>|undefined
 
 # Dataset values are strings when present. At initial scan the selector requires
 # the attribute; after enhancement, an absent value and either fallback string
 # all fail both resolvers and preserve normal navigation.
-src/ui/client/order.ts::init.enhance.raw  ?? → ||   # present dataset string; empty maps to the same empty fallback
-src/ui/client/order.ts::init.enhance.raw   → "mutated"   # fallback is unreachable for the matching selector
-src/ui/client/order.ts::init.enhance.current  ?? → ||   # present strings are truthy or empty; both operators keep the same value
-src/ui/client/order.ts::init.enhance.current   → "mutated"   # absent fallback values resolve to neither listing nor package
-src/shared/site-pages/core.ts::descendantsOf.walk  ?? → ||   # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
-src/shared/site-pages/core.ts::buildNavModel.levelOf  ?? → ||   # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/ui/client/order.ts::init.enhance.raw~03ascww  ?? → ||   # present dataset string; empty maps to the same empty fallback
+src/ui/client/order.ts::init.enhance.raw~03ascww   → "mutated"   # fallback is unreachable for the matching selector
+src/ui/client/order.ts::init.enhance.current~03ascww  ?? → ||   # present strings are truthy or empty; both operators keep the same value
+src/ui/client/order.ts::init.enhance.current~03ascww   → "mutated"   # absent fallback values resolve to neither listing nor package
+src/shared/site-pages/core.ts::descendantsOf.walk~06ouy8c  ?? → ||   # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
+src/shared/site-pages/core.ts::buildNavModel.levelOf~0agplud  ?? → ||   # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
 
 # --- Rich markdown editor (src/ui/client/admin/markdown-editor*.ts) ------------
 # Browser DOM-construction code, same class of equivalents as order.ts above:
 # `= → +=` on a freshly created element's property whose value before the
 # assignment is "" (className, src), or a boolean IDL attribute whose setter
 # coerces the truthy `false + true === 1` to the same true.
-src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea@1  = → +=   # mount.className: fresh element, "" before
-src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea@3  = → +=   # toggle.className: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar  = → +=   # dom.className: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons@1  = → +=   # button.textContent: fresh element, "" before
-src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons@2  = → +=   # button.title: fresh element, "" before
+src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea~0tm52y7  = → +=   # mount.className: fresh element, "" before
+src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea~0igtxeq  = → +=   # toggle.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar~0ddlu5i  = → +=   # dom.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons~0ps90ek  = → +=   # button.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.buttons~0nv7hz5  = → +=   # button.title: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can
 # tell them apart.
-src/ui/client/admin/markdown-editor-setup.ts::editorInputRules@1  1 → 0   # Number("N. ") === Number("N") for every ordered-list match
+src/ui/client/admin/markdown-editor-setup.ts::editorInputRules~10i2z5p@1  1 → 0   # Number("N. ") === Number("N") for every ordered-list match
 
 # bundle-loader.ts assigns query/style/script values onto freshly-created URLs
 # and elements. Each left-hand value is empty (or false for defer), so `=` and
 # `+=` produce the same final URL/string/boolean after DOM coercion.
-src/ui/client/admin/bundle-loader.ts::bundleUrl  = → +=   # a sibling URL starts with an empty search
-src/ui/client/admin/bundle-loader.ts::loadBundleWhen@1  = → +=   # fresh link.rel is empty
-src/ui/client/admin/bundle-loader.ts::loadBundleWhen@2  = → +=   # fresh link.href is empty
-src/ui/client/admin/bundle-loader.ts::loadBundleWhen@3  = → +=   # fresh script.src is empty
+src/ui/client/admin/bundle-loader.ts::bundleUrl~04ik8af  = → +=   # a sibling URL starts with an empty search
+src/ui/client/admin/bundle-loader.ts::loadBundleWhen~0yyqh8d  = → +=   # fresh link.rel is empty
+src/ui/client/admin/bundle-loader.ts::loadBundleWhen~05cuojs  = → +=   # fresh link.href is empty
+src/ui/client/admin/bundle-loader.ts::loadBundleWhen~0zshzaj  = → +=   # fresh script.src is empty
 
 # address-lookup client: panelText's "" fallback matches the only falsy dataset
 # value, and freshly created options start with empty value/text.
-src/ui/client/admin/address-lookup.ts::panelText  ?? → ||   # dataset[key]: string|undefined, only falsy string "" === fallback ""
-src/ui/client/admin/address-lookup.ts::addressOption@1  = → +=   # a just-created <option>'s value is "", so append equals assign
-src/ui/client/admin/address-lookup.ts::addressOption@2  = → +=   # a just-created <option>'s textContent is "", so append equals assign
+src/ui/client/admin/address-lookup.ts::panelText~0c82ro8  ?? → ||   # dataset[key]: string|undefined, only falsy string "" === fallback ""
+src/ui/client/admin/address-lookup.ts::addressOption~1886fui  = → +=   # a just-created <option>'s value is "", so append equals assign
+src/ui/client/admin/address-lookup.ts::addressOption~07nflld  = → +=   # a just-created <option>'s textContent is "", so append equals assign
