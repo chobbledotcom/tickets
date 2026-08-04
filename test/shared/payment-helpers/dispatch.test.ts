@@ -255,12 +255,7 @@ describe("payment-helpers", () => {
       paymentStatus: "paid",
     });
 
-    expect(build).toEqual(
-      expect.objectContaining({
-        ok: true,
-        session: expect.objectContaining({ createdAt }),
-      }),
-    );
+    expect(build).toEqual(expect.objectContaining({ createdAt }));
   });
 
   test("parseWebhookPayload returns the invalid JSON error", () => {
