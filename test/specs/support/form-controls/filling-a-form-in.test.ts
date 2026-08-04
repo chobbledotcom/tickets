@@ -299,6 +299,44 @@ describe("filling a form in and sending it", () => {
       what: "sends nothing when the answer picked has been switched off",
     },
     {
+      // A group switched off as a whole takes everything in it with it: nobody
+      // could tick this box, so the form is not held up waiting for it.
+      offering: `${NAME_BOX}<fieldset disabled><legend>Extras</legend><input type="checkbox" name="terms" value="yes" required></fieldset>`,
+      sends: { ...TYPED },
+      typed: TYPED,
+      what: "sends when the box it insists on sits in a switched-off group",
+    },
+    {
+      // The same box in a group that is not switched off still holds it up.
+      offering: `${NAME_BOX}<fieldset><legend>Extras</legend><input type="checkbox" name="terms" value="yes" required></fieldset>`,
+      refusedWith: "The terms box must be ticked to send the form",
+      typed: TYPED,
+      what: "sends nothing when that group is not switched off after all",
+    },
+    {
+      // A group with nothing switched off about it holds nothing back, whatever
+      // else it carries.
+      offering: `${NAME_BOX}<fieldset class="checkboxes"><legend>Extras</legend><input type="checkbox" name="terms" value="yes" required></fieldset>`,
+      refusedWith: "The terms box must be ticked to send the form",
+      typed: TYPED,
+      what: "sends nothing when a group with other words on it is not switched off",
+    },
+    {
+      // A switched-off group with no heading takes everything with it.
+      offering: `${NAME_BOX}<fieldset disabled><input type="checkbox" name="terms" value="yes" required></fieldset>`,
+      sends: { ...TYPED },
+      typed: TYPED,
+      what: "sends when the switched-off group has no heading of its own",
+    },
+    {
+      // Nobody could type into a box in a switched-off group either, so a story
+      // filling one in is filling in something that is not there to fill.
+      offering: `${NAME_BOX}<fieldset disabled><legend>Extras</legend><input name="reference"></fieldset>`,
+      refusedWith: "the page has no reference to fill in",
+      typed: { ...TYPED, reference: "AB-1" },
+      what: "sends nothing when the box typed into sits in a switched-off group",
+    },
+    {
       // A choice with no value of its own is answered with "on", the same word
       // a browser sends, so that is what the question offers.
       offering: `${NAME_BOX}<input type="radio" name="pick" required>`,

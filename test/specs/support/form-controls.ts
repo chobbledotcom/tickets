@@ -39,9 +39,10 @@ type WhyFieldCannotCarry = (
  * or email). The name may sit anywhere among the attributes — an `id` often
  * comes first — so the opening tag is matched whole and read from. */
 const chooserFor = (
-  html: string,
+  page: string,
   field: string,
 ): { attributes: string; options: string } | null => {
+  const html = withoutSwitchedOffGroups(page);
   for (const chooser of html.matchAll(
     /<select\s([^>]*)>([\s\S]*?)<\/select>/g,
   )) {
@@ -62,8 +63,10 @@ const optionFor = (options: string, value: string): string | null => {
 
 /** The box the visitor types in for one field, if it is one — its opening tag,
  * so its attributes can be read. */
-const boxFor = (html: string, field: string): string | null => {
-  for (const box of html.matchAll(/<(?:input|textarea)\s([^>]*)>/g)) {
+const boxFor = (page: string, field: string): string | null => {
+  for (const box of withoutSwitchedOffGroups(page).matchAll(
+    /<(?:input|textarea)\s([^>]*)>/g,
+  )) {
     if (attribute(box[1]!, "name") === field) return box[0];
   }
   return null;
@@ -114,6 +117,24 @@ const hasFlag = (tag: string, named: string): boolean =>
     tag.replace(/="[^"]*"/g, ""),
   );
 
+/** The page with every switched-off group's controls taken out of it. A
+ * `<fieldset disabled>` switches off everything inside it, so nobody can type
+ * in, tick or pick any of it — the controls are still on the page, but a
+ * browser sends none of them and holds the form up for none of them either.
+ * The group's first legend stays, because that part is still usable.
+ *
+ * Nested groups are not unpicked: the outer one's end closes the reckoning, so
+ * a group inside a switched-off group is left alone. No page here writes one. */
+const emptiedIfSwitchedOff = (group: string): string => {
+  const attributes = group.match(/^<fieldset([^>]*)>/)![1]!;
+  if (!hasFlag(attributes, "disabled")) return group;
+  const legend = group.match(/<legend[^>]*>[\s\S]*?<\/legend>/);
+  return legend === null ? "" : legend[0];
+};
+
+const withoutSwitchedOffGroups = (html: string): string =>
+  html.replace(/<fieldset[^>]*>[\s\S]*?<\/fieldset>/g, emptiedIfSwitchedOff);
+
 /** Why a number box will not take this number, or null when it will. A box that
  * only accepts 1 to 3 cannot send 5, however happily a post carrying 5 is
  * accepted. */
@@ -148,11 +169,13 @@ interface UsableCheckbox {
  * switched-off one is left out, and so is one with no name, since neither
  * reaches the site. */
 const usableInputsOfKind = (
-  html: string,
+  page: string,
   kind: string,
 ): Array<{ field: string; tag: string }> => {
   const found: Array<{ field: string; tag: string }> = [];
-  for (const box of html.matchAll(/<input\s([^>]*)>/g)) {
+  for (const box of withoutSwitchedOffGroups(page).matchAll(
+    /<input\s([^>]*)>/g,
+  )) {
     const tag = box[0];
     const field = attribute(tag, "name");
     if (attribute(tag, "type") !== kind || field === null) continue;
@@ -381,7 +404,8 @@ const insistedQuestionsOn = (html: string): InsistedControl[] => {
  * a rule of its own, because it is not typing. A switched-off control sends
  * nothing and a browser does not hold up a form for one, and a hidden box is
  * never checked either, so neither counts here. */
-const insistedControlsOn = (html: string): InsistedControl[] => {
+const insistedControlsOn = (page: string): InsistedControl[] => {
+  const html = withoutSwitchedOffGroups(page);
   const controls: InsistedControl[] = [];
   // Only the control's own attributes are read, never what it wraps: a chooser
   // holding a switched-off placeholder is not itself switched off, and a word

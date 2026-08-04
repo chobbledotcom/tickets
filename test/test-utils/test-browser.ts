@@ -362,6 +362,14 @@ export class TestBrowser {
       await this.request(`${action.split("?")[0]}?${params}`);
       return;
     }
+    // Only those two ways exist. A page saying anything else is a page with a
+    // mistake on it — a browser quietly sends such a form by GET, so guessing
+    // POST here would prove the site accepts something it never receives.
+    if (method !== "post") {
+      throw new Error(
+        `The form at "${action}" says it sends by "${method}", which is not a way a form can be sent`,
+      );
+    }
     await this.request(action, {
       body: params.toString(),
       headers: { "content-type": "application/x-www-form-urlencoded" },

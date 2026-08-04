@@ -193,6 +193,24 @@ describe("TestBrowser sending a form", () => {
     });
   }
 
+  it("refuses a form that says it sends a way no form can", async () => {
+    const { browser, sent } = recordingBrowser();
+    browser.currentHtml = `
+      <form action="/save" method="POTS">
+        <input name="town" value="Leeds">
+        <button type="submit">Save</button>
+      </form>
+    `;
+
+    // A browser sends a form with a misspelt method by GET. Sending it by POST
+    // instead would let a story reach a POST-only route that no visitor
+    // pressing that button could ever reach.
+    await expect(browser.submitForm({}, "Save")).rejects.toThrow(
+      'The form at "/save" says it sends by "pots", which is not a way a form can be sent',
+    );
+    expect(sent().method).toBe("");
+  });
+
   it("puts a GET form where the address's own question marks were", async () => {
     const { browser, sent } = recordingBrowser();
     browser.currentHtml = `
