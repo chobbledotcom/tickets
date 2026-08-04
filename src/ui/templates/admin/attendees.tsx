@@ -105,6 +105,8 @@ type AttendeeConfirmConfig = {
   warningText: string;
 };
 
+// Calls ConfirmPage directly: the extra returnUrl argument doesn't fit the
+// (entity, session, error?) shape entityDeletePage builds.
 const attendeeConfirmPage = (
   attendee: Attendee,
   session: AdminSession,

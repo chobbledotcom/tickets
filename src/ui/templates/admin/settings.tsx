@@ -8,12 +8,10 @@ import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { SuperuserState } from "#shared/superuser.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { FeaturesTable } from "#templates/admin/features.tsx";
-import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
 import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import {
-  BookingFeeForm,
   PaymentProviderForm,
   SquareForm,
   SquareWebhookForm,
@@ -22,7 +20,6 @@ import {
 } from "#templates/admin/settings/payment.tsx";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SuperuserForm } from "#templates/admin/settings/superuser.tsx";
-import { ThemeForm } from "#templates/admin/settings/theme.tsx";
 
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
@@ -74,20 +71,20 @@ export const adminSettingsPage = (
     <>
       {settingsForm(SETTINGS_FORMS.businessEmail, s)}
       {HeaderImageForm(s)}
-      {ThemeForm(s)}
+      {settingsForm(SETTINGS_FORMS.theme, s)}
 
       {PaymentProviderForm(s)}
       {StripeForm(s)}
       {SquareForm(s)}
       {SquareWebhookForm(s)}
       {SumUpForm(s)}
-      {BookingFeeForm(s)}
+      {s.paymentProvider ? settingsForm(SETTINGS_FORMS.bookingFee, s) : null}
 
       {settingsForm(SETTINGS_FORMS.terms, s)}
       {settingsForm(SETTINGS_FORMS.embedHosts, s)}
       <SuperuserForm superuser={s.superuser} />
       <ChangePasswordForm />
-      {CalendarFeedsForm(s)}
+      {settingsForm(SETTINGS_FORMS.calendarFeeds, s)}
       <FeaturesTable enabledFeatures={s.enabledFeatures} />
     </>,
   );

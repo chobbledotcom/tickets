@@ -41,7 +41,7 @@ export const SettingsSection = ({
    * id derived from `action`; pass explicitly only when the id can't be derived
    * from the post target (e.g. a form posting to the base settings endpoint).
    */
-  id?: string;
+  id?: string | undefined;
   submitLabel: string;
 } & TitledBlock): JSX.Element => (
   <SaveForm
@@ -64,6 +64,8 @@ export const SettingsSection = ({
 export type SettingsSectionDetails = {
   action: string;
   description?: Child;
+  /** Explicit form id; omitted, the id derived from `action` is used. */
+  id?: string | undefined;
   submitLabel: string;
   title: string;
 };
@@ -76,6 +78,7 @@ export const settingsSectionWith = (
   <SettingsSection
     action={details.action}
     description={details.description}
+    id={details.id}
     submitLabel={details.submitLabel}
     title={details.title}
   >

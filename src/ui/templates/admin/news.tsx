@@ -18,11 +18,11 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import type { AdminSession, NewsPost, NewsPostSummary } from "#shared/types.ts";
 import { adminFormPage } from "#templates/admin/admin-page.tsx";
+import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
   collectionPage,
   contentEditPanel,
-  deleteConfirmPage,
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
@@ -99,14 +99,4 @@ export const newsEditPanel = (post: NewsPost): JSX.Element =>
     newsPostEditForm.render(newsPostToValues(post)),
   );
 
-export const adminNewsDeletePage = (
-  post: NewsPost,
-  session: AdminSession,
-  error?: string,
-): string =>
-  deleteConfirmPage("news", ACTIVE)(
-    `${LIST}/${post.id}/delete`,
-    post.name,
-    session,
-    error,
-  );
+export const adminNewsDeletePage = prefixedDeletePage("news", LIST);

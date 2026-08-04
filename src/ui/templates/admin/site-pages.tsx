@@ -20,11 +20,11 @@ import type {
   SitePageNavRow,
 } from "#shared/types.ts";
 import { adminFormPage } from "#templates/admin/admin-page.tsx";
+import { prefixedDeletePage } from "#templates/admin/confirm-page.tsx";
 import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
   collectionPage,
   contentEditPanel,
-  deleteConfirmPage,
 } from "#templates/admin/site-content.tsx";
 import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
@@ -305,14 +305,4 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
   );
 };
 
-export const adminSitePageDeletePage = (
-  page: SitePage,
-  session: AdminSession,
-  error?: string,
-): string =>
-  deleteConfirmPage("site.pages", ACTIVE)(
-    `${LIST}/${page.id}/delete`,
-    page.name,
-    session,
-    error,
-  );
+export const adminSitePageDeletePage = prefixedDeletePage("site.pages", LIST);
