@@ -1076,28 +1076,6 @@ state.
 
 ---
 
-## Backup storage edge cases
-
-*Origin: CodeRabbit review of PR #1837.*
-
-PR #1837 only moves the existing backup storage helpers out of
-`src/shared/db/backup.ts`; it deliberately preserves their behavior. These
-possible behavior changes need separate decisions and regression tests:
-
-- **Keep every database namespace non-empty and distinct.** `dbName` in
-  `src/shared/db/backup-storage.ts` returns an empty name for a parseable local
-  `file:` URL and strips the first dashed part from non-Bunny hostnames. Decide
-  the supported URL schemes and hostnames, return a named local folder for local
-  URLs, and only remove Bunny DB's UUID prefix for `.lite.bunnydb.net`. Start
-  with tests for `file:database.db` and two distinct dashed HTTPS hostnames.
-- **Reject future-dated backups from the update gate.** `hasRecentBackup` in
-  `src/shared/db/backup-storage.ts` treats every future timestamp as recent
-  because its age is negative. Decide how much clock skew is acceptable, then
-  require a non-negative age (or a documented tolerance) before applying the
-  maximum age. Add a test with a future backup filename.
-
----
-
 ## Checkout stage attendee cleanup
 
 *Origin: Codex review of PR #1840.*
@@ -1186,50 +1164,6 @@ of scope for #1873, and a starting point.*
   This is a structural refactor (no behavior change); add a regression test
   that re-runs the no-`../` rule against a fixture file via the extracted
   helpers to prove parity with the inline implementation.
----
-
-## Admin debug test coverage follow-ups
-
-*Origin: CodeRabbit review of PR #1875 ("Move admin debug tests and add a
-template rendering test"). PR #1875 is test-only: it `git mv`s
-`test/lib/server-debug*.test.ts` into `test/features/admin/debug/`, extracts
-shared state into `test/test-utils/debug.ts`, and adds a direct-rendering test.
-CodeRabbit raised two findings that are valid as code-quality observations but
-out of scope for that PR's brief — recorded here for a follow-up.*
-
-- **Inspect the Sentry test envelope, not only the request count.** In
-  `test/features/admin/debug/sentry.test.ts` (around lines 63-68), the
-  "sends a tagged test error and confirms delivery" test stubs `fetch` with the
-  shared `stubFetch` helper and asserts only that one request was made. It does
-  not prove the emitted event is tagged or carries the intended test-error
-  message. Replace the shared stub with a local fetch recorder inside that test,
-  then assert the captured Sentry envelope body contains the literal message
-  `"Test Sentry notification from the admin debug page."` and the
-  `source=admin-debug` / `test=true` tags (the literal values
-  `src/shared/sentry.ts` `sendSentryTest` writes today — keep them in sync with
-  that source when the follow-up lands). Retain the existing request-count,
-  redirect, and flash assertions. Starting point: read `sendSentryTest` in
-  `src/shared/sentry.ts` (lines ~74-101) to confirm the exact envelope values,
-  then look at `test/test-utils/fetch-stub.ts` to see what the shared stub
-  exposes today.
-- **Assert semantic debug sections, not CSS-class counts.** In
-  `test/ui/templates/admin/debug/rendering.test.tsx` (around lines 38-40), the
-  "keeps the debug navigation and section structure" test asserts the page
-  contains exactly 3 `class="prose"` and 13 `class="table-scroll"` occurrences.
-  Those counts couple the test to presentation wrappers, so a layout change can
-  fail it without changing page behaviour. PR #1875 carried these counts in
-  because the brief explicitly asked for them as the current-main contract; a
-  follow-up can replace them with assertions on the rendered section headings.
-  Keep the `href="/admin/debug"` link assertion. Maintain the expected heading
-  set as an explicit literal list inside the test (`t("debug.section.build")`,
-  `t("debug.section.runtime")`, etc.) — do **not** derive it from
-  `DEBUG_SECTIONS` in `src/ui/templates/admin/debug.tsx`: deriving the oracle
-  from the same source list the template renders against lets a removed or
-  renamed section pass undetected when both the rendering and the oracle shift
-  in lockstep. An independent literal list makes a section addition/removal/rename
-  a deliberate test review, which is the only way the test catches the failure
-  mode it is meant to catch.
-
 ---
 
 ## Recover paid SumUp checkouts without a webhook or redirect
@@ -1813,3 +1747,137 @@ of the row that was made, rather than falling through to the generic 503.
 Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
+
+## Record equivalent mutants by something that survives an edit
+
+*Origin: two breakages on PR #2025, both caught by review rather than by any
+check the branch ran.*
+
+`scripts/mutation/equivalent-mutants/*.txt` records each known-equivalent
+mutant as `path:line:column`, and `resolveEntries` in
+`scripts/mutation/equivalent-audit.ts` matches all three exactly. So any edit
+*above* a recorded expression silently invalidates its entry — the mutant stops
+being suppressed and `deno task mutation:audit-equivalents` fails.
+
+It happened twice on one branch. Splitting `test-browser.ts` into `parsing.ts`
+and `forms.ts` moved six entries; then adding a single doc comment above
+`attrValue` moved three of those same entries five lines further down. Neither
+was a change to the recorded expressions themselves.
+
+What makes it bite: `mutation:audit-equivalents` is not part of `deno task
+precommit`, so a fully green precommit says nothing about whether the registry
+still resolves. Both breakages were found by PR reviewers.
+
+Two directions, either of which would help:
+
+- **Key on something stable.** Record the expression text plus its enclosing
+  function name instead of a line and column, so an entry survives anything
+  that does not change the expression itself. This changes the file format and
+  `resolveEntries`, so existing entries need migrating.
+- **Run the audit in `precommit`** (or in CI), so drift fails on the branch
+  that caused it rather than in review. It works in a copy of the checkout and
+  runs no tests, so it is not obviously too slow — worth timing before
+  assuming it is.
+
+The first is the real fix; the second would catch the next one either way.
+
+## Split the form-control rules into files about one thing each
+
+*Origin: Codex review on PR #2025. Attempted on that branch and backed out —
+see below.*
+
+`test/specs/support/form-controls.ts` is 478 lines, over the ~400 the repo
+asks for, and holds four separate jobs:
+
+- reading a page's attributes (`attribute`, `hasFlag`, `usableInputsOfKind`)
+- what a page offers (`chooserFor`, `boxFor`, `choicesOffered`, the checkbox
+  and question readers)
+- why a value could not be sent (`whyValueCannotBeSent` and the rules under
+  it, plus the insisted-control machinery)
+- the story-facing helpers (`fillInAndSend`, `takeDownFromActions`)
+
+The first three are pure and the last does the sending, so the natural shape
+is `form-controls/reading.ts`, `form-controls/rules.ts`, and a thin
+`form-controls.ts` — the same split already done for `test-browser.ts`.
+
+The churn is smaller than it looks: `fillInAndSend` has 15 importers and stays
+put, and every reader that would move has between one and five
+(`checkboxValueOffered` 5, `tickedCheckboxes` 4, `whyValueCannotBeSent` 3,
+`requireCheckboxOffered` 2, `choicesOffered`/`optionsOffered` 1 each). So
+about a dozen import lines change. Do not add a re-export layer in
+`form-controls.ts` to avoid touching them — that is the alias-export smell the
+repo rules out; point each caller at the file that owns what it uses.
+
+**Why it was backed out:** attempted by slicing the file on line ranges, which
+produced an unterminated comment, duplicated imports and several unresolved
+symbols. Reverted rather than pushed half-done. Whoever picks this up should
+move whole declarations (or use an editor that understands the syntax) rather
+than cutting on line numbers, and lean on `deno task precommit` — the 214
+specs and the coverage gate both exercise this module hard.
+
+## A form found by its words alone can be sent with no button to press
+
+*Origin: Codex review on PR #2025. Real, and deliberately left for its own
+change — see the sweep below.*
+
+`findFormByButton` picks a form when the button's words appear anywhere in its
+body, then asks `buttonToPress` for the button. When no button matches but the
+words do, `buttonToPress` returns `{}` — "no button with that text at all" —
+and the form is submitted anyway, with no button data.
+
+That is on purpose for forms found by their body text, and plenty are. But it
+means a form whose button is *removed* still submits if the words survive
+elsewhere in it. Site-page deletion is exactly that shape: the heading and the
+button both say "Delete Page", so deleting the button leaves the heading, and
+the story goes on deleting pages the owner has no control to delete.
+
+The fix is not one line. Refusing every no-button case would break every story
+that legitimately finds its form by body text, so the change is to tell those
+two situations apart — probably by having the caller say which it expects, or
+by only allowing the body-text match when the form has no buttons at all.
+Either way it needs a sweep of all 215 scenarios to see which rely on which.
+
+## An arrow is found across the whole page, not on its own row
+
+*Origin: Codex review on PR #2025, raised twice. The second raise carried a
+case the first did not, which is why it is here rather than declined.*
+
+`canMove`/`move` in `test/specs/support/reordering.ts` look for a row's
+`/id/move-up` address anywhere on the page. If that form is rendered against
+the wrong row — present, but beside a different item — the story still submits
+it and passes, while the organiser looking at the named row sees no arrow.
+
+My first answer to this was that a positive scenario would catch an address
+convention changing, which is true but only covers one defect. A form
+*relocated* to another row keeps every address the template tests assert, so
+nothing catches it.
+
+Closing it means attributing controls to rows: parse the list into rows and ask
+what each row offers, rather than searching the page. `openAtState` in
+`statuses.ts` already holds the matched row, so the shape exists — the work is
+giving the shared reordering helper the same scope, for every list that uses it
+(states, site pages).
+
+### The way *into* a row is found the same way
+
+*Origin: a third Codex raise, on PR #2025, against `findsTheWayInFrom`.*
+
+`findsTheWayInFrom` in `test/specs/support/browser.ts` searches
+`row.browser.links` — every link on the page, not the matched row's. Its three
+callers all match on something a sibling row could carry:
+
+| Caller | What it matches | Its `openAt` gives |
+| --- | --- | --- |
+| `statuses.ts` | `href === /statuses/{id}` | the row's markup |
+| `site-pages.ts` | `href` matching `/pages/{id}` | the row's markup |
+| `api-keys.ts` | link text plus an address pattern | no row at all |
+
+Same defect as the arrow above: a link rendered against the wrong row still
+satisfies the search, so a deletion journey passes while the person looking at
+that row has no way in.
+
+Do it with the arrow, not before it. Two of the three callers already hold the
+matched row, but `api-keys.ts` has no row concept yet, so a real fix has to give
+every list the row-parsing shape — which is the same mechanism the arrow needs.
+Fixing the two that are easy would leave a helper whose scoping depends on which
+caller you came from, which is worse than the page-wide search it replaced.

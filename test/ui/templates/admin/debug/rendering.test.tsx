@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import {
   adminDebugPage,
   SENTRY_TEST_FORM_ID,
@@ -32,12 +33,29 @@ const expectBadgeRow = (
 };
 
 describe("admin debug template rendering", () => {
-  test("keeps the debug navigation and section structure", () => {
+  test("keeps the debug navigation and every section heading", () => {
     const html = adminDebugPage(debugOwnerSession, makeDebugState());
 
     expect(html).toContain('href="/admin/debug"');
-    expect([...html.matchAll(/class="prose"/g)]).toHaveLength(2);
-    expect([...html.matchAll(/class="table-scroll"/g)]).toHaveLength(12);
+    // An independent literal list — deliberately not derived from the
+    // template's own section table, so a dropped or renamed section fails
+    // here instead of shifting both sides in lockstep.
+    const sectionKeys = [
+      "debug.section.build",
+      "debug.section.runtime",
+      "debug.section.site",
+      "debug.section.availability",
+      "debug.section.apple_wallet",
+      "debug.section.google_wallet",
+      "debug.section.payments",
+      "common.email",
+      "debug.section.notifications",
+      "debug.section.bunny",
+      "debug.section.database_domain",
+      "debug.section.limits",
+    ] as const;
+    const headings = [...html.matchAll(/<h2>(.*?)<\/h2>/g)].map((m) => m[1]);
+    expect(headings).toEqual(sectionKeys.map((key) => escapeHtml(t(key))));
   });
 
   test("shows every missing value in its own row", () => {

@@ -33,7 +33,6 @@ export const ownerTakesDownNews: TakesOneThingDown = takesDownFromList(
     Promise.resolve(`/admin/site/news/${world.things.require("record", name)}`),
   {
     deleteLinkKey: "news.delete_title",
-    missing: (name) => `The site filed no post under "${name}"`,
     submitKey: "news.delete_submit",
   },
 );

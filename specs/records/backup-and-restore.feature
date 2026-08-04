@@ -1,12 +1,12 @@
-@story:bookings.backup-and-restore
-@owner:bookings @risk:high
+@story:records.backup-and-restore
+@owner:records @risk:high
 @actor:organiser
 @edition:managed @edition:self-hosted
 Feature: An organiser puts the site back from a backup
   An organiser can take a backup of everything the site holds. If the site is
   ever emptied, that backup brings the listings and their bookings back.
 
-  @rule:bookings.emptied-site-starts-blank
+  @rule:records.emptied-site-starts-blank
   @surface:admin
   Rule: An emptied site holds none of the old listings
     Emptying the site is a real reset, so nothing is left behind to hide a
@@ -18,7 +18,7 @@ Feature: An organiser puts the site back from a backup
       When the site is emptied and set up again
       Then the dashboard does not show Summer Concert
 
-  @rule:bookings.backup-brings-bookings-back
+  @rule:records.backup-brings-bookings-back
   @surface:admin
   Rule: Restoring a backup brings back the listings and their bookings
     The restored site holds the same listings, the same people, and their

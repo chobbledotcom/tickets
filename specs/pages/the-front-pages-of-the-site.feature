@@ -1,5 +1,5 @@
-@story:servicing.the-front-pages-of-the-site
-@owner:servicing @risk:medium
+@story:pages.the-front-pages-of-the-site
+@owner:pages @risk:medium
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 @surface:admin
@@ -9,7 +9,7 @@ Feature: An owner writes the front pages of the site
   everything bookable in one place. What the owner saves is what a visitor
   reads, and the order page stays off until the owner turns it on.
 
-  @rule:servicing.the-homepage-says-what-the-owner-wrote
+  @rule:pages.the-homepage-says-what-the-owner-wrote
   @surface:public
   Rule: The homepage says what the owner wrote
     The site's name and its welcome text both come from the homepage editor.
@@ -23,7 +23,7 @@ Feature: An owner writes the front pages of the site
       And a visitor on the front page reads "Riverbank Pottery"
       And a visitor on the front page reads "Classes for every age."
 
-  @rule:servicing.the-contact-page-says-what-the-owner-wrote
+  @rule:pages.the-contact-page-says-what-the-owner-wrote
   @surface:public
   Rule: The contact page says what the owner wrote
     The contact page carries the owner's own words about how to reach them.
@@ -34,7 +34,7 @@ Feature: An owner writes the front pages of the site
       Then the owner is told the contact page saved
       And a visitor on the contact page reads "Call the studio on market days."
 
-  @rule:servicing.the-order-page-is-off-until-turned-on
+  @rule:pages.the-order-page-is-off-until-turned-on
   @surface:public
   Rule: The order page is off until the owner turns it on
     Until the owner turns it on, asking for the order page finds nothing. Once

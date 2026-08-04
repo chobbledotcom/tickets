@@ -2,46 +2,43 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { withEnvironment } from "#scripts/test-environment.ts";
 
-const HOST = "STRIPE_MOCK_HOST";
-const PORT = "STRIPE_MOCK_PORT";
+/** Names nothing else in the suite reads or writes. `Deno.env` belongs to the
+ * whole process, and test files run side by side in it, so borrowing a real
+ * setting's name here would let this test and a neighbour clobber each other. */
+const EMPTY = "TICKETS_TEST_ENVIRONMENT_EMPTY";
+const MISSING = "TICKETS_TEST_ENVIRONMENT_MISSING";
 
 describe("temporary environment", () => {
   test("restores empty and missing values exactly", async () => {
-    const originalHost = Deno.env.get(HOST);
-    const originalPort = Deno.env.get(PORT);
-    Deno.env.set(HOST, "");
-    Deno.env.delete(PORT);
+    Deno.env.set(EMPTY, "");
+    Deno.env.delete(MISSING);
     try {
       await expect(
-        withEnvironment({ [HOST]: "localhost", [PORT]: "43210" }, async () => {
-          expect(Deno.env.get(HOST)).toBe("localhost");
-          expect(Deno.env.get(PORT)).toBe("43210");
+        withEnvironment({ [EMPTY]: "localhost", [MISSING]: "43210" }, () => {
+          expect(Deno.env.get(EMPTY)).toBe("localhost");
+          expect(Deno.env.get(MISSING)).toBe("43210");
           throw new Error("Task failed");
         }),
       ).rejects.toThrow("Task failed");
 
-      expect(Deno.env.get(HOST)).toBe("");
-      expect(Deno.env.get(PORT)).toBeUndefined();
+      expect(Deno.env.get(EMPTY)).toBe("");
+      expect(Deno.env.get(MISSING)).toBeUndefined();
     } finally {
-      if (originalHost === undefined) Deno.env.delete(HOST);
-      else Deno.env.set(HOST, originalHost);
-      if (originalPort === undefined) Deno.env.delete(PORT);
-      else Deno.env.set(PORT, originalPort);
+      Deno.env.delete(EMPTY);
+      Deno.env.delete(MISSING);
     }
   });
 
   test("returns the task result before restoring existing values", async () => {
-    const original = Deno.env.get(PORT);
-    Deno.env.set(PORT, "before");
+    Deno.env.set(EMPTY, "before");
     try {
-      const result = await withEnvironment({ [PORT]: "during" }, () =>
-        Promise.resolve(Deno.env.get(PORT)),
+      const result = await withEnvironment({ [EMPTY]: "during" }, () =>
+        Promise.resolve(Deno.env.get(EMPTY)),
       );
       expect(result).toBe("during");
-      expect(Deno.env.get(PORT)).toBe("before");
+      expect(Deno.env.get(EMPTY)).toBe("before");
     } finally {
-      if (original === undefined) Deno.env.delete(PORT);
-      else Deno.env.set(PORT, original);
+      Deno.env.delete(EMPTY);
     }
   });
 });

@@ -10,7 +10,10 @@ import { expect } from "@std/expect";
 import { settings } from "#shared/db/settings.ts";
 
 import { listingNamed } from "#test/specs/support/listings.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import type {
+  ReadAboutOneThing,
+  TicketsWorld,
+} from "#test/specs/support/world.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 
@@ -45,10 +48,10 @@ export const openTheApi = (): Promise<void> =>
   settings.update.showPublicApi(true);
 
 /** The days the API says a listing can be booked from. */
-export const daysTheApiOffers = async (
-  world: TicketsWorld,
-  name: string,
-): Promise<string[]> => {
+export const daysTheApiOffers: ReadAboutOneThing<string[]> = async (
+  world,
+  name,
+) => {
   const { body, status } = await ask(
     `/api/listings/${listingNamed(world, name).slug}`,
   );

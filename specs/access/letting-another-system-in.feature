@@ -1,5 +1,5 @@
-@story:servicing.letting-another-system-in
-@owner:servicing @risk:high
+@story:access.letting-another-system-in
+@owner:access @risk:high
 @actor:organiser
 @edition:managed @edition:self-hosted
 @surface:admin
@@ -10,7 +10,7 @@ Feature: An owner lets another system work on their behalf
   owner, so it is shown once, kept by name afterwards, and can be taken back at
   any moment.
 
-  @rule:servicing.a-key-is-shown-once-and-then-only-named
+  @rule:access.a-key-is-shown-once-and-then-only-named
   Rule: A key is shown once, and after that only its name
     The site shows the key the moment it is made, with a word to say it will
     not be shown again. From then on the owner sees only the name they gave it.
@@ -25,7 +25,7 @@ Feature: An owner lets another system work on their behalf
       And the list of keys names Shopfront
       And the list of keys never shows the key itself
 
-  @rule:servicing.a-key-stands-in-for-signing-in
+  @rule:access.a-key-stands-in-for-signing-in
   Rule: A key stands in for signing in
     A request carrying the key is served as the owner. One carrying nothing, or
     something that is not a key, is turned away — and turned away as
@@ -56,7 +56,7 @@ Feature: An owner lets another system work on their behalf
         | api-keys.refused-no-key      | carrying nothing     |
         | api-keys.refused-wrong-key   | carrying a made-up key |
 
-  @rule:servicing.a-key-never-opens-the-pages-a-person-uses
+  @rule:access.a-key-never-opens-the-pages-a-person-uses
   Rule: A key never opens the pages a person uses
     A key is for one system talking to another. It does not sign anybody in, so
     the pages an owner reads and clicks stay shut to it — including the page
@@ -81,7 +81,7 @@ Feature: An owner lets another system work on their behalf
         | api-keys.pages-shut-settings   | settings |
         | api-keys.pages-shut-docs       | docs     |
 
-  @rule:servicing.a-key-can-be-taken-back
+  @rule:access.a-key-can-be-taken-back
   Rule: A key can be taken back
     Taking a key away is deliberate: the owner types its name to confirm, and a
     name that does not match changes nothing. Once it is gone the key stops

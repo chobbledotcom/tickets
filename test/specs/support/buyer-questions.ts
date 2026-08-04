@@ -9,6 +9,7 @@ import { parse } from "@std/csv/parse";
 import { expect } from "@std/expect";
 import {
   adminBrowser,
+  ORGANISER,
   openAdminPage,
   openAsNewcomer,
   takesDownFromOwnPage,
@@ -21,6 +22,7 @@ import {
 import {
   requiredWorldValue,
   type TicketsWorld,
+  whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -28,7 +30,7 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** What the owner was last told, or a loud failure when nothing was said. */
 export const ownerLastTold = (world: TicketsWorld): string =>
-  requiredWorldValue(world.ownerTold, "what the owner was told");
+  whatTheyWereTold(world, ORGANISER);
 
 /** The question this story asked, or a loud failure when it never asked one. */
 export const askedQuestion = (

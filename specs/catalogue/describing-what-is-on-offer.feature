@@ -1,5 +1,5 @@
-@story:servicing.describing-what-is-on-offer
-@owner:servicing @risk:low
+@story:catalogue.describing-what-is-on-offer
+@owner:catalogue @risk:low
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 @surface:admin
@@ -9,7 +9,7 @@ Feature: An owner describes what is on offer
   Marking a listing with one shows it to everyone reading that listing's page.
   A detail can be removed again by typing its name to confirm.
 
-  @rule:servicing.a-marked-detail-is-shown-to-visitors
+  @rule:catalogue.a-marked-detail-is-shown-to-visitors
   @surface:public
   Rule: A detail marked on a listing is shown to its visitors
     The listing's page states the detail and the wording the owner picked, and
@@ -23,7 +23,7 @@ Feature: An owner describes what is on offer
       Then a visitor reading the Pottery page sees Accessibility stated as "Step-free"
       And a visitor reading the Pottery page is not told "Stairs only"
 
-  @rule:servicing.removing-a-detail-needs-its-exact-name
+  @rule:catalogue.removing-a-detail-needs-its-exact-name
   Rule: Removing a detail needs its exact name
     Deleting a detail is deliberate: the owner types the detail's name to
     confirm. A name that does not match changes nothing, and the listing's

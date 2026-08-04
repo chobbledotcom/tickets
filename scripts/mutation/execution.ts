@@ -6,7 +6,7 @@ import {
 import { commandExitCode } from "#scripts/deno-command.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { isFeaturePath } from "#scripts/specs/paths.ts";
-import { stripeMockEnv } from "#scripts/stripe-mock.ts";
+import { stripeMockEnv, stripeMockPortFromEnv } from "#scripts/stripe-mock.ts";
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
 import { denoExitCode, envWith } from "./child-process.ts";
@@ -34,7 +34,12 @@ export type TestBatchRunner = (
   env: Record<string, string>,
 ) => Promise<number>;
 
-export const testEnv = (): Record<string, string> => envWith(stripeMockEnv());
+/** The environment a mutation run's child test process inherits. The stripe-mock
+ * port is a parameter rather than a read of this process's own environment, so
+ * a caller can say which one without changing it for everyone else. */
+export const testEnv = (
+  port = stripeMockPortFromEnv(),
+): Record<string, string> => envWith(stripeMockEnv(port));
 
 export const mutantTestEnv = (
   baseEnv: Record<string, string>,
