@@ -2,19 +2,23 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  claimIsFresh,
-  type HeldClaim,
-  tryTakeClaim,
-  withClaim,
-} from "#scripts/stale-claim.ts";
+import { claimIsFresh, withClaim } from "#scripts/stale-claim.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 /** Generous enough that nothing ages out mid-test on a slow machine. */
 const FRESH_FOR_MS = 60_000;
 
-/** Touching this rarely means a short test never sees a touch it did not ask for. */
-const SETTINGS = { staleMs: FRESH_FOR_MS, touchMs: FRESH_FOR_MS };
+/**
+ * One try, touching so rarely that a short test never sees a touch it did not
+ * ask for: a claim that is not free at once is reported straight away.
+ */
+const SETTINGS = {
+  name: "the test claim",
+  retryMs: 1,
+  staleMs: FRESH_FOR_MS,
+  timeoutMs: 0,
+  touchMs: FRESH_FOR_MS,
+};
 
 const LONG_AGO_MS = Date.now() - 60 * 60 * 1000;
 
@@ -33,39 +37,51 @@ const ageFile = async (path: string, at: number): Promise<void> => {
   await Deno.utime(path, date, date);
 };
 
-/** Take, then release even if the expectations in `run` fail. */
-const withTakenClaim = async (
+/** Hold the claim around `run`, with the quick one-try settings above. */
+const withTestClaim = <Result>(
   path: string,
-  run: (claim: HeldClaim) => Promise<void>,
+  run: () => Promise<Result>,
+  settings = SETTINGS,
+): Promise<Result> => withClaim(path, settings, run);
+
+/** Runs `run` with the claim held, and checks nothing runs without it. */
+const expectClaimRefused = async (
+  path: string,
   settings = SETTINGS,
 ): Promise<void> => {
-  const claim = await tryTakeClaim(path, settings);
-  expect(claim).not.toBeNull();
-  try {
-    await run(claim!);
-  } finally {
-    await claim!.release();
-  }
+  let ranAnyway = false;
+  await expect(
+    withTestClaim(
+      path,
+      () => {
+        ranAnyway = true;
+        return Promise.resolve();
+      },
+      settings,
+    ),
+  ).rejects.toThrow("Timed out waiting for the test claim");
+  expect(ranAnyway).toBe(false);
 };
 
 describe("taking a claim", () => {
-  test("takes a free claim and writes its owner and time", async () => {
+  test("takes a free claim, writing who holds it and since when", async () => {
     await withClaimDir(async (path) => {
       const before = Date.now();
-      await withTakenClaim(path, async (claim) => {
+      await withTestClaim(path, async () => {
         const [owner, time] = (await Deno.readTextFile(path)).split("\n");
-        expect(owner).toBe(claim.owner);
+        // A random name and the time of the last touch, nothing else.
+        expect(owner).toMatch(/^[0-9a-f-]{36}$/);
         expect(Number(time)).toBeGreaterThanOrEqual(before);
         expect(Number(time)).toBeLessThanOrEqual(Date.now());
       });
     });
   });
 
-  test("answers null while somebody else's claim is fresh", async () => {
+  test("refuses while somebody else's claim is fresh", async () => {
     await withClaimDir(async (path) => {
       await writeClaim(path, `someone-else\n${Date.now()}`);
 
-      expect(await tryTakeClaim(path, SETTINGS)).toBeNull();
+      await expectClaimRefused(path);
     });
   });
 
@@ -73,10 +89,8 @@ describe("taking a claim", () => {
     await withClaimDir(async (path) => {
       await writeClaim(path, `someone-else\n${LONG_AGO_MS}`);
 
-      await withTakenClaim(path, async (claim) => {
-        expect((await Deno.readTextFile(path)).startsWith(claim.owner)).toBe(
-          true,
-        );
+      await withTestClaim(path, async () => {
+        expect(await Deno.readTextFile(path)).not.toContain("someone-else");
       });
     });
   });
@@ -86,7 +100,7 @@ describe("taking a claim", () => {
       await writeClaim(path, "someone-else\nnot-a-time");
       await ageFile(path, LONG_AGO_MS);
 
-      await withTakenClaim(path, () => Promise.resolve());
+      await withTestClaim(path, () => Promise.resolve());
     });
   });
 
@@ -96,7 +110,7 @@ describe("taking a claim", () => {
       // moments old, so it is somebody's claim, not an abandoned one.
       await writeClaim(path, "");
 
-      expect(await tryTakeClaim(path, SETTINGS)).toBeNull();
+      await expectClaimRefused(path);
     });
   });
 
@@ -107,7 +121,9 @@ describe("taking a claim", () => {
           new Deno.errors.PermissionDenied("no access"),
         )) as typeof Deno.open);
 
-      await expect(tryTakeClaim(path, SETTINGS)).rejects.toThrow("no access");
+      await expect(
+        withTestClaim(path, () => Promise.resolve()),
+      ).rejects.toThrow("no access");
     });
   });
 
@@ -125,7 +141,7 @@ describe("taking a claim", () => {
         throw new Deno.errors.NotFound("already gone");
       }) as typeof Deno.remove);
 
-      await withTakenClaim(path, () => Promise.resolve());
+      await withTestClaim(path, () => Promise.resolve());
     });
   });
 });
@@ -172,7 +188,7 @@ describe("asking whether a claim is fresh", () => {
 describe("keeping a claim fresh while it is held", () => {
   test("touches the claim so it never goes stale mid-work", async () => {
     await withClaimDir(async (path) => {
-      await withTakenClaim(
+      await withTestClaim(
         path,
         async () => {
           // Old enough to be stolen if nothing touched it in time.
@@ -181,17 +197,19 @@ describe("keeping a claim fresh while it is held", () => {
 
           expect(await claimIsFresh(path, 25)).toBe(true);
         },
-        { staleMs: 25, touchMs: 5 },
+        { ...SETTINGS, staleMs: 25, touchMs: 5 },
       );
     });
   });
 
   test("a touch that lands mid-release cannot bring the claim back", async () => {
     await withClaimDir(async (path) => {
-      const claim = await tryTakeClaim(path, { staleMs: 60_000, touchMs: 1 });
-      // Let at least one touch be queued before the release starts.
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      await claim!.release();
+      await withTestClaim(
+        path,
+        // Let at least one touch be queued before the release starts.
+        () => new Promise((resolve) => setTimeout(resolve, 10)),
+        { ...SETTINGS, touchMs: 1 },
+      );
 
       await expect(Deno.stat(path)).rejects.toThrow();
     });
@@ -201,19 +219,18 @@ describe("keeping a claim fresh while it is held", () => {
 describe("releasing a claim", () => {
   test("removes the claim so the next taker finds it free", async () => {
     await withClaimDir(async (path) => {
-      await withTakenClaim(path, () => Promise.resolve());
+      await withTestClaim(path, () => Promise.resolve());
 
       await expect(Deno.stat(path)).rejects.toThrow();
-      await withTakenClaim(path, () => Promise.resolve());
+      await withTestClaim(path, () => Promise.resolve());
     });
   });
 
   test("leaves a claim that has since become somebody else's", async () => {
     await withClaimDir(async (path) => {
-      const claim = await tryTakeClaim(path, SETTINGS);
-      await writeClaim(path, `new-owner\n${Date.now()}`);
-
-      await claim!.release();
+      await withTestClaim(path, () =>
+        writeClaim(path, `new-owner\n${Date.now()}`),
+      );
 
       expect((await Deno.readTextFile(path)).startsWith("new-owner")).toBe(
         true,
@@ -223,10 +240,9 @@ describe("releasing a claim", () => {
 
   test("says nothing when the claim is already gone", async () => {
     await withClaimDir(async (path) => {
-      const claim = await tryTakeClaim(path, SETTINGS);
-      await Deno.remove(path);
+      await withTestClaim(path, () => Deno.remove(path));
 
-      await claim!.release();
+      await expect(Deno.stat(path)).rejects.toThrow();
     });
   });
 });
@@ -234,15 +250,26 @@ describe("releasing a claim", () => {
 describe("waiting for a claim", () => {
   test("does the work once the claim's holder lets go, then frees it", async () => {
     await withClaimDir(async (path) => {
-      const first = await tryTakeClaim(path, SETTINGS);
-      setTimeout(() => void first!.release(), 20);
+      const taken = Promise.withResolvers<void>();
+      const released = Promise.withResolvers<void>();
+      const holding = withTestClaim(path, () => {
+        taken.resolve();
+        return released.promise;
+      });
+      // Only once the claim is really held does the wait below mean waiting.
+      await taken.promise;
+      setTimeout(() => released.resolve(), 20);
 
-      const answer = await withClaim(
+      const answer = await withTestClaim(
         path,
-        { ...SETTINGS, name: "the test claim", retryMs: 1, timeoutMs: 5_000 },
         () => Promise.resolve("worked"),
+        {
+          ...SETTINGS,
+          timeoutMs: 5_000,
+        },
       );
 
+      await holding;
       expect(answer).toBe("worked");
       await expect(Deno.stat(path)).rejects.toThrow();
     });
@@ -250,20 +277,18 @@ describe("waiting for a claim", () => {
 
   test("gives up by name when the holder never lets go", async () => {
     await withClaimDir(async (path) => {
-      await withTakenClaim(path, async () => {
-        let ranAnyway = false;
-        await expect(
-          withClaim(
-            path,
-            { ...SETTINGS, name: "the test claim", retryMs: 1, timeoutMs: 20 },
-            () => {
-              ranAnyway = true;
-              return Promise.resolve();
-            },
-          ),
-        ).rejects.toThrow("Timed out waiting for the test claim");
-        expect(ranAnyway).toBe(false);
+      const taken = Promise.withResolvers<void>();
+      const released = Promise.withResolvers<void>();
+      const holding = withTestClaim(path, () => {
+        taken.resolve();
+        return released.promise;
       });
+      await taken.promise;
+
+      await expectClaimRefused(path, { ...SETTINGS, timeoutMs: 20 });
+
+      released.resolve();
+      await holding;
     });
   });
 });

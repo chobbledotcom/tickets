@@ -37,7 +37,7 @@ export type ClaimWait = {
 };
 
 /** A claim this caller holds: release it once the work is done. */
-export type HeldClaim = {
+type HeldClaim = {
   owner: string;
   release: () => Promise<void>;
 };
@@ -167,7 +167,7 @@ const heldClaim = (path: string, owner: string, touchMs: number): HeldClaim => {
  * Take the claim at `path` if it is free or walked away from, and start
  * keeping it fresh. `null` means somebody else's claim is still fresh.
  */
-export const tryTakeClaim = (
+const tryTakeClaim = (
   path: string,
   settings: StaleClaimSettings,
 ): Promise<HeldClaim | null> =>
