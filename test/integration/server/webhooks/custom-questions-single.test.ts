@@ -9,10 +9,10 @@ import {
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
@@ -26,6 +26,8 @@ describeWithEnv(
   "server webhooks > custom questions (single-ticket)",
   { db: true },
   () => {
+    const errors = setupErrorSpy();
+
     // Fetches a listing's attendees and returns the sole one's id, confirming
     // exactly one booking was made before a test reads its saved answers.
     const soleAttendeeId = async (listingId: number): Promise<number> => {
@@ -230,13 +232,13 @@ describeWithEnv(
       });
       expect(savedForBadRefs.rows).toEqual([]);
 
-      // The dropped answer is surfaced loudly, not swallowed silently.
-      const log = await getAllActivityLog();
-      expect(
-        log.some((entry) =>
-          entry.message.includes("Text answer ref has no usable string id"),
-        ),
-      ).toBe(true);
+      // The dropped answer is surfaced loudly, not swallowed silently. This
+      // reads the console line, which is written as the answer is dropped —
+      // the copy in the activity log is written afterwards and is skipped
+      // while another error is still being written, so it cannot be relied on.
+      expect(errors.contains("Text answer ref has no usable string id")).toBe(
+        true,
+      );
     });
   },
 );

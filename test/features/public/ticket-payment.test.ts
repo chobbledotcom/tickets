@@ -6,7 +6,6 @@ import {
   dailyDateItems,
   foldSelectedChildren,
   loadChildrenByParentId,
-  MODIFIER_SOLD_OUT_MESSAGE,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import {
@@ -451,7 +450,9 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.error).toBe(MODIFIER_SOLD_OUT_MESSAGE);
+      expect(result.error).toBe(
+        "An extra you selected sold out while you were checking out. Please try again.",
+      );
       // Nothing persisted — no attendee, and no orphaned ledger legs.
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       expect((await allTransfers()).length).toBe(0);

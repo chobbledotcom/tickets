@@ -19,6 +19,7 @@ src/features/public/ticket-payment.ts::createFreeReservation.dayCount~0fy6gm8  1
 src/features/public/ticket-payment.ts::createFreeReservation.result.pricedOrder~1mtrtps  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
 src/features/public/ticket-payment.ts::singleDailyParent.children~1kv3u53  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
 src/features/public/ticket-payment.ts::getTicketContext.packages~0m8qaqi  ?? → ||   # pagePackages is an array when present, and arrays are always truthy
+src/features/public/ticket-payment.ts::loadPagePackages~0vaeh8c  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every group id it is given, and only the page's own package ids are looked up, so requiredMapValue never raises this message
 
 # attendee-form-model: `?? → ||` where the left operand can never be a
 # falsy-but-non-null value, so the two operators always agree.
