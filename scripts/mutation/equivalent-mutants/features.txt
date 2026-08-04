@@ -26,22 +26,21 @@ src/features/public/ticket-payment.ts::getTicketContext.packages  ?? → ||   # 
 src/features/admin/attendee-form-model.ts::parseAttendeeForm@1  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::parseAttendeeForm@2  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::isPaymentLockedLine  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
-src/features/admin/attendee-page-data.ts:137:69  ?? → ||   # priceRowsByGroupId.get(): PriceRow[]|undefined — an array is always truthy
-src/features/admin/attendee-page-data.ts:153:33  ?? → ||   # byListing.get(): Map<number,number|null>|undefined — a Map is always truthy
-src/features/admin/attendee-page-data.ts:234:65  ?? → ||   # preselectedQty.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
-src/features/admin/attendee-page-data.ts:350:47  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
-src/features/admin/attendee-page-data.ts:377:42  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
-src/features/admin/attendee-page-data.ts:466:44  ?? → ||   # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
-src/features/admin/attendee-page-data.ts:555:63  ?? → ||   # find returns a status object or undefined, and a status object is always truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData@1  ?? → ||   # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
-src/features/admin/attendee-page-data.ts:558:30  ?? → ||   # fullPrice is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData@2  ?? → ||   # depositPaid is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
-src/features/admin/attendee-page-data.ts:559:36  0 → 1   # the fallback is used only in create mode, where fullPrice is 0; amountPaid cannot affect any balance-notice branch when no order exists
-src/features/admin/attendee-page-data.ts:569:42  ?? → ||   # hasMixedTimings is boolean|undefined, and false equals the fallback
-src/features/admin/attendee-page-data.ts:576:30  ?? → ||   # questions is an array when present, and arrays are always truthy
-src/features/admin/attendee-page-data.ts:579:46  ?? → ||   # selectedAnswerIds is an array when present, and arrays are always truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData@9  ?? → ||   # selectedTextAnswers is a Map when present, and Maps are always truthy
-src/features/admin/attendee-page-data.ts:623:62  ?? → ||   # attendeeAnswerMap values are arrays, and arrays are always truthy
+src/features/admin/attendee-page-data.ts::loadPackagePaths  ?? → ||   # priceRowsByGroupId.get(): PriceRow[]|undefined — an array is always truthy
+src/features/admin/attendee-page-data.ts::packagesByListingIdFrom.groups  ?? → ||   # byListing.get(): Map<number,number|null>|undefined — a Map is always truthy
+src/features/admin/attendee-page-data.ts::buildFormLines.standaloneBlanks  ?? → ||   # preselectedQty.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
+src/features/admin/attendee-page-data.ts::listingBookingFor  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
+src/features/admin/attendee-page-data.ts::overbookedListingIds  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
+src/features/admin/attendee-page-data.ts::computeWarnings.warns  ?? → ||   # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
+src/features/admin/attendee-page-data.ts::assembleTemplateData@2  ?? → ||   # find returns a status object or undefined, and a status object is always truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData@3  ?? → ||   # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
+src/features/admin/attendee-page-data.ts::assembleTemplateData@4  ?? → ||   # fullPrice is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData@5  ?? → ||   # depositPaid is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData@8  ?? → ||   # hasMixedTimings is boolean|undefined, and false equals the fallback
+src/features/admin/attendee-page-data.ts::assembleTemplateData@9  ?? → ||   # questions is an array when present, and arrays are always truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData@10  ?? → ||   # selectedAnswerIds is an array when present, and arrays are always truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData@11  ?? → ||   # selectedTextAnswers is a Map when present, and Maps are always truthy
+src/features/admin/attendee-page-data.ts::loadQuestionsForExisting  ?? → ||   # attendeeAnswerMap values are arrays, and arrays are always truthy
 src/features/tickets/token-utils.ts::verifyTokensWithRealLine.verified  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
