@@ -77,9 +77,8 @@ describe("sumup-provider resolveWebhookSession", () => {
 
   for (const [name, checkoutOverrides] of [
     ["a malformed paid charge", { currency: "GB" }],
-    ["an over-precise paid charge", { overPrecise: true }],
+    ["a paid charge with no readable amount", { amountMinor: null }],
     ["a paid charge with no currency", { currency: null }],
-    ["a paid charge with no amount", { amountMinor: null }],
   ] as const) {
     test(`returns a refundable rejection for ${name}`, async () => {
       await stageSumupCheckout();

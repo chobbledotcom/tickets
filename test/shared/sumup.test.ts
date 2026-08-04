@@ -42,7 +42,6 @@ describe("sumup", () => {
         expect(result).toEqual({
           amountMinor: 1250,
           currency: "GBP",
-          overPrecise: false,
           reference: "ref_a",
           status: "PAID",
           transactionId: "txn_a",
@@ -97,15 +96,15 @@ describe("sumup", () => {
           }),
       });
       await withSumupClient(client, async () => {
-        // The conversion and precision check follow the checkout's currency
-        // (JPY, no minor places), not the site's (GBP, two places).
+        // Precision follows the checkout currency (JPY, no minor places), not
+        // the site (GBP, two): 12.5 yen is finer than yen can hold.
         expect(await retrieveCheckoutById("co_jpy")).toEqual(
-          expect.objectContaining({ amountMinor: 13, overPrecise: true }),
+          expect.objectContaining({ amountMinor: null }),
         );
       });
     });
 
-    test("flags a checkout amount more precise than the currency allows", async () => {
+    test("refuses a checkout amount more precise than the currency allows", async () => {
       const client = makeSumupClient({
         get: () =>
           Promise.resolve({
@@ -116,10 +115,10 @@ describe("sumup", () => {
           }),
       });
       await withSumupClient(client, async () => {
-        // The raw major-unit amount cannot be rounded silently: the checkout is
-        // flagged so the adapter refuses the charge and the callback refunds it.
+        // Rounding would book an amount SumUp never took, so the amount is
+        // carried as unreadable and the boundary refuses the charge.
         expect(await retrieveCheckoutById("co_overprecise")).toEqual(
-          expect.objectContaining({ overPrecise: true }),
+          expect.objectContaining({ amountMinor: null }),
         );
       });
     });
@@ -142,7 +141,6 @@ describe("sumup", () => {
         expect(await retrieveCheckoutById("co_noamount")).toEqual({
           amountMinor: null,
           currency: "GBP",
-          overPrecise: false,
           reference: "ref_noamount",
           status: "PAID",
           transactionId: "txn_noamount",
@@ -174,7 +172,6 @@ describe("sumup", () => {
           expect(await retrieveCheckoutById("co_cur")).toEqual({
             amountMinor: 1000,
             currency: carried,
-            overPrecise: false,
             reference: "ref_cur",
             status: "PAID",
             transactionId: "",

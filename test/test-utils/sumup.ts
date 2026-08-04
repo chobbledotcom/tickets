@@ -51,7 +51,6 @@ export const sumupCheckout = (
 ): SumupCheckout => ({
   amountMinor: 1000,
   currency: "GBP",
-  overPrecise: false,
   reference: "ref",
   status: "PAID",
   transactionId: "txn",

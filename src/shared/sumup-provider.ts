@@ -20,7 +20,6 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { isResourceId } from "#shared/payment/resource-id.ts";
 import {
   isSessionRejection,
-  malformedChargeRejection,
   type SessionRejection,
   validatedPaymentSession,
 } from "#shared/payment/validated-session.ts";
@@ -59,18 +58,8 @@ const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession | SessionRejection => {
-  // An over-precise raw amount cannot be trusted in minor units: refuse the
-  // charge and let the callback refund a paid one rather than booking a
-  // charge for an amount the provider did not actually take.
-  if (checkout.overPrecise) {
-    return malformedChargeRejection(
-      checkout.transactionId,
-      checkout.status === "PAID",
-      metadata as SessionMetadata,
-    );
-  }
-  return validatedPaymentSession({
+): ValidatedPaymentSession | SessionRejection =>
+  validatedPaymentSession({
     amountTotal: checkout.amountMinor,
     createdAt: toCanonicalIso(checkout.createdAt),
     currency: checkout.currency,
@@ -79,7 +68,6 @@ const buildValidatedSession = (
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
   });
-};
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSumupCheckoutSession = makeCreateCheckoutSession(

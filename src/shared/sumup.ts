@@ -46,13 +46,10 @@ export type SumupCheckout = {
   reference: string;
   /** SumUp checkout lifecycle status. */
   status: CheckoutSuccess["status"];
-  /** Total amount in the app's minor units (rounded from the raw amount), or
-   *  null when the response carried no amount — the boundary refuses it. */
+  /** Total amount in the app's minor units, or null when the response carried
+   *  no amount, or one finer than the currency can hold — rounding that would
+   *  book an amount SumUp never took. The boundary refuses a null either way. */
   amountMinor: number | null;
-  /** True when the raw major-unit amount was more precise than the currency
-   *  allows, so the rounded {@link amountMinor} cannot be trusted. The adapter
-   *  refuses such a charge; the callback refunds it when money was captured. */
-  overPrecise: boolean;
   /** The currency the checkout was taken in, exactly as SumUp gave it (upper-
    *  cased), or null when the response carried none. A code that is not three
    *  letters is carried through unchanged so the boundary refuses it. */
@@ -137,13 +134,14 @@ const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => {
   const conversionCurrency = isCurrency(currency)
     ? currency
     : settings.currency;
+  // An amount finer than the currency can hold would round to something SumUp
+  // never charged, so it is as unreadable as an absent one.
+  const readable =
+    amount !== null && !exceedsCurrencyPrecision(amount, conversionCurrency);
   return {
-    amountMinor:
-      amount === null ? null : toMinorUnits(amount, conversionCurrency),
+    amountMinor: readable ? toMinorUnits(amount, conversionCurrency) : null,
     createdAt: c.date,
     currency,
-    overPrecise:
-      amount !== null && exceedsCurrencyPrecision(amount, conversionCurrency),
     reference: c.checkout_reference!,
     status: c.status,
     transactionId:
