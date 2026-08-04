@@ -100,6 +100,23 @@ const formSelectEntries = (tag: string): FormEntry[] => {
   return entries;
 };
 
+/** A switched-off group's own first legend, which stays usable. A legend
+ * written inside a group within this one is that group's heading, not this
+ * one's, so it is switched off with the rest of the insides. */
+const ownFirstLegend = (inside: string): string => {
+  const parts =
+    /<fieldset[^>]*>|<\/fieldset>|<legend[^>]*>[\s\S]*?<\/legend>/gi;
+  let depth = 0;
+  for (const part of inside.matchAll(parts)) {
+    const tag = part[0]!;
+    if (tag.startsWith("</")) depth -= 1;
+    else if (tag.toLowerCase().startsWith("<legend")) {
+      if (depth === 0) return tag;
+    } else depth += 1;
+  }
+  return "";
+};
+
 /** The markup with every switched-off group's insides taken out. A
  * `<fieldset disabled>` switches off every control inside it: a browser sends
  * none of them, none can be pressed, and no form is held up waiting for one.
@@ -125,7 +142,7 @@ export const withoutSwitchedOffGroups = (html: string): string => {
       depth += closing ? -1 : 1;
       if (depth === 0) {
         const inside = html.slice(insideFrom, found.index);
-        kept += inside.match(/<legend[^>]*>[\s\S]*?<\/legend>/)?.[0] ?? "";
+        kept += ownFirstLegend(inside);
         copiedTo = found.index + found[0].length;
       }
     }

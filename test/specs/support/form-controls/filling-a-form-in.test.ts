@@ -345,6 +345,15 @@ describe("filling a form in and sending it", () => {
       what: "sends when a group inside the switched-off one does not end it",
     },
     {
+      // Only a switched-off group's own heading stays usable. The heading here
+      // belongs to the group written inside it, so the box in that heading is
+      // switched off like everything else the outer group holds.
+      offering: `${NAME_BOX}<fieldset disabled><fieldset><legend><input type="checkbox" name="terms" value="yes" required></legend></fieldset></fieldset>`,
+      sends: { ...TYPED },
+      typed: TYPED,
+      what: "sends when the only heading belongs to a group written inside",
+    },
+    {
       // A choice with no value of its own is answered with "on", the same word
       // a browser sends, so that is what the question offers.
       offering: `${NAME_BOX}<input type="radio" name="pick" required>`,
