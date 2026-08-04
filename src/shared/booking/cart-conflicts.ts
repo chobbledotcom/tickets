@@ -17,8 +17,14 @@ import { t } from "#i18n";
 import { nameList } from "#shared/name-list.ts";
 import { allReasons, type Reason } from "#shared/reasons.ts";
 
-/** One page item and the start dates it can offer on its own. */
-export type CartDateItem = { name: string; dates: readonly string[] };
+/** One page item and the start dates it can offer on its own. The id lets the
+ * render path drop items whose names must stay hidden (concealed package
+ * members) before any message names them. */
+export type CartDateItem = {
+  id: number;
+  name: string;
+  dates: readonly string[];
+};
 
 /** One page item and the booking lengths it supports on its own. */
 export type CartLengthItem = { name: string; dayCounts: readonly number[] };
@@ -44,10 +50,13 @@ const nothingShared = <T>(offers: readonly (readonly T[])[]): boolean =>
  * clash; anything else falls back to the selectors' plain empty copy. */
 const CART_CONFLICT_REASONS: readonly Reason<[CartFacts]>[] = [
   // An item with no dates of its own: the problem is that item, not the mix.
+  // When EVERY item is dateless there are no "others" left to book, so the
+  // message would give an impossible instruction — the selector's plain "no
+  // dates" copy covers that case instead.
   ({ dateItems }) => {
     if (dateItems.length < 2) return null;
     const dateless = dateItems.filter((item) => item.dates.length === 0);
-    return dateless.length > 0
+    return dateless.length > 0 && dateless.length < dateItems.length
       ? t("public.ticket.cart_item_no_dates", {
           count: dateless.length,
           names: quotedNames(dateless),

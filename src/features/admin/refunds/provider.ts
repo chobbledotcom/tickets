@@ -3,6 +3,7 @@ import {
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
+import { reportInvariant } from "#shared/invariant-errors.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
@@ -195,9 +196,15 @@ export const processRefundBatch = async (
       );
     }
     const posted = await recordAttendeeRefundsBatch(chunkRefundedAttendees);
-    for (const ok of posted.values()) {
-      if (ok) counts.refundedCount++;
-      else counts.errorCount++;
+    for (const [attendeeId, ok] of posted) {
+      if (ok) {
+        counts.refundedCount++;
+      } else {
+        // The provider sent this refund but our ledger could not record it —
+        // report the broken promise per attendee, not just the aggregate count.
+        counts.errorCount++;
+        reportInvariant("error.refund_not_recorded", { attendeeId, listingId });
+      }
     }
   }
   return counts;

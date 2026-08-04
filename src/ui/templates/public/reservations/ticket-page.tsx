@@ -11,13 +11,21 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
-import { cartConflictMessages } from "#shared/booking/cart-conflicts.ts";
+import {
+  type CartDateItem,
+  cartConflictMessages,
+} from "#shared/booking/cart-conflicts.ts";
 import {
   bookableChildIds,
   customisableLengthItems,
+  type TicketListing,
 } from "#shared/booking/model.ts";
 import { packageLimitInfo } from "#shared/booking/package-cap.ts";
-import { explicitStandaloneIds } from "#shared/booking/page-packages.ts";
+import {
+  concealedMemberIds,
+  explicitStandaloneIds,
+  type PagePackage,
+} from "#shared/booking/page-packages.ts";
 import { daysAgo } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms/field.ts";
@@ -103,6 +111,24 @@ const resolveTicketHeader = ({
     pastDays: singleListing?.date ? daysAgo(singleListing.date) : null,
     title: headerName || t("public.multi.title"),
   };
+};
+
+/** The page's cart conflict notes. A concealed package member's name is never
+ * public (a hidden package shows only its package name), so concealed members
+ * are dropped from the facts before any message could name them — their
+ * clashes fall back to the selectors' plain empty copy. */
+const cartConflicts = (
+  cartDateItems: readonly CartDateItem[],
+  listings: TicketListing[],
+  packages: readonly PagePackage[],
+): string[] => {
+  const concealed = concealedMemberIds(packages);
+  return cartConflictMessages({
+    dateItems: cartDateItems.filter((item) => !concealed.has(item.id)),
+    lengthItems: customisableLengthItems(
+      listings.filter((entry) => !concealed.has(entry.listing.id)),
+    ),
+  });
 };
 
 /**
@@ -272,10 +298,7 @@ export const ticketPage = ({
         <TicketPageForm
           actionUrl={actionUrl}
           addOns={addOns}
-          cartConflicts={cartConflictMessages({
-            dateItems: cartDateItems,
-            lengthItems: customisableLengthItems(listings),
-          })}
+          cartConflicts={cartConflicts(cartDateItems, listings, packages)}
           dates={dates}
           dayCountPriceFor={dayCountPriceFor}
           dayCounts={dayCounts}

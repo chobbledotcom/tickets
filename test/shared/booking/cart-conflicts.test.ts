@@ -21,7 +21,9 @@ describe("cartConflictMessages", () => {
   test("a single item with no dates is not a cart conflict", () => {
     // The date selector's own "no dates" copy already covers it.
     expect(
-      cartConflictMessages(facts({ dateItems: [{ dates: [], name: "Hall" }] })),
+      cartConflictMessages(
+        facts({ dateItems: [{ dates: [], id: 1, name: "Hall" }] }),
+      ),
     ).toEqual([]);
   });
 
@@ -30,8 +32,8 @@ describe("cartConflictMessages", () => {
       cartConflictMessages(
         facts({
           dateItems: [
-            { dates: ["2026-09-01"], name: "Hall" },
-            { dates: [], name: "Boat" },
+            { dates: ["2026-09-01"], id: 1, name: "Hall" },
+            { dates: [], id: 2, name: "Boat" },
           ],
         }),
       ),
@@ -40,14 +42,29 @@ describe("cartConflictMessages", () => {
     ]);
   });
 
+  test("stays quiet when every item is dateless — there are no others to book", () => {
+    // The selectors' plain "no dates" copy covers a fully dead page; naming
+    // items and saying "book the others" would be an impossible instruction.
+    expect(
+      cartConflictMessages(
+        facts({
+          dateItems: [
+            { dates: [], id: 1, name: "Hall" },
+            { dates: [], id: 2, name: "Boat" },
+          ],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
   test("names every item with no dates, in one plural message", () => {
     expect(
       cartConflictMessages(
         facts({
           dateItems: [
-            { dates: ["2026-09-01"], name: "Hall" },
-            { dates: [], name: "Boat" },
-            { dates: [], name: "Marquee" },
+            { dates: ["2026-09-01"], id: 1, name: "Hall" },
+            { dates: [], id: 2, name: "Boat" },
+            { dates: [], id: 3, name: "Marquee" },
           ],
         }),
       ),
@@ -64,9 +81,9 @@ describe("cartConflictMessages", () => {
       cartConflictMessages(
         facts({
           dateItems: [
-            { dates: ["2026-09-01", "2026-09-02"], name: "Hall" },
-            { dates: ["2026-09-02", "2026-09-03"], name: "Boat" },
-            { dates: ["2026-09-04"], name: "Marquee" },
+            { dates: ["2026-09-01", "2026-09-02"], id: 1, name: "Hall" },
+            { dates: ["2026-09-02", "2026-09-03"], id: 2, name: "Boat" },
+            { dates: ["2026-09-04"], id: 3, name: "Marquee" },
           ],
         }),
       ),
@@ -82,8 +99,8 @@ describe("cartConflictMessages", () => {
       cartConflictMessages(
         facts({
           dateItems: [
-            { dates: ["2026-09-01", "2026-09-02"], name: "Hall" },
-            { dates: ["2026-09-02"], name: "Boat" },
+            { dates: ["2026-09-01", "2026-09-02"], id: 1, name: "Hall" },
+            { dates: ["2026-09-02"], id: 2, name: "Boat" },
           ],
         }),
       ),
@@ -130,8 +147,8 @@ describe("cartConflictMessages", () => {
     expect(
       cartConflictMessages({
         dateItems: [
-          { dates: ["2026-09-01"], name: "Hall" },
-          { dates: ["2026-09-02"], name: "Boat" },
+          { dates: ["2026-09-01"], id: 1, name: "Hall" },
+          { dates: ["2026-09-02"], id: 2, name: "Boat" },
         ],
         lengthItems: [
           { dayCounts: [1], name: "Hall" },

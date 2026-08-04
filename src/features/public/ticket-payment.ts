@@ -552,6 +552,7 @@ export const dailyDateItems = async (
   const holidays = await getActiveHolidays();
   return dailyListings.map((e) => ({
     dates: getBookableStartDates(e.listing, holidays),
+    id: e.listing.id,
     name: e.listing.name,
   }));
 };

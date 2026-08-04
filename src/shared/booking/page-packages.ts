@@ -87,6 +87,12 @@ export const packageMemberIds = (
   packages: readonly TreePackage[],
 ): Set<number> => new Set(packages.flatMap((pkg) => [...pkg.memberListingIds]));
 
+/** The member ids of packages that hide their listings — names buyer surfaces
+ * must never show (only the package name is public). */
+export const concealedMemberIds = (
+  packages: readonly TreePackage[],
+): Set<number> => packageMemberIds(packages.filter((pkg) => pkg.hideListings));
+
 /** The member listings a page ALSO sells standalone: those the visitor added
  * by the listing's own slug (beside its package). Non-members always sell
  * standalone, so they are not listed here; on a package-less page the set is
@@ -98,9 +104,7 @@ export const explicitStandaloneIds = (
   slugs: readonly string[],
 ): Set<number> => {
   const memberIds = packageMemberIds(packages);
-  const concealedIds = packageMemberIds(
-    packages.filter((pkg) => pkg.hideListings),
-  );
+  const concealedIds = concealedMemberIds(packages);
   const slugSet = new Set(slugs);
   return new Set(
     listings

@@ -5,7 +5,10 @@ import { addDays } from "#shared/dates.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
@@ -60,6 +63,35 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expect(body).toContain('name="date"');
     // The package quantity selector still rides alongside it.
     expect(body).toContain(`name="package_quantity_${group.id}"`);
+  });
+
+  test("a hidden package's clashing members are never named in conflict notes", async () => {
+    // Two daily members whose booking windows never overlap (0-2 days out vs
+    // 5-7 days out). The bundle has no bookable date, but a HIDDEN package
+    // shows only its package name — so the page must fall back to the plain
+    // "no dates" copy rather than name the members it conceals.
+    const group = await createHiddenPackageGroup("Secret Camp");
+    for (const [name, minimumDaysBefore, maximumDaysAfter] of [
+      ["Secret Near", 0, 2],
+      ["Secret Far", 5, 7],
+    ] as const) {
+      await createTestListing({
+        groupId: group.id,
+        listingType: "daily",
+        maxAttendees: 10,
+        maximumDaysAfter,
+        minimumDaysBefore,
+        name,
+        unitPrice: 0,
+      });
+    }
+    const body = await (
+      await handleRequest(mockRequest(`/ticket/${group.slug}`))
+    ).text();
+    expect(body).toContain("No dates are currently available for booking.");
+    expect(body).not.toContain("Secret Near");
+    expect(body).not.toContain("Secret Far");
+    expect(body).not.toContain("Book them separately");
   });
 
   test("books every member on the chosen date, stamped with the group", async () => {
