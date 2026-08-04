@@ -1880,3 +1880,46 @@ symbols. Reverted rather than pushed half-done. Whoever picks this up should
 move whole declarations (or use an editor that understands the syntax) rather
 than cutting on line numbers, and lean on `deno task precommit` — the 214
 specs and the coverage gate both exercise this module hard.
+
+## A form found by its words alone can be sent with no button to press
+
+*Origin: Codex review on PR #2025. Real, and deliberately left for its own
+change — see the sweep below.*
+
+`findFormByButton` picks a form when the button's words appear anywhere in its
+body, then asks `buttonToPress` for the button. When no button matches but the
+words do, `buttonToPress` returns `{}` — "no button with that text at all" —
+and the form is submitted anyway, with no button data.
+
+That is on purpose for forms found by their body text, and plenty are. But it
+means a form whose button is *removed* still submits if the words survive
+elsewhere in it. Site-page deletion is exactly that shape: the heading and the
+button both say "Delete Page", so deleting the button leaves the heading, and
+the story goes on deleting pages the owner has no control to delete.
+
+The fix is not one line. Refusing every no-button case would break every story
+that legitimately finds its form by body text, so the change is to tell those
+two situations apart — probably by having the caller say which it expects, or
+by only allowing the body-text match when the form has no buttons at all.
+Either way it needs a sweep of all 215 scenarios to see which rely on which.
+
+## An arrow is found across the whole page, not on its own row
+
+*Origin: Codex review on PR #2025, raised twice. The second raise carried a
+case the first did not, which is why it is here rather than declined.*
+
+`canMove`/`move` in `test/specs/support/reordering.ts` look for a row's
+`/id/move-up` address anywhere on the page. If that form is rendered against
+the wrong row — present, but beside a different item — the story still submits
+it and passes, while the organiser looking at the named row sees no arrow.
+
+My first answer to this was that a positive scenario would catch an address
+convention changing, which is true but only covers one defect. A form
+*relocated* to another row keeps every address the template tests assert, so
+nothing catches it.
+
+Closing it means attributing controls to rows: parse the list into rows and ask
+what each row offers, rather than searching the page. `openAtState` in
+`statuses.ts` already holds the matched row, so the shape exists — the work is
+giving the shared reordering helper the same scope, for every list that uses it
+(states, site pages).
