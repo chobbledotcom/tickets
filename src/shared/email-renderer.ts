@@ -18,6 +18,7 @@ import type { EmailEntry } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { nameList } from "#shared/name-list.ts";
 import {
   type ContactInfo,
   clampDurationDays,
@@ -27,7 +28,6 @@ import {
 } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
-import { nameList } from "#templates/email/shared.ts";
 
 /** Create a configured Liquid engine with custom filters */
 const createEngine = (): Liquid => {

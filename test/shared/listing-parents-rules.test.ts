@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import {
+  childAddOnError,
   durationsCompatible,
   type EdgeListing,
   edgeFieldError,
@@ -12,6 +13,15 @@ import {
  * it blames) without re-typing the English copy. */
 const ruleError = (messageKey: string, name: string): string =>
   t(`listings_table.children_err_${messageKey}`, { name });
+
+describe("childAddOnError", () => {
+  test("resolves to real copy naming the add-on and the child, not a raw key", () => {
+    const message = childAddOnError("Face Paint", "Bouncy Castle");
+    expect(message).toContain("Face Paint");
+    expect(message).toContain("Bouncy Castle");
+    expect(message).not.toContain("children_err");
+  });
+});
 
 const listing = (over: Partial<EdgeListing> = {}): EdgeListing => ({
   customisable_days: false,
