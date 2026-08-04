@@ -325,6 +325,36 @@ describe("running mutation inside a snapshot", () => {
     });
   });
 
+  test("publishes the pid-less record the moment the child ends", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+      const written: { pid?: number; status: string }[] = [];
+      const writeTextFile = Deno.writeTextFile;
+      using _write = stub(Deno, "writeTextFile", ((
+        target: string | URL,
+        data: string | ReadableStream<string>,
+        options?: Deno.WriteFileOptions,
+      ) => {
+        // Records land in a pending file first, so match by name, not tail.
+        if (
+          `${target}`.includes(MUTATION_RECORD_FILE) &&
+          typeof data === "string"
+        ) {
+          written.push(JSON.parse(data));
+        }
+        return writeTextFile(target, data, options);
+      }) as typeof Deno.writeTextFile);
+
+      await captureSimpleSnapshotMutation(root);
+
+      // The pid leaves the written record the moment the child ends — before
+      // the kept files come back — so --kill can never trust it late.
+      const running = written.filter((record) => record.status === "running");
+      expect(running.at(0)?.pid).toBeGreaterThan(0);
+      expect(running.at(-1)?.pid).toBeUndefined();
+    });
+  });
+
   test("escalates repeated interrupts", async () => {
     await withTempDir(async (root) => {
       await writeFakeMutationScript(root, "await new Promise(() => {});\n");
