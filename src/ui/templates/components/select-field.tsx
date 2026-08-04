@@ -13,13 +13,14 @@
  */
 
 import { t } from "#i18n";
+import type { ChoiceOption } from "#shared/choice.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 
 export type SelectOption = { value: string; label: Child };
 
 /** Turn `{value, labelKey}` choices into options, translating each label. */
 export const choiceOptions = (
-  choices: readonly { value: string; labelKey: string }[],
+  choices: readonly ChoiceOption[],
 ): SelectOption[] =>
   choices.map((choice) => ({ label: t(choice.labelKey), value: choice.value }));
 

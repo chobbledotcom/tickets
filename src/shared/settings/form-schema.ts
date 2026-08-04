@@ -4,6 +4,7 @@
  * `src/ui/templates/admin/settings/schema-form.tsx` turns them into markup.
  */
 
+import type { ChoiceOption } from "#shared/choice.ts";
 import type { ConfigKey } from "#shared/settings/keys.ts";
 
 export type SettingsFormPage = "main" | "advanced";
@@ -81,7 +82,6 @@ type FieldSpecBase = {
 
 /** One choice in a radio group or dropdown: the value it posts and the
  *  catalog key naming it. */
-type ChoiceOption = { value: string; labelKey: string };
 
 /** A choice whose label is already final text, built at render time. */
 type ResolvedChoice = { value: string; label: string };
