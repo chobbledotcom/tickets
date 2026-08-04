@@ -1,5 +1,23 @@
 # TODO — remaining follow-ups
 
+## Let --kill stop a run through its supervisor, not the child's pid (from PR #2042)
+
+`deno task mutation --kill` signals the child pid stored in the run record
+(`signalRun` in `scripts/mutation/isolation.ts`). PR #2042 shrank the window
+where that pid can be somebody else's — the record drops the pid the moment
+the child's status resolves (`markChildEnded`) — but a kill that reads the
+record in the few milliseconds between the child exiting and that record
+write can still signal a pid the child no longer owns. CodeRabbit suggested
+removing the race outright by making the stop supervisor-mediated: store the
+supervisor's pid in the run record too, have `--kill` signal the supervisor,
+and let the supervisor stop its own child (it holds the child handle, so no
+reused pid can be confused with it). Out of scope for #2042 — it changes the
+record shape and the kill flow rather than the locking this PR unified.
+Starting point: `signalRun` and `markRunning` in
+`scripts/mutation/isolation.ts` / `scripts/mutation/isolation-state.ts`.
+
+---
+
 ## Numbered SQL parameters — adopt the pattern beyond the limiters (from PR #2040)
 
 PR #2040 rewrote the two rate-limiter upserts (`src/shared/db/login-attempts.ts`,

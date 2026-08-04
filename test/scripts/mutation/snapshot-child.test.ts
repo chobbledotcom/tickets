@@ -143,14 +143,14 @@ describe("the worker inside a snapshot", () => {
 
   test("accepts the smallest real process id as a supervisor", async () => {
     await withTempDir(async (runRoot) => {
-      // Pid 1 is a real process — just never this child's parent, so the
-      // child works and then ages the claim as for any gone supervisor.
+      // Pid 1 is a real process id, so the child must work — whatever this
+      // test process's own parent happens to be.
       setRunVars(runRoot, 1);
       await writeAgedSupervisorClaim(runRoot);
 
-      await runSnapshotChild(() => Promise.resolve());
-
-      expect(await runClaimIsFresh({ root: runRoot })).toBe(false);
+      expect(await runSnapshotChild(() => Promise.resolve("worked"))).toBe(
+        "worked",
+      );
     });
   });
 

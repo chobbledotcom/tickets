@@ -84,10 +84,16 @@ describe("taking a claim", () => {
 
   test("surfaces a claim file that cannot be made at all", async () => {
     await withClaimDir(async (path) => {
-      using _open = stub(Deno, "open", (() =>
-        Promise.reject(
-          new Deno.errors.PermissionDenied("no access"),
-        )) as typeof Deno.open);
+      // Only the claim file itself is unmakeable; the takers' guard beside
+      // it opens fine, so the failure under test is the claim's own.
+      const open = Deno.open;
+      using _open = stub(Deno, "open", ((
+        target: string | URL,
+        options?: Deno.OpenOptions,
+      ) =>
+        `${target}` === path
+          ? Promise.reject(new Deno.errors.PermissionDenied("no access"))
+          : open(target, options)) as typeof Deno.open);
 
       await expect(withTestClaim(path, doNothing)).rejects.toThrow("no access");
     });

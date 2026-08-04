@@ -209,9 +209,10 @@ describe("keeping somebody else's claim fresh for them", () => {
 
   test("refuses when there is no claim there at all", async () => {
     await withClaimDir(async (path) => {
+      // Missing means missing — not the "names no owner" of a real record.
       await expect(
         keepClaimFresh(path, { staleMs: FRESH_FOR_MS, touchMs: FRESH_FOR_MS }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(Deno.errors.NotFound);
     });
   });
 });
