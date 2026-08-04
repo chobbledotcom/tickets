@@ -12,6 +12,7 @@ import {
   lacksStandalonePublicPage,
   withActiveListings,
 } from "#routes/public/ticket-payment.ts";
+import { addDays } from "#shared/dates.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -35,6 +36,17 @@ const parentWithChild = async (
   });
   await listingChildren.setIds(parent.id, [child.id]);
   return { child, parent };
+};
+
+/** The next date on the given weekday (1 = Monday) at least a week out, so it
+ * sits inside a 30-day booking window whichever timezone "today" is read in. */
+const comingWeekday = (weekday: number): string => {
+  let date = addDays(new Date().toISOString().slice(0, 10), 7);
+  for (let step = 0; step < 7; step++) {
+    if (new Date(`${date}T00:00:00Z`).getUTCDay() === weekday) return date;
+    date = addDays(date, 1);
+  }
+  throw new Error(`No day ${weekday} in the week after next`);
 };
 
 describeWithEnv("booking page guards", { db: true }, () => {
@@ -98,22 +110,21 @@ describeWithEnv("booking page guards", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("narrows a daily parent's dates to those its one child can serve", async () => {
+  test("narrows a parent's dates to those its one child can serve", async () => {
     const { parent } = await parentWithChild("Dated", {
+      bookableDays: ["Monday"],
       listingType: "daily",
-      maxAttendees: 0,
+      maxAttendees: 10,
       maximumDaysAfter: 30,
       minimumDaysBefore: 0,
     });
+    const monday = comingWeekday(1);
+    const tuesday = comingWeekday(2);
 
-    // The only child is sold out, so no date it would be booked on survives.
+    // The child only opens on Mondays, so the parent's Tuesday goes.
     expect(
-      await keepParentDailyDatesChildrenCanServe(
-        parent,
-        ["2099-01-01", "2099-01-02"],
-        [],
-      ),
-    ).toEqual([]);
+      await keepParentDailyDatesChildrenCanServe(parent, [monday, tuesday], []),
+    ).toEqual([monday]);
   });
 
   test("leaves a childless parent's dates alone", async () => {

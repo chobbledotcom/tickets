@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  createFreeReservation,
-  MODIFIER_SOLD_OUT_MESSAGE,
-} from "#routes/public/ticket-payment.ts";
+import { createFreeReservation } from "#routes/public/ticket-payment.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
@@ -133,10 +130,10 @@ describeWithEnv("free reservation construction", { db: true }, () => {
       const result = await bookOneWithStock(listing);
 
       expect(result).toEqual({
-        error: MODIFIER_SOLD_OUT_MESSAGE,
+        error:
+          "An extra you selected sold out while you were checking out. Please try again.",
         success: false,
       });
-      expect(MODIFIER_SOLD_OUT_MESSAGE).toContain("sold out");
     });
 
     test("names the order's first listing when it will not fit", async () => {

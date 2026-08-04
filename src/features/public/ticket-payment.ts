@@ -408,7 +408,7 @@ type FreeReservationResult =
 /** User-facing message when a chosen add-on or discount sold out during a
  * zero-total completion (no provider, so the webhook path's "while completing
  * payment" wording doesn't apply). */
-export const MODIFIER_SOLD_OUT_MESSAGE =
+const MODIFIER_SOLD_OUT_MESSAGE =
   "An extra you selected sold out while you were checking out. Please try again.";
 
 /** A zero priced order: a free booking that consumes modifier stock but posts no
