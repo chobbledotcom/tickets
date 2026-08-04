@@ -6,7 +6,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { DAY_NAMES } from "#shared/day-names.ts";
-import { tickedCheckboxes } from "#test/specs/support/form-controls.ts";
+import { tickedCheckboxes } from "#test/specs/support/form-controls/reading.ts";
 import { setBoxOnListing } from "#test/specs/support/listings.ts";
 
 import type { ChangeOneThing } from "#test/specs/support/world.ts";

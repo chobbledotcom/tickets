@@ -10,7 +10,7 @@ import {
   checkboxValueOffered,
   requireCheckboxOffered,
   tickedCheckboxes,
-} from "#test/specs/support/form-controls.ts";
+} from "#test/specs/support/form-controls/reading.ts";
 
 // jscpd:ignore-end
 

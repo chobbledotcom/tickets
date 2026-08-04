@@ -274,8 +274,11 @@ export const appendFormValue = (
 /** The button on this form a person would press, and what pressing it sends
  * (routes that dispatch on `action` read the button's own name and value).
  * "switched off" when the only buttons with that text cannot be pressed, and
- * nothing when the form has no button with that text at all — plenty of forms
- * are found by their body text instead. */
+ * "on no button" when the form's buttons all say something else — its body
+ * carrying the words is no button anybody could press. Nothing only when the
+ * form has no button that could send it at all: a person sends such a form by
+ * pressing Enter in one of its boxes, so finding it by its body text is
+ * finding it the way they would. */
 const buttonToPress = (
   body: string,
   lower: string,
@@ -287,7 +290,8 @@ const buttonToPress = (
       buttonValue?: string;
     }
   | "switched off"
-  | "sends nothing" => {
+  | "sends nothing"
+  | "on no button" => {
   const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
   let switchedOff = false;
   let sendsNothing = false;
@@ -322,7 +326,16 @@ const buttonToPress = (
   if (sendsNothing) return "sends nothing";
   // Nothing usable was left, yet the page does carry a button saying this — so
   // its group switched it off, which is the same to anybody trying to press it.
-  return saying(body).length > 0 ? "switched off" : {};
+  if (saying(body).length > 0) return "switched off";
+  // The form has buttons of its own, just none saying this. Its body carrying
+  // the words is not a button anybody could press, so submitting it anyway
+  // would let a story press a button the page took away.
+  const couldPress = regexCollect(
+    buttonRe,
+    withoutSwitchedOffGroups(body),
+    (m) => m[1]!,
+  ).some((attrs) => !isDisabled(attrs) && pressingSends(attrs));
+  return couldPress ? "on no button" : {};
 };
 
 /** Find a form whose body contains the given button text, or throw. Also
@@ -362,15 +375,21 @@ export const findFormByButton = (
   };
   const preferred = forms.filter((f) => rendersEveryField(f.body));
   const candidates = preferred.length > 0 ? preferred : forms;
-  let unusable: "switched off" | "sends nothing" | null = null;
+  let unusable: "switched off" | "sends nothing" | "on no button" | null = null;
   for (const f of candidates) {
     if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
     const pressed = buttonToPress(f.body, lower);
     // A button nobody could send with here does not settle it: a later form may
     // carry a usable button with the same words, and a real person could press
     // that one. Only give up once every form has been looked at.
-    if (pressed === "switched off" || pressed === "sends nothing") {
-      unusable = pressed;
+    if (
+      pressed === "switched off" ||
+      pressed === "sends nothing" ||
+      pressed === "on no button"
+    ) {
+      // A form whose buttons say something else is the least telling failure,
+      // so it never hides a switched-off or sends-nothing button elsewhere.
+      if (unusable === null || pressed !== "on no button") unusable = pressed;
       continue;
     }
     const { buttonAction, buttonMethod, ...button } = pressed;
@@ -381,16 +400,31 @@ export const findFormByButton = (
       ...button,
     };
   }
-  // Nothing usable anywhere, and at least one button could not send the form.
-  // Submitting anyway would let a test do something nobody could do.
+  throw noWayToPress(forms, buttonText, unusable);
+};
+
+/** Why nothing on the page could press this button — the most telling reason
+ * seen while looking, or the plain "no such form" with what was there. Nothing
+ * is submitted on any of these: each would let a test do something nobody
+ * could do. */
+const noWayToPress = (
+  forms: FormInfo[],
+  buttonText: string,
+  unusable: "switched off" | "sends nothing" | "on no button" | null,
+): Error => {
   if (unusable === "switched off") {
-    throw new Error(`The "${buttonText}" button is switched off`);
+    return new Error(`The "${buttonText}" button is switched off`);
   }
   if (unusable === "sends nothing") {
-    throw new Error(`The "${buttonText}" button sends nothing`);
+    return new Error(`The "${buttonText}" button sends nothing`);
+  }
+  if (unusable === "on no button") {
+    return new Error(
+      `"${buttonText}" is on a form, but on none of its buttons`,
+    );
   }
   const available = forms.map((f) => `  action="${f.action}"`);
-  throw new Error(
+  return new Error(
     `No form found with button text "${buttonText}". Available forms:\n${available.join(
       "\n",
     )}`,
