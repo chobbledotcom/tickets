@@ -1,5 +1,5 @@
-@story:servicing.narrowing-a-long-list-down
-@owner:servicing @risk:low
+@story:catalogue.narrowing-a-long-list-down
+@owner:catalogue @risk:low
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 Feature: The organiser narrows a long list down to what they are looking for
@@ -8,7 +8,7 @@ Feature: The organiser narrows a long list down to what they are looking for
   narrowings hold together. Customers are never narrowed: the list they read
   shows everything the site sells.
 
-  @rule:servicing.the-list-narrows-to-one-kind-of-thing
+  @rule:catalogue.the-list-narrows-to-one-kind-of-thing
   @surface:admin
   Rule: The organiser's list narrows to one kind of thing
     The choice is only offered when there is more than one kind to choose
@@ -29,7 +29,7 @@ Feature: The organiser narrows a long list down to what they are looking for
       When the organiser opens their list
       Then the organiser is offered no way to narrow the list by kind
 
-  @rule:servicing.the-list-narrows-to-one-wording
+  @rule:catalogue.the-list-narrows-to-one-wording
   @surface:admin
   Rule: The organiser's list narrows to one wording of a detail
     A detail the owner states about what they sell — how hard it is, where it
@@ -61,7 +61,7 @@ Feature: The organiser narrows a long list down to what they are looking for
       And the list does not offer the Pottery
       And the list does not offer the Kayak
 
-  @rule:servicing.customers-are-never-narrowed
+  @rule:catalogue.customers-are-never-narrowed
   @surface:public
   Rule: The list customers read is never narrowed
     Everything on sale is offered together, whatever kind each thing is, and a

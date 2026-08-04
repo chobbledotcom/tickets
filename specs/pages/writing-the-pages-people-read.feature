@@ -1,5 +1,5 @@
-@story:servicing.writing-the-pages-people-read
-@owner:servicing @risk:medium
+@story:pages.writing-the-pages-people-read
+@owner:pages @risk:medium
 @actor:organiser @actor:customer
 @edition:managed @edition:self-hosted
 @surface:admin
@@ -10,7 +10,7 @@ Feature: An owner writes the pages people read
   they are offered in. A page is live as soon as it is written, so anyone can
   read it straight away.
 
-  @rule:servicing.a-page-written-is-a-page-anybody-can-read
+  @rule:pages.a-page-written-is-a-page-anybody-can-read
   @surface:public
   Rule: A page written is a page anybody can read
     There is no separate step to publish. The owner writes it, and it is there
@@ -24,7 +24,7 @@ Feature: An owner writes the pages people read
       Then the owner is told it saved
       And a visitor reading "how-to-find-us" is shown Directions
 
-  @rule:servicing.two-pages-cannot-share-an-address
+  @rule:pages.two-pages-cannot-share-an-address
   Rule: Two pages cannot share an address
     An address points at one page. The site refuses a second page at an address
     already taken, and refuses the addresses it keeps for itself — otherwise a
@@ -45,7 +45,7 @@ Feature: An owner writes the pages people read
       Then the owner is told that will not do
       And the site has no page called Sneaky
 
-  @rule:servicing.the-owner-decides-what-order-the-pages-come-in
+  @rule:pages.the-owner-decides-what-order-the-pages-come-in
   Rule: The owner decides what order the pages come in
     Pages are offered in the order the owner puts them, and they move them one
     step at a time. Asking to move the top page up does nothing, rather than
@@ -58,7 +58,7 @@ Feature: An owner writes the pages people read
       Then the pages are offered in the order Parking, Directions and Opening
       Then Parking is already at the top
 
-  @rule:servicing.a-page-can-be-taken-down
+  @rule:pages.a-page-can-be-taken-down
   Rule: A page can be taken down
     Taking a page down is deliberate — the owner types its name to confirm —
     and once it is gone the address stops answering, so nothing is left half

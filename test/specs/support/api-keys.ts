@@ -9,6 +9,7 @@ import { expect } from "@std/expect";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
+  findsTheWayInFrom,
   openAdminPage,
   type TakesOneThingDown,
   takesDownFromList,
@@ -158,13 +159,14 @@ export const askedToSendOwnerForm: AsksForOwnerPage = asksForOwnerPage({
 export const ownerTakesBackKey: TakesOneThingDown = takesDownFromList(
   // The key the owner asked for, by the name they gave it, so a list of
   // several takes back the right one.
-  async (world, name) =>
-    (await openKeysPage(world)).links.find(
-      ({ href, text }) => KEY_LINK.test(href) && text === name,
-    )?.href ?? null,
+  findsTheWayInFrom(
+    async (world) => ({ browser: await openKeysPage(world) }),
+    (_row, name) =>
+      ({ href, text }) =>
+        KEY_LINK.test(href) && text === name,
+  ),
   {
     deleteLinkKey: "api_keys.delete_submit",
-    missing: (name) => `The keys page offers no way into ${name}`,
     submitKey: "api_keys.delete_submit",
   },
 );

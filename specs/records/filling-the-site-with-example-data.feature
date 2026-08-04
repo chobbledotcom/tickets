@@ -1,5 +1,5 @@
-@story:servicing.filling-the-site-with-example-data
-@owner:servicing @risk:low
+@story:records.filling-the-site-with-example-data
+@owner:records @risk:low
 @actor:organiser
 @edition:managed @edition:self-hosted
 @surface:admin
@@ -9,7 +9,7 @@ Feature: An organiser fills the site with example data
   is stored the same way as a real booking, so every page reads it back like
   real data.
 
-  @rule:servicing.example-data-reads-like-real-data
+  @rule:records.example-data-reads-like-real-data
   Rule: Example data reads like real data everywhere the organiser looks
     Example attendees are locked away like real ones, and opened again on
     every page that shows them. The dashboard, the listing's own list of

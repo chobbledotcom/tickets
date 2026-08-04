@@ -10,16 +10,18 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { formatCurrency } from "#shared/currency.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { openAdminPage } from "#test/specs/support/browser.ts";
+import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { listingNamed } from "#test/specs/support/listings.ts";
 import { minorUnits } from "#test/specs/support/money.ts";
 import { openBookingPage } from "#test/specs/support/public-booking.ts";
 import {
   keepsAnswerAs,
+  keepWhatTheyWereTold,
   requiredWorldValue,
   type StoryJourney,
   type TicketsWorld,
+  whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { completePaidCheckout } from "#test-utils/order-journey.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -45,7 +47,7 @@ export const organiserCreatesCode = async (
     },
     "Create Modifier",
   );
-  world.ownerTold = browser.pageText;
+  keepWhatTheyWereTold(world, ORGANISER, browser.pageText);
   // Creation lands back on the list; the new code's own link carries its id.
   const rows = browser.currentHtml.matchAll(
     /<a[^>]*href="\/admin\/modifiers\/(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g,
@@ -127,7 +129,7 @@ export const customerAsksPrice: StoryJourney<APlaceAndACode, void> =
 
 /** The summary the customer was last shown. */
 export const priceSummary = (world: TicketsWorld): string =>
-  world.things.require("told", "price summary");
+  whatTheyWereTold(world, "price summary");
 
 /** The one figure on the summary's total row. */
 export const summaryTotal = (world: TicketsWorld): string => {

@@ -8,6 +8,8 @@ import type { DoorAnswer } from "#test/specs/support/door.ts";
 import type {
   PutsThingsBack,
   RemembersThings,
+  ThingKind,
+  ThingsByKind,
 } from "#test/specs/support/memory.ts";
 import type { BookingAttempt } from "#test/specs/support/public-booking.ts";
 import type {
@@ -38,11 +40,13 @@ export type ActOnSomeMoney = (
 ) => Promise<void>;
 
 /** Something a story reads back about one of the things the site sells — a
- * page's words, a downloaded file, what an organiser was told. */
-export type ReadAboutOneThing = (
+ * page's words, a downloaded file, what an organiser was told, the address of
+ * the link that leads into it. Readers that hand back several answers rather
+ * than one say so: `ReadAboutOneThing<string[]>`. */
+export type ReadAboutOneThing<Answer = string> = (
   world: TicketsWorld,
   name: string,
-) => Promise<string>;
+) => Promise<Answer>;
 
 /** The listing a money story is working on, and the booking on it. Both are
  * set up before any step that uses them, so a story that lost one is a story
@@ -140,7 +144,6 @@ export interface TicketsWorld extends World, EvidencePages {
   orderCatalogSpec?: JourneyCatalogSpec;
   orderCtx?: OrderJourneyCtx;
   orderDay?: string;
-  ownerTold?: string;
   placeholderId?: number;
   questionId?: number;
   raceListing?: string;
@@ -186,8 +189,37 @@ export const keepsAnswerAs =
     journey: StoryJourney<Args, string>,
   ): StoryJourney<Args, void> =>
   async (world, ...args) => {
-    world.things.remember("told", name, await journey(world, ...args));
+    keepWhatTheyWereTold(world, name, await journey(world, ...args));
   };
+
+/** Reading back one kind of thing the story kept for somebody. */
+export type ReadsWhatWasKept<Kind extends ThingKind> = (
+  world: TicketsWorld,
+  who: string,
+) => ThingsByKind[Kind];
+
+/** What the story kept for somebody, or a loud failure when it kept none —
+ * their own window, the ticket they hold, what they were last told. Curried on
+ * which kind of thing is being asked for, so every reader is one line and they
+ * all fail the same way. */
+export const whatWasKeptFor =
+  <Kind extends ThingKind>(kind: Kind): ReadsWhatWasKept<Kind> =>
+  (world, who) =>
+    world.things.require(kind, who);
+
+/** Keep what somebody was told the last time they did something, and read it
+ * back. Every "the organiser is told …" step is one of these two halves, so
+ * they live together rather than once per story. */
+export const keepWhatTheyWereTold = (
+  world: TicketsWorld,
+  who: string,
+  told: string,
+): void => {
+  world.things.remember("told", who, told);
+};
+
+export const whatTheyWereTold: ReadsWhatWasKept<"told"> =
+  whatWasKeptFor("told");
 
 export const requiredWorldValue = <Value>(
   value: Value | null | undefined,
