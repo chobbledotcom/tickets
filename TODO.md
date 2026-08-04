@@ -1923,3 +1923,27 @@ what each row offers, rather than searching the page. `openAtState` in
 `statuses.ts` already holds the matched row, so the shape exists — the work is
 giving the shared reordering helper the same scope, for every list that uses it
 (states, site pages).
+
+### The way *into* a row is found the same way
+
+*Origin: a third Codex raise, on PR #2025, against `findsTheWayInFrom`.*
+
+`findsTheWayInFrom` in `test/specs/support/browser.ts` searches
+`row.browser.links` — every link on the page, not the matched row's. Its three
+callers all match on something a sibling row could carry:
+
+| Caller | What it matches | Its `openAt` gives |
+| --- | --- | --- |
+| `statuses.ts` | `href === /statuses/{id}` | the row's markup |
+| `site-pages.ts` | `href` matching `/pages/{id}` | the row's markup |
+| `api-keys.ts` | link text plus an address pattern | no row at all |
+
+Same defect as the arrow above: a link rendered against the wrong row still
+satisfies the search, so a deletion journey passes while the person looking at
+that row has no way in.
+
+Do it with the arrow, not before it. Two of the three callers already hold the
+matched row, but `api-keys.ts` has no row concept yet, so a real fix has to give
+every list the row-parsing shape — which is the same mechanism the arrow needs.
+Fixing the two that are easy would leave a helper whose scoping depends on which
+caller you came from, which is worse than the page-wide search it replaced.
