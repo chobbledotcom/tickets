@@ -22,7 +22,7 @@ import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
   insertScopedOrderedRow,

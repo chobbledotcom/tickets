@@ -3,6 +3,7 @@ import {
   type FormGuard,
 } from "#routes/admin/confirmation.ts";
 import type { EditErrorRenderer } from "#routes/admin/entity-write-tab.ts";
+import type { CrudHandlers } from "#routes/admin/route-tables.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -19,7 +20,7 @@ import {
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 /* jscpd:ignore-end */
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type {
   DeleteResult,
@@ -118,7 +119,7 @@ export const createContentCrudHandlers = createCrudHandlersWithAuth({
 });
 
 function createCrudHandlersWithAuth(auth: AuthGuards) {
-  return <Row, Display = Row>(cfg: CrudConfig<Row, Display>) => {
+  return <Row, Display = Row>(cfg: CrudConfig<Row, Display>): CrudHandlers => {
     const operations = (): NamedOperations<Row> =>
       typeof cfg.operations === "function" ? cfg.operations() : cfg.operations;
     const activityName =

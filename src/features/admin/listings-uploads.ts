@@ -14,7 +14,7 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   getListingWithCount,
   listingsTable,

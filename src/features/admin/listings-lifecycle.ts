@@ -14,7 +14,7 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   getListingWithCount,
   listingsTable,
@@ -27,7 +27,7 @@ import {
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import {
   adminDeactivateListingPage,
-  adminDeleteListingPage,
+  adminListingDeletePage,
   adminReactivateListingPage,
 } from "#templates/admin/listings/lifecycle.tsx";
 
@@ -103,7 +103,7 @@ export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   },
   path: "/admin/listing/:id/delete",
   render: (listing, session, error) =>
-    adminDeleteListingPage(listing, session, error),
+    adminListingDeletePage(listing, session, error),
   successMessage: t("success.listing_deleted"),
   successRedirect: "/admin",
 });

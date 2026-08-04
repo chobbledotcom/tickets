@@ -58,7 +58,7 @@ import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";

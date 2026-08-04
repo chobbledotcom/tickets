@@ -1,3 +1,5 @@
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
+import { idRouteFor } from "#routes/entity.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin listing management routes — assembled from per-feature modules:
@@ -51,33 +53,25 @@ const listingImageHandlers = createItemImageHandlers({
  * below (duplicate, export, new, …) and those in the scanner / qr.json / refund
  * bundles keep resolving to their own handlers. */
 export const adminHandlers = defineRoutes({
+  ...entityTabRoutes("/admin/listing", listingPage),
   "DELETE /admin/listing/:id/delete": handleAdminListingDelete,
-  "GET /admin/listing/:id": (request, { id }) =>
-    listingPage.renderTab(request, id, ""),
-  "GET /admin/listing/:id/:tab": (request, { id, tab }) =>
-    listingPage.renderTab(request, id, tab),
   "GET /admin/listing/:id/attendees.csv": handleAdminListingExport,
-  "GET /admin/listing/:id/deactivate": (request, { id }) =>
-    listingDeactivate.get(request, id),
-  "GET /admin/listing/:id/delete": (request, { id }) =>
-    listingDelete.get(request, id),
+  "GET /admin/listing/:id/deactivate": idRouteFor(listingDeactivate.get),
+  "GET /admin/listing/:id/delete": idRouteFor(listingDelete.get),
   "GET /admin/listing/:id/duplicate": handleAdminListingDuplicateGet,
   "GET /admin/listing/:id/export": handleAdminListingExport,
-  "GET /admin/listing/:id/reactivate": (request, { id }) =>
-    listingReactivate.get(request, id),
+  "GET /admin/listing/:id/reactivate": idRouteFor(listingReactivate.get),
   "GET /admin/listing/new": handleNewListingGet,
   "GET /admin/listings/recalculate/:listingId": handleListingRecalculateGet,
   "POST /admin/listing": handleCreateListing,
   "POST /admin/listing/:id/attachment/delete": handleAttachmentDelete,
   "POST /admin/listing/:id/children": handleAdminListingChildren,
-  "POST /admin/listing/:id/deactivate": (request, { id }) =>
-    listingDeactivate.post(request, id),
+  "POST /admin/listing/:id/deactivate": idRouteFor(listingDeactivate.post),
   "POST /admin/listing/:id/delete": handleAdminListingDelete,
   "POST /admin/listing/:id/edit": handleAdminListingEditPost,
   "POST /admin/listing/:id/images": listingImageHandlers.set,
   "POST /admin/listing/:id/images/upload": listingImageHandlers.upload,
   "POST /admin/listing/:id/income": handleAdminListingIncomePost,
-  "POST /admin/listing/:id/reactivate": (request, { id }) =>
-    listingReactivate.post(request, id),
+  "POST /admin/listing/:id/reactivate": idRouteFor(listingReactivate.post),
   "POST /admin/listings/recalculate/:listingId": handleListingRecalculatePost,
 });

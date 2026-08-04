@@ -21,6 +21,7 @@ import {
   OWNER_FORM,
   ownerResponsePage,
 } from "#routes/auth.ts";
+import { idRouteFor } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -51,7 +52,7 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   getContactCounts,
   getUnsubscribedHashSet,
@@ -456,11 +457,9 @@ const templateDelete = createConfirmedHandlers<{ id: number; subject: string }>(
 export const adminHandlers = defineRoutes({
   "GET /admin/emails": handleComposeGet,
   "GET /admin/emails/preview": handlePreviewGet,
-  "GET /admin/emails/templates/:id/delete": (request, { id }) =>
-    templateDelete.get(request, id),
+  "GET /admin/emails/templates/:id/delete": idRouteFor(templateDelete.get),
   "POST /admin/emails/preview": handlePreviewPost,
   "POST /admin/emails/send": handleSendPost,
   "POST /admin/emails/templates": handleTemplateSavePost,
-  "POST /admin/emails/templates/:id/delete": (request, { id }) =>
-    templateDelete.post(request, id),
+  "POST /admin/emails/templates/:id/delete": idRouteFor(templateDelete.post),
 });

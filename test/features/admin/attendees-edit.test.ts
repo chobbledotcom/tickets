@@ -5,7 +5,7 @@ import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";

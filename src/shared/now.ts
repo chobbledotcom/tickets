@@ -6,6 +6,9 @@
  * lives across many requests, so functions avoid stale timestamps.
  */
 
+/** Milliseconds in one day — for whole-day arithmetic on epoch times. */
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
 /** Current time as a Date */
 export const now = (): Date => new Date();
 

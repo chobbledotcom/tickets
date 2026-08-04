@@ -16,6 +16,7 @@ import {
 } from "#routes/auth.ts";
 import {
   createEntityHandler,
+  idRouteFor,
   orNotFound,
   ownerGetById,
   throughParent,
@@ -25,7 +26,7 @@ import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   type AttributeOption,
   type AttributeWithOptions,
@@ -369,13 +370,11 @@ const handleListingAttributesPost = createListingChoicePost({
 export const adminHandlers = defineRoutes({
   "GET /admin/attributes": handleAttributesGet,
   "GET /admin/attributes/:id": handleAttributeGet,
-  "GET /admin/attributes/:id/delete": (request, { id }) =>
-    attributeDelete.get(request, id),
+  "GET /admin/attributes/:id/delete": idRouteFor(attributeDelete.get),
   "GET /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionGet,
   "GET /admin/attributes/:id/options/:optionId/edit": handleEditOptionGet,
   "POST /admin/attributes": handleAttributesPost,
-  "POST /admin/attributes/:id/delete": (request, { id }) =>
-    attributeDelete.post(request, id),
+  "POST /admin/attributes/:id/delete": idRouteFor(attributeDelete.post),
   "POST /admin/attributes/:id/edit": handleAttributeEdit,
   "POST /admin/attributes/:id/move-down": attributeOrder.down,
   "POST /admin/attributes/:id/move-up": attributeOrder.up,

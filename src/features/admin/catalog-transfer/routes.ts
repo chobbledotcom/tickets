@@ -23,7 +23,7 @@ import {
   redirect,
 } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { slugify } from "#shared/slug.ts";
 import { adminCatalogImportPage } from "#templates/admin/catalog-transfer.tsx";

@@ -15,7 +15,7 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { findAttendeeIdByPhoneIndex } from "#shared/db/attendee-phone-index.ts";
 import {
   claimProcessedSmsInbound,
@@ -28,13 +28,13 @@ import {
   pruneSmsMessagesBefore,
   type SmsMessageRow,
 } from "#shared/db/sms-messages.ts";
-import { isoBefore, nowSeconds } from "#shared/now.ts";
+import { DAY_MS, isoBefore, nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex } from "#shared/payment-crypto.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 
 /** How long to keep id→attendee rows as a backstop for missed webhooks. */
-const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const RETENTION_MS = 30 * DAY_MS;
 
 /** Maximum signed webhook age/skew accepted, matching Stripe-style Unix seconds. */
 const SMS_WEBHOOK_TOLERANCE_SECONDS = 300;

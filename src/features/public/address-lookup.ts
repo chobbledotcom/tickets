@@ -12,6 +12,7 @@
  */
 
 import { t } from "#i18n";
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -42,14 +43,14 @@ export const handleAddressLookupGet: TypedRouteHandler<
   if (!session) {
     const ip = getClientIp(request, server);
     if (await limiter.isLimited(ip)) {
-      return jsonResponse({ error: t("address_lookup.rate_limited") }, 429);
+      return apiErrorResponse(t("address_lookup.rate_limited"), 429);
     }
     await limiter.record(ip);
   }
 
   const search = getSearchParam(request, "search");
   const outcome = await lookupAddresses(provider, search);
-  if (!outcome.ok) return jsonResponse({ error: outcome.error }, 400);
+  if (!outcome.ok) return apiErrorResponse(outcome.error);
   // `addresses` is the lines-only list the public booking form reads.
   // `matches` adds each line's coordinates for the admin Logistics tab's map
   // pin — gated on the back-office staff roles that can open attendee pages,

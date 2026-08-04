@@ -5,8 +5,8 @@ import {
   AddNoteLink,
   AttendeeNotesSection,
   AttendeeNotesSummary,
-  adminAddNotePage,
-  adminDeleteNotePage,
+  adminNoteDeletePage,
+  adminNoteNewPage,
 } from "#templates/admin/attendee-notes.tsx";
 import {
   OWNER_SESSION,
@@ -175,11 +175,11 @@ describe("AttendeeNotesSummary", () => {
   });
 });
 
-describe("adminAddNotePage", () => {
+describe("adminNoteNewPage", () => {
   beforeAll(setupAdminPageTest);
 
   test("renders the add form scoped to the attendee", () => {
-    const html = adminAddNotePage({
+    const html = adminNoteNewPage({
       attendeeId: 5,
       attendeeName: "Alice Example",
       returnUrl: "/admin/attendees/5",
@@ -195,7 +195,7 @@ describe("adminAddNotePage", () => {
   });
 
   test("shows a flash error when re-rendered after a rejected save", () => {
-    const html = adminAddNotePage({
+    const html = adminNoteNewPage({
       attendeeId: 5,
       attendeeName: "Alice",
       error: "Enter a note before saving.",
@@ -206,11 +206,11 @@ describe("adminAddNotePage", () => {
   });
 });
 
-describe("adminDeleteNotePage", () => {
+describe("adminNoteDeletePage", () => {
   beforeAll(setupAdminPageTest);
 
   test("asks for confirmation without a copy/paste field", () => {
-    const html = adminDeleteNotePage({
+    const html = adminNoteDeletePage({
       note: note({ note: "delete this" }),
       returnUrl: "/admin/attendees/5",
       session: OWNER_SESSION,

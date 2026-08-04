@@ -12,6 +12,7 @@ import {
 } from "#routes/admin/entity-write-tab.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -20,7 +21,7 @@ import { modifierAccount } from "#shared/accounting/accounts.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { groups, listingGroups } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
@@ -502,19 +503,13 @@ const handleAnswerLinks: TypedRouteHandler<
     "Answers updated",
   );
 
-/** Modifier routes */
+/** Modifier routes. The edit POST restates the standard key with its own
+ * handler. */
 export const adminHandlers = defineRoutes({
-  "GET /admin/modifiers": crud.listGet,
-  "GET /admin/modifiers/:id": (request, { id }) =>
-    modifierPage.renderTab(request, id, ""),
-  "GET /admin/modifiers/:id/:tab": (request, { id, tab }) =>
-    modifierPage.renderTab(request, id, tab),
-  "GET /admin/modifiers/:id/delete": crud.deleteGet,
-  "GET /admin/modifiers/new": crud.newGet,
+  ...crudRoutes("/admin/modifiers", crud),
+  ...entityTabRoutes("/admin/modifiers", modifierPage),
   "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
-  "POST /admin/modifiers": crud.createPost,
   "POST /admin/modifiers/:id/answers": handleAnswerLinks,
-  "POST /admin/modifiers/:id/delete": crud.deletePost,
   "POST /admin/modifiers/:id/edit": handleEditPost,
   "POST /admin/modifiers/:id/links": handleScopeLinks,
   "POST /admin/modifiers/:id/revenue": handleRevenueAdjust,

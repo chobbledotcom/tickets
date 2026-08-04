@@ -149,7 +149,7 @@ export const createTestAttendeeDirect = async (
   }
 
   const attendee = result.attendees[0]!;
-  const { logActivity } = await import("#shared/db/activityLog.ts");
+  const { logActivity } = await import("#shared/db/activity-log.ts");
   await logActivity(`Attendee '${name}' created`, listingId, attendee.id);
 
   return {

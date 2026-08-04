@@ -11,7 +11,8 @@ import {
 } from "#shared/forms/field.ts";
 import { getSavedFieldValue } from "#shared/forms/saved-data.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
-import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { commaParts } from "#shared/split.ts";
 import { PriceInput } from "#templates/components/price-input.tsx";
 /* jscpd:ignore-end */
 
@@ -105,11 +106,7 @@ const renderChoiceFieldInput = (
   }
   requireCheckboxOptions(field.label, field.options);
   return rawField(
-    renderCheckboxGroup(
-      field.name,
-      field.options,
-      new Set(value ? value.split(",").map((item) => item.trim()) : []),
-    ),
+    renderCheckboxGroup(field.name, field.options, new Set(commaParts(value))),
   );
 };
 

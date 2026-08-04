@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { getAllActivityLog } from "#shared/db/activity-log.ts";
 import {
   attendeeStatuses,
   getAttendeeStatus,

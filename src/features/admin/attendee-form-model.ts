@@ -31,6 +31,7 @@ import type {
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { DAY_MS } from "#shared/now.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type ContactInfo,
@@ -206,7 +207,7 @@ export const bookingDurationDays = (
   if (!booking.start_at || !booking.end_at) return null;
   const ms =
     new Date(booking.end_at).getTime() - new Date(booking.start_at).getTime();
-  const days = Math.round(ms / 86_400_000);
+  const days = Math.round(ms / DAY_MS);
   return days >= 1 ? days : null;
 };
 

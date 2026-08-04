@@ -1,3 +1,4 @@
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin API key management routes
@@ -32,8 +33,8 @@ import { defineForm } from "#shared/forms/definition.ts";
 import {
   type ApiKeyDisplay,
   adminApiDocsPage,
+  adminApiKeyDeletePage,
   adminApiKeysPage,
-  adminDeleteApiKeyPage,
   apiKeySummaryRows,
 } from "#templates/admin/api-keys.tsx";
 /* jscpd:ignore-end */
@@ -123,7 +124,7 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
     await deleteApiKey(id, session.userId);
   },
   path: "/admin/api-keys/:apiKeyId/delete",
-  render: (apiKey, session) => adminDeleteApiKeyPage(apiKey, session),
+  render: (apiKey, session) => adminApiKeyDeletePage(apiKey, session),
   successMessage: "API key deleted",
   successRedirect: "/admin/api-keys",
 });
@@ -170,11 +171,8 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
   );
 
 export const adminHandlers = defineRoutes({
+  ...entityTabRoutes("/admin/api-keys", apiKeyPage, "apiKeyId"),
   "GET /admin/api-keys": handleApiKeysGet,
-  "GET /admin/api-keys/:apiKeyId": (request, { apiKeyId }) =>
-    apiKeyPage.renderTab(request, apiKeyId, ""),
-  "GET /admin/api-keys/:apiKeyId/:tab": (request, { apiKeyId, tab }) =>
-    apiKeyPage.renderTab(request, apiKeyId, tab),
   "GET /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>
     apiKeyDelete.get(request, apiKeyId),
   "GET /admin/api-keys/docs": handleApiDocsGet,

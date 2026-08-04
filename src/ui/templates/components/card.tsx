@@ -6,7 +6,7 @@
  * (`.card`, `.card-image`, `.card-body`, `.card-name`) lives once.
  */
 
-import { escapeHtml } from "#templates/layout.tsx";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 
 /** The grid both card collections sit in (`.card-grid` in the stylesheet). */
 export const CARD_GRID_CLASS = "card-grid";

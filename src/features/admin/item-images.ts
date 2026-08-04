@@ -14,7 +14,7 @@ import {
 import { createEntityHandler, withEntity } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   appendImageToItem,
   getAllImages,

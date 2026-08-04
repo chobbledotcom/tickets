@@ -12,6 +12,7 @@
  */
 
 import { withLazyLogger } from "#shared/lazy-logger.ts";
+import { DAY_MS } from "#shared/now.ts";
 
 declare const Deno:
   | { env: { get(key: string): string | undefined } }
@@ -70,7 +71,7 @@ export const isInWarningWindow = (
   warnDays: number,
 ): boolean =>
   withCutoffMs(cutoff)(
-    (cutoffMs) => now >= cutoffMs - warnDays * 86_400_000 && now < cutoffMs,
+    (cutoffMs) => now >= cutoffMs - warnDays * DAY_MS && now < cutoffMs,
   );
 
 /** Check if the system is in read-only mode based on the READ_ONLY_FROM cutoff */

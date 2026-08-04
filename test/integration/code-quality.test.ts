@@ -216,7 +216,7 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Single attendee fetch for tests (production uses batched getListingWithAttendeeRaw)
   "shared/db/attendees/queries.ts:getAttendeeOrNull",
   // Listing activity log fetch for tests (production uses the batched nullable reader)
-  "shared/db/activityLog.ts:getListingActivityLog",
+  "shared/db/activity-log.ts:getListingActivityLog",
   // Token format check used by CSRF tests (production verifies via verifySignedCsrfToken)
   "shared/csrf.ts:isSignedCsrfToken",
   // Response cookie helper used by auth tests (production sets cookies directly)
