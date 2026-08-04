@@ -23,6 +23,7 @@ import {
   listingIdNamed,
   rememberListing,
 } from "#test/specs/support/listings.ts";
+import { watchesOutgoing } from "#test/specs/support/outgoing.ts";
 import {
   keepWhatTheyWereTold,
   type ReadsWhatWasKept,
@@ -31,7 +32,6 @@ import {
   whatWasKeptFor,
 } from "#test/specs/support/world.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { installRecordingFetch } from "#test-utils/mocks.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -60,15 +60,10 @@ export const ownerHasAnEmailProvider = async (): Promise<void> => {
   await settings.update.email.fromAddress("tickets@example.com");
 };
 
-/** Answer the email provider for one story, and remember every send. Put back
- * when the scenario ends, so one story's stand-in cannot reach the next. */
-export const watchWhatIsSent = (world: TicketsWorld): void => {
-  const watching = installRecordingFetch((url) =>
-    url.includes("api.resend.com") ? new Response(null, { status: 200 }) : null,
-  );
-  world.cleanup.add(watching.restore);
-  world.messagesOut = watching;
-};
+/** Answer the email provider for one story, and remember every send. */
+export const watchWhatIsSent = watchesOutgoing((url) =>
+  url.includes("api.resend.com") ? new Response(null, { status: 200 }) : null,
+);
 
 /** Every address the site really handed the provider, across every send. */
 export const addressesWrittenTo = (world: TicketsWorld): string[] => {

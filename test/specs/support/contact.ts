@@ -8,6 +8,7 @@
 import { settings } from "#shared/db/settings.ts";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
+import { watchesOutgoing } from "#test/specs/support/outgoing.ts";
 import {
   keepWhatTheyWereTold,
   requiredWorldValue,
@@ -15,7 +16,6 @@ import {
   whatTheyWereTold,
 } from "#test/specs/support/world.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { installRecordingFetch } from "#test-utils/mocks.ts";
 import { activateContactForm } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
@@ -44,8 +44,8 @@ export const ownerTakesAway = (what: string): Promise<unknown> =>
 const watchOutgoing = (
   world: TicketsWorld,
   answers: { providerStatus: number },
-) => {
-  const watching = installRecordingFetch((url) => {
+) =>
+  watchesOutgoing((url) => {
     // The checker would say yes. A message turned down while this is standing
     // by was turned down without the checker being asked at all.
     if (url.includes("api.botpoison.com")) {
@@ -55,11 +55,7 @@ const watchOutgoing = (
       return new Response(null, { status: answers.providerStatus });
     }
     return null;
-  });
-  world.cleanup.add(watching.restore);
-  world.messagesOut = watching;
-  return watching;
-};
+  })(world);
 
 /** Spam protection is on exactly when both keys are set, and they are read on
  * every request. Each story says plainly whether it wants protection and the

@@ -31,7 +31,28 @@ import {
  * scenario books the same people and a later step can name one of them. */
 const BOOKERS = ["first@example.com", "second@example.com"];
 
-const bookersFor = (howMany: number): string[] => BOOKERS.slice(0, howMany);
+const bookersFor = (howMany: number): string[] => {
+  // Quietly booking fewer people than the story asked for would make every
+  // count below it right for the wrong reason.
+  if (howMany > BOOKERS.length) {
+    throw new Error(
+      `Only ${BOOKERS.length} people can be booked, the story asked for ${howMany}`,
+    );
+  }
+  return BOOKERS.slice(0, howMany);
+};
+
+/** Book people onto a listing, with the watch on the outside world standing by
+ * first. Even a story with no provider set up needs it: a send that should have
+ * been refused would otherwise reach a real address. */
+const booksPeople = (
+  world: TicketsWorld,
+  listingName: string,
+  addresses: string[],
+): Promise<void> => {
+  if (!world.messagesOut) watchWhatIsSent(world);
+  return peopleBookOnto(world, listingName, addresses);
+};
 
 Given(
   "the owner has an email provider of their own",
@@ -48,11 +69,7 @@ Given(
     howMany: number,
     listingName: string,
   ): Promise<void> {
-    // Without a provider set up, nothing reaches the outside world — but the
-    // watch still has to be standing by, or a send that should have been
-    // refused would go out to a real address.
-    if (!this.messagesOut) watchWhatIsSent(this);
-    return peopleBookOnto(this, listingName, bookersFor(howMany));
+    return booksPeople(this, listingName, bookersFor(howMany));
   },
 );
 
@@ -63,8 +80,7 @@ Given(
     howMany: number,
     listingName: string,
   ): Promise<void> {
-    if (!this.messagesOut) watchWhatIsSent(this);
-    return peopleBookOnto(this, listingName, Array(howMany).fill(""));
+    return booksPeople(this, listingName, Array(howMany).fill(""));
   },
 );
 
