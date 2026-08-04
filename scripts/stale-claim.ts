@@ -16,7 +16,11 @@
  * the file version, shared by the stripe-mock install and mutation runs.
  */
 
-import { type LockBody, withFileLock } from "#scripts/lock-file.ts";
+import {
+  type LockBody,
+  type PathLockHolder,
+  withFileLock,
+} from "#scripts/lock-file.ts";
 import { nullIfNotFound, rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { delay } from "#shared/now.ts";
 
@@ -54,6 +58,14 @@ const CLAIM_GUARD_SUFFIX = ".guard";
  * cannot both judge a claim stale and both believe they created its successor.
  */
 const claimGuardPath = (path: string): string => `${path}${CLAIM_GUARD_SUFFIX}`;
+
+/**
+ * Hold the takers' guard for the claim at `path` while `body` runs, so a
+ * decision made about the claim — is it fresh, may what it protects go —
+ * cannot interleave with somebody in the middle of taking it.
+ */
+export const withClaimGuard: PathLockHolder = (path, body) =>
+  withFileLock(claimGuardPath(path), body);
 
 const formatClaimRecord = (owner: string): string => `${owner}\n${Date.now()}`;
 
@@ -112,34 +124,60 @@ const removeClaimIfOwned = async (
   }
 };
 
-const startClaimTouching = (path: string, owner: string, touchMs: number) => {
+/** Stops touching a claim, and throws if the holding was not kept safe. */
+export type StopTouching = () => Promise<void>;
+
+const startClaimTouching = (
+  path: string,
+  owner: string,
+  { staleMs, touchMs }: StaleClaimSettings,
+): StopTouching => {
   let stopped = false;
   let timeout = setTimeout(touchClaim, touchMs);
   let latestTouch: Promise<void> = Promise.resolve();
+  let failingSince: number | null = null;
+  let wentUnfreshed = false;
 
   const scheduleNextTouch = () => {
     if (stopped) return;
     timeout = setTimeout(touchClaim, touchMs);
   };
 
+  const touchLanded = () => {
+    failingSince = null;
+    scheduleNextTouch();
+  };
+
+  // Touches failing for a whole stale window leave the file reading as
+  // walked away from, so another taker may hold the claim now. That cannot
+  // be made safe after the fact — only reported, once the holder stops.
+  const touchFailed = () => {
+    failingSince ??= Date.now();
+    if (Date.now() - failingSince >= staleMs) wentUnfreshed = true;
+    scheduleNextTouch();
+  };
+
   function touchClaim() {
-    latestTouch = writeClaimTime(path, owner).then(
-      scheduleNextTouch,
-      scheduleNextTouch,
-    );
+    // A timer can fire in the very moment of the stop; a touch that went
+    // ahead then could re-create the claim file after release removed it.
+    if (stopped) return;
+    latestTouch = writeClaimTime(path, owner).then(touchLanded, touchFailed);
   }
 
   return async (): Promise<void> => {
     stopped = true;
     clearTimeout(timeout);
-    // A timer that fired just before the clear has already queued touchClaim,
-    // and it runs before this zero delay does. Waiting one turn means the wait
-    // below catches the write it starts, instead of leaking it past the stop —
-    // a leaked write could re-create the claim file after release removed it.
-    await delay(0);
     // A touch already under way finishes without booking another, because
-    // scheduling checks the flag above.
+    // both writing and scheduling check the flag above.
     await latestTouch;
+    if (
+      wentUnfreshed ||
+      (failingSince !== null && Date.now() - failingSince >= staleMs)
+    ) {
+      throw new Error(
+        `The claim at ${path} could not be kept fresh: its file went unwritten for longer than ${staleMs}ms, so another taker may have removed it and done the same work.`,
+      );
+    }
   };
 };
 
@@ -149,8 +187,12 @@ const createClaim = async (path: string, owner: string): Promise<void> => {
   await writeClaimTime(path, owner);
 };
 
-const heldClaim = (path: string, owner: string, touchMs: number): HeldClaim => {
-  const stopTouching = startClaimTouching(path, owner, touchMs);
+const heldClaim = (
+  path: string,
+  owner: string,
+  settings: StaleClaimSettings,
+): HeldClaim => {
+  const stopTouching = startClaimTouching(path, owner, settings);
   return {
     owner,
     release: async () => {
@@ -181,8 +223,29 @@ const tryTakeClaim = (
       await removeClaim(path);
       await createClaim(path, owner);
     }
-    return heldClaim(path, owner, settings.touchMs);
+    return heldClaim(path, owner, settings);
   });
+
+/**
+ * Keep somebody else's claim at `path` fresh on their behalf, starting with a
+ * touch right now, until the returned stop is called. For a helper working
+ * under a claim its parent took — the mutation child inside its snapshot —
+ * so the claim outlives a parent that was killed without cleaning up.
+ * Stopping never removes the claim: that stays the owner's to release.
+ */
+export const keepClaimFresh = async (
+  path: string,
+  settings: StaleClaimSettings,
+): Promise<StopTouching> => {
+  const { owner } = await readClaimRecord(path);
+  if (owner === undefined) {
+    throw new Error(
+      `The claim at ${path} names no owner to keep it fresh for.`,
+    );
+  }
+  await writeClaimTime(path, owner);
+  return startClaimTouching(path, owner, settings);
+};
 
 /**
  * Take the claim at `path`, waiting out a fresh holder until `timeoutMs` runs

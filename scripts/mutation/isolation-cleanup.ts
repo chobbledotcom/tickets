@@ -11,7 +11,7 @@
 import { chunk } from "#fp";
 import { removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { runClaimIsFresh } from "./isolation-lock.ts";
+import { runClaimIsFresh, withRunClaimGuard } from "./isolation-lock.ts";
 import {
   readRunRecord,
   recordInRunDirectory,
@@ -67,16 +67,21 @@ const removeRunPath = async (
  * Delete a run's whole folder, but only when its claim has gone stale. The
  * run's own supervisor keeps the claim fresh from before the first record
  * write until after the snapshot is thrown away, so a fresh claim means the
- * folder is still someone's — `null` says it was left alone. A stale claim
+ * folder is still someone's — `null` says it was left alone. The judgement
+ * and the delete happen under the claim takers' guard: a brand-new run makes
+ * its folder a moment before its claim lands in it, and holding the guard
+ * keeps this from reading that moment as an abandoned run. A stale claim
  * cannot come back to life mid-delete: a run id is never claimed twice, and
  * its one owner is gone.
  */
-const removeRun = async (
+const removeRun = (
   record: MutationRunRecord,
 ): Promise<RemoveRunResult | null> =>
-  (await runClaimIsFresh(record))
-    ? null
-    : await removeRunPath(record, record.root);
+  withRunClaimGuard(record, async () =>
+    (await runClaimIsFresh(record))
+      ? null
+      : await removeRunPath(record, record.root),
+  );
 
 interface CleanedRuns {
   failed: Extract<RemoveRunResult, { removed: false }>[];

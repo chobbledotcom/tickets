@@ -2,7 +2,13 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { claimIsFresh, withClaim } from "#scripts/stale-claim.ts";
+import { FakeTime } from "@std/testing/time";
+import {
+  claimIsFresh,
+  keepClaimFresh,
+  withClaim,
+  withClaimGuard,
+} from "#scripts/stale-claim.ts";
 import { withTempDir } from "#test-utils/files.ts";
 
 /** Generous enough that nothing ages out mid-test on a slow machine. */
@@ -61,6 +67,26 @@ const expectClaimRefused = async (
     ),
   ).rejects.toThrow("Timed out waiting for the test claim");
   expect(ranAnyway).toBe(false);
+};
+
+/** Hold the test claim until told to let go, resolving once it is really
+ * held — so a clock or waiter driven meanwhile is genuinely mid-hold. */
+const holdClaimUntilReleased = async (
+  path: string,
+  settings = SETTINGS,
+): Promise<{ holding: Promise<void>; release: () => void }> => {
+  const taken = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
+  const holding = withTestClaim(
+    path,
+    () => {
+      taken.resolve();
+      return released.promise;
+    },
+    settings,
+  );
+  await taken.promise;
+  return { holding, release: () => released.resolve() };
 };
 
 describe("taking a claim", () => {
@@ -205,73 +231,325 @@ describe("asking whether a claim is fresh", () => {
   });
 });
 
-describe("keeping a claim fresh while it is held", () => {
-  test("touches the claim so it never goes stale mid-work", async () => {
-    await withClaimDir(async (path) => {
-      await withTestClaim(
-        path,
-        async () => {
-          // Old enough to be stolen if nothing touched it in time.
-          await writeClaim(path, `kept\n${Date.now() - 40}`);
-          await new Promise((resolve) => setTimeout(resolve, 30));
+/** Real time's setTimeout, taken before any test puts a fake clock in. */
+const REAL_SET_TIMEOUT = setTimeout;
 
-          expect(await claimIsFresh(path, 25)).toBe(true);
-        },
-        { ...SETTINGS, staleMs: 25, touchMs: 5 },
-      );
+/** A real-time pause, for waits a fake clock must not intercept — letting a
+ * file write that has already started reach the disk. */
+const settle = (): Promise<void> =>
+  new Promise((resolve) => REAL_SET_TIMEOUT(resolve, 5));
+
+/** Step the fake clock, letting each touch settle before the next fires. */
+const tickBy = async (time: FakeTime, ...steps: number[]): Promise<void> => {
+  for (const step of steps) await time.tickAsync(step);
+};
+
+type FakeHold = {
+  held: Awaited<ReturnType<typeof holdClaimUntilReleased>>;
+  time: FakeTime;
+};
+
+/** Hold the claim with a 30ms stale window, on a clock the test drives.
+ * Dispose the clock with `using` at the call site. */
+const holdOnFakeClock = async (
+  path: string,
+  touchMs = 10,
+): Promise<FakeHold> => {
+  const time = new FakeTime();
+  const held = await holdClaimUntilReleased(path, {
+    ...SETTINGS,
+    staleMs: 30,
+    touchMs,
+  });
+  return { held, time };
+};
+
+describe("keeping a claim fresh while it is held", () => {
+  test("touches the claim on time, so it never reads as walked away", async () => {
+    await withClaimDir(async (path) => {
+      const { held, time } = await holdOnFakeClock(path, 5);
+      using _clock = time;
+      // Two rounds, so the touch after a touch is proven too — not just the
+      // first one armed when the claim was taken.
+      for (let round = 0; round < 2; round += 1) {
+        // Age the record as if the holder had stalled for a long while.
+        await writeClaim(path, `kept\n${Date.now() - 40}`);
+        expect(await claimIsFresh(path, 25)).toBe(false);
+
+        await time.tickAsync(5);
+        await settle();
+
+        expect(await claimIsFresh(path, 25)).toBe(true);
+      }
+      held.release();
+      await held.holding;
     });
   });
 
   test("a touch armed but not yet landed dies with the release", async () => {
     await withClaimDir(async (path) => {
-      await withTestClaim(
-        path,
-        // Long enough for several touches, so the release meets a rearmed
-        // timer rather than the very first one.
-        () => new Promise((resolve) => setTimeout(resolve, 12)),
-        { ...SETTINGS, touchMs: 2 },
-      );
+      const { held, time } = await holdOnFakeClock(path, 2);
+      using _clock = time;
+      // A few touches land, so the release meets a rearmed timer rather
+      // than the very first one.
+      await tickBy(time, 2, 2, 2, 1);
+
+      held.release();
+      await held.holding;
 
       await expect(Deno.stat(path)).rejects.toThrow();
-      // Long enough for a stray touch to land, if one had survived.
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      // Time for a stray touch to land, if one had survived the release.
+      await tickBy(time, 25);
+      await settle();
       await expect(Deno.stat(path)).rejects.toThrow();
     });
   });
 
-  test("a touch already queued when the release starts is waited out", async () => {
+  test("a touch already under way when the release starts is waited out", async () => {
     await withClaimDir(async (path) => {
-      // A slow disk: each touch takes a while to land, so a touch the
-      // release failed to wait for would land visibly after it.
+      // The second write to the claim — the first touch — is held in flight
+      // until the test lets it finish.
+      const writeStarted = Promise.withResolvers<void>();
+      const finishWrite = Promise.withResolvers<void>();
       const writeTextFile = Deno.writeTextFile;
+      let writes = 0;
       using _write = stub(Deno, "writeTextFile", (async (
         target: string | URL,
         data: string | ReadableStream<string>,
         options?: Deno.WriteFileOptions,
       ) => {
         if (`${target}` === path) {
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          writes += 1;
+          if (writes === 2) {
+            writeStarted.resolve();
+            await finishWrite.promise;
+          }
         }
         return writeTextFile(target, data, options);
       }) as typeof Deno.writeTextFile);
+      const { held, time } = await holdOnFakeClock(path, 5);
+      using _clock = time;
+      await time.tickAsync(5);
+      await writeStarted.promise;
 
-      await withTestClaim(
+      held.release();
+      let released = false;
+      const holding = held.holding.then(() => {
+        released = true;
+      });
+      await settle();
+      // Still waiting on the touch in flight: letting go now could leave
+      // that write landing after the claim was removed.
+      expect(released).toBe(false);
+
+      finishWrite.resolve();
+      await holding;
+      await expect(Deno.stat(path)).rejects.toThrow();
+    });
+  });
+
+  test("a timer that fires after the release writes nothing", async () => {
+    await withClaimDir(async (path) => {
+      // Capture the touch timers instead of running them, so the test can
+      // fire one "late" — after the release — the way a real timer can go
+      // off in the very moment of the stop.
+      const lateTouches: Array<() => void> = [];
+      using _timer = stub(globalThis, "setTimeout", ((handler: () => void) => {
+        lateTouches.push(handler);
+        return 0;
+      }) as unknown as typeof setTimeout);
+
+      await withTestClaim(path, () => Promise.resolve());
+      for (const touch of lateTouches) touch();
+
+      // Real time for the wrongly started write to land, if there was one.
+      await settle();
+      await expect(Deno.stat(path)).rejects.toThrow();
+    });
+  });
+});
+
+/** Break every touch of `path` while `stillFailing` says so. The very first
+ * write — the one that creates the claim — always goes through. */
+const failClaimTouches = (
+  path: string,
+  stillFailing: () => boolean,
+): Disposable => {
+  const writeTextFile = Deno.writeTextFile;
+  let writes = 0;
+  return stub(Deno, "writeTextFile", ((
+    target: string | URL,
+    data: string | ReadableStream<string>,
+    options?: Deno.WriteFileOptions,
+  ) => {
+    if (`${target}` === path) {
+      writes += 1;
+      if (writes > 1 && stillFailing()) {
+        return Promise.reject(new Error("the disk went read-only"));
+      }
+    }
+    return writeTextFile(target, data, options);
+  }) as typeof Deno.writeTextFile);
+};
+
+/** End the hold, expecting the holder to hear its claim was let go stale. */
+const expectHoldLostFreshness = (held: FakeHold["held"]): Promise<void> => {
+  held.release();
+  return expect(held.holding).rejects.toThrow("could not be kept fresh");
+};
+
+/** Hold the claim while its touches fail, on a clock the scenario drives;
+ * calling `recover` lets touches land again from then on. */
+const holdWhileTouchesFail = async (
+  path: string,
+  scenario: (context: {
+    held: Awaited<ReturnType<typeof holdClaimUntilReleased>>;
+    recover: () => void;
+    time: FakeTime;
+  }) => Promise<void>,
+  touchMs?: number,
+): Promise<void> => {
+  let recovered = false;
+  using _write = failClaimTouches(path, () => !recovered);
+  const { held, time } = await holdOnFakeClock(path, touchMs);
+  using _clock = time;
+  await scenario({
+    held,
+    recover: () => {
+      recovered = true;
+    },
+    time,
+  });
+};
+
+describe("a holder whose touches stop landing", () => {
+  test("hears about it once the touches have failed for a whole stale window", async () => {
+    await withClaimDir((path) =>
+      holdWhileTouchesFail(path, async ({ held, time }) => {
+        // Failures at 10, 20, 30 and 40ms: by the last one the record has
+        // gone unwritten for the whole 30ms window, so for anyone reading
+        // the file the holder walked away — the work cannot end quietly.
+        await tickBy(time, 10, 10, 10, 10);
+
+        await expectHoldLostFreshness(held);
+      }),
+    );
+  });
+
+  test("hears about it even when the touches recover too late", async () => {
+    await withClaimDir((path) =>
+      holdWhileTouchesFail(path, async ({ held, recover, time }) => {
+        // The outage spanned the window, so the claim may already be
+        // somebody else's; a touch landing afterwards cannot unhappen that.
+        await tickBy(time, 10, 10, 10, 10);
+        recover();
+        await tickBy(time, 10);
+
+        await expectHoldLostFreshness(held);
+      }),
+    );
+  });
+
+  test("hears about it when the hold ends mid-outage spanning the window", async () => {
+    await withClaimDir((path) =>
+      holdWhileTouchesFail(
+        path,
+        async ({ held, time }) => {
+          // Failures at 20 and 40ms, then 19ms more of silence: 39ms since
+          // the record was last written, with no touch left to notice —
+          // only the release can tell the claim was let go stale.
+          await tickBy(time, 20, 20, 19);
+
+          await expectHoldLostFreshness(held);
+        },
+        20,
+      ),
+    );
+  });
+
+  test("carries on past a failed touch, touching again so the blip heals", async () => {
+    await withClaimDir((path) =>
+      holdWhileTouchesFail(path, async ({ held, recover, time }) => {
+        await tickBy(time, 10);
+        recover();
+        await tickBy(time, 10, 5);
+        await settle();
+
+        // Touched again after the blip: fresh, judged against a window far
+        // smaller than the time since the claim was first written.
+        expect(await claimIsFresh(path, 12)).toBe(true);
+        held.release();
+        await held.holding;
+      }),
+    );
+  });
+});
+
+describe("keeping somebody else's claim fresh for them", () => {
+  test("touches it from the very first moment, keeping their name on it", async () => {
+    await withClaimDir(async (path) => {
+      await writeClaim(path, `their-supervisor\n${LONG_AGO_MS}`);
+
+      const stopTouching = await keepClaimFresh(path, {
+        staleMs: FRESH_FOR_MS,
+        touchMs: FRESH_FOR_MS,
+      });
+      expect(await claimIsFresh(path, FRESH_FOR_MS)).toBe(true);
+      await stopTouching();
+
+      // Stopping never removes the claim: it stays theirs to release.
+      expect(
+        (await Deno.readTextFile(path)).startsWith("their-supervisor"),
+      ).toBe(true);
+    });
+  });
+
+  test("refuses a claim that names nobody to keep it fresh for", async () => {
+    await withClaimDir(async (path) => {
+      // A record from before owners were named carries a time alone.
+      await writeClaim(path, String(Date.now()));
+
+      await expect(
+        keepClaimFresh(path, { staleMs: FRESH_FOR_MS, touchMs: FRESH_FOR_MS }),
+      ).rejects.toThrow("names no owner");
+    });
+  });
+
+  test("refuses when there is no claim there at all", async () => {
+    await withClaimDir(async (path) => {
+      await expect(
+        keepClaimFresh(path, { staleMs: FRESH_FOR_MS, touchMs: FRESH_FOR_MS }),
+      ).rejects.toThrow();
+    });
+  });
+});
+
+describe("holding the takers' guard", () => {
+  test("keeps a taker at the door until the guard is let go", async () => {
+    await withClaimDir(async (path) => {
+      const order: string[] = [];
+      const inside = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+
+      const holding = withClaimGuard(path, async () => {
+        inside.resolve();
+        await release.promise;
+        order.push("guard let go");
+      });
+      await inside.promise;
+
+      const taking = withTestClaim(
         path,
         () => {
-          // Hold the turn past the touch time, so the touch is queued —
-          // due to run, but not yet started — as the release begins.
-          const end = Date.now() + 5;
-          while (Date.now() < end) {
-            // Holding the turn is the whole job.
-          }
+          order.push("claim taken");
           return Promise.resolve();
         },
-        { ...SETTINGS, touchMs: 1 },
+        { ...SETTINGS, timeoutMs: 5_000 },
       );
+      release.resolve();
+      await Promise.all([holding, taking]);
 
-      // Long enough for the slow touch to land, if the release leaked it.
-      await new Promise((resolve) => setTimeout(resolve, 40));
-      await expect(Deno.stat(path)).rejects.toThrow();
+      expect(order).toEqual(["guard let go", "claim taken"]);
     });
   });
 });
@@ -306,21 +584,6 @@ describe("releasing a claim", () => {
     });
   });
 });
-
-/** Hold the test claim until told to let go, resolving once it is really
- * held — so a waiter started after this is genuinely waiting. */
-const holdClaimUntilReleased = async (
-  path: string,
-): Promise<{ holding: Promise<void>; release: () => void }> => {
-  const taken = Promise.withResolvers<void>();
-  const released = Promise.withResolvers<void>();
-  const holding = withTestClaim(path, () => {
-    taken.resolve();
-    return released.promise;
-  });
-  await taken.promise;
-  return { holding, release: () => released.resolve() };
-};
 
 describe("waiting for a claim", () => {
   test("does the work once the claim's holder lets go, then frees it", async () => {

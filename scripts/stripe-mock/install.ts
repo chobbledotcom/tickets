@@ -32,8 +32,16 @@ const ensureBinDir = (paths: StripeMockPaths): Promise<void> =>
  * install lock here and the start lock in stripe-mock.ts are both one of
  * these.
  */
+/** Holds one of the bin folder's guards around a task, making the folder. */
+export type BinDirGuard = <T>(
+  paths: StripeMockPaths,
+  body: LockBody<T>,
+) => Promise<T>;
+
 export const binDirGuard =
-  (holdAt: (paths: StripeMockPaths) => <T>(body: LockBody<T>) => Promise<T>) =>
+  (
+    holdAt: (paths: StripeMockPaths) => <T>(body: LockBody<T>) => Promise<T>,
+  ): BinDirGuard =>
   async <T>(paths: StripeMockPaths, body: LockBody<T>): Promise<T> => {
     await ensureBinDir(paths);
     return holdAt(paths)(body);

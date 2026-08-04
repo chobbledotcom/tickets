@@ -104,9 +104,9 @@ src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get re
 src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
 src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
 
-# stale-claim release: the wait after the stop flag only needs to yield one
-# timer turn so a touch queued just before the clear runs first and is then
-# awaited. delay(0) and delay(1) both queue behind that already-queued touch;
-# the extra millisecond changes when the release finishes, which nothing
-# observes.
-scripts/stale-claim.ts:139:17  0 → 1    # any positive wait yields the same turn
+# stale-claim touch rescheduling: corrupting the remembered timer id only
+# stops the release's clearTimeout from cancelling the armed timer, so it
+# fires once more — and the touch it starts bails on the stopped flag before
+# writing anything. No file state or output differs; only when the last no-op
+# timer drains.
+scripts/stale-claim.ts:143:12  = → +=    # the uncancelled timer's one late touch bails on the stopped flag

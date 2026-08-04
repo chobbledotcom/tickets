@@ -13,6 +13,12 @@ import { nullIfNotFound, statOrNull } from "#scripts/not-found.ts";
 /** A task run while a lock or claim is held, giving back its result. */
 export type LockBody<Result> = () => Promise<Result>;
 
+/** Holds the lock living at a path around a task. */
+export type PathLockHolder = <Result>(
+  path: string,
+  body: LockBody<Result>,
+) => Promise<Result>;
+
 /** Open (creating if needed) a file to hold an advisory lock. */
 const openLockFile = (path: string): Promise<Deno.FsFile> =>
   Deno.open(path, { create: true, read: true, write: true });
@@ -43,10 +49,7 @@ const sameFileAt = async (
  * mid-wait, leaving a lock with nothing pointing at it, so it makes the folder
  * and takes the lock again until it has the one at the path.
  */
-export const withFileLock = async <Result>(
-  path: string,
-  body: LockBody<Result>,
-): Promise<Result> => {
+export const withFileLock: PathLockHolder = async (path, body) => {
   for (;;) {
     await Deno.mkdir(dirname(path), { recursive: true });
     const file = await openLockFileOrNull(path);

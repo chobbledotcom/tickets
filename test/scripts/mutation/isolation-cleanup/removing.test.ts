@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { removeFinishedRuns } from "#scripts/mutation/isolation-cleanup.ts";
+import { withRunClaimGuard } from "#scripts/mutation/isolation-lock.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   markFinished,
@@ -30,6 +31,31 @@ describe("deleting the runs that are finished with", () => {
       await writeRunClaim(asRead);
 
       expect((await removeFinishedRuns([asRead])).skipped).toEqual([asRead]);
+    });
+  });
+
+  test("waits at the takers' door, honouring a claim made meanwhile", async () => {
+    await withTempDir(async (root) => {
+      // A brand-new run makes its folder a moment before its claim lands in
+      // it. A sweep looking in that moment must wait for the taker, not read
+      // the bare folder as abandoned and delete it.
+      const young = newRunRecord(runIdNamed("mid-take"), [], root);
+      await Deno.mkdir(young.root, { recursive: true });
+
+      const inside = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const taking = withRunClaimGuard(young, async () => {
+        inside.resolve();
+        await release.promise;
+        await writeRunClaim(young);
+      });
+      await inside.promise;
+
+      const sweeping = removeFinishedRuns([young]);
+      release.resolve();
+      await taking;
+
+      expect((await sweeping).skipped).toEqual([young]);
     });
   });
 

@@ -1,18 +1,21 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { runClaimIsFresh } from "#scripts/mutation/isolation-lock.ts";
 import {
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
   MUTATION_WORK_ROOT_ENV,
+  runClaimPath,
 } from "#scripts/mutation/isolation-state.ts";
 import {
   isSnapshotChild,
   runSnapshotChild,
 } from "#scripts/mutation/snapshot-child.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-import { withTempDir } from "#test-utils/files.ts";
+import { LONG_AGO } from "#test/scripts/mutation/isolation-helpers.ts";
+import { pathExists, withTempDir } from "#test-utils/files.ts";
 
 const CHILD_VARS = [
   MUTATION_RUN_ID_ENV,
@@ -43,11 +46,43 @@ describe("the worker inside a snapshot", () => {
     expect(isSnapshotChild()).toBe(true);
   });
 
-  test("does the work once it knows the snapshot is its own", async () => {
+  test("keeps the supervisor's claim fresh while it works", async () => {
     await withTempDir(async (runRoot) => {
       setRunVars(runRoot);
+      // The supervisor's claim, last touched long ago — as it reads moments
+      // after a supervisor was killed outright.
+      await Deno.writeTextFile(
+        runClaimPath({ root: runRoot }),
+        `the-supervisor\n${LONG_AGO.getTime()}`,
+      );
 
-      expect(await runSnapshotChild(() => Promise.resolve(7))).toBe(7);
+      const freshDuringWork = await runSnapshotChild(() =>
+        runClaimIsFresh({ root: runRoot }),
+      );
+
+      expect(freshDuringWork).toBe(true);
+      // Still the supervisor's, and still there: the child never removes it.
+      expect(
+        (await Deno.readTextFile(runClaimPath({ root: runRoot }))).startsWith(
+          "the-supervisor",
+        ),
+      ).toBe(true);
+      expect(await pathExists(runClaimPath({ root: runRoot }))).toBe(true);
+    });
+  });
+
+  test("refuses to work in a snapshot no claim protects", async () => {
+    await withTempDir(async (runRoot) => {
+      setRunVars(runRoot);
+      let ranAnyway = false;
+
+      await expect(
+        runSnapshotChild(() => {
+          ranAnyway = true;
+          return Promise.resolve(0);
+        }),
+      ).rejects.toThrow();
+      expect(ranAnyway).toBe(false);
     });
   });
 

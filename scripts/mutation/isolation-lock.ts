@@ -11,7 +11,13 @@
  */
 
 import { type LockBody, withFileLock } from "#scripts/lock-file.ts";
-import { claimIsFresh, withClaim } from "#scripts/stale-claim.ts";
+import {
+  claimIsFresh,
+  keepClaimFresh,
+  type StopTouching,
+  withClaim,
+  withClaimGuard,
+} from "#scripts/stale-claim.ts";
 import {
   copyBackLockPath,
   type MutationRunRecord,
@@ -26,7 +32,10 @@ import {
  */
 export const RUN_CLAIM_STALE_MS = 30_000;
 
-const RUN_CLAIM_TOUCH_MS = 1_000;
+const RUN_CLAIM_SETTINGS = {
+  staleMs: RUN_CLAIM_STALE_MS,
+  touchMs: 1_000,
+};
 
 /** Hold this run's claim while the whole run happens. A run id is brand new,
  * so its claim is always free to take. */
@@ -37,20 +46,35 @@ export const withRunClaim = <Result>(
   withClaim(
     runClaimPath(record),
     {
+      ...RUN_CLAIM_SETTINGS,
       name: `the claim on isolated mutation run ${record.id}`,
       retryMs: 0,
-      staleMs: RUN_CLAIM_STALE_MS,
       timeoutMs: 0,
-      touchMs: RUN_CLAIM_TOUCH_MS,
     },
     body,
   );
 
-/** Is this run's folder still somebody's? Only its own supervisor writes and
- * touches the claim, so a fresh one is the run's, never a clear-up's. */
+/** Is this run's folder still somebody's? Only a run's own supervisor and its
+ * child write and touch the claim, so a fresh one is always the run's. */
 export const runClaimIsFresh = (
   record: Pick<MutationRunRecord, "root">,
 ): Promise<boolean> => claimIsFresh(runClaimPath(record), RUN_CLAIM_STALE_MS);
+
+/**
+ * Hold the run-claim takers' guard while `body` runs, so judging the run and
+ * acting on the judgement cannot interleave with its supervisor mid-take.
+ */
+export const withRunClaimGuard = <Result>(
+  record: Pick<MutationRunRecord, "root">,
+  body: LockBody<Result>,
+): Promise<Result> => withClaimGuard(runClaimPath(record), body);
+
+/** The child's half of the claim: keep it fresh while the child works, so a
+ * supervisor killed without cleaning up cannot cost a live child its copy. */
+export const keepRunClaimFresh = (
+  record: Pick<MutationRunRecord, "root">,
+): Promise<StopTouching> =>
+  keepClaimFresh(runClaimPath(record), RUN_CLAIM_SETTINGS);
 
 /**
  * Hold the checkout's copy-back lock. Every run brings its kept files back

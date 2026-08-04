@@ -7,6 +7,7 @@
 
 import { resolve } from "@std/path";
 import { projectRoot } from "#scripts/project-root.ts";
+import { keepRunClaimFresh } from "./isolation-lock.ts";
 import {
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
@@ -32,9 +33,9 @@ const runValue = (name: string): string => {
   return value;
 };
 
-const requireOwnSnapshot = (): void => {
+const runRootFromEnv = (): string => {
   runValue(MUTATION_RUN_ID_ENV);
-  runValue(MUTATION_RUN_ROOT_ENV);
+  const runRoot = runValue(MUTATION_RUN_ROOT_ENV);
   const workRoot = resolve(runValue(MUTATION_WORK_ROOT_ENV));
   // The copy it says it is in must be the one it is running from. Anything
   // else means these values belong to another run, and the work would land in
@@ -44,13 +45,23 @@ const requireOwnSnapshot = (): void => {
       `A snapshot child says it works in ${workRoot}, but it is running in ${resolve(projectRoot)}.`,
     );
   }
+  return runRoot;
 };
 
-/** Do the run's work. The supervisor's claim on the run keeps a clear-up
- * from taking the copy while the child works in it. */
-export const runSnapshotChild = <Result>(
+const workUnderFreshClaim = async <Result>(
+  runRoot: string,
   body: () => Promise<Result>,
 ): Promise<Result> => {
-  requireOwnSnapshot();
-  return body();
+  const stopTouching = await keepRunClaimFresh({ root: runRoot });
+  try {
+    return await body();
+  } finally {
+    await stopTouching();
+  }
 };
+
+/** Do the run's work, keeping the supervisor's claim on the run fresh — so a
+ * clear-up cannot take the copy even if the supervisor is killed outright. */
+export const runSnapshotChild = <Result>(
+  body: () => Promise<Result>,
+): Promise<Result> => workUnderFreshClaim(runRootFromEnv(), body);
