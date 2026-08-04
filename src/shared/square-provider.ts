@@ -142,18 +142,18 @@ export const squarePaymentProvider: PaymentProvider = {
     }
 
     // The payment must be for the order whose signed metadata we are about to
-    // book. When Square's two records disagree, one of them is wrong, and
-    // guessing spends a stranger's money against our proof.
+    // book. Square saying otherwise contradicts the signed event that sent us
+    // here, so neither answer is safe: booking uses the wrong metadata, and
+    // acknowledging is terminal on a charge that has already taken money.
+    // Throwing keeps it retryable until Square answers consistently.
     if (
       payment &&
       payment.orderId !== undefined &&
       payment.orderId !== order.id
     ) {
-      logDebug(
-        "Square",
-        `Payment ${paymentReference} belongs to order ${payment.orderId}, not ${order.id}`,
+      throw new Error(
+        `Square payment ${paymentReference} reports order ${payment.orderId}, not ${order.id}`,
       );
-      return null;
     }
 
     // Money we can see was taken. A completed payment names its own amount, and

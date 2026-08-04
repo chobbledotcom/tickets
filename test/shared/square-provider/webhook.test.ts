@@ -107,11 +107,12 @@ describe("square-provider resolveWebhookSession", () => {
     );
   });
 
-  test("refuses a payment that belongs to a different order", async () => {
-    // The webhook says this payment is for order_mine, but Square's own record
-    // of the payment names another order. One of the two is wrong, and booking
-    // order_mine's signed metadata against a stranger's money is the way that
-    // goes badly — so it is refused rather than guessed at.
+  test("asks to be retried when the payment's order contradicts the event", async () => {
+    // The signed event already linked this payment to order_mine, so a lookup
+    // naming another order is Square disagreeing with itself about money it
+    // has taken — not a payment that belongs elsewhere. Booking would use the
+    // wrong metadata and acknowledging is terminal, so neither is safe: the
+    // contradiction has to stay retryable until Square answers consistently.
     await withMocks(
       () =>
         withOrderAndPayment(
@@ -129,11 +130,9 @@ describe("square-provider resolveWebhookSession", () => {
           },
         ),
       async () => {
-        // Not ours to book here; the payment's real order has its own webhook.
-        expect(await completedWebhook("pay_stranger", "order_mine")).toBe(
-          "skip",
-        );
-        expect(debug().calls.at(-1)?.args[0]).toContain("order_someone_else");
+        await expect(
+          completedWebhook("pay_stranger", "order_mine"),
+        ).rejects.toThrow("order_someone_else");
       },
     );
   });
