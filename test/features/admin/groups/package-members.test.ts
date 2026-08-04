@@ -4,6 +4,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices } from "#shared/db/groups.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
+import type { GroupListing, ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -28,74 +29,38 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     expect(response.status).toBe(302);
   };
 
-  test("stores the typed price and quantity for each member", async () => {
-    const group = await createTestGroup({ name: "Priced package" });
+  /** Save a one-member package with the typed price and quantity, and hand
+   * back the member row it stored. */
+  const savedMemberRow = async (
+    label: string,
+    typed: { price: string; quantity: string },
+  ): Promise<GroupListing> => {
+    const group = await createTestGroup({ name: `${label} package` });
     const member = await createTestListing({
       groupId: group.id,
-      name: "Priced member",
+      name: `${label} member`,
       unitPrice: 900,
     });
-
     await savePackage(group, {
-      [`package_price_${member.id}`]: "4.50",
-      [`package_qty_${member.id}`]: "3",
+      [`package_price_${member.id}`]: typed.price,
+      [`package_qty_${member.id}`]: typed.quantity,
     });
-    expect(await getGroupPackagePrices(group.id)).toEqual([
-      {
-        group_id: group.id,
-        listing_id: member.id,
-        package_price: 450,
-        quantity: 3,
-      },
-    ]);
-  });
+    const rows = await getGroupPackagePrices(group.id);
+    const row = rows[0];
+    if (!row) throw new Error(`${label} member has no membership row`);
+    expect(rows).toHaveLength(1);
+    expect(row.listing_id).toBe(member.id);
+    return row;
+  };
 
-  test("falls back to no override and one unit for unusable inputs", async () => {
-    const group = await createTestGroup({ name: "Sloppy package" });
-    const member = await createTestListing({
-      groupId: group.id,
-      name: "Sloppy member",
-      unitPrice: 900,
-    });
-
-    await savePackage(group, {
-      [`package_price_${member.id}`]: "12abc",
-      [`package_qty_${member.id}`]: "2abc",
-    });
-    expect(await getGroupPackagePrices(group.id)).toEqual([
-      {
-        group_id: group.id,
-        listing_id: member.id,
-        package_price: null,
-        quantity: 1,
-      },
-    ]);
-  });
-
-  test("keeps an explicit free price and lifts a zero quantity to one", async () => {
-    const group = await createTestGroup({ name: "Free package" });
-    const member = await createTestListing({
-      groupId: group.id,
-      name: "Free member",
-      unitPrice: 900,
-    });
-
-    await savePackage(group, {
-      [`package_price_${member.id}`]: "0",
-      [`package_qty_${member.id}`]: "0",
-    });
-    expect(await getGroupPackagePrices(group.id)).toEqual([
-      {
-        group_id: group.id,
-        listing_id: member.id,
-        package_price: 0,
-        quantity: 1,
-      },
-    ]);
-  });
-
-  test("stores a per-day override for a customisable member", async () => {
-    const group = await createTestGroup({ name: "Day package" });
+  /** A one-member package whose member can be priced per day. */
+  const dayPricedPackage = async (
+    label: string,
+  ): Promise<{
+    group: { id: number; name: string; slug: string };
+    member: ListingWithCount;
+  }> => {
+    const group = await createTestGroup({ name: `${label} package` });
     const member = await createTestListing({
       customisableDays: true,
       dayPrices: { 1: 500, 2: 900 },
@@ -104,9 +69,38 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
       listingType: "daily",
       maximumDaysAfter: 30,
       minimumDaysBefore: 0,
-      name: "Day member",
+      name: `${label} member`,
       unitPrice: 500,
     });
+    return { group, member };
+  };
+
+  test("stores the typed price and quantity for each member", async () => {
+    const row = await savedMemberRow("Priced", {
+      price: "4.50",
+      quantity: "3",
+    });
+    expect(row.package_price).toBe(450);
+    expect(row.quantity).toBe(3);
+  });
+
+  test("falls back to no override and one unit for unusable inputs", async () => {
+    const row = await savedMemberRow("Sloppy", {
+      price: "12abc",
+      quantity: "2abc",
+    });
+    expect(row.package_price).toBeNull();
+    expect(row.quantity).toBe(1);
+  });
+
+  test("keeps an explicit free price and lifts a zero quantity to one", async () => {
+    const row = await savedMemberRow("Free", { price: "0", quantity: "0" });
+    expect(row.package_price).toBe(0);
+    expect(row.quantity).toBe(1);
+  });
+
+  test("stores a per-day override for a customisable member", async () => {
+    const { group, member } = await dayPricedPackage("Day");
 
     await savePackage(group, {
       [`package_day_price_${member.id}_2`]: "7.00",
@@ -119,18 +113,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
   });
 
   test("drops a day-price input that is not a number", async () => {
-    const group = await createTestGroup({ name: "Bad day package" });
-    const member = await createTestListing({
-      customisableDays: true,
-      dayPrices: { 1: 500, 2: 900 },
-      durationDays: 2,
-      groupId: group.id,
-      listingType: "daily",
-      maximumDaysAfter: 30,
-      minimumDaysBefore: 0,
-      name: "Bad day member",
-      unitPrice: 500,
-    });
+    const { group, member } = await dayPricedPackage("Bad day");
 
     await savePackage(group, {
       [`package_day_price_${member.id}_2`]: "nonsense",

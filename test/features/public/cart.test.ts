@@ -7,32 +7,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleCartBySlugs } from "#routes/public/cart.ts";
-import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-
-/** A free one-member package, so the page prices without a payment provider. */
-const freePackage = async (
-  name: string,
-  memberName: string,
-): Promise<{ group: Group; member: ListingWithCount }> => {
-  const group = await createTestGroup({ isPackage: true, name });
-  const member = await createTestListing({
-    groupId: group.id,
-    maxAttendees: 10,
-    maxQuantity: 10,
-    name: memberName,
-    unitPrice: 0,
-  });
-  await setGroupPackageMembers(group.id, [{ listingId: member.id, price: 0 }]);
-  return { group, member };
-};
+import { createFreePackage } from "#test-utils/packages.ts";
 
 /** The cart page for these slugs, or null when the cart holds no package. */
 const cartResponse = (slugs: string[]): Promise<Response | null> =>
@@ -61,7 +42,7 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
   });
 
   test("shows a package beside a listing added by its own slug", async () => {
-    const { group } = await freePackage("Camp kit", "Kit tent");
+    const { group } = await createFreePackage("Camp kit", "Kit tent");
     const solo = await createTestListing({
       maxQuantity: 5,
       name: "Lantern",
@@ -76,7 +57,7 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
   });
 
   test("keeps one row for a listing named twice", async () => {
-    const { group } = await freePackage("Twice kit", "Twice tent");
+    const { group } = await createFreePackage("Twice kit", "Twice tent");
     const solo = await createTestListing({
       maxQuantity: 5,
       name: "Repeated lantern",
@@ -88,8 +69,8 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
   });
 
   test("keeps one section for a package named twice", async () => {
-    const { group } = await freePackage("Repeated kit", "Repeated tent");
-    const other = await freePackage("Other kit", "Other tent");
+    const { group } = await createFreePackage("Repeated kit", "Repeated tent");
+    const other = await createFreePackage("Other kit", "Other tent");
 
     const html = await cartHtml([group.slug, group.slug, other.group.slug]);
     expect(countOf(html, `name="package_quantity_${group.id}"`)).toBe(1);
@@ -97,7 +78,7 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
   });
 
   test("drops a listing that is no longer on sale", async () => {
-    const { group } = await freePackage("Live kit", "Live tent");
+    const { group } = await createFreePackage("Live kit", "Live tent");
     const gone = await createTestListing({
       maxQuantity: 5,
       name: "Withdrawn lantern",
@@ -111,7 +92,7 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
   });
 
   test("shows a package on its own", async () => {
-    const { group } = await freePackage("Lone kit", "Lone tent");
+    const { group } = await createFreePackage("Lone kit", "Lone tent");
 
     const html = await cartHtml([group.slug]);
     expect(html).toContain(`name="package_quantity_${group.id}"`);
