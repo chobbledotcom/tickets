@@ -1,7 +1,7 @@
 /** Splitting text into trimmed, non-blank parts. */
 
 /** Split text on a separator, trim each part, and drop the blank ones. */
-export const splitTrimmed =
+const splitTrimmed =
   (separator: string | RegExp) =>
   (text: string): string[] =>
     text

@@ -1,12 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { commaParts, nonBlankLines, splitTrimmed } from "#shared/split.ts";
-
-describe("splitTrimmed", () => {
-  test("splits on the given separator", () => {
-    expect(splitTrimmed("|")("a | b|c")).toEqual(["a", "b", "c"]);
-  });
-});
+import { commaParts, nonBlankLines } from "#shared/split.ts";
 
 describe("commaParts", () => {
   test("trims parts and drops empty ones", () => {

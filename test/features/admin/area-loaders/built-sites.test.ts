@@ -3,7 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { ADMIN_AREA_LOADERS } from "#routes/admin/area-loaders.ts";
 
 test("keeps the complete built-site route catalog exact", async () => {
-  expect(Object.keys(await ADMIN_AREA_LOADERS.builtSites.load())).toEqual([
+  // Sorted: the table now assembles from crudRoutes/entityTabRoutes spreads,
+  // so object insertion order is no longer alphabetical.
+  expect(
+    Object.keys(await ADMIN_AREA_LOADERS.builtSites.load()).toSorted(),
+  ).toEqual([
     "GET /admin/built-sites",
     "GET /admin/built-sites/:id",
     "GET /admin/built-sites/:id/:tab",
