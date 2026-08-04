@@ -5,25 +5,25 @@ src/shared/forms/validation.ts::validateSingleField~0vrlsmq  = → +=   # this a
 src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
 src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/uptime-kuma/socket.ts::KumaSocket.changeListeners~0x9mfb4  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
-src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES~14f0p4m  1000 → 1001   # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
+src/shared/uptime-kuma/matching.ts::SCHEDULED_MONITOR_RULES.holds~14f0p4m  1000 → 1001   # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
 src/shared/checkout-pricing.ts::priceCheckout.modifierSpecs~1b95fmx  ?? → ||   # intent.modifiers: an array is always truthy
-src/shared/booking-lines.ts::checkoutBookingLines~0eqzp6w  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
-src/features/api/payment-processing/create.ts::bookingSlot~0zn56vl  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
+src/shared/booking-lines.ts::checkoutBookingLines.packageGroupId~0eqzp6w  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
+src/features/api/payment-processing/create.ts::bookingSlot.packageGroupId~0zn56vl  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
 src/features/api/payment-processing/create.ts::saveSessionAnswers.grouped~1qjy0pt  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.refs~13mow4w  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
 src/features/api/payment-processing/create.ts::saveSessionAnswers.existing~1kealbd  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
-src/features/api/payment-processing/create.ts::saveSessionAnswers~1ex96yt  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts::saveSessionAnswers.textAnswerIds~1ex96yt  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
 src/shared/logistics-filter.ts::parseAgentFilter.n~03f157n  ?? → ||   # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts::getBunnyDnsSubdomainSuffix~1pvt5gw  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::isPaymentsEnabled~02tsswb  ?? → ||   # providerValue returns boolean or null, and false stays false with either fallback operator
 src/shared/config.ts::getDebugKey~036uuok  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getBotpoisonPublicKey~0v606rk  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts::getBotpoisonSecretKey~0yy1bjh  ?? → ||   # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/qr-token.ts::buildQrBookPayload~1ywzxp9  ?? → ||   # input.date?: string, only falsy string "" === fallback ""
-src/shared/qr-token.ts::buildQrBookPayload~1tn44vm  ?? → ||   # input.name?: string, only falsy string "" === fallback ""
+src/shared/qr-token.ts::buildQrBookPayload.d~1ywzxp9  ?? → ||   # input.date?: string, only falsy string "" === fallback ""
+src/shared/qr-token.ts::buildQrBookPayload.n~1tn44vm  ?? → ||   # input.name?: string, only falsy string "" === fallback ""
 src/shared/app-forms.ts::createAuthedHandler~1q900po  ?? → ||   # config.auth is an AuthPolicy object when present, so it is always truthy
 src/shared/site-assignment.ts::renewalDeadlineBaseMs~00cywnq  ?? → ||   # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts::assignSitesForEntries.site~101ljxt  ?? → ||   # available[idx]: BuiltSite|undefined, and a BuiltSite object is always truthy
@@ -36,43 +36,43 @@ src/shared/ledger/reconcile.ts::multisetDiff~06icm7q  ?? → ||   # multisetDiff
 src/shared/ledger/reconcile.ts::multisetDiff.count~06icm7q  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts::reconcileLegs.want~1kc2onf  ?? → ||   # expected.get(): LegFingerprint[]|undefined — an array is always truthy
 src/shared/ledger/reconcile.ts::reconcileLegs.got~15zy9vn  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
-src/shared/ledger/reverse.ts::reverseOf~0ibvp6e  ?? → ||   # reverseOf memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/ledger/reverse.ts::reverseOf.memo~0ibvp6e  ?? → ||   # reverseOf memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/mappers.ts::refundKind~1mw4vn3  ?? → ||   # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
-src/shared/accounting/mappers.ts::mapRefund~0rfpt43  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/mappers.ts::mapRefund.kind~0rfpt43  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/store.ts::planGroup.existing~1qc9xlq  ?? → ||   # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
 src/shared/accounting/store.ts::planGroup~1dordwu  ?? → ||   # planGroup originalsById.get(): Transfer|undefined — a Transfer object is always truthy
 src/shared/accounting/rows.ts::legColumns~1u7xtcf  ?? → ||   # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/rows.ts::legColumns~12222gj  ?? → ||   # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/rows.ts::selectById~1v2xab7  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
-src/shared/accounting/rows.ts::renderInsert~06yrdj4  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
+src/shared/accounting/rows.ts::renderInsert.args~06yrdj4  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
 src/shared/accounting/manual-entries.ts::assertManualLedgerTransfer.kind~1kt86ag  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
-src/shared/checkout-ledger.ts::bookingFactsFromOrder~0t6vqf5  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
+src/shared/checkout-ledger.ts::bookingFactsFromOrder.bookingFee~0t6vqf5  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts::settingsForPath~1at4rp9  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/maintenance/runner.ts::runMaintenance.combinedAllowance~1tymqvs  0 → 1   # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts::runMaintenance.databaseAllowance~0tqknl5  0 → 1   # every non-empty run needs at least two database startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts::runMaintenance.candidates~0ysddhr  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
-src/shared/builder.ts::getDbCredentials~1tf2xm4  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
-src/shared/builder.ts::getDbCredentials~07qz5jj  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts::getDbCredentials.credentials.dbToken~1tf2xm4  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
+src/shared/builder.ts::getDbCredentials.dbProvider~07qz5jj  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts::getDbCredentials.provider~07qz5jj  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts::buildSite~1ql9xrg  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/features/url.ts::getSearchParam~075toi8  ?? → ||   # URLSearchParams.get returns null or a string; its only falsy string is already the empty fallback
-src/shared/storage.ts::uploadRaw~1aiucvn  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
+src/shared/storage.ts::uploadRaw.contentType~1aiucvn  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
 src/shared/site-build.ts::buildRetainedSite.result~1fvvof3  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
 src/shared/db/built-site-scheduler.ts::ensureBuiltSiteSchedulerKey.updated~0z0c2lu  ?? → ||   # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
 src/shared/deno-deploy-api.ts::revisionOutcome~0hg2lm6  ?? → ||   # failure_reason is null or a non-empty picklist value, so both use the status only for null
-src/shared/bunny-cdn.ts::createEdgeScriptImpl~14iov21  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
-src/shared/bunny-cdn.ts::listEdgeScriptSecretsImpl~0cl5i4z  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
+src/shared/bunny-cdn.ts::createEdgeScriptImpl.defaultHostname~14iov21  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
+src/shared/bunny-cdn.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
 src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → ||   # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
-src/shared/db/admin-features.ts::requireSettingCondition~1i6rv6b  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
-src/shared/db/admin-features.ts::requireSettingCondition~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
+src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
+src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts::usageJsonEntry~0041kmq  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
-src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger~0toeppz  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
-src/shared/square-provider.ts::squarePaymentProvider.charged~0ek3sg6  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
-src/shared/square-provider.ts::squarePaymentProvider.refunded~1mw8ezt  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
-src/shared/square-provider.ts::squarePaymentProvider~08j5olw  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
-src/shared/square-provider.ts::squarePaymentProvider.paymentReference~0bdoqfb  ?? → ||   # paymentId is string|undefined, and its only falsy string is the empty fallback itself
+src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.uses~0toeppz  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
+src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.charged~0ek3sg6  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts::squarePaymentProvider.isPaymentRefunded.refunded~1mw8ezt  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts::squarePaymentProvider.resolveWebhookSession~08j5olw  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
+src/shared/square-provider.ts::squarePaymentProvider.retrieveSession.paymentReference~0bdoqfb  ?? → ||   # paymentId is string|undefined, and its only falsy string is the empty fallback itself
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
@@ -104,12 +104,12 @@ src/shared/listings-actions.ts::validateListingGroup.typeError~0350hpg  ?? → |
 src/shared/listings-actions.ts::validateListingGroup.typeError~1o94tt5  ?? → ||   # existingId is a positive listing id or undefined, never 0
 src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x  ?? → ||   # monthsPerUnit: number|undefined, 0 ?? 0 === 0 || 0
 src/shared/listings-actions.ts::validateRenewalConfig~01imco1  ?? → ||   # initialSiteMonths: number|undefined, 0 ?? 0 === 0 || 0
-src/shared/listings-actions.ts::dayPriceFieldsFromInput~0350hpg  ?? → ||   # customisableDays: only falsy-non-null false === fallback
-src/shared/listings-actions.ts::dayPriceFieldsFromInput~1h4yd97  ?? → ||   # dayPrices: DayPrices|undefined — an object is always truthy
-src/shared/listings-actions.ts::dayPriceFieldsFromInput~1ugulhp  ?? → ||   # durationDays fallback is clamped; 0 and 1 both become 1
-src/shared/listings-actions.ts::dayPriceFieldsFromInput~1ugulhp  1 → 0   # clampDurationDays maps either fallback to the minimum duration of 1
-src/shared/listings-actions.ts::listingInputToEdge~1lqe3go  ?? → ||   # listingType: never "", so ?? and || coincide
-src/shared/listings-actions.ts::listingInputToEdge~0ruet3x  ?? → ||   # monthsPerUnit: 0 ?? 0 === 0 || 0
+src/shared/listings-actions.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → ||   # customisableDays: only falsy-non-null false === fallback
+src/shared/listings-actions.ts::dayPriceFieldsFromInput.day_prices~1h4yd97  ?? → ||   # dayPrices: DayPrices|undefined — an object is always truthy
+src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? → ||   # durationDays fallback is clamped; 0 and 1 both become 1
+src/shared/listings-actions.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0   # clampDurationDays maps either fallback to the minimum duration of 1
+src/shared/listings-actions.ts::listingInputToEdge.listing_type~1lqe3go  ?? → ||   # listingType: never "", so ?? and || coincide
+src/shared/listings-actions.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → ||   # monthsPerUnit: 0 ?? 0 === 0 || 0
 src/shared/listings-actions.ts::validateListingEdges.orphanError~1juqee2  ?? → ||   # groupIds: number[]|undefined — an array is always truthy
 
 # resize.ts writes each output pixel's channels exactly once into a freshly

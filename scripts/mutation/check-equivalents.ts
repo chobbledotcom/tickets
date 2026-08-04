@@ -14,15 +14,11 @@
 import { isAbsolute, relative, resolve, SEPARATOR } from "@std/path";
 import { generateMutants } from "./generate.ts";
 import {
-  EQUIVALENT_MUTANTS_DIR,
   listRegistryFiles,
   mutantKeyForPath,
   parseRegistryText,
   registryFilePath,
 } from "./ignore.ts";
-
-/** Where the checked-in registry lives. */
-export const DEFAULT_REGISTRY_DIR: URL = EQUIVALENT_MUTANTS_DIR;
 
 export interface EquivalentCheckOptions {
   /** Where the registry files live. */

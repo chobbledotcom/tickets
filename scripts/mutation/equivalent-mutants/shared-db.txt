@@ -3,9 +3,9 @@
 # Table inputs make these operators equivalent: nullable query results exclude
 # undefined, paired null checks already reject both nullish values, and optional
 # conditions/dependencies are objects or arrays.
-src/shared/db/table.ts::defineTable.updateStatement~1p65ca8  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts::defineTable.updateStatement.args~1p65ca8  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
 src/shared/db/table.ts::cachedTable~1o37jut  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts::defineCachedListTable~1o37jut  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
+src/shared/db/table.ts::defineCachedListTable.dependsOn~1o37jut  ?? → ||   # the cached table's dependsOn is the same array-or-undefined as above
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
@@ -30,7 +30,7 @@ src/shared/db/groups.ts::listingsInGroup~1orw8y7  Missing group listing membersh
 src/shared/db/groups.ts::getListingsByGroupIds~0zftiii  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
 src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
 src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
-src/features/admin/api-groups.ts::parsePackageMember~1ac0u3a  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
+src/features/admin/api-groups.ts::parsePackageMember.dayPrices~1ac0u3a  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
 
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
@@ -64,7 +64,7 @@ src/shared/db/client.ts::invalidateForSql.verb~1tuqlso  replace → ""   # REPLA
 # DB client (client.ts) — nullish-coalescing fallbacks whose left side can never
 # be a falsy non-null value, so `??` and `||` pick the same branch on every input.
 src/shared/db/client.ts::writeSqlOf~1begzdu  ?? → ||   # writeSqlOf's CTE capture is anchored on the literal "UPDATE" (6+ chars), never ""; a missing capture is undefined either way
-src/shared/db/client.ts::executeRead~0hs5u5i  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
+src/shared/db/client.ts::executeRead.args~0hs5u5i  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
 src/shared/db/client.ts::queryOne~1hu7rck  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
 
 # DB client (client.ts) — sentinel symbol descriptions.
@@ -82,16 +82,16 @@ src/shared/db/attendees/tokens.ts::tokenResultMap~1c5bf54  ?? → ||   # tokenRe
 # one-day span, so no input can tell the two apart.
 src/shared/db/capacity.ts::dateToRange~18guaiu  1 → 0   # dateToRange's default duration; normalizeDurationDays clamps 0 up to 1
 src/shared/db/capacity.ts::buildCapacityCondition~18guaiu  1 → 0   # buildCapacityCondition's default duration; same clamp
-src/shared/db/capacity.ts::buildCapacityCondition.dayClauses.daily~0ep36tv  1 → 0   # the per-day clause builds each day as a 1-day range; dateToRange normalizes 0 up to 1
+src/shared/db/capacity.ts::buildCapacityCondition.dayClauses.daily.dayRange~0ep36tv  1 → 0   # the per-day clause builds each day as a 1-day range; dateToRange normalizes 0 up to 1
 
 # Attendee PII (db/attendees/pii.ts) — three provably-equivalent survivors.
 src/shared/db/attendees/pii.ts::buildPiiBlob~1r4bpwk  attendees.pii_blob → ""   # buildPiiBlob receives AttendeePii: every field is already a string, and it supplies the only literal/version fields itself, so the stored-JSON writer cannot reject any contract input; its error label is never observed
-src/shared/db/attendees/pii.ts::decryptPiiBlob~0pjzbz9  ?? → ||   # decryptPiiBlob's `blob.la` is string|undefined and the fallback is "": truthy strings pass through, while both undefined and the only falsy string ("") produce "", so `??` and `||` agree on every input
-src/shared/db/attendees/pii.ts::decryptPiiBlob~1d5jjcf  ?? → ||   # decryptPiiBlob's `blob.lo` has the same string|undefined domain and "" fallback as latitude, so `??` and `||` agree on every input
+src/shared/db/attendees/pii.ts::decryptPiiBlob.lat~0pjzbz9  ?? → ||   # decryptPiiBlob's `blob.la` is string|undefined and the fallback is "": truthy strings pass through, while both undefined and the only falsy string ("") produce "", so `??` and `||` agree on every input
+src/shared/db/attendees/pii.ts::decryptPiiBlob.lng~1d5jjcf  ?? → ||   # decryptPiiBlob's `blob.lo` has the same string|undefined domain and "" fallback as latitude, so `??` and `||` agree on every input
 
 # getAttendees filter/query builder (src/shared/db/attendees/select.ts) — the
 # defaulted `kind`/`join` operands are string unions that never include "".
-src/shared/db/attendees/select.ts::whereClauses.parts~0zb4tlc  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts::whereClauses.parts.clause~0zb4tlc  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
 src/shared/db/attendees/select.ts::attendees.join~02qy6z7  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
 # processed-payments read-path failure_data label: the
@@ -105,13 +105,13 @@ src/shared/db/processed-payments.ts::parseSessionFailure~1rv3mep  processed_paym
 
 # The news card query names a single table, so its columns need no alias to
 # resolve.
-src/shared/db/news-posts.ts::getNewsPostCards.rows~0dqqett  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
-src/features/admin/api-keys.ts::apiKeyPage~0c5nk11  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
+src/shared/db/news-posts.ts::getNewsPostCards.rows.columns~0dqqett  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
+src/features/admin/api-keys.ts::apiKeyPage.load~0c5nk11  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
 
 # Batched package pricing (groups.ts) and its API caller: map lookups whose key
 # the loader always seeds, and an array fallback.
 src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → ||   # rowsByGroup.get(): GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds~1funuvq  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
 src/shared/db/groups.ts::loadPackageMemberPricing~1i2it1x  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every requested group id, so the single-group lookup always finds its own id
-src/features/admin/api-groups.ts::groupApiRoutes.pricing~02yma27  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
+src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
 src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree

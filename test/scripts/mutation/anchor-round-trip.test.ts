@@ -38,6 +38,9 @@ const AWKWARD = [
   ['const o = { "x y": () => 1 ?? 2 };\n', "an object key holding a space"],
   ["export default (globalThis.x ?? 0);\n", "code inside no declaration"],
   ["const f = () => () => () => 1 ?? 2;\n", "nesting with no names"],
+  ['const s = "left → right";\n', "a string holding the arrow"],
+  ['const s = "a#b";\n', "a string holding a comment mark"],
+  ["const f = () => {\n  step();\n  step();\n};\n", "repeated statements"],
 ] as const;
 
 const keysIn = async (path: string): Promise<string[]> => {
@@ -54,9 +57,8 @@ const keysOf = (source: string): string[] =>
   );
 
 /** The registry line a key is written as, reason and all. A `from` side can
- * hold spaces (a removed statement) and an arrow (a string literal), so the
- * split matches the parser's: first space ends the location, first arrow ends
- * the `from`. */
+ * hold spaces (a removed statement), so the split matches the parser's: first
+ * space ends the location, first arrow ends the `from`. */
 const asRegistryLine = (key: string): string => {
   const space = key.indexOf(" ");
   const location = key.slice(0, space);

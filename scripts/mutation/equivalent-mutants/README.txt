@@ -18,22 +18,26 @@
 # Format — one entry per line, plus a reason:
 #   <path>::<anchor>  <from> → <to>   # why it is equivalent
 #
-# The anchor names what the mutant sits inside — a function, a method, a value,
-# nested names joined by dots — then `~` and a fingerprint of the expression it
-# mutates:
+# The anchor names what the mutant sits inside — a function, a method, an object
+# property, a value, nested names joined by dots — then `~` and a fingerprint of
+# the expression it mutates:
 #
 #   src/fp.ts::collectionCache.generation~0dbfxl4  0 → 1   # ...
 #
 # Both halves come from the code, so an entry that resolves has found the
 # expression it was recorded against. An anchor moves only when that expression
 # is edited or its enclosing name changes — never because code around it moved.
+# The fingerprint never reaches past the mutant's own statement, so a change to
+# a neighbouring line leaves it alone.
 #
 # Two mutants sharing a name, a `from → to`, AND character-identical text are
-# indistinguishable; those take `@1`, `@2` in source order.
+# indistinguishable; those take `@1`, `@2` in source order. That ordinal is the
+# one part of an anchor that a reordering can move, so an entry carrying one is
+# worth re-checking whenever its neighbours change.
 #
-# Anything that would not survive a line — a space, the `#` that starts this
-# comment, a newline, whitespace at either edge of a literal — is
-# percent-encoded. `%23` is a `#`; `%20` is a space.
+# Anything that would not survive a line — a space at either edge, the `#` that
+# starts this comment, a newline, an arrow of its own — is percent-encoded.
+# `%23` is a `#`; `%20` is a space; `%e2%86%92` is a `→`.
 #
 # The path must be written exactly as the canonical project-relative path.
 #

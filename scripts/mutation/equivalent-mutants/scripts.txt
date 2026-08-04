@@ -40,11 +40,11 @@ scripts/pr-queue/summary.ts::hasTruncatedConnection~1uwoobj  ?? → ||   # hasNe
 scripts/unit-tests-report-imports.ts::stem~0mxx1lm   → "mutated"   # stem()'s first replace strips the directory before every `===` comparison in findMisplacedTests; both sides always have a leading `dir/` (tests live under test/, sources under src/), so the replacement string is prepended to both operands identically — stem(test) === stem(source) is invariant under its value
 
 # Test-tree scan: the subject lookup's default for an unselected path.
-scripts/test-tree-scan.ts::scanTestTree~0mczjth  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
+scripts/test-tree-scan.ts::scanTestTree.subjectsOf~0mczjth  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
 
 # Mutation test map: null-coalescing and the integration split.
 scripts/mutation/test-map.ts::mirrorOwnerOrNull~0tdqf2c  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
-scripts/mutation/test-map.ts::buildMutationTestMap~12ldm3l  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
+scripts/mutation/test-map.ts::buildMutationTestMap.integrationTestFiles~12ldm3l  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
 
 # Bundle AST bench: the parser's filename argument is a diagnostic label only.
 scripts/bench/bundle-composition/javascript-ast.ts::countJavaScriptAstNodes.result~0qowwnh  bundle.js → ""   # oxc uses the name only to label diagnostics and to pick a language from its extension; "bundle.js" and "" both select the default JavaScript parser, and the only parser output this module reads is errors[0].message (which never contains the name) and the node count
@@ -83,10 +83,10 @@ scripts/compact-test-reporter.ts::CompactTapReporter.recordFailure.location~13av
 
 # Mutation summary: grouped results are arrays or absent, never falsy-but-set.
 scripts/mutation/summary.ts::summarize.count~009kdgl  ?? → ||   # Object.groupBy gives each status a non-empty array or nothing at all, and an array is always truthy
-scripts/mutation/summary.ts::summarize~1orwjuw  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
+scripts/mutation/summary.ts::summarize.survivors~1orwjuw  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
 
 # Lock file: the handle exists only to carry the advisory lock.
-scripts/lock-file.ts::openLockFile~1kby7vv  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
+scripts/lock-file.ts::openLockFile.read~1kby7vv  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
 
 # Process helpers: the timer handle before the timer exists.
 scripts/process.ts::beforeTimeout.timeout~031tixz  0 → 1   # the promise body runs straight away and overwrites this handle, so its starting value is never the one cleared
@@ -98,8 +98,8 @@ src/shared/db/migrations.ts::initDb~0hi1ix2  ?? → ||   # opts.allowMissingSett
 
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.
-scripts/specs/run.ts::cucumberConfiguration~1w2j4s2  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
+scripts/specs/run.ts::cucumberConfiguration.provided.strict~1w2j4s2  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
 src/shared/crypto/encryption.ts::importKey~1usmfin  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable
-src/features/admin/attendee-page.ts::loadEditPanel.data~0i4v0pb  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
+src/features/admin/attendee-page.ts::loadEditPanel.data.returnUrl~0i4v0pb  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
 src/features/admin/attendees-list.ts::parsePage~1s9wpeb  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
-src/features/admin/listing-page-data.ts::loadListingRosterPanel~049e0ek  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
+src/features/admin/listing-page-data.ts::loadListingRosterPanel.childNames~049e0ek  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []

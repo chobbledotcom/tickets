@@ -13,10 +13,10 @@ test/test-utils/csrf.ts::extractQuantityListingId~0ma4ttp  ?? → ||   # quantit
 test/test-utils/test-browser/parsing.ts::findLinkByText~1ne3rb6  ?? → ||   # find(): LinkMatch|undefined; a found object is truthy
 test/test-utils/test-browser/forms.ts::inputType~177ejfp  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
 test/test-utils/test-browser/forms.ts::formSelectEntries.submittedOptions~032kmka  ?? → ||   # submitted option tags are non-empty strings when present, otherwise undefined
-test/test-utils/test-browser/forms.ts::buttonToPress~1d6r4c7  ?? → ||   # button value fallback is "", so empty value and absent value agree
+test/test-utils/test-browser/forms.ts::buttonToPress.buttonValue~1d6r4c7  ?? → ||   # button value fallback is "", so empty value and absent value agree
 test/test-utils/test-browser.ts::TestBrowser.request.response~1f52tfi  ?? → ||   # RequestInit.method is omitted or a non-empty method string in every caller
 test/test-utils/test-browser.ts::TestBrowser.findForm.form~1buiyd6  ?? → ||   # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input
-src/ui/templates/admin/listing-defaults.tsx::UrlControl~0tztqoo  ?? → ||   # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
+src/ui/templates/admin/listing-defaults.tsx::UrlControl.value~0tztqoo  ?? → ||   # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
 src/ui/templates/admin/listing-defaults.tsx::DaysControl~161v5lk  ?? → ||   # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
 src/shared/booking/build-tree.ts::buildChildren~0dd6wv5  ?? → ||   # childrenByParentId?.get(): readonly TicketListing[]|undefined — an array is always truthy, so ?? and || coincide
 src/shared/booking/build-tree.ts::buildPackageMemberNode.fixedQty~0prrjlp  ?? → ||   # pkg.quantities.get(): a member's fixed per-package quantity is ≥1 — every save path enforces it (the form's parsePackageQuantity clamps 0→1 in admin/groups.ts, the JSON API's parsePackageMember rejects quantity<1 in admin/api-groups.ts), so the map never holds 0 and (n ?? 1)===(n || 1)
@@ -28,7 +28,7 @@ src/shared/booking/fold-tree.ts::selectFoldableParents.parentQty~0i5xfpy  ?? →
 src/shared/booking/fold-tree.ts::childQtyField~0ct408f  ?? → ||   # childQtyField: parseNonNegativeInt returns a non-negative int or null; its only falsy result (0) already maps to 0, so ?? and || coincide
 src/shared/booking/fold-tree.ts::hasUnavailableChildSelection.childId~109lg92  10 → 0   # parseInt differs only for a non-decimal key; childQtyField then reads its canonical decimal key, whose own scan rejects it when positive, so both paths agree
 src/shared/booking/fold-tree.ts::foldChild.summed~1kxlam7  ?? → ||   # foldChild summed: state.quantities.get(childId) is undefined (first fold) or a positive running total, never 0, so ?? and || coincide
-src/shared/booking/fold-tree.ts::foldBookingTree~18z6b4j  ?? → ||   # dayCount: customisableDuration is a positive day count or null, never 0, so ?? base.dayCount and || base.dayCount coincide
+src/shared/booking/fold-tree.ts::foldBookingTree.dayCount~18z6b4j  ?? → ||   # dayCount: customisableDuration is a positive day count or null, never 0, so ?? base.dayCount and || base.dayCount coincide
 src/shared/booking/signed-metadata.ts::allocatedQtyByChild~1ufnxf7  ?? → ||   # allocations come from foldChild with qty > 0, so a running child total is undefined or positive and both fallbacks agree
 src/shared/booking/signed-metadata.ts::lineEdgeDrifted~1if37rm  ?? → ||   # foldedQty values are positive allocation totals; absent and present values behave identically with either zero fallback
 src/shared/catalog-fields/definition.ts::fieldSupportsProjection~0v63zom  1 → 0   # a missing column becomes selected by its non-empty database name, but the columns projection still returns undefined and drops it; present columns are selected either way

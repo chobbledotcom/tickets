@@ -67,11 +67,14 @@ const nameOf = (node: NamedNode): string | null => {
 
 /** Declarations whose name is worth carrying into the path. A block or an `if`
  * contributes nothing: naming by them would move the anchor when surrounding
- * code is merely re-nested. */
+ * code is merely re-nested. `Property` earns its place because so much of this
+ * codebase is config objects and dispatch maps — without it, two callbacks in
+ * one object share a name and can only be told apart by their order. */
 const NAMING_TYPES = new Set([
   "ClassDeclaration",
   "FunctionDeclaration",
   "MethodDefinition",
+  "Property",
   "PropertyDefinition",
   "TSEnumDeclaration",
   "TSInterfaceDeclaration",
@@ -80,11 +83,23 @@ const NAMING_TYPES = new Set([
   "VariableDeclarator",
 ]);
 
+type Node = Record<string, unknown>;
+
 const isSpan = (value: unknown): value is Span =>
   typeof value === "object" &&
   value !== null &&
   typeof (value as Span).start === "number" &&
   typeof (value as Span).end === "number";
+
+/**
+ * Where the fingerprint stops climbing: the statement a mutant sits in. Going
+ * past it would fold the mutant's neighbours into the fingerprint, so editing
+ * an unrelated line in the same block would move an anchor that should have
+ * stayed put. `Program` is a boundary too, so the search always finds one.
+ */
+const isBoundary = (node: Node): boolean =>
+  typeof node.type === "string" &&
+  (node.type === "Program" || /(?:Statement|Declaration)$/.test(node.type));
 
 interface Descent {
   /** The span whose text is fingerprinted. */
@@ -93,41 +108,52 @@ interface Descent {
 }
 
 /**
- * Walk down to a mutant's span, collecting the names enclosing it and the
- * smallest node that strictly contains it. Follows only the child holding the
- * span, so the cost is the tree's depth, not its size.
+ * Walk down to a mutant's span, collecting the names enclosing it and the node
+ * whose text is fingerprinted. Follows only the child holding the span, so the
+ * cost is the tree's depth, not its size.
  *
- * Strictly containing is what makes the fingerprint identify this mutant and
- * nothing else. A swapped operator sits in the gap inside its own expression,
- * so that expression is chosen — `a ?? 0`, not the array it shares with its
- * neighbours. A replaced literal *is* a node, so the node one step out is
- * chosen: the expression giving that literal its meaning.
+ * The fingerprint covers the smallest node that *strictly* contains the mutant
+ * without leaving its statement. A swapped operator sits in the gap inside its
+ * own expression, so that expression is chosen — `a ?? 0`, not the array it
+ * shares with its neighbours. A replaced literal *is* a node, so the node one
+ * step out is chosen: the expression giving that literal its meaning. A removed
+ * statement already fills its statement, so it is fingerprinted as itself —
+ * never as the block it shares with the statements around it.
  */
 const descendTo = (program: object, mutant: Span): Descent => {
-  const offset = mutant.start;
   const width = mutant.end - mutant.start;
   const names: string[] = [];
-  const spans: Span[] = [];
+  const path: Node[] = [];
   let node: object = program;
   for (;;) {
-    const record = node as Record<string, unknown>;
+    const record = node as Node;
     if (typeof record.type === "string" && NAMING_TYPES.has(record.type)) {
       const named = nameOf(record as NamedNode);
       if (named !== null) names.push(named);
     }
-    if (isSpan(record)) spans.push(record);
+    path.push(record);
     const next = Object.values(record)
       .flatMap((value) => (Array.isArray(value) ? value : [value]))
       .find(
-        (value) => isSpan(value) && value.start <= offset && offset < value.end,
+        (value) =>
+          isSpan(value) &&
+          value.start <= mutant.start &&
+          mutant.start < value.end,
       );
     if (!next) break;
     node = next as object;
   }
-  // The program is itself a span holding every offset, so there is always at
-  // least one to fall back to.
-  const containing = spans.filter((span) => span.end - span.start > width);
-  return { context: containing.at(-1) ?? spans.at(-1)!, names };
+  // Descending follows the mutant's first character, so the deepest nodes can
+  // end before the mutant does. Only nodes holding all of it can name it.
+  const holding = path.filter(
+    (found): found is Node & Span =>
+      isSpan(found) && found.start <= mutant.start && mutant.end <= found.end,
+  );
+  const withinStatement = holding.slice(holding.findLastIndex(isBoundary));
+  const wider = withinStatement.findLast(
+    (found) => found.end - found.start > width,
+  );
+  return { context: wider ?? withinStatement.at(-1)!, names };
 };
 
 export interface AnchoredMutant {
@@ -149,9 +175,10 @@ export const ANCHOR_PATTERN = /^[A-Za-z0-9_$\-.%~@]+$/;
  * Give every mutant its anchor.
  *
  * Two mutants collide only when they share an enclosing name, a `from → to`,
- * and character-identical expression text — genuinely indistinguishable, so
- * they take `@1`, `@2` in source order. Anything that merely moves code leaves
- * every anchor alone.
+ * and character-identical expression text. Nothing in the code tells those
+ * apart, so they fall back to source order as `@1`, `@2` — the one part of an
+ * anchor a reordering can move, and the reason names are collected as finely
+ * as they are. Anything short of that leaves every anchor alone.
  *
  * Top-level code belonging to no declaration anchors on the file itself,
  * written `%3cfile%3e`.

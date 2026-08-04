@@ -22,9 +22,10 @@
 
 import { fromFileUrl, join } from "@std/path";
 import { namesInDirectory, rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { rel } from "#scripts/project-root.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
-import { type MutantResult, rel } from "./summary.ts";
+import type { MutantResult } from "./summary.ts";
 
 export const EQUIVALENT_MUTANTS_DIR = new URL(
   "./equivalent-mutants/",
@@ -52,17 +53,19 @@ export const listRegistryFiles = async (
 
 /**
  * A mutated literal carries its own text into the displayed `from → to`, where
- * three things would not survive being written to a line and read back: a `#`
- * reads as the start of the reason, a newline ends the line outright, and
- * whitespace at either edge is absorbed by the spacing around the arrow — which
- * would let `"; "` and `";"` share one key. Each is escaped; interior spaces
- * are left alone, so a removed statement still reads as itself.
+ * four things would not survive being written to a line and read back: a `#`
+ * reads as the start of the reason, a newline ends the line outright, an arrow
+ * of its own reads as the one splitting `from` from `to`, and whitespace at
+ * either edge is absorbed by the spacing around that arrow — which would let
+ * `"; "` and `";"` share one key. Each is escaped; interior spaces are left
+ * alone, so a removed statement still reads as itself.
  */
 const escapeForLine = (text: string): string =>
   text
     .replaceAll("%", "%25")
     .replaceAll("#", "%23")
     .replaceAll("\n", "%0a")
+    .replaceAll("→", "%e2%86%92")
     .replace(/^\s+/, (run) => "%20".repeat(run.length))
     .replace(/\s+$/, (run) => "%20".repeat(run.length));
 

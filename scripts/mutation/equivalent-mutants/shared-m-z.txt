@@ -14,7 +14,7 @@ src/shared/rest/resource.ts::parseAndValidate~0ypp34v  ?? → ||   # validationE
 # `?? fallback` and `|| fallback` always agree. (createScopedValue's ?? is NOT
 # equivalent — a falsy scoped value must win over the fallback — and the
 # "falsy value still wins" test kills it.)
-src/shared/request-scoped.ts::createRequestScoped~1izbdej  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
+src/shared/request-scoped.ts::createRequestScoped.current~1izbdej  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
 
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts::toBookingItems.foldedChildIds~1sr8ybw  ?? → ||   # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
@@ -93,7 +93,7 @@ src/shared/renewal-helpers.ts::formatDeadlineLabel~0giqb8e  0 → -1   # same re
 # non-string, empty, uppercase, spaces, symbols, leading/trailing separator,
 # consecutive separators — produces the identical issues[0].message under
 # both true and false.
-src/shared/slug.ts::firstIssueMessage.result~0d98clm  true → false   # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
+src/shared/slug.ts::firstIssueMessage.result.abortPipeEarly~0d98clm  true → false   # abortPipeEarly: SlugSchema's issues[0] message is identical either way for every input category the pipe can fail on
 
 # url-safety.ts: isInternalHostname and isIpLiteral are private helpers only
 # ever called (via isSafeServerFetchUrl) with `url.hostname` from an already
@@ -146,12 +146,12 @@ src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → 2   # slice(1,-2) vs slic
 src/shared/url-safety.ts::isIpLiteral.h~05rrw2z  1 → -1   # slice(1,1) empties h; same isDomainHostname fallback as above
 src/shared/url-safety.ts::isIpLiteral~1l2lep3  : → ": mutated"   # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
 src/shared/url-safety.ts::isIpLiteral~1d8tf9e  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
-src/ui/templates/admin/images.tsx::imageValue~17v2zve  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
-src/ui/templates/admin/images.tsx::imageValue~0pg0nzi  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx::imageValue.alt_text~17v2zve  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx::imageValue.name~0pg0nzi  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
 src/features/admin/images.ts::parseImageTargets~01dj453   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
 src/features/admin/images.ts::parseImageTargets~1gk0kbs   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
-src/features/admin/images.ts::handleImageEditGet~0nhw9xr  applyFlash(request); → (removed)   # only records ?form= targeting; no form on the images pages has an id, so the flash renders at the Layout backstop either way
-src/features/admin/images.ts::handleImageDeleteGet~0rod7gb  applyFlash(request); → (removed)   # same as images.ts:56 — no id'd form on the page
+src/features/admin/images.ts::handleImageEditGet~0t9nij6  applyFlash(request); → (removed)   # only records ?form= targeting; no form on the images pages has an id, so the flash renders at the Layout backstop either way
+src/features/admin/images.ts::handleImageDeleteGet~0t9nij6  applyFlash(request); → (removed)   # same as images.ts:56 — no id'd form on the page
 
 # Attendee merge service (attendee-merge.ts) — `?? → ||` between
 # `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and
@@ -161,11 +161,11 @@ src/features/admin/images.ts::handleImageDeleteGet~0rod7gb  applyFlash(request);
 # holds the same type.)
 src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.ta~09unqn1  ?? → ||   # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
 src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sa~1ys4u6l  ?? → ||   # same as :245 — Map<number,object>.get returns undefined or a truthy object
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems~0mw46ge  ?? → ||   # questionTextMap.get returns undefined or a truthy validated question string
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems~1uekb3w  ?? → ||   # sa?.answerId is undefined or a positive id, never 0
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems~1vp707e  ?? → ||   # sa?.answerText is undefined or a non-empty validated answer string
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems~0z8l3en  ?? → ||   # ta?.answerId is undefined or a positive id, never 0
-src/shared/merge/attendee-merge.ts::buildAnswerDiffItems~0jv7oux  ?? → ||   # ta?.answerText is undefined or a non-empty validated answer string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.questionText~0mw46ge  ?? → ||   # questionTextMap.get returns undefined or a truthy validated question string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerId~1uekb3w  ?? → ||   # sa?.answerId is undefined or a positive id, never 0
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.sourceAnswerText~1vp707e  ?? → ||   # sa?.answerText is undefined or a non-empty validated answer string
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerId~0z8l3en  ?? → ||   # ta?.answerId is undefined or a positive id, never 0
+src/shared/merge/attendee-merge.ts::buildAnswerDiffItems.targetAnswerText~0jv7oux  ?? → ||   # ta?.answerText is undefined or a non-empty validated answer string
 
 # Attendee merge service (attendee-merge.ts) — targetByKey lookup
 # `targetByKey.get(bookingKey(...)) ?? null`. Map.get returns undefined or a
@@ -195,8 +195,8 @@ src/shared/merge/attendee-merge.ts::applyPiiDecisions~0ce4on8  = → +=   # merg
 # hash change can't surface via an idempotent-replay either; and no test or
 # production code queries the merged attendee's reversal legs by their
 # `event_group` value.
-src/shared/merge/attendee-merge.ts::moneyReversalLegs~0ut5xv3  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
-src/shared/merge/attendee-merge.ts::moneyReversalLegs~05pepwi  merge-credit → ""   # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
+src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~0ut5xv3  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
+src/shared/merge/attendee-merge.ts::moneyReversalLegs.keyParts~05pepwi  merge-credit → ""   # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
 
 # i18n copy handling (shared/rebrand.ts + shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
@@ -217,19 +217,19 @@ src/shared/stripe/webhook.ts::readHeaderPart.key~0pq15rq  ?: → alternate only 
 src/shared/stripe/webhook.ts::readHeaderPart.key~05rrw2z  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
-src/shared/sumup.ts::sumupApi~0ahuvgt  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
-src/shared/sumup.ts::sumupApi~109o082  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+src/shared/sumup.ts::sumupApi.refundTransaction~0ahuvgt  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
+src/shared/sumup.ts::sumupApi.testSumupConnection.mode~109o082  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
 # inTag is true — and every assignment of inTag=true (stepProse's unfinished
 # tag) also assigns tagIsCode. So a stale tagIsCode value can never be read.
-src/shared/rebrand.ts::freshScan~0lmqhnz  false → true   # freshScan's tagIsCode: inTag starts false, so stepTag cannot run before stepProse has overwritten tagIsCode — the initial value is never read
+src/shared/rebrand.ts::freshScan.tagIsCode~0lmqhnz  false → true   # freshScan's tagIsCode: inTag starts false, so stepTag cannot run before stepProse has overwritten tagIsCode — the initial value is never read
 src/shared/rebrand.ts::stepTag~0zhp0n6  false → true   # stepTag's tagIsCode reset after closing: inTag is false from here, and the next inTag=true assignment rewrites tagIsCode first — the residual value is never read
 # scanTagEnd treats "<" as an inert character (it is neither a quote nor ">"),
 # so starting the scan at the "<" itself instead of one past it visits one
 # extra no-op character and returns the same index with the same quote state.
 src/shared/rebrand.ts::stepProse.end~17odbj7  + → *   # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
 src/shared/rebrand.ts::stepProse.end~17odbj7  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
-src/features/admin/attributes.ts::handleAddOption~1g336tf  0 → 1   # option insert's sortOrder is a placeholder: the same transaction's append overwrites it before commit, and a failed append rolls the row back — no committed state can carry the inserted value
+src/features/admin/attributes.ts::handleAddOption.onValid.sortOrder~1g336tf  0 → 1   # option insert's sortOrder is a placeholder: the same transaction's append overwrites it before commit, and a failed append rolls the row back — no committed state can carry the inserted value
 

@@ -15,3 +15,6 @@ export const toDisplayPath = (base: string, file: string): string => {
   const escapesBase = rel === ".." || rel.startsWith(`..${sep}`);
   return escapesBase ? file : rel || ".";
 };
+
+/** Project-relative path for display (absolute paths get noisy in reports). */
+export const rel = (file: string): string => toDisplayPath(projectRoot, file);

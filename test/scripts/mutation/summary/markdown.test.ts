@@ -93,9 +93,13 @@ describe("the Markdown mutation report", () => {
         "",
         "These mutations did not fail any test:",
         "",
-        "| location | mutation |",
+        "| location | registry entry |",
         "| --- | --- |",
-        "| `src/example.ts:4:3` | `return x` \u2192 `return undefined` |",
+        "| `src/example.ts:4:3` | `src/example.ts::fn4 return x\u2192return undefined` |",
+        "",
+        "Proven unkillable by any test? Paste its line above into a file" +
+          " under scripts/mutation/equivalent-mutants/, followed by  # and the" +
+          " reason.",
         "",
       ].join("\n"),
     );

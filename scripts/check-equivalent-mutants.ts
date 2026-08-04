@@ -1,14 +1,12 @@
 #!/usr/bin/env -S deno run -A
 /** Command line over `checkEquivalentMutants`, run by `deno task check:equivalents`. */
 
-import {
-  checkEquivalentMutants,
-  DEFAULT_REGISTRY_DIR,
-} from "#scripts/mutation/check-equivalents.ts";
+import { checkEquivalentMutants } from "#scripts/mutation/check-equivalents.ts";
+import { EQUIVALENT_MUTANTS_DIR } from "#scripts/mutation/ignore.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 
 const problems = await checkEquivalentMutants({
-  registryDir: DEFAULT_REGISTRY_DIR,
+  registryDir: EQUIVALENT_MUTANTS_DIR,
   root: projectRoot,
 });
 if (problems.length === 0) {
