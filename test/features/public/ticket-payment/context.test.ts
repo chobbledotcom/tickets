@@ -21,6 +21,7 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeParent } from "#test-utils/parents.ts";
+import { withSetting } from "#test-utils/settings.ts";
 
 const allDays = [
   "Monday",
@@ -51,6 +52,71 @@ const foldBase = (listingId: number, quantity: number) => ({
   hasCustomisable: false,
   quantities: new Map([[listingId, quantity]]),
 });
+
+/** One terms case: what the group has (null means the page has no group at
+ * all), what the site has, and which of the two the buyer should be shown. */
+type TermsCase = {
+  shows: string;
+  groupTerms: string | null;
+  siteTerms: string;
+  expected: string;
+};
+
+const TERMS_CASES: TermsCase[] = [
+  {
+    expected: "Group rules",
+    groupTerms: "Group rules",
+    shows: "a group's own terms ahead of the site's",
+    siteTerms: "Site rules",
+  },
+  {
+    expected: "Site rules",
+    groupTerms: "",
+    shows: "the site's terms for a group that has none",
+    siteTerms: "Site rules",
+  },
+  {
+    expected: "",
+    groupTerms: "",
+    shows: "no terms when neither the group nor the site has any",
+    siteTerms: "",
+  },
+  {
+    expected: "Site rules",
+    groupTerms: null,
+    shows: "the site's terms on a page with no group",
+    siteTerms: "Site rules",
+  },
+  {
+    expected: "",
+    groupTerms: null,
+    shows: "no terms on a page with neither a group nor site terms",
+    siteTerms: "",
+  },
+];
+
+/** Build the listing (in a group, unless the case has none), set the site
+ * terms, and report which terms its ticket page ends up showing. */
+const termsShownFor = async (termsCase: TermsCase): Promise<string> => {
+  const group =
+    termsCase.groupTerms === null
+      ? undefined
+      : await createTestGroup({
+          name: `Group for ${termsCase.shows}`,
+          termsAndConditions: termsCase.groupTerms,
+        });
+  const listing = await createTestListing({
+    ...(group ? { groupId: group.id } : {}),
+    maxAttendees: 5,
+    name: `Listing for ${termsCase.shows}`,
+  });
+
+  const ctx = await withSetting(
+    { terms_and_conditions: termsCase.siteTerms },
+    async () => getTicketContext([await ticketListing(listing.id)], group),
+  );
+  return ctx.terms;
+};
 
 describeWithEnv("ticket context branches", { db: true }, () => {
   test("loads holidays only for a selected parent that has children", async () => {
@@ -156,4 +222,10 @@ describeWithEnv("ticket context branches", { db: true }, () => {
       ctx.dates.map((date) => new Date(`${date}T00:00:00Z`).getUTCDay()),
     ).toEqual(ctx.dates.map(() => 1));
   });
+
+  for (const termsCase of TERMS_CASES) {
+    test(`shows ${termsCase.shows}`, async () => {
+      expect(await termsShownFor(termsCase)).toBe(termsCase.expected);
+    });
+  }
 });

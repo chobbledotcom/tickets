@@ -33,6 +33,19 @@ const checkoutItemFor = (
   ...overrides,
 });
 
+/** Book one free listing whose order also consumes modifier stock. */
+const bookOneWithStock = (
+  listing: ReturnType<typeof testListingWithCount>,
+): ReturnType<typeof createFreeReservation> =>
+  createFreeReservation({
+    contact,
+    date: null,
+    items: [checkoutItemFor(listing, { unitPrice: 0 })],
+    ledgerOrder: null,
+    listings: [buildTicketListing(listing, false, undefined)],
+    modifierUsages: [{ amountApplied: 0, modifierId: 1, quantity: 1 }],
+  });
+
 describeWithEnv("free reservation construction", { db: true }, () => {
   describe("missing lookups", () => {
     test("fails before writing when a paid amount is missing", async () => {
@@ -88,14 +101,7 @@ describeWithEnv("free reservation construction", { db: true }, () => {
         } as never),
       );
 
-      const result = await createFreeReservation({
-        contact,
-        date: null,
-        items: [checkoutItemFor(listing, { unitPrice: 0 })],
-        ledgerOrder: null,
-        listings: [buildTicketListing(listing, false, undefined)],
-        modifierUsages: [{ amountApplied: 0, modifierId: 1, quantity: 1 }],
-      });
+      const result = await bookOneWithStock(listing);
 
       expect(result).toMatchObject({ success: true, token: "ticket-token" });
       expect(create.calls[0]!.args[0]).toMatchObject({
@@ -111,6 +117,53 @@ describeWithEnv("free reservation construction", { db: true }, () => {
         remainingBalance: 0,
       });
       expect(create.calls[0]!.args[1].legs).toEqual([]);
+    });
+  });
+
+  describe("refusals", () => {
+    test("says an extra sold out while the buyer was checking out", async () => {
+      const listing = testListingWithCount({ id: 8 });
+      using _create = stub(attendeesApi, "createBookingAtomic", () =>
+        Promise.resolve("sold-out" as const),
+      );
+
+      const result = await bookOneWithStock(listing);
+
+      expect(result).toEqual({
+        error:
+          "An extra you selected sold out while you were checking out. Please try again.",
+        success: false,
+      });
+    });
+
+    test("names the order's first listing when it will not fit", async () => {
+      const first = testListingWithCount({ id: 9, name: "First choice" });
+      const second = testListingWithCount({ id: 10, name: "Second choice" });
+      using _create = stub(attendeesApi, "createAttendeeAtomic", () =>
+        Promise.resolve({
+          reason: "capacity_exceeded",
+          success: false,
+        } as const),
+      );
+
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        items: [
+          checkoutItemFor(first, { unitPrice: 0 }),
+          checkoutItemFor(second, { unitPrice: 0 }),
+        ],
+        ledgerOrder: null,
+        listings: [first, second].map((listing) =>
+          buildTicketListing(listing, false, undefined),
+        ),
+        modifierUsages: [],
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toContain("First choice");
+      expect(result.error).not.toContain("Second choice");
     });
   });
 });
