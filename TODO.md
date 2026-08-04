@@ -953,10 +953,13 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   `getPackageDisplaysByIds` was already a single query.
 - **Registration logs and outgoing webhooks.** `logAndNotifyRegistration` and
   `sendRegistrationWebhooks` in `src/shared/webhook.ts` can insert one activity
-  row per booking and fetch every distinct webhook URL. Add one bulk log
-  insert. Persist outbound webhook jobs for bounded out-of-band delivery. (The
-  per-package override reads are done: `loadPackageOverrides` now uses
-  `loadPackageMemberPricingByGroupIds`.)
+  row per booking, load two overrides per package, and fetch every distinct
+  webhook URL. Add one bulk log insert and one batched override read
+  (`loadPackageOverrides` can call `loadPackageMemberPricingByGroupIds`, which
+  now exists). Persist outbound webhook jobs for bounded out-of-band delivery.
+  Budget for the test work: `src/shared/webhook.ts` has about twenty surviving
+  mutants today, and the mutation gate demands they all die once the file is
+  touched.
 - **Multi-entry check-in.** `handleCheckinPost` in
   `src/features/checkin.ts` calls `updateCheckedIn` once per eligible booking
   line. A token set with 51 lines therefore makes 51 updates. Replace it with
