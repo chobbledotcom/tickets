@@ -3,15 +3,12 @@
  */
 
 /* jscpd:ignore-start */
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { applyFlash, parseFormData } from "#routes/csrf.ts";
 import { lowerContentType } from "#routes/middleware.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
-import {
-  htmlResponse,
-  jsonResponse,
-  redirectResponse,
-} from "#routes/response.ts";
+import { htmlResponse, redirectResponse } from "#routes/response.ts";
 import { parseCookies } from "#routes/url.ts";
 import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -528,14 +525,14 @@ export const anyUserPage = authPage(requireAnyUserOr);
 
 /** Shared auth failure response factories (avoids jscpd duplication) */
 const htmlForbidden = () => htmlResponse("Forbidden", 403);
-const jsonForbidden = () => jsonResponse({ error: "Forbidden" }, 403);
+const jsonForbidden = () => apiErrorResponse("Forbidden", 403);
 
 /** Auth failure responses keyed by reason, with html and json variants side-by-side. */
 const AUTH_FAILURES = {
   forbidden: { html: htmlForbidden, json: jsonForbidden },
   "invalid-api-key": {
     html: htmlForbidden,
-    json: () => jsonResponse({ error: "Invalid API key" }, 401),
+    json: () => apiErrorResponse("Invalid API key", 401),
   },
   "invalid-csrf": {
     html: () => htmlResponse("Invalid CSRF token", 403),
@@ -543,7 +540,7 @@ const AUTH_FAILURES = {
   },
   "not-authenticated": {
     html: () => redirectResponse("/admin"),
-    json: () => jsonResponse({ error: "Not authenticated" }, 401),
+    json: () => apiErrorResponse("Not authenticated", 401),
   },
 } satisfies Record<string, Record<"html" | "json", () => Response>>;
 
@@ -574,7 +571,7 @@ const parseJsonBody: JsonBodyReader = async (request) => {
 
   if (!contentType.includes("application/json")) {
     if (bodyRequired) {
-      return jsonResponse({ error: "Invalid request body" }, 400);
+      return apiErrorResponse("Invalid request body");
     }
     return {};
   }
@@ -584,11 +581,11 @@ const parseJsonBody: JsonBodyReader = async (request) => {
       code: ErrorCode.VALIDATION_FORM,
       detail: "Malformed JSON body",
     });
-    return jsonResponse({ error: "Invalid request body" }, 400);
+    return apiErrorResponse("Invalid request body");
   }
   const parsed = body.value;
   if (!isRecord(parsed)) {
-    return jsonResponse({ error: "Invalid request body" }, 400);
+    return apiErrorResponse("Invalid request body");
   }
   return parsed;
 };

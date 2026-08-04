@@ -18,7 +18,7 @@ import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { flatCollectionSwap } from "#shared/db/ordered-collection.ts";

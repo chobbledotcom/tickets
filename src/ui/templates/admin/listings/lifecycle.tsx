@@ -48,7 +48,7 @@ const confirmParagraph = (
   listing: ListingWithCount,
 ): JSX.Element => <p>{t(key, { name: listing.name })}</p>;
 
-export const adminDeleteListingPage = listingConfirmPageFrom((listing) => ({
+export const adminListingDeletePage = listingConfirmPageFrom((listing) => ({
   action: `/admin/listing/${listing.id}/delete`,
   buttonText: t("listings_table.delete_listing"),
   prompt: {

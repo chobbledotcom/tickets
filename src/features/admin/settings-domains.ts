@@ -14,7 +14,7 @@ import {
   validateCustomDomain,
 } from "#shared/bunny-cdn.ts";
 import { isBunnyCdnEnabled, isBunnyDnsEnabled } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import { DOMAIN_PATTERN } from "#shared/embed-hosts.ts";
 import { fail, ok } from "#shared/response.ts";

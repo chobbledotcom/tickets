@@ -23,7 +23,7 @@ import type {
   PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
 import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { executeBatch, type TxScope } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,

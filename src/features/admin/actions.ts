@@ -18,7 +18,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
   getAttendeeKindsByIds,

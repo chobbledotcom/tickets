@@ -5,8 +5,8 @@
  *    each with a "×" that opens the are-you-sure delete page, plus an add link.
  *  - {@link AttendeeNotesSummary} — the red expandable shown above an attendee
  *    list when any listed attendee has notes.
- *  - {@link adminAddNotePage} — the operator add-note form.
- *  - {@link adminDeleteNotePage} — the are-you-sure delete page (NOT the
+ *  - {@link adminNoteNewPage} — the operator add-note form.
+ *  - {@link adminNoteDeletePage} — the are-you-sure delete page (NOT the
  *    copy/paste confirmation), returning to wherever the operator came from.
  */
 
@@ -201,7 +201,7 @@ export const AttendeeNotesSummary = ({
 };
 
 /** The operator add-note page. */
-export const adminAddNotePage = ({
+export const adminNoteNewPage = ({
   attendeeId,
   attendeeName,
   session,
@@ -245,7 +245,7 @@ export const adminAddNotePage = ({
  * confirm button (no copy/paste name confirmation), bouncing back to
  * `returnUrl` on confirm or cancel.
  */
-export const adminDeleteNotePage = ({
+export const adminNoteDeletePage = ({
   note,
   session,
   returnUrl,

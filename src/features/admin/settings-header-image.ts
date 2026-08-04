@@ -7,7 +7,7 @@ import { t } from "#i18n";
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { OWNER_MULTIPART, withAuth } from "#routes/auth.ts";
 import { errorRedirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import { FULL_IMAGE_TARGET } from "#shared/images/targets.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";

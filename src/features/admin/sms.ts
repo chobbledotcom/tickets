@@ -23,7 +23,10 @@ import {
 } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
+import {
+  getAttendeeActivityLog,
+  logActivity,
+} from "#shared/db/activity-log.ts";
 import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
 import { hashPhone, recordContacts } from "#shared/db/contact-preferences.ts";
 import { countSmsMessages, recordSmsMessage } from "#shared/db/sms-messages.ts";

@@ -17,7 +17,7 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/builder.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup-storage.ts";
 import {
   type BuiltSite,

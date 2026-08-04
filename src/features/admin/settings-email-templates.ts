@@ -4,6 +4,7 @@
  */
 
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import { formPost, OWNER_FORM } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#shared/db/settings/constants.ts";
@@ -161,16 +162,16 @@ const renderEmailTemplatePreview = async (
   const rawFormat = form.get("format") ?? "html";
 
   if (!isEmailTemplateType(type)) {
-    return jsonResponse({ error: "Invalid template type" }, 400);
+    return apiErrorResponse("Invalid template type");
   }
   if (!isEmailTemplateFormat(rawFormat)) {
-    return jsonResponse({ error: "Invalid template format" }, 400);
+    return apiErrorResponse("Invalid template format");
   }
   const format = rawFormat;
 
   const error = validateTemplate(template);
   if (error) {
-    return jsonResponse({ error: `Template syntax error: ${error}` }, 400);
+    return apiErrorResponse(`Template syntax error: ${error}`);
   }
 
   const sampleData = await buildTemplateData(
@@ -183,7 +184,7 @@ const renderEmailTemplatePreview = async (
     const rendered = await renderTemplate(template, sampleData);
     return jsonResponse({ format, rendered });
   } catch (err) {
-    return jsonResponse({ error: String(err) }, 400);
+    return apiErrorResponse(String(err));
   }
 };
 

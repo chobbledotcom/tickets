@@ -15,7 +15,7 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { findAttendeeIdByPhoneIndex } from "#shared/db/attendee-phone-index.ts";
 import {
   claimProcessedSmsInbound,

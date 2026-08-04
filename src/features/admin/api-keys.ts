@@ -33,8 +33,8 @@ import { defineForm } from "#shared/forms/definition.ts";
 import {
   type ApiKeyDisplay,
   adminApiDocsPage,
+  adminApiKeyDeletePage,
   adminApiKeysPage,
-  adminDeleteApiKeyPage,
   apiKeySummaryRows,
 } from "#templates/admin/api-keys.tsx";
 /* jscpd:ignore-end */
@@ -124,7 +124,7 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
     await deleteApiKey(id, session.userId);
   },
   path: "/admin/api-keys/:apiKeyId/delete",
-  render: (apiKey, session) => adminDeleteApiKeyPage(apiKey, session),
+  render: (apiKey, session) => adminApiKeyDeletePage(apiKey, session),
   successMessage: "API key deleted",
   successRedirect: "/admin/api-keys",
 });

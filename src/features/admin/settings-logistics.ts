@@ -21,7 +21,7 @@ import {
 } from "#routes/admin/owner-crud.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
   type LogisticsAgentInput,

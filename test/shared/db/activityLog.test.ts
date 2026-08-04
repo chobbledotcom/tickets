@@ -13,7 +13,7 @@ import {
   getListingActivityLog,
   getListingWithActivityLogOrNull,
   logActivity,
-} from "#shared/db/activityLog.ts";
+} from "#shared/db/activity-log.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";

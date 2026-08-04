@@ -19,7 +19,7 @@ import {
   createAuthedFormRoute,
   type FormValidator,
 } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { type TxScope, withTransaction } from "#shared/db/client.ts";
 import type { ParamsRoute, RequestRoute } from "#shared/response-steps.ts";
 import type { Result } from "#shared/result.ts";

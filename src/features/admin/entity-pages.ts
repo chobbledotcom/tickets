@@ -26,7 +26,7 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import type { AdminRouteIntent } from "#shared/admin-surface/definitions.ts";
-import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import type { ActivityLogEntry } from "#shared/db/activity-log.ts";
 import {
   resolveTabSlug,
   splitActions,

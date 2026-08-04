@@ -29,7 +29,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";

@@ -11,7 +11,7 @@ import {
   settingsRoute,
 } from "#routes/admin/settings-helpers.ts";
 import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import { deleteUser } from "#shared/db/users.ts";
 import { getActiveEmailConfig } from "#shared/email.ts";

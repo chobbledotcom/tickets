@@ -21,7 +21,7 @@
  * @module
  */
 
-export * from "#shared/db/activityLog.ts";
+export * from "#shared/db/activity-log.ts";
 // The attendee surface spans the split modules under attendees/*. api.ts owns
 // the stubbable atomic operations, while the implementation modules below are
 // re-exported by explicit list to keep one public route to those operations.

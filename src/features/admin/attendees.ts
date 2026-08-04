@@ -9,7 +9,7 @@ import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
@@ -38,7 +38,7 @@ import {
 } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
-  adminDeleteAttendeePage,
+  adminAttendeeDeletePage,
   adminResendNotificationPage,
 } from "#templates/admin/attendees.tsx";
 import {
@@ -69,7 +69,7 @@ import {
 
 /** Handle GET /admin/attendees/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeActionPage(
-  adminDeleteAttendeePage,
+  adminAttendeeDeletePage,
 );
 
 /** Delete an attendee, log the activity, and redirect. */

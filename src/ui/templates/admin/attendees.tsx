@@ -160,7 +160,7 @@ const attendeeRouteConfirm =
 /**
  * Admin delete attendee confirmation page
  */
-export const adminDeleteAttendeePage = attendeeRouteConfirm("delete", {
+export const adminAttendeeDeletePage = attendeeRouteConfirm("delete", {
   body: (
     <>
       <CheckboxLabel

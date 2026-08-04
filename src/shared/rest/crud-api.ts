@@ -24,7 +24,7 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 /* jscpd:ignore-start */

@@ -16,7 +16,7 @@ import {
   enabledFeaturesWithUsage,
   featureBySlug,
 } from "#shared/admin-features.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   getAdminFeatureUsage,
   setAdminFeatureEnabled,

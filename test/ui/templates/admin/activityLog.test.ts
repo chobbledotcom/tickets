@@ -6,7 +6,7 @@ import {
   type ActivityLogRefs,
   adminGlobalActivityLogPage,
   adminListingActivityLogPage,
-} from "#templates/admin/activityLog.tsx";
+} from "#templates/admin/activity-log.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import {
   clearTestEncryptionKey,

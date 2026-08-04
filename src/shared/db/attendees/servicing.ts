@@ -8,7 +8,7 @@ import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
 import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import type {
   AttendeeInput,
   DesiredListingLine,

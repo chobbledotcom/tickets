@@ -18,7 +18,7 @@ import {
   isDenoDeployEnabled,
   isTursoEnabled,
 } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { providerOrBunny } from "#shared/db/built-sites/types.ts";
 import {
   builtSites,
