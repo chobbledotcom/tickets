@@ -4,6 +4,7 @@ import { settings } from "#shared/db/settings.ts";
 import {
   seedDraft,
   seedListingWithAttendees,
+  seedMarketingDraftWithUnsubscriber,
   seedSingleAttendeeListing,
   useResend,
 } from "#test/integration/server/bulk-email/helpers.ts";
@@ -186,6 +187,19 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       );
       expect(html).toContain("1 recipient");
       expect(html).not.toContain("1 recipients");
+    });
+
+    /**
+     * The skipped-count the preview only renders when somebody is being left
+     * out. The story `attendees.writing-to-the-people-who-booked` tells the
+     * same thing in the owner's terms; this owns the direct cover of the
+     * branch, which a Cucumber journey may never be the only one of.
+     */
+    test("notes how many unsubscribed recipients are skipped", async () => {
+      useResend();
+      await seedMarketingDraftWithUnsubscriber();
+      const html = await getPreviewHtml();
+      expect(html).toContain("1 unsubscribed will be skipped");
     });
 
     test("labels a target whose listing has since been deleted", async () => {

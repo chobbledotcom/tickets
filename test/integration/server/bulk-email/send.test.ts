@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   seedDraft,
   seedListingWithAttendees,
+  seedMarketingDraftWithUnsubscriber,
   useResend,
 } from "#test/integration/server/bulk-email/helpers.ts";
 import {
@@ -112,6 +114,46 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
         e.message.includes('Sent bulk email "Monthly"'),
       );
       expect(entry?.listing_id).toBe(null);
+    });
+
+    /**
+     * The two branches that decide who a promotion reaches: the unsubscribed
+     * set the send is built against, and the refusal when it leaves nobody.
+     * The story `attendees.writing-to-the-people-who-booked` tells both in the
+     * owner's terms; these own the direct cover, which a Cucumber journey may
+     * never be the only one of.
+     */
+    test("errors when every marketing recipient has unsubscribed", async () => {
+      useResend();
+      const listing = await createTestListing({
+        maxAttendees: 5,
+        name: "Solo",
+      });
+      await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");
+      await unsubscribeHash(await hashEmail("alice@example.com"));
+      await adminFormPost("/admin/emails/preview", {
+        body: "Promo",
+        listing_id: String(listing.id),
+        marketing: "1",
+        subject: "Sale",
+      });
+      const { response } = await adminFormPost("/admin/emails/send", {});
+      await expectFlashRedirect(
+        "/admin/emails/preview",
+        "Everyone in this audience has unsubscribed.",
+        false,
+      )(response);
+    });
+
+    test("excludes unsubscribed recipients from a marketing send", async () => {
+      useResend();
+      await seedMarketingDraftWithUnsubscriber();
+
+      await adminFormPost("/admin/emails/send", {});
+
+      const body = fetch.getFetchJsonBody();
+      expect(body).toHaveLength(1);
+      expect(body[0].to).toEqual(["bob@example.com"]);
     });
 
     test("errors when the audience has no recipients", async () => {
