@@ -84,8 +84,8 @@ describe("writing a mutant key onto one line", () => {
     );
   });
 
-  test("keeps a path holding a comment mark, a space, or both", () => {
-    for (const name of ["a#b.ts", "a b.ts", "a #b.ts"]) {
+  test("keeps a path holding a comment mark, a space, an arrow, or all", () => {
+    for (const name of ["a#b.ts", "a b.ts", "a #b.ts", "a→b.ts", "a →#b.ts"]) {
       const key = mutantKey(`${projectRoot}/src/${name}`, mutant(1));
 
       expect(parseIgnoreLine(`${key}   # a reason`)?.key).toBe(key);
@@ -110,6 +110,10 @@ describe("writing a mutant key onto one line", () => {
     expect(parseIgnoreLine(`${key.split("→")[0]}→   # why`)).toBe(null);
     // An arrow, but nothing that reads as a path and an anchor before it.
     expect(parseIgnoreLine("not an entry → nor this")).toBe(null);
+    // A path and an anchor, but no mutation after them.
+    expect(parseIgnoreLine("src/example.ts::fn1 nothing changes here")).toBe(
+      null,
+    );
   });
 
   test("reads a reason that holds an arrow of its own", () => {

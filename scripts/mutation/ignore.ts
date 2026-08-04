@@ -91,31 +91,32 @@ export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   // A whole-line comment is not an entry, however much of one it quotes.
   const text = line.trimStart();
   if (text === "" || text.startsWith("#")) return null;
-  // Past that, only the `to` side can be followed by a reason, so that is the
-  // only place a `#` starts one. Everything before the arrow is read as
-  // written, which leaves a path free to hold a `#`, a space, or both. `from`
-  // and `to` are escaped, so the first arrow on the line is always this one.
-  const arrow = text.indexOf("→");
+  // Take the path and anchor off the front by their own shape rather than by
+  // hunting for a delimiter: an anchor holds only these characters and ends at
+  // the first whitespace after it, so whatever precedes is the path, whichever
+  // characters it happens to use.
+  const located = text.match(/^(.+)::([A-Za-z0-9_$\-.%~@]+)\s+(.*)$/);
+  if (!located) return null;
+  const [, sourcePath, anchor, mutation] = located as unknown as string[];
+  // `from` and `to` are escaped, so the first arrow left is the one splitting
+  // them, and only `to` can be followed by a reason.
+  const arrow = mutation!.indexOf("→");
   if (arrow < 0) return null;
-  const newOperator = text
+  const newOperator = mutation!
     .slice(arrow + 1)
     .replace(/\s#.*$/, "")
     .trim();
   if (newOperator === "") return null;
-  // The "from" side is `.*?` (not `.+?`): an already-empty string literal
-  // mutates with an empty display label (see stringLiteralMutants), so a
-  // legitimate key can have nothing between the location and the arrow. An
-  // anchor never holds a `::`, so the last one ends the path.
-  const match = text.slice(0, arrow).match(/^(.+)::(\S+)\s+(.*?)\s*$/);
-  return match
-    ? {
-        anchor: match[2]!,
-        key: `${match[1]}::${match[2]} ${match[3]}→${newOperator}`,
-        newOperator,
-        operator: match[3]!,
-        sourcePath: match[1]!,
-      }
-    : null;
+  // The "from" side may be empty: an already-empty string literal mutates with
+  // an empty display label (see stringLiteralMutants).
+  const operator = mutation!.slice(0, arrow).trimEnd();
+  return {
+    anchor: anchor!,
+    key: `${sourcePath}::${anchor} ${operator}→${newOperator}`,
+    newOperator,
+    operator,
+    sourcePath: sourcePath!,
+  };
 };
 
 export interface IgnoreList {
