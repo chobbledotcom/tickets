@@ -186,6 +186,7 @@ const buttonToPress = (
 ):
   | {
       buttonAction?: string | undefined;
+      buttonMethod?: string | undefined;
       buttonName?: string | undefined;
       buttonValue?: string;
     }
@@ -206,8 +207,10 @@ const buttonToPress = (
       continue;
     }
     return {
-      // A button may aim the form somewhere else, as a real browser honours.
+      // A button may aim the form somewhere else, and send it a different way,
+      // as a real browser honours.
       buttonAction: attrValue(attrs, "formaction"),
+      buttonMethod: attrValue(attrs, "formmethod"),
       buttonName: attrValue(attrs, "name"),
       buttonValue: attrValue(attrs, "value") ?? "",
     };
@@ -227,6 +230,7 @@ export const findFormByButton = (
 ): {
   action: string;
   body: string;
+  method: string;
   buttonName?: string | undefined;
   buttonValue?: string | undefined;
 } => {
@@ -252,8 +256,13 @@ export const findFormByButton = (
       unusable = pressed;
       continue;
     }
-    const { buttonAction, ...button } = pressed;
-    return { action: buttonAction ?? f.action, body: f.body, ...button };
+    const { buttonAction, buttonMethod, ...button } = pressed;
+    return {
+      action: buttonAction ?? f.action,
+      body: f.body,
+      method: (buttonMethod ?? f.method).toLowerCase(),
+      ...button,
+    };
   }
   // Nothing usable anywhere, and at least one button could not send the form.
   // Submitting anyway would let a test do something nobody could do.

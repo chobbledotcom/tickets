@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import { ALL_CHECKBOXES } from "#test-utils/test-browser/forms.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
-import { setupFormSubmit, useHandler } from "./helpers.ts";
+import { recordingBrowser, setupFormSubmit, useHandler } from "./helpers.ts";
 
 describe("TestBrowser sending a form", () => {
   it("submits successful controls, clicked button data, and user overrides", async () => {
@@ -25,7 +25,7 @@ describe("TestBrowser sending a form", () => {
       return new Response("<p>saved</p>");
     });
     browser.currentHtml = `
-      <form action="/save">
+      <form action="/save" method="POST">
         <input type="hidden" name="csrf_token" value="csrf">
         <input type="hidden" name="action" value="stale">
         <input name="name" value="Original">
@@ -73,8 +73,8 @@ describe("TestBrowser sending a form", () => {
       return new Response(await request.text());
     });
     browser.currentHtml = `
-      <form action="/first"><input name="first" value="1"></form>
-      <form action="/second"><input name="second" value="2"></form>
+      <form action="/first" method="POST"><input name="first" value="1"></form>
+      <form action="/second" method="POST"><input name="second" value="2"></form>
     `;
 
     await browser.submitForm({});
@@ -95,7 +95,7 @@ describe("TestBrowser sending a form", () => {
   it("refuses to press a button the page has switched off", async () => {
     const { browser } = setupFormSubmit();
     browser.currentHtml = `
-      <form action="/disabled-button">
+      <form action="/disabled-button" method="POST">
         <input name="title" value="Draft">
         <button name="action" value="publish" disabled>Publish</button>
       </form>
@@ -111,7 +111,7 @@ describe("TestBrowser sending a form", () => {
   it("reads a button's own attributes, not longer ones ending the same way", async () => {
     const { browser, getParams } = setupFormSubmit();
     browser.currentHtml = `
-      <form action="/save">
+      <form action="/save" method="POST">
         <input name="title" value="Draft">
         <button data-name="row-3" data-value="7" name="action" value="publish">Publish</button>
       </form>
@@ -128,7 +128,7 @@ describe("TestBrowser sending a form", () => {
   it("refuses to press a button that sends nothing", async () => {
     const { browser } = setupFormSubmit();
     browser.currentHtml = `
-      <form action="/not-a-submitter">
+      <form action="/not-a-submitter" method="POST">
         <input name="title" value="Draft">
         <button type="button" name="action" value="publish">Publish</button>
       </form>
@@ -140,6 +140,74 @@ describe("TestBrowser sending a form", () => {
     await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
       'The "Publish" button sends nothing',
     );
+  });
+
+  /** A form sends the way the page says it does. The site serves real ones of
+   * each — the attendee filter row and the listings date filter send by GET,
+   * every form that changes something sends by POST — so a story submitting a
+   * GET form by POST is asking the site something no visitor asked it. */
+  const SENDS: Array<{
+    method: string;
+    sentAs: string;
+    what: string;
+  }> = [
+    {
+      method: ' method="POST"',
+      sentAs: "POST",
+      what: "sends a form that says POST by POST",
+    },
+    {
+      method: ' method="get"',
+      sentAs: "GET",
+      what: "sends a form that says GET by GET",
+    },
+    {
+      method: "",
+      sentAs: "GET",
+      what: "sends a form that says nothing by GET, as a browser does",
+    },
+  ];
+
+  for (const sends of SENDS) {
+    it(sends.what, async () => {
+      const { browser, sent } = recordingBrowser();
+      browser.currentHtml = `
+        <form action="/search"${sends.method}>
+          <input name="town" value="Leeds">
+          <button type="submit">Search</button>
+        </form>
+      `;
+
+      await browser.submitForm({}, "Search");
+
+      expect(sent().method).toBe(sends.sentAs);
+      expect(sent().path).toBe("/search");
+      // Either way the values reach the site — in the address or in the body.
+      const carried =
+        sends.sentAs === "GET"
+          ? new URLSearchParams(sent().query)
+          : new URLSearchParams(sent().body);
+      expect(carried.get("town")).toBe("Leeds");
+      // A GET carries nothing in its body; a POST carries it all there.
+      expect(sent().body).toBe(sends.sentAs === "GET" ? "" : "town=Leeds");
+    });
+  }
+
+  it("puts a GET form where the address's own question marks were", async () => {
+    const { browser, sent } = recordingBrowser();
+    browser.currentHtml = `
+      <form action="/search?page=7&town=Hull" method="get">
+        <input name="town" value="Leeds">
+        <button type="submit">Search</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Search");
+
+    // A browser replaces the whole query rather than adding to it, so the
+    // page=7 the address was carrying is gone — a well-known surprise, and one
+    // a story should meet the same way a visitor would.
+    expect(sent().query).toBe("?town=Leeds");
   });
 
   it("downloads bytes without changing the current page", async () => {
@@ -171,7 +239,7 @@ describe("TestBrowser sending a form", () => {
       return new Response("<p>uploaded</p>");
     });
     browser.currentHtml = `
-      <form action="/upload">
+      <form action="/upload" method="POST">
         <input type="hidden" name="csrf_token" value="csrf">
         <input name="title" value="Original">
         <button>Upload</button>

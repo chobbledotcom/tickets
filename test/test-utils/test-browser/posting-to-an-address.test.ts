@@ -122,9 +122,9 @@ describe("TestBrowser submitting the one form that posts to an address", () => {
   it("gives back only the body of the form a button belongs to", () => {
     const browser = new TestBrowser();
     browser.currentHtml = `
-      <form action="/one"><input name="only_here" value="1">
+      <form action="/one" method="POST"><input name="only_here" value="1">
         <button type="submit">Save</button></form>
-      <form action="/two"><input name="elsewhere" value="2">
+      <form action="/two" method="POST"><input name="elsewhere" value="2">
         <button type="submit">Publish</button></form>
     `;
 

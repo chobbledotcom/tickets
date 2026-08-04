@@ -209,6 +209,7 @@ export class TestBrowser {
     action: string;
     body: string;
     entries: FormEntry[];
+    method: string;
     buttonName?: string | undefined;
     buttonValue?: string | undefined;
   } {
@@ -219,6 +220,7 @@ export class TestBrowser {
         action: form.action,
         body: form.body,
         entries: extractFormEntries(form.body),
+        method: form.method,
       };
     }
     const found = findFormByButton(forms, buttonText, fieldNames);
@@ -228,6 +230,7 @@ export class TestBrowser {
       buttonName: found.buttonName,
       buttonValue: found.buttonValue,
       entries: extractFormEntries(found.body),
+      method: found.method,
     };
   }
 
@@ -299,6 +302,7 @@ export class TestBrowser {
           buttonName: pressed.name,
           buttonValue: pressed.value,
           entries: extractFormEntries(form.body),
+          method: pressed.sentBy,
         },
         data,
       );
@@ -323,12 +327,13 @@ export class TestBrowser {
       action: string;
       body: string;
       entries: FormEntry[];
+      method: string;
       buttonName?: string | undefined;
       buttonValue?: string | undefined;
     },
     data: Record<string, string | string[]>,
   ): Promise<void> {
-    const { action, body, entries, buttonName, buttonValue } = form;
+    const { action, body, entries, method, buttonName, buttonValue } = form;
 
     // Build the form body as URLSearchParams
     const params = new URLSearchParams();
@@ -349,6 +354,14 @@ export class TestBrowser {
       appendFormValue(params, key, value, body);
     }
 
+    // A form sends the way it says it does. One that sends by GET carries its
+    // values in the address and no body at all — and the address it had keeps
+    // only its path, because a browser puts the whole form where the question
+    // marks used to be rather than adding to what was there.
+    if (method === "get") {
+      await this.request(`${action.split("?")[0]}?${params}`);
+      return;
+    }
     await this.request(action, {
       body: params.toString(),
       headers: { "content-type": "application/x-www-form-urlencoded" },

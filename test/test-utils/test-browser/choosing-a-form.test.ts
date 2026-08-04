@@ -9,10 +9,10 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     // A person reading this page can press the second Publish, so naming it
     // must reach that one rather than stopping at the switched-off first.
     browser.currentHtml = `
-      <form action="/draft">
+      <form action="/draft" method="POST">
         <button name="action" value="publish" disabled>Publish</button>
       </form>
-      <form action="/ready">
+      <form action="/ready" method="POST">
         <button name="action" value="publish">Publish</button>
       </form>
     `;
@@ -27,11 +27,11 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     // Two forms share the Save wording; only the second renders the field
     // being filled in, so that is the one a person would submit.
     browser.currentHtml = `
-      <form action="/toggle">
+      <form action="/toggle" method="POST">
         <input type="checkbox" name="enabled" value="true">
         <button>Save</button>
       </form>
-      <form action="/words">
+      <form action="/words" method="POST">
         <textarea name="intro"></textarea>
         <button>Save</button>
       </form>
@@ -47,7 +47,7 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     // A quote button aims the same form at a different address; pressing it
     // must go where the button points, not where the form does.
     browser.currentHtml = `
-      <form action="/book">
+      <form action="/book" method="POST">
         <input name="email" value="a@example.com">
         <button>Continue</button>
         <button formaction="/quote" type="submit">Show total</button>
@@ -63,7 +63,7 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     const { browser, postedPath } = postedPathBrowser();
     // Only the real formaction attribute may redirect the submission.
     browser.currentHtml = `
-      <form action="/book">
+      <form action="/book" method="POST">
         <input name="email" value="a@example.com">
         <button data-formaction="/wrong" type="submit">Continue</button>
       </form>
@@ -79,11 +79,11 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     // Only a real name attribute counts as rendering the field — a longer
     // attribute like data-name on another form must not win the ranking.
     browser.currentHtml = `
-      <form action="/decoy">
+      <form action="/decoy" method="POST">
         <div data-name="intro"></div>
         <button>Save</button>
       </form>
-      <form action="/real">
+      <form action="/real" method="POST">
         <textarea name="intro"></textarea>
         <button>Save</button>
       </form>
@@ -99,10 +99,10 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     // A field no form renders is a plain override, so form choice falls back
     // to the first form carrying the button, as it always did.
     browser.currentHtml = `
-      <form action="/first">
+      <form action="/first" method="POST">
         <button>Save</button>
       </form>
-      <form action="/second">
+      <form action="/second" method="POST">
         <button>Save</button>
       </form>
     `;
@@ -122,7 +122,7 @@ describe("TestBrowser choosing which form a press belongs to", () => {
       return new Response("saved");
     });
     browser.currentHtml = `
-      <form action="/body-text">
+      <form action="/body-text" method="POST">
         <p>Publish this draft</p>
         <input name="title" value="Draft">
         <button name="action" value="save">Save</button>
@@ -140,7 +140,7 @@ describe("TestBrowser choosing which form a press belongs to", () => {
   it("does not submit nameless button values", async () => {
     const { browser, getParams } = setupFormSubmit();
     browser.currentHtml = `
-      <form action="/save">
+      <form action="/save" method="POST">
         <input name="title" value="Draft">
         <button value="publish">Publish</button>
       </form>
@@ -157,7 +157,7 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     const browser = new TestBrowser();
     useHandler(browser, () => new Response("saved"));
     browser.currentHtml = `
-      <form action="/only">
+      <form action="/only" method="POST">
         <button disabled>Save</button>
         <button name="action" value="now">Save</button>
       </form>
@@ -171,8 +171,8 @@ describe("TestBrowser choosing which form a press belongs to", () => {
   it("throws with available form actions when no button matches", async () => {
     const browser = new TestBrowser();
     browser.currentHtml = `
-      <form action="/first"><button>Save</button></form>
-      <form action="/second"><button>Delete</button></form>
+      <form action="/first" method="POST"><button>Save</button></form>
+      <form action="/second" method="POST"><button>Delete</button></form>
     `;
 
     await expect(browser.submitForm({}, "Publish")).rejects.toThrow(

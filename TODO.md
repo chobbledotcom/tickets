@@ -1827,29 +1827,6 @@ Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
 
-## Send a form the way the page says it sends
-
-*Origin: Codex review on PR #2025, which made the reorder arrows submit the
-rendered form. Only the reorder half is done.*
-
-`TestBrowser.submitForm` POSTs whatever form it finds, whatever method that
-form declares. `submitFormAt` — the one the reorder arrows use — now refuses a
-form that does not declare `method="POST"`, so a reorder form losing its method
-fails the story. The general case is still open: a form the page renders as
-`method="get"` is submitted as a POST by every other story.
-
-That matters because the site really does serve GET forms — the availability
-checker (`src/ui/templates/admin/availability-checker.tsx`), the attendee merge
-panel (`src/ui/templates/admin/attendees/merge-panel.tsx`) and the order gallery
-(`src/ui/templates/public/order-gallery.tsx`) all declare `method="get"`. A
-story that submits one of those is not sending what a visitor would.
-
-The fix is for `sendForm` (`test/test-utils/test-browser.ts`) to send by the
-method the form declares: a GET carries its values in the query string rather
-than the body. `findForms` already reads the method, so the missing part is the
-sending and the check that no story quietly depended on the old POST — which is
-why it is not a one-line change and did not belong in that PR.
-
 ## Record equivalent mutants by something that survives an edit
 
 *Origin: two breakages on PR #2025, both caught by review rather than by any

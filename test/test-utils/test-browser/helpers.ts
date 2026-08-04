@@ -25,12 +25,18 @@ export const useHandler = (
  * as an empty address and an empty body. */
 export const recordingBrowser = (): {
   browser: TestBrowser;
-  sent: () => { body: string; path: string };
+  sent: () => { body: string; method: string; path: string; query: string };
 } => {
   const browser = new TestBrowser();
-  let sent = { body: "", path: "" };
+  let sent = { body: "", method: "", path: "", query: "" };
   useHandler(browser, async (request) => {
-    sent = { body: await request.text(), path: new URL(request.url).pathname };
+    const url = new URL(request.url);
+    sent = {
+      body: await request.text(),
+      method: request.method,
+      path: url.pathname,
+      query: url.search,
+    };
     return new Response("saved");
   });
   return { browser, sent: () => sent };
