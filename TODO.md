@@ -456,24 +456,6 @@ they are. Nothing further planned here.
 
 ---
 
-## Payment-processing review follow-ups (from PR #1692)
-
-Both items describe behaviour that predates the payment-processing split (the
-code was moved verbatim from the old `payment-processing.ts` monolith). They are
-recorded here because the split PR was a pure reorganisation — changing this
-behaviour there would be out of scope — and CodeRabbit flagged them as worth a
-look.
-
-- **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
-  `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
-  `validateAllItems` calls `getListingWithCount` once per item in a loop, and
-  `loadPackagePricingByGroup` makes two sequential round-trips per group. Under
-  the edge subrequest budget these accumulate for larger orders. Fix direction:
-  add/use a batched `getListingsWithCount(ids)` for all order listing ids at once
-  and group the package-pricing loads, preserving the existing validation and
-  fail-closed behaviour. See the "Respect the subrequest budget" guidance in
-  AGENTS.md.
-
 ## Request performance: consolidate AsyncLocalStorage scopes
 
 `src/features/app/request.ts` enters eleven nested request scopes for locale, client
@@ -961,18 +943,23 @@ in fresh setup, group duplication, ordinary backups, reset/restore, and bulk
 refunds. The paths below still have data-dependent fan-out. The guard makes the
 database-only cases fail loudly, but it cannot count provider or storage calls.
 
-- **Package carts and payment completion.** `resolveCartSlugs` and
-  `handleCartBySlugs` in `src/features/public/cart.ts` do four package reads per
-  slug, so 13 packages can make 52 calls. `loadPackagePricingByGroup` in
-  `src/features/api/payment-processing/package-pricing.ts` does three reads per
-  group, so 17 groups can make 51. `getPackageDisplaysByIds` in
-  `src/shared/db/groups.ts` also reads displays one group at a time. Batch group
-  resolution, member/day prices, and displays for all package ids.
+- ~~**Package carts and payment completion.**~~ Done. `resolveCartSlugs` now
+  resolves every package slug through `loadCartPackagesBySlugs`
+  (`src/features/public/groups.ts`) in four reads however long the cart is, and
+  `loadPackagePricingByGroup` loads every booked package through
+  `loadPackageMemberPricingByGroupIds` in three. `validateAllItems`
+  (`src/features/api/payment-processing/items.ts`) reads every order line's
+  listing in one batch instead of one call per line.
+  `getPackageDisplaysByIds` was already a single query.
 - **Registration logs and outgoing webhooks.** `logAndNotifyRegistration` and
   `sendRegistrationWebhooks` in `src/shared/webhook.ts` can insert one activity
   row per booking, load two overrides per package, and fetch every distinct
-  webhook URL. Add one bulk log insert and one batched override read. Persist
-  outbound webhook jobs for bounded out-of-band delivery.
+  webhook URL. Add one bulk log insert and one batched override read
+  (`loadPackageOverrides` can call `loadPackageMemberPricingByGroupIds`, which
+  now exists). Persist outbound webhook jobs for bounded out-of-band delivery.
+  Budget for the test work: `src/shared/webhook.ts` has about twenty surviving
+  mutants today, and the mutation gate demands they all die once the file is
+  touched.
 - **Multi-entry check-in.** `handleCheckinPost` in
   `src/features/checkin.ts` calls `updateCheckedIn` once per eligible booking
   line. A token set with 51 lines therefore makes 51 updates. Replace it with
@@ -1011,10 +998,17 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   attendee batch per 50 rows; 2,501 attendees exceed 50 calls, while the form
   permits far more. Move seed generation to CLI/background work or cap the
   total from the request budget.
-- **Remaining group admin reads.** `validateListingTypesForGroup` in
-  `src/features/admin/groups.ts` reloads siblings per listing, and
-  `loadGroupContext` in `src/features/admin/listings-view.ts` loads each group
-  and capacity separately. Load siblings once and batch all group/capacity rows.
+- ~~**Remaining group admin reads.**~~ Done. `validateListingTypesForGroup`
+  (`src/features/admin/groups.ts`) reads the group's members once and judges
+  every candidate against that list with `groupListingTypeError`, and
+  `loadGroupContext` (`src/features/admin/listings-view.ts`) resolves the
+  listing's groups from the shared cache and asks for every capped group's
+  remaining spots in one call.
+
+A finished item keeps a database-call budget test, so the next per-item loop
+trips the subrequest counter in a test rather than in an audit: wrap the call in
+`countDatabaseCalls` (`test/test-utils/subrequest-budget.ts`) and assert the
+count does not grow with the input.
 
 The `scripts/backup.ts` command and fleet loops in GitHub Actions run outside
 Bunny and are not subject to this per-request limit. Restore replay and catalog

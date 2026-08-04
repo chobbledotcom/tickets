@@ -15,6 +15,7 @@ import { listingPair } from "#test/features/api/payment-processing/items/helpers
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const loadedItem = async (item: BookingItem): Promise<ValidatedItem> => {
   const listing = await getListingWithCount(item.e);
@@ -95,7 +96,42 @@ const staleChildFor = async (
   );
 };
 
+/** An order booking `count` one-member packages. */
+const packagedOrderIntent = async (
+  label: string,
+  count: number,
+): Promise<BookingIntent> => {
+  const items: BookingItem[] = [];
+  for (let index = 0; index < count; index++) {
+    const pkg = await createTestGroup({
+      isPackage: true,
+      name: `${label} package ${index}`,
+    });
+    const member = await createTestListing({
+      groupId: pkg.id,
+      name: `${label} member ${index}`,
+      unitPrice: 500,
+    });
+    await setGroupPackageMembers(pkg.id, [
+      { dayPrices: {}, listingId: member.id, price: null, quantity: 1 },
+    ]);
+    items.push({ e: member.id, k: "p", p: 500, q: 1, r: pkg.id });
+  }
+  return bookingIntent(items);
+};
+
 describeWithEnv("package pricing database revalidation", { db: true }, () => {
+  test("prices six packages in the same reads as one", async () => {
+    const one = await packagedOrderIntent("Single", 1);
+    const six = await packagedOrderIntent("Many", 6);
+    // Three fixed reads: the package displays, the membership rows, the day
+    // prices. One read per package instead would blow a real order's budget.
+    const pricingCalls = (intent: BookingIntent): Promise<number> =>
+      countDatabaseCalls(3, () => loadPackagePricingByGroup(intent));
+
+    expect(await pricingCalls(six)).toBe(await pricingCalls(one));
+  });
+
   test("loads current prices and quantities only for active package groups", async () => {
     const pkg = await createTestGroup({
       isPackage: true,

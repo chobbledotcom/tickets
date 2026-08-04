@@ -9,7 +9,7 @@
  * so the drift checks stay easy to test.
  */
 
-import { uniqueBy } from "#fp";
+import { requiredMapValue, uniqueBy } from "#fp";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
   buildTicketListing,
@@ -32,7 +32,7 @@ import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import {
   getPackageDisplaysByIds,
-  loadPackageMemberPricing,
+  loadPackageMemberPricingByGroupIds,
 } from "#shared/db/groups.ts";
 import {
   getNonStandaloneChildIds,
@@ -85,20 +85,31 @@ export type PackagePricing = {
 export const loadPackagePricingByGroup = async (
   intent: BookingIntent,
 ): Promise<Map<number, PackagePricing>> => {
-  const pricingByGroup = new Map<number, PackagePricing>();
   const groupIds = [...lineGroupIds(intent.items)];
-  const packageDisplays = await getPackageDisplaysByIds(groupIds);
-  for (const groupId of groupIds) {
-    if (!packageDisplays.has(groupId)) continue;
-    const pricing = await loadPackageMemberPricing(groupId);
-    pricingByGroup.set(groupId, {
-      dayPriceMap: pricing.dayPrices,
-      memberIds: new Set(pricing.rows.map((r) => r.listing_id)),
-      priceMap: pricing.prices,
-      quantityMap: pricing.quantities,
-    });
-  }
-  return pricingByGroup;
+  const [packageDisplays, pricingByGroupId] = await Promise.all([
+    getPackageDisplaysByIds(groupIds),
+    loadPackageMemberPricingByGroupIds(groupIds),
+  ]);
+  return new Map(
+    groupIds
+      .filter((groupId) => packageDisplays.has(groupId))
+      .map((groupId) => {
+        const pricing = requiredMapValue(
+          pricingByGroupId,
+          groupId,
+          "Missing package pricing",
+        );
+        return [
+          groupId,
+          {
+            dayPriceMap: pricing.dayPrices,
+            memberIds: new Set(pricing.rows.map((r) => r.listing_id)),
+            priceMap: pricing.prices,
+            quantityMap: pricing.quantities,
+          },
+        ];
+      }),
+  );
 };
 
 /** The expected line total for one item, or `null` to fail closed (force a
