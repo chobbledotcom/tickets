@@ -42,12 +42,16 @@ describe("a holder whose touches stop landing or land elsewhere", () => {
       holdWhileTouchesFail(path, async ({ held, recover, time }) => {
         await tickBy(time, 10);
         recover();
-        await tickBy(time, 10, 5);
 
-        // Touched again after the blip: fresh, judged against a window far
-        // smaller than the time since the claim was first written — once
-        // the touch's real write has landed.
-        await eventually(() => claimIsFresh(path, 12));
+        // Step the clock until a healed touch lands: on a slow machine the
+        // failed touch's own settling can push the next touch a step later,
+        // so no fixed tick script can say exactly when it fires. Fresh
+        // against a window this small can only mean a touch after the blip
+        // — the claim's first write is many steps old by now.
+        await eventually(async () => {
+          await tickBy(time, 10);
+          return claimIsFresh(path, 12);
+        });
         held.release();
         await held.holding;
       }),
