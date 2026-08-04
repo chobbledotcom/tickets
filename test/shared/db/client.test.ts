@@ -7,6 +7,7 @@ import {
   andConditions,
   deleteByFieldStatement,
   execute,
+  executeReturningRow,
   executeUpdate,
   extractUpdateColumns,
   getDb,
@@ -430,6 +431,23 @@ describeWithEnv("db > client", { db: true }, () => {
         "missing_key",
       ]),
     ).toBe(false);
+  });
+
+  test("executeReturningRow reads back the written row", async () => {
+    const row = await executeReturningRow<{ value: string }>(
+      "INSERT INTO settings (key, value) VALUES ('returning_test', 'x') RETURNING value",
+      [],
+    );
+    expect(row).toEqual({ value: "x" });
+  });
+
+  test("executeReturningRow throws when the write returned no row", async () => {
+    await expect(
+      executeReturningRow(
+        "UPDATE settings SET value = 'y' WHERE key = ? RETURNING value",
+        ["missing_key"],
+      ),
+    ).rejects.toThrow("Write returned no row");
   });
 
   test("queryOne returns the single matching row", async () => {

@@ -91,8 +91,9 @@ const pruneStatements = (): PruneStatement[] => [
   ]),
   boundedDelete(
     "login_attempts",
-    "locked_until IS NOT NULL AND locked_until < ?",
-    [nowMs() - PRUNE_LOGINS_RETENTION_MS],
+    `(locked_until IS NOT NULL AND locked_until < ?)
+        OR (locked_until IS NULL AND last_attempt < ?)`,
+    [nowMs() - PRUNE_LOGINS_RETENTION_MS, nowMs() - PRUNE_LOGINS_RETENTION_MS],
   ),
   boundedDelete("token_attempts", "last_attempt < ?", [
     nowMs() - PRUNE_TOKENS_RETENTION_MS,

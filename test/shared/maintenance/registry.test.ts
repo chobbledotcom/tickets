@@ -91,7 +91,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
 
   test("the pruning task runs one bounded database batch", async () => {
     expect(await taskNamed("database_pruning").check.enabled()).toBe(true);
-    const ipHash = await insertLoginAttempt("192.0.2.10", 1, 0);
+    const ipHash = await insertLoginAttempt("192.0.2.10", 1, 0, 0);
     expect(await loginAttemptExists(ipHash)).toBe(true);
 
     expect(await runTask(taskNamed("database_pruning"))).toBeUndefined();
