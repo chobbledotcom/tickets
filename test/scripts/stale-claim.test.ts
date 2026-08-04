@@ -1,4 +1,7 @@
 import { join } from "node:path";
+// Real time's setTimeout: node's own binding, which a fake clock stubbed onto
+// globalThis never touches.
+import { setTimeout as realSetTimeout } from "node:timers";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -231,13 +234,10 @@ describe("asking whether a claim is fresh", () => {
   });
 });
 
-/** Real time's setTimeout, taken before any test puts a fake clock in. */
-const REAL_SET_TIMEOUT = setTimeout;
-
 /** A real-time pause, for waits a fake clock must not intercept — letting a
  * file write that has already started reach the disk. */
 const settle = (): Promise<void> =>
-  new Promise((resolve) => REAL_SET_TIMEOUT(resolve, 5));
+  new Promise((resolve) => realSetTimeout(resolve, 5));
 
 /** Step the fake clock, letting each touch settle before the next fires. */
 const tickBy = async (time: FakeTime, ...steps: number[]): Promise<void> => {
@@ -334,9 +334,10 @@ describe("keeping a claim fresh while it is held", () => {
 
       held.release();
       let released = false;
-      const holding = held.holding.then(() => {
+      const holding = (async () => {
+        await held.holding;
         released = true;
-      });
+      })();
       await settle();
       // Still waiting on the touch in flight: letting go now could leave
       // that write landing after the claim was removed.
