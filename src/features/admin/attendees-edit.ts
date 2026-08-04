@@ -34,6 +34,7 @@ import {
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { reportInvariant } from "#shared/invariant-errors.ts";
 import { legMatches } from "#shared/ledger/legs.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
@@ -140,10 +141,12 @@ const recordConfirmedRefund = async (
       attendeeId,
     );
   }
+  // Money moved at the provider without our ledger recording it — report it as
+  // well as telling the operator to add the correction by hand.
   if (!posted) {
     return errorRedirect(
       `/admin/attendees/${attendeeId}`,
-      t("error.refund_not_recorded"),
+      reportInvariant("error.refund_not_recorded", { attendeeId, listingId }),
     );
   }
   // Always delete the stale "could NOT be refunded" note when the refund is

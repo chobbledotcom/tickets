@@ -22,6 +22,7 @@ import {
   hasRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { reportInvariant } from "#shared/invariant-errors.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -145,9 +146,14 @@ const handleAttendeeRefund = verifiedAttendeeAction(
     );
     // The provider refund succeeded; if the ledger post missed (refund status is
     // now ledger-only), surface it so the admin makes a manual adjustment rather
-    // than re-refunding an already-refunded payment.
+    // than re-refunding an already-refunded payment — and report it, since money
+    // moved without our ledger recording it.
     if (!posted) {
-      return refundError(attendeeId, t("error.refund_not_recorded"), returnUrl);
+      return refundError(
+        attendeeId,
+        reportInvariant("error.refund_not_recorded", { attendeeId, listingId }),
+        returnUrl,
+      );
     }
     // Honor the caller's return_url (e.g. the attendee page's Actions tab);
     // fall back to that tab otherwise.
