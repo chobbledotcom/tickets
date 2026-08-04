@@ -155,4 +155,17 @@ describe("telling apart mutants that share a name", () => {
   test("leaves a lone mutant unnumbered", () => {
     expect(nullishAnchor("const read = (x) => x ?? 0;\n")).not.toContain("@");
   });
+
+  /**
+   * A file that is one statement with nothing after it: removing the statement
+   * covers the whole file, so no node strictly contains the mutant and the
+   * fingerprint falls back to the statement itself. It still names something.
+   */
+  test("anchors a mutant that spans the whole file", () => {
+    const [whole] = generateMutants("foo();", "/tmp/example.ts", true);
+    const [withRoom] = generateMutants("foo();\n", "/tmp/example.ts", true);
+
+    expect(whole?.anchor).toMatch(/^%3cfile%3e~/);
+    expect(whole?.anchor).not.toBe(withRoom?.anchor);
+  });
 });
