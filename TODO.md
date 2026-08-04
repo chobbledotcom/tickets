@@ -1,5 +1,29 @@
 # TODO — remaining follow-ups
 
+## Numbered SQL parameters — adopt the pattern beyond the limiters (from PR #2040)
+
+PR #2040 rewrote the two rate-limiter upserts (`src/shared/db/login-attempts.ts`,
+`src/shared/db/token-attempts.ts`) to use SQLite's numbered parameters
+(`?1`..`?6`), with each number given a named fragment constant (`NOW`,
+`TOKEN_LIMIT`, …) that the SQL template interpolates. That turned a 25-slot
+repeated positional args array into one value per meaning. Follow-ups:
+
+- **Sweep other multi-use statements.** Any statement that binds the same value
+  more than once is a candidate — look for args arrays that repeat a variable
+  (e.g. correlated subqueries in `src/shared/db/prune.ts` whose cutoff is bound
+  twice, and the bigger hand-built statements under `src/shared/db/`). Plain
+  single-use `?` statements are fine as they are.
+- **Consider a small define-style helper.** Something like
+  `defineStatement({ ip: v.string(), now: v.number() }, (p) => sql\`... ${p.ip}
+  ...\`)` could hand back `{ sql, bind({ip, now}) }` so the parameter order
+  lives in one place and callers pass an object instead of an ordered array —
+  the same schema-first shape as `defineTable`/`defineForm`. Only worth it if
+  the sweep finds enough call sites; two files may not justify the machinery.
+- Starting point: the fragment-constant pattern at the top of
+  `src/shared/db/token-attempts.ts`.
+
+---
+
 This file tracks work that was planned but **not yet done** when the root-level
 planning/design docs were retired (they had served their purpose once the bulk
 of each feature shipped). Each section is written to stand on its own — you
@@ -39,15 +63,6 @@ current trust model. They assume Bunny Edge remains the production runtime,
 site owners are trusted with their own content and integrations, and deployment
 operators own the risk of choosing deliberately hostile third-party endpoints.
 
-- **Make rate-limit writes atomic and bounded.** `src/shared/db/login-attempts.ts`
-  and `src/shared/db/token-attempts.ts` update shared rows with read-then-write
-  sequences, so concurrent attempts can lose increments, and below-threshold
-  rows are not pruned. Fold the login, API-key, booking, address-lookup, and
-  token limiters onto one atomic update/prune shape, with regression tests that
-  drive concurrent attempts. (The expired-lockout cleanup race in
-  `src/shared/db/attempt-lockout.ts` is fixed: the delete is conditional on the
-  observed `locked_until`, so a fresh lockout survives cleanup —
-  `test/shared/db/attempt-lockout.test.ts` proves it.)
 - **Preserve the client IP in production request scopes.** `src/edge.ts`,
   `src/deploy.ts`, and `src/serve-app.ts` should carry the platform connection
   context into the shared request handler so production rate limits do not fall
@@ -1006,15 +1021,13 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   (`src/features/api/payment-processing/items.ts`) reads every order line's
   listing in one batch instead of one call per line.
   `getPackageDisplaysByIds` was already a single query.
-- **Registration logs and outgoing webhooks.** `logAndNotifyRegistration` and
-  `sendRegistrationWebhooks` in `src/shared/webhook.ts` can insert one activity
-  row per booking, load two overrides per package, and fetch every distinct
-  webhook URL. Add one bulk log insert and one batched override read
-  (`loadPackageOverrides` can call `loadPackageMemberPricingByGroupIds`, which
-  now exists). Persist outbound webhook jobs for bounded out-of-band delivery.
-  Budget for the test work: `src/shared/webhook.ts` has about twenty surviving
-  mutants today, and the mutation gate demands they all die once the file is
-  touched.
+- **Outgoing webhook fan-out.** The database side is done:
+  `logAndNotifyRegistration` writes every booking's activity row in one batch
+  (`logActivities`), and `loadPackageOverrides` prices every booked package in
+  one batch. What remains is the sending: `sendRegistrationWebhooks` still
+  fetches every distinct webhook URL in the request, so an order spanning many
+  listings with different URLs can still run out of Bunny's external-request
+  budget. Persist outbound webhook jobs and deliver them out of band.
 - **Multi-entry check-in.** `handleCheckinPost` in
   `src/features/checkin.ts` calls `updateCheckedIn` once per eligible booking
   line. A token set with 51 lines therefore makes 51 updates. Replace it with
@@ -1650,6 +1663,30 @@ even though the starter did try the number of times it was asked to. Handing out
 ports so no two tests can receive the same one would fix this too; short of that,
 the count is the wrong thing to measure.
 
+## The Turso upload suite sometimes dies with no diagnostic at all
+
+*Origin: CI on PR #2039, a branch that touches nothing this suite uses. It
+then reproduced locally under a full `deno task test:coverage` run, while
+passing many consecutive standalone runs — it needs a loaded machine.*
+
+`test/scripts/turso-migration-file.test.ts` fails as `fail Turso migration
+file — at unknown location — No TAP diagnostic was emitted for this
+failure.` The first five cases pass and the rest never report, so the whole
+describe dies between cases rather than an assertion failing.
+
+The suspect is the watch in `sendDatabaseFile`
+(`scripts/turso-migration-file.ts`). When a server answers before the whole
+body is sent, Deno's node:http polyfill rejects an internal task nobody
+awaits (`Failed to fetch: request body stream errored`), and
+`watchPolyfillBodyStreamDefect` swallows that duplicate while the upload is
+in flight. The watch stands down one `setTimeout(0)` after the upload
+settles — its own comment admits this is a guess about when the duplicate
+surfaces. On a loaded machine the internal rejection can land *after* that
+one timer turn, and an unhandled rejection between cases is exactly "no
+diagnostic, unknown location". A fix wants a deterministic stand-down —
+e.g. hold the watch until the request's own `close` says its internals are
+done — proven by a test that forces the late rejection, not by timing luck.
+
 ---
 
 ## The gap between a mutation child ending and its supervisor taking the lock
@@ -1896,38 +1933,6 @@ catalog entries beside `payment.error.refunded` in
 
 Not done in that PR only because it was at its agreed `src/` line budget; there
 is nothing hard about it.
-## Record equivalent mutants by something that survives an edit
-
-*Origin: two breakages on PR #2025, both caught by review rather than by any
-check the branch ran.*
-
-`scripts/mutation/equivalent-mutants/*.txt` records each known-equivalent
-mutant as `path:line:column`, and `resolveEntries` in
-`scripts/mutation/equivalent-audit.ts` matches all three exactly. So any edit
-*above* a recorded expression silently invalidates its entry — the mutant stops
-being suppressed and `deno task mutation:audit-equivalents` fails.
-
-It happened twice on one branch. Splitting `test-browser.ts` into `parsing.ts`
-and `forms.ts` moved six entries; then adding a single doc comment above
-`attrValue` moved three of those same entries five lines further down. Neither
-was a change to the recorded expressions themselves.
-
-What makes it bite: `mutation:audit-equivalents` is not part of `deno task
-precommit`, so a fully green precommit says nothing about whether the registry
-still resolves. Both breakages were found by PR reviewers.
-
-Two directions, either of which would help:
-
-- **Key on something stable.** Record the expression text plus its enclosing
-  function name instead of a line and column, so an entry survives anything
-  that does not change the expression itself. This changes the file format and
-  `resolveEntries`, so existing entries need migrating.
-- **Run the audit in `precommit`** (or in CI), so drift fails on the branch
-  that caused it rather than in review. It works in a copy of the checkout and
-  runs no tests, so it is not obviously too slow — worth timing before
-  assuming it is.
-
-The first is the real fix; the second would catch the next one either way.
 
 ## Split the form-control rules into files about one thing each
 

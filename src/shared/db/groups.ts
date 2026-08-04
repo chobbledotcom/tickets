@@ -751,16 +751,6 @@ export const loadPackageMemberPricingByGroupIds = async (
   );
 };
 
-/** One package group's full pricing state, through the shared many-group path. */
-export const loadPackageMemberPricing = async (
-  groupId: number,
-): Promise<PackageMemberPricing> =>
-  requiredMapValue(
-    await loadPackageMemberPricingByGroupIds([groupId]),
-    groupId,
-    "Missing package pricing",
-  );
-
 /** The membership rows for several groups in one query, keyed by group id, so a
  * list endpoint can hydrate every group's package members without a per-group
  * round-trip. Groups with no membership rows are absent from the map. */

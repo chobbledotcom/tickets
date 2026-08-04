@@ -3,12 +3,15 @@
  *
  * Every row on such a list renders the same arrow, so a story finds its own
  * row's arrow by the address that arrow's form posts to — pressing the first
- * one on the page would move somebody else's row. The form itself is then
- * submitted from the page in front of the person, so an arrow that is switched
- * off, or whose form the page stopped rendering, fails the story instead of
- * being reached around. A row the list offers no arrow for is one that can go
- * no further, which is how the site says "nowhere left to go" — so a story
- * asks whether the arrow is there, and pressing one that is not fails.
+ * one on the page would move somebody else's row. The arrow has to sit on the
+ * named row's own markup: one posting the right address from some other row
+ * is an arrow the person looking at this row does not have. The form itself
+ * is then submitted from the page in front of the person, so an arrow that is
+ * switched off, or whose form the page stopped rendering, fails the story
+ * instead of being reached around. A row the list offers no arrow for is one
+ * that can go no further, which is how the site says "nowhere left to go" —
+ * so a story asks whether the arrow is there, and pressing one that is not
+ * fails.
  */
 
 import type { OpensAtOneRow } from "#test/specs/support/browser.ts";
@@ -35,17 +38,19 @@ export const movingRowsOn = (
   openAt: OpensAtOneRow,
 ): MovesNamedRows => {
   /** The list in front of somebody, and where this row's arrow for going that
-   * way posts — or nothing when the list offers them no such arrow. */
+   * way posts — or nothing when the row offers them no such arrow. Read off
+   * the named row's own markup, so an arrow rendered beside somebody else's
+   * row is never taken for this one's. */
   const arrowFor = async (
     world: TicketsWorld,
     name: string,
     direction: Direction,
   ): Promise<{ browser: TestBrowser; posts: string | null }> => {
-    const { browser, id } = await openAt(world, name);
+    const { browser, id, row } = await openAt(world, name);
     const posts = `${listPath}/${id}/move-${direction}`;
     return {
       browser,
-      posts: browser.currentHtml.includes(posts) ? posts : null,
+      posts: row.includes(posts) ? posts : null,
     };
   };
   return {

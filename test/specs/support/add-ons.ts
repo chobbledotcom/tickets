@@ -18,7 +18,7 @@ import {
 import {
   checkboxValueOffered,
   tickedCheckboxes,
-} from "#test/specs/support/form-controls.ts";
+} from "#test/specs/support/form-controls/reading.ts";
 import {
   listingNamed,
   rememberListing,

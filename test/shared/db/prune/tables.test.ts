@@ -186,6 +186,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
         "1.2.3.4",
         5,
         nowMs() - PRUNE_LOGINS_RETENTION_MS - 60_000,
+        nowMs(),
       );
 
       await runDatabasePruning();
@@ -193,12 +194,25 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       expect(await loginAttemptExists(ipHash)).toBe(false);
     });
 
-    test("keeps counter-only rows (locked_until IS NULL)", async () => {
-      const ipHash = await insertLoginAttempt("5.6.7.8", 2, null);
+    test("keeps counter-only rows attempted within retention", async () => {
+      const ipHash = await insertLoginAttempt("5.6.7.8", 2, null, nowMs());
 
       await runDatabasePruning();
 
       expect(await loginAttemptExists(ipHash)).toBe(true);
+    });
+
+    test("deletes counter-only rows untouched past retention", async () => {
+      const ipHash = await insertLoginAttempt(
+        "21.22.23.24",
+        2,
+        null,
+        nowMs() - PRUNE_LOGINS_RETENTION_MS - 60_000,
+      );
+
+      await runDatabasePruning();
+
+      expect(await loginAttemptExists(ipHash)).toBe(false);
     });
 
     test("keeps rows with currently-active lockouts", async () => {
@@ -206,6 +220,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
         "9.10.11.12",
         5,
         nowMs() + 60_000,
+        nowMs() - PRUNE_LOGINS_RETENTION_MS - 60_000,
       );
 
       await runDatabasePruning();

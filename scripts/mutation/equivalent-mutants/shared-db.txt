@@ -9,7 +9,6 @@ src/shared/db/table.ts::defineCachedListTable.dependsOn~1o37jut  ?? → ||   # t
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
-src/shared/db/login-attempts.ts::makeRecordAttempt.newAttempts~1okdl3q  ?? → ||
 src/shared/db/users.ts::getUserAuthFieldsById~0q9twz3  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
 src/shared/db/query-log.ts::getState~0iubkry  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
 src/shared/db/query-log.ts::enforceN1Guard.count~1xuztjh  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
@@ -112,6 +111,9 @@ src/features/admin/api-keys.ts::apiKeyPage.load~0c5nk11  ?? → ||   # entity-pa
 # the loader always seeds, and an array fallback.
 src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → ||   # rowsByGroup.get(): GroupListing[]|undefined — an array is always truthy
 src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
-src/shared/db/groups.ts::loadPackageMemberPricing~1i2it1x  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every requested group id, so the single-group lookup always finds its own id
 src/features/admin/api-groups.ts::groupApiRoutes.hydrate.pricing~02yma27  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
 src/shared/db/groups.ts::getGroupById~1ydaoy4  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree
+src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
+src/shared/db/groups.ts::packageMembersError.blocked.childIds~05z1ovp  Missing listing child edges → ""   # hydrateListingLinks returns an entry for every listing id it is given, and only those ids are looked up, so requiredMapValue never raises this message
+src/shared/db/groups.ts::packageMembersError.blocked.parentIds~069l6kv  Missing listing parent edges → ""   # same as the child edges above — the parents map is keyed by the very listings being checked
+src/shared/db/activity-log.ts::logActivity~078kit2  Activity log row missing → ""   # logActivities returns one row per activity it was given, so the single-activity call always has its row and requireValue never raises this message

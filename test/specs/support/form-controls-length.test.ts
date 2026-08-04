@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
 
 describe("a box that asks for a minimum length", () => {
   const password = (extra = "") =>

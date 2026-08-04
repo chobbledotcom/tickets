@@ -137,11 +137,12 @@ export const insertLoginAttempt = async (
   ipPlain: string,
   attempts: number,
   lockedUntil: number | null,
+  lastAttempt: number,
 ): Promise<string> => {
   const ipHash = await hmacHash(ipPlain);
   await getDb().execute({
-    args: [ipHash, attempts, lockedUntil],
-    sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+    args: [ipHash, attempts, lockedUntil, lastAttempt],
+    sql: "INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt) VALUES (?, ?, ?, ?)",
   });
   return ipHash;
 };

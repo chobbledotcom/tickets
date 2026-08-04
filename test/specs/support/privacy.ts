@@ -21,9 +21,11 @@ import { ORGANISER, openAdminPage } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
   choicesOffered,
+  tickedCheckboxes,
+} from "#test/specs/support/form-controls/reading.ts";
+import {
   fillInAndSend,
   takeDownFromActions,
-  tickedCheckboxes,
 } from "#test/specs/support/form-controls.ts";
 import {
   listingIdNamed,
