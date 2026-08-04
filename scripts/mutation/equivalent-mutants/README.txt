@@ -15,8 +15,22 @@
 # new record to the file whose name covers the source path (splitting a
 # file that outgrows ~400 lines).
 #
-# Format — copy a survivor line from the report and add a reason:
-#   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
+# Format — one entry per line, plus a reason:
+#   <path>::<anchor>  <from> → <to>   # why it is equivalent
+#
+# The anchor names the thing the mutant sits inside — a function, a method, a
+# value — with nested names joined by dots:
+#
+#   src/fp.ts::collectionCache.generation  0 → 1   # ...
+#
+# Where several mutants of the SAME kind sit inside one name they are numbered
+# in source order, `@1`, `@2`. The ordinal uses `@` and not `#`, because a line
+# ends with a `#` comment and a `#` in the anchor would start one early.
+#
+# Entries used to record <path>:<line>:<col>, which meant any edit ABOVE a
+# recorded expression silently invalidated it. An anchor moves only when the
+# thing it names does: renaming its function, or adding another mutant of the
+# same kind inside that function. Both are real changes to what was recorded.
 #
 # Do NOT list a mutant whose output the linter or type checker rejects. Biome's
 # noDoubleEquals rule rejects every `=== → ==` and `!== → !=` mutant. The runner

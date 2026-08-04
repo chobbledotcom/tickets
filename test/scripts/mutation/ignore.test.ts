@@ -16,10 +16,13 @@ import { tempDir, tempFile } from "#test-utils/files.ts";
 
 const file = `${projectRoot}/src/example.ts`;
 
-const mutant = (line: number, operator = "??", newOperator = "||"): Mutant => ({
+/** A mutant told apart from its neighbours by `nth`, which names the thing it
+ * sits inside — that is what an entry records, so it is what has to differ. */
+const mutant = (nth: number, operator = "??", newOperator = "||"): Mutant => ({
+  anchor: `fn${nth}`,
   column: 5,
   end: 1,
-  line,
+  line: nth,
   newOperator,
   operator,
   start: 0,
@@ -42,8 +45,8 @@ const ignoreList = (entries: string[]): IgnoreList => ({
 });
 
 describe("mutation ignore list", () => {
-  test("keys mutants by project-relative path and displayed mutation", () => {
-    expect(mutantKey(file, mutant(12))).toBe("src/example.ts:12:5 ??→||");
+  test("keys mutants by path, what they sit inside, and the mutation", () => {
+    expect(mutantKey(file, mutant(12))).toBe("src/example.ts::fn12 ??→||");
   });
 
   test("matches ignored survivors by canonical key", () => {
@@ -53,22 +56,33 @@ describe("mutation ignore list", () => {
     expect(isIgnored(ignore, file, mutant(13))).toBe(false);
   });
 
-  test("loads canonical entries and ignores comments, blanks, and invalid lines", async () => {
+  test("loads canonical entries, skipping comments and blanks", async () => {
     using temp = tempFile({ prefix: "mutation-ignore-" });
     await Deno.writeTextFile(
       temp.path,
       [
         "# known equivalent mutants",
         "",
-        "not a valid entry",
-        "src/example.ts:12:5 ?? → || # nullish and or equivalent here",
+        "src/example.ts::readSetting ?? → || # nullish and or equivalent here",
       ].join("\n"),
     );
 
     const loaded = await loadIgnoreList([temp.path]);
 
-    expect(loaded.entries).toEqual(["src/example.ts:12:5 ??→||"]);
-    expect(loaded.keys.has("src/example.ts:12:5 ??→||")).toBe(true);
+    expect(loaded.entries).toEqual(["src/example.ts::readSetting ??→||"]);
+    expect(loaded.keys.has("src/example.ts::readSetting ??→||")).toBe(true);
+  });
+
+  /** A line that neither parses nor reads as a comment is a record that would
+   * silently stop suppressing its mutant — which is how an ordinal separator
+   * clashing with the comment marker once dropped 145 entries unnoticed. */
+  test("fails on a line that is neither a comment nor an entry", async () => {
+    using temp = tempFile({ prefix: "mutation-ignore-" });
+    await Deno.writeTextFile(temp.path, "not a valid entry\n");
+
+    await expect(loadIgnoreList([temp.path])).rejects.toThrow(
+      "Malformed equivalent-mutant entry",
+    );
   });
 
   test("loads an entry with an empty 'from' side, for an already-empty string literal mutant", async () => {
@@ -78,14 +92,14 @@ describe("mutation ignore list", () => {
     using temp = tempFile({ prefix: "mutation-ignore-" });
     await Deno.writeTextFile(
       temp.path,
-      [`src/example.ts:12:5  → "mutated" # always-empty date sentinel`].join(
+      [`src/example.ts::fn12  → "mutated" # always-empty date sentinel`].join(
         "\n",
       ),
     );
 
     const loaded = await loadIgnoreList([temp.path]);
 
-    expect(loaded.entries).toEqual(['src/example.ts:12:5 →"mutated"']);
+    expect(loaded.entries).toEqual(['src/example.ts::fn12 →"mutated"']);
     expect(isIgnored(loaded, file, mutant(12, "", '"mutated"'))).toBe(true);
   });
 
@@ -93,19 +107,19 @@ describe("mutation ignore list", () => {
     using dir = tempDir({ prefix: "mutation-ignore-dir-" });
     await Deno.writeTextFile(
       `${dir.path}/b-late.txt`,
-      "src/example.ts:13:5 ?? → ||\n",
+      "src/example.ts::second ?? → ||\n",
     );
     await Deno.writeTextFile(
       `${dir.path}/a-early.txt`,
-      "src/example.ts:12:5 ?? → ||\n",
+      "src/example.ts::first ?? → ||\n",
     );
     await Deno.writeTextFile(`${dir.path}/notes.md`, "not a registry file\n");
 
     const loaded = await loadIgnoreList(await listRegistryFiles(dir.path));
 
     expect(loaded.entries).toEqual([
-      "src/example.ts:12:5 ??→||",
-      "src/example.ts:13:5 ??→||",
+      "src/example.ts::first ??→||",
+      "src/example.ts::second ??→||",
     ]);
   });
 
@@ -148,7 +162,7 @@ describe("mutation ignore list", () => {
   test("reports stale, redundant, and duplicate entries for mutated files only", () => {
     const ignored = mutantKey(file, mutant(1));
     const redundant = mutantKey(file, mutant(2));
-    const stale = "src/example.ts:99:5 ??→||";
+    const stale = "src/example.ts::noSuchThing ??→||";
     const otherFile = "src/other.ts:1:5 ??→||";
 
     expect(

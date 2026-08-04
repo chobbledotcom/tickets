@@ -20,7 +20,7 @@ const setup = async () => {
     (entry) => entry.operator === "??" && entry.newOperator === "||",
   );
   if (!mutant) throw new Error("Expected nullish mutant");
-  const entry = `source.ts:${mutant.line}:${mutant.column}  ?? → ||   # same fallback\n`;
+  const entry = `source.ts::${mutant.anchor}  ?? → ||   # same fallback\n`;
   await Deno.writeTextFile(ignoreFile, `# kept comment\n\n${entry}`);
   return { dir, entry, ignoreFile, sourceFile };
 };
@@ -117,7 +117,7 @@ describe("equivalent-mutant static audit", () => {
     using _dir = state.dir;
     await Deno.writeTextFile(
       state.ignoreFile,
-      "source.ts:99:1 ?? → || # stale\n",
+      "source.ts::noSuchThing ?? → || # stale\n",
     );
 
     await expect(auditSetup(state)).rejects.toThrow(
@@ -141,7 +141,7 @@ describe("equivalent-mutant static audit", () => {
     if (!first || !second) throw new Error("Expected two nullish mutants");
     await Deno.writeTextFile(
       ignoreFile,
-      `source.ts:${first.line}:${first.column} ?? → || # killed\nsource.ts:${second.line}:${second.column} ?? → || # kept\n`,
+      `source.ts::${first.anchor} ?? → || # killed\nsource.ts::${second.anchor} ?? → || # kept\n`,
     );
 
     await auditEquivalentMutants(
@@ -163,7 +163,7 @@ describe("equivalent-mutant static audit", () => {
     );
 
     expect(await Deno.readTextFile(ignoreFile)).toBe(
-      `source.ts:${second.line}:${second.column} ?? → || # kept\n`,
+      `source.ts::${second.anchor} ?? → || # kept\n`,
     );
     expect(await Deno.readTextFile(sourceFile)).toBe(twoValues);
   });
@@ -250,7 +250,7 @@ describe("equivalent-mutant static audit", () => {
     );
     if (!kept) throw new Error("Expected nullish mutant");
     const secondFile = join(state.dir.path, "second.txt");
-    const keptEntry = `second-source.ts:${kept.line}:${kept.column} ?? → || # kept\n`;
+    const keptEntry = `second-source.ts::${kept.anchor} ?? → || # kept\n`;
     await Deno.writeTextFile(secondFile, keptEntry);
 
     await auditEquivalentMutants(
