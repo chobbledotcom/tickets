@@ -2,15 +2,16 @@
  * Which mutation runs are still going, and deleting the ones that are not.
  *
  * The supervisor in isolation.ts uses this both to clear up before a new run
- * and to serve the explicit list/kill/clean commands.
+ * and to serve the explicit list/kill/clean commands. Whether a run is still
+ * going is answered by its claim (isolation-lock.ts): a fresh claim means its
+ * supervisor is alive and touching it, however long ago the record was
+ * written and whatever became of the child's process id.
  */
 
-import { join } from "@std/path";
 import { chunk } from "#fp";
-import { statNumberOrNull, statOrNull } from "#scripts/not-found.ts";
-import { processExists, removeTree } from "#scripts/process.ts";
+import { removeTree } from "#scripts/process.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { runLockIsHeld, withRunLockOrNull } from "./isolation-lock.ts";
+import { runClaimIsFresh } from "./isolation-lock.ts";
 import {
   readRunRecord,
   recordInRunDirectory,
@@ -18,32 +19,22 @@ import {
 } from "./isolation-records.ts";
 import {
   isRunId,
-  MUTATION_RECORD_FILE,
   type MutationRunRecord,
   newRunRecord,
   recordPath,
-  runRoot,
-  runStartedRecently,
-  withinStartupGrace,
 } from "./isolation-state.ts";
 
-/** Is this record's run started, and its process still alive? */
-const runProcessIsUp = (record: MutationRunRecord): boolean =>
-  record.status === "running" &&
-  record.pid !== undefined &&
-  processExists(record.pid);
-
+/** Is this record's run started, and its folder still its supervisor's? */
 export const processBelongsToRun = async (
   record: MutationRunRecord,
-): Promise<boolean> => runProcessIsUp(record) && (await runLockIsHeld(record));
+): Promise<boolean> =>
+  record.status === "running" &&
+  record.pid !== undefined &&
+  (await runClaimIsFresh(record));
 
-/** The record as it reads on disk right now, if it can be read at all. */
-const freshRecord = async (
-  record: MutationRunRecord,
-): Promise<MutationRunRecord | null> => {
-  const latest = await readRunRecord(join(record.root, MUTATION_RECORD_FILE));
-  return latest === null ? null : { ...latest, root: record.root };
-};
+type RemoveRunResult =
+  | { record: MutationRunRecord; removed: true }
+  | { error: unknown; record: MutationRunRecord; removed: false };
 
 export const liveRunIdSet = async (
   records: MutationRunRecord[],
@@ -55,10 +46,6 @@ export const liveRunIdSet = async (
   );
   return new Set(live.filter((id): id is string => id !== null));
 };
-
-type RemoveRunResult =
-  | { record: MutationRunRecord; removed: true }
-  | { error: unknown; record: MutationRunRecord; removed: false };
 
 /** Delete one folder of a run, treating an already-missing folder as done. */
 const removeRunPath = async (
@@ -77,37 +64,19 @@ const removeRunPath = async (
 };
 
 /**
- * Judged from the record alone: the caller already holds the folder's lock, so
- * a live run is one whose child is up, or one so young its record may not have
- * caught up yet.
- */
-const activeByRecord = (record: MutationRunRecord): boolean =>
-  record.status === "copying"
-    ? runStartedRecently(record)
-    : runProcessIsUp(record) && runStartedRecently(record);
-
-/**
- * Delete a run's whole folder, but only while holding its lock, and only if
- * the record read under that lock still says the run is over. Holding the lock
- * is what stops an owner claiming the folder in the moment between the two.
- * `null` means the run is still someone's, so it was left alone.
+ * Delete a run's whole folder, but only when its claim has gone stale. The
+ * run's own supervisor keeps the claim fresh from before the first record
+ * write until after the snapshot is thrown away, so a fresh claim means the
+ * folder is still someone's — `null` says it was left alone. A stale claim
+ * cannot come back to life mid-delete: a run id is never claimed twice, and
+ * its one owner is gone.
  */
 const removeRun = async (
   record: MutationRunRecord,
-): Promise<RemoveRunResult | null> => {
-  const outcome = await withRunLockOrNull(record, async () => {
-    const latest = (await freshRecord(record)) ?? record;
-    return activeByRecord(latest)
-      ? null
-      : await removeRunPath(record, record.root);
-  });
-  if (outcome !== null) return outcome;
-  // Nothing left to leave alone means another clear-up got there first, which
-  // is the outcome we wanted, not a run we skipped.
-  return (await statOrNull(record.root)) === null
-    ? { record, removed: true }
-    : null;
-};
+): Promise<RemoveRunResult | null> =>
+  (await runClaimIsFresh(record))
+    ? null
+    : await removeRunPath(record, record.root);
 
 interface CleanedRuns {
   failed: Extract<RemoveRunResult, { removed: false }>[];
@@ -116,10 +85,9 @@ interface CleanedRuns {
 }
 
 /**
- * How many runs to clear away at once. Each one waits for its folder's lock in
- * a process of its own, and a first run after a long time without one can find
- * hundreds of folders waiting — enough processes at once to run a machine out
- * of them.
+ * How many runs to clear away at once. Each folder is a whole checkout copy,
+ * and a first run after a long time without one can find hundreds waiting —
+ * deleting them all at once would swamp the disk.
  */
 const RUNS_CLEARED_AT_ONCE = 8;
 
@@ -169,29 +137,14 @@ export const removeWorkSnapshot = async (
   if (!result.removed) reportRemoveFailure("the snapshot of", result);
 };
 
-/** When a folder last changed, or `null` when that cannot be told. */
-const folderChangedAt = statNumberOrNull((info) => info.mtime?.getTime());
-
 /**
  * A folder whose record cannot be read belongs to a run that was killed while
- * writing it. Stand in for that record so the folder can be checked and
- * cleared like any other.
+ * writing it. Stand in for that record so the folder can be judged by its
+ * claim and cleared like any other — a run writing its record right now holds
+ * a fresh claim, taken before the record's first write.
  */
-const recordForUnreadableRun = async (
-  id: string,
-  root: string,
-): Promise<MutationRunRecord> => {
-  const changedAt = await folderChangedAt(runRoot(id, root));
-  // Young folders are left alone, in case a run is writing its record now —
-  // and so are folders whose age cannot be told at all.
-  const leaveAlone = changedAt === null || withinStartupGrace(changedAt);
-  return {
-    ...newRunRecord(id, [], root),
-    updatedAt: leaveAlone
-      ? new Date().toISOString()
-      : new Date(0).toISOString(),
-  };
-};
+const recordForUnreadableRun = (id: string, root: string): MutationRunRecord =>
+  newRunRecord(id, [], root);
 
 const runsToSweep = async (root: string): Promise<MutationRunRecord[]> => {
   // Only folders this runner named, and picked out before anything inside them
@@ -201,7 +154,7 @@ const runsToSweep = async (root: string): Promise<MutationRunRecord[]> => {
     ours.map(async (id) => {
       const record = await readRunRecord(recordPath(id, root));
       return record === null
-        ? await recordForUnreadableRun(id, root)
+        ? recordForUnreadableRun(id, root)
         : recordInRunDirectory(record, id, root);
     }),
   );

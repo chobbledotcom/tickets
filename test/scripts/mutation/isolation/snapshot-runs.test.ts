@@ -2,7 +2,10 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
+import {
+  runIsolatedMutationCommand,
+  runMutationInSnapshot,
+} from "#scripts/mutation/isolation.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   createRunId,
@@ -28,7 +31,6 @@ import {
   failWorkRemoval,
   finishedChild,
   readOnlyRunRecord,
-  recordAroundClean,
   SNAPSHOT_FAILED,
   sendFirstSignalImmediately,
   stubCommand,
@@ -136,18 +138,22 @@ describe("running mutation inside a snapshot", () => {
     });
   });
 
-  test("writes the run record before it queues for the lock", async () => {
+  test("keeps its folder claimed against a clean while the run is going", async () => {
     await withTempDir(async (root) => {
-      // A record on disk this early is what makes a queued run findable.
-      expect((await recordAroundClean(root)).beforeLock).toBe(true);
-    });
-  });
+      const child = controlledChild(42_427, () => {});
+      using _command = stubCommand(child.child);
 
-  test("writes the run record again if a clean removes it while queueing", async () => {
-    await withTempDir(async (root) => {
-      // The clean above dropped the record; the run must put it back, or the
-      // snapshot it is about to make would belong to no run anyone can find.
-      expect((await recordAroundClean(root)).atChildStart).toBe(true);
+      const run = captureSimpleSnapshotMutation(root);
+      const started = await waitForRunningRecord(root);
+
+      // A `--clean` sweeping mid-run finds the folder claimed and leaves it.
+      expect(await runIsolatedMutationCommand(["--clean", "all"], root)).toBe(
+        1,
+      );
+      expect(await pathExists(started.root)).toBe(true);
+
+      child.finish({ code: 0, signal: null, success: true });
+      expect((await run).result).toBe(0);
     });
   });
 

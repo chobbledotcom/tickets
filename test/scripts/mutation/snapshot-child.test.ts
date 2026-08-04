@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   MUTATION_RUN_ID_ENV,
-  MUTATION_RUN_LOCK_FILE,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
   MUTATION_WORK_ROOT_ENV,
@@ -13,7 +12,7 @@ import {
   runSnapshotChild,
 } from "#scripts/mutation/snapshot-child.ts";
 import { projectRoot } from "#scripts/project-root.ts";
-import { pathExists, withTempDir } from "#test-utils/files.ts";
+import { withTempDir } from "#test-utils/files.ts";
 
 const CHILD_VARS = [
   MUTATION_RUN_ID_ENV,
@@ -44,14 +43,11 @@ describe("the worker inside a snapshot", () => {
     expect(isSnapshotChild()).toBe(true);
   });
 
-  test("holds the run's lock while it works", async () => {
+  test("does the work once it knows the snapshot is its own", async () => {
     await withTempDir(async (runRoot) => {
       setRunVars(runRoot);
-      const lock = join(runRoot, MUTATION_RUN_LOCK_FILE);
 
-      const held = await runSnapshotChild(() => pathExists(lock));
-
-      expect(held).toBe(true);
+      expect(await runSnapshotChild(() => Promise.resolve(7))).toBe(7);
     });
   });
 

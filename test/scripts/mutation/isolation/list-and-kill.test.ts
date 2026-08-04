@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { withMutationRunLock } from "#scripts/mutation/isolation-lock.ts";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   ISOLATION_USAGE,
@@ -17,6 +16,7 @@ import {
   runningWithoutPid,
   runQuietMutationCommand,
   withTempDir,
+  writeRunClaim,
 } from "#test/scripts/mutation/isolation-helpers.ts";
 import {
   finishedChild,
@@ -47,11 +47,13 @@ describe("listing, signalling and cleaning isolated runs", () => {
     });
   });
 
-  test("lists running runs only when their pid and lock are live", async () => {
+  test("lists running runs only while their claim is fresh", async () => {
     await withTempDir(async (root) => {
-      const unlocked = markRunning(
+      // A live pid is not enough: with nobody's claim on the folder, the
+      // supervisor is gone and the run reads as stale.
+      const unclaimed = markRunning(
         newRunRecord(
-          runIdNamed("unlocked"),
+          runIdNamed("unclaimed"),
           [],
           root,
           "2026-07-09T12:04:00.000Z",
@@ -77,26 +79,25 @@ describe("listing, signalling and cleaning isolated runs", () => {
         root,
         "2026-07-09T12:01:00.000Z",
       );
-      await writeRecords([unlocked, live, stale, copying]);
+      await writeRecords([unclaimed, live, stale, copying]);
+      await writeRunClaim(live);
 
-      await withMutationRunLock(live.root, async () => {
-        const list = await captureMutationCommand(["list"], root);
+      const list = await captureMutationCommand(["list"], root);
 
-        expect(list).toEqual({
-          errors: [],
-          logs: [
-            `${runIdNamed("unlocked")} stale pid=${Deno.pid} exit=- work=.mutation-runs/${runIdNamed("unlocked")}/work`,
-            `${runIdNamed("live")} running pid=${Deno.pid} exit=- work=.mutation-runs/${runIdNamed("live")}/work args=src/live.ts`,
-            `${runIdNamed("stale")} stale pid=99999999 exit=- work=.mutation-runs/${runIdNamed("stale")}/work`,
-            `${runIdNamed("copying")} copying pid=- exit=- work=.mutation-runs/${runIdNamed("copying")}/work`,
-          ],
-          result: 0,
-        });
+      expect(list).toEqual({
+        errors: [],
+        logs: [
+          `${runIdNamed("unclaimed")} stale pid=${Deno.pid} exit=- work=.mutation-runs/${runIdNamed("unclaimed")}/work`,
+          `${runIdNamed("live")} running pid=${Deno.pid} exit=- work=.mutation-runs/${runIdNamed("live")}/work args=src/live.ts`,
+          `${runIdNamed("stale")} stale pid=99999999 exit=- work=.mutation-runs/${runIdNamed("stale")}/work`,
+          `${runIdNamed("copying")} copying pid=- exit=- work=.mutation-runs/${runIdNamed("copying")}/work`,
+        ],
+        result: 0,
       });
     });
   });
 
-  test("lists stale pid records without shelling out to kill", async () => {
+  test("lists stale records without shelling anything out", async () => {
     await withTempDir(async (root) => {
       const stale = runningRun("stale", root, 99_999_999);
       await writeRunRecord(stale);
@@ -106,7 +107,7 @@ describe("listing, signalling and cleaning isolated runs", () => {
 
       const list = await captureMutationCommand(["--list"], root);
 
-      // A stale pid is judged from the record alone, with nothing shelled out.
+      // Staleness is read straight from the claim file, nothing shelled out.
       expect(starts).toEqual([]);
       expect(list).toEqual({
         errors: [],
@@ -118,7 +119,7 @@ describe("listing, signalling and cleaning isolated runs", () => {
     });
   });
 
-  test("signals live runs and reports missing or stale targets", async () => {
+  test("signals claimed runs and reports missing or stale targets", async () => {
     await withTempDir(async (root) => {
       const live = runningRun("live", root, Deno.pid);
       const noPid = runningWithoutPid("nopid", root);
@@ -130,23 +131,24 @@ describe("listing, signalling and cleaning isolated runs", () => {
         0,
       );
       await writeRecords([live, noPid, passed, done]);
+      await writeRunClaim(live);
+      await writeRunClaim(noPid);
+      await writeRunClaim(done);
 
       const calls: KillCall[] = [];
       using _kill = stub(Deno, "kill", ((pid, signal) => {
         calls.push({ pid, signal });
       }) as typeof Deno.kill);
 
-      await withMutationRunLock(live.root, async () => {
-        expect(
-          await runQuietMutationCommand(["--kill", runIdNamed("live")], root),
-        ).toBe(0);
-        expect(
-          await runQuietMutationCommand(
-            ["kill", runIdNamed("live"), "--force"],
-            root,
-          ),
-        ).toBe(0);
-      });
+      expect(
+        await runQuietMutationCommand(["--kill", runIdNamed("live")], root),
+      ).toBe(0);
+      expect(
+        await runQuietMutationCommand(
+          ["kill", runIdNamed("live"), "--force"],
+          root,
+        ),
+      ).toBe(0);
 
       expect(calls).toEqual([
         { pid: Deno.pid, signal: "SIGTERM" },
@@ -169,20 +171,39 @@ describe("listing, signalling and cleaning isolated runs", () => {
     });
   });
 
-  test("reports live runs that cannot be signalled", async () => {
+  test("never signals a pid its run's supervisor has walked away from", async () => {
+    await withTempDir(async (root) => {
+      // The record's pid is alive, but it may have been handed to an
+      // unrelated program after the supervisor died: with no fresh claim to
+      // vouch for the run, nothing may be signalled.
+      const orphaned = runningRun("orphaned", root, Deno.pid);
+      await writeRunRecord(orphaned);
+
+      const calls: KillCall[] = [];
+      using _kill = stub(Deno, "kill", ((pid, signal) => {
+        calls.push({ pid, signal });
+      }) as typeof Deno.kill);
+
+      expect(
+        await runQuietMutationCommand(["--kill", runIdNamed("orphaned")], root),
+      ).toBe(1);
+      expect(calls).toEqual([]);
+    });
+  });
+
+  test("reports claimed runs that cannot be signalled", async () => {
     await withTempDir(async (root) => {
       const live = runningRun("live", root, Deno.pid);
       await writeRunRecord(live);
+      await writeRunClaim(live);
 
       using _kill = stub(Deno, "kill", (() => {
         throw new Error("cannot signal");
       }) as typeof Deno.kill);
 
-      await withMutationRunLock(live.root, async () => {
-        expect(
-          await runQuietMutationCommand(["--kill", runIdNamed("live")], root),
-        ).toBe(1);
-      });
+      expect(
+        await runQuietMutationCommand(["--kill", runIdNamed("live")], root),
+      ).toBe(1);
     });
   });
 

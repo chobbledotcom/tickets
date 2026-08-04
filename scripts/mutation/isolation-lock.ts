@@ -1,113 +1,61 @@
 /**
- * The lock each mutation run holds while it owns its folder.
+ * The claim each mutation run's supervisor holds on the run's folder, and the
+ * one checkout-wide lock runs share when bringing kept files back.
  *
- * The locking itself lives in #scripts/lock-file.ts, which every lock in the
- * repo goes through. This file only says where a run's lock is, and adds the
- * one thing runs need that other locks do not: asking whether somebody else is
- * holding one, without waiting to find out.
+ * The claim mechanics live in #scripts/stale-claim.ts, which the stripe-mock
+ * install shares. The supervisor takes its run's claim before the run's first
+ * record write and keeps it fresh until the snapshot is gone, so a clear-up
+ * can tell a run somebody still owns (fresh claim) from one whose supervisor
+ * has walked away (stale or missing claim) — without ever asking a process id
+ * that may since have been handed to somebody else.
  */
 
-import { withFileLock, withFileLockOrNull } from "#scripts/lock-file.ts";
-import { statOrNull } from "#scripts/not-found.ts";
-import { denoExitCode } from "./child-process.ts";
+import { withFileLock } from "#scripts/lock-file.ts";
+import {
+  claimIsFresh,
+  type HeldClaim,
+  takeClaim,
+} from "#scripts/stale-claim.ts";
 import {
   copyBackLockPath,
   type MutationRunRecord,
-  runLockPath,
+  runClaimPath,
 } from "./isolation-state.ts";
 
-const LOCK_HELD_EXIT_CODE = 124;
-const LOCK_FREE_EXIT_CODE = 0;
+/**
+ * A claim untouched for this long belongs to a supervisor that has walked
+ * away — killed, or on a machine that stopped — and its folder may be
+ * cleared. Generous next to the touch below, so a briefly starved supervisor
+ * does not lose its run.
+ */
+export const RUN_CLAIM_STALE_MS = 30_000;
 
-const LOCK_PROBE_SCRIPT = `
-const [path, timeoutText] = Deno.args;
-const timeout = setTimeout(
-  () => Deno.exit(${LOCK_HELD_EXIT_CODE}),
-  Number(timeoutText),
-);
-const opened = await Deno.open(path, { read: true, write: true }).catch((why) => why);
-// A lock file that has gone is nobody holding one — a clear-up can take the
-// folder away between being asked and being looked at.
-if (opened instanceof Deno.errors.NotFound) {
-  clearTimeout(timeout);
-  Deno.exit(${LOCK_FREE_EXIT_CODE});
-}
-if (!(opened instanceof Deno.FsFile)) {
-  clearTimeout(timeout);
-  Deno.exit(2);
-}
-const file = opened;
-try {
-  await file.lock(true);
-  await file.unlock();
-  clearTimeout(timeout);
-  file.close();
-  Deno.exit(${LOCK_FREE_EXIT_CODE});
-} catch {
-  clearTimeout(timeout);
-  file.close();
-  Deno.exit(2);
-}
-`;
+const RUN_CLAIM_TOUCH_MS = 1_000;
 
-const lockProbeExitCode = (path: string, timeoutMs: number): Promise<number> =>
-  denoExitCode(["eval", LOCK_PROBE_SCRIPT, "--", path, String(timeoutMs)], {
-    stderr: "null",
-    stdout: "null",
+/** Take a fresh run's claim. A run id is new, so its claim is always free. */
+export const takeRunClaim = (
+  record: Pick<MutationRunRecord, "id" | "root">,
+): Promise<HeldClaim> =>
+  takeClaim(runClaimPath(record), {
+    name: `the claim on isolated mutation run ${record.id}`,
+    retryMs: 0,
+    staleMs: RUN_CLAIM_STALE_MS,
+    timeoutMs: 0,
+    touchMs: RUN_CLAIM_TOUCH_MS,
   });
 
-/**
- * Is somebody holding this run's lock? Asked in a child process, because a lock
- * this process already holds would look free to itself.
- */
-export const runLockIsHeld = async (
+/** Is this run's folder still somebody's? Only its own supervisor writes and
+ * touches the claim, so a fresh one is the run's, never a clear-up's. */
+export const runClaimIsFresh = (
   record: Pick<MutationRunRecord, "root">,
-  timeoutMs = 50,
-): Promise<boolean> => {
-  const path = runLockPath(record);
-  // No lock file means no run holding one.
-  if ((await statOrNull(path)) === null) return false;
-  const stopped = await lockProbeExitCode(path, timeoutMs);
-  if (stopped === LOCK_HELD_EXIT_CODE) return true;
-  if (stopped === LOCK_FREE_EXIT_CODE) return false;
-  throw new Error(
-    `Could not tell whether the lock at ${path} is held: the check stopped with code ${stopped}`,
-  );
-};
-
-/**
- * Hold a run's lock while `run` works, but only if it is free within
- * `timeoutMs`; otherwise give up and answer `null`. Clearing up must never
- * queue behind a run that holds its folder for an hour.
- */
-export const withRunLockOrNull = <Result>(
-  record: Pick<MutationRunRecord, "root">,
-  run: () => Promise<Result>,
-  timeoutMs = 250,
-): Promise<Result | null> =>
-  withFileLockOrNull(runLockPath(record), timeoutMs, run);
-
-/** Holds the lock named by `Key` while the body runs. */
-export type LockHolder<Key> = <Result>(
-  key: Key,
-  run: () => Promise<Result>,
-) => Promise<Result>;
-
-/** A lock named by where it lives: say how to find it, get its holder. */
-const lockHolder =
-  <Key>(pathOf: (key: Key) => string): LockHolder<Key> =>
-  (key, run) =>
-    withFileLock(pathOf(key), run);
-
-/** Hold a run's own lock, for as long as the run needs it. */
-export const withMutationRunLock: LockHolder<string> = lockHolder(
-  (runRootPath: string) => runLockPath({ root: runRootPath }),
-);
+): Promise<boolean> => claimIsFresh(runClaimPath(record), RUN_CLAIM_STALE_MS);
 
 /**
  * Hold the checkout's copy-back lock. Every run brings its kept files back
  * through this one lock, so two runs finishing together cannot both read the
  * checkout, agree it is unchanged, and then write over each other.
  */
-export const withCopyBackLock: LockHolder<string> =
-  lockHolder(copyBackLockPath);
+export const withCopyBackLock = <Result>(
+  root: string,
+  run: () => Promise<Result>,
+): Promise<Result> => withFileLock(copyBackLockPath(root), run);

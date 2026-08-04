@@ -7,7 +7,6 @@
 
 import { resolve } from "@std/path";
 import { projectRoot } from "#scripts/project-root.ts";
-import { withMutationRunLock } from "./isolation-lock.ts";
 import {
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
@@ -33,9 +32,9 @@ const runValue = (name: string): string => {
   return value;
 };
 
-const runRootFromEnv = (): string => {
+const requireOwnSnapshot = (): void => {
   runValue(MUTATION_RUN_ID_ENV);
-  const runRoot = runValue(MUTATION_RUN_ROOT_ENV);
+  runValue(MUTATION_RUN_ROOT_ENV);
   const workRoot = resolve(runValue(MUTATION_WORK_ROOT_ENV));
   // The copy it says it is in must be the one it is running from. Anything
   // else means these values belong to another run, and the work would land in
@@ -45,10 +44,13 @@ const runRootFromEnv = (): string => {
       `A snapshot child says it works in ${workRoot}, but it is running in ${resolve(projectRoot)}.`,
     );
   }
-  return runRoot;
 };
 
-/** Do the run's work, holding its lock so a clear-up cannot take the copy. */
+/** Do the run's work. The supervisor's claim on the run keeps a clear-up
+ * from taking the copy while the child works in it. */
 export const runSnapshotChild = <Result>(
   body: () => Promise<Result>,
-): Promise<Result> => withMutationRunLock(runRootFromEnv(), body);
+): Promise<Result> => {
+  requireOwnSnapshot();
+  return body();
+};

@@ -8,7 +8,6 @@
  */
 
 import { dirname } from "@std/path";
-import { holdLockOrNull } from "#scripts/held-lock-process.ts";
 import { nullIfNotFound, statOrNull } from "#scripts/not-found.ts";
 
 /** Open (creating if needed) a file to hold an advisory lock. */
@@ -58,29 +57,5 @@ export const withFileLock = async <Result>(
         file.close();
       }
     }
-  }
-};
-
-/**
- * Hold the lock at `path` while `body` runs, but only if it comes free within
- * `timeoutMs`; otherwise answer `null`. Unlike `withFileLock` this never makes
- * the folder or waits it out — a caller clearing up after other people must
- * not queue behind them for an hour, nor bring back a folder they removed.
- *
- * A child process does the waiting, so giving up really lets this one finish.
- */
-export const withFileLockOrNull = async <Result>(
-  path: string,
-  timeoutMs: number,
-  body: () => Promise<Result>,
-): Promise<Result | null> => {
-  const held = await holdLockOrNull(path, timeoutMs);
-  if (held === null) return null;
-  try {
-    // The wait may have been won because somebody deleted the folder: a lock on
-    // a file nothing points at keeps nobody out, so it is not worth holding.
-    return (await sameFileAt(path, held.fileNumber)) ? await body() : null;
-  } finally {
-    await held.letGo();
   }
 };
