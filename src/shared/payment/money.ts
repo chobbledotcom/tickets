@@ -33,16 +33,10 @@ const MoneySchema = v.strictObject({
 type Money = v.InferOutput<typeof MoneySchema>;
 
 /**
- * Build a {@link Money} from a provider's raw amount and currency, returning
- * `null` when either is malformed: an amount that is not a non-negative safe
- * whole number (a fraction, a negative, `NaN`, `null`), or a currency that is
- * not three letters. The currency is upper-cased first, so a provider's
- * lower-case code ("gbp") is accepted as the canonical "GBP" rather than
- * rejected for its case.
- *
- * The single producer of a `Money` value: every charge the live payment path
- * reads is built here, so a malformed amount or currency is refused once at the
- * boundary instead of leaking into the callbacks as a half-parsed number.
+ * Build a {@link Money}, or `null` if the amount or currency is malformed.
+ * Upper-cases first, so a provider's "gbp" is the canonical "GBP" rather than a
+ * rejection. The only producer of a `Money`, so malformed charges are refused
+ * once, here, instead of leaking into the callbacks half-parsed.
  */
 export const money = (amount: unknown, currency: unknown): Money | null => {
   const result = v.safeParse(MoneySchema, {

@@ -137,6 +137,34 @@ describe("square-provider resolveWebhookSession", () => {
     );
   });
 
+  test("asks to be retried when the read-back payment is not completed", async () => {
+    // The signed event already reported this payment COMPLETED, so a read-back
+    // still saying APPROVED is Square lagging its own event, not a charge that
+    // never went through. Building an unpaid session would acknowledge captured
+    // money as pending, and Square would never redeliver it.
+    await withMocks(
+      () =>
+        withOrderAndPayment(
+          {
+            id: "order_stale",
+            metadata: SQUARE_ORDER_META,
+            state: "COMPLETED",
+            totalMoney: squareMoney(1000),
+          },
+          {
+            amountMoney: squareMoney(1000),
+            id: "pay_stale",
+            status: "APPROVED",
+          },
+        ),
+      async () => {
+        await expect(
+          completedWebhook("pay_stale", "order_stale"),
+        ).rejects.toThrow("pay_stale");
+      },
+    );
+  });
+
   test("refuses a completed payment that names no amount", async () => {
     // Standing the order total in for money Square did not report would let an
     // unreadable charge match the signed price and book as paid in full.

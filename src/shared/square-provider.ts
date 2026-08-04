@@ -134,11 +134,15 @@ export const squarePaymentProvider: PaymentProvider = {
     const payment = paymentReference
       ? await retrievePayment(paymentReference)
       : null;
-    // The webhook already saw this payment complete, so failing to read it
-    // back is a provider blip, not an unpaid order. Throwing answers the
-    // caller retryably; going quiet would acknowledge a captured charge.
-    if (paidPaymentId && !payment) {
-      throw new Error(`Square payment ${paidPaymentId} could not be read back`);
+    // The webhook already saw this payment complete, so a read-back that is
+    // missing or still short of COMPLETED is Square lagging its own signed
+    // event, not an unpaid order. Throwing answers the caller retryably; going
+    // quiet would acknowledge a captured charge as pending, and Square would
+    // have no reason to deliver it again.
+    if (paidPaymentId && payment?.status !== "COMPLETED") {
+      throw new Error(
+        `Square payment ${paidPaymentId} did not read back as completed (status=${payment?.status ?? "unreadable"})`,
+      );
     }
 
     // The payment must be for the order whose signed metadata we are about to

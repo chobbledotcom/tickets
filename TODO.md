@@ -1798,6 +1798,31 @@ Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
 
+## Record a foreign-currency charge in the money history without pretending it is ours
+
+*Origin: Codex review on PR #2021, which sent a charge taken in the wrong
+currency down the existing mismatch-and-refund path.*
+
+The money history holds one currency — the site's. When a charge arrives in a
+different one, `classify.ts` sends it through the ordinary mismatch flow, and
+`storeRefundPlaceholder` in
+`src/features/api/payment-processing/store-refund.ts` writes
+`session.amountTotal` straight into that history. The number is right but the
+currency is not, so a 1,000 yen charge on a pounds site is filed as £10. The
+refund itself is unaffected — that goes back through the provider in the
+currency it was taken — but the operator's cash history reads wrong, and if the
+refund fails it names the wrong amount as still held.
+
+Two ways out: give the money history a currency of its own so a foreign charge
+can be filed honestly, or keep these charges out of it and record them
+somewhere that does not claim a site-currency total.
+
+Why it is not fixed in that PR: either way changes what the money history can
+hold — a stored currency per entry, plus every reader and every total that
+today assumes one currency. That is a change to the accounting store, well
+past a PR about reading provider money safely, and the wrong thing to bolt on
+without deciding which of the two shapes we want.
+
 ## Record a rejected-and-refunded payment session as finished
 
 *Origin: Codex review on PR #2021, which added the automatic refund for a paid
