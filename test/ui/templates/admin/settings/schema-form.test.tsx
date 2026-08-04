@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 
@@ -80,5 +81,110 @@ describe("settingsForm", () => {
     expect(html).toContain(
       '<input checked name="external_order_enabled" type="radio" value="true">',
     );
+  });
+});
+
+/** A text-form probe: businessEmail's identity with schema options layered on
+ *  top, standing in for definitions that use the newer schema options. The
+ *  registry locks each definition to its literal values, so probes need a
+ *  cast. */
+const textProbe = (
+  extras: object,
+  copyExtras: object = {},
+): typeof SETTINGS_FORMS.businessEmail => {
+  const base = SETTINGS_FORMS.businessEmail;
+  return {
+    ...base,
+    ...extras,
+    copy: { ...base.copy, ...copyExtras },
+  } as unknown as typeof base;
+};
+
+describe("settingsForm schema options", () => {
+  test("renders no placeholder when the copy declares none", () => {
+    const html = String(
+      settingsForm(
+        textProbe(
+          {},
+          { placeholderKey: undefined, placeholderText: undefined },
+        ),
+        state,
+      ),
+    );
+
+    expect(html).toContain('name="business_email"');
+    expect(html).not.toContain("placeholder");
+  });
+
+  test("builds placeholder and footer text at render time", () => {
+    const html = String(
+      settingsForm(
+        textProbe(
+          {},
+          {
+            footerKey: undefined,
+            footerText: () => "Built footer note",
+            placeholderKey: undefined,
+            placeholderText: () => "Built placeholder",
+          },
+        ),
+        state,
+      ),
+    );
+
+    expect(html).toContain('placeholder="Built placeholder"');
+    expect(html).toContain("<p><small>Built footer note</small></p>");
+  });
+
+  test("forwards number input constraints to the field", () => {
+    const html = String(
+      settingsForm(
+        textProbe({
+          inputType: "number",
+          max: "10",
+          min: "0",
+          minlength: 2,
+          required: true,
+          step: "0.1",
+        }),
+        state,
+      ),
+    );
+
+    const input = html.match(/<input[^>]*name="business_email"[^>]*>/)?.[0];
+    expect(input).toContain('type="number"');
+    expect(input).toContain('max="10"');
+    expect(input).toContain('min="0"');
+    expect(input).toContain('minlength="2"');
+    expect(input).toContain('step="0.1"');
+    expect(input).toContain("required");
+  });
+
+  test("renders a block html description without the paragraph wrapper", () => {
+    const html = String(
+      settingsForm(
+        textProbe(
+          {},
+          {
+            descriptionHtml: "block",
+            descriptionKey: "settings.advanced.public_api_hint",
+          },
+        ),
+        state,
+      ),
+    );
+
+    const description = t("settings.advanced.public_api_hint");
+    expect(html).toContain(`</h2>${description}</div>`);
+    expect(html).not.toContain(`<p>${description}</p>`);
+  });
+
+  test("shows the placeholder as the value when nothing is saved yet", () => {
+    const probe = textProbe({ valueFallback: "placeholder" });
+    const empty = String(settingsForm(probe, { businessEmail: "" }));
+    const saved = String(settingsForm(probe, state));
+
+    expect(empty).toContain('value="contact@example.com"');
+    expect(saved).toContain('value="ops@example.com"');
   });
 });

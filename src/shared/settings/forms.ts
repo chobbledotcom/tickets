@@ -2,18 +2,26 @@ import { CONFIG_KEYS, type ConfigKey } from "#shared/settings/keys.ts";
 
 export type SettingsFormPage = "main" | "advanced";
 
-type FormCopyBase = {
+export type FormCopyBase = {
   titleKey: string;
   descriptionKey: string;
-  descriptionHtml?: true;
+  /** `true` renders the trusted-HTML description inside the usual paragraph;
+   * `"block"` renders it bare, for catalog values carrying their own block
+   * markup (their own `<p>` tags). */
+  descriptionHtml?: true | "block";
 };
 
-type FieldFormCopy = FormCopyBase & {
+export type FieldFormCopy = FormCopyBase & {
   labelKey: string;
   labelHint?: "formatting";
-  placeholderKey: string;
+  /** Placeholder: a catalog key, or text built at render time (for example a
+   * default template). Set at most one; omit both for no placeholder. */
+  placeholderKey?: string;
+  placeholderText?: () => string;
   submitLabelKey: string;
+  /** Small note under the field: a catalog key, or text built at render time. */
   footerKey?: string;
+  footerText?: () => string;
 };
 
 type BooleanFormCopy = FormCopyBase;
@@ -30,17 +38,25 @@ type SettingsFormBase<Copy extends FormCopyBase> = {
   copy: Copy;
 };
 
-type TextSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
+export type TextSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
   kind: "text";
-  inputType: "email" | "text";
+  inputType: "email" | "text" | "number" | "url";
+  /** Input constraints, forwarded to the rendered field as-is. */
+  min?: string;
+  max?: string;
+  step?: string;
+  minlength?: number;
+  required?: true;
+  /** Show the placeholder as the value when nothing is saved yet. */
+  valueFallback?: "placeholder";
 };
 
-type TextareaSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
+export type TextareaSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
   kind: "textarea";
   markdownPreview?: true;
 };
 
-type BooleanSettingsFormConfig = SettingsFormBase<BooleanFormCopy> & {
+export type BooleanSettingsFormConfig = SettingsFormBase<BooleanFormCopy> & {
   kind: "boolean";
 };
 
