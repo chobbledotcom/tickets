@@ -6,16 +6,17 @@
  * edge isolate or process), not cross-isolate.
  */
 
+import { t } from "#i18n";
 import { executeWithoutCacheInvalidation } from "#shared/db/client.ts";
 import { syncCache } from "#shared/db/settings/cache.ts";
 import { writeOrDelete } from "#shared/db/settings/raw-writes.ts";
 import { setSnapshotField } from "#shared/db/settings/snapshot.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
-const STALE_TASK: { error: string; ok: false } = {
-  error: "Settings changed. Reload the page and try again.",
+const staleTask = (): { error: string; ok: false } => ({
+  error: t("error.settings_changed"),
   ok: false,
-};
+});
 
 /**
  * Run `fn` while holding the `current_task` lock for `taskName`.
@@ -30,7 +31,7 @@ export const withCurrentTask = async <T>(
   fn: () => Promise<T>,
   expectedVersion?: number | null,
 ): Promise<{ ok: true; value: T } | { ok: false; error: string }> => {
-  if (expectedVersion === null) return STALE_TASK;
+  if (expectedVersion === null) return staleTask();
   // Ensure the row exists (no-op if already present)
   await executeWithoutCacheInvalidation(
     "INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')",
@@ -56,7 +57,7 @@ export const withCurrentTask = async <T>(
     if (!Number.isInteger(currentVersion))
       throw new Error("Missing settings version");
     return expectedVersion !== undefined && expectedVersion !== currentVersion
-      ? STALE_TASK
+      ? staleTask()
       : { error: "Another task is already in progress", ok: false };
   }
   syncCache((s) => {

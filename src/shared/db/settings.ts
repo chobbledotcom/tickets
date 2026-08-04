@@ -214,7 +214,7 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value RETURNING key, value`;
     v.parse(PaymentProviderSettingSchema, values[CONFIG_KEYS.PAYMENT_PROVIDER]),
   );
   syncLastActivePaymentProvider(
-    values[CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER] ?? "",
+    v.parse(v.string(), values[CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]),
   );
 };
 

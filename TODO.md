@@ -519,6 +519,11 @@ The seven accepted safety rules are recorded as acceptance constraints in
   This is deferred because doing the move in PR 1 would break the same strict
   800-line source-change limit.
 
+- **Split `src/features/api/webhooks.ts` below 400 lines.** Move the payment
+  callback and webhook processing paths into focused modules. This predates PR
+  1 and is deferred because the split would exceed its strict source-change
+  limit.
+
 ## Request performance: consolidate AsyncLocalStorage scopes
 
 `src/features/app/request.ts` enters eleven nested request scopes for locale, client
