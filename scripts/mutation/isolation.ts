@@ -26,7 +26,11 @@ import {
   reportRemoveFailure,
   runIsOwned,
 } from "./isolation-cleanup.ts";
-import { withCopyBackLock, withRunClaim } from "./isolation-lock.ts";
+import {
+  withCopyBackLock,
+  withRunClaim,
+  withRunClaimGuard,
+} from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
 import {
   copyMutationSnapshot,
@@ -112,14 +116,17 @@ const childArgs =
 const forceStopChild = (
   child: Deno.ChildProcess | null,
   record: MutationRunRecord,
-): never => {
+): void => {
   if (child) stopProcessNow(child);
-  // Exiting here skips the claim's release, so take the claim down first.
-  // It is this supervisor's own — held fresh since it was taken, and no
-  // other code runs mid-removal — and without it the run reads as over at
-  // once instead of after a whole stale window.
-  Deno.removeSync(runClaimPath(record));
-  Deno.exit(130);
+  // Exiting here skips the claim's release, so take the claim down first —
+  // under the takers' guard, so a child touch mid-write cannot put it back
+  // after the removal. The child was just killed, so the guard frees in
+  // moments even if that touch held it. Without the claim the run reads as
+  // over at once instead of after a whole stale window.
+  void withRunClaimGuard(record, () => {
+    Deno.removeSync(runClaimPath(record));
+    return Promise.resolve();
+  }).finally(() => Deno.exit(130));
 };
 
 const killChildQuietly = (child: Deno.ChildProcess | null): void => {
@@ -197,7 +204,10 @@ export const runInSnapshot = async (
     let child: Deno.ChildProcess | null = null;
     let interrupted = false;
     const stopChild = (): void => {
-      if (interrupted) forceStopChild(child, record);
+      if (interrupted) {
+        forceStopChild(child, record);
+        return;
+      }
       interrupted = true;
       killChildQuietly(child);
     };

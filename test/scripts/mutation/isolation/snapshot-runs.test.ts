@@ -21,6 +21,7 @@ import {
   withTempDir,
   writeFakeMutationScript,
 } from "#test/scripts/mutation/isolation-helpers.ts";
+import { eventually } from "#test/scripts/stale-claim/helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
 import {
   capturePlainSnapshotFailure,
@@ -328,32 +329,38 @@ describe("running mutation inside a snapshot", () => {
     await withTempDir(async (root) => {
       await writeFakeMutationScript(root, "await new Promise(() => {});\n");
 
-      const originalKill = Deno.kill;
-      using _exit = stub(Deno, "exit", ((code) => {
-        throw new Error(`exit ${code}`);
-      }) as typeof Deno.exit);
+      const exitCodes: number[] = [];
+      using _exit = stub(Deno, "exit", ((code?: number) => {
+        exitCodes.push(code ?? 0);
+      }) as unknown as typeof Deno.exit);
       await withCapturedStopChild(async (getStopChild) => {
-        const run = captureSimpleSnapshotMutation(root);
+        // The failure is expected and caught from the very start: it can
+        // land while the test is still watching for the claim to go.
+        const run = (async () => {
+          try {
+            await captureSimpleSnapshotMutation(root);
+            return null;
+          } catch (error) {
+            return error;
+          }
+        })();
         const record = await waitForRunningRecord(root);
 
         expect(getStopChild()).toBeDefined();
         getStopChild()?.();
-        expect(() => getStopChild()?.()).toThrow("exit 130");
-        // The forced stop takes the claim down before exiting, so the run
-        // reads as over at once — not after a whole stale window.
-        expect(await pathExists(runClaimPath({ root: record.root }))).toBe(
-          false,
+        getStopChild()?.();
+        // The forced stop takes the claim down — under the takers' guard,
+        // so a child touch mid-write cannot put it back — and then exits:
+        // the run reads as over at once, not after a whole stale window.
+        await eventually(
+          async () => !(await pathExists(runClaimPath({ root: record.root }))),
         );
+        expect(exitCodes).toEqual([130]);
 
-        try {
-          originalKill(record.pid!, "SIGKILL");
-        } catch {
-          // The supervisor may already have stopped it.
-        }
         // Only because the test stubbed the exit away does the run carry on
         // to its release, which finds the claim gone — in production the
         // process is over the moment the claim comes down.
-        await expect(run).rejects.toThrow("was lost while the work ran");
+        expect(String(await run)).toContain("was lost while the work ran");
       });
     });
   });
