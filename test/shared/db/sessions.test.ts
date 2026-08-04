@@ -250,8 +250,10 @@ describeWithEnv("db > sessions", { db: true }, () => {
       expect(await getSession(`junk-cookie-${i}`)).toBeNull();
     }
 
+    // Exactly the cap: more would mean unbounded growth, fewer would mean
+    // the cache holds less than its documented contract.
     const stat = getAllCacheStats().find((s) => s.name === "sessions");
-    expect(stat?.entries).toBeLessThanOrEqual(cap);
+    expect(stat?.entries).toBe(cap);
   });
 
   test("registers a 'sessions' cache stat reflecting cached entries", async () => {
