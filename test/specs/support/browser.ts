@@ -1,11 +1,14 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import {
+  type RowOnList,
+  rowsOnList,
+} from "#test/specs/support/form-controls/reading.ts";
+import {
   fillInAndSend,
   takeDownFromActions,
 } from "#test/specs/support/form-controls.ts";
 import { logInAsTestAdmin } from "#test-utils/e2e.ts";
-import type { LinkMatch } from "#test-utils/test-browser/parsing.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 import {
   keepWhatTheyWereTold,
@@ -182,28 +185,38 @@ export const makesRecordThroughForm =
     world.things.remember("record", name, Number(id));
   };
 
-/** A list open at one row: the page somebody is looking at, and the number the
- * site files that row under. */
+/** A list open at one named row: the page somebody is looking at, and
+ * everything that row says about the thing — its number, its own markup, and
+ * the address of the link that names it. */
 export type OpensAtOneRow = (
   world: TicketsWorld,
   name: string,
-) => Promise<{ browser: TestBrowser; id: number }>;
+) => Promise<RowOnList & { browser: TestBrowser }>;
 
-/** The address of the link into one named row, off the list that row lives on.
- * A list that renders no such link is a row nobody can reach, so this fails
- * rather than answering with nothing. Each kind of thing says how its list
- * opens and how its own row's link is told apart from every other link. */
-export const findsTheWayInFrom =
-  <Row extends { browser: TestBrowser }>(
-    openAt: (world: TicketsWorld, name: string) => Promise<Row>,
-    leadsIn: (row: Row, name: string) => (link: LinkMatch) => boolean,
-  ): ReadAboutOneThing =>
+/** A list of the organiser's things, opened at one named row — or a loud
+ * failure, because a story that carried on would act on the wrong row, or on
+ * none. Each kind of thing says where its list lives and what the link into
+ * one of its rows looks like; everything a story then reads or presses is
+ * that row's own, never a neighbour's. */
+export const opensListAtRow =
+  (listPath: string, wayIn: RegExp): OpensAtOneRow =>
   async (world, name) => {
-    const row = await openAt(world, name);
-    const link = row.browser.links.find(leadsIn(row, name));
-    if (!link) throw new Error(`The list offers no way into "${name}"`);
-    return link.href;
+    const browser = await openAdminPage(world, listPath);
+    const found = rowsOnList(browser.currentHtml, wayIn).find(
+      (row) => row.name === name,
+    );
+    if (!found) throw new Error(`The list offers no row named "${name}"`);
+    return { ...found, browser };
   };
+
+/** The address of the link into one named row. The row is known by the link
+ * that names it, so the way in is read off the row itself — a row whose way in
+ * moved to a neighbour is a row the person cannot reach, and the open fails
+ * with them. */
+export const findsTheWayInFrom =
+  (openAt: OpensAtOneRow): ReadAboutOneThing =>
+  async (world, name) =>
+    (await openAt(world, name)).wayIn;
 
 export const takesDownFromList =
   (

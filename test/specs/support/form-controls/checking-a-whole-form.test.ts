@@ -5,7 +5,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { expectCanReallySend } from "#test/specs/support/form-controls.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 
 // jscpd:ignore-end
 

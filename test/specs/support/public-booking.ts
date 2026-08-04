@@ -20,10 +20,8 @@ import {
   openAsNewcomer,
   rememberBrowser,
 } from "#test/specs/support/browser.ts";
-import {
-  optionsOffered,
-  whyValueCannotBeSent,
-} from "#test/specs/support/form-controls.ts";
+import { optionsOffered } from "#test/specs/support/form-controls/reading.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 // jscpd:ignore-end

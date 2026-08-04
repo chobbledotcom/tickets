@@ -13,10 +13,8 @@ import {
   type PageRead,
   submitRenderedAdminForm,
 } from "#test/specs/support/browser.ts";
-import {
-  fillInAndSend,
-  requireCheckboxOffered,
-} from "#test/specs/support/form-controls.ts";
+import { requireCheckboxOffered } from "#test/specs/support/form-controls/reading.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   keepWhatTheyWereTold,
   type TicketsWorld,

@@ -10,7 +10,7 @@ import { addDays } from "#shared/dates.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { adminBrowser } from "#test/specs/support/browser.ts";
-import { expectCanReallySend } from "#test/specs/support/form-controls.ts";
+import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
 import {
   listingIdNamed,
   organiserSavesListing,

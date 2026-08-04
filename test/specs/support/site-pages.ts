@@ -10,8 +10,8 @@ import { sitePages } from "#shared/db/site-pages.ts";
 import {
   findsTheWayInFrom,
   newcomerReading,
-  type OpensAtOneRow,
   openAdminPage,
+  opensListAtRow,
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
@@ -81,29 +81,18 @@ export const visitorReading = (
 ): Promise<{ answered: number; said: string }> =>
   newcomerReading(`/page/${address}`);
 
-/** The page the site has under this name, or a loud failure when it has none —
- * a story that carried on would move the wrong page, or none. */
-const pageNamed = async (name: string) => {
-  const rows = await sitePages.getAll();
-  const found = rows.find((row) => row.name === name);
-  if (!found) throw new Error(`The site has no page called ${name}`);
-  return found;
-};
+/** The owner's own list, open at one page's row — the row whose name links
+ * into that page. A story that names a page the list does not show fails here
+ * rather than moving the wrong page, or none. */
+const openList = opensListAtRow(
+  PAGES_LIST,
+  new RegExp(`^${PAGES_LIST}/(\\d+)/edit$`),
+);
 
-/** The owner's own list, open, with one page's id to hand. Looking the page up
- * first means a story can never act on one the site does not have. */
-const openList: OpensAtOneRow = async (world, name) => {
-  const { id } = await pageNamed(name);
-  return { browser: await openAdminPage(world, PAGES_LIST), id };
-};
-
-/** The link into one page from the owner's own list. A link, not any mention of
- * the path: a page whose row still has its reorder form but has lost its way in
- * is a page the owner cannot reach. */
-const linkIntoPage = findsTheWayInFrom(openList, ({ id }) => {
-  const into = new RegExp(`^${PAGES_LIST}/${id}(/edit)?$`);
-  return ({ href }) => into.test(href);
-});
+/** The link into one page, read off that page's own row. A link, not any
+ * mention of the path: a page whose row still has its reorder form but has
+ * lost its way in is a page the owner cannot reach. */
+const linkIntoPage = findsTheWayInFrom(openList);
 
 /** The arrows the owner's own list offers for moving one page. */
 const pageArrows = movingRowsOn(PAGES_LIST, openList);
