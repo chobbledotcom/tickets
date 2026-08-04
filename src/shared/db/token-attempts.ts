@@ -8,7 +8,9 @@
  *
  * Data stored per IP (hashed):
  *   - recent_tokens: JSON array of hashed tokens in the current window (max
- *     MAX_TOKEN_404S entries; cleared to "[]" once locked).
+ *     MAX_TOKEN_404S entries; cleared to "[]" once locked). Only ever written
+ *     by the single recording statement below, which merges inside the
+ *     database — the stored set is never read back into JS.
  *   - window_start: ms-epoch when the current counting window began. When
  *     now - window_start exceeds TOKEN_WINDOW_MS the window tumbles and the
  *     counter resets.
@@ -21,43 +23,92 @@
  */
 
 /* jscpd:ignore-start */
-import * as v from "valibot";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { clearAttemptsFor, lockoutActive } from "#shared/db/attempt-lockout.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import {
+  clearAttemptsFor,
+  isIpLockedOut,
+  makeAttemptRecorder,
+} from "#shared/db/attempt-lockout.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
   TOKEN_WINDOW_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
-import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /* jscpd:ignore-end */
 
-type TokenAttemptRow = {
-  recent_tokens: string;
-  locked_until: number | null;
-  window_start: number;
-};
+/** The numbered parameters every fragment below shares:
+ *  ?1 hashed IP · ?2 this request's tokens as a JSON array · ?3 the distinct-
+ *  token limit · ?4 the lockout deadline · ?5 now · ?6 the window length. */
+const IP = "?1";
+const NEW_TOKENS = "?2";
+const TOKEN_LIMIT = "?3";
+const LOCK_DEADLINE = "?4";
+const NOW = "?5";
+const WINDOW_MS = "?6";
 
-const recentTokensJson = defineStoredJson(v.array(v.string()));
+/** The stored tokens that still count: the saved set while the window is
+ * live, an empty set once the window has tumbled. */
+const LIVE_TOKENS = `CASE
+  WHEN ${NOW} - token_attempts.window_start > ${WINDOW_MS} THEN '[]'
+  ELSE token_attempts.recent_tokens
+END`;
 
-const readRow = (hashedIp: string): Promise<TokenAttemptRow | null> =>
-  queryOne<TokenAttemptRow>(
-    "SELECT recent_tokens, locked_until, window_start FROM token_attempts WHERE ip = ?",
-    [hashedIp],
-  );
+/** The live tokens and this request's tokens as one set (UNION removes
+ * duplicates, so retries of a known token never grow the set). */
+const UNION_TOKENS = `(
+  SELECT value FROM json_each(${LIVE_TOKENS})
+  UNION
+  SELECT value FROM json_each(${NEW_TOKENS})
+) AS hashedToken`;
+
+const MERGED_COUNT = `(SELECT count(*) FROM ${UNION_TOKENS})`;
+const MERGED_JSON = `(SELECT json_group_array(hashedToken.value) FROM ${UNION_TOKENS})`;
+
+const LOCK_IS_ACTIVE = `token_attempts.locked_until > ${NOW}`;
+
+/** One statement tumbles the window, merges the new tokens, and applies the
+ * lockout — all inside the database, so two failures arriving at once can
+ * never lose each other's tokens. Once the merged set reaches the limit the
+ * stored set is cleared to "[]" (no fingerprint kept while locked). While a
+ * lockout is active, both arms keep it: a straggling failure that queued
+ * behind the locking one must not restart the count and drop the lock. */
+const RECORD_FAILURE_SQL = `
+  INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt)
+  VALUES (
+    ${IP},
+    CASE WHEN json_array_length(${NEW_TOKENS}) >= ${TOKEN_LIMIT} THEN '[]' ELSE ${NEW_TOKENS} END,
+    CASE WHEN json_array_length(${NEW_TOKENS}) >= ${TOKEN_LIMIT} THEN ${LOCK_DEADLINE} ELSE NULL END,
+    ${NOW},
+    ${NOW}
+  )
+  ON CONFLICT (ip) DO UPDATE SET
+    recent_tokens = CASE
+      WHEN ${LOCK_IS_ACTIVE} THEN token_attempts.recent_tokens
+      WHEN ${MERGED_COUNT} >= ${TOKEN_LIMIT} THEN '[]'
+      ELSE ${MERGED_JSON}
+    END,
+    locked_until = CASE
+      WHEN ${LOCK_IS_ACTIVE} THEN token_attempts.locked_until
+      WHEN ${MERGED_COUNT} >= ${TOKEN_LIMIT} THEN ${LOCK_DEADLINE}
+      ELSE NULL
+    END,
+    window_start = CASE
+      WHEN ${NOW} - token_attempts.window_start > ${WINDOW_MS} THEN ${NOW}
+      ELSE token_attempts.window_start
+    END,
+    last_attempt = ${NOW}
+  RETURNING locked_until`;
+
+const recordFailure = makeAttemptRecorder(RECORD_FAILURE_SQL);
 
 /**
  * Check if IP is currently locked out of token URLs.
  * Clears expired lockouts so the next attempt starts fresh.
  */
-export const isTokenRateLimited = async (ip: string): Promise<boolean> => {
-  const hashedIp = await hmacHash(ip);
-  const row = await readRow(hashedIp);
-  return lockoutActive("token_attempts", hashedIp, row?.locked_until);
-};
+export const isTokenRateLimited = async (ip: string): Promise<boolean> =>
+  isIpLockedOut("token_attempts", await hmacHash(ip));
 
 /**
  * Record one or more failed token lookups (404) for an IP.
@@ -73,40 +124,17 @@ export const recordTokenFailure = async (
 
   const hashedIp = await hmacHash(ip);
   const hashedTokens = await Promise.all(tokens.map((t) => hmacHash(t)));
-  const row = await readRow(hashedIp);
-  const currentMs = nowMs();
+  const current = nowMs();
 
-  const windowValid = row && currentMs - row.window_start <= TOKEN_WINDOW_MS;
-  const windowStart = windowValid ? row.window_start : currentMs;
-  const existing = windowValid
-    ? recentTokensJson.read(
-        row.recent_tokens,
-        `token_attempts.recent_tokens for ${hashedIp}`,
-      )
-    : [];
-
-  const merged = new Set(existing);
-  for (const h of hashedTokens) merged.add(h);
-
-  if (merged.size >= MAX_TOKEN_404S) {
-    const lockedUntil = currentMs + TOKEN_LOCKOUT_MS;
-    await execute(
-      "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, ?, ?, ?)",
-      [hashedIp, "[]", lockedUntil, currentMs, currentMs],
-    );
-    return true;
-  }
-
-  await execute(
-    "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, NULL, ?, ?)",
-    [
-      hashedIp,
-      recentTokensJson.write([...merged], "token_attempts.recent_tokens"),
-      windowStart,
-      currentMs,
-    ],
-  );
-  return false;
+  // One value per numbered parameter, in ?1..?6 order.
+  return recordFailure([
+    hashedIp,
+    JSON.stringify([...new Set(hashedTokens)]),
+    MAX_TOKEN_404S,
+    current + TOKEN_LOCKOUT_MS,
+    current,
+    TOKEN_WINDOW_MS,
+  ]);
 };
 
 /**

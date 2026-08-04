@@ -2,6 +2,7 @@
  * Payment flow, availability checks, and free registration
  */
 
+import { intersect } from "@std/collections";
 import { compact, requiredMapValue, unique } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect, notFoundResponse } from "#routes/response.ts";
@@ -10,6 +11,7 @@ import {
   type BuildTreeInput,
   buildBookingTree,
 } from "#shared/booking/build-tree.ts";
+import type { CartDateItem } from "#shared/booking/cart-conflicts.ts";
 import {
   childSelectableForSpan,
   type FoldBase,
@@ -76,10 +78,6 @@ import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-import {
-  type PackageStandIns,
-  packageStandIns,
-} from "#shared/package-privacy.ts";
 import {
   type CheckoutIntent,
   type CheckoutItem,
@@ -235,20 +233,6 @@ export const loadPagePackage = async (
   requireValue(
     (await loadPagePackages([{ group, memberListingIds }]))[0],
     `Missing page package for group ${group.id}`,
-  );
-
-/** This page's hidden-package stand-ins: every HIDDEN package's name by group
- * id (for its tagged lines) and by member/child listing id (for folded-child
- * lines and error text). Buyer-facing line names and error text resolve
- * through these maps so a concealed member is never named. Empty when nothing
- * on the page is concealed. */
-export const ctxStandInNames = (
-  ctx: Pick<TicketCtx, "packages" | "childrenByParentId">,
-): PackageStandIns =>
-  packageStandIns(ctx.packages, (memberId) =>
-    (ctx.childrenByParentId.get(memberId) ?? []).map(
-      (child) => child.listing.id,
-    ),
   );
 
 export const handlePaymentFlow = (
@@ -562,22 +546,25 @@ export const withActiveListings = async (
   return handler(activeListings);
 };
 
-/** Shared available dates across all daily listings (intersection). */
-export const computeSharedDates = async (
+/** Each daily listing on the page with its own bookable start dates — the
+ * date facts the cart conflict rules read, and what the page's shared date
+ * list intersects. Customisable-days listings store duration_days as the
+ * *maximum*; their date list is computed for a single day (every
+ * individually-bookable start), and the chosen span is validated separately
+ * at submit. */
+export const dailyDateItems = async (
   listings: TicketListing[],
-): Promise<string[]> => {
+): Promise<CartDateItem[]> => {
   const dailyListings = listings.filter(
     (e) => e.listing.listing_type === "daily",
   );
   if (dailyListings.length === 0) return [];
   const holidays = await getActiveHolidays();
-  // Customisable-days listings store duration_days as the *maximum*; their date
-  // list is computed for a single day (every individually-bookable start), and the
-  // chosen span is validated separately at submit.
-  const dateSets = dailyListings.map(
-    (e) => new Set(getBookableStartDates(e.listing, holidays)),
-  );
-  return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
+  return dailyListings.map((e) => ({
+    dates: getBookableStartDates(e.listing, holidays),
+    id: e.listing.id,
+    name: e.listing.name,
+  }));
 };
 
 /** A daily listing's span rules: the fixed day count to book (null = the buyer
@@ -787,14 +774,14 @@ export const getTicketContext = async (
     ...childListingIdsOf(childrenByParentId),
   ];
   const [
-    sharedDates,
+    cartDateItems,
     globalTerms,
     questionsResult,
     promoCodesEnabled,
     addOns,
     groupImage,
   ] = await Promise.all([
-    computeSharedDates(activeListings),
+    dailyDateItems(activeListings),
     Promise.resolve(settings.terms),
     getQuestionsWithListingIds(questionListingIds),
     hasPromoCodeModifiers(),
@@ -820,6 +807,8 @@ export const getTicketContext = async (
     (group?.is_package === true
       ? [await loadPagePackage(group, listingIds)]
       : []);
+  // The dates the page can offer start from what EVERY daily listing supports.
+  const sharedDates = intersect(...cartDateItems.map((item) => item.dates));
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
   const dates = dailyParent
     ? keepDatesSomeChildCanServe(sharedDates, dailyParent.children, {
@@ -852,6 +841,7 @@ export const getTicketContext = async (
         };
   return {
     addOns,
+    cartDateItems,
     childDatesById,
     childrenByParentId,
     dates,

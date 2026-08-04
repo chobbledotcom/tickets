@@ -133,7 +133,7 @@ src/shared/runtime.ts:68:18  ?? → ||   # os is string|undefined and falls back
 src/shared/runtime.ts:70:43  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts:71:38  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
 src/shared/square.ts:312:21  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
-src/shared/square.ts:795:37  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
+src/shared/square.ts:799:37  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
 src/ui/client/dom.ts:13:19  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only
@@ -153,6 +153,11 @@ src/features/api/payment-processing/package-pricing.ts:253:19  false → true   
 src/features/api/payment-processing/package-pricing.ts:270:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/package-pricing.ts:306:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
 
+# Payment success replay only loads a listing fallback while thankYouUrl is the
+# empty string, so assignment and append produce the same string for every path.
+src/features/api/webhooks.ts:177:16  = → +=   # the enclosing !thankYouUrl guard narrows the string to "" before this assignment, and "" + fallback equals fallback
+src/ui/templates/admin/settings/payment.tsx:88:51  ?? → ||   # both operands are PaymentProviderType|null; every provider id is non-empty and truthy, while null selects the same fallback under either operator
+
 # Folded API booking: equivalents for schema-validated inputs and unused paths.
 src/features/api/folded-booking.ts:87:42  ?? → ||   # childrenByParentId is Map<number, TicketListing[]>; get returns an array (always truthy, even []) or undefined, so ?? and || agree
 src/features/api/folded-booking.ts:118:31  ?? → ||   # qtyByChild accumulates ApiQuantitySchema values (positive integers >= 1) or is unset; it is never 0 or NaN for validated inputs, so ?? 0 and || 0 agree
@@ -164,6 +169,7 @@ src/features/api/folded-booking.ts:381:17  1 → 0   # base.dayCount is read onl
 # placeholder and a throw-only label that can never throw.
 src/features/admin/questions/answers.ts:88:45  0 → 1   # the inserted sortOrder is a placeholder: insertScopedOrderedRow runs order.append in the same transaction, and append sets sort_order from MAX over siblings that explicitly exclude the row itself, then overwrites it unconditionally before commit — the placeholder value is never read by anything
 src/features/admin/questions/forms.ts:32:9  Display as → ""   # requireChoiceOptions reads its label only in its two throw paths: an empty options list, or a value failing an invalid-rule. QUESTION_DISPLAY_TYPES is a non-empty picklist constant and requireChoiceOptions carries no invalid rule, so neither throw is reachable and the label is never read
+src/features/admin/settings-page.ts:132:56  0 → 1   # existingPaymentProviderState resolves one configured provider directly; recoveryChoices is therefore either empty or has at least two providers, so both comparisons agree
 
 # Cart package resolution (features/public/groups.ts): map lookups whose key is
 # guaranteed present, and a nullable-object fallback.

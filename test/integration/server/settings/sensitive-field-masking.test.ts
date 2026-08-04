@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
-import { settings } from "#shared/db/settings.ts";
+import { getCurrentSettingsVersion, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,7 +21,11 @@ const postSettings = async (
   handleRequest(
     mockFormRequest(
       path,
-      { csrf_token: await testCsrfToken(), ...fields },
+      {
+        csrf_token: await testCsrfToken(),
+        settings_version: String(await getCurrentSettingsVersion()),
+        ...fields,
+      },
       await testCookie(),
     ),
   );

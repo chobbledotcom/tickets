@@ -1,6 +1,7 @@
 /** Shared types for the reservations (ticket page) rendering pipeline. */
 
 /* jscpd:ignore-start */
+import type { CartDateItem } from "#shared/booking/cart-conflicts.ts";
 import type {
   ChildDatesByDayCount,
   TicketListing,
@@ -87,6 +88,9 @@ export type TicketPageOptions = GroupAvailability & {
   slugs: string[];
   error?: string;
   dates?: string[];
+  /** Each daily listing's own bookable dates — the facts the render-time cart
+   * conflict rules read (see `#shared/booking/cart-conflicts.ts`). */
+  cartDateItems?: readonly CartDateItem[];
   terms?: string | null;
   questions?: QuestionWithAnswers[];
   questionListingMap?: QuestionListingMap;

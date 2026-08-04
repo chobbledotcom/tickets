@@ -19,8 +19,12 @@ import type {
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { parseDateMs } from "#shared/dates.ts";
-import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
-import { logDebug, logError } from "#shared/logger.ts";
+import {
+  type ErrorCodeType,
+  type LogCategory,
+  logDebug,
+  logError,
+} from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
 import {
   PAYMENT_PROVIDERS,
@@ -700,29 +704,6 @@ export const extractSessionMetadata = (
     thank_you_url: get("thank_you_url"),
   };
 };
-
-/**
- * Assemble the one ValidatedPaymentSession shape every provider adapter
- * returns. Owns the createdAt rule — the key is left out entirely when the
- * provider gave no usable timestamp — and normalizes the guarded wire metadata
- * into the canonical shape. `metadata` must already have passed
- * hasRequiredSessionMetadata (or come from our own staged checkout row).
- */
-export const validatedPaymentSession = (fields: {
-  amountTotal: number;
-  createdAt: string | undefined;
-  id: string;
-  metadata: SessionMetadata;
-  paymentReference: string;
-  paymentStatus: ValidatedPaymentSession["paymentStatus"];
-}): ValidatedPaymentSession => ({
-  amountTotal: fields.amountTotal,
-  ...(fields.createdAt !== undefined ? { createdAt: fields.createdAt } : {}),
-  id: fields.id,
-  metadata: extractSessionMetadata(fields.metadata),
-  paymentReference: fields.paymentReference,
-  paymentStatus: fields.paymentStatus,
-});
 
 /** The payload/signature pair a test POSTs to a provider webhook route. */
 export type SignedTestWebhook = { payload: string; signature: string };

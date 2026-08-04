@@ -450,7 +450,11 @@ type SquareOrder = {
       }>
     | undefined;
   state?: string | undefined;
-  totalMoney: { amount: bigint; currency: string };
+  /** The order's total, exactly as Square gave it. Either half is null when
+   *  the response carried no money object — the payment boundary refuses such
+   *  an order, so a paid one still reaches the refund path instead of dying
+   *  here as "no order at all". */
+  totalMoney: { amount: bigint | null; currency: string | null };
   /** Order creation time (RFC 3339 / ISO 8601), from the Square API. */
   createdAt?: string | undefined;
 };
@@ -746,8 +750,8 @@ export const squareApi: {
         state: order.state,
         tenders: order.tenders?.map(mapTender),
         totalMoney: {
-          amount: order.totalMoney!.amount!,
-          currency: order.totalMoney!.currency!,
+          amount: order.totalMoney?.amount ?? null,
+          currency: order.totalMoney?.currency ?? null,
         },
       };
     }, ErrorCode.SQUARE_ORDER),

@@ -8,6 +8,7 @@ import {
 } from "#test/test-utils/square/fixtures.ts";
 import { describeSquare } from "#test/test-utils/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { asSession } from "#test-utils/payment-session.ts";
 
 describeSquare(() => {
   describe("squarePaymentProvider integration", () => {
@@ -26,25 +27,31 @@ describeSquare(() => {
                 },
                 state: "COMPLETED",
                 tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
-                totalMoney: { amount: BigInt(5000), currency: "USD" },
+                totalMoney: { amount: BigInt(5000), currency: "GBP" },
               },
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_abc", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(2000), currency: "GBP" },
+                id: "pay_abc",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_paid");
           expect(result).not.toBeNull();
-          expect(result!.id).toBe("order_paid");
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_abc");
-          expect(result!.metadata.name).toBe("John Doe");
-          expect(result!.metadata.email).toBe("john@example.com");
-          expect(result!.metadata.phone).toBe("555-1234");
-          expect(result!.metadata.items).toBe('[{"e":1,"q":2,"p":0}]');
+          expect(asSession(result).id).toBe("order_paid");
+          expect(asSession(result).paymentStatus).toBe("paid");
+          expect(asSession(result).paymentReference).toBe("pay_abc");
+          expect(asSession(result).metadata.name).toBe("John Doe");
+          expect(asSession(result).metadata.email).toBe("john@example.com");
+          expect(asSession(result).metadata.phone).toBe("555-1234");
+          expect(asSession(result).metadata.items).toBe(
+            '[{"e":1,"q":2,"p":0}]',
+          );
         },
       );
     });
@@ -62,7 +69,7 @@ describeSquare(() => {
                   name: "John",
                 },
                 state: "OPEN",
-                totalMoney: { amount: BigInt(1000), currency: "USD" },
+                totalMoney: { amount: BigInt(1000), currency: "GBP" },
               },
             }),
         },
@@ -70,8 +77,8 @@ describeSquare(() => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("unpaid");
-          expect(result!.paymentReference).toBe("");
+          expect(asSession(result).paymentStatus).toBe("unpaid");
+          expect(asSession(result).paymentReference).toBe("");
         },
       );
     });
@@ -126,7 +133,7 @@ describeSquare(() => {
       );
     });
 
-    test("retrieveSession returns amountTotal from order totalMoney", async () => {
+    test("retrieveSession reports the amount the payment took", async () => {
       await withSquareClient(
         {
           ordersGet: () =>
@@ -145,16 +152,20 @@ describeSquare(() => {
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_total_123", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(6000), currency: "GBP" },
+                id: "pay_total_123",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_with_amount");
           expect(result).not.toBeNull();
-          expect(result!.amountTotal).toBe(6000);
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.paymentReference).toBe("pay_total_123");
+          expect(asSession(result).amountTotal).toBe(6000);
+          expect(asSession(result).paymentStatus).toBe("paid");
+          expect(asSession(result).paymentReference).toBe("pay_total_123");
         },
       );
     });
@@ -177,20 +188,24 @@ describeSquare(() => {
                 },
                 state: "COMPLETED",
                 tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
-                totalMoney: { amount: BigInt(3000), currency: "USD" },
+                totalMoney: { amount: BigInt(3000), currency: "GBP" },
               },
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_multi", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(3000), currency: "GBP" },
+                id: "pay_multi",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_multi");
           expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("paid");
-          expect(result!.metadata.items).toBe(items);
+          expect(asSession(result).paymentStatus).toBe("paid");
+          expect(asSession(result).metadata.items).toBe(items);
         },
       );
     });

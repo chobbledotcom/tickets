@@ -4,6 +4,7 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
 import {
   processSecretField,
+  saveSecret,
   secretFieldHandler,
 } from "#routes/admin/settings-helpers.ts";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
@@ -61,6 +62,38 @@ describe("processSecretField", () => {
     expect(
       processSecretField(formFrom({ key: "  sk_test_123  " }), "key"),
     ).toEqual({ action: "provided", value: "sk_test_123" });
+  });
+});
+
+describe("saveSecret", () => {
+  const updateSpy = () =>
+    fn((_value: string) => Promise.resolve()) as unknown as ((
+      value: string,
+    ) => Promise<void>) &
+      ReturnType<typeof fn>;
+
+  test("saves a provided secret", async () => {
+    const update = updateSpy();
+    await saveSecret({ action: "provided", value: "new-secret" }, update);
+    expect(update).toHaveBeenCalledWith("new-secret");
+  });
+
+  test("does not save an unchanged secret even when clearing is allowed", async () => {
+    const update = updateSpy();
+    await saveSecret({ action: "unchanged" }, update, { clearable: true });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  test("clears an empty secret only when clearing is allowed", async () => {
+    const requiredUpdate = updateSpy();
+    await saveSecret({ action: "cleared" }, requiredUpdate);
+    expect(requiredUpdate).not.toHaveBeenCalled();
+
+    const clearableUpdate = updateSpy();
+    await saveSecret({ action: "cleared" }, clearableUpdate, {
+      clearable: true,
+    });
+    expect(clearableUpdate).toHaveBeenCalledWith("");
   });
 });
 

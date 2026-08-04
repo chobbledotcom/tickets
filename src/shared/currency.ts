@@ -68,9 +68,14 @@ export const formatSignedCurrency = (
 /**
  * Convert major units (decimal) to minor units (integer).
  * e.g. toMinorUnits(10.50) → 1050 (for GBP)
+ * `currency` defaults to the site's currency; a caller converting a charge
+ * taken in another currency passes that currency so the divisor matches it.
  */
-export const toMinorUnits = (majorUnits: number): number => {
-  const { divisor } = currencyFormat(settings.currency);
+export const toMinorUnits = (
+  majorUnits: number,
+  currency: string = settings.currency,
+): number => {
+  const { divisor } = currencyFormat(currency);
   return Math.round(majorUnits * divisor);
 };
 

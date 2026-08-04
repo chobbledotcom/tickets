@@ -9,6 +9,28 @@ src/shared/rest/crud-api.ts:367:31  ?? → ||   # hydrated map values are record
 src/shared/rest/crud-api.ts:577:27  ?? → ||   # extraRoutes is a route object or undefined
 src/shared/rest/resource.ts:158:25  ?? → ||   # validationError is an ErrorResult object or null; an object is truthy
 
+# settings-bundles.ts: bundle is ALL_SNAPSHOT_SETTINGS when undefined (a readonly
+# array, always truthy), so ?? and || agree.
+src/features/settings-bundles.ts:244:40  ?? → ||   # bundle is a readonly array or undefined; an array is truthy
+
+# webhooks.ts: listing?.thank_you_url.trim() ?? "" — trim() returns
+# string|undefined; for "" both ?? "" and || "" yield "".
+src/features/api/webhooks.ts:117:39  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+
+# webhooks.ts: intent.thankYouUrl ?? "" — string|undefined; for ""
+# both ?? "" and || "" yield "".
+src/features/api/webhooks.ts:132:62  ?? → ||   # string|"" fallback; "" ?? "" = "" || "" = ""
+
+# webhooks.ts: .find(Boolean) returns undefined|truthy (Boolean("") is
+# false, so "" never returned). ?? null and || null agree.
+src/features/api/webhooks.ts:322:4   ?? → ||   # find(Boolean) → undefined|truthy; never ""
+src/features/api/webhooks.ts:350:55  ?? → ||   # getWebhookSignatureHeader → null|truthy; never ""
+
+# require-provider.ts: getPaymentProviderForExistingPayments() returns
+# Promise<ExistingPaymentProvider>; its awaited PaymentProvider|null value is
+# always truthy when present.
+src/features/admin/require-provider.ts:11:18  ?? → ||   # PaymentProvider|null; never falsy-but-non-null
+
 # request-scoped ambient fallback: scope.current() is T|undefined where T is
 # always a truthy container object (never a falsy-non-null value), so
 # `?? fallback` and `|| fallback` always agree. (createScopedValue's ?? is NOT
@@ -17,9 +39,10 @@ src/shared/rest/resource.ts:158:25  ?? → ||   # validationError is an ErrorRes
 src/shared/request-scoped.ts:130:35  ?? → ||   # scope.current(): T|undefined — a container object is always truthy
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:198:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts:569:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
-src/shared/payment-helpers.ts:628:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+src/shared/payment-helpers.ts:116:26  true → false    # safeAsync getValue returns true; guardedWithValue only null-checks it, and the inner fn () => fn() ignores the value, so true/false are indistinguishable
+src/shared/payment-helpers.ts:202:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:573:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:632:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 
 # sort-listings.ts's tier constants (0/1/2 for no-date-standard/dated-
 # standard/daily) and the "date === ''" empty-date sentinel: Array.sort only
@@ -217,8 +240,31 @@ src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arm
 src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # SumUp client: values that are never falsy apart from null.
-src/shared/sumup.ts:215:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
-src/shared/sumup.ts:254:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+src/shared/sumup.ts:244:18  ?? → ||   # withClient resolves to the callback's `true` or to null on failure, so the only non-null value is truthy and ?? false and || false agree
+src/shared/sumup.ts:283:37  ?? → ||   # settings.sumup.keyMode is typed "test" | "live" | null, so it has no falsy non-null value and ?? "unknown" and || "unknown" agree
+# Stripe provider: payment_intent is nullable(NonEmptyText), so its only non-null values are non-empty; ?? "" and || "" agree.
+src/shared/stripe-provider.ts:60:39  ?? → ||   # payment_intent is null | nonEmptyString; the only non-null values are truthy, so ?? and || agree
+# validation/money.ts's PositiveMoneySchema: the `signed` flag only decides
+# whether a leading "-" is allowed by the pattern, and every string it lets
+# through transforms to a value at or below zero ("-0" included, since -0 >= 1
+# is false). The schema's own v.minValue(1) then rejects all of them, so no
+# input can tell signed from unsigned here. (The NonNegative sibling IS
+# distinguishable — "-0" clears its minValue(0) bound — and its "-0" row in
+# test/shared/validation/money.test.ts kills that mutant.)
+src/shared/validation/money.ts:68:52  false → true   # a leading "-" only admits values <= 0, which v.minValue(1) rejects either way
+
+# payment-signature.ts's canonical key sort: Array.prototype.sort only ever
+# tests whether the comparator result is strictly negative, so a comparator
+# returning -1 for "less" and 0 for "not less" orders exactly as -1/1 does.
+# Verified directly against all 8! permutations of eight distinct keys and 3,000
+# random 40-element arrays with duplicates (past TimSort's insertion-sort
+# threshold): every case sorted identically. Same property as the sort-listings
+# entries above.
+src/shared/payment-signature.ts:73:53  1 → 0   # sort() only checks for a strictly negative result; -1/0 and -1/1 order identically
+
+# Payment vocabulary: the valibot regex message strings only change the error text, never pass/fail.
+src/shared/payment/money.ts:16:26  Currency must be three uppercase letters → ""   # message text of the currency regex; validation outcome is identical
+src/shared/payment/resource-id.ts:17:21  Resource id must be text with no whitespace → ""   # message text of the resource-id regex; validation outcome is identical
 
 # rebrand scanner — four provably-equivalent survivors.
 # tagIsCode is read in exactly one place: stepTag's close, reachable only while
@@ -232,4 +278,3 @@ src/shared/rebrand.ts:138:26  false → true   # stepTag's tagIsCode reset after
 src/shared/rebrand.ts:152:36  + → *   # `open + 1` → `open * 1` = open: the scan starts on the inert "<" and behaves identically
 src/shared/rebrand.ts:152:39  1 → 0   # `open + 0` = open: same inert-"<" start, identical result
 src/features/admin/attributes.ts:215:46  0 → 1   # option insert's sortOrder is a placeholder: the same transaction's append overwrites it before commit, and a failed append rolls the row back — no committed state can carry the inserted value
-

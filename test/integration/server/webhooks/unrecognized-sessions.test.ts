@@ -120,6 +120,7 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
       () =>
         Promise.resolve({
           amountTotal: 100,
+          currency: "GBP",
           id: "cs_fallback_foreign",
           metadata: webhookMeta({
             _origin: "", // Empty _origin -> should be rejected as unrecognized

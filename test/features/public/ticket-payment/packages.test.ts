@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  ctxStandInNames,
   getTicketContext,
   loadPagePackage,
   ticketGalleryTarget,
@@ -29,60 +28,6 @@ describeWithEnv(
   "routes > public > ticket-payment (packages)",
   { db: true },
   () => {
-    describe("ctxStandInNames", () => {
-      test("conceals a hidden package's members and their children", () => {
-        const standIns = ctxStandInNames({
-          childrenByParentId: new Map([
-            [
-              1,
-              [
-                buildTicketListing(
-                  testListingWithCount({ id: 9 }),
-                  false,
-                  undefined,
-                ),
-              ],
-            ],
-          ]),
-          packages: [
-            {
-              ...treePackage(7, [1, 2]),
-              description: "",
-              hideListings: true,
-              name: "Mystery Box",
-              slug: "myst1",
-              terms: "",
-            },
-          ],
-        });
-        // Member 1's child 9 is concealed too; member 2 has no children entry.
-        expect([...standIns.byListingId]).toEqual([
-          [1, "Mystery Box"],
-          [9, "Mystery Box"],
-          [2, "Mystery Box"],
-        ]);
-        // The bundle's own tagged lines rename through its group id.
-        expect([...standIns.byGroupId]).toEqual([[7, "Mystery Box"]]);
-      });
-
-      test("names nothing for a package that shows its listings", () => {
-        const standIns = ctxStandInNames({
-          childrenByParentId: new Map(),
-          packages: [
-            {
-              ...treePackage(7, [1]),
-              description: "",
-              name: "Open Box",
-              slug: "open1",
-              terms: "",
-            },
-          ],
-        });
-        expect(standIns.byGroupId.size).toBe(0);
-        expect(standIns.byListingId.size).toBe(0);
-      });
-    });
-
     describe("buildOrderLines", () => {
       // Exhaustive unit-price precedence lives in test/shared/booking/price-tree.test.ts; here
       // we cover assembly (filter + field mapping) and that each line is priced by
