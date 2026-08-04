@@ -53,19 +53,19 @@ layer of dead code.
 1. Every PR must change fewer than 800 lines under `src/` in its final diff
    against its parent. Count production-code insertions plus deletions.
 2. Tests, fixtures, and documentation may take the total diff above 2,000
-   changed lines when that is needed for complete coverage and mutation
-   testing. Keep them focused and remove duplication, but do not weaken tests
-   to meet an overall line count.
+   changed lines when that is needed for complete coverage and mutation testing.
+   Keep them focused and remove duplication, but do not weaken tests to meet an
+   overall line count.
 3. Every PR must pass `nix develop -c deno task precommit` before review.
 4. Every changed source file must pass targeted mutation testing before its PR
    is merged. Run the branch-level mutation gate after committing the PR.
-5. Every new production export must have a production caller in the same PR.
-   Do not copy great-fermi's test-only-export exemptions.
+5. Every new production export must have a production caller in the same PR. Do
+   not copy great-fermi's test-only-export exemptions.
 6. Every bug fix must include a regression test reproducing the bug.
 7. Each PR must leave one production path for the behavior it changes. Do not
    add a second payment implementation for later cleanup.
-8. Do not add aliases or compatibility wrappers between the two branches'
-   names. Move every caller to the selected API and delete the displaced API.
+8. Do not add aliases or compatibility wrappers between the two branches' names.
+   Move every caller to the selected API and delete the displaced API.
 9. Deployments are forward-only and fleet-wide. Do not support old application
    versions, code rollback, or mixed-version reads and writes. The roughly
    two-second edge handoff is not a compatibility window; migration work starts
@@ -107,8 +107,8 @@ The answers in `QUESTIONS.md` are binding requirements:
   payment requires owner review.
 - A queued owner email uses the current business address at send time. Its body
   and buyer facts remain the stored payment snapshot.
-- An incomplete or contradictory legacy record is copied without invented
-  facts, marked for owner review, and does not stop the rest of the migration.
+- An incomplete or contradictory legacy record is copied without invented facts,
+  marked for owner review, and does not stop the rest of the migration.
 - A buyer whose paid booking needs review sees that payment was received, that
   the booking needs review, and that they must not pay again. Reloading shows
   the same stable result.
@@ -157,9 +157,9 @@ Do not copy `payment-runtime/legacy-replay.ts`, `legacy-sumup.ts`,
 `operator-legacy-read.ts`, or an equivalent runtime branch selected by record
 age or origin. Migration code may decode an old stored format only to write a
 canonical current payment or owner-review case. After that write, the current
-payment engine is the only code allowed to read, reconcile, refund, complete,
-or display it. Provenance and unknown facts may preserve evidence; they must
-not dispatch to different runtime behavior.
+payment engine is the only code allowed to read, reconcile, refund, complete, or
+display it. Provenance and unknown facts may preserve evidence; they must not
+dispatch to different runtime behavior.
 
 Each write must validate the complete prospective record with the pure rules,
 write with revision or lease fencing, and validate the returned row. There must
@@ -173,8 +173,8 @@ application build. Bunny's roughly two-second script handoff is operational
 overlap, not a supported mixed-version state; it must not cause a runtime
 branch, schema adapter, or legacy replay path.
 
-Deploy the aggregate write cutover first. Start forward data migration only in
-a later fleet-wide release after that cutover has completed.
+Deploy the aggregate write cutover first. Start forward data migration only in a
+later fleet-wide release after that cutover has completed.
 
 ## Work sequence
 
@@ -189,14 +189,14 @@ or remove them whenever that eliminates dormant foundations, compatibility
 paths, or deferred cleanup.
 
 The expected stack boundaries are PRs 1-4, PRs 5-11, and PRs 12-16. Change a
-boundary when a dependency demands it, but keep each stack within three to
-seven green PRs and finish activating or removing its schema before merging it.
+boundary when a dependency demands it, but keep each stack within three to seven
+green PRs and finish activating or removing its schema before merging it.
 
 For every stage, ask: "If all later PRs were cancelled, what became better for
 the people or operators using this version?" The `Current-system value` answer
 must be observable in a production route, worker, page, stored invariant, or
-security boundary. Future reuse, tests alone, documentation alone, and an
-unused database abstraction do not qualify.
+security boundary. Future reuse, tests alone, documentation alone, and an unused
+database abstraction do not qualify.
 
 ### Phase 0: improve and specify the current payment path
 
@@ -322,9 +322,9 @@ Budget: 1,700-2,400 changed lines.
 - Move attendee payment panels, exports, overview statistics, and every other
   production reader to the aggregate in this cutover. Delete displaced readers
   and classifiers; only migration code may still read old payment tables.
-- After the last live writer moves, install the migration write fence that
-  makes every old payment table immutable. Verify that fence before committing
-  an aggregate write.
+- After the last live writer moves, install the migration write fence that makes
+  every old payment table immutable. Verify that fence before committing an
+  aggregate write.
 
 Current-system value: every live route, worker, page, and export gets the same
 authoritative answer for the same payment.
@@ -476,38 +476,38 @@ faster cold starts, and no ambiguity about which path is authoritative.
 
 These findings from the branches are mandatory inputs to the assigned PRs:
 
-| Finding | Owning PR |
-| --- | --- |
-| SumUp identities split across migration pages | 14 |
-| A merged migration page mistaken for end-of-input | 14 |
-| Old rows changing after the aggregate write cutover | 7, 14 |
-| Deleted booking rows blocking migration forever | 14 |
-| Attendee-only payment references skipped after an empty aggregate exists | 14 |
-| Ticket-use state resurrected during migration | 14 |
-| Cross-payment duplicate provider charges | 7 |
-| Pending and completed refunds together exceeding captured money | 4, 8 |
-| Completed provider refunds missing from Money | 8, 10 |
-| Owner refund decisions closing a case without closing Money | 5, 8 |
-| Bulk provider success followed by local failure having no repair path | 8, 10 |
-| Refund-all conflicting forever with unfinished completion | 8, 10 |
-| One failed decision blocking all reconciliation | 5, 7 |
-| Account lookup failure retaining a claim | 7 |
-| Migrated charges omitted from refund targets | 14 |
-| Disabling new payments also disabling existing-payment refunds | 1 |
-| Concurrent renewals racing | 12 |
-| Delayed completion rebuilding facts from edited live data | 9 |
-| SumUp return IDs interpreted differently by different routes | 6, 7 |
-| Unknown unsigned SumUp callbacks triggering outbound reads | 3 |
-| Square fallback reads scanning too short a list | 7 |
-| Delayed work using live currency rather than stored currency | 6 |
-| Permanent provider or delivery errors retrying forever or blocking a queue | 5, 7, 11 |
-| Queued site work retaining a deleted attendee ID after merge | 12 |
-| Listing attachments deleted before a payment fence succeeds | 9 |
-| Old payment-reference readers surviving after migration | 7, 16 |
-| Terminal buyer details, completion data, or ticket tokens never redacting | 15 |
+| Finding                                                                    | Owning PR |
+| -------------------------------------------------------------------------- | --------- |
+| SumUp identities split across migration pages                              | 14        |
+| A merged migration page mistaken for end-of-input                          | 14        |
+| Old rows changing after the aggregate write cutover                        | 7, 14     |
+| Deleted booking rows blocking migration forever                            | 14        |
+| Attendee-only payment references skipped after an empty aggregate exists   | 14        |
+| Ticket-use state resurrected during migration                              | 14        |
+| Cross-payment duplicate provider charges                                   | 7         |
+| Pending and completed refunds together exceeding captured money            | 4, 8      |
+| Completed provider refunds missing from Money                              | 8, 10     |
+| Owner refund decisions closing a case without closing Money                | 5, 8      |
+| Bulk provider success followed by local failure having no repair path      | 8, 10     |
+| Refund-all conflicting forever with unfinished completion                  | 8, 10     |
+| One failed decision blocking all reconciliation                            | 5, 7      |
+| Account lookup failure retaining a claim                                   | 7         |
+| Migrated charges omitted from refund targets                               | 14        |
+| Disabling new payments also disabling existing-payment refunds             | 1         |
+| Concurrent renewals racing                                                 | 12        |
+| Delayed completion rebuilding facts from edited live data                  | 9         |
+| SumUp return IDs interpreted differently by different routes               | 6, 7      |
+| Unknown unsigned SumUp callbacks triggering outbound reads                 | 3         |
+| Square fallback reads scanning too short a list                            | 7         |
+| Delayed work using live currency rather than stored currency               | 6         |
+| Permanent provider or delivery errors retrying forever or blocking a queue | 5, 7, 11  |
+| Queued site work retaining a deleted attendee ID after merge               | 12        |
+| Listing attachments deleted before a payment fence succeeds                | 9         |
+| Old payment-reference readers surviving after migration                    | 7, 16     |
+| Terminal buyer details, completion data, or ticket tokens never redacting  | 15        |
 
-If implementation reveals that one of these findings is incorrect, close it
-with a short proof in the relevant PR. Do not silently omit it.
+If implementation reveals that one of these findings is incorrect, close it with
+a short proof in the relevant PR. Do not silently omit it.
 
 ## Review strategy
 
