@@ -3,7 +3,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { createDailyListing } from "#test/integration/server/public/daily-listing.ts";
+import {
+  ALL_WEEKDAYS,
+  createDailyListing,
+} from "#test/integration/server/public/daily-listing.ts";
 import {
   assertPublicHtml,
   expectFlash,
@@ -125,6 +128,79 @@ describeWithEnv(
           "Monday",
         );
         expect(html).not.toContain("Tuesday");
+      });
+    });
+
+    describe("cart conflict notes", () => {
+      test("names both listings when their booking windows never overlap", async () => {
+        // 0-2 days out vs 5-7 days out: each has dates, none shared.
+        const near = await createDailyListing({
+          maximumDaysAfter: 2,
+          name: "Near Window",
+        });
+        const far = await createDailyListing({
+          maximumDaysAfter: 7,
+          minimumDaysBefore: 5,
+          name: "Far Window",
+        });
+        await assertPublicHtml(
+          `/ticket/${near.slug}+${far.slug}`,
+          "'Near Window' and 'Far Window' do not share an available date. Book them separately.",
+        );
+      });
+
+      test("names the listing that has no dates at all", async () => {
+        // A one-day window (tomorrow only, since maximum_days_after 0 means
+        // "no maximum") whose weekday the listing excludes, so it can never
+        // offer a date whatever day the test runs.
+        const tomorrow = new Date(`${addDays(todayInTz("UTC"), 1)}T00:00:00Z`);
+        const tomorrowName = tomorrow.toLocaleDateString("en-US", {
+          timeZone: "UTC",
+          weekday: "long",
+        });
+        const dateless = await createDailyListing({
+          bookableDays: ALL_WEEKDAYS.filter((day) => day !== tomorrowName),
+          maximumDaysAfter: 1,
+          minimumDaysBefore: 1,
+          name: "Never Open",
+        });
+        const open = await createDailyListing({ name: "Always Open" });
+        await assertPublicHtml(
+          `/ticket/${dateless.slug}+${open.slug}`,
+          "'Never Open' has no dates available. Book the others without it.",
+        );
+      });
+
+      test("names both listings when no booking length suits them all", async () => {
+        const short = await createDailyListing({
+          customisableDays: true,
+          dayPrices: { 1: 500 },
+          durationDays: 1,
+          name: "Short Stay",
+          unitPrice: 500,
+        });
+        const long = await createDailyListing({
+          customisableDays: true,
+          dayPrices: { 3: 900 },
+          durationDays: 3,
+          name: "Long Stay",
+          unitPrice: 900,
+        });
+        await assertPublicHtml(
+          `/ticket/${short.slug}+${long.slug}`,
+          "'Short Stay' and 'Long Stay' do not share a booking length. Book them separately.",
+        );
+      });
+
+      test("shows no conflict note when the listings get along", async () => {
+        const listing1 = await createDailyListing({ name: "Friendly One" });
+        const listing2 = await createDailyListing({ name: "Friendly Two" });
+        const html = await assertPublicHtml(
+          `/ticket/${listing1.slug}+${listing2.slug}`,
+          "Friendly One",
+        );
+        expect(html).not.toContain("Book them separately");
+        expect(html).not.toContain("has no dates available");
       });
     });
   },

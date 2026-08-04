@@ -11,14 +11,26 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { BuildTreeInput } from "#shared/booking/build-tree.ts";
-import { bookableChildIds } from "#shared/booking/model.ts";
+import {
+  type CartDateItem,
+  cartConflictMessages,
+} from "#shared/booking/cart-conflicts.ts";
+import {
+  bookableChildIds,
+  customisableLengthItems,
+  type TicketListing,
+} from "#shared/booking/model.ts";
 import { packageLimitInfo } from "#shared/booking/package-cap.ts";
-import { explicitStandaloneIds } from "#shared/booking/page-packages.ts";
+import {
+  explicitStandaloneIds,
+  type PagePackage,
+} from "#shared/booking/page-packages.ts";
 import { daysAgo } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
+import { ctxStandInNames } from "#shared/package-privacy.ts";
 import type { ItemImageColumns, ListingWithCount } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -101,6 +113,29 @@ const resolveTicketHeader = ({
   };
 };
 
+/** The page's cart conflict notes. A concealed package member's name is never
+ * public (a hidden package shows only its package name), so concealed members
+ * are dropped from the facts — resolved through the page's stand-ins, like
+ * every other buyer-facing surface — before any message could name them.
+ * Their clashes fall back to the selectors' plain empty copy. */
+const cartConflicts = (
+  cartDateItems: readonly CartDateItem[],
+  listings: TicketListing[],
+  packages: readonly PagePackage[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+): string[] => {
+  const concealed = ctxStandInNames({
+    childrenByParentId: childrenByParentId ?? new Map(),
+    packages,
+  }).byListingId;
+  return cartConflictMessages({
+    dateItems: cartDateItems.filter((item) => !concealed.has(item.id)),
+    lengthItems: customisableLengthItems(
+      listings.filter((entry) => !concealed.has(entry.listing.id)),
+    ),
+  });
+};
+
 /**
  * Ticket page - register for one or more listings
  * Single listings show rich details (image, description, date, location).
@@ -111,6 +146,7 @@ export const ticketPage = ({
   slugs,
   error,
   dates,
+  cartDateItems = [],
   terms,
   questions,
   questionListingMap,
@@ -267,6 +303,12 @@ export const ticketPage = ({
         <TicketPageForm
           actionUrl={actionUrl}
           addOns={addOns}
+          cartConflicts={cartConflicts(
+            cartDateItems,
+            listings,
+            packages,
+            childrenByParentId,
+          )}
           dates={dates}
           dayCountPriceFor={dayCountPriceFor}
           dayCounts={dayCounts}

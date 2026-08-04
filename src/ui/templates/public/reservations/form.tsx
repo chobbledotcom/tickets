@@ -21,6 +21,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
+import { ErrorNote } from "#templates/components/error.tsx";
 import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
 import {
   PublicImageGallery,
@@ -163,6 +164,7 @@ const ListingRows = ({
 export const TicketPageForm = ({
   slugs,
   actionUrl,
+  cartConflicts,
   fields,
   hasDaily,
   durationDays,
@@ -183,6 +185,10 @@ export const TicketPageForm = ({
 }: {
   slugs: string[];
   actionUrl?: string | undefined;
+  /** Why these items can't be booked together (empty when they can) — shown
+   * above the form fields so the buyer isn't left guessing at empty
+   * selectors. See `#shared/booking/cart-conflicts.ts`. */
+  cartConflicts?: string[] | undefined;
   fields: Field[];
   hasDaily: boolean;
   durationDays: number;
@@ -205,6 +211,9 @@ export const TicketPageForm = ({
   if (prefill?.name) fieldValues.name = prefill.name;
   return (
     <CsrfForm action={actionUrl ?? `/ticket/${slugs.join("+")}`}>
+      {cartConflicts?.map((conflict) => (
+        <ErrorNote>{conflict}</ErrorNote>
+      ))}
       {prefill?.token && (
         <input name="qr_token" type="hidden" value={prefill.token} />
       )}

@@ -583,13 +583,11 @@ bug (harmless today because of the multiplier workaround).*
   the manual-adjustment page straight from that flash and frame it as "one more
   step", not an error.
 
-- **A multi-item cart with no shared date/length dies silently.**
-  `dayCountsEveryListingSupports` / `computeSharedDates` (`src/shared/booking/
-  model.ts`, `src/features/public/ticket-payment.ts`) leave the buyer with a bare
-  "No dates/booking lengths are currently available" when two items simply share
-  no common date or duration — undiagnosable mid-checkout. Fix: detect the
-  empty-intersection case and name the conflicting items ("these don't share a
-  common date — book them separately"). Highest buyer-facing value.
+- ~~**A multi-item cart with no shared date/length dies silently.**~~ **Done.**
+  `src/shared/booking/cart-conflicts.ts` names the clashing items on the ticket
+  page — an item with no dates at all, items whose dates never overlap, and
+  items with no shared booking length — and tells the buyer to book them
+  separately. (See "The shared reasons shape" section below.)
 
 - **A manager hits a bare "Forbidden" on owner-only pages.** `src/features/
   auth.ts` (~line 462) returns plain text for users/statuses/bulk-email/settings.
@@ -663,54 +661,43 @@ bug (harmless today because of the multiplier workaround).*
 
 ---
 
-## Design note: a shared "reasons" shape for validation failures
+## The shared "reasons" shape for validation failures — shipped
 
-*Origin: reviewing the package-restriction work (PR #1770). The recurring shape
-is "reject if any of N reasons holds, tell the user WHICH, sometimes list ALL"
-— e.g. `packageMemberBlock`, `packageChildEdgeConflict`, `groupListingTypeError`,
-the listing-input `?? next` chain. Worth writing down where this could go before
-it sprawls into an over-built framework.*
+*Origin: reviewing the package-restriction work (PR #1770); built once the
+collect-all need (the multi-item "no shared date" diagnostic) arrived.*
 
-**What already exists (don't rebuild it):**
-- **i18n keys ARE de-facto error codes.** ~113 `error.*` keys in
-  `src/locales/en/errors.json` are stable machine identifiers already decoupled
-  from any one rendering. A "new error-code system" would mostly re-label these.
-- **Declarative first-match rule tables** already appear twice:
-  `EDGE_ERROR_RULES` (`src/shared/listing-parents-rules.ts` — a
-  `readonly EdgeRule[]` matched with `.find(r => r.rejects(a,b))?.error(...)`)
-  and `CAPACITY_RULES` (`src/shared/capacity-rules.ts`). `packageMemberBlock`
-  (this PR) is a third, hand-rolled instance of the same idea.
-- **Sentry is for the *unexpected* only.** Validation failures never reach it
-  today, which is correct — an operator picking an invalid combo is not a bug,
-  and routing every "you can't do that" to Sentry would bury real incidents.
+What shipped:
 
-**What a slick version is — and, honestly, mostly ISN'T worth building here:**
-- **NOT worth it:** a global error-code registry/enum, per-code guide deep-links,
-  or converting every fail-fast validator to collect-all. That is a large
-  cross-cutting refactor whose value this app's size doesn't justify, and
-  collect-all is often *worse* UX (fix-one-resubmit beats a wall of ten errors).
-  Fail-fast is a feature, not a limitation, for most forms.
-- **Worth it, but only when a real need pulls it (do not do speculatively):**
-  1. **One `reasons` combinator.** A tiny `Rule<T> = { code; when(x): boolean;
-     message(x): string }` list with two runners — `firstReason(rules)(x)` and
-     `allReasons(rules)(x)` — so a call site picks fail-fast vs list-everything
-     from ONE rule definition. `EDGE_ERROR_RULES`/`CAPACITY_RULES`/
-     `packageMemberBlock` would converge on it. Extract on the *third* real
-     collect-all need, not before (two tables sharing a shape is not yet a
-     framework).
-  2. **A `kind` on each error: `user_error` vs `invariant_violation`.** This is
-     the one with actual operational payoff and it's small. Most `error.*` keys
-     are `user_error` (stay out of Sentry). A handful are "should never happen,
-     an operator must act" — `error.refund_not_recorded` (refunded at the
-     provider but not recorded in the ledger — `attendee-refunds.ts`,
-     `attendees-edit.ts`) is the exemplar. Tag those `invariant_violation` and
-     route only them to Sentry (breadcrumb + alert), so the money-integrity
-     cases surface without drowning in expected validation noise.
+- **The combinator.** `src/shared/reasons.ts`: a `Reason` answers with the
+  message to show or null, and one rule list serves both runners —
+  `firstReason` (fail-fast; list order is precedence) and `allReasons`
+  (name every problem at once).
+- **The converged tables.** The parent/child edge rules
+  (`src/shared/listing-parents-rules.ts`), the package member rules
+  (`src/shared/package-membership.ts` — messages render inside the rules, so
+  the separate block-code layer is gone), and the group homogeneity rules
+  (`groupListingTypeError` in `src/shared/db/groups.ts`). `CAPACITY_RULES`
+  deliberately did NOT converge: it classifies which checks apply, it does not
+  refuse with a message — a genuinely different shape.
+- **The `kind` tag, as a reporter.** `reportInvariant`
+  (`src/shared/invariant-errors.ts`) renders an operator-facing flash whose
+  message means a system promise broke AND reports it through `logError`'s
+  existing fan-out (console, ntfy, activity log, Sentry) under
+  `E_INVARIANT_REPORTED`. `error.refund_not_recorded` is the first tagged key;
+  tag a new key only when the flash means "repair the data by hand".
+- **The first collect-all consumer.** `src/shared/booking/cart-conflicts.ts` +
+  the ticket page name the clashing items when a multi-item page has no shared
+  date or booking length (was: a bare "No dates are currently available").
 
-**Recommended first step, if any:** just the `kind` tag on the ~2-3 invariant
-errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
-until a real collect-all site (e.g. the multi-item-checkout "no shared date"
-diagnostic above) makes it pay for itself.
+Still correct, unchanged: i18n keys ARE the error codes (no registry needed);
+fail-fast stays the default for forms — `allReasons` is only for surfaces that
+must name every problem at once; ordinary validation failures stay out of
+Sentry.
+
+Follow-ups this mechanism now makes cheap (each is a rule row + a surface, see
+the restrictions audit above): greying out incompatible listings in the add-
+listings picker, the two either/or disabled-control pairs, surfacing the
+child-duration clash at save time, and the chooser own-cap warning.
 
 ## Deferred Codex suggestions from PR #1975 (API documentation examples)
 

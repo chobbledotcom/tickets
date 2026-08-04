@@ -103,6 +103,10 @@ const ERROR_DEFS = {
   ],
   // Broken image records/files (fallback red pixel served instead)
   IMAGE_BROKEN: ["E_IMAGE_BROKEN", "Broken image"],
+
+  // A promise our own system makes was broken and an operator was told to
+  // repair the data by hand (see #shared/invariant-errors.ts)
+  INVARIANT_REPORTED: ["E_INVARIANT_REPORTED", "System invariant broken"],
   KEY_DERIVATION: ["E_KEY_DERIVATION", "Key derivation failed"],
   // Ledger errors
   LEDGER_POST: ["E_LEDGER_POST", "Ledger post failed"],
