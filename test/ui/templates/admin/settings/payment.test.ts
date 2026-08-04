@@ -6,7 +6,6 @@ import {
   PAYMENT_PROVIDERS,
 } from "#shared/payment-providers.ts";
 import {
-  BookingFeeForm,
   PaymentProviderForm,
   SquareForm,
   SquareWebhookForm,
@@ -321,32 +320,6 @@ describe("settings payment forms", () => {
         /<input[^>]*name="square_webhook_signature_key"[^>]*>/,
       )?.[0];
       expect(field).toContain(`value="${MASK_SENTINEL}"`);
-    });
-  });
-
-  describe("BookingFeeForm", () => {
-    test("appears only once a payment provider is chosen", () => {
-      expect(render(BookingFeeForm)).toBe("");
-    });
-
-    test("asks for a percentage between 0 and 10", () => {
-      const html = render(BookingFeeForm, { paymentProvider: "stripe" });
-      expect(html).toContain('action="/admin/settings/booking-fee"');
-      expect(html).toContain('id="settings-booking-fee"');
-      expect(html).toContain('<div class="prose">');
-      const input = html.match(/<input[^>]*name="booking_fee"[^>]*>/)?.[0];
-      expect(input).toContain('type="number"');
-      expect(input).toContain('min="0"');
-      expect(input).toContain('max="10"');
-      expect(input).toContain('step="0.1"');
-    });
-
-    test("shows the saved fee", () => {
-      const html = render(BookingFeeForm, {
-        bookingFee: "2.5",
-        paymentProvider: "stripe",
-      });
-      expect(html).toContain('value="2.5"');
     });
   });
 });

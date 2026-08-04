@@ -35,7 +35,7 @@ import { ok } from "#shared/response.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import {
   SETTINGS_FORMS,
-  type SettingsFormDefinition,
+  type SingleFieldSettingsForm,
 } from "#shared/settings/forms.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import {
@@ -45,14 +45,14 @@ import {
 } from "#shared/types.ts";
 import { isValidEmail, updateBusinessEmail } from "#shared/validation/email.ts";
 
-const formRoute = (definition: SettingsFormDefinition) => ({
+const formRoute = (definition: SingleFieldSettingsForm) => ({
   advanced: definition.page === "advanced",
   field: definition.fieldName,
   formId: definition.formId,
   label: definition.routeLabel,
 });
 
-const formLocation = (definition: SettingsFormDefinition) => {
+const formLocation = (definition: SingleFieldSettingsForm) => {
   const { label: _, ...location } = formRoute(definition);
   return location;
 };
@@ -123,7 +123,6 @@ export const handlePaymentProviderRecoveryPost: RequestRoute = settingsRoute(
  */
 export const handleEmbedHostsPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.embedHosts),
-  extract: (form) => form.getString(SETTINGS_FORMS.embedHosts.fieldName),
   log: (v) =>
     v === ""
       ? t("success.embed_hosts_removed")
@@ -157,7 +156,6 @@ export const handleTermsPost = settingsHandler({
  */
 export const handleCustomCssPost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.customCss),
-  extract: (form) => form.getString(SETTINGS_FORMS.customCss.fieldName),
   log: (v) => (v === "" ? "Custom CSS removed" : "Custom CSS updated"),
   save: (v) => settings.update.customCss(v),
   validate: (v) =>
@@ -224,8 +222,9 @@ export const handleCalendarFeedsPost = settingsHandler({
 
 /** Handle POST /admin/settings/booking-fee - owner only */
 export const handleBookingFeePost = settingsHandler({
-  extract: (form) => Number.parseFloat(form.getString("booking_fee")),
-  formId: "settings-booking-fee",
+  ...formLocation(SETTINGS_FORMS.bookingFee),
+  extract: (form) =>
+    Number.parseFloat(form.getString(SETTINGS_FORMS.bookingFee.fieldName)),
   log: (v) => `Booking fee set to ${v}%`,
   save: (v) => settings.update.bookingFee(String(v)),
   validate: (v) =>
@@ -240,10 +239,12 @@ export const handleBookingFeePost = settingsHandler({
  */
 const COLUMN_ORDER_SETTINGS = {
   attendee: {
+    form: SETTINGS_FORMS.attendeeColumnOrder,
     message: () => t("settings.column_order.attendee_updated"),
     update: settings.update.attendeeColumnOrder,
   },
   listing: {
+    form: SETTINGS_FORMS.listingColumnOrder,
     message: () => t("settings.column_order.listing_updated"),
     update: settings.update.listingColumnOrder,
   },
@@ -255,9 +256,8 @@ const columnOrderHandler = (kind: ConfigurableColumnLayoutKind) => {
   const config = COLUMN_ORDER_SETTINGS[kind];
   const layout = configurableTableLayouts[kind];
   return settingsHandler({
-    advanced: true,
-    extract: (form) => form.getString("column_order").trim(),
-    formId: `settings-${kind}-column-order`,
+    ...formLocation(config.form),
+    extract: (form) => form.getString(config.form.fieldName).trim(),
     log: config.message,
     save: config.update,
     validate: (value) =>

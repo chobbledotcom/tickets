@@ -1,57 +1,30 @@
-import { CONFIG_KEYS, type ConfigKey } from "#shared/settings/keys.ts";
-
-export type SettingsFormPage = "main" | "advanced";
-
-type FormCopyBase = {
-  titleKey: string;
-  descriptionKey: string;
-  descriptionHtml?: true;
-};
-
-type FieldFormCopy = FormCopyBase & {
-  labelKey: string;
-  labelHint?: "formatting";
-  placeholderKey: string;
-  submitLabelKey: string;
-  footerKey?: string;
-};
-
-type BooleanFormCopy = FormCopyBase;
-
-type SettingsFormBase<Copy extends FormCopyBase> = {
-  name: string;
-  page: SettingsFormPage;
-  key: ConfigKey;
-  action: string;
-  formId: string;
-  fieldName: string;
-  routeLabel: string;
-  stateField: string;
-  copy: Copy;
-};
-
-type TextSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
-  kind: "text";
-  inputType: "email" | "text";
-};
-
-type TextareaSettingsFormConfig = SettingsFormBase<FieldFormCopy> & {
-  kind: "textarea";
-  markdownPreview?: true;
-};
-
-type BooleanSettingsFormConfig = SettingsFormBase<BooleanFormCopy> & {
-  kind: "boolean";
-};
-
-type SettingsFormConfig =
-  | BooleanSettingsFormConfig
-  | TextSettingsFormConfig
-  | TextareaSettingsFormConfig;
+import { t } from "#i18n";
+import { ADDRESS_LOOKUP_PROVIDERS } from "#shared/address-lookup/providers.ts";
+import {
+  ADDRESS_LOOKUP_SETTINGS,
+  type AddressLookupSetting,
+} from "#shared/address-lookup/types.ts";
+import type { SettingsFormConfig } from "#shared/settings/form-schema.ts";
+import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 
 const form = <const Definition extends SettingsFormConfig>(
   definition: Definition,
 ): Definition => definition;
+
+/** The "Available tags: …" note under a column-order field, listing every
+ *  Liquid tag the table understands. */
+const availableTags = (layout: { keys: readonly string[] }): string =>
+  `${t("settings.column_order.available")} ${layout.keys
+    .map((key) => `{{${key}}}`)
+    .join(", ")}`;
+
+/** Picklist label: "none" is translated copy, real providers show their
+ *  brand. */
+const addressProviderLabel = (provider: AddressLookupSetting): string =>
+  provider === "none"
+    ? t("address_lookup.settings.provider_none")
+    : ADDRESS_LOOKUP_PROVIDERS[provider].label;
 
 export const SETTINGS_FORM_DEFINITIONS = [
   form({
@@ -72,6 +45,77 @@ export const SETTINGS_FORM_DEFINITIONS = [
     page: "main",
     routeLabel: "Business email",
     stateField: "businessEmail",
+  }),
+  form({
+    action: "/admin/settings/theme",
+    copy: {
+      descriptionKey: "settings.theme_hint",
+      submitLabelKey: "settings.save_theme",
+      titleKey: "settings.theme",
+    },
+    fields: [
+      {
+        fieldName: "theme",
+        kind: "radios",
+        options: [
+          { labelKey: "settings.theme_light", value: "light" },
+          { labelKey: "settings.theme_dark", value: "dark" },
+        ],
+        stateField: "theme",
+      },
+      {
+        fieldName: "underline_links",
+        hintKey: "settings.underline_links_hint",
+        kind: "checkbox",
+        labelClass: "checkbox",
+        labelKey: "settings.underline_links",
+        stateField: "underlineLinks",
+      },
+    ],
+    formId: "settings-theme",
+    kind: "fields",
+    name: "theme",
+    page: "main",
+    routeLabel: "Site theme",
+  }),
+  form({
+    action: "/admin/settings/calendar-feeds",
+    copy: {
+      descriptionHtml: true,
+      descriptionKey: "settings.calendar_feeds_hint",
+      submitLabelKey: "settings.save_calendar_feeds",
+      titleKey: "settings.calendar_feeds",
+    },
+    fields: [
+      {
+        fieldName: "calendar_feeds_enabled",
+        kind: "checkbox",
+        labelKey: "settings.calendar_feeds_enabled",
+        stateField: "calendarFeedsEnabled",
+      },
+      {
+        fieldName: "calendar_feeds_group_by",
+        kind: "select",
+        labelFor: true,
+        labelKey: "settings.calendar_feeds_group_by",
+        options: [
+          {
+            labelKey: "settings.calendar_feeds_group_by_attendees",
+            value: "attendees",
+          },
+          {
+            labelKey: "settings.calendar_feeds_group_by_listings",
+            value: "listings",
+          },
+        ],
+        stateField: "calendarFeedsGroupBy",
+      },
+    ],
+    formId: "settings-calendar-feeds",
+    kind: "fields",
+    name: "calendarFeeds",
+    page: "main",
+    routeLabel: "Calendar feeds",
   }),
   form({
     action: "/admin/settings/terms",
@@ -114,6 +158,72 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "embedHosts",
   }),
   form({
+    action: "/admin/settings/booking-fee",
+    copy: {
+      descriptionKey: "settings.booking_fee_hint",
+      labelKey: "settings.booking_fee_label",
+      submitLabelKey: "settings.save_booking_fee",
+      titleKey: "settings.booking_fee",
+    },
+    fieldName: "booking_fee",
+    formId: "settings-booking-fee",
+    inputType: "number",
+    key: CONFIG_KEYS.BOOKING_FEE,
+    kind: "text",
+    max: "10",
+    min: "0",
+    name: "bookingFee",
+    page: "main",
+    required: true,
+    routeLabel: "Booking fee",
+    stateField: "bookingFee",
+    step: "0.1",
+  }),
+  form({
+    action: "/admin/settings/listing-column-order",
+    copy: {
+      descriptionHtml: true,
+      descriptionKey: "settings.column_order.listing_desc",
+      footerText: () => availableTags(configurableTableLayouts.listing),
+      labelKey: "settings.column_order.label",
+      placeholderText: () => configurableTableLayouts.listing.defaultTemplate,
+      submitLabelKey: "settings.column_order.listing_submit",
+      titleKey: "settings.column_order.listing_title",
+    },
+    fieldName: "column_order",
+    formId: "settings-listing-column-order",
+    inputType: "text",
+    key: CONFIG_KEYS.LISTING_COLUMN_ORDER,
+    kind: "text",
+    name: "listingColumnOrder",
+    page: "advanced",
+    routeLabel: "Listing column order",
+    stateField: "listingColumnOrder",
+    valueFallback: "placeholder",
+  }),
+  form({
+    action: "/admin/settings/attendee-column-order",
+    copy: {
+      descriptionHtml: true,
+      descriptionKey: "settings.column_order.attendee_desc",
+      footerText: () => availableTags(configurableTableLayouts.attendee),
+      labelKey: "settings.column_order.label",
+      placeholderText: () => configurableTableLayouts.attendee.defaultTemplate,
+      submitLabelKey: "settings.column_order.attendee_submit",
+      titleKey: "settings.column_order.attendee_title",
+    },
+    fieldName: "column_order",
+    formId: "settings-attendee-column-order",
+    inputType: "text",
+    key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
+    kind: "text",
+    name: "attendeeColumnOrder",
+    page: "advanced",
+    routeLabel: "Attendee column order",
+    stateField: "attendeeColumnOrder",
+    valueFallback: "placeholder",
+  }),
+  form({
     action: "/admin/settings/custom-css",
     copy: {
       descriptionKey: "settings.advanced.custom_css_hint",
@@ -148,6 +258,40 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "showPublicApi",
   }),
   form({
+    action: "/admin/settings/address-lookup",
+    copy: {
+      descriptionHtml: "block",
+      descriptionKey: "address_lookup.settings.description",
+      submitLabelKey: "address_lookup.settings.save",
+      titleKey: "address_lookup.settings.title",
+    },
+    fields: [
+      {
+        fieldName: "address_lookup_provider",
+        kind: "select",
+        labelKey: "address_lookup.settings.provider",
+        options: () =>
+          ADDRESS_LOOKUP_SETTINGS.map((provider) => ({
+            label: addressProviderLabel(provider),
+            value: provider,
+          })),
+        stateField: "addressLookupProvider",
+      },
+      {
+        configuredStateField: "addressLookupApiKeyConfigured",
+        fieldName: "address_lookup_api_key",
+        kind: "secret",
+        labelKey: "address_lookup.settings.api_key",
+        placeholderKey: "address_lookup.settings.api_key_placeholder",
+      },
+    ],
+    formId: "settings-address-lookup",
+    kind: "fields",
+    name: "addressLookup",
+    page: "advanced",
+    routeLabel: "Address lookup",
+  }),
+  form({
     action: "/admin/settings/external-order",
     copy: {
       descriptionKey: "settings.advanced.external_order_hint",
@@ -166,6 +310,26 @@ export const SETTINGS_FORM_DEFINITIONS = [
 
 export type SettingsFormDefinition = (typeof SETTINGS_FORM_DEFINITIONS)[number];
 export type SettingsFormName = SettingsFormDefinition["name"];
+
+/** The definitions that edit one setting through one form field. */
+export type SingleFieldSettingsForm = Exclude<
+  SettingsFormDefinition,
+  { kind: "fields" }
+>;
+
+/** The definitions whose state fields all exist on page state `S` — so a
+ *  definition rendered against the wrong page fails to compile. */
+export type SettingsFormFor<S> = Extract<
+  SettingsFormDefinition,
+  | { stateField: keyof S & string }
+  | {
+      kind: "fields";
+      fields: readonly (
+        | { stateField: keyof S & string }
+        | { configuredStateField: keyof S & string }
+      )[];
+    }
+>;
 
 type SettingFormFor<Name extends SettingsFormName> = Extract<
   SettingsFormDefinition,

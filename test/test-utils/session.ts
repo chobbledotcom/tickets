@@ -83,7 +83,7 @@ export const testCsrfToken = async (): Promise<string> =>
   (await getTestSession()).csrfToken;
 
 /** Build an owner AuthSession from the live test admin session row. */
-const getTestAuthSession = async (): Promise<AuthSession> => {
+export const getTestAuthSession = async (): Promise<AuthSession> => {
   const cookie = await testCookie();
   const token = cookie.match(
     new RegExp(`${getSessionCookieName()}=([^;]+)`),

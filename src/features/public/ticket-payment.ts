@@ -2,7 +2,7 @@
  * Payment flow, availability checks, and free registration
  */
 
-import { compact, unique } from "#fp";
+import { compact, requiredMapValue, unique } from "#fp";
 import { checkoutResponse } from "#routes/payment-response.ts";
 import { errorRedirect, notFoundResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -54,7 +54,7 @@ import {
   getHiddenPackageMemberIds,
   isHiddenPackageMember,
   listingGroups,
-  loadPackageMemberPricing,
+  loadPackageMemberPricingByGroupIds,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
@@ -85,6 +85,7 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   availableDayCounts,
@@ -196,17 +197,44 @@ export const checkAvailability = (
     date,
   );
 
-/** Load one group's package pricing and shape it into the {@link PagePackage}
- * the booking flow carries — the group's display fields plus its member
- * quantity/price maps, scoped to the members actually on the page. */
+/** One package on a booking page: the group, and the members that survived the
+ * page's own drops. */
+export type PagePackageEntry = {
+  group: Group;
+  memberListingIds: readonly number[];
+};
+
+/** Load every listed package's pricing in one batch and shape each into the
+ * {@link PagePackage} the booking flow carries — the group's display fields
+ * plus its member quantity/price maps, scoped to the members actually on the
+ * page. A cart naming many packages costs the same two reads as one. */
+export const loadPagePackages = async (
+  entries: readonly PagePackageEntry[],
+): Promise<PagePackage[]> => {
+  const pricingByGroup = await loadPackageMemberPricingByGroupIds(
+    entries.map((entry) => entry.group.id),
+  );
+  return entries.map((entry) =>
+    buildPagePackage(
+      entry.group,
+      entry.memberListingIds,
+      requiredMapValue(
+        pricingByGroup,
+        entry.group.id,
+        "Missing package pricing",
+      ),
+    ),
+  );
+};
+
+/** One group's page package, through the shared many-package path. */
 export const loadPagePackage = async (
   group: Group,
   memberListingIds: readonly number[],
 ): Promise<PagePackage> =>
-  buildPagePackage(
-    group,
-    memberListingIds,
-    await loadPackageMemberPricing(group.id),
+  requireValue(
+    (await loadPagePackages([{ group, memberListingIds }]))[0],
+    `Missing page package for group ${group.id}`,
   );
 
 /** This page's hidden-package stand-ins: every HIDDEN package's name by group

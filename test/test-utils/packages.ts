@@ -1,5 +1,7 @@
 /** Package booking-flow test helpers. */
 
+import type { Group, ListingWithCount } from "#shared/types.ts";
+
 /**
  * Drive the public checkout submit for a package group: GET the package page
  * (seeding the CSRF token the POST needs), then POST the booking form fields.
@@ -22,6 +24,43 @@ export const submitPackageBooking = async (
   return handleRequest(mockTicketFormRequest(slug, fields, csrf));
 };
 
+/** The package-building pieces both factories below load lazily, so importing
+ * this module never pulls the app graph in on its own. */
+const packageParts = async () => {
+  const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
+  const { createTestGroup } = await import("#test-utils/db-helpers/groups.ts");
+  const { createTestListing } = await import(
+    "#test-utils/db-helpers/listings.ts"
+  );
+  return { createTestGroup, createTestListing, setGroupPackageMembers };
+};
+
+/** A free one-member package: the member costs 0 inside the bundle, so a
+ * booking page prices and books it without a payment provider. `slug` fixes the
+ * package's own slug when a test needs to name it in a URL. */
+export const createFreePackage = async (
+  name: string,
+  memberName: string,
+  slug?: string,
+): Promise<{ group: Group; member: ListingWithCount }> => {
+  const { createTestGroup, createTestListing, setGroupPackageMembers } =
+    await packageParts();
+  const group = await createTestGroup({
+    isPackage: true,
+    name,
+    ...(slug === undefined ? {} : { slug }),
+  });
+  const member = await createTestListing({
+    groupId: group.id,
+    maxAttendees: 10,
+    maxQuantity: 10,
+    name: memberName,
+    unitPrice: 0,
+  });
+  await setGroupPackageMembers(group.id, [{ listingId: member.id, price: 0 }]);
+  return { group, member };
+};
+
 /** A customisable dated two-member package — boat (day prices 1000/1800) and
  * hut (500/900), both bookable from tomorrow — with the boat's package
  * overrides applied: `{ price: null }` for none, a flat `price`, and/or
@@ -34,11 +73,8 @@ export const createFlexPackage = async (
     dayPrices?: Record<number, number>;
   } = { price: null },
 ) => {
-  const { setGroupPackageMembers } = await import("#shared/db/groups.ts");
-  const { createTestGroup } = await import("#test-utils/db-helpers/groups.ts");
-  const { createTestListing } = await import(
-    "#test-utils/db-helpers/listings.ts"
-  );
+  const { createTestGroup, createTestListing, setGroupPackageMembers } =
+    await packageParts();
   const group = await createTestGroup({ isPackage: true, name, slug });
   const boat = await createTestListing({
     customisableDays: true,

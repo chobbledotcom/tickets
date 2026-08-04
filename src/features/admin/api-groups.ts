@@ -2,7 +2,7 @@
  * Admin JSON API routes for groups — accessible via API key or cookie+CSRF.
  */
 
-import { isNotNullish } from "#fp";
+import { isNotNullish, requiredMapValue } from "#fp";
 import {
   deleteGroup,
   soldHiddenPackageError,
@@ -22,11 +22,10 @@ import type { TxScope } from "#shared/db/client.ts";
 import {
   computeGroupSlugIndex,
   generateUniqueGroupSlug,
-  getGroupPackagePricesByGroupIds,
   groups,
+  loadPackageMemberPricingByGroupIds,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
-import { getGroupDayPricesByGroupIds } from "#shared/db/listing-prices.ts";
 import {
   type DeleteBody,
   defineCrudApi,
@@ -240,20 +239,25 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   // extra fields. Single-row responses use this same batch path with one row.
   hydrate: async (rows) => {
     const packageGroups = rows.filter((row) => row.is_package);
-    const groupIds = packageGroups.map((row) => row.id);
-    const [byGroup, dayPricesByGroup] = await Promise.all([
-      getGroupPackagePricesByGroupIds(groupIds),
-      getGroupDayPricesByGroupIds(groupIds),
-    ]);
+    const pricingByGroup = await loadPackageMemberPricingByGroupIds(
+      packageGroups.map((row) => row.id),
+    );
     return new Map(
-      packageGroups.map((row) => [
-        row.id,
-        {
-          package_members: (byGroup.get(row.id) ?? []).map((m) =>
-            toMember(m, dayPricesByGroup.get(row.id)?.get(m.listing_id)),
-          ),
-        },
-      ]),
+      packageGroups.map((row) => {
+        const pricing = requiredMapValue(
+          pricingByGroup,
+          row.id,
+          "Missing package pricing",
+        );
+        return [
+          row.id,
+          {
+            package_members: pricing.rows.map((member) =>
+              toMember(member, pricing.dayPrices.get(member.listing_id)),
+            ),
+          },
+        ];
+      }),
     );
   },
   name: "groups",

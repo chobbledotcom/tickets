@@ -1,7 +1,6 @@
 /**
  * Shared template blocks for the Site tab's content editors (Pages, News):
- * the list-page opener, the pre-filled edit form, and the type-the-name
- * delete confirmation.
+ * the list-page opener and the pre-filled edit form.
  */
 
 /* jscpd:ignore-start */
@@ -11,7 +10,6 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
@@ -72,33 +70,3 @@ export const contentGuideFooter = (
     <Raw html={t("common.guide_website_content")} />
   </GuideFooter>
 );
-
-/** Curried type-the-name delete confirmation page for a Site-tab entity.
- * `messages` is the i18n prefix carrying `.delete_title`, `.delete_submit`,
- * `.delete_prompt` (with a `{name}` slot), and `.name_label`. */
-export const deleteConfirmPage =
-  (messages: string, active: string) =>
-  (
-    action: string,
-    name: string,
-    session: AdminSession,
-    error?: string,
-  ): string => {
-    const title = t(`${messages}.delete_title`);
-    return ConfirmPage({
-      action,
-      active,
-      buttonText: t(`${messages}.delete_submit`),
-      children: (
-        <>
-          <h1>{title}</h1>
-          <p>{t(`${messages}.delete_prompt`, { name })}</p>
-        </>
-      ),
-      error,
-      label: t(`${messages}.name_label`),
-      name,
-      session,
-      title,
-    });
-  };

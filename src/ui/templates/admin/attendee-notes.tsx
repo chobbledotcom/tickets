@@ -243,7 +243,9 @@ export const adminNoteNewPage = ({
 /**
  * The are-you-sure delete page. Shows the note being deleted then a plain
  * confirm button (no copy/paste name confirmation), bouncing back to
- * `returnUrl` on confirm or cancel.
+ * `returnUrl` on confirm or cancel. Calls ConfirmPage directly: its props-bag
+ * signature with a returnUrl doesn't fit the (entity, session, error?) shape
+ * entityDeletePage builds.
  */
 export const adminNoteDeletePage = ({
   note,

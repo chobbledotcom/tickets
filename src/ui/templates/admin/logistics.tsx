@@ -165,7 +165,6 @@ export const logisticsAgentPages = defineAdminResourcePages<LogisticsAgent>({
     addSubmit: t("logistics.create_agent"),
     addTitle: t("logistics.add_logistics_agent"),
     deleteButton: t("logistics.delete_agent"),
-    deleteLabel: t("logistics.agent_name"),
     deleteTitle: t("logistics.delete_logistics_agent"),
     listTitle: t("logistics.title"),
   },

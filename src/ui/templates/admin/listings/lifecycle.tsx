@@ -1,32 +1,21 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
-import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
+import {
+  entityDeletePage,
+  type TCall,
+} from "#templates/admin/confirm-page.tsx";
 
-const listingConfirmPage = (
-  listing: ListingWithCount,
-  session: AdminSession,
-  error: string | undefined,
-  opts: {
-    title: string;
-    action: string;
-    buttonText: string;
-    danger?: boolean;
-    warning?: Child;
-    prompt?: TCall;
-    children?: Child;
-  },
-): string =>
-  ConfirmPage({
-    active: "/admin/",
-    error,
-    label: t("listings_table.listing_name"),
-    name: listing.name,
-    session,
-    ...opts,
-  });
-
-type ListingConfirmOptions = Parameters<typeof listingConfirmPage>[3];
+/** The parts of the confirm page each lifecycle action words differently. */
+type ListingConfirmOptions = {
+  title: string;
+  action: string;
+  buttonText: string;
+  danger?: boolean;
+  warning?: Child;
+  prompt?: TCall;
+  children?: Child;
+};
 
 /** A rendered confirm page for one listing, as the routes call it. */
 type ListingConfirmPage = (
@@ -35,12 +24,17 @@ type ListingConfirmPage = (
   error?: string,
 ) => string;
 
-const listingConfirmPageFrom =
-  (
-    buildOptions: (listing: ListingWithCount) => ListingConfirmOptions,
-  ): ListingConfirmPage =>
-  (listing, session, error) =>
-    listingConfirmPage(listing, session, error, buildOptions(listing));
+/** Bind the shared listing confirm shell (dashboard nav, type-the-name label)
+ *  to one action's options. */
+const listingConfirmPageFrom = (
+  buildOptions: (listing: ListingWithCount) => ListingConfirmOptions,
+): ListingConfirmPage =>
+  entityDeletePage((listing: ListingWithCount) => ({
+    active: "/admin/",
+    label: t("listings_table.listing_name"),
+    name: listing.name,
+    ...buildOptions(listing),
+  }));
 
 const warningText = (children: Child): JSX.Element => (
   <p>
