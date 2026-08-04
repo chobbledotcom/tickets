@@ -247,29 +247,34 @@ describe("releasing a claim", () => {
   });
 });
 
+/** Hold the test claim until told to let go, resolving once it is really
+ * held — so a waiter started after this is genuinely waiting. */
+const holdClaimUntilReleased = async (
+  path: string,
+): Promise<{ holding: Promise<void>; release: () => void }> => {
+  const taken = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
+  const holding = withTestClaim(path, () => {
+    taken.resolve();
+    return released.promise;
+  });
+  await taken.promise;
+  return { holding, release: () => released.resolve() };
+};
+
 describe("waiting for a claim", () => {
   test("does the work once the claim's holder lets go, then frees it", async () => {
     await withClaimDir(async (path) => {
-      const taken = Promise.withResolvers<void>();
-      const released = Promise.withResolvers<void>();
-      const holding = withTestClaim(path, () => {
-        taken.resolve();
-        return released.promise;
-      });
-      // Only once the claim is really held does the wait below mean waiting.
-      await taken.promise;
-      setTimeout(() => released.resolve(), 20);
+      const held = await holdClaimUntilReleased(path);
+      setTimeout(held.release, 20);
 
       const answer = await withTestClaim(
         path,
         () => Promise.resolve("worked"),
-        {
-          ...SETTINGS,
-          timeoutMs: 5_000,
-        },
+        { ...SETTINGS, timeoutMs: 5_000 },
       );
 
-      await holding;
+      await held.holding;
       expect(answer).toBe("worked");
       await expect(Deno.stat(path)).rejects.toThrow();
     });
@@ -277,18 +282,12 @@ describe("waiting for a claim", () => {
 
   test("gives up by name when the holder never lets go", async () => {
     await withClaimDir(async (path) => {
-      const taken = Promise.withResolvers<void>();
-      const released = Promise.withResolvers<void>();
-      const holding = withTestClaim(path, () => {
-        taken.resolve();
-        return released.promise;
-      });
-      await taken.promise;
+      const held = await holdClaimUntilReleased(path);
 
       await expectClaimRefused(path, { ...SETTINGS, timeoutMs: 20 });
 
-      released.resolve();
-      await holding;
+      held.release();
+      await held.holding;
     });
   });
 });
