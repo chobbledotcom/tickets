@@ -6,14 +6,14 @@
 Feature: An owner writes to the people who booked
   The owner can write one message to everyone booked onto a listing. They
   reach it from the listing itself, write the message, and are shown it before
-  anything goes out. Sending needs an email provider of their own, and a
-  message that promotes something leaves out anyone who asked not to hear from
-  them.
+  anything goes out. For the site to send it for them they need an email
+  provider of their own, and a message that promotes something leaves out
+  anyone who asked not to hear from them.
 
   @rule:attendees.the-message-is-shown-before-it-goes
   Rule: The message is shown before it goes
     Writing a message never sends it. The owner is shown what they wrote and
-    who it would reach, and only then offered a way to send.
+    who it would reach, and only then offered a way to send it.
 
     @case:writing.see-it-before-it-goes
     Scenario: The owner is shown the message before sending
@@ -22,7 +22,7 @@ Feature: An owner writes to the people who booked
       When the owner writes to "the Gig" saying "Doors open at seven."
       Then the owner is shown the message before it goes
       And the owner is shown that it would reach 2 people
-      And the owner is offered a way to send it
+      And the site offers to send it for them
 
     @case:writing.sending-writes-to-everyone-who-booked
     Scenario: Sending reaches everyone who booked
@@ -33,10 +33,12 @@ Feature: An owner writes to the people who booked
       Then the owner is told it went to 2 people
       And it was written to everyone who booked onto "the Gig"
 
-  @rule:attendees.sending-needs-an-email-provider-of-their-own
-  Rule: Sending needs an email provider of their own
+  @rule:attendees.the-site-only-sends-for-them-with-a-provider-of-their-own
+  Rule: The site only sends for them with a provider of their own
     Without a provider of their own the owner can still write and check a
-    message, but the site offers them no way to send it and says so.
+    message, and the preview still offers to open it as a draft in their own
+    email app. What needs a provider is the site sending it for them, and the
+    preview says so rather than leaving a button that would not work.
 
     @case:writing.no-provider-no-send
     Scenario: The owner has set up no email provider
@@ -44,7 +46,8 @@ Feature: An owner writes to the people who booked
       When the owner writes to "the Gig" saying "Doors open at seven."
       Then the owner is shown the message before it goes
       And the owner is told sending is switched off
-      And the owner is offered no way to send it
+      And the site does not offer to send it for them
+      And the owner is still offered a draft to send themselves
 
   @rule:attendees.a-promotion-leaves-out-anyone-who-asked-not-to-hear
   Rule: A promotion leaves out anyone who asked not to hear

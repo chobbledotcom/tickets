@@ -14,8 +14,10 @@ import {
   type MessageWritten,
   ownerHasAnEmailProvider,
   peopleBookOnto,
-  previewOffersASend,
+  previewOffersADraftToSendThemselves,
   sendsWhatWasPreviewed,
+  siteOffersToSend,
+  timesTheProviderWasAsked,
   watchWhatIsSent,
   wordsTheyWrote,
   writesToListing,
@@ -168,16 +170,23 @@ Then(
 );
 
 Then(
-  "the owner is offered a way to send it",
+  "the site offers to send it for them",
   function (this: TicketsWorld): void {
-    expect(previewOffersASend(this)).toBe(true);
+    expect(siteOffersToSend(this)).toBe(true);
   },
 );
 
 Then(
-  "the owner is offered no way to send it",
+  "the site does not offer to send it for them",
   function (this: TicketsWorld): void {
-    expect(previewOffersASend(this)).toBe(false);
+    expect(siteOffersToSend(this)).toBe(false);
+  },
+);
+
+Then(
+  "the owner is still offered a draft to send themselves",
+  function (this: TicketsWorld): void {
+    expect(previewOffersADraftToSendThemselves(this)).toBe(true);
   },
 );
 
@@ -242,7 +251,9 @@ Then(
 );
 
 Then("nothing was written to anybody", function (this: TicketsWorld): void {
-  expect(addressesWrittenTo(this)).toEqual([]);
+  // The provider was never asked at all. Reading the addresses instead would
+  // let a send that went out carrying nothing pass as a refusal.
+  expect(timesTheProviderWasAsked(this)).toBe(0);
 });
 
 Then(

@@ -18,9 +18,15 @@ export type AnswersTheOutsideWorld = (
 
 export type WatchesOutgoing = ReturnType<typeof installRecordingFetch>;
 
+/** One story's watch, ready to be put in place: hand it the world the story
+ * runs in and it stands the stand-in up, remembers it there, and hands it
+ * back. Naming this is what makes a change to the shared shape fail where it
+ * is written rather than at whichever story reads it next. */
+export type PutsAWatchInPlace = (world: TicketsWorld) => WatchesOutgoing;
+
 export const watchesOutgoing =
-  (answer: AnswersTheOutsideWorld) =>
-  (world: TicketsWorld): WatchesOutgoing => {
+  (answer: AnswersTheOutsideWorld): PutsAWatchInPlace =>
+  (world) => {
     const watching = installRecordingFetch(answer);
     world.cleanup.add(watching.restore);
     world.messagesOut = watching;

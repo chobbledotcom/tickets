@@ -6,55 +6,25 @@
  */
 
 import { map, pipe } from "#fp";
-import type { FormEntry, FormInfo } from "#test-utils/test-browser/forms.ts";
+import type { FormEntry } from "#test-utils/test-browser/forms.ts";
 import {
   appendFormValue,
-  attrValue,
   extractFormEntries,
   findFormByButton,
   findForms,
-  isDisabled,
-  pressingSends,
+  pressableOn,
   throwNoForm,
-  withoutSwitchedOffGroups,
+  wayToPost,
 } from "#test-utils/test-browser/forms.ts";
 import type { LinkMatch } from "#test-utils/test-browser/parsing.ts";
 import {
   decodeEntities,
   findAllLinks,
   findLinkByText,
-  regexCollect,
   stripTags,
 } from "#test-utils/test-browser/parsing.ts";
 
 /** Extract all cookies from a Set-Cookie header and merge into a cookie jar */
-/** One button somebody could press, and what pressing it really does. */
-interface Pressable {
-  goesTo: string;
-  name: string | undefined;
-  sentBy: string;
-  value: string;
-}
-
-/** Every button on a form somebody could press, and where pressing each one
- * really goes. Only a submit button submits: a `type="button"` or `type="reset"`
- * one is rendered and pressable but sends nothing. A button may override its own
- * form's address and method, so its word wins; a form declaring no method sends
- * by GET, which no route reached this way takes. */
-const pressableOn = (form: FormInfo): Pressable[] =>
-  regexCollect(
-    /<button\b([^>]*?)>/gi,
-    withoutSwitchedOffGroups(form.body),
-    (m) => m[1]!,
-  )
-    .filter((attrs) => !isDisabled(attrs) && pressingSends(attrs))
-    .map((attrs) => ({
-      goesTo: attrValue(attrs, "formaction") ?? form.action,
-      name: attrValue(attrs, "name"),
-      sentBy: (attrValue(attrs, "formmethod") ?? form.method).toLowerCase(),
-      value: attrValue(attrs, "value") ?? "",
-    }));
-
 const parseCookies = (response: Response, jar: Map<string, string>): void => {
   for (const header of response.headers.getSetCookie()) {
     const eqIdx = header.indexOf("=");
@@ -300,7 +270,7 @@ export class TestBrowser {
     action: string,
     data: Record<string, string | string[]> = {},
   ): Promise<void> {
-    const wayThere = this.wayToPost(action);
+    const wayThere = wayToPost(this.currentHtml, action);
     if (wayThere) {
       const { form, pressed } = wayThere;
       return await this.sendForm(
@@ -336,22 +306,7 @@ export class TestBrowser {
    * person looking at the page without trying it and reading the failure.
    */
   offersAWayToPost(action: string): boolean {
-    return this.wayToPost(action) !== null;
-  }
-
-  /** The form somebody pressing their way to this address would really be on,
-   * and the button that takes them — not always the form declaring the address,
-   * since a button can aim its own form somewhere else. */
-  private wayToPost(
-    action: string,
-  ): { form: FormInfo; pressed: Pressable } | null {
-    for (const form of findForms(this.currentHtml)) {
-      const pressed = pressableOn(form).find(
-        ({ goesTo, sentBy }) => goesTo === action && sentBy === "post",
-      );
-      if (pressed) return { form, pressed };
-    }
-    return null;
+    return wayToPost(this.currentHtml, action) !== null;
   }
 
   /** Build one form's submission the way a browser does — its own successful

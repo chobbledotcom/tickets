@@ -23,7 +23,10 @@ import {
   listingIdNamed,
   rememberListing,
 } from "#test/specs/support/listings.ts";
-import { watchesOutgoing } from "#test/specs/support/outgoing.ts";
+import {
+  type PutsAWatchInPlace,
+  watchesOutgoing,
+} from "#test/specs/support/outgoing.ts";
 import {
   keepWhatTheyWereTold,
   type ReadsWhatWasKept,
@@ -61,18 +64,38 @@ export const ownerHasAnEmailProvider = async (): Promise<void> => {
 };
 
 /** Answer the email provider for one story, and remember every send. */
-export const watchWhatIsSent = watchesOutgoing((url) =>
+export const watchWhatIsSent: PutsAWatchInPlace = watchesOutgoing((url) =>
   url.includes("api.resend.com") ? new Response(null, { status: 200 }) : null,
 );
 
-/** Every address the site really handed the provider, across every send. */
-export const addressesWrittenTo = (world: TicketsWorld): string[] => {
-  const watching = requiredWorldValue(world.messagesOut, "the outgoing watch");
-  return watching.calls
-    .filter(({ url }) => url.includes("api.resend.com"))
+/** Every send the site really made to the email provider. */
+const sendsMade = (world: TicketsWorld) =>
+  requiredWorldValue(world.messagesOut, "the outgoing watch").calls.filter(
+    ({ url }) => url.includes("api.resend.com"),
+  );
+
+/** How many times the site went to the provider at all. A story proving a send
+ * was refused asks this rather than reading the addresses: a send that went out
+ * with nothing readable in it would otherwise look the same as no send. */
+export const timesTheProviderWasAsked = (world: TicketsWorld): number =>
+  sendsMade(world).length;
+
+/** Every address the site really handed the provider, across every send. A send
+ * carrying nothing readable is a broken watch or a broken payload rather than
+ * an answer, so it fails loudly instead of reading as "nobody was written
+ * to". */
+export const addressesWrittenTo = (world: TicketsWorld): string[] =>
+  sendsMade(world)
     .flatMap(({ body }) => (Array.isArray(body) ? body : [body]))
-    .flatMap((one) => (one as { to?: string[] } | null)?.to ?? []);
-};
+    .flatMap((one) => {
+      const to = (one as { to?: unknown } | null)?.to;
+      if (!Array.isArray(to) || to.some((who) => typeof who !== "string")) {
+        throw new Error(
+          `The site sent to the provider with no readable addresses: ${JSON.stringify(one)}`,
+        );
+      }
+      return to as string[];
+    });
 
 /** People booked onto a listing the story names, each through the form on that
  * listing's own roster. Their addresses are kept under the listing's name, so a
@@ -191,10 +214,20 @@ export const writesToListing = async (
   );
 };
 
-/** Whether the preview the owner is looking at offers them any way to send. A
- * page whose only Send button is switched off offers none. */
-export const previewOffersASend = (world: TicketsWorld): boolean =>
+/** Whether the preview the owner is looking at offers to have the site send
+ * the message for them. A page whose only Send button is switched off offers
+ * nothing, however present the button looks. */
+export const siteOffersToSend = (world: TicketsWorld): boolean =>
   scenarioBrowser(world).offersAWayToPost(SEND_PATH);
+
+/** Whether the preview still offers to open the message as a draft in the
+ * owner's own email app. This is offered whether or not the site can send for
+ * them, so "the site will not send this" is never the same as "there is no way
+ * to send this at all". */
+export const previewOffersADraftToSendThemselves = (
+  world: TicketsWorld,
+): boolean =>
+  scenarioBrowser(world).links.some(({ href }) => href.startsWith("mailto:"));
 
 /** The owner presses Send on the preview they are looking at, and is left with
  * whatever the site told them. */
