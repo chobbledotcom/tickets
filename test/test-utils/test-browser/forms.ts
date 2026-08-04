@@ -274,11 +274,11 @@ export const appendFormValue = (
 /** The button on this form a person would press, and what pressing it sends
  * (routes that dispatch on `action` read the button's own name and value).
  * "switched off" when the only buttons with that text cannot be pressed, and
- * "on no button" when the form's buttons all say something else — its body
- * carrying the words is no button anybody could press. Nothing only when the
- * form has no button that could send it at all: a person sends such a form by
- * pressing Enter in one of its boxes, so finding it by its body text is
- * finding it the way they would. */
+ * "on no button" when the form's own submit buttons all say something else —
+ * its body carrying the words is no button anybody could press. Nothing only
+ * when the form has no submit button at all: only such a form is sent by
+ * pressing Enter in one of its boxes, so only there may its body text stand in
+ * for a button. */
 const buttonToPress = (
   body: string,
   lower: string,
@@ -327,15 +327,18 @@ const buttonToPress = (
   // Nothing usable was left, yet the page does carry a button saying this — so
   // its group switched it off, which is the same to anybody trying to press it.
   if (saying(body).length > 0) return "switched off";
-  // The form has buttons of its own, just none saying this. Its body carrying
-  // the words is not a button anybody could press, so submitting it anyway
-  // would let a story press a button the page took away.
-  const couldPress = regexCollect(
-    buttonRe,
-    withoutSwitchedOffGroups(body),
-    (m) => m[1]!,
-  ).some((attrs) => !isDisabled(attrs) && pressingSends(attrs));
-  return couldPress ? "on no button" : {};
+  // The form has a submit button of its own, just none saying this. Its body
+  // carrying the words is not a button anybody could press — and pressing
+  // Enter would not send it either, since a browser's Enter press goes
+  // through the form's own first submit button, however disabled or switched
+  // off. Counted on the raw markup for the same reason: a submit button in a
+  // switched-off group still stops the Enter send. Only a form with no submit
+  // button at all is sent by Enter directly, so only there may its body text
+  // stand in for a button.
+  const hasSubmitButton = regexCollect(buttonRe, body, (m) => m[1]!).some(
+    (attrs) => pressingSends(attrs),
+  );
+  return hasSubmitButton ? "on no button" : {};
 };
 
 /** Find a form whose body contains the given button text, or throw. Also

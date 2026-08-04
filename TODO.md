@@ -1595,25 +1595,29 @@ even though the starter did try the number of times it was asked to. Handing out
 ports so no two tests can receive the same one would fix this too; short of that,
 the count is the wrong thing to measure.
 
-## The Turso upload suite once died on CI with no diagnostic at all
+## The Turso upload suite sometimes dies with no diagnostic at all
 
-*Origin: CI on PR #2039, a branch that touches nothing this suite uses.*
+*Origin: CI on PR #2039, a branch that touches nothing this suite uses. It
+then reproduced locally under a full `deno task test:coverage` run, while
+passing many consecutive standalone runs — it needs a loaded machine.*
 
-`test/scripts/turso-migration-file.test.ts` failed once on CI as
-`fail Turso migration file — at unknown location — No TAP diagnostic was
-emitted for this failure.` The first five cases had passed and the remaining
-seven never reported, so the whole describe died between two cases rather
-than an assertion failing. The suite passed five consecutive local runs, and
-the branch does not touch the upload code, so this is a timing flake on a
-loaded runner, not a regression.
+`test/scripts/turso-migration-file.test.ts` fails as `fail Turso migration
+file — at unknown location — No TAP diagnostic was emitted for this
+failure.` The first five cases pass and the rest never report, so the whole
+describe dies between cases rather than an assertion failing.
 
-The suspect is the seam between case five and case six: five is the last one
-driving a real `Deno.serve` server through node's `http.request`, and a
-socket torn down by `server.shutdown()` after the case has already finished
-can surface as an error owned by nobody — which is exactly what "no
-diagnostic, unknown location" looks like. If it happens again, start there:
-`withUploadServer`'s shutdown ordering, and whether the node client's socket
-is closed before the server is told to shut down.
+The suspect is the watch in `sendDatabaseFile`
+(`scripts/turso-migration-file.ts`). When a server answers before the whole
+body is sent, Deno's node:http polyfill rejects an internal task nobody
+awaits (`Failed to fetch: request body stream errored`), and
+`watchPolyfillBodyStreamDefect` swallows that duplicate while the upload is
+in flight. The watch stands down one `setTimeout(0)` after the upload
+settles — its own comment admits this is a guess about when the duplicate
+surfaces. On a loaded machine the internal rejection can land *after* that
+one timer turn, and an unhandled rejection between cases is exactly "no
+diagnostic, unknown location". A fix wants a deterministic stand-down —
+e.g. hold the watch until the request's own `close` says its internals are
+done — proven by a test that forces the late rejection, not by timing luck.
 
 *Raised by Codex on [PR #1976](https://github.com/chobbledotcom/tickets/pull/1976),
 about `scripts/mutation/isolation.ts` and `scripts/mutation/isolation-cleanup.ts`.*

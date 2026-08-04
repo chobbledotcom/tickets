@@ -222,6 +222,54 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     expect(sent).toBe(false);
   });
 
+  it("refuses the body-text send when the form's only submit button is switched off", async () => {
+    const browser = new TestBrowser();
+    let sent = false;
+    useHandler(browser, () => {
+      sent = true;
+      return new Response("saved");
+    });
+    // A switched-off Save is still this form's first submit button, so
+    // pressing Enter in the box would send nothing — the form is not one its
+    // body text may stand in for.
+    browser.currentHtml = `
+      <form action="/body-text" method="POST">
+        <p>Publish this draft</p>
+        <input name="title" value="Draft">
+        <button disabled>Save</button>
+      </form>
+    `;
+
+    await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+      '"Publish" is on a form, but on none of its buttons',
+    );
+    expect(sent).toBe(false);
+  });
+
+  it("reports a switched-off button over a form that merely mentions the words", async () => {
+    const browser = new TestBrowser();
+    // One form's Publish button is switched off; another only says Publish in
+    // prose. The switched-off button is the more telling answer, whichever
+    // order the two forms render in.
+    const prose = `
+      <form action="/prose" method="POST">
+        <p>Publish this draft</p>
+        <button>Save</button>
+      </form>
+    `;
+    const switchedOff = `
+      <form action="/off" method="POST">
+        <button disabled>Publish</button>
+      </form>
+    `;
+    for (const page of [prose + switchedOff, switchedOff + prose]) {
+      browser.currentHtml = page;
+      await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+        'The "Publish" button is switched off',
+      );
+    }
+  });
+
   it("passes over a form whose buttons say something else for one whose button says it", async () => {
     const { browser, postedPath } = postedPathBrowser();
     // The first form mentions Publish only in prose; the second has the real
