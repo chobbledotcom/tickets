@@ -12,10 +12,7 @@ import {
 import { bookedSpanDays } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activity-log.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
-import {
-  loadPackageMemberPricingByGroupIds,
-  type PackageMemberPricing,
-} from "#shared/db/groups.ts";
+import { loadPackageMemberPricing } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -114,7 +111,10 @@ export type RegistrationEntry = {
  * positive amount or an explicit free `0`; members with no override are absent)
  * and each customisable member's per-day overrides (day count → minor units) —
  * the loader's shape, minus the fields the payload never reads. */
-type PackageGroupPricing = Pick<PackageMemberPricing, "prices" | "dayPrices">;
+type PackageGroupPricing = Pick<
+  Awaited<ReturnType<typeof loadPackageMemberPricing>>,
+  "prices" | "dayPrices"
+>;
 
 /** Per-group package pricing, loaded once per payload for the order's package
  * groups. */
@@ -131,7 +131,16 @@ const loadPackageOverrides = async (
       e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
     )(entries),
   );
-  return loadPackageMemberPricingByGroupIds(groupIds);
+  return new Map(
+    await Promise.all(
+      groupIds.map(
+        async (groupId): Promise<[number, PackageGroupPricing]> => [
+          groupId,
+          await loadPackageMemberPricing(groupId),
+        ],
+      ),
+    ),
+  );
 };
 
 /** The full per-unit price for a booking line: the shared checkout evaluation

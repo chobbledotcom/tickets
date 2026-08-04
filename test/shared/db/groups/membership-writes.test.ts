@@ -95,6 +95,12 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
     expect(await getTestPackagePrices(group.id)).toEqual(
       new Map([[named.id, 700]]),
     );
+    // An entry that names no quantity includes one of that member.
+    expect(
+      (await getGroupPackagePrices(group.id)).find(
+        ({ listing_id }) => listing_id === named.id,
+      )?.quantity,
+    ).toBe(1);
 
     await setGroupPackageMembers(group.id, []);
 

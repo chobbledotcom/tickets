@@ -125,7 +125,11 @@ export const loadPackagePaths = async (): Promise<PackagePath[]> => {
     (group) => group.is_package,
   );
   const { members: membersByGroupId, more: priceRowsByGroupId } =
-    await readGroupMembersWith(packages, getGroupPackagePricesByGroupIds);
+    await readGroupMembersWith(
+      packages,
+      getGroupPackagePricesByGroupIds,
+      false,
+    );
   return packages.map((group) => ({
     groupId: group.id,
     // The members loader seeds every requested group id, so that lookup

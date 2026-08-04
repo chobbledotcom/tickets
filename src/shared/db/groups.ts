@@ -217,11 +217,13 @@ export const getListingsByGroupIds = async (
  * groups — their prices, their full membership, whatever the caller needs — in
  * one round of reads. A page hydrating many packages would otherwise pay a pair
  * of reads per package and eat the request's subrequest budget. `activeOnly`
- * has the meaning {@link getListingsByGroupIds} gives it. */
+ * has the meaning {@link getListingsByGroupIds} gives it, and is spelled out at
+ * every call site — whether inactive members count is the caller's decision,
+ * never a default. */
 export const readGroupMembersWith = async <Extra>(
   groupList: readonly Group[],
   readMore: (groupIds: number[]) => Promise<Extra>,
-  activeOnly = false,
+  activeOnly: boolean,
 ): Promise<{ members: Map<number, ListingWithCount[]>; more: Extra }> => {
   const groupIds = groupList.map((group) => group.id);
   const [members, more] = await Promise.all([
