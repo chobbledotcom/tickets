@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
+import { entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { defineRoutes } from "#routes/router.ts";
 
 /**
@@ -22,7 +23,7 @@ import type {
   PackageMemberInput,
 } from "#shared/catalog-fields/fields.ts";
 import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { executeBatch, type TxScope } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
@@ -419,10 +420,7 @@ export const adminHandlers = defineRoutes({
   // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.
-  "GET /admin/groups/:id": (request, { id }) =>
-    groupPage.renderTab(request, id, ""),
-  "GET /admin/groups/:id/:tab": (request, { id, tab }) =>
-    groupPage.renderTab(request, id, tab),
+  ...entityTabRoutes("/admin/groups", groupPage),
   "GET /admin/groups/:id/delete": staffCrud.deleteGet,
   // Create uses the auto-generated-slug resource.
   "GET /admin/groups/new": contentCreate.newGet,

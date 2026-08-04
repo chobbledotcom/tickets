@@ -1,13 +1,13 @@
 import { t } from "#i18n";
 import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { renderFilterBar } from "#shared/filter-bar.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import {
   type AttributeFilterGroup,
   attributeFilterParam,
   type SelectedAttributeFilters,
 } from "#shared/listing-attribute-filter.ts";
 import type { ListingFilter } from "#shared/listing-filter.ts";
-import { escapeHtml } from "#templates/layout.tsx";
 
 export type ListingAttributeFilterView = {
   activeAttributeFilters: SelectedAttributeFilters;

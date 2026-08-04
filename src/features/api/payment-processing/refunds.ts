@@ -12,7 +12,7 @@ import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   ErrorCode,
   type ErrorCodeType,

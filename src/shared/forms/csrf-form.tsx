@@ -17,8 +17,8 @@ export const CsrfForm = ({
   action: string;
   children?: Child;
   id?: string | undefined;
-  class?: string;
-  enctype?: string;
+  class?: string | undefined;
+  enctype?: string | undefined;
 } & { [key: `data-${string}`]: string | boolean }): JSX.Element => (
   <form
     action={appendIframeParam(action)}

@@ -37,7 +37,7 @@ import {
   migrateUserToV2Kek,
   verifyUserPassword,
 } from "#shared/db/users.ts";
-import { nowMs } from "#shared/now.ts";
+import { DAY_MS, nowMs } from "#shared/now.ts";
 import { fail, ok } from "#shared/response.ts";
 import { getSkipLoginDelay } from "#shared/test-overrides.ts";
 import type { AdminLevel } from "#shared/types.ts";
@@ -62,7 +62,7 @@ const createLoginSession = async (
 ): Promise<Response> => {
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
-  const expires = nowMs() + 24 * 60 * 60 * 1000;
+  const expires = nowMs() + DAY_MS;
   const wrappedDataKey = dataKey
     ? await wrapKeyWithToken(dataKey, token)
     : null;

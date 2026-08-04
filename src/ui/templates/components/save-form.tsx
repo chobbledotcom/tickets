@@ -13,33 +13,19 @@ import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { type IconName, SubmitButton } from "#templates/components/actions.tsx";
 
 export const SaveForm = ({
-  action,
-  class: className,
-  enctype,
-  id,
   submitLabel,
   submitIcon = "save",
   submitClass,
   children,
-}: {
-  action: string;
-  class?: string | undefined;
-  /** Set for forms that upload files (e.g. `multipart/form-data`). */
-  enctype?: string | undefined;
-  id?: string | undefined;
-  submitLabel: string;
+  ...rest
+}: Parameters<typeof CsrfForm>[0] & {
+  submitLabel: Child;
   /** Submit-button icon; defaults to the save icon. */
   submitIcon?: IconName;
   /** Class for the submit button, e.g. "danger" for a destructive action. */
   submitClass?: string;
-  children?: Child;
 }): JSX.Element => (
-  <CsrfForm
-    action={action}
-    {...(className !== undefined ? { class: className } : {})}
-    {...(enctype !== undefined ? { enctype } : {})}
-    id={id}
-  >
+  <CsrfForm {...rest}>
     {children}
     <SubmitButton
       icon={submitIcon}

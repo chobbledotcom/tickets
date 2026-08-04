@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 
+import { crudRoutes, entityTabRoutes } from "#routes/admin/route-tables.ts";
 import { ownerFormById } from "#routes/entity.ts";
 import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
@@ -19,7 +20,7 @@ import {
 } from "#routes/admin/owner-crud.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
   type LogisticsAgentInput,
@@ -107,16 +108,10 @@ const handleAgentEditPost: IdRouteHandler = ownerFormById(
   },
 );
 
-/** Logistics settings + agent routes. */
+/** Logistics settings + agent routes. The agent edit POST restates the
+ * standard key with its own handler. */
 export const adminHandlers = defineRoutes({
-  "GET /admin/logistics": crud.listGet,
-  "GET /admin/logistics/:id": (request, { id }) =>
-    logisticsAgentPage.renderTab(request, id, ""),
-  "GET /admin/logistics/:id/:tab": (request, { id, tab }) =>
-    logisticsAgentPage.renderTab(request, id, tab),
-  "GET /admin/logistics/:id/delete": crud.deleteGet,
-  "GET /admin/logistics/new": crud.newGet,
-  "POST /admin/logistics": crud.createPost,
-  "POST /admin/logistics/:id/delete": crud.deletePost,
+  ...crudRoutes("/admin/logistics", crud),
+  ...entityTabRoutes("/admin/logistics", logisticsAgentPage),
   "POST /admin/logistics/:id/edit": handleAgentEditPost,
 });

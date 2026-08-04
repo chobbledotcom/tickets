@@ -17,7 +17,8 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { linePlacesOnPage, openAttendeeEditor } from "#test-utils/e2e.ts";
-import { ALL_CHECKBOXES, type TestBrowser } from "#test-utils/test-browser.ts";
+import { ALL_CHECKBOXES } from "#test-utils/test-browser/forms.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
 

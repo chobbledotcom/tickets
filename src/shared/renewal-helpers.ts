@@ -3,7 +3,7 @@
  */
 
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
-import { nowMs } from "#shared/now.ts";
+import { DAY_MS, nowMs } from "#shared/now.ts";
 
 /** Is a built site provisioned for renewals? (has a renewal token index) */
 export const isProvisioned = (site: BuiltSite): boolean =>
@@ -15,7 +15,7 @@ export const formatDeadlineLabel = (iso: string, now = nowMs()): string => {
   const parsed = Date.parse(iso);
   if (Number.isNaN(parsed)) return "never";
   const diffMs = parsed - now;
-  const diffDays = Math.round(Math.abs(diffMs) / 86_400_000);
+  const diffDays = Math.round(Math.abs(diffMs) / DAY_MS);
   if (diffDays === 0) return "today";
   if (diffMs < 0) return `expired ${diffDays} day(s) ago`;
   return `in ${diffDays} day(s)`;

@@ -30,6 +30,7 @@
  *   in the query string.
  */
 
+import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getMainInstanceKey, isInstanceApiEnabled } from "#shared/config.ts";
@@ -58,10 +59,10 @@ type SiteCredentials = {
 const handleSiteCredentials = async (request: Request): Promise<Response> => {
   // Off unless configured — 404 so a non-builder/disabled instance doesn't
   // even reveal that the endpoint exists.
-  if (!isInstanceApiEnabled()) return jsonResponse({ error: "not_found" }, 404);
+  if (!isInstanceApiEnabled()) return apiErrorResponse("not_found", 404);
 
   if (!constantTimeEqual(bearerToken(request), getMainInstanceKey())) {
-    return jsonResponse({ error: "unauthorized" }, 401);
+    return apiErrorResponse("unauthorized", 401);
   }
 
   // The deploy tier being published. Absent/empty ⇒ release (reaches every
@@ -70,7 +71,7 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
   const deployTier =
     new URL(request.url).searchParams.get("tier") || DEFAULT_UPDATE_TIER;
   if (!isUpdateTier(deployTier)) {
-    return jsonResponse({ error: "invalid_tier" }, 400);
+    return apiErrorResponse("invalid_tier");
   }
 
   const sites = await builtSites.getAll();

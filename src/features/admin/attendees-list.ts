@@ -18,7 +18,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 /* jscpd:ignore-end */
 import { getEffectiveDomain } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
   type AttendeeSort,

@@ -2,8 +2,8 @@
 
 /* jscpd:ignore-start */
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import type { ItemImageColumns } from "#shared/types.ts";
-import { escapeHtml } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
 /** OpenGraph meta tags for a public listing page. */

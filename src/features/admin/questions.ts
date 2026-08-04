@@ -6,7 +6,7 @@ import { defineRoutes } from "#routes/router.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
-import { ownerFormById, ownerGetById } from "#routes/entity.ts";
+import { idRouteFor, ownerFormById, ownerGetById } from "#routes/entity.ts";
 /* jscpd:ignore-start */
 import {
   errorRedirect,
@@ -18,7 +18,7 @@ import {
   createAuthedFormRoute,
   createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { flatCollectionSwap } from "#shared/db/ordered-collection.ts";
@@ -230,8 +230,7 @@ export const adminHandlers = defineRoutes({
   "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
   "GET /admin/questions/:id/answers/:answerId/recalculate":
     handleAnswerRecalculateGet,
-  "GET /admin/questions/:id/delete": (request, { id }) =>
-    questionDelete.get(request, id),
+  "GET /admin/questions/:id/delete": idRouteFor(questionDelete.get),
   "POST /admin/listing/:id/questions": handleListingQuestionsPost,
   "POST /admin/questions": handleQuestionsPost,
   "POST /admin/questions/:id/answers": handleAddAnswer,
@@ -241,8 +240,7 @@ export const adminHandlers = defineRoutes({
   "POST /admin/questions/:id/answers/:answerId/move-up": answerOrder.up,
   "POST /admin/questions/:id/answers/:answerId/recalculate":
     handleAnswerRecalculatePost,
-  "POST /admin/questions/:id/delete": (request, { id }) =>
-    questionDelete.post(request, id),
+  "POST /admin/questions/:id/delete": idRouteFor(questionDelete.post),
   "POST /admin/questions/:id/edit": handleQuestionEdit,
   "POST /admin/questions/:id/listings": handleQuestionListings,
   "POST /admin/questions/:id/move-down": questionOrder.down,

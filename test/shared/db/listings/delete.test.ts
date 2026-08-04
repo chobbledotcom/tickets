@@ -5,7 +5,7 @@ import {
   getAllActivityLog,
   getListingActivityLog,
   logActivity,
-} from "#shared/db/activityLog.ts";
+} from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   getAttendeeRaw,

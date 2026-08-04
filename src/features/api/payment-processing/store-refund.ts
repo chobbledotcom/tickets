@@ -29,7 +29,7 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import type { BookingIntent, BookingItem } from "#shared/booking-intent.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { createSystemNote } from "#shared/db/notes/queries.ts";

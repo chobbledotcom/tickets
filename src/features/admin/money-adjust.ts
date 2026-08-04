@@ -21,7 +21,7 @@
 import { formGuard, OWNER_FORM } from "#routes/auth.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import { parseSignedMinorUnits } from "#shared/validation/money.ts";
 
 /** Configuration for one entity's money-correction handler. */

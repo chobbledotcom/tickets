@@ -15,7 +15,7 @@
 
 import type { EmailConfig } from "#shared/email.ts";
 import { sendEmailOk } from "#shared/email-ok.ts";
-import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ValidEmail } from "#shared/validation/email.ts";

@@ -8,7 +8,6 @@ import {
   getSlugField,
   getUsernameFieldBase,
   slugFieldBase,
-  splitCsv,
   validateAddress,
   validateBookableDays,
   validateDate,
@@ -147,24 +146,12 @@ describe("fields validators", () => {
     });
   });
 
-  describe("splitCsv", () => {
-    test("trims tokens and drops empty ones", () => {
-      expect(splitCsv("a, b ,,  , c")).toEqual(["a", "b", "c"]);
-    });
-    test("returns an empty array for a blank string", () => {
-      expect(splitCsv("   ")).toEqual([]);
-    });
-    test("keeps a single token", () => {
-      expect(splitCsv("Monday")).toEqual(["Monday"]);
-    });
-  });
-
   describe("validateBookableDays", () => {
     test("rejects an empty selection", () => {
       rejects(validateBookableDays, "");
     });
     test("rejects a selection that is only separators", () => {
-      // splitCsv drops the empties, leaving nothing to book.
+      // commaParts drops the empties, leaving nothing to book.
       rejects(validateBookableDays, " , , ");
     });
     test("rejects an unknown day name", () => {

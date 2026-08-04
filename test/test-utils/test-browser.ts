@@ -6,7 +6,23 @@
  */
 
 import { map, pipe } from "#fp";
-import { escapeForRegex } from "#test-utils/regex.ts";
+import type { FormEntry } from "#test-utils/test-browser/forms.ts";
+import {
+  appendFormValue,
+  extractFormEntries,
+  findFormByButton,
+  findForms,
+  pressableOn,
+  throwNoForm,
+  wayToPost,
+} from "#test-utils/test-browser/forms.ts";
+import type { LinkMatch } from "#test-utils/test-browser/parsing.ts";
+import {
+  decodeEntities,
+  findAllLinks,
+  findLinkByText,
+  stripTags,
+} from "#test-utils/test-browser/parsing.ts";
 
 /** Extract all cookies from a Set-Cookie header and merge into a cookie jar */
 const parseCookies = (response: Response, jar: Map<string, string>): void => {
@@ -29,296 +45,6 @@ const parseCookies = (response: Response, jar: Map<string, string>): void => {
 /** Build a Cookie header string from the jar */
 const buildCookieHeader = (jar: Map<string, string>): string =>
   [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
-
-/** Strip HTML tags to get plain text content */
-const stripTags = (html: string): string =>
-  html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-/** Decode common HTML entities */
-const decodeEntities = (text: string): string =>
-  text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&larr;/g, "\u2190")
-    .replace(/&mdash;/g, "\u2014")
-    .replace(/&nbsp;/g, " ");
-
-/** Collect all capture-group matches for a regex against a string */
-const regexCollect = <T>(
-  re: RegExp,
-  html: string,
-  transform: (m: RegExpExecArray) => T,
-): T[] => {
-  const results: T[] = [];
-  let m = re.exec(html);
-  while (m !== null) {
-    results.push(transform(m));
-    m = re.exec(html);
-  }
-  return results;
-};
-
-/** Match info for a found link */
-type LinkMatch = { href: string; text: string };
-
-/** Find all links in HTML */
-const findAllLinks = (html: string): LinkMatch[] =>
-  regexCollect(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, html, (m) => ({
-    href: decodeEntities(m[1]!),
-    text: decodeEntities(stripTags(m[2]!)),
-  }));
-
-/** Find a link whose visible text contains the search string (case-insensitive) */
-const findLinkByText = (html: string, text: string): LinkMatch | null => {
-  const lower = text.toLowerCase();
-  return (
-    findAllLinks(html).find((l) => l.text.toLowerCase().includes(lower)) ?? null
-  );
-};
-
-type FormEntry = [name: string, value: string];
-
-const attrValue = (tag: string, name: string): string | undefined =>
-  tag.match(new RegExp(`\\b${name}="([^"]*)"`, "i"))?.[1];
-
-const hasAttr = (tag: string, name: string): boolean =>
-  new RegExp(`\\b${name}(?:\\s*=|\\s|>|$)`, "i").test(tag);
-
-const controlName = (tag: string): string | undefined => attrValue(tag, "name");
-
-const controlValue = (tag: string, fallback = ""): string =>
-  decodeEntities(attrValue(tag, "value") ?? fallback);
-
-const isDisabled = (tag: string): boolean => hasAttr(tag, "disabled");
-
-const inputType = (tag: string): string =>
-  (attrValue(tag, "type") ?? "text").toLowerCase();
-
-const isSuccessfulInput = (tag: string): boolean => {
-  if (isDisabled(tag)) return false;
-  const type = inputType(tag);
-  if (["button", "file", "image", "reset", "submit"].includes(type)) {
-    return false;
-  }
-  if (["checkbox", "radio"].includes(type)) return hasAttr(tag, "checked");
-  return true;
-};
-
-const formInputEntry = (tag: string): FormEntry | undefined => {
-  const name = controlName(tag);
-  if (!name || !isSuccessfulInput(tag)) return;
-  const defaultValue = ["checkbox", "radio"].includes(inputType(tag))
-    ? "on"
-    : "";
-  return [decodeEntities(name), controlValue(tag, defaultValue)];
-};
-
-const formTextareaEntry = (tag: string): FormEntry | undefined => {
-  const openTag = tag.match(/^<textarea\b[^>]*>/i)![0];
-  const name = controlName(openTag);
-  if (!name || isDisabled(openTag)) return;
-  const value = tag.match(/^<textarea\b[^>]*>([\s\S]*?)<\/textarea>$/i)![1]!;
-  return [decodeEntities(name), decodeEntities(value)];
-};
-
-const optionEntry = (
-  selectTag: string,
-  optionTag: string,
-): FormEntry | undefined => {
-  const name = controlName(selectTag);
-  if (!name || isDisabled(optionTag)) return;
-  const text = stripTags(optionTag.match(/>([\s\S]*?)<\/option>$/i)![1]!);
-  return [decodeEntities(name), controlValue(optionTag, decodeEntities(text))];
-};
-
-const formSelectEntries = (tag: string): FormEntry[] => {
-  const openTag = tag.match(/^<select\b[^>]*>/i)![0];
-  if (!controlName(openTag) || isDisabled(openTag)) return [];
-  const options = regexCollect(
-    /<option\b[^>]*>[\s\S]*?<\/option>/gi,
-    tag,
-    (m) => m[0],
-  );
-  const selected = options.filter((option) => hasAttr(option, "selected"));
-  const submittedOptions = hasAttr(openTag, "multiple")
-    ? selected
-    : [selected[0] ?? options.find((option) => !isDisabled(option))].filter(
-        (option): option is string => option !== undefined,
-      );
-  const entries: FormEntry[] = [];
-  for (const option of submittedOptions) {
-    const entry = optionEntry(openTag, option);
-    if (entry) entries.push(entry);
-  }
-  return entries;
-};
-
-/** Extract successful form controls in browser submission order. */
-export const extractFormEntries = (formHtml: string): FormEntry[] => {
-  const entries: FormEntry[] = [];
-  const controlRe =
-    /<input\b[^>]*>|<select\b[^>]*>[\s\S]*?<\/select>|<textarea\b[^>]*>[\s\S]*?<\/textarea>/gi;
-  for (const tag of regexCollect(controlRe, formHtml, (m) => m[0])) {
-    if (/^<input\b/i.test(tag)) {
-      const entry = formInputEntry(tag);
-      if (entry) entries.push(entry);
-    } else if (/^<select\b/i.test(tag)) {
-      entries.push(...formSelectEntries(tag));
-    } else {
-      const entry = formTextareaEntry(tag);
-      if (entry) entries.push(entry);
-    }
-  }
-  return entries;
-};
-
-type FormInfo = { action: string; body: string };
-
-/** Find all forms in HTML, returning their action and body */
-const findForms = (html: string): FormInfo[] =>
-  regexCollect(
-    /<form\s[^>]*action="([^"]*)"[^>]*>([\s\S]*?)<\/form>/gi,
-    html,
-    (m) => ({ action: decodeEntities(m[1]!), body: m[2]! }),
-  );
-
-/** Extract all checkbox values for a given field name from form HTML */
-const extractCheckboxValues = (formHtml: string, fieldName: string): string[] =>
-  regexCollect(
-    new RegExp(
-      `<input\\b[^>]*\\sname="${escapeForRegex(fieldName)}"[^>]*>`,
-      "gi",
-    ),
-    formHtml,
-    (m) => m[0],
-  )
-    .filter((tag) => !isDisabled(tag))
-    .map((tag) => controlValue(tag, "on"));
-
-/** Sentinel value that tells `appendFormValue` to auto-select every checkbox value. */
-export const ALL_CHECKBOXES = "__ALL_CHECKBOXES__";
-
-/**
- * Append a single user-provided form value, first removing any prior entry for
- * the same key. Array values spread across multiple entries; the
- * `__ALL_CHECKBOXES__` sentinel pulls every matching checkbox value from the
- * form HTML (mirroring a user ticking all of them).
- */
-const appendFormValue = (
-  params: URLSearchParams,
-  key: string,
-  value: string | string[],
-  body: string,
-): void => {
-  params.delete(key);
-  if (Array.isArray(value)) {
-    for (const v of value) params.append(key, v);
-  } else if (value === ALL_CHECKBOXES) {
-    for (const v of extractCheckboxValues(body, key)) {
-      params.append(key, v);
-    }
-  } else {
-    params.append(key, value);
-  }
-};
-
-/** The button on this form a person would press, and what pressing it sends
- * (routes that dispatch on `action` read the button's own name and value).
- * "switched off" when the only buttons with that text cannot be pressed, and
- * nothing when the form has no button with that text at all — plenty of forms
- * are found by their body text instead. */
-const buttonToPress = (
-  body: string,
-  lower: string,
-):
-  | {
-      buttonAction?: string | undefined;
-      buttonName?: string | undefined;
-      buttonValue?: string;
-    }
-  | "switched off" => {
-  const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
-  let switchedOff = false;
-  for (const m of regexCollect(buttonRe, body, (x) => x)) {
-    if (!stripTags(m[2]!).toLowerCase().trim().includes(lower)) continue;
-    const attrs = m[1]!;
-    if (isDisabled(attrs)) {
-      switchedOff = true;
-      continue;
-    }
-    return {
-      // A button may aim the form somewhere else, as a real browser honours.
-      // The space boundary keeps a longer attribute like data-formaction out.
-      buttonAction: attrs.match(/(?:^|\s)formaction="([^"]+)"/i)?.[1],
-      buttonName: attrs.match(/name="([^"]+)"/)?.[1],
-      buttonValue: attrValue(attrs, "value") ?? "",
-    };
-  }
-  return switchedOff ? "switched off" : {};
-};
-
-/** Find a form whose body contains the given button text, or throw. Also
- * returns the matching button's name/value attributes when present, so the
- * caller can include them in the submission (mirrors how a real browser submits
- * a `<button name="…" value="…">` only when clicked). */
-const findFormByButton = (
-  forms: FormInfo[],
-  buttonText: string,
-  fieldNames: string[] = [],
-): {
-  action: string;
-  body: string;
-  buttonName?: string | undefined;
-  buttonValue?: string | undefined;
-} => {
-  const lower = buttonText.toLowerCase();
-  // A page can serve two forms behind one button wording; the one rendering
-  // every field being sent is the one a person filling them in would submit,
-  // so it wins whenever any form renders them all. The whitespace before
-  // name= keeps a longer attribute like data-name from counting as a field.
-  const rendersEveryField = (body: string): boolean =>
-    fieldNames.every((field) =>
-      new RegExp(`\\sname="${escapeForRegex(field)}"`).test(body),
-    );
-  const preferred = forms.filter((f) => rendersEveryField(f.body));
-  const candidates = preferred.length > 0 ? preferred : forms;
-  let switchedOff = false;
-  for (const f of candidates) {
-    if (!stripTags(f.body).toLowerCase().includes(lower)) continue;
-    const pressed = buttonToPress(f.body, lower);
-    // A switched-off button here does not settle it: a later form may carry a
-    // usable button with the same words, and a real person could press that
-    // one. Only give up once every form has been looked at.
-    if (pressed === "switched off") {
-      switchedOff = true;
-      continue;
-    }
-    const { buttonAction, ...button } = pressed;
-    return { action: buttonAction ?? f.action, body: f.body, ...button };
-  }
-  // Nothing usable anywhere, and at least one button was switched off.
-  // Submitting anyway would let a test do something nobody could do.
-  if (switchedOff) {
-    throw new Error(`The "${buttonText}" button is switched off`);
-  }
-  const available = forms.map((f) => `  action="${f.action}"`);
-  throw new Error(
-    `No form found with button text "${buttonText}". Available forms:\n${available.join(
-      "\n",
-    )}`,
-  );
-};
-
-/** Always throws — used as a fallback in ?? chains to satisfy the type checker */
-const throwNoForm = (): never => {
-  throw new Error("No forms found on the current page");
-};
 
 /** Format Set-Cookie headers for debug logging */
 const formatCookies = (response: Response): string => {
@@ -481,6 +207,7 @@ export class TestBrowser {
     action: string;
     body: string;
     entries: FormEntry[];
+    method: string;
     buttonName?: string | undefined;
     buttonValue?: string | undefined;
   } {
@@ -491,6 +218,7 @@ export class TestBrowser {
         action: form.action,
         body: form.body,
         entries: extractFormEntries(form.body),
+        method: form.method,
       };
     }
     const found = findFormByButton(forms, buttonText, fieldNames);
@@ -500,6 +228,7 @@ export class TestBrowser {
       buttonName: found.buttonName,
       buttonValue: found.buttonValue,
       entries: extractFormEntries(found.body),
+      method: found.method,
     };
   }
 
@@ -516,10 +245,85 @@ export class TestBrowser {
     data: Record<string, string | string[]>,
     buttonText?: string,
   ): Promise<void> {
-    const { action, body, entries, buttonName, buttonValue } = this.findForm(
-      buttonText,
-      Object.keys(data),
+    await this.sendForm(this.findForm(buttonText, Object.keys(data)), data);
+  }
+
+  /**
+   * The body of the form a person pressing this button would send. Lets a
+   * caller check what they are about to fill in against that form alone: a
+   * control sitting in some other form on the same page is one this send could
+   * never carry, however present it looks on the page as a whole.
+   */
+  formBodyFor(buttonText: string, fieldNames: string[] = []): string {
+    return this.findForm(buttonText, fieldNames).body;
+  }
+
+  /**
+   * Submit the one form on this page that posts to `action`, the way pressing
+   * its own button would: its hidden fields and CSRF token go with it. For a
+   * page that renders many identical forms — one arrow per row — where the
+   * button's words cannot tell them apart. A page with no such form, or one
+   * whose every button is switched off, throws: neither is something a person
+   * could have done.
+   */
+  async submitFormAt(
+    action: string,
+    data: Record<string, string | string[]> = {},
+  ): Promise<void> {
+    const wayThere = wayToPost(this.currentHtml, action);
+    if (wayThere) {
+      const { form, pressed } = wayThere;
+      return await this.sendForm(
+        {
+          action,
+          body: form.body,
+          buttonName: pressed.name,
+          buttonValue: pressed.value,
+          entries: extractFormEntries(form.body),
+          method: pressed.sentBy,
+        },
+        data,
+      );
+    }
+    // Nothing posts there. Which of the three ways it failed decides what to
+    // say, so a story is told what is actually wrong with the page.
+    const declared = findForms(this.currentHtml).find(
+      (f) => f.action === action,
     );
+    if (!declared) {
+      throw new Error(`No form on this page posts to "${action}"`);
+    }
+    if (pressableOn(declared).length === 0) {
+      throw new Error(`The form posting to "${action}" cannot be submitted`);
+    }
+    throw new Error(`No button on the form at "${action}" posts there`);
+  }
+
+  /**
+   * Whether this page offers anybody a way to post to an address at all. A page
+   * whose only button for it is switched off, or which renders no such button,
+   * offers none — so a caller can ask whether an action is really open to the
+   * person looking at the page without trying it and reading the failure.
+   */
+  offersAWayToPost(action: string): boolean {
+    return wayToPost(this.currentHtml, action) !== null;
+  }
+
+  /** Build one form's submission the way a browser does — its own successful
+   * controls first, then the pressed button, then whatever the caller typed —
+   * and post it. */
+  private async sendForm(
+    form: {
+      action: string;
+      body: string;
+      entries: FormEntry[];
+      method: string;
+      buttonName?: string | undefined;
+      buttonValue?: string | undefined;
+    },
+    data: Record<string, string | string[]>,
+  ): Promise<void> {
+    const { action, body, entries, method, buttonName, buttonValue } = form;
 
     // Build the form body as URLSearchParams
     const params = new URLSearchParams();
@@ -528,9 +332,10 @@ export class TestBrowser {
     for (const [key, value] of entries) {
       params.append(key, value);
     }
-    // Then the clicked button's name/value (matches real browser behavior)
+    // Then the clicked button's own name and value. It is added, never swapped
+    // in: a browser sends every successful control *and* the button, so a form
+    // carrying a hidden field of the same name sends both values, not one.
     if (buttonName && buttonValue !== undefined) {
-      params.delete(buttonName);
       params.append(buttonName, buttonValue);
     }
 
@@ -539,6 +344,22 @@ export class TestBrowser {
       appendFormValue(params, key, value, body);
     }
 
+    // A form sends the way it says it does. One that sends by GET carries its
+    // values in the address and no body at all — and the address it had keeps
+    // only its path, because a browser puts the whole form where the question
+    // marks used to be rather than adding to what was there.
+    if (method === "get") {
+      await this.request(`${action.split("?")[0]}?${params}`);
+      return;
+    }
+    // Only those two ways exist. A page saying anything else is a page with a
+    // mistake on it — a browser quietly sends such a form by GET, so guessing
+    // POST here would prove the site accepts something it never receives.
+    if (method !== "post") {
+      throw new Error(
+        `The form at "${action}" says it sends by "${method}", which is not a way a form can be sent`,
+      );
+    }
     await this.request(action, {
       body: params.toString(),
       headers: { "content-type": "application/x-www-form-urlencoded" },

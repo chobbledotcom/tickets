@@ -83,7 +83,7 @@ const LedgerEntryForm = ({
   </CsrfForm>
 );
 
-export const adminLedgerEntryAddPage = ({
+export const adminLedgerEntryNewPage = ({
   account,
   names,
   options,

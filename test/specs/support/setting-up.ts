@@ -7,7 +7,11 @@ import {
   checkboxValueOffered,
   fillInAndSend,
 } from "#test/specs/support/form-controls.ts";
-import type { TicketsWorld } from "#test/specs/support/world.ts";
+import {
+  keepWhatTheyWereTold,
+  type TicketsWorld,
+  whatTheyWereTold,
+} from "#test/specs/support/world.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
@@ -50,16 +54,19 @@ const sendSetup = (
   fillInAndSend(
     browser,
     {
-      accept_agreement: checkboxValueOffered(
-        browser.currentHtml,
-        "accept_agreement",
-      ),
       admin_password: who.password,
       admin_password_confirm: confirmation,
       admin_username: who.name,
       country: "GB",
     },
     t("setup.submit"),
+    // The agreement is a box somebody ticks, not a value they type, and the
+    // page will not send without it.
+    {
+      accept_agreement: [
+        checkboxValueOffered(browser.currentHtml, "accept_agreement"),
+      ],
+    },
   );
 
 /** Whoever is doing the setting up — the story only ever has one of them, and
@@ -74,7 +81,7 @@ export const somebodySetsUp = async (
 ): Promise<string> => {
   const browser = await openSetup();
   await sendSetup(browser, { ...CHOSEN, password }, confirmation);
-  world.things.remember("told", SETTER, browser.pageText);
+  keepWhatTheyWereTold(world, SETTER, browser.pageText);
   return browser.pageText;
 };
 
@@ -91,7 +98,7 @@ export const latecomerSendsSetup = async (
 export const GOOD_PASSWORD = CHOSEN.password;
 
 export const whatSetterWasTold = (world: TicketsWorld): string =>
-  world.things.require("told", SETTER);
+  whatTheyWereTold(world, SETTER);
 
 /** Whether somebody can sign in with a name and password. Proving the ceremony
  * finished means using it, not reading a page that says it did. */

@@ -12,7 +12,7 @@ import { t } from "#i18n";
 import { ownerPage } from "#routes/auth.ts";
 import { errorRedirect, infoRedirect, redirect } from "#routes/response.ts";
 import { ownerFormHandler } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { logActivity } from "#shared/db/activity-log.ts";
 import {
   contactHash,
   forgetContact,

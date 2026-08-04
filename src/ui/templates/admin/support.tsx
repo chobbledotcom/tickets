@@ -10,7 +10,8 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { MessageFields } from "#shared/forms/message-fields.tsx";
-import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";

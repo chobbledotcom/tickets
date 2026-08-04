@@ -7,12 +7,13 @@
  */
 
 import { getEnv } from "#shared/env.ts";
+import { DAY_MS } from "#shared/now.ts";
 
 /**
  * Parse a string as a positive integer, falling back to the given default
  * if the input is empty, non-numeric, or non-positive.
  */
-export const parsePositiveInt = (raw: string, fallback: number): number => {
+export const positiveIntOrDefault = (raw: string, fallback: number): number => {
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
@@ -24,7 +25,7 @@ export const parsePositiveInt = (raw: string, fallback: number): number => {
 export const readLimit = (envKey: string, defaultValue: number): number => {
   const raw = getEnv(envKey);
   if (raw === undefined) return defaultValue;
-  return parsePositiveInt(raw, defaultValue);
+  return positiveIntOrDefault(raw, defaultValue);
 };
 
 // ---------------------------------------------------------------------------
@@ -297,8 +298,6 @@ export const APIKEY_LOCKOUT_MS = limit(
 // ---------------------------------------------------------------------------
 // Database pruning
 // ---------------------------------------------------------------------------
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The longest a payment provider keeps retrying a webhook before giving up

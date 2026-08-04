@@ -116,22 +116,13 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       expect(entry?.listing_id).toBe(null);
     });
 
-    test("errors when the audience has no recipients", async () => {
-      useResend();
-      const empty = await createTestListing({ maxAttendees: 5, name: "Empty" });
-      await adminFormPost("/admin/emails/preview", {
-        body: "Body",
-        listing_id: String(empty.id),
-        subject: "Subject",
-      });
-      const { response } = await adminFormPost("/admin/emails/send", {});
-      await expectFlashRedirect(
-        "/admin/emails/preview",
-        "There are no recipients to send to.",
-        false,
-      )(response);
-    });
-
+    /**
+     * The two branches that decide who a promotion reaches: the unsubscribed
+     * set the send is built against, and the refusal when it leaves nobody.
+     * The story `attendees.writing-to-the-people-who-booked` tells both in the
+     * owner's terms; these own the direct cover, which a Cucumber journey may
+     * never be the only one of.
+     */
     test("errors when every marketing recipient has unsubscribed", async () => {
       useResend();
       const listing = await createTestListing({
@@ -163,6 +154,22 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const body = fetch.getFetchJsonBody();
       expect(body).toHaveLength(1);
       expect(body[0].to).toEqual(["bob@example.com"]);
+    });
+
+    test("errors when the audience has no recipients", async () => {
+      useResend();
+      const empty = await createTestListing({ maxAttendees: 5, name: "Empty" });
+      await adminFormPost("/admin/emails/preview", {
+        body: "Body",
+        listing_id: String(empty.id),
+        subject: "Subject",
+      });
+      const { response } = await adminFormPost("/admin/emails/send", {});
+      await expectFlashRedirect(
+        "/admin/emails/preview",
+        "There are no recipients to send to.",
+        false,
+      )(response);
     });
   });
 
