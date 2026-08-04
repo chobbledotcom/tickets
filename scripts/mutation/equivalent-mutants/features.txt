@@ -9,18 +9,17 @@ src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record ob
 
 # ticket-payment values whose present form is always truthy, whose falsy value
 # equals the fallback, or whose mutated constant is normalized before use.
-src/features/public/ticket-payment.ts:194:11  ?? → ||   # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
-src/features/public/ticket-payment.ts:249:42  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, and every present array is truthy
-src/features/public/ticket-payment.ts:189:14  1 → 0   # bookingDateFields clamps either default day count to one, so the produced availability rows are identical
-src/features/public/ticket-payment.ts:293:30  ?? → ||   # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
-src/features/public/ticket-payment.ts:365:28  ?? → ||   # prebuiltTree is a BookingTree object when present, and objects are always truthy
-src/features/public/ticket-payment.ts:374:43  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
-src/features/public/ticket-payment.ts:419:17  0 → 1   # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
-src/features/public/ticket-payment.ts:430:14  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
-src/features/public/ticket-payment.ts:467:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
-src/features/public/ticket-payment.ts:621:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
-src/features/public/ticket-payment.ts:224:9  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every group id it is given, and only the page's own package ids are looked up, so requiredMapValue never raises this message
-src/features/public/ticket-payment.ts:819:17  ?? → ||   # pagePackages is an array when present, and arrays are always truthy
+src/features/public/ticket-payment.ts:192:11  ?? → ||   # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
+src/features/public/ticket-payment.ts:187:14  1 → 0   # bookingDateFields clamps either default day count to one, so the produced availability rows are identical
+src/features/public/ticket-payment.ts:277:30  ?? → ||   # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
+src/features/public/ticket-payment.ts:349:28  ?? → ||   # prebuiltTree is a BookingTree object when present, and objects are always truthy
+src/features/public/ticket-payment.ts:358:43  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
+src/features/public/ticket-payment.ts:403:17  0 → 1   # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
+src/features/public/ticket-payment.ts:414:14  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
+src/features/public/ticket-payment.ts:451:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
+src/features/public/ticket-payment.ts:608:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
+src/features/public/ticket-payment.ts:222:9  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every group id it is given, and only the page's own package ids are looked up, so requiredMapValue never raises this message
+src/features/public/ticket-payment.ts:806:17  ?? → ||   # pagePackages is an array when present, and arrays are always truthy
 
 # attendee-form-model: `?? → ||` where the left operand can never be a
 # falsy-but-non-null value, so the two operators always agree.
