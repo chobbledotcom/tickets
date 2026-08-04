@@ -4,9 +4,9 @@
 # absolute value and direction do not matter: every invalidation changes the
 # value, so a fetch started before it cannot populate the cache. The unloaded
 # timestamp is never read because `items` is null, and size is an array length.
-src/fp.ts:435:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
-src/fp.ts:435:33  0 → -1   # same: the unloaded timestamp is never observed
-src/fp.ts:437:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
-src/fp.ts:437:20  0 → -1   # same: only changes relative to the captured generation matter
-src/fp.ts:452:17  ++ → --   # either direction changes generation and invalidates every older captured copy
-src/fp.ts:455:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
+src/fp.ts::collectionCache@1  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
+src/fp.ts::collectionCache@1  0 → -1   # same: the unloaded timestamp is never observed
+src/fp.ts::collectionCache.generation  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
+src/fp.ts::collectionCache.generation  0 → -1   # same: only changes relative to the captured generation matter
+src/fp.ts::collectionCache  ++ → --   # either direction changes generation and invalidates every older captured copy
+src/fp.ts::collectionCache  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0

@@ -6,100 +6,100 @@
 # operand exists to coerce.
 # The generated WASM modules terminate every statement with punctuation, so
 # joining their source lines with "" or ";" parses and behaves identically.
-scripts/inline-jsquash-wasm.ts:53:21  ; → ""    # inline module remains semicolon/brace delimited
-scripts/inline-jsquash-wasm.ts:75:38  ; → ""    # remote module remains semicolon/brace delimited
+scripts/inline-jsquash-wasm.ts::buildModule  ; → ""   # inline module remains semicolon/brace delimited
+scripts/inline-jsquash-wasm.ts::buildRemoteModule  ; → ""   # remote module remains semicolon/brace delimited
 
 # bundle-composition/model.ts — SourceMapSegment is either the one-value
 # unmapped tuple or a mapped tuple carrying both source index and original line,
 # so indexes 1 and 2 are present or absent together.
-scripts/bench/bundle-composition/model.ts:64:11  1 → 2    # isMappedSegment: segment[1] and segment[2] are both defined exactly for mapped tuples
+scripts/bench/bundle-composition/model.ts::isMappedSegment  1 → 2   # isMappedSegment: segment[1] and segment[2] are both defined exactly for mapped tuples
 
 # scripts/pr-queue/summary.ts operands can never be falsy-but-non-null, so
 # `?? → ||` cannot be observed.
-scripts/pr-queue/summary.ts:47:64  ?? → ||    # BOT_NAMES[login]: string|undefined, values are non-empty, so only falsy value is undefined === fallback path
-scripts/pr-queue/summary.ts:126:33  ?? → ||    # by.get(author): entry object or undefined; an object is always truthy, so ?? and || agree
+scripts/pr-queue/summary.ts::displayName  ?? → ||   # BOT_NAMES[login]: string|undefined, values are non-empty, so only falsy value is undefined === fallback path
+scripts/pr-queue/summary.ts::aggregateUnresolved.entry  ?? → ||   # by.get(author): entry object or undefined; an object is always truthy, so ?? and || agree
 
 # scripts/pr-queue/render.ts — Object.groupBy leaves a bucket key undefined when
 # empty and a non-empty array otherwise, so neither `??` operand is ever
 # falsy-but-non-null (an empty group has no key, never a length-0 array).
-scripts/pr-queue/render.ts:93:29  ?? → ||    # byBucket[b]?.length: number|undefined; a present group has length>=1, so only falsy value is undefined === fallback 0
-scripts/pr-queue/render.ts:102:36  ?? → ||    # byBucket[b]: array|undefined; an array is always truthy, so ?? and || agree
+scripts/pr-queue/render.ts::renderReport.counts  ?? → ||   # byBucket[b]?.length: number|undefined; a present group has length>=1, so only falsy value is undefined === fallback 0
+scripts/pr-queue/render.ts::renderReport.body.group  ?? → ||   # byBucket[b]: array|undefined; an array is always truthy, so ?? and || agree
 
 # scripts/pr-queue/pagination.ts — the rollup contexts connection is an object
 # or (via optional chaining) undefined; an object is always truthy, so the
 # `?? null` fallback and `|| null` agree on every value it can hold.
-scripts/pr-queue/pagination.ts:26:58  ?? → ||    # statusCheckRollup?.contexts: object|undefined; object is truthy, so ?? and || agree
+scripts/pr-queue/pagination.ts::latestChecks  ?? → ||   # statusCheckRollup?.contexts: object|undefined; object is truthy, so ?? and || agree
 
 # scripts/pr-queue/summary.ts — hasTruncatedConnection's `<boolean|undefined> ?? false`:
 # for a boolean the only falsy-non-null value is `false`, and `false ?? false`
 # === `false || false` === false, so ?? and || agree on every value.
-scripts/pr-queue/summary.ts:297:17  ?? → ||    # hasNextPage is boolean|undefined; false ?? false === false || false, so ?? and || agree
+scripts/pr-queue/summary.ts::hasTruncatedConnection  ?? → ||   # hasNextPage is boolean|undefined; false ?? false === false || false, so ?? and || agree
 
 # Unit-tests-report import attribution (unit-tests-report-imports.ts) — the
 # stem() dir-strip replacement value is unobservable.
-scripts/unit-tests-report-imports.ts:138:23   → "mutated"   # stem()'s first replace strips the directory before every `===` comparison in findMisplacedTests; both sides always have a leading `dir/` (tests live under test/, sources under src/), so the replacement string is prepended to both operands identically — stem(test) === stem(source) is invariant under its value
+scripts/unit-tests-report-imports.ts::stem@1   → "mutated"   # stem()'s first replace strips the directory before every `===` comparison in findMisplacedTests; both sides always have a leading `dir/` (tests live under test/, sources under src/), so the replacement string is prepended to both operands identically — stem(test) === stem(source) is invariant under its value
 
 # Test-tree scan: the subject lookup's default for an unselected path.
-scripts/test-tree-scan.ts:62:53  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
+scripts/test-tree-scan.ts::scanTestTree  ?? → ||   # subjects.get() yields either an array (always truthy, even when empty) or undefined, so ?? and || pick the same fallback
 
 # Mutation test map: null-coalescing and the integration split.
-scripts/mutation/test-map.ts:87:7  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
-scripts/mutation/test-map.ts:119:46  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
+scripts/mutation/test-map.ts::mirrorOwnerOrNull  ?? → ||   # the value is a mirror prefix taken from testPrefix(), which always yields a non-empty path string, so the only falsy value it can take is the undefined of an empty match — where ?? and || agree
+scripts/mutation/test-map.ts::buildMutationTestMap  && → ||   # ownedTest gives every integration test owner null and every other selected test a non-null owner (an owner-less non-integration test throws above), so `owner === null` and `isIntegrationTest(testFile)` are always equal here and the two operators agree
 
 # Bundle AST bench: the parser's filename argument is a diagnostic label only.
-scripts/bench/bundle-composition/javascript-ast.ts:17:28  bundle.js → ""   # oxc uses the name only to label diagnostics and to pick a language from its extension; "bundle.js" and "" both select the default JavaScript parser, and the only parser output this module reads is errors[0].message (which never contains the name) and the node count
+scripts/bench/bundle-composition/javascript-ast.ts::countJavaScriptAstNodes.result  bundle.js → ""   # oxc uses the name only to label diagnostics and to pick a language from its extension; "bundle.js" and "" both select the default JavaScript parser, and the only parser output this module reads is errors[0].message (which never contains the name) and the node count
 
 # Script cleanup: the second length check can never see a single error.
-scripts/cleanup.ts:7:23  1 → 0   # the line above already throws when there is exactly one error, so this check only ever runs with 0 or 2+ errors, where > 1 and > 0 agree
+scripts/cleanup.ts::throwCollectedErrors@2  1 → 0   # the line above already throws when there is exactly one error, so this check only ever runs with 0 or 2+ errors, where > 1 and > 0 agree
 
 # Compact test reporter: fallbacks for values the regexes always provide, and
 # comparisons an earlier line has already ruled out.
-scripts/compact-test-reporter.ts:85:33  ?? → ||   # /^\s*/ matches every string, so the optional chain always yields a length and the fallback never runs
-scripts/compact-test-reporter.ts:85:37  0 → 1   # same line: the fallback is unreachable because /^\s*/ always matches
-scripts/compact-test-reporter.ts:91:62  0 → 1   # this arm runs only when every line is blank, and slicing 0 or 1 characters off blank lines leaves the same text once the join is trimmed
-scripts/compact-test-reporter.ts:131:35  ?? → ||   # match[2] exists whenever the line matched, and its trimmed value is a string, so ?? "" and || "" agree
-scripts/compact-test-reporter.ts:131:39   → "mutated"   # unreachable fallback: match[2] is always present on a matched line
-scripts/compact-test-reporter.ts:132:33  ?? → ||   # match[1] is the indent capture, always present on a matched line
-scripts/compact-test-reporter.ts:132:37   → "mutated"   # unreachable fallback for the same reason
-scripts/compact-test-reporter.ts:169:58  ?? → ||   # atIndex came from findIndex, so lines[atIndex] is always a string
-scripts/compact-test-reporter.ts:169:62   → "mutated"   # unreachable fallback for the same reason
-scripts/compact-test-reporter.ts:175:31  ?? → ||   # match[1] is one of file/line/column on a matched line, never missing
-scripts/compact-test-reporter.ts:175:35   → "mutated"   # unreachable fallback; an unknown key is ignored by assignAtField either way
-scripts/compact-test-reporter.ts:175:63  ?? → ||   # match[2] is always present on a matched line
-scripts/compact-test-reporter.ts:175:67   → "mutated"   # unreachable fallback for the same reason
-scripts/compact-test-reporter.ts:203:40  ?? → ||   # parseYamlTapDiagnostic returns an object or undefined, so its only falsy value is the undefined the fallback handles
-scripts/compact-test-reporter.ts:208:43  ?? → ||   # diagnostic.message is a string or undefined, and the empty string it can be is the fallback itself
-scripts/compact-test-reporter.ts:208:47   → "mutated"   # neither the empty string nor "mutated" matches the step-failure pattern, so the outcome is the same
-scripts/compact-test-reporter.ts:239:61  ?? → ||   # String.match with a global pattern returns an array or null, and an array is always truthy
-scripts/compact-test-reporter.ts:323:60   → "mutated"   # the fallback text for an unreadable file is only counted for test declarations, and neither the empty string nor "mutated" holds one
-scripts/compact-test-reporter.ts:347:50  ?? → ||   # an estimated total of 0 falls back to 0, so ?? and || pick the same number
-scripts/compact-test-reporter.ts:347:54  0 → 1   # the total is immediately grown to the number of finished tests, which is 1 or more whenever it is read
-scripts/compact-test-reporter.ts:348:46  ?? → ||   # hideProgress is a boolean or undefined, and false falls back to false either way
-scripts/compact-test-reporter.ts:349:34  ?? → ||   # the stdout option is a function when present, and functions are always truthy
-scripts/compact-test-reporter.ts:350:34  ?? → ||   # the stderr option is a function when present, and functions are always truthy
-scripts/compact-test-reporter.ts:384:21  --- → ""   # a line that trims to nothing has already returned above, so comparing the trimmed line with "" is never true
-scripts/compact-test-reporter.ts:384:42  ... → ""   # same line, same reason
-scripts/compact-test-reporter.ts:443:44  ?? → ||   # locationFromStack returns a location object or undefined, and objects are always truthy
+scripts/compact-test-reporter.ts::leadingWhitespaceLength  ?? → ||   # /^\s*/ matches every string, so the optional chain always yields a length and the fallback never runs
+scripts/compact-test-reporter.ts::leadingWhitespaceLength@2  0 → 1   # same line: the fallback is unreachable because /^\s*/ always matches
+scripts/compact-test-reporter.ts::stripCommonIndent.indent@2  0 → 1   # this arm runs only when every line is blank, and slicing 0 or 1 characters off blank lines leaves the same text once the join is trimmed
+scripts/compact-test-reporter.ts::parseYamlMessage.value  ?? → ||   # match[2] exists whenever the line matched, and its trimmed value is a string, so ?? "" and || "" agree
+scripts/compact-test-reporter.ts::parseYamlMessage.value   → "mutated"   # unreachable fallback: match[2] is always present on a matched line
+scripts/compact-test-reporter.ts::parseYamlMessage.baseIndent  ?? → ||   # match[1] is the indent capture, always present on a matched line
+scripts/compact-test-reporter.ts::parseYamlMessage.baseIndent   → "mutated"   # unreachable fallback for the same reason
+scripts/compact-test-reporter.ts::parseYamlAt.atIndent  ?? → ||   # atIndex came from findIndex, so lines[atIndex] is always a string
+scripts/compact-test-reporter.ts::parseYamlAt.atIndent   → "mutated"   # unreachable fallback for the same reason
+scripts/compact-test-reporter.ts::parseYamlAt@1  ?? → ||   # match[1] is one of file/line/column on a matched line, never missing
+scripts/compact-test-reporter.ts::parseYamlAt@1   → "mutated"   # unreachable fallback; an unknown key is ignored by assignAtField either way
+scripts/compact-test-reporter.ts::parseYamlAt@2  ?? → ||   # match[2] is always present on a matched line
+scripts/compact-test-reporter.ts::parseYamlAt@2   → "mutated"   # unreachable fallback for the same reason
+scripts/compact-test-reporter.ts::parseTapDiagnosticBlock  ?? → ||   # parseYamlTapDiagnostic returns an object or undefined, so its only falsy value is the undefined the fallback handles
+scripts/compact-test-reporter.ts::isStepFailureDiagnostic  ?? → ||   # diagnostic.message is a string or undefined, and the empty string it can be is the fallback itself
+scripts/compact-test-reporter.ts::isStepFailureDiagnostic   → "mutated"   # neither the empty string nor "mutated" matches the step-failure pattern, so the outcome is the same
+scripts/compact-test-reporter.ts::locationFromStack.matches  ?? → ||   # String.match with a global pattern returns an array or null, and an array is always truthy
+scripts/compact-test-reporter.ts::estimateTapEventCount.text   → "mutated"   # the fallback text for an unreadable file is only counted for test declarations, and neither the empty string nor "mutated" holds one
+scripts/compact-test-reporter.ts::CompactTapReporter.constructor@1  ?? → ||   # an estimated total of 0 falls back to 0, so ?? and || pick the same number
+scripts/compact-test-reporter.ts::CompactTapReporter.constructor  0 → 1   # the total is immediately grown to the number of finished tests, which is 1 or more whenever it is read
+scripts/compact-test-reporter.ts::CompactTapReporter.constructor@2  ?? → ||   # hideProgress is a boolean or undefined, and false falls back to false either way
+scripts/compact-test-reporter.ts::CompactTapReporter.constructor@3  ?? → ||   # the stdout option is a function when present, and functions are always truthy
+scripts/compact-test-reporter.ts::CompactTapReporter.constructor@4  ?? → ||   # the stderr option is a function when present, and functions are always truthy
+scripts/compact-test-reporter.ts::CompactTapReporter.consumeLine@2  --- → ""   # a line that trims to nothing has already returned above, so comparing the trimmed line with "" is never true
+scripts/compact-test-reporter.ts::CompactTapReporter.consumeLine@2  ... → ""   # same line, same reason
+scripts/compact-test-reporter.ts::CompactTapReporter.recordFailure.location  ?? → ||   # locationFromStack returns a location object or undefined, and objects are always truthy
 
 # Mutation summary: grouped results are arrays or absent, never falsy-but-set.
-scripts/mutation/summary.ts:65:69  ?? → ||   # Object.groupBy gives each status a non-empty array or nothing at all, and an array is always truthy
-scripts/mutation/summary.ts:92:33  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
+scripts/mutation/summary.ts::summarize.count  ?? → ||   # Object.groupBy gives each status a non-empty array or nothing at all, and an array is always truthy
+scripts/mutation/summary.ts::summarize  ?? → ||   # the survivors group is an array when present, so ?? [] and || [] pick the same list
 
 # Lock file: the handle exists only to carry the advisory lock.
-scripts/lock-file.ts:16:41  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
+scripts/lock-file.ts::openLockFile@2  true → false   # nothing ever reads or writes through this handle, so opening it write-only still takes and releases the same lock
 
 # Process helpers: the timer handle before the timer exists.
-scripts/process.ts:60:17  0 → 1   # the promise body runs straight away and overwrites this handle, so its starting value is never the one cleared
-scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it and replacing it store the same timer id
+scripts/process.ts::beforeTimeout.timeout  0 → 1   # the promise body runs straight away and overwrites this handle, so its starting value is never the one cleared
+scripts/process.ts::beforeTimeout.delayed  = → +=   # the handle starts at 0, so adding to it and replacing it store the same timer id
 
 # Isolated mutation runs: the exit code before any path has set one.
-scripts/mutation/isolation.ts:188:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
-src/shared/db/migrations.ts:252:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
+scripts/mutation/isolation.ts::runInSnapshot.exitCode  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
+src/shared/db/migrations.ts::initDb  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
 
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
 # statuses strictness is about.
-scripts/specs/run.ts:88:17  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
-src/shared/crypto/encryption.ts:120:5  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable
-src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
-src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
-src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
+scripts/specs/run.ts::cucumberConfiguration  true → false   # strict only changes how Cucumber treats undefined and pending steps, and messageIssues rejects exactly those two statuses (REJECTED_STATUSES in scripts/specs/messages.ts), so a run containing either fails on the issues whatever strict says, and a run containing neither is unaffected by it
+src/shared/crypto/encryption.ts::importKey  false → true   # importKey is module-private and the CryptoKey it returns never leaves this file, which only encrypts and decrypts with it — nothing can call exportKey on it, so extractable is unobservable
+src/features/admin/attendee-page.ts::loadEditPanel.data  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
+src/features/admin/attendees-list.ts::parsePage  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
+src/features/admin/listing-page-data.ts::loadListingRosterPanel  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []

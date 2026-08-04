@@ -8,14 +8,14 @@
  * found by a reviewer rather than by a check.
  *
  * An anchor is the name of the thing the mutant sits inside — the function,
- * method, or top-level value it belongs to — plus how many mutants of the same
- * kind sit inside that same thing before it. Adding a comment, an import, or a
+ * method, or top-level value it belongs to — plus `@n` when several mutants of
+ * the same kind sit inside that same thing. The ordinal is written with `@`
+ * rather than `#` because a registry line ends with a `#` comment, and a `#`
+ * in the anchor would be read as the start of one. Adding a comment, an import, or a
  * whole unrelated function moves no anchor. Renaming the function, or adding
  * another mutant of that kind inside it, does — and both are real changes to
  * the thing being recorded.
  */
-
-import { parseSync } from "npm:oxc-parser@0.132.0";
 
 /** Names of the declarations a mutant can sit inside, outermost first. */
 type NamePath = readonly string[];
@@ -100,17 +100,11 @@ export const anchorNameAt = (program: object, offset: number): string => {
 };
 
 export interface AnchoredMutant {
-  /** `name` plus `#n` when more than one of this kind shares the name. */
+  /** `name` plus `@n` when more than one of this kind shares the name. */
   anchor: string;
-  column: number;
-  line: number;
-  newOperator: string;
-  operator: string;
 }
 
 interface HasLocation {
-  column: number;
-  line: number;
   newOperator: string;
   operator: string;
   start: number;
@@ -126,12 +120,9 @@ interface HasLocation {
  * produces them in for a single file.
  */
 export const anchorMutants = <M extends HasLocation>(
-  content: string,
-  filePath: string,
+  program: object,
   mutants: readonly M[],
 ): (M & AnchoredMutant)[] => {
-  const fileName = filePath.split("/").pop() as string;
-  const { program } = parseSync(fileName, content);
   const seen = new Map<string, number>();
   const named = mutants.map((mutant) => ({
     ...mutant,
@@ -149,7 +140,7 @@ export const anchorMutants = <M extends HasLocation>(
     const { name, ...rest } = mutant;
     return {
       ...(rest as unknown as M),
-      anchor: totals.get(key)! > 1 ? `${name}#${nth}` : name,
+      anchor: totals.get(key)! > 1 ? `${name}@${nth}` : name,
     };
   });
 };

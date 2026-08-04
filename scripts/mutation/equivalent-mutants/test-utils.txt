@@ -2,34 +2,34 @@
 
 # test-utils/csrf: regex `match` results are either null/undefined or truthy
 # values; the quantity capture is `\d+`, so it can never be an empty string.
-test/test-utils/csrf.ts:15:46  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
-test/test-utils/csrf.ts:32:46  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
-test/test-utils/csrf.ts:43:47  ?? → ||   # option tag match: RegExpMatchArray|null; a non-null array is truthy
-test/test-utils/csrf.ts:236:20  ?? → ||  # quantity id capture: string|undefined, but `\d+` makes every present value truthy
+test/test-utils/csrf.ts::extractInputValue.tags  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts::hasCheckedInput.tags  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts::hasSelectedOption.tags  ?? → ||   # option tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts::extractQuantityListingId  ?? → ||   # quantity id capture: string|undefined, but `\d+` makes every present value truthy
 
 # test-utils/test-browser and the readers it was split into: remaining nullish
 # fallbacks either receive truthy objects/non-empty regex matches, or fall back
 # to the same empty string for the only falsy non-null string value.
-test/test-utils/test-browser/parsing.ts:57:73  ?? → ||   # find(): LinkMatch|undefined; a found object is truthy
-test/test-utils/test-browser/forms.ts:42:26  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
-test/test-utils/test-browser/forms.ts:92:19  ?? → ||  # submitted option tags are non-empty strings when present, otherwise undefined
-test/test-utils/test-browser/forms.ts:274:45  ?? → ||  # button value fallback is "", so empty value and absent value agree
-test/test-utils/test-browser.ts:134:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
-test/test-utils/test-browser.ts:219:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input
-src/ui/templates/admin/listing-defaults.tsx:105:17  ?? → ||  # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
-src/ui/templates/admin/listing-defaults.tsx:128:38  ?? → ||  # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
-src/shared/booking/build-tree.ts:130:48  ?? → ||    # childrenByParentId?.get(): readonly TicketListing[]|undefined — an array is always truthy, so ?? and || coincide
-src/shared/booking/build-tree.ts:201:52  ?? → ||    # pkg.quantities.get(): a member's fixed per-package quantity is ≥1 — every save path enforces it (the form's parsePackageQuantity clamps 0→1 in admin/groups.ts, the JSON API's parsePackageMember rejects quantity<1 in admin/api-groups.ts), so the map never holds 0 and (n ?? 1)===(n || 1)
-src/shared/booking/build-tree.ts:228:33  ?? → ||    # deriveRootRef input.packages: readonly TreePackage[]|null|undefined — a non-empty array is truthy and [] destructures to the same `first`, so ?? and || coincide
-src/shared/booking/build-tree.ts:232:38  ?? → ||    # standaloneListingIds?.size: number|undefined — a real size is ≥0 and (0 ?? 0)===(0 || 0), undefined too, so ?? and || coincide
-src/shared/booking/build-tree.ts:244:34  ?? → ||    # buildBookingTree input.packages: readonly TreePackage[]|null|undefined — same as the deriveRootRef case, an array/null/undefined makes ?? and || coincide
-src/shared/booking/build-tree.ts:251:56  ?? → ||    # standaloneListingIds?.has(): boolean|undefined — (b ?? false)===(b || false) for any boolean b, and undefined too, so ?? and || coincide
-src/shared/booking/fold-tree.ts:136:55  ?? → ||    # selectFoldableParents parentQty: base quantities are undefined or ≥0, and a 0 takes the same `<= 0` skip, so ?? and || coincide
-src/shared/booking/fold-tree.ts:168:4  ?? → ||    # childQtyField: parseNonNegativeInt returns a non-negative int or null; its only falsy result (0) already maps to 0, so ?? and || coincide
-src/shared/booking/fold-tree.ts:180:63  10 → 0    # parseInt differs only for a non-decimal key; childQtyField then reads its canonical decimal key, whose own scan rejects it when positive, so both paths agree
-src/shared/booking/fold-tree.ts:301:48  ?? → ||    # foldChild summed: state.quantities.get(childId) is undefined (first fold) or a positive running total, never 0, so ?? and || coincide
-src/shared/booking/fold-tree.ts:465:41  ?? → ||    # dayCount: customisableDuration is a positive day count or null, never 0, so ?? base.dayCount and || base.dayCount coincide
-src/shared/booking/signed-metadata.ts:120:59  ?? → ||    # allocations come from foldChild with qty > 0, so a running child total is undefined or positive and both fallbacks agree
-src/shared/booking/signed-metadata.ts:142:37  ?? → ||    # foldedQty values are positive allocation totals; absent and present values behave identically with either zero fallback
-src/shared/catalog-fields/definition.ts:166:38  1 → 0    # a missing column becomes selected by its non-empty database name, but the columns projection still returns undefined and drops it; present columns are selected either way
-src/shared/booking/capacity-tree.ts:38:45  ?? → ||    # groupIdsByListingId.get(): number[]|undefined — an array is always truthy, undefined→[] either way
+test/test-utils/test-browser/parsing.ts::findLinkByText  ?? → ||   # find(): LinkMatch|undefined; a found object is truthy
+test/test-utils/test-browser/forms.ts::inputType  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
+test/test-utils/test-browser/forms.ts::formSelectEntries.submittedOptions  ?? → ||   # submitted option tags are non-empty strings when present, otherwise undefined
+test/test-utils/test-browser/forms.ts::buttonToPress  ?? → ||   # button value fallback is "", so empty value and absent value agree
+test/test-utils/test-browser.ts::TestBrowser.request.response  ?? → ||   # RequestInit.method is omitted or a non-empty method string in every caller
+test/test-utils/test-browser.ts::TestBrowser.findForm.form  ?? → ||   # forms[0] is a FormInfo object when present, otherwise undefined, so both operators reach throwNoForm() on the same input
+src/ui/templates/admin/listing-defaults.tsx::UrlControl  ?? → ||   # UrlControl value: string|undefined; the only falsy-non-null string is "" which equals the "" fallback, so ?? and || coincide
+src/ui/templates/admin/listing-defaults.tsx::DaysControl  ?? → ||   # value?.includes(day): boolean|undefined; for boolean b, b ?? false === b || false, and undefined ?? false === undefined || false
+src/shared/booking/build-tree.ts::buildChildren  ?? → ||   # childrenByParentId?.get(): readonly TicketListing[]|undefined — an array is always truthy, so ?? and || coincide
+src/shared/booking/build-tree.ts::buildPackageMemberNode.fixedQty  ?? → ||   # pkg.quantities.get(): a member's fixed per-package quantity is ≥1 — every save path enforces it (the form's parsePackageQuantity clamps 0→1 in admin/groups.ts, the JSON API's parsePackageMember rejects quantity<1 in admin/api-groups.ts), so the map never holds 0 and (n ?? 1)===(n || 1)
+src/shared/booking/build-tree.ts::deriveRootRef@1  ?? → ||   # deriveRootRef input.packages: readonly TreePackage[]|null|undefined — a non-empty array is truthy and [] destructures to the same `first`, so ?? and || coincide
+src/shared/booking/build-tree.ts::deriveRootRef@2  ?? → ||   # standaloneListingIds?.size: number|undefined — a real size is ≥0 and (0 ?? 0)===(0 || 0), undefined too, so ?? and || coincide
+src/shared/booking/build-tree.ts::buildBookingTree.packages  ?? → ||   # buildBookingTree input.packages: readonly TreePackage[]|null|undefined — same as the deriveRootRef case, an array/null/undefined makes ?? and || coincide
+src/shared/booking/build-tree.ts::buildBookingTree.nodes.standalone  ?? → ||   # standaloneListingIds?.has(): boolean|undefined — (b ?? false)===(b || false) for any boolean b, and undefined too, so ?? and || coincide
+src/shared/booking/fold-tree.ts::selectFoldableParents.parentQty  ?? → ||   # selectFoldableParents parentQty: base quantities are undefined or ≥0, and a 0 takes the same `<= 0` skip, so ?? and || coincide
+src/shared/booking/fold-tree.ts::childQtyField  ?? → ||   # childQtyField: parseNonNegativeInt returns a non-negative int or null; its only falsy result (0) already maps to 0, so ?? and || coincide
+src/shared/booking/fold-tree.ts::hasUnavailableChildSelection.childId  10 → 0   # parseInt differs only for a non-decimal key; childQtyField then reads its canonical decimal key, whose own scan rejects it when positive, so both paths agree
+src/shared/booking/fold-tree.ts::foldChild.summed  ?? → ||   # foldChild summed: state.quantities.get(childId) is undefined (first fold) or a positive running total, never 0, so ?? and || coincide
+src/shared/booking/fold-tree.ts::foldBookingTree  ?? → ||   # dayCount: customisableDuration is a positive day count or null, never 0, so ?? base.dayCount and || base.dayCount coincide
+src/shared/booking/signed-metadata.ts::allocatedQtyByChild  ?? → ||   # allocations come from foldChild with qty > 0, so a running child total is undefined or positive and both fallbacks agree
+src/shared/booking/signed-metadata.ts::lineEdgeDrifted  ?? → ||   # foldedQty values are positive allocation totals; absent and present values behave identically with either zero fallback
+src/shared/catalog-fields/definition.ts::fieldSupportsProjection  1 → 0   # a missing column becomes selected by its non-empty database name, but the columns projection still returns undefined and drops it; present columns are selected either way
+src/shared/booking/capacity-tree.ts::packageQuantityLimit.groupTickets  ?? → ||   # groupIdsByListingId.get(): number[]|undefined — an array is always truthy, undefined→[] either way

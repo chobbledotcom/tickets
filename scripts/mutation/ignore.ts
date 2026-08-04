@@ -8,16 +8,20 @@
  * it is recorded here and suppressed from the survivor count — letting the
  * tester gate CI on genuinely *new* survivors.
  *
- * Works for every mutation kind, not just `?? → ||`: an entry is matched purely
- * by location and the displayed `from → to`, so it mirrors a survivor line from
- * the report. The file format is one entry per line, plus an optional reason:
+ * Works for every mutation kind, not just `?? → ||`: an entry is matched by the
+ * thing the mutant sits inside and the displayed `from → to`, so it mirrors a
+ * survivor line from the report. The file format is one entry per line, plus an
+ * optional reason:
  *
- *   path:line:col  from → to   # why it is equivalent
+ *   path::anchor  from → to   # why it is equivalent
  *
- * Entries are location-based, so a refactor that shifts lines silently leaves
- * them pointing at nothing. `ignoreListProblems` re-checks — at run time, only
- * for the files actually being mutated — that each entry still lines up with a
- * real surviving mutant, so a stale/redundant/duplicate entry fails the run.
+ * The anchor is what the mutant sits inside — a function, method, or value —
+ * with `#n` when several mutants of the same kind share it (see anchor.ts).
+ * Entries used to record `path:line:column`, which any edit *above* the
+ * recorded expression silently invalidated; an anchor moves only when the thing
+ * it names does. `ignoreListProblems` still re-checks — at run time, only for
+ * the files actually being mutated — that each entry lines up with a real
+ * surviving mutant, so a stale/redundant/duplicate entry fails the run.
  */
 
 import { fromFileUrl, join } from "@std/path";
@@ -50,18 +54,19 @@ export const listRegistryFiles = async (
   );
 };
 
-/** Canonical key for a mutant at a project-relative path. */
+/** Canonical key for a mutant at a project-relative path. Anchored on what the
+ * mutant sits inside rather than where it sits, so an edit elsewhere in the
+ * file leaves it alone — see anchor.ts. */
 export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
-  `${relPath}:${mutant.line}:${mutant.column} ${mutant.operator}→${mutant.newOperator}`;
+  `${relPath}::${mutant.anchor} ${mutant.operator}→${mutant.newOperator}`;
 
 /** Canonical key for a mutant given its absolute source path. */
 export const mutantKey = (file: string, mutant: Mutant): string =>
   mutantKeyForPath(rel(file), mutant);
 
 export interface ParsedIgnoreLine {
-  column: number;
+  anchor: string;
   key: string;
-  line: number;
   newOperator: string;
   operator: string;
   sourcePath: string;
@@ -74,14 +79,15 @@ export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   // The "from" side is `.*?` (not `.+?`): an already-empty string literal
   // mutates with an empty display label (see stringLiteralMutants), so a
   // legitimate key can have nothing between the location and the arrow.
-  const match = body.match(/^(.+):(\d+):(\d+)\s+(.*?)\s*→\s*(.+?)$/);
+  // Neither a path nor an anchor contains a space, so the first run of
+  // whitespace after the anchor ends the location and starts the `from → to`.
+  const match = body.match(/^(\S+)::(\S+)\s+(.*?)\s*→\s*(.+?)$/);
   return match
     ? {
-        column: Number(match[3]),
-        key: `${match[1]}:${match[2]}:${match[3]} ${match[4]}→${match[5]}`,
-        line: Number(match[2]),
-        newOperator: match[5]!,
-        operator: match[4]!,
+        anchor: match[2]!,
+        key: `${match[1]}::${match[2]} ${match[3]}→${match[4]}`,
+        newOperator: match[4]!,
+        operator: match[3]!,
         sourcePath: match[1]!,
       }
     : null;
@@ -112,13 +118,21 @@ export const loadIgnoreList = async (
       rethrowUnlessNotFound(error);
       continue;
     }
-    entries.push(
-      ...text
-        .split("\n")
-        .map(parseIgnoreLine)
-        .filter((entry): entry is ParsedIgnoreLine => entry !== null)
-        .map((entry) => entry.key),
-    );
+    for (const line of text.split("\n")) {
+      const parsed = parseIgnoreLine(line);
+      if (parsed) {
+        entries.push(parsed.key);
+        continue;
+      }
+      // A line that is neither blank nor a comment but does not parse is a
+      // record that would silently stop suppressing its mutant. Say so rather
+      // than loading a registry quietly missing part of itself.
+      if (line.trim() !== "" && !line.trimStart().startsWith("#")) {
+        throw new Error(
+          `Malformed equivalent-mutant entry in ${registryFilePath(file)}: ${line}`,
+        );
+      }
+    }
   }
   return { entries, keys: new Set(entries) };
 };
