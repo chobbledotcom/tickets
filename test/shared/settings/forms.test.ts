@@ -207,19 +207,28 @@ const definitionRow = (definition: SettingsFormDefinition) =>
 const values = (field: "name" | "action" | "formId"): string[] =>
   SETTINGS_FORM_DEFINITIONS.map((definition) => String(definition[field]));
 
+/** The catalog keys named by one field spec's own copy properties. */
+const specOwnCopyKeys = (spec: object): string[] =>
+  ["labelKey", "hintKey", "placeholderKey"].flatMap((property) => {
+    const value = (spec as Record<string, unknown>)[property];
+    return typeof value === "string" ? [value] : [];
+  });
+
+/** The catalog keys of a spec's fixed options. Built-at-render options carry
+ * final labels, not catalog keys, so they contribute nothing. */
+const specOptionCopyKeys = (spec: object): string[] =>
+  "options" in spec && Array.isArray((spec as { options: unknown }).options)
+    ? (spec as { options: { labelKey: string }[] }).options.map(
+        (option) => option.labelKey,
+      )
+    : [];
+
 /** Every catalog key a field spec reads. */
 const specCopyKeys = (definition: SettingsFormDefinition): string[] =>
   definition.kind === "fields"
     ? definition.fields.flatMap((spec) => [
-        ...("labelKey" in spec ? [spec.labelKey] : []),
-        ...("hintKey" in spec && spec.hintKey !== undefined
-          ? [spec.hintKey]
-          : []),
-        ...("placeholderKey" in spec ? [spec.placeholderKey] : []),
-        // Built-at-render options carry final labels, not catalog keys.
-        ...("options" in spec && Array.isArray(spec.options)
-          ? spec.options.map((option: { labelKey: string }) => option.labelKey)
-          : []),
+        ...specOwnCopyKeys(spec),
+        ...specOptionCopyKeys(spec),
       ])
     : [];
 
