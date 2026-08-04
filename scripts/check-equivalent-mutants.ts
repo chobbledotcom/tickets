@@ -16,7 +16,7 @@ import { generateMutants } from "#scripts/mutation/generate.ts";
 import {
   listRegistryFiles,
   mutantKeyForPath,
-  parseIgnoreLine,
+  parseRegistryText,
 } from "#scripts/mutation/ignore.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 
@@ -32,19 +32,15 @@ const readEntries = async (): Promise<Entry[]> => {
   for (const file of await listRegistryFiles()) {
     const path = typeof file === "string" ? file : file.pathname;
     const registry = relative(projectRoot, path);
-    for (const line of (await Deno.readTextFile(file)).split("\n")) {
-      const parsed = parseIgnoreLine(line);
-      if (parsed) {
-        entries.push({
-          key: parsed.key,
-          registry,
-          sourcePath: parsed.sourcePath,
-        });
-        continue;
-      }
-      if (line.trim() !== "" && !line.trimStart().startsWith("#")) {
-        throw new Error(`Malformed entry in ${registry}: ${line}`);
-      }
+    for (const parsed of parseRegistryText(
+      await Deno.readTextFile(file),
+      file,
+    )) {
+      entries.push({
+        key: parsed.key,
+        registry,
+        sourcePath: parsed.sourcePath,
+      });
     }
   }
   return entries;

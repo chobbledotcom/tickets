@@ -6,11 +6,15 @@ import { generateMutants } from "#scripts/mutation/generate.ts";
 const anchorsOf = (source: string): string[] =>
   generateMutants(source, "/tmp/example.ts", true).map((m) => m.anchor);
 
-/** The anchor of the one `?? → ||` mutant in a source. */
-const nullishAnchor = (source: string): string => {
-  const found = generateMutants(source, "/tmp/example.ts", true).filter(
+/** Every `?? → ||` mutant a source produces, in source order. */
+const nullishMutants = (source: string) =>
+  generateMutants(source, "/tmp/example.ts", true).filter(
     (m) => m.operator === "??" && m.newOperator === "||",
   );
+
+/** The anchor of the one `?? → ||` mutant in a source. */
+const nullishAnchor = (source: string): string => {
+  const found = nullishMutants(source);
   if (found.length !== 1) {
     throw new Error(`Expected one nullish mutant, found ${found.length}`);
   }
@@ -59,9 +63,8 @@ describe("anchoring a mutant on what it sits inside", () => {
   });
 
   test("numbers mutants of one kind that share a name, in source order", () => {
-    const source = "const read = (a, b) => [a ?? 0, b ?? 1];\n";
-    const nullish = generateMutants(source, "/tmp/example.ts", true).filter(
-      (m) => m.operator === "??" && m.newOperator === "||",
+    const nullish = nullishMutants(
+      "const read = (a, b) => [a ?? 0, b ?? 1];\n",
     );
 
     expect(nullish.map((m) => m.anchor)).toEqual(["read@1", "read@2"]);
@@ -82,9 +85,8 @@ describe("anchoring a mutant on what it sits inside", () => {
   /** Numbering is per kind, so a different mutation beside a recorded one
    * leaves its number alone. */
   test("numbers each kind of mutation separately", () => {
-    const source = "const read = (a, b) => [a ?? 0, b || 1];\n";
-    const nullish = generateMutants(source, "/tmp/example.ts", true).filter(
-      (m) => m.operator === "??" && m.newOperator === "||",
+    const nullish = nullishMutants(
+      "const read = (a, b) => [a ?? 0, b || 1];\n",
     );
 
     expect(nullish.map((m) => m.anchor)).toEqual(["read"]);

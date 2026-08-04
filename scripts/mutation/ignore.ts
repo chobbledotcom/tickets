@@ -118,23 +118,37 @@ export const loadIgnoreList = async (
       rethrowUnlessNotFound(error);
       continue;
     }
-    for (const line of text.split("\n")) {
-      const parsed = parseIgnoreLine(line);
-      if (parsed) {
-        entries.push(parsed.key);
-        continue;
-      }
-      // A line that is neither blank nor a comment but does not parse is a
-      // record that would silently stop suppressing its mutant. Say so rather
-      // than loading a registry quietly missing part of itself.
-      if (line.trim() !== "" && !line.trimStart().startsWith("#")) {
-        throw new Error(
-          `Malformed equivalent-mutant entry in ${registryFilePath(file)}: ${line}`,
-        );
-      }
-    }
+    entries.push(...parseRegistryText(text, file).map((entry) => entry.key));
   }
   return { entries, keys: new Set(entries) };
+};
+
+/**
+ * Every entry in one registry file's text.
+ *
+ * A line that is neither blank nor a comment but does not parse is a record
+ * that would silently stop suppressing its mutant, so it raises rather than
+ * being skipped: a registry quietly missing part of itself reads exactly like
+ * one that never had those entries.
+ */
+export const parseRegistryText = (
+  text: string,
+  file: string | URL,
+): ParsedIgnoreLine[] => {
+  const parsed: ParsedIgnoreLine[] = [];
+  for (const line of text.split("\n")) {
+    const entry = parseIgnoreLine(line);
+    if (entry) {
+      parsed.push(entry);
+      continue;
+    }
+    if (line.trim() !== "" && !line.trimStart().startsWith("#")) {
+      throw new Error(
+        `Malformed equivalent-mutant entry in ${registryFilePath(file)}: ${line}`,
+      );
+    }
+  }
+  return parsed;
 };
 
 /** Whether a survivor is a recorded known-equivalent mutant. */
