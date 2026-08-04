@@ -7,11 +7,12 @@
 
 import { resolve } from "@std/path";
 import { projectRoot } from "#scripts/project-root.ts";
-import { withMutationRunLock } from "./isolation-lock.ts";
+import { ageRunClaimToStale, keepRunClaimFresh } from "./isolation-lock.ts";
 import {
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
+  MUTATION_SUPERVISOR_PID_ENV,
   MUTATION_WORK_ROOT_ENV,
 } from "./isolation-state.ts";
 
@@ -33,9 +34,17 @@ const runValue = (name: string): string => {
   return value;
 };
 
-const runRootFromEnv = (): string => {
+type SnapshotRunHome = { runRoot: string; supervisorPid: number };
+
+const runHomeFromEnv = (): SnapshotRunHome => {
   runValue(MUTATION_RUN_ID_ENV);
   const runRoot = runValue(MUTATION_RUN_ROOT_ENV);
+  const supervisorPid = Number(runValue(MUTATION_SUPERVISOR_PID_ENV));
+  if (!Number.isInteger(supervisorPid) || supervisorPid <= 0) {
+    throw new Error(
+      `${MUTATION_SUPERVISOR_PID_ENV} must be a process id, not ${runValue(MUTATION_SUPERVISOR_PID_ENV)}.`,
+    );
+  }
   const workRoot = resolve(runValue(MUTATION_WORK_ROOT_ENV));
   // The copy it says it is in must be the one it is running from. Anything
   // else means these values belong to another run, and the work would land in
@@ -45,10 +54,35 @@ const runRootFromEnv = (): string => {
       `A snapshot child says it works in ${workRoot}, but it is running in ${resolve(projectRoot)}.`,
     );
   }
-  return runRoot;
+  return { runRoot, supervisorPid };
 };
 
-/** Do the run's work, holding its lock so a clear-up cannot take the copy. */
+const workUnderFreshClaim = async <Result>(
+  { runRoot, supervisorPid }: SnapshotRunHome,
+  body: () => Promise<Result>,
+): Promise<Result> => {
+  const record = { root: runRoot };
+  const claim = await keepRunClaimFresh(record);
+  try {
+    return await body();
+  } finally {
+    try {
+      await claim.stopTouching();
+    } finally {
+      // With the supervisor gone, nobody is left to release the claim; age
+      // it so the run reads as over the moment this child ends, instead of
+      // staying "live" for a whole stale window. Gone means reparented: a
+      // pid probe could bless a pid already reused by a stranger, but no
+      // reused pid can become this child's parent.
+      if (Deno.ppid !== supervisorPid) {
+        await ageRunClaimToStale(record, claim.ownedBy);
+      }
+    }
+  }
+};
+
+/** Do the run's work, keeping the supervisor's claim on the run fresh — so a
+ * clear-up cannot take the copy even if the supervisor is killed outright. */
 export const runSnapshotChild = <Result>(
   body: () => Promise<Result>,
-): Promise<Result> => withMutationRunLock(runRootFromEnv(), body);
+): Promise<Result> => workUnderFreshClaim(runHomeFromEnv(), body);

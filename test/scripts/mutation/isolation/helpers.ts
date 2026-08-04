@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { runMutationInSnapshot } from "#scripts/mutation/isolation.ts";
@@ -8,8 +6,8 @@ import {
   writeRunRecord,
 } from "#scripts/mutation/isolation-records.ts";
 import {
-  MUTATION_RECORD_FILE,
   MUTATION_RUNS_DIR,
+  MUTATION_WORK_DIR,
   type MutationRunRecord,
 } from "#scripts/mutation/isolation-state.ts";
 import { captureConsole } from "#test/scripts/mutation/isolation-helpers.ts";
@@ -71,11 +69,19 @@ export const failRunningStatusWrite = (): Disposable =>
     (_writes, data) => typeof data === "string" && data.includes('"running"'),
   );
 
-/** Refuse every removal, standing in for a busy or read-only run folder. */
-export const failWorkRemoval = (): Disposable =>
-  stub(Deno, "remove", (() => {
-    throw new Error("work is busy");
+/** Refuse to remove the run's snapshot, standing in for a busy work folder. */
+export const failWorkRemoval = (): Disposable => {
+  const remove = Deno.remove;
+  return stub(Deno, "remove", ((
+    path: string | URL,
+    options?: Deno.RemoveOptions,
+  ) => {
+    if (`${path}`.endsWith(`/${MUTATION_WORK_DIR}`)) {
+      throw new Error("work is busy");
+    }
+    return remove(path, options);
   }) as typeof Deno.remove);
+};
 
 export const capturePlainSnapshotFailure = async (
   root: string,
@@ -148,6 +154,12 @@ export const withCapturedStopChild = async (
 
 export type KillCall = { pid: number; signal: Deno.Signal | undefined };
 
+/** Note every signal sent instead of sending it, so a test can read them. */
+export const recordKillCalls = (calls: KillCall[]): Disposable =>
+  stub(Deno, "kill", ((pid: number, signal?: Deno.Signal) => {
+    calls.push({ pid, signal });
+  }) as typeof Deno.kill);
+
 /** `Deno.Command` is a class, so stubbing it needs a looser view of `Deno`. */
 type DenoCommandShim = { Command: (...args: unknown[]) => unknown };
 const denoCommand = Deno as unknown as DenoCommandShim;
@@ -167,48 +179,6 @@ export const stubCommand = (
     onStart();
     return { spawn: () => child };
   });
-
-/**
- * Run a snapshot mutation while a `--clean` sweeps its record away in the gap
- * before the lock, and report whether the record was there at each point.
- */
-export const recordAroundClean = async (
-  root: string,
-): Promise<{ beforeLock: boolean; atChildStart: boolean }> => {
-  const realMkdir = Deno.mkdir;
-  let runDir = "";
-  // The run folder is made twice: once to write the record, then again by the
-  // lock. The second time is the moment the run starts queueing.
-  const madeRunFolder = new Set<string>();
-  const result = { atChildStart: false, beforeLock: false };
-  const recordPath = () => join(runDir, MUTATION_RECORD_FILE);
-
-  using _mkdir = stub(Deno, "mkdir", (async (
-    path: string | URL,
-    options?: Deno.MkdirOptions,
-  ) => {
-    const isRunFolder =
-      !runDir && `${path}`.includes(`${MUTATION_RUNS_DIR}/mutation-`);
-    const isLockMakingIt = isRunFolder && madeRunFolder.has(`${path}`);
-    if (isRunFolder) madeRunFolder.add(`${path}`);
-    if (!isLockMakingIt) {
-      await realMkdir(path, options);
-      return;
-    }
-    runDir = `${path}`;
-    result.beforeLock = existsSync(recordPath());
-    // Stand in for a `--clean`, which takes the whole folder of a run whose
-    // lock it does not see held. The mkdir below is the lock putting it back.
-    await Deno.remove(runDir, { recursive: true });
-    await realMkdir(path, options);
-  }) as typeof Deno.mkdir);
-  using _command = stubCommand(finishedChild(42_427), [], () => {
-    result.atChildStart = existsSync(recordPath());
-  });
-
-  await captureSimpleSnapshotMutation(root);
-  return result;
-};
 
 /** A child that has already finished with the given exit code. */
 export const finishedChild = (pid: number, code = 0): Deno.ChildProcess =>

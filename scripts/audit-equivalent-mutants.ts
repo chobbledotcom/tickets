@@ -61,10 +61,14 @@ const runAudit = async (options: AuditOptions): Promise<number> => {
     write: options.write,
   })
     .catch((error) => {
-      if (controller.signal.aborted) Deno.exit(130);
+      // An interrupt must return through the snapshot child's cleanup, not
+      // exit straight past it — an exit here would leave the run's claim
+      // reading as live until it aged out on its own.
+      if (controller.signal.aborted) return null;
       throw error;
     })
     .finally(() => offTerminationSignals(onSignal));
+  if (result === null) return 130;
   console.log(`Checked ${result.checked} equivalent mutants.`);
   console.log(`Killed by lint: ${result.killedByLint.length}`);
   console.log(`Killed by type-check: ${result.killedByTypeCheck.length}`);

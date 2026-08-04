@@ -14,10 +14,11 @@ export const MUTATION_RUNS_DIR = ".mutation-runs";
 export const MUTATION_WORK_DIR = "work";
 export const MUTATION_RECORD_FILE = "run.json";
 const MUTATION_RUN_ID_PREFIX = "mutation-";
-export const MUTATION_RUN_LOCK_FILE = "run.lock";
+export const MUTATION_CLAIM_FILE = "claim";
 const MUTATION_COPY_BACK_LOCK_FILE = "copy-back.lock";
 export const MUTATION_SNAPSHOT_CHILD_ENV = "TICKETS_MUTATION_SNAPSHOT_CHILD";
 export const MUTATION_RUN_ID_ENV = "TICKETS_MUTATION_RUN_ID";
+export const MUTATION_SUPERVISOR_PID_ENV = "TICKETS_MUTATION_SUPERVISOR_PID";
 export const MUTATION_RUN_ROOT_ENV = "TICKETS_MUTATION_RUN_ROOT";
 export const MUTATION_WORK_ROOT_ENV = "TICKETS_MUTATION_WORK_ROOT";
 
@@ -204,8 +205,9 @@ export const workRoot = runChildPath(MUTATION_WORK_DIR);
 
 export const recordPath = runChildPath(MUTATION_RECORD_FILE);
 
-export const runLockPath = (record: Pick<MutationRunRecord, "root">): string =>
-  join(record.root, MUTATION_RUN_LOCK_FILE);
+/** Where a run's claim sits: the supervisor's proof the folder is still its. */
+export const runClaimPath = (record: Pick<MutationRunRecord, "root">): string =>
+  join(record.root, MUTATION_CLAIM_FILE);
 
 /** One lock for the whole checkout, shared by every run bringing files back. */
 export const copyBackLockPath = (root = projectRoot): string =>
@@ -240,6 +242,17 @@ export const markRunning = (
   updatedAt,
 });
 
+/** The record once its child has ended: the pid is dropped, so nothing can
+ * signal a process id that may since be somebody else's while the supervisor
+ * finishes the run's copy-back. */
+export const markChildEnded = (
+  record: MutationRunRecord,
+  updatedAt = nowIso(),
+): MutationRunRecord => {
+  const { pid: _endedChildPid, ...rest } = record;
+  return { ...rest, updatedAt };
+};
+
 export const markFinished = (
   record: MutationRunRecord,
   exitCode: number,
@@ -263,35 +276,6 @@ export const markInterrupted = (
 
 export const isTerminalRunStatus = (status: MutationRunStatus): boolean =>
   status === "passed" || status === "failed" || status === "interrupted";
-
-/**
- * How long after a run is marked "running" we still treat it as active for
- * cleanup, even if the child has not acquired the run lock yet. This covers
- * the startup window between `spawn()` and the child taking the lock. After
- * it expires, a running record with a live PID but no lock is stale (the PID
- * may have been reused by an unrelated process) and can be cleaned.
- */
-export const RUN_STARTUP_GRACE_MS = 30_000;
-
-/**
- * Was `at` within the startup grace? Unknown times count as long ago, and so
- * do times in the future: a clock put back must not make a folder look busy
- * for ever.
- */
-export const withinStartupGrace = (
-  at: number,
-  now: Date = new Date(),
-  graceMs: number = RUN_STARTUP_GRACE_MS,
-): boolean => {
-  const age = now.getTime() - at;
-  return at > 0 && age >= 0 && age < graceMs;
-};
-
-export const runStartedRecently = (
-  record: MutationRunRecord,
-  now?: Date,
-  graceMs?: number,
-): boolean => withinStartupGrace(Date.parse(record.updatedAt), now, graceMs);
 
 const withTrailingSeparator = (path: string): string =>
   path.endsWith(SEPARATOR) ? path : `${path}${SEPARATOR}`;

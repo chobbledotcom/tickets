@@ -1,5 +1,23 @@
 # TODO — remaining follow-ups
 
+## Let --kill stop a run through its supervisor, not the child's pid (from PR #2042)
+
+`deno task mutation --kill` signals the child pid stored in the run record
+(`signalRun` in `scripts/mutation/isolation.ts`). PR #2042 shrank the window
+where that pid can be somebody else's — the record drops the pid the moment
+the child's status resolves (`markChildEnded`) — but a kill that reads the
+record in the few milliseconds between the child exiting and that record
+write can still signal a pid the child no longer owns. CodeRabbit suggested
+removing the race outright by making the stop supervisor-mediated: store the
+supervisor's pid in the run record too, have `--kill` signal the supervisor,
+and let the supervisor stop its own child (it holds the child handle, so no
+reused pid can be confused with it). Out of scope for #2042 — it changes the
+record shape and the kill flow rather than the locking this PR unified.
+Starting point: `signalRun` and `markRunning` in
+`scripts/mutation/isolation.ts` / `scripts/mutation/isolation-state.ts`.
+
+---
+
 ## Numbered SQL parameters — adopt the pattern beyond the limiters (from PR #2040)
 
 PR #2040 rewrote the two rate-limiter upserts (`src/shared/db/login-attempts.ts`,
@@ -1565,67 +1583,6 @@ priced bundle reaches checkout today.
 
 ---
 
-## Give the stripe-mock install lock the same shape as every other file lock
-
-*Origin: noticed while unifying the locks behind `scripts/lock-file.ts`.*
-
-Every lock that is a file — the precommit gate, the browser-asset build, the
-stripe-mock start, each mutation run — now goes through `withFileLock`, which
-holds one advisory lock and checks that the lock it holds is still the file at
-its path. (The database migration lock is not one of these: it is a row in a
-table, and is named below for the pattern it shares.)
-
-`scripts/stripe-mock/install.ts` is the exception: it has a second,
-hand-rolled protocol underneath (`createNew` to claim the lock, a timestamp
-written inside it, and `removeStaleInstallLock` to break a lock whose owner
-died), guarded by a `withFileLock` on a separate guard file.
-
-It answers a question the shared lock cannot: "whoever claimed this walked away,
-so take it from them". Two other places answer that same question their own way:
-the mutation runner uses a record with a status, a pid, and a startup grace plus
-`processExists`, and the database migration lock
-(`src/shared/db/migrations/lock.ts`) writes an owner into a settings row and
-lets anyone break a claim older than `MIGRATION_LOCK_TTL_MS`. Three mechanisms
-for one job.
-
-Worth folding into one: either teach `lock-file.ts` about an owner that can go
-away, or let the install reuse the run-record shape. It stayed out of PR #1957
-because it is a whole protocol, not a shared helper, and the install path has
-its own timing tests.
-
-Starting point: `tryAcquireInstallLock`/`removeStaleInstallLock` in
-`scripts/stripe-mock/install.ts`; `acquireMigrationLock` in
-`src/shared/db/migrations/lock.ts` is the best-worked-out version of the pattern
-and the one to copy; `activeByRecord` in `scripts/mutation/isolation-cleanup.ts`
-is the third; and `test/scripts/stripe-mock/install/stale-locks.test.ts` and
-`waiting.test.ts` say what the timing tests expect.
-
-## Tell a clear-up's hold on a run apart from the run's own
-
-*Origin: reviewer suggestion (Codex) on PR #1957.*
-
-`processBelongsToRun` in `scripts/mutation/isolation-cleanup.ts` decides a run
-belongs to the process in its record when that process is alive *and* somebody
-is holding the run's lock. A clear-up deleting that run's folder holds the same
-lock, so during a deletion the two are indistinguishable.
-
-That matters in one case: the record's process id has since been given to some
-unrelated program. `--kill` then reads "alive and locked" as proof and signals a
-process that has nothing to do with us. Deleting a whole checkout copy takes
-long enough for the window to be real.
-
-It needs the lock evidence tied to the run's own child rather than to whoever
-holds the lock — the holder could write who it is, or a clear-up could hold
-something a run never holds. Either is a change to what a lock means here, which
-is why it did not ride along with PR #1957.
-
-Starting point: `processBelongsToRun` and `removeRun` in
-`scripts/mutation/isolation-cleanup.ts`, `signalRun` in
-`scripts/mutation/isolation.ts` for what acts on the answer, and
-`scripts/held-lock-process.ts` for the process that holds a lock on our behalf.
-
----
-
 ## Watch for ports being taken between tests
 
 *Origin: the chunk that took `scripts/stripe-mock/install.ts` to a full
@@ -1688,29 +1645,6 @@ e.g. hold the watch until the request's own `close` says its internals are
 done — proven by a test that forces the late rejection, not by timing luck.
 
 ---
-
-## The gap between a mutation child ending and its supervisor taking the lock
-
-*Raised by Codex on [PR #1976](https://github.com/chobbledotcom/tickets/pull/1976),
-about `scripts/mutation/isolation.ts` and `scripts/mutation/isolation-cleanup.ts`.*
-
-A run's copy is protected by its lock, held by the child while it works and by
-the supervisor afterwards. Between the child ending and the supervisor taking
-the lock, nobody holds it. A mutation command starting in that moment sees a
-record that says "running" with a process that has gone, and — once the run is
-older than the startup grace — may delete the run's folder.
-
-Today that costs a run its copy-back: the read fails, the run is reported as
-failed, and the work has to be run again. It is loud, not silent, and it needs
-a second mutation command to start inside a window of a few milliseconds.
-
-The fix is to stop judging a run's liveness by the child alone. If the record
-also carried the supervisor's process id, a run would count as live for as long
-as the supervisor is up, closing the gap. That means changing what
-`runProcessIsUp` and `activeByRecord` in `isolation-cleanup.ts` consider alive,
-and thinking again about the startup grace, which exists because a process id
-can be given to somebody else after the original has gone. Start at
-`RUN_STARTUP_GRACE_MS` in `isolation-state.ts` and the comment above it.
 
 ## Four feature modules had no test at their mirrored path — now they do
 

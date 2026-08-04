@@ -8,8 +8,16 @@
  */
 
 import { dirname } from "@std/path";
-import { holdLockOrNull } from "#scripts/held-lock-process.ts";
 import { nullIfNotFound, statOrNull } from "#scripts/not-found.ts";
+
+/** A task run while a lock or claim is held, giving back its result. */
+export type LockBody<Result> = () => Promise<Result>;
+
+/** Holds the lock living at a path around a task. */
+export type PathLockHolder = <Result>(
+  path: string,
+  body: LockBody<Result>,
+) => Promise<Result>;
 
 /** Open (creating if needed) a file to hold an advisory lock. */
 const openLockFile = (path: string): Promise<Deno.FsFile> =>
@@ -41,10 +49,7 @@ const sameFileAt = async (
  * mid-wait, leaving a lock with nothing pointing at it, so it makes the folder
  * and takes the lock again until it has the one at the path.
  */
-export const withFileLock = async <Result>(
-  path: string,
-  body: () => Promise<Result>,
-): Promise<Result> => {
+export const withFileLock: PathLockHolder = async (path, body) => {
   for (;;) {
     await Deno.mkdir(dirname(path), { recursive: true });
     const file = await openLockFileOrNull(path);
@@ -58,29 +63,5 @@ export const withFileLock = async <Result>(
         file.close();
       }
     }
-  }
-};
-
-/**
- * Hold the lock at `path` while `body` runs, but only if it comes free within
- * `timeoutMs`; otherwise answer `null`. Unlike `withFileLock` this never makes
- * the folder or waits it out — a caller clearing up after other people must
- * not queue behind them for an hour, nor bring back a folder they removed.
- *
- * A child process does the waiting, so giving up really lets this one finish.
- */
-export const withFileLockOrNull = async <Result>(
-  path: string,
-  timeoutMs: number,
-  body: () => Promise<Result>,
-): Promise<Result | null> => {
-  const held = await holdLockOrNull(path, timeoutMs);
-  if (held === null) return null;
-  try {
-    // The wait may have been won because somebody deleted the folder: a lock on
-    // a file nothing points at keeps nobody out, so it is not worth holding.
-    return (await sameFileAt(path, held.fileNumber)) ? await body() : null;
-  } finally {
-    await held.letGo();
   }
 };

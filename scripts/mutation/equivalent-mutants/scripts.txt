@@ -93,7 +93,9 @@ scripts/process.ts:60:17  0 → 1   # the promise body runs straight away and ov
 scripts/process.ts:62:12  = → +=   # the handle starts at 0, so adding to it and replacing it store the same timer id
 
 # Isolated mutation runs: the exit code before any path has set one.
-scripts/mutation/isolation.ts:188:18  1 → 0   # every path overwrites this before it is returned: the lock always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
+scripts/mutation/isolation.ts:216:20  1 → 0   # every path overwrites this before it is returned: the claim always runs its callback, which either sets 130 on an interrupt or hands back a child whose status sets the code, and any throw is caught and sets it there
+scripts/mutation/isolation.ts:161:25  0 → 1   # keepFiles' interrupted arm only runs once wasInterrupted() has latched true, and finishChild then takes the `interrupted ? 130` branch, so the number this arm hands back is never read
+scripts/mutation/isolation.ts:195:62  ?? → ||   # run.copyBack is a list or undefined, and a list — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
 src/shared/db/migrations.ts:252:49  ?? → ||   # opts.allowMissingSettings is boolean | undefined, and false ?? false and false || false both yield false
 
 # Cucumber runs: telling Cucumber to be strict, when we already reject the
@@ -103,3 +105,10 @@ src/shared/crypto/encryption.ts:120:5  false → true   # importKey is module-pr
 src/features/admin/attendee-page.ts:122:43  ?? → ||   # URLSearchParams.get returns string | null, and the fallback is the empty string: null and "" both yield "" under either operator, so no query can tell them apart
 src/features/admin/attendees-list.ts:56:52  ?? → ||   # parsePositiveInt validates against PositiveIntSchema (minValue 1), so it returns a number of 1 or more, or null — it can never return 0, the only falsy number that would tell ?? and || apart
 src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns ListingWithCount[] | undefined, and every array — empty included — is truthy, so only undefined reaches the fallback and both operators yield the same []
+
+# stale-claim touch rescheduling: corrupting the remembered timer id only
+# stops the release's clearTimeout from cancelling the armed timer, so it
+# fires once more — and the touch it starts bails on the stopped flag before
+# writing anything. No file state or output differs; only when the last no-op
+# timer drains.
+scripts/stale-claim.ts:186:12  = → +=    # the uncancelled timer's one late touch bails on the stopped flag before any read or write
