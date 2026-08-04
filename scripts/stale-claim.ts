@@ -82,7 +82,12 @@ const readClaimRecord = async (path: string): Promise<ClaimRecord> => {
   if (record.writtenAt > 0) return record;
 
   const stat = await Deno.stat(path);
-  return { ...record, writtenAt: stat.mtime!.getTime() };
+  if (stat.mtime === null) {
+    throw new Error(
+      `The claim at ${path} names no readable time, and the filesystem keeps no last-write time to judge it by.`,
+    );
+  }
+  return { ...record, writtenAt: stat.mtime.getTime() };
 };
 
 const writeClaimTime = (path: string, owner: string): Promise<void> =>
@@ -100,7 +105,9 @@ export const claimIsFresh = async (
   staleMs: number,
 ): Promise<boolean> => {
   const age = await nullIfNotFound(claimAgeMs(path));
-  return age !== null && age < staleMs;
+  // A time from the future means a clock was put back; counting that as
+  // fresh would leave a dead owner's claim unstealable until it catches up.
+  return age !== null && age >= 0 && age < staleMs;
 };
 
 /** Remove the claim, treating one already cleared by another taker as gone. */
@@ -235,7 +242,7 @@ const tryTakeClaim = (
   path: string,
   settings: StaleClaimSettings,
 ): Promise<HeldClaim | null> =>
-  withFileLock(claimGuardPath(path), async () => {
+  withClaimGuard(path, async () => {
     const owner = crypto.randomUUID();
     try {
       await createClaim(path, owner);

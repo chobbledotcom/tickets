@@ -242,6 +242,17 @@ export const markRunning = (
   updatedAt,
 });
 
+/** The record once its child has ended: the pid is dropped, so nothing can
+ * signal a process id that may since be somebody else's while the supervisor
+ * finishes the run's copy-back. */
+export const markChildEnded = (
+  record: MutationRunRecord,
+  updatedAt = nowIso(),
+): MutationRunRecord => {
+  const { pid: _endedChildPid, ...rest } = record;
+  return { ...rest, updatedAt };
+};
+
 export const markFinished = (
   record: MutationRunRecord,
   exitCode: number,

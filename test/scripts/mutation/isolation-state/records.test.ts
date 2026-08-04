@@ -4,6 +4,7 @@ import {
   createRunId,
   isRunId,
   markFinished,
+  markChildEnded,
   markInterrupted,
   markRunning,
   newRunRecord,
@@ -34,6 +35,22 @@ describe("mutation isolation run records", () => {
       exitCode: 130,
       status: "interrupted",
     });
+  });
+
+  test("drops the pid once the child has ended", () => {
+    const running = markRunning(
+      newRunRecord("ended", [], "/repo"),
+      42,
+      "2026-07-09T12:35:00.000Z",
+    );
+
+    const ended = markChildEnded(running, "2026-07-09T12:36:00.000Z");
+
+    // The id may be somebody else's at any moment now, so nothing —
+    // --kill above all — may keep treating it as this run's child.
+    expect(ended.pid).toBeUndefined();
+    expect(ended.status).toBe("running");
+    expect(ended.updatedAt).toBe("2026-07-09T12:36:00.000Z");
   });
 
   test("maps exit codes to run status", () => {

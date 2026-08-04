@@ -26,12 +26,6 @@ export type StripeMockPaths = {
 const ensureBinDir = (paths: StripeMockPaths): Promise<void> =>
   Deno.mkdir(paths.binDir, { recursive: true });
 
-/**
- * A guard on a file in the bin folder: say how the file holds callers out,
- * get back "make the folder, then hold the guard around the work". The
- * install lock here and the start lock in stripe-mock.ts are both one of
- * these.
- */
 /** Holds one of the bin folder's guards around a task, making the folder. */
 export type BinDirGuard = <T>(
   paths: StripeMockPaths,

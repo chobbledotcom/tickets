@@ -20,11 +20,11 @@ import { errorMessage } from "#shared/error-message.ts";
 import { envWith } from "./child-process.ts";
 import {
   liveRunIdSet,
-  processBelongsToRun,
   removeFinishedRuns,
   removeInactiveRuns,
   removeWorkSnapshot,
   reportRemoveFailure,
+  runIsOwned,
 } from "./isolation-cleanup.ts";
 import { withCopyBackLock, withRunClaim } from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
@@ -39,6 +39,7 @@ import {
   MUTATION_SUPERVISOR_PID_ENV,
   MUTATION_WORK_ROOT_ENV,
   type MutationRunRecord,
+  markChildEnded,
   markFinished,
   markInterrupted,
   markRunning,
@@ -72,7 +73,7 @@ const signalRun = async (
   record: MutationRunRecord,
   force: boolean,
 ): Promise<boolean> => {
-  if (!(await processBelongsToRun(record)) || record.pid === undefined) {
+  if (!(await runIsOwned(record)) || record.pid === undefined) {
     return false;
   }
   try {
@@ -215,6 +216,8 @@ export const runInSnapshot = async (
         console.log(`Mutation child pid ${spawned.pid}`);
 
         const status = await spawned.status;
+        record = markChildEnded(record);
+        await writeRunRecord(record);
         const finished = await finishChild(
           record,
           () => interrupted,

@@ -56,11 +56,14 @@ describe("running mutation inside a snapshot", () => {
         true,
       );
       // The pid is printed so a stray run can be found and stopped by hand.
-      expect(run.logs).toContain(`Mutation child pid ${record.pid}`);
+      expect(
+        run.logs.some((line) => /^Mutation child pid \d+$/.test(line)),
+      ).toBe(true);
       expect(record.status).toBe("failed");
       expect(record.exitCode).toBe(7);
       expect(record.args).toEqual(["src/a.ts", join(root, "test/a.test.ts")]);
-      expect(typeof record.pid).toBe("number");
+      // The child is gone by the time the record settles, and its id with it.
+      expect(record.pid).toBeUndefined();
     });
   });
 

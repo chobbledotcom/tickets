@@ -24,10 +24,9 @@ import {
   recordPath,
 } from "./isolation-state.ts";
 
-/** Is this record's run started, and its folder still its supervisor's? */
-export const processBelongsToRun = async (
-  record: MutationRunRecord,
-): Promise<boolean> =>
+/** Is this record's run started, its child signalable, and its folder still
+ * somebody's? Fresh claims are only ever the run's own — see isolation-lock. */
+export const runIsOwned = async (record: MutationRunRecord): Promise<boolean> =>
   record.status === "running" &&
   record.pid !== undefined &&
   (await runClaimIsFresh(record));
@@ -41,7 +40,7 @@ export const liveRunIdSet = async (
 ): Promise<Set<string>> => {
   const live = await Promise.all(
     records.map(async (record) =>
-      (await processBelongsToRun(record)) ? record.id : null,
+      (await runIsOwned(record)) ? record.id : null,
     ),
   );
   return new Set(live.filter((id): id is string => id !== null));
