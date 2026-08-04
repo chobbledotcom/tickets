@@ -5,7 +5,11 @@
 import { t } from "#i18n";
 import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
-import type { AdminSession, Theme } from "#shared/types.ts";
+import type {
+  AdminSession,
+  PaymentProviderType,
+  Theme,
+} from "#shared/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
 import { CustomDomainForm } from "#templates/admin/settings/custom-domain.tsx";
@@ -52,7 +56,8 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
   listingColumnOrder: string;
   attendeeColumnOrder: string;
-  paymentProvider: string | null;
+  existingPaymentProvider: PaymentProviderType | null;
+  paymentProviderRecoveryNeeded: boolean;
   smsGatewayUsername: string;
   smsGatewayBaseUrl: string;
   smsGatewayPasswordConfigured: boolean;

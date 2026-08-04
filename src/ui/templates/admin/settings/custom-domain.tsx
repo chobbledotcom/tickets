@@ -38,10 +38,10 @@ export const CustomDomainForm = (
           type="text"
           value={s.customDomain}
         />
-        <SubmitButton icon="save">
+        <SubmitButton disabled={s.paymentProviderRecoveryNeeded} icon="save">
           {t("settings.advanced.save_custom_domain")}
         </SubmitButton>
-        <DomainPaymentWebhookWarning paymentProvider={s.paymentProvider} />
+        <DomainPaymentWebhookWarning {...s} />
       </CsrfForm>
 
       {s.customDomain && (

@@ -142,6 +142,7 @@ type SettingsHandlerConfig<T> = RedirectOpts &
     validate?: ValidateFn<T> | undefined;
     /** Persist the value */
     save: (value: T) => Promise<void> | void;
+    taskName?: string | undefined;
   };
 
 const createSettingsHandler =
@@ -160,7 +161,14 @@ const createSettingsHandler =
       errorPage,
       cfg.formId,
       async () => {
-        await cfg.save(value);
+        if (cfg.taskName) {
+          const task = await settings.withCurrentTask(
+            cfg.taskName,
+            () => Promise.resolve(cfg.save(value)),
+            form.getOptionalInt("settings_version"),
+          );
+          if (!task.ok) return errorPage(task.error, cfg.formId);
+        } else await cfg.save(value);
         const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
         await logActivity(msg);
         return redirect(
@@ -357,25 +365,32 @@ type ProviderCredentialsConfig<T> = {
   /** Persist a newly provided secret and run any provider setup it needs.
    * Return an error string when an expected setup failure should be shown on
    * the form. Thrown failures propagate. */
-  saveSecret: (value: string) => Promise<string | null> | Promise<void>;
+  saveSecret: (
+    value: string,
+    activateFromMissing: boolean,
+  ) => Promise<string | null> | Promise<void>;
   /** Persist the non-secret fields (called on every successful save). */
   saveFields?: (fields: T) => Promise<void> | void;
   /** Connection-test function behind the sibling `/test` route. */
   testFn: () => Promise<unknown>;
 };
 
-/** Persist a validated submission, then select the provider. */
+/** Persist a validated submission without switching sales back on. */
 const persistProviderCredentials = async <T>(
   cfg: ProviderCredentialsConfig<T>,
   fields: T,
   secret: SecretFieldResult,
+  activateFromMissing: boolean,
 ): Promise<string | null> => {
   if (secret.action === "provided") {
-    const error = await cfg.saveSecret(secret.value);
+    const error = await cfg.saveSecret(secret.value, activateFromMissing);
     if (error) return error;
   }
   if (cfg.saveFields) await cfg.saveFields(fields);
-  await settings.update.paymentProvider(cfg.provider);
+  await settings.update.paymentProviderAfterCredentialSave(
+    cfg.provider,
+    activateFromMissing,
+  );
   return null;
 };
 
@@ -391,6 +406,7 @@ const defineProviderCredentialsRoute = <T>(
   test: (request: Request) => Promise<Response>;
 } => {
   const save = settingsRoute(async (form, errorPage) => {
+    const activateFromMissing = !cfg.hasSecret();
     const secret = processSecretField(form, cfg.secretField);
     const fields = cfg.extraFields
       ? cfg.extraFields(form)
@@ -411,11 +427,22 @@ const defineProviderCredentialsRoute = <T>(
       return settingsFlash(cfg.unchangedMessage);
     }
 
-    const saveError = await persistProviderCredentials(cfg, fields, secret);
-    if (saveError) return errorPage(saveError, cfg.formId);
-
-    await logActivity(cfg.logMessage);
-    return settingsFlash(cfg.successMessage);
+    const task = await settings.withCurrentTask(
+      `payment-provider-${cfg.provider}`,
+      async () => {
+        const saveError = await persistProviderCredentials(
+          cfg,
+          fields,
+          secret,
+          activateFromMissing,
+        );
+        if (saveError) return errorPage(saveError, cfg.formId);
+        await logActivity(cfg.logMessage);
+        return settingsFlash(cfg.successMessage);
+      },
+      form.getOptionalInt("settings_version"),
+    );
+    return task.ok ? task.value : errorPage(task.error, cfg.formId);
   });
 
   return { save, test: testRoute(cfg.testFn) };

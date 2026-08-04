@@ -12,7 +12,7 @@ describe("settings keys", () => {
 
   test("keeps the complete public key catalog exact", async () => {
     expect(await jsonHash(CONFIG_KEY_NAMES)).toBe(
-      "b5747ab73abc3050541eb99eb6b73528089d47d69d5801d76bce5fb1e32dc0f1",
+      "1563a7a03136abc9750ef3511a3231fc152fa12f9853a5fbbf2fca8f3a7d68e8",
     );
   });
 

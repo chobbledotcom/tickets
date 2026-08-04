@@ -10,8 +10,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   choicesOffered,
   optionsOffered,
-  whyValueCannotBeSent,
-} from "#test/specs/support/form-controls.ts";
+} from "#test/specs/support/form-controls/reading.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
 
 // jscpd:ignore-end
 

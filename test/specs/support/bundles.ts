@@ -19,10 +19,12 @@ import {
 } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
-  expectCanReallySend,
   tickedCheckboxes,
+} from "#test/specs/support/form-controls/reading.ts";
+import {
+  expectCanReallySend,
   whyValueCannotBeSent,
-} from "#test/specs/support/form-controls.ts";
+} from "#test/specs/support/form-controls/rules.ts";
 import {
   listingIdNamed,
   listingNamed,

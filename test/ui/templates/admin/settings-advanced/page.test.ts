@@ -109,7 +109,7 @@ describe("adminAdvancedSettingsPage", () => {
     const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       bunnyCdnEnabled: true,
-      paymentProvider: "square",
+      existingPaymentProvider: "square",
     });
     expect(html).toContain("Changing your domain changes your payment webhook");
     expect(html).toContain('href="/admin/settings#settings-square-webhook"');
@@ -119,7 +119,7 @@ describe("adminAdvancedSettingsPage", () => {
     const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       bunnyDnsEnabled: true,
-      paymentProvider: "stripe",
+      existingPaymentProvider: "stripe",
     });
     expect(html).toContain("Changing your domain changes your payment webhook");
     expect(html).toContain('href="/admin/settings#settings-stripe"');
@@ -130,7 +130,7 @@ describe("adminAdvancedSettingsPage", () => {
       ...advancedDefaultState,
       bunnyCdnEnabled: true,
       bunnyDnsEnabled: true,
-      paymentProvider: "sumup",
+      existingPaymentProvider: "sumup",
     });
     expect(html).not.toContain(
       "Changing your domain changes your payment webhook",

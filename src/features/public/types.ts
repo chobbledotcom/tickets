@@ -2,6 +2,7 @@
  * Shared types, constants, and tiny utilities for public ticket routes
  */
 
+import type { CartDateItem } from "#shared/booking/cart-conflicts.ts";
 import type {
   ChildDatesByDayCount,
   TicketListing,
@@ -32,6 +33,9 @@ export type ChildrenByParentId = Map<number, TicketListing[]>;
 /** Ticket shared context shape */
 export type TicketSharedContext = {
   dates: string[];
+  /** Each daily listing's own bookable dates — the facts the render-time cart
+   * conflict rules read (see `#shared/booking/cart-conflicts.ts`). */
+  cartDateItems: CartDateItem[];
   terms: string;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap;

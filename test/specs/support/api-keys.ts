@@ -11,6 +11,7 @@ import { handleRequest } from "#routes";
 import {
   findsTheWayInFrom,
   openAdminPage,
+  opensListAtRow,
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
@@ -30,7 +31,7 @@ import type { TestBrowser } from "#test-utils/test-browser.ts";
 const KEYS_PAGE = "/admin/api-keys";
 
 /** A link into one key from the owner's own list. */
-const KEY_LINK = /^\/admin\/api-keys\/\d+$/;
+const KEY_LINK = /^\/admin\/api-keys\/(\d+)$/;
 
 /** What another system asks the site for. Reading back what is on sale is the
  * plainest thing a key is for, and needs nothing set up beyond a listing. */
@@ -154,17 +155,12 @@ export const askedToSendOwnerForm: AsksForOwnerPage = asksForOwnerPage({
   method: "POST",
 });
 
-/** The owner takes a key back, typing the name the page asks for. Keeps what
- * they were told, because typing it wrongly is meant to change nothing. */
+/** The owner takes a key back, typing the name the page asks for. The key is
+ * found on its own row of the owner's list, by the name they gave it, so a
+ * list of several takes back the right one. Keeps what they were told, because
+ * typing it wrongly is meant to change nothing. */
 export const ownerTakesBackKey: TakesOneThingDown = takesDownFromList(
-  // The key the owner asked for, by the name they gave it, so a list of
-  // several takes back the right one.
-  findsTheWayInFrom(
-    async (world) => ({ browser: await openKeysPage(world) }),
-    (_row, name) =>
-      ({ href, text }) =>
-        KEY_LINK.test(href) && text === name,
-  ),
+  findsTheWayInFrom(opensListAtRow(KEYS_PAGE, KEY_LINK)),
   {
     deleteLinkKey: "api_keys.delete_submit",
     submitKey: "api_keys.delete_submit",

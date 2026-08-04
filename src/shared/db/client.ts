@@ -771,6 +771,18 @@ export const useTransaction = <T>(
   transaction === undefined ? withTransaction(work) : work(transaction);
 
 /**
+ * Run a write that ends in `RETURNING` and read back the row it wrote. A
+ * write that returns no row means nothing was written — fail there, loudly.
+ */
+export const executeReturningRow = async <T>(
+  ...[sql, args]: SqlWithArgs
+): Promise<T> => {
+  const row = firstRowOrNull<T>(await execute(sql, args));
+  if (row === null) throw new Error(`Write returned no row: ${sql}`);
+  return row;
+};
+
+/**
  * The key of the row an `INSERT … RETURNING` wrote, read from the row itself
  * rather than from the driver's optional `lastInsertRowid`. Every generated key
  * is a positive integer, so anything else means nothing downstream can be keyed

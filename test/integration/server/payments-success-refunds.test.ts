@@ -29,6 +29,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 500,
+          currency: "gbp",
           id: "cs_multi_notfound",
           metadata: {
             email: "missing@example.com",
@@ -79,6 +81,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
+          currency: "gbp",
           id: "cs_stale_hidden_multi",
           metadata: signMeta(
             {
@@ -141,6 +144,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
+          currency: "gbp",
           id: "cs_stale_pkg_group",
           metadata: signMeta(
             {
@@ -193,6 +197,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 500,
+          currency: "gbp",
           id: "cs_multi_inactive",
           metadata: signMeta(
             {
@@ -240,6 +245,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
+          currency: "gbp",
           id: "cs_refund_fail",
           metadata: signMeta(
             {
@@ -321,6 +327,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1500,
+          currency: "gbp",
           id: "cs_multi_rollback",
           metadata: signMeta(
             {

@@ -2,6 +2,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getNotesFor } from "#shared/db/notes/queries.ts";
+import { attendeeNotes } from "#shared/db/notes/target.ts";
 import { settings } from "#shared/db/settings.ts";
 import { paymentsApi } from "#shared/payments.ts";
 // jscpd:ignore-end
@@ -17,6 +19,7 @@ import {
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   bookAttendee,
@@ -247,6 +250,16 @@ describeWithEnv(
         );
         expectFlash(response, expect.stringContaining("refunded"));
         expect(refundCheckArgs).toEqual(["pi_refresh_refund"]);
+        // The "no manual refund needed" note belongs to a quantity-0
+        // placeholder only. A normal booking has sale legs as well as payment
+        // legs, so it must not pick up the placeholder's note.
+        const notes = await getNotesFor(
+          attendeeNotes(attendee.id),
+          await getTestPrivateKey(),
+        );
+        expect(
+          notes.some((note) => note.note.includes("Refund confirmed")),
+        ).toBe(false);
       });
 
       test("surfaces a Stripe refund the ledger could not record", async () => {

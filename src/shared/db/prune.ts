@@ -89,9 +89,12 @@ const pruneStatements = (): PruneStatement[] => [
   boundedDelete("sessions", "expires < ?", [
     nowMs() - PRUNE_SESSIONS_RETENTION_MS,
   ]),
+  // Both arms compare against the same cutoff, bound once as ?1; the builder's
+  // unnumbered LIMIT ? continues after the highest number, so it reads ?2.
   boundedDelete(
     "login_attempts",
-    "locked_until IS NOT NULL AND locked_until < ?",
+    `(locked_until IS NOT NULL AND locked_until < ?1)
+        OR (locked_until IS NULL AND last_attempt < ?1)`,
     [nowMs() - PRUNE_LOGINS_RETENTION_MS],
   ),
   boundedDelete("token_attempts", "last_attempt < ?", [

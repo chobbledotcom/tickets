@@ -11,7 +11,10 @@ import * as v from "valibot";
 import type { ListingAnswerRefs } from "#shared/booking-intent.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
+import { existingPaymentProviderState } from "#shared/existing-payment-provider.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { Currency } from "#shared/payment/money.ts";
+import type { SessionRejection } from "#shared/payment/validated-session.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -194,8 +197,14 @@ export type ValidatedPaymentSession = {
   id: string;
   paymentStatus: PaymentStatus;
   paymentReference: string;
-  /** Total amount charged in smallest currency unit (cents), from the payment provider */
+  /** Total amount charged in smallest currency unit (cents), from the payment provider.
+   *  Validated at the provider boundary alongside its currency, so a malformed
+   *  amount never reaches a callback. */
   amountTotal: number;
+  /** The three-letter currency the provider charged in. The callbacks refuse a
+   *  charge in any currency other than the site's — it cannot be honored at the
+   *  signed total — by treating it as a price mismatch. */
+  currency: Currency;
   metadata: SessionMetadata;
   /**
    * When the provider created this checkout, in the ledger's canonical ISO 8601
@@ -284,17 +293,27 @@ export interface PaymentProvider {
    * event structure, so the webhook handler stays provider-agnostic.
    *
    * @returns the session, "skip" if the event should be acknowledged
-   *          without processing (e.g. pending payment), or null on error.
+   *          without processing (e.g. pending payment), a rejection when the
+   *          provider reported a paid charge the boundary could not read, or
+   *          null on error.
    */
   resolveWebhookSession(
     listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null>;
+  ): Promise<ValidatedPaymentSession | "skip" | SessionRejection | null>;
 
   /**
    * Retrieve and validate a completed checkout session by ID.
-   * Returns the validated session or null if not found / invalid.
+   * Returns the validated session, a rejection when the provider reported a
+   * paid charge the boundary could not read, or null if not found.
+   *
+   * `paidPaymentId` is a payment the caller has already been told is complete —
+   * a webhook has one, a redirect does not. A provider whose session lags
+   * behind the payment uses it so a captured charge is not read as unpaid.
    */
-  retrieveSession(sessionId: string): Promise<ValidatedPaymentSession | null>;
+  retrieveSession(
+    sessionId: string,
+    paidPaymentId?: string,
+  ): Promise<ValidatedPaymentSession | SessionRejection | null>;
 
   /**
    * Set up a webhook endpoint for this provider.
@@ -335,14 +354,38 @@ const providerLoaders: Record<
     (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
 };
 
-export const getActivePaymentProvider =
-  async (): Promise<PaymentProvider | null> => {
-    const providerType = paymentsApi.getConfiguredProvider();
-    if (!providerType) {
-      logDebug("Payment", "No payment provider configured in settings");
-      return null;
-    }
+/** Resolve a provider type and lazy-load its implementation. */
+const resolveProvider = async (
+  resolveType: () => PaymentProviderType | null,
+  label: string,
+  onMissing?: () => void,
+): Promise<PaymentProvider | null> => {
+  const providerType = resolveType();
+  if (!providerType) {
+    onMissing?.();
+    return null;
+  }
+  logDebug("Payment", `Resolving payment provider${label}: ${providerType}`);
+  return providerLoaders[providerType]();
+};
 
-    logDebug("Payment", `Resolving payment provider: ${providerType}`);
-    return await providerLoaders[providerType]();
-  };
+export const getActivePaymentProvider = (): Promise<PaymentProvider | null> =>
+  resolveProvider(paymentsApi.getConfiguredProvider, "", () =>
+    logDebug("Payment", "No payment provider configured in settings"),
+  );
+
+/** Provider implementation for work on an existing payment. */
+export type ExistingPaymentProvider = PaymentProvider | null;
+
+/**
+ * Resolve the provider for refunds, callbacks, and completion of payments that
+ * already exist. New sales use {@link getActivePaymentProvider}.
+ */
+export const getPaymentProviderForExistingPayments =
+  (): Promise<ExistingPaymentProvider> =>
+    resolveProvider(
+      () =>
+        existingPaymentProviderState(paymentsApi.getConfiguredProvider())
+          .provider,
+      " for existing payments",
+    );

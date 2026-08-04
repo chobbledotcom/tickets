@@ -258,8 +258,6 @@ describe("db > client transient upstream retry", () => {
   }
 
   test("a write batch without cache invalidation is not retried on a 504", async () => {
-    // It holds writes (script-version markers); a 5xx may have committed
-    // before the gateway timed out, so it never retries upstream errors.
     let attempts = 0;
     setDb(
       clientWithBatch(() => {

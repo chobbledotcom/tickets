@@ -1,5 +1,29 @@
 # TODO — remaining follow-ups
 
+## Numbered SQL parameters — adopt the pattern beyond the limiters (from PR #2040)
+
+PR #2040 rewrote the two rate-limiter upserts (`src/shared/db/login-attempts.ts`,
+`src/shared/db/token-attempts.ts`) to use SQLite's numbered parameters
+(`?1`..`?6`), with each number given a named fragment constant (`NOW`,
+`TOKEN_LIMIT`, …) that the SQL template interpolates. That turned a 25-slot
+repeated positional args array into one value per meaning. Follow-ups:
+
+- **Sweep other multi-use statements.** Any statement that binds the same value
+  more than once is a candidate — look for args arrays that repeat a variable
+  (e.g. correlated subqueries in `src/shared/db/prune.ts` whose cutoff is bound
+  twice, and the bigger hand-built statements under `src/shared/db/`). Plain
+  single-use `?` statements are fine as they are.
+- **Consider a small define-style helper.** Something like
+  `defineStatement({ ip: v.string(), now: v.number() }, (p) => sql\`... ${p.ip}
+  ...\`)` could hand back `{ sql, bind({ip, now}) }` so the parameter order
+  lives in one place and callers pass an object instead of an ordered array —
+  the same schema-first shape as `defineTable`/`defineForm`. Only worth it if
+  the sweep finds enough call sites; two files may not justify the machinery.
+- Starting point: the fragment-constant pattern at the top of
+  `src/shared/db/token-attempts.ts`.
+
+---
+
 This file tracks work that was planned but **not yet done** when the root-level
 planning/design docs were retired (they had served their purpose once the bulk
 of each feature shipped). Each section is written to stand on its own — you
@@ -39,15 +63,6 @@ current trust model. They assume Bunny Edge remains the production runtime,
 site owners are trusted with their own content and integrations, and deployment
 operators own the risk of choosing deliberately hostile third-party endpoints.
 
-- **Make rate-limit writes atomic and bounded.** `src/shared/db/login-attempts.ts`
-  and `src/shared/db/token-attempts.ts` update shared rows with read-then-write
-  sequences, so concurrent attempts can lose increments, and below-threshold
-  rows are not pruned. Fold the login, API-key, booking, address-lookup, and
-  token limiters onto one atomic update/prune shape, with regression tests that
-  drive concurrent attempts. (The expired-lockout cleanup race in
-  `src/shared/db/attempt-lockout.ts` is fixed: the delete is conditional on the
-  observed `locked_until`, so a fresh lockout survives cleanup —
-  `test/shared/db/attempt-lockout.test.ts` proves it.)
 - **Preserve the client IP in production request scopes.** `src/edge.ts`,
   `src/deploy.ts`, and `src/serve-app.ts` should carry the platform connection
   context into the shared request handler so production rate limits do not fall
@@ -456,6 +471,74 @@ they are. Nothing further planned here.
 
 ---
 
+## Payment-processing review follow-ups (from PR #1692)
+
+Both items describe behaviour that predates the payment-processing split (the
+code was moved verbatim from the old `payment-processing.ts` monolith). They are
+recorded here because the split PR was a pure reorganisation — changing this
+behaviour there would be out of scope — and CodeRabbit flagged them as worth a
+look.
+
+- **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
+  `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
+  `validateAllItems` calls `getListingWithCount` once per item in a loop, and
+  `loadPackagePricingByGroup` makes two sequential round-trips per group. Under
+  the edge subrequest budget these accumulate for larger orders. Fix direction:
+  add/use a batched `getListingsWithCount(ids)` for all order listing ids at once
+  and group the package-pricing loads, preserving the existing validation and
+  fail-closed behaviour. See the "Respect the subrequest budget" guidance in
+  AGENTS.md.
+
+## Payment aggregate — safety behaviour (PR 1)
+
+New sales and existing payments are now resolved by different questions:
+`getActivePaymentProvider()` / `isPaymentsEnabled()` gate new checkouts;
+`getPaymentProviderForExistingPayments()` resolves refunds, replayed
+callbacks, and completion. When sales are off, the existing-payment path
+falls back to the last activated provider. A site already on `none`
+recovers when exactly one provider has stored credentials; when multiple
+do, the operator must choose the provider in a recovery form that keeps new
+sales off. `setPaymentProviderNone` reads the
+current provider via an atomic INSERT ... SELECT subquery so a concurrent
+activation cannot land between the read and the write.
+
+The seven accepted safety rules are recorded as acceptance constraints in
+[`docs/payment-aggregate-acceptance.md`](docs/payment-aggregate-acceptance.md).
+
+- **Track the provider each charge was captured with.** `main` stores only the
+  opaque `payment_reference` per processed payment, not which provider captured
+  it. So after an operator switches providers (Stripe → Square) and then selects
+  "none", the last-active fallback resolves every payment through Square, and
+  an older Stripe charge cannot be refunded or reconciled against the provider
+  that captured it. This predates PR 1 and is future aggregate work. Fix
+  direction: store the provider type on each `processed_payments` row at capture
+  time and dispatch existing-payment work from that per-charge provider instead
+  of one global fallback. Referenced from
+  `docs/payment-aggregate-acceptance.md` rule 2.
+
+- **Split payment-provider persistence out of `src/shared/db/settings.ts`.**
+  Review of PR 1 correctly noted that the settings assembly is already over the
+  preferred 400-line size and now also owns provider activation, recovery,
+  credential-state preservation, and cache synchronization. The clean starting
+  point is `src/shared/db/settings/payment-provider.ts`, moving the provider
+  getters and `settings.update` methods together with mirror tests under
+  `test/shared/db/settings/payment-provider/`. This is deferred because that
+  extraction would take PR 1 beyond its strict 800-line source-change limit.
+
+- **Split provider credential routes out of
+  `src/features/admin/settings-helpers.ts`.** The generic helper now also owns
+  `ProviderCredentialsConfig`, `persistProviderCredentials`, and
+  `defineProviderCredentialsRoute`. Move that block to a focused admin settings
+  module and move its mirror tests from
+  `test/features/admin/settings-helpers/provider-credentials.test.ts` with it.
+  This is deferred because doing the move in PR 1 would break the same strict
+  800-line source-change limit.
+
+- **Split `src/features/api/webhooks.ts` below 400 lines.** Move the payment
+  callback and webhook processing paths into focused modules. This predates PR
+  1 and is deferred because the split would exceed its strict source-change
+  limit.
+
 ## Request performance: consolidate AsyncLocalStorage scopes
 
 `src/features/app/request.ts` enters eleven nested request scopes for locale, client
@@ -583,13 +666,11 @@ bug (harmless today because of the multiplier workaround).*
   the manual-adjustment page straight from that flash and frame it as "one more
   step", not an error.
 
-- **A multi-item cart with no shared date/length dies silently.**
-  `dayCountsEveryListingSupports` / `computeSharedDates` (`src/shared/booking/
-  model.ts`, `src/features/public/ticket-payment.ts`) leave the buyer with a bare
-  "No dates/booking lengths are currently available" when two items simply share
-  no common date or duration — undiagnosable mid-checkout. Fix: detect the
-  empty-intersection case and name the conflicting items ("these don't share a
-  common date — book them separately"). Highest buyer-facing value.
+- ~~**A multi-item cart with no shared date/length dies silently.**~~ **Done.**
+  `src/shared/booking/cart-conflicts.ts` names the clashing items on the ticket
+  page — an item with no dates at all, items whose dates never overlap, and
+  items with no shared booking length — and tells the buyer to book them
+  separately. (See "The shared reasons shape" section below.)
 
 - **A manager hits a bare "Forbidden" on owner-only pages.** `src/features/
   auth.ts` (~line 462) returns plain text for users/statuses/bulk-email/settings.
@@ -663,54 +744,43 @@ bug (harmless today because of the multiplier workaround).*
 
 ---
 
-## Design note: a shared "reasons" shape for validation failures
+## The shared "reasons" shape for validation failures — shipped
 
-*Origin: reviewing the package-restriction work (PR #1770). The recurring shape
-is "reject if any of N reasons holds, tell the user WHICH, sometimes list ALL"
-— e.g. `packageMemberBlock`, `packageChildEdgeConflict`, `groupListingTypeError`,
-the listing-input `?? next` chain. Worth writing down where this could go before
-it sprawls into an over-built framework.*
+*Origin: reviewing the package-restriction work (PR #1770); built once the
+collect-all need (the multi-item "no shared date" diagnostic) arrived.*
 
-**What already exists (don't rebuild it):**
-- **i18n keys ARE de-facto error codes.** ~113 `error.*` keys in
-  `src/locales/en/errors.json` are stable machine identifiers already decoupled
-  from any one rendering. A "new error-code system" would mostly re-label these.
-- **Declarative first-match rule tables** already appear twice:
-  `EDGE_ERROR_RULES` (`src/shared/listing-parents-rules.ts` — a
-  `readonly EdgeRule[]` matched with `.find(r => r.rejects(a,b))?.error(...)`)
-  and `CAPACITY_RULES` (`src/shared/capacity-rules.ts`). `packageMemberBlock`
-  (this PR) is a third, hand-rolled instance of the same idea.
-- **Sentry is for the *unexpected* only.** Validation failures never reach it
-  today, which is correct — an operator picking an invalid combo is not a bug,
-  and routing every "you can't do that" to Sentry would bury real incidents.
+What shipped:
 
-**What a slick version is — and, honestly, mostly ISN'T worth building here:**
-- **NOT worth it:** a global error-code registry/enum, per-code guide deep-links,
-  or converting every fail-fast validator to collect-all. That is a large
-  cross-cutting refactor whose value this app's size doesn't justify, and
-  collect-all is often *worse* UX (fix-one-resubmit beats a wall of ten errors).
-  Fail-fast is a feature, not a limitation, for most forms.
-- **Worth it, but only when a real need pulls it (do not do speculatively):**
-  1. **One `reasons` combinator.** A tiny `Rule<T> = { code; when(x): boolean;
-     message(x): string }` list with two runners — `firstReason(rules)(x)` and
-     `allReasons(rules)(x)` — so a call site picks fail-fast vs list-everything
-     from ONE rule definition. `EDGE_ERROR_RULES`/`CAPACITY_RULES`/
-     `packageMemberBlock` would converge on it. Extract on the *third* real
-     collect-all need, not before (two tables sharing a shape is not yet a
-     framework).
-  2. **A `kind` on each error: `user_error` vs `invariant_violation`.** This is
-     the one with actual operational payoff and it's small. Most `error.*` keys
-     are `user_error` (stay out of Sentry). A handful are "should never happen,
-     an operator must act" — `error.refund_not_recorded` (refunded at the
-     provider but not recorded in the ledger — `attendee-refunds.ts`,
-     `attendees-edit.ts`) is the exemplar. Tag those `invariant_violation` and
-     route only them to Sentry (breadcrumb + alert), so the money-integrity
-     cases surface without drowning in expected validation noise.
+- **The combinator.** `src/shared/reasons.ts`: a `Reason` answers with the
+  message to show or null, and one rule list serves both runners —
+  `firstReason` (fail-fast; list order is precedence) and `allReasons`
+  (name every problem at once).
+- **The converged tables.** The parent/child edge rules
+  (`src/shared/listing-parents-rules.ts`), the package member rules
+  (`src/shared/package-membership.ts` — messages render inside the rules, so
+  the separate block-code layer is gone), and the group homogeneity rules
+  (`groupListingTypeError` in `src/shared/db/groups.ts`). `CAPACITY_RULES`
+  deliberately did NOT converge: it classifies which checks apply, it does not
+  refuse with a message — a genuinely different shape.
+- **The `kind` tag, as a reporter.** `reportInvariant`
+  (`src/shared/invariant-errors.ts`) renders an operator-facing flash whose
+  message means a system promise broke AND reports it through `logError`'s
+  existing fan-out (console, ntfy, activity log, Sentry) under
+  `E_INVARIANT_REPORTED`. `error.refund_not_recorded` is the first tagged key;
+  tag a new key only when the flash means "repair the data by hand".
+- **The first collect-all consumer.** `src/shared/booking/cart-conflicts.ts` +
+  the ticket page name the clashing items when a multi-item page has no shared
+  date or booking length (was: a bare "No dates are currently available").
 
-**Recommended first step, if any:** just the `kind` tag on the ~2-3 invariant
-errors + a single Sentry breadcrumb at the flash boundary. Skip the combinator
-until a real collect-all site (e.g. the multi-item-checkout "no shared date"
-diagnostic above) makes it pay for itself.
+Still correct, unchanged: i18n keys ARE the error codes (no registry needed);
+fail-fast stays the default for forms — `allReasons` is only for surfaces that
+must name every problem at once; ordinary validation failures stay out of
+Sentry.
+
+Follow-ups this mechanism now makes cheap (each is a rule row + a surface, see
+the restrictions audit above): greying out incompatible listings in the add-
+listings picker, the two either/or disabled-control pairs, surfacing the
+child-duration clash at save time, and the chooser own-cap warning.
 
 ## Deferred Codex suggestions from PR #1975 (API documentation examples)
 
@@ -951,15 +1021,13 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   (`src/features/api/payment-processing/items.ts`) reads every order line's
   listing in one batch instead of one call per line.
   `getPackageDisplaysByIds` was already a single query.
-- **Registration logs and outgoing webhooks.** `logAndNotifyRegistration` and
-  `sendRegistrationWebhooks` in `src/shared/webhook.ts` can insert one activity
-  row per booking, load two overrides per package, and fetch every distinct
-  webhook URL. Add one bulk log insert and one batched override read
-  (`loadPackageOverrides` can call `loadPackageMemberPricingByGroupIds`, which
-  now exists). Persist outbound webhook jobs for bounded out-of-band delivery.
-  Budget for the test work: `src/shared/webhook.ts` has about twenty surviving
-  mutants today, and the mutation gate demands they all die once the file is
-  touched.
+- **Outgoing webhook fan-out.** The database side is done:
+  `logAndNotifyRegistration` writes every booking's activity row in one batch
+  (`logActivities`), and `loadPackageOverrides` prices every booked package in
+  one batch. What remains is the sending: `sendRegistrationWebhooks` still
+  fetches every distinct webhook URL in the request, so an order spanning many
+  listings with different URLs can still run out of Bunny's external-request
+  budget. Persist outbound webhook jobs and deliver them out of band.
 - **Multi-entry check-in.** `handleCheckinPost` in
   `src/features/checkin.ts` calls `updateCheckedIn` once per eligible booking
   line. A token set with 51 lines therefore makes 51 updates. Replace it with
@@ -1534,6 +1602,30 @@ even though the starter did try the number of times it was asked to. Handing out
 ports so no two tests can receive the same one would fix this too; short of that,
 the count is the wrong thing to measure.
 
+## The Turso upload suite sometimes dies with no diagnostic at all
+
+*Origin: CI on PR #2039, a branch that touches nothing this suite uses. It
+then reproduced locally under a full `deno task test:coverage` run, while
+passing many consecutive standalone runs — it needs a loaded machine.*
+
+`test/scripts/turso-migration-file.test.ts` fails as `fail Turso migration
+file — at unknown location — No TAP diagnostic was emitted for this
+failure.` The first five cases pass and the rest never report, so the whole
+describe dies between cases rather than an assertion failing.
+
+The suspect is the watch in `sendDatabaseFile`
+(`scripts/turso-migration-file.ts`). When a server answers before the whole
+body is sent, Deno's node:http polyfill rejects an internal task nobody
+awaits (`Failed to fetch: request body stream errored`), and
+`watchPolyfillBodyStreamDefect` swallows that duplicate while the upload is
+in flight. The watch stands down one `setTimeout(0)` after the upload
+settles — its own comment admits this is a guess about when the duplicate
+surfaces. On a loaded machine the internal rejection can land *after* that
+one timer turn, and an unhandled rejection between cases is exactly "no
+diagnostic, unknown location". A fix wants a deterministic stand-down —
+e.g. hold the watch until the request's own `close` says its internals are
+done — proven by a test that forces the late rejection, not by timing luck.
+
 ---
 
 ## Four feature modules had no test at their mirrored path — now they do
@@ -1661,6 +1753,102 @@ Note that the id that made this reachable in the first place is now checked at
 the insert (`insertedRowId` in `src/shared/db/client.ts`), so this is about the
 answer given for a failure that should no longer happen — not a live fault.
 
+## Record a foreign-currency charge in the money history without pretending it is ours
+
+*Origin: Codex review on PR #2021, which sent a charge taken in the wrong
+currency down the existing mismatch-and-refund path.*
+
+The money history holds one currency — the site's. When a charge arrives in a
+different one, `classify.ts` sends it through the ordinary mismatch flow, and
+`storeRefundPlaceholder` in
+`src/features/api/payment-processing/store-refund.ts` writes
+`session.amountTotal` straight into that history. The number is right but the
+currency is not, so a 1,000 yen charge on a pounds site is filed as £10. The
+refund itself is unaffected — that goes back through the provider in the
+currency it was taken — but the operator's cash history reads wrong, and if the
+refund fails it names the wrong amount as still held.
+
+Two ways out: give the money history a currency of its own so a foreign charge
+can be filed honestly, or keep these charges out of it and record them
+somewhere that does not claim a site-currency total.
+
+Why it is not fixed in that PR: either way changes what the money history can
+hold — a stored currency per entry, plus every reader and every total that
+today assumes one currency. That is a change to the accounting store, well
+past a PR about reading provider money safely, and the wrong thing to bolt on
+without deciding which of the two shapes we want.
+
+## Record a rejected-and-refunded payment session as finished
+
+*Origin: Codex review on PR #2021, which added the automatic refund for a paid
+charge the payment boundary cannot read.*
+
+When a provider callback meets a `malformed_charge` rejection and refunds it,
+nothing durable is written down. No reservation, no processed-payment row, no
+ledger entry says "this session was refused and the money went back". The
+webhook simply acknowledges and moves on
+(`refundRejectedCharge` in `src/features/api/payment-processing/refunds.ts`, and
+its callers in `src/features/api/webhooks.ts` and
+`src/features/api/payment-processing/classify.ts`).
+
+The reviewer's concern is that a later delivery of the same session — a webhook
+redelivery, or the buyer opening the success page — could read it in a
+well-formed shape, still see it as paid, find no record of it, and make a real
+ticket for money that was already returned.
+
+Why it is not being fixed in that PR: every rejection reason is a fixed
+property of the provider's own stored record (an amount that is not a whole
+number of minor units, a missing or malformed currency, a SumUp amount more
+precise than its currency allows). None of those can turn well-formed on a
+later read, so the double-book needs a provider changing a completed session's
+money — which no provider does. The refund itself is already safe to repeat:
+`tryRefund` treats a provider's "already fully refunded" answer as success.
+
+If it is taken on: carry the session id in `SessionRejection`
+(`src/shared/payment/validated-session.ts`), and finish the session through the
+same state machine a normal payment uses — `reserveSession` /
+`processed-payments` in `src/shared/db/processed-payments.ts` — with a terminal
+"refused and refunded" outcome, so a later delivery of that session id short
+circuits the way an already-processed payment does.
+
+## Tell a buyer when their money was taken and not (yet) given back
+
+*Origin: Codex review on PR #2021, which added the "your money has been sent
+back" page for a charge the payment boundary refused and refunded.*
+
+That page is only shown when the refund actually went through. Three other
+outcomes still fall back to "Payment session not found", and in each of them the
+buyer really was charged:
+
+- A `blank_reference` rejection: the provider says paid but gave no reference,
+  so no automatic refund is possible at all. They should be asked to get in
+  touch.
+- A `malformed_charge` rejection that is paid but whose reference is unusable —
+  the same situation, reached a different way (`refundable` is
+  `paid && isResourceId(...)`, and the `paid` half is discarded today).
+- A refund the provider refused (`settled: false`, answered 503). Careful here:
+  a 503 only asks the *webhook* to be delivered again. The redirect and cancel
+  paths have no retry behind them — they re-attempt only if that person happens
+  to reload the page. So this outcome must not be described to the buyer as
+  being in hand until an unresolved refund is actually written down somewhere
+  and owned by something that will retry it. Recording that state is part of
+  this job, not a follow-up to it, and it overlaps with the durable terminal
+  outcome described in the section above.
+
+A fourth case should keep the generic message: a rejection whose price proof
+does not verify may belong to another site sharing the provider account, and we
+must not tell someone else's buyer anything about their payment.
+
+What it needs: `SessionRejection` carries whether the charge was paid (see
+`malformedChargeRejection` in `src/shared/payment/validated-session.ts`, which
+computes `refundable` from it and drops it), `RejectionOutcome` in
+`src/features/api/payment-processing/refunds.ts` grows a third state for
+"captured, not returned", and `answerRejectedSession` picks between two new
+catalog entries beside `payment.error.refunded` in
+`src/locales/en/payment.json`.
+
+Not done in that PR only because it was at its agreed `src/` line budget; there
+is nothing hard about it.
 ## Record equivalent mutants by something that survives an edit
 
 *Origin: two breakages on PR #2025, both caught by review rather than by any
@@ -1693,104 +1881,3 @@ Two directions, either of which would help:
   assuming it is.
 
 The first is the real fix; the second would catch the next one either way.
-
-## Split the form-control rules into files about one thing each
-
-*Origin: Codex review on PR #2025. Attempted on that branch and backed out —
-see below.*
-
-`test/specs/support/form-controls.ts` is 478 lines, over the ~400 the repo
-asks for, and holds four separate jobs:
-
-- reading a page's attributes (`attribute`, `hasFlag`, `usableInputsOfKind`)
-- what a page offers (`chooserFor`, `boxFor`, `choicesOffered`, the checkbox
-  and question readers)
-- why a value could not be sent (`whyValueCannotBeSent` and the rules under
-  it, plus the insisted-control machinery)
-- the story-facing helpers (`fillInAndSend`, `takeDownFromActions`)
-
-The first three are pure and the last does the sending, so the natural shape
-is `form-controls/reading.ts`, `form-controls/rules.ts`, and a thin
-`form-controls.ts` — the same split already done for `test-browser.ts`.
-
-The churn is smaller than it looks: `fillInAndSend` has 15 importers and stays
-put, and every reader that would move has between one and five
-(`checkboxValueOffered` 5, `tickedCheckboxes` 4, `whyValueCannotBeSent` 3,
-`requireCheckboxOffered` 2, `choicesOffered`/`optionsOffered` 1 each). So
-about a dozen import lines change. Do not add a re-export layer in
-`form-controls.ts` to avoid touching them — that is the alias-export smell the
-repo rules out; point each caller at the file that owns what it uses.
-
-**Why it was backed out:** attempted by slicing the file on line ranges, which
-produced an unterminated comment, duplicated imports and several unresolved
-symbols. Reverted rather than pushed half-done. Whoever picks this up should
-move whole declarations (or use an editor that understands the syntax) rather
-than cutting on line numbers, and lean on `deno task precommit` — the 214
-specs and the coverage gate both exercise this module hard.
-
-## A form found by its words alone can be sent with no button to press
-
-*Origin: Codex review on PR #2025. Real, and deliberately left for its own
-change — see the sweep below.*
-
-`findFormByButton` picks a form when the button's words appear anywhere in its
-body, then asks `buttonToPress` for the button. When no button matches but the
-words do, `buttonToPress` returns `{}` — "no button with that text at all" —
-and the form is submitted anyway, with no button data.
-
-That is on purpose for forms found by their body text, and plenty are. But it
-means a form whose button is *removed* still submits if the words survive
-elsewhere in it. Site-page deletion is exactly that shape: the heading and the
-button both say "Delete Page", so deleting the button leaves the heading, and
-the story goes on deleting pages the owner has no control to delete.
-
-The fix is not one line. Refusing every no-button case would break every story
-that legitimately finds its form by body text, so the change is to tell those
-two situations apart — probably by having the caller say which it expects, or
-by only allowing the body-text match when the form has no buttons at all.
-Either way it needs a sweep of all 215 scenarios to see which rely on which.
-
-## An arrow is found across the whole page, not on its own row
-
-*Origin: Codex review on PR #2025, raised twice. The second raise carried a
-case the first did not, which is why it is here rather than declined.*
-
-`canMove`/`move` in `test/specs/support/reordering.ts` look for a row's
-`/id/move-up` address anywhere on the page. If that form is rendered against
-the wrong row — present, but beside a different item — the story still submits
-it and passes, while the organiser looking at the named row sees no arrow.
-
-My first answer to this was that a positive scenario would catch an address
-convention changing, which is true but only covers one defect. A form
-*relocated* to another row keeps every address the template tests assert, so
-nothing catches it.
-
-Closing it means attributing controls to rows: parse the list into rows and ask
-what each row offers, rather than searching the page. `openAtState` in
-`statuses.ts` already holds the matched row, so the shape exists — the work is
-giving the shared reordering helper the same scope, for every list that uses it
-(states, site pages).
-
-### The way *into* a row is found the same way
-
-*Origin: a third Codex raise, on PR #2025, against `findsTheWayInFrom`.*
-
-`findsTheWayInFrom` in `test/specs/support/browser.ts` searches
-`row.browser.links` — every link on the page, not the matched row's. Its three
-callers all match on something a sibling row could carry:
-
-| Caller | What it matches | Its `openAt` gives |
-| --- | --- | --- |
-| `statuses.ts` | `href === /statuses/{id}` | the row's markup |
-| `site-pages.ts` | `href` matching `/pages/{id}` | the row's markup |
-| `api-keys.ts` | link text plus an address pattern | no row at all |
-
-Same defect as the arrow above: a link rendered against the wrong row still
-satisfies the search, so a deletion journey passes while the person looking at
-that row has no way in.
-
-Do it with the arrow, not before it. Two of the three callers already hold the
-matched row, but `api-keys.ts` has no row concept yet, so a real fix has to give
-every list the row-parsing shape — which is the same mechanism the arrow needs.
-Fixing the two that are easy would leave a helper whose scoping depends on which
-caller you came from, which is worse than the page-wide search it replaced.

@@ -15,13 +15,15 @@ import {
   findsTheWayInFrom,
   ORGANISER,
   openAdminPage,
+  opensListAtRow,
   type TakesOneThingDown,
   takesDownFromList,
 } from "#test/specs/support/browser.ts";
 import {
   checkboxValueOffered,
-  fillInAndSend,
-} from "#test/specs/support/form-controls.ts";
+  rowsOnList,
+} from "#test/specs/support/form-controls/reading.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import { movingRowsOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
@@ -30,7 +32,6 @@ import {
   type ReadAboutOneThing,
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
-import { decodeEntities } from "#test-utils/test-browser/parsing.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 // jscpd:ignore-end
@@ -69,54 +70,19 @@ const theJob = (job: string): { badge: string; box: string } => {
 const openList = (world: TicketsWorld): Promise<TestBrowser> =>
   openAdminPage(world, THE_LIST);
 
-/** One row of the list as the organiser sees it: the state's name, the number
- * the site files it under, and the markup of the row it sits in — so a badge
- * on somebody else's row is never read as this one's. */
-interface StateOnList {
-  id: number;
-  name: string;
-  row: string;
-}
-
-const statesOnList = (html: string): StateOnList[] => {
-  const intoOne = new RegExp(`href="${THE_LIST}/(\\d+)"[^>]*>([^<]+)<`);
-  const rows: StateOnList[] = [];
-  for (const row of html.split("<tr").slice(1)) {
-    const into = row.match(intoOne);
-    // The name comes back as the page spells it, so "&amp;" is read as the "&"
-    // the organiser typed — otherwise a state they can see could not be found.
-    if (into) {
-      rows.push({
-        id: Number(into[1]),
-        name: decodeEntities(into[2]!).trim(),
-        row,
-      });
-    }
-  }
-  return rows;
-};
+/** What the link into one state's own row looks like: the list's own address
+ * with the state's number on the end. */
+const INTO_ONE = new RegExp(`^${THE_LIST}/(\\d+)$`);
 
 /** Every state the list offers, in the order it shows them. */
 export const statesOffered = async (world: TicketsWorld): Promise<string[]> =>
-  statesOnList((await openList(world)).currentHtml).map(({ name }) => name);
-
-/** The list open at one state's own row: the page in front of the organiser
- * and everything the list says about that state. */
-type OpensAtOneState = (
-  world: TicketsWorld,
-  name: string,
-) => Promise<StateOnList & { browser: TestBrowser }>;
+  rowsOnList((await openList(world)).currentHtml, INTO_ONE).map(
+    ({ name }) => name,
+  );
 
 /** The list open at one state's own row, or a loud failure — a story that
  * carried on would act on the wrong row, or on none. */
-const openAtState: OpensAtOneState = async (world, name) => {
-  const browser = await openList(world);
-  const found = statesOnList(browser.currentHtml).find(
-    (state) => state.name === name,
-  );
-  if (!found) throw new Error(`The list offers no state called "${name}"`);
-  return { ...found, browser };
-};
+const openAtState = opensListAtRow(THE_LIST, INTO_ONE);
 
 /** What the organiser fills in when adding a state. A deposit and a job are
  * each only sometimes part of it, so a story says which it means. */
@@ -198,15 +164,10 @@ export const listShowsDeposit = (
 ): Promise<boolean> =>
   rowShowsBadge(world, name, t("statuses.badge_reservation", { amount }));
 
-/** The link into one state's own page, read off the organiser's list. A link,
+/** The link into one state's own page, read off that state's own row. A link,
  * not any mention of the address: a state whose row lost its way in is one the
  * organiser cannot reach either. */
-const linkIntoState = findsTheWayInFrom(
-  openAtState,
-  ({ id }) =>
-    ({ href }) =>
-      href === `${THE_LIST}/${id}`,
-);
+const linkIntoState = findsTheWayInFrom(openAtState);
 
 /** The organiser takes a state away, following every way in they really have —
  * the link on their list, the delete link behind that page's Actions tab —

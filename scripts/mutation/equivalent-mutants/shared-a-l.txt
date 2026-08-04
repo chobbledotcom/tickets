@@ -30,7 +30,6 @@ src/shared/site-assignment.ts:317:34  ?? → ||    # available[idx]: BuiltSite|u
 src/shared/site-assignment.ts:339:34  ?? → ||    # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts:363:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
 src/shared/ledger/project.ts:20:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
-src/shared/listing-parents-rules.ts:126:4  ?? → ||    # find()?.error(): an i18n message is never "", so only undefined reaches the fallback either way
 src/shared/ledger/project.ts:38:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts:70:29  ?? → ||    # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/ledger/reconcile.ts:112:56  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
@@ -48,7 +47,6 @@ src/shared/accounting/rows.ts:262:64  ?? → ||   # selectById (await …)[0]: T
 src/shared/accounting/rows.ts:138:72  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
 src/shared/accounting/manual-entries.ts:236:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:42:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
-src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/maintenance/runner.ts:183:5  0 → 1   # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:190:5  0 → 1   # every non-empty run needs at least two database startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:202:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
@@ -70,10 +68,9 @@ src/shared/db/admin-features.ts:51:10  __required_setting_condition__ → ""   #
 src/shared/db/admin-features.ts:51:10  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts:77:49  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
 src/shared/db/migrations/schema/admin-feature-triggers.ts:160:35  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
-src/shared/square-provider.ts:55:48  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
-src/shared/square-provider.ts:56:51  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
-src/shared/square-provider.ts:101:19  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
-src/shared/square-provider.ts:126:59  ?? → ||   # paymentId is string|undefined, and its only falsy string is the empty fallback itself
+src/shared/square-provider.ts:59:48  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts:60:51  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts:105:19  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
@@ -145,20 +142,23 @@ src/shared/bulk-replace.ts:103:56  $1 00: → "$1 00: mutated"   # same as above
 # sub-1 value up to 1, so `1`, `0`, and `-1` all normalize identically —
 # and `days || 1` reaches the same clamp for every falsy `days` (null, 0,
 # NaN), agreeing with `days ?? 1` for every value the type permits.
-src/shared/booking/model.ts:71:41  ?? → ||   # every falsy days (null/0/NaN) clamps to 1 downstream either way
-src/shared/booking/model.ts:71:45  1 → 0   # normalizeDurationDays clamps 0 up to 1 anyway
-src/shared/booking/model.ts:71:45  1 → -1   # normalizeDurationDays clamps negatives up to 1 anyway
+src/shared/booking/page-packages.ts:145:40  ?? → ||   # packageGroupId is number|undefined and the fallback is 0: 0 maps to 0 under both operators
+src/shared/booking/page-packages.ts:174:28  ?? → ||   # packageGroupId is number|undefined and the fallback is 0: 0 maps to 0 under both operators
+src/shared/booking/page-packages.ts:175:41  ?? → ||   # parentListingId is number|undefined and the fallback is 0: 0 maps to 0 under both operators
+src/shared/booking/model.ts:73:41  ?? → ||   # every falsy days (null/0/NaN) clamps to 1 downstream either way
+src/shared/booking/model.ts:73:45  1 → 0   # normalizeDurationDays clamps 0 up to 1 anyway
+src/shared/booking/model.ts:73:45  1 → -1   # normalizeDurationDays clamps negatives up to 1 anyway
 
 # bookableChildIds: `childrenByParentId?.values()` is either undefined or a
 # live MapIterator, and iterator objects are always truthy — never a
 # falsy-but-defined value — so ?? and || agree.
-src/shared/booking/model.ts:131:38  ?? → ||   # Map#values() is undefined or a truthy iterator object, never falsy-but-defined
+src/shared/booking/model.ts:133:38  ?? → ||   # Map#values() is undefined or a truthy iterator object, never falsy-but-defined
 
 # keepDayCountsChildrenSupport: `dayCountsChildSupports(child) ?? current`
 # — dayCountsChildSupports returns number[]|null, and arrays are always
 # truthy in JS even when empty, so ?? and || agree for every possible
 # return value.
-src/shared/booking/model.ts:274:49  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
+src/shared/booking/model.ts:280:49  ?? → ||   # dayCountsChildSupports(): number[]|null, and an array is truthy even when empty
 
 # package-cap.ts's groupIdsFor: `ctx.groupIdsByListingId.get(...) ?? []` — a
 # Map#get() on a ReadonlyMap<number, number[]> is either undefined or a

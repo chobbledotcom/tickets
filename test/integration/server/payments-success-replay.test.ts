@@ -30,6 +30,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 500,
+          currency: "gbp",
           id: "cs_single_thankyou",
           metadata: signMeta(
             {
@@ -83,6 +84,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 500,
+          currency: "gbp",
           id: "cs_hidden_pkg",
           metadata: signedMeta(
             {
@@ -138,6 +140,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 700,
+          currency: "gbp",
           id: "cs_hidden_replay",
           metadata: signedMeta(
             {
@@ -192,6 +195,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1000,
+          currency: "gbp",
           id: "cs_dupe_session",
           metadata: signMeta(
             {
@@ -248,6 +252,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 800,
+          currency: "gbp",
           id: "cs_cart_single",
           metadata: signMeta(
             {
@@ -308,6 +313,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 1500,
+          currency: "gbp",
           id: "cs_multi_dupe",
           metadata: signMeta(
             {

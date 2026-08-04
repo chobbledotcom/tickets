@@ -126,8 +126,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     );
     expect(references.get(target.id)).toEqual([
       {
-        providerRefunded: false,
+        // A legacy-merge charge (no live session) whose refund was never
+        // observed reads as "unknown", not a definite "none".
         reference: "pi_source_legacy",
+        refundState: "unknown",
         sessionIds: [],
       },
     ]);

@@ -3,10 +3,8 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import { openAsNewcomer } from "#test/specs/support/browser.ts";
-import {
-  checkboxValueOffered,
-  fillInAndSend,
-} from "#test/specs/support/form-controls.ts";
+import { checkboxValueOffered } from "#test/specs/support/form-controls/reading.ts";
+import { fillInAndSend } from "#test/specs/support/form-controls.ts";
 import {
   keepWhatTheyWereTold,
   type TicketsWorld,

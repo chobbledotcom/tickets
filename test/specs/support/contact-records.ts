@@ -18,7 +18,7 @@ import {
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
 import { openAdminPage } from "#test/specs/support/browser.ts";
-import { whyValueCannotBeSent } from "#test/specs/support/form-controls.ts";
+import { whyValueCannotBeSent } from "#test/specs/support/form-controls/rules.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";

@@ -65,7 +65,7 @@ describeSquare(() => {
       // The client returns raw JSON — squareApi.refundPayment validates it
       // with a Valibot schema at the boundary.
       const result = (await client!.refunds.refundPayment({
-        amountMoney: { amount: BigInt(4250), currency: "USD" },
+        amountMoney: { amount: BigInt(4250), currency: "GBP" },
         idempotencyKey: "idem-status",
         paymentId: "pay_status",
       })) as { refund: { id: string; status: string } };
@@ -82,7 +82,7 @@ describeSquare(() => {
       // The squareApi layer's Valibot parse would throw on this (refund is
       // required), but the transport client itself just passes it through.
       const result = (await client!.refunds.refundPayment({
-        amountMoney: { amount: BigInt(1500), currency: "EUR" },
+        amountMoney: { amount: BigInt(1500), currency: "GBP" },
         idempotencyKey: "idem-empty",
         paymentId: "pay_empty",
       })) as Record<string, never>;
@@ -101,7 +101,7 @@ describeSquare(() => {
 
       const client = await getSquareClient();
       await client!.refunds.refundPayment({
-        amountMoney: { amount: BigInt(500), currency: "USD" },
+        amountMoney: { amount: BigInt(500), currency: "GBP" },
         idempotencyKey: "idem-prod",
         paymentId: "pay_prod",
       });

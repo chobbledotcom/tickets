@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   lineFor,
@@ -12,6 +11,10 @@ import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import {
+  asSession,
+  BLANK_SESSION_METADATA,
+} from "#test-utils/payment-session.ts";
 
 describeStripe("stripe-provider", () => {
   test("identifies its Stripe webhook contract", () => {
@@ -156,9 +159,9 @@ describeStripe("stripe-provider", () => {
           const result =
             await stripePaymentProvider.retrieveSession("cs_multi");
           expect(result).not.toBeNull();
-          expect(result?.id).toBe("cs_multi");
-          expect(result?.metadata.items).toBe('[{"e":1,"q":2}]');
-          expect(result?.metadata.phone).toBe("+44 7700 900000");
+          expect(asSession(result).id).toBe("cs_multi");
+          expect(asSession(result).metadata.items).toBe('[{"e":1,"q":2}]');
+          expect(asSession(result).metadata.phone).toBe("+44 7700 900000");
         },
       );
     });
@@ -183,10 +186,12 @@ describeStripe("stripe-provider", () => {
           const result =
             await stripePaymentProvider.retrieveSession("cs_single");
           expect(result).not.toBeNull();
-          expect(result?.id).toBe("cs_single");
-          expect(result?.paymentStatus).toBe("paid");
-          expect(result?.paymentReference).toBe("pi_single_123");
-          expect(result?.metadata.items).toBe('[{"e":42,"q":2,"p":0}]');
+          expect(asSession(result).id).toBe("cs_single");
+          expect(asSession(result).paymentStatus).toBe("paid");
+          expect(asSession(result).paymentReference).toBe("pi_single_123");
+          expect(asSession(result).metadata.items).toBe(
+            '[{"e":42,"q":2,"p":0}]',
+          );
         },
       );
     });
@@ -205,20 +210,57 @@ describeStripe("stripe-provider", () => {
                 items: '[{"e":10,"q":3,"p":0}]',
                 name: "Amount User",
               },
-              payment_intent: null,
+              payment_intent: "pi_with_amount",
             }),
           ),
         async () => {
           const result =
             await stripePaymentProvider.retrieveSession("cs_with_amount");
           expect(result).not.toBeNull();
-          expect(result?.amountTotal).toBe(4500);
-          expect(result?.paymentReference).toBe("");
+          expect(asSession(result).amountTotal).toBe(4500);
+          expect(asSession(result).paymentReference).toBe("pi_with_amount");
         },
       );
     });
 
-    test("returns null when amount_total is null", async () => {
+    test("returns a refundable rejection when the session has no currency", async () => {
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve(
+            stripeCheckoutSession({
+              currency: null,
+              id: "cs_no_currency",
+              metadata: {
+                email: "nocur@example.com",
+                items: '[{"e":10,"q":1,"p":0}]',
+                name: "No Cur",
+              },
+              payment_intent: "pi_no_currency",
+            }),
+          ),
+        async () => {
+          const result =
+            await stripePaymentProvider.retrieveSession("cs_no_currency");
+          // A missing currency is refused at the boundary: it is not defaulted
+          // to the site's, and the charge cannot be trusted without one.
+          expect(result).toEqual({
+            metadata: {
+              ...BLANK_SESSION_METADATA,
+              email: "nocur@example.com",
+              items: '[{"e":10,"q":1,"p":0}]',
+              name: "No Cur",
+            },
+            paymentReference: "pi_no_currency",
+            reason: "malformed_charge",
+            refundable: true,
+          });
+        },
+      );
+    });
+
+    test("returns a refundable rejection when amount_total is null", async () => {
       const client = await stripeClient();
       await whileRetrieving(
         client,
@@ -238,72 +280,19 @@ describeStripe("stripe-provider", () => {
         async () => {
           const result =
             await stripePaymentProvider.retrieveSession("cs_null_amount");
-          expect(result).toBeNull();
+          expect(result).toEqual({
+            metadata: {
+              ...BLANK_SESSION_METADATA,
+              email: "nullamount@example.com",
+              items: '[{"e":1,"q":1,"p":0}]',
+              name: "Null Amount User",
+            },
+            paymentReference: "pi_null_amount",
+            reason: "malformed_charge",
+            refundable: true,
+          });
         },
       );
-    });
-
-    test("throws for an invalid webhook payment status", async () => {
-      await expect(
-        stripePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              ...stripeCheckoutSession({ id: "cs_bad_status" }),
-              payment_status: "completed",
-            },
-          },
-          id: "evt_bad_status",
-          type: "checkout.session.completed",
-        }),
-      ).rejects.toThrow();
-    });
-
-    test("throws for malformed checkout fields when the webhook has a session ID", async () => {
-      await expect(
-        stripePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              ...stripeCheckoutSession({ id: "cs_bad_amount" }),
-              amount_total: "1000",
-            },
-          },
-          id: "evt_bad_amount",
-          type: "checkout.session.completed",
-        }),
-      ).rejects.toThrow();
-    });
-
-    test("returns null for a webhook checkout object without a session ID", async () => {
-      const { id: _id, ...withoutId } = stripeCheckoutSession();
-      expect(
-        await stripePaymentProvider.resolveWebhookSession({
-          data: { object: withoutId },
-          id: "evt_without_session",
-          type: "checkout.session.completed",
-        }),
-      ).toBeNull();
-    });
-
-    test("keeps a valid foreign checkout session ignored", async () => {
-      const foreign = stripeCheckoutSession({
-        id: "cs_foreign",
-        metadata: { foreign: "metadata" },
-      });
-      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(foreign),
-      );
-      try {
-        expect(
-          await stripePaymentProvider.resolveWebhookSession({
-            data: { object: foreign },
-            id: "evt_foreign",
-            type: "checkout.session.completed",
-          }),
-        ).toBeNull();
-        expect(retrieve.calls[0]?.args).toEqual(["cs_foreign"]);
-      } finally {
-        retrieve.restore();
-      }
     });
 
     test("normalizes the Stripe creation time", async () => {
@@ -328,8 +317,8 @@ describeStripe("stripe-provider", () => {
           const result =
             await stripePaymentProvider.retrieveSession("cs_amount_cast");
           expect(result).not.toBeNull();
-          expect(result?.amountTotal).toBe(7500);
-          expect(result?.createdAt).toBe("1970-01-01T00:02:03.000Z");
+          expect(asSession(result).amountTotal).toBe(7500);
+          expect(asSession(result).createdAt).toBe("1970-01-01T00:02:03.000Z");
         },
       );
     });

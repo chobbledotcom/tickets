@@ -27,7 +27,7 @@ import type {
   OwnerKeyEncrypted,
 } from "#shared/crypto/sealed.ts";
 import {
-  execute,
+  executeBatchWithResults,
   queryBatch,
   resultRows,
   type TxScope,
@@ -38,6 +38,7 @@ import { listingReader } from "#shared/db/listings/select.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
@@ -140,35 +141,68 @@ const toListingId = (listing?: ListingRef | null): number | null =>
       ? listing
       : listing.id;
 
+/** One thing to record in the log: what happened, and which listing/attendee it
+ * happened to. */
+type ActivityToLog = {
+  message: string;
+  listing?: ListingRef | null | undefined;
+  attendeeId?: number | null | undefined;
+};
+
 /**
- * Log an activity. Optionally associate it with a listing and/or attendee so
- * admin views can filter the log by either. A caller may pass its open write
- * transaction so the activity and the action it records commit together.
+ * Log several activities as ONE write. A booking with many lines records a line
+ * apiece, and one insert per line would eat the edge request's subrequest
+ * budget; a batch costs the same single round-trip however many there are, and
+ * either they all land or none does. Returns the stored rows in the same order,
+ * with their plaintext messages. A caller may pass its open write transaction so
+ * the log and the action it records commit together.
+ */
+export const logActivities = async (
+  activities: readonly ActivityToLog[],
+  transaction?: TxScope,
+): Promise<ActivityLogEntry[]> => {
+  if (activities.length === 0) return [];
+  // Encrypt with the owner's public key — a set-up site always has one, so
+  // there is no env-key fallback (ownerPublicKey loads it if the snapshot was
+  // reset earlier this request).
+  const publicKey = await ownerPublicKey();
+  const statements = await Promise.all(
+    activities.map(async (activity) =>
+      activityLogTable.insertStatement(
+        {
+          attendeeId: activity.attendeeId ?? null,
+          listingId: toListingId(activity.listing),
+          message: await encryptWithOwnerKey(activity.message, publicKey),
+        },
+        undefined,
+        ACTIVITY_LOG_COLUMNS,
+      ),
+    ),
+  );
+  const results = transaction
+    ? await transaction.batch(statements)
+    : await executeBatchWithResults(statements);
+  return results.map((result, index) => ({
+    ...resultRows<StoredActivityLogEntry>(result)[0]!,
+    message: activities[index]!.message,
+  }));
+};
+
+/**
+ * Log one activity, through the shared many-activity write. Optionally
+ * associate it with a listing and/or attendee so admin views can filter the log
+ * by either.
  */
 export const logActivity = async (
   message: string,
   listing?: ListingRef | null,
   attendeeId?: number | null,
   transaction?: TxScope,
-): Promise<ActivityLogEntry> => {
-  const statement = await activityLogTable.insertStatement(
-    {
-      attendeeId: attendeeId ?? null,
-      listingId: toListingId(listing),
-      // Encrypt with the owner's public key — a set-up site always has one, so
-      // there is no env-key fallback (ownerPublicKey loads it if the snapshot was
-      // reset earlier this request).
-      message: await encryptWithOwnerKey(message, await ownerPublicKey()),
-    },
-    undefined,
-    ACTIVITY_LOG_COLUMNS,
+): Promise<ActivityLogEntry> =>
+  requireValue(
+    (await logActivities([{ attendeeId, listing, message }], transaction))[0],
+    "Activity log row missing",
   );
-  const result = transaction
-    ? await transaction.execute(statement)
-    : await execute(statement.sql, statement.args);
-  const row = resultRows<StoredActivityLogEntry>(result)[0]!;
-  return { ...row, message };
-};
 
 /**
  * Decrypt the messages of a batch of raw activity log rows. The session private

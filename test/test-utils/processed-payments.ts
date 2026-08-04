@@ -54,8 +54,8 @@ export const expectProcessedPaymentReference = async (
     ).get(attendeeId),
   ).toEqual([
     {
-      providerRefunded: false,
       reference: paymentReference,
+      refundState: "none",
       sessionIds: [sessionId],
     },
   ]);

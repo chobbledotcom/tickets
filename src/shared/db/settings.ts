@@ -28,6 +28,8 @@
  *   - `settings/constants.ts`   — `MAX_*_LENGTH` limits + `keyModeOf`
  */
 
+import * as v from "valibot";
+
 import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
 import { isAddressLookupSetting } from "#shared/address-lookup/types.ts";
 import {
@@ -35,6 +37,7 @@ import {
   parseEnabledFeatures,
 } from "#shared/admin-features.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
+import { executeWithoutCacheInvalidation } from "#shared/db/client.ts";
 import {
   boolUpdate,
   rawUpdate,
@@ -61,6 +64,7 @@ import {
   encryptedUpdate,
   getRawCached,
   plaintextUpdate,
+  syncStoredSetting,
   writeEncrypted,
   writeOrDelete,
   writeRaw,
@@ -85,6 +89,7 @@ import {
   parseListingDefaults,
   serializeListingDefaults,
 } from "#shared/listing-defaults.ts";
+import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { EMAIL_BODY_KEYS } from "#shared/settings/registry.ts";
 import {
@@ -101,7 +106,11 @@ import type {
   SuperuserChoice,
   Theme,
 } from "#shared/types.ts";
-import { isSuperuserChoice } from "#shared/types.ts";
+import {
+  isPaymentProvider,
+  isSuperuserChoice,
+  PaymentProviderSettingSchema,
+} from "#shared/types.ts";
 import { appleWallet } from "#shared/wallets/apple-wallet-settings.ts";
 import { googleWallet } from "#shared/wallets/google-wallet-settings.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
@@ -140,6 +149,74 @@ const providerKeyStatus = (keyName: "stripe_secret_key" | "sumup_api_key") => ({
     return keyModeOf(snap(keyName));
   },
 });
+
+/** Store the new-sales choice and the provider for existing payments together. */
+const setPaymentProviderSnapshot = (active: PaymentProviderSetting): void => {
+  data.payment_provider = active === "none" ? null : active;
+  data.payment_provider_setting = active;
+};
+
+const syncReturnedPaymentProvider = (active: PaymentProviderSetting): void => {
+  syncStoredSetting(CONFIG_KEYS.PAYMENT_PROVIDER, (values) =>
+    values.set(CONFIG_KEYS.PAYMENT_PROVIDER, active),
+  );
+  setPaymentProviderSnapshot(active);
+};
+
+const syncLastActivePaymentProvider = (provider: string): void => {
+  syncStoredSetting(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, (values) =>
+    values.set(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, provider),
+  );
+  data.last_active_payment_provider = provider;
+};
+
+const changePaymentProvider = async (
+  kind: "activate" | "credentials" | "disable" | "recover",
+  provider?: PaymentProviderType,
+  first = false,
+): Promise<void> => {
+  if (kind !== "disable" && (!provider || !isPaymentProvider(provider))) {
+    throw new Error(`Invalid payment provider: ${provider}`);
+  }
+  const chosen = provider ?? "";
+  const firstCredential = kind === "credentials" && first ? 1 : 0;
+  const sql = `INSERT INTO settings (key, value) SELECT key, value FROM (
+SELECT 'payment_provider' AS key, CASE WHEN ? IN ('disable', 'recover') THEN 'none' WHEN ? = 'credentials' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'payment_provider')) THEN ? ELSE COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') END ELSE ? END AS value
+UNION ALL SELECT 'last_active_payment_provider', CASE WHEN ? = 'disable' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') IN (${PAYMENT_PROVIDER_IDS.map(() => "?").join(", ")}) THEN (SELECT value FROM settings WHERE key = 'payment_provider') ELSE COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') END WHEN ? = 'credentials' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'payment_provider')) THEN ? ELSE COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') END ELSE ? END
+UNION ALL SELECT 'settings_version', CAST(COALESCE((SELECT value FROM settings WHERE key = 'settings_version'), '0') AS INTEGER) + 1) WHERE (? <> 'recover' OR (COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' AND COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') = '' AND EXISTS (SELECT 1 FROM settings WHERE key = CASE ? WHEN 'stripe' THEN ? WHEN 'square' THEN ? WHEN 'sumup' THEN ? END AND value <> '')))
+AND (? <> 'activate' OR NOT (COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' AND COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') = '' AND (SELECT COUNT(*) FROM settings WHERE key IN (?, ?, ?) AND value <> '') > 1))
+ON CONFLICT(key) DO UPDATE SET value = excluded.value RETURNING key, value`;
+  const credentialKeys = [
+    CONFIG_KEYS.STRIPE_SECRET_KEY,
+    CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
+    CONFIG_KEYS.SUMUP_API_KEY,
+  ];
+  const args = [
+    [kind, kind, chosen, firstCredential, chosen, chosen, kind],
+    PAYMENT_PROVIDER_IDS,
+    [kind, chosen, firstCredential, chosen, chosen, kind, chosen],
+    credentialKeys,
+    [kind],
+    credentialKeys,
+  ].flat();
+  const result = await executeWithoutCacheInvalidation(sql, args);
+  const rejection =
+    kind === "recover"
+      ? "Payment provider recovery is no longer available"
+      : "Choose the provider for existing payments before enabling new sales";
+  if (result.rows.length === 0) {
+    throw new Error(rejection);
+  }
+  const values = Object.fromEntries(
+    result.rows.map((row) => [String(row.key), String(row.value)]),
+  );
+  syncReturnedPaymentProvider(
+    v.parse(PaymentProviderSettingSchema, values[CONFIG_KEYS.PAYMENT_PROVIDER]),
+  );
+  syncLastActivePaymentProvider(
+    v.parse(v.string(), values[CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]),
+  );
+};
 
 const settingsBase = {
   // --- Address lookup ---
@@ -243,6 +320,13 @@ const settingsBase = {
   // --- Google Wallet ---
   googleWallet: googleWallet.createReadSettings(snap as (k: string) => string),
   invalidateCache,
+  /** Keeps existing-payment work available while new sales are off. */
+  get lastActivePaymentProvider(): PaymentProviderType | null {
+    const value = snap("last_active_payment_provider");
+    if (value === "") return null;
+    if (isPaymentProvider(value)) return value;
+    throw new Error(`Invalid last_active_payment_provider setting: ${value}`);
+  },
   get listingColumnLayout(): TableLayout<ListingColumnKey> {
     return configurableTableLayouts.listing.parse(snap("listing_column_order"));
   },
@@ -441,14 +525,19 @@ const settingsBase = {
       "orphan_purge_retention",
     ),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
-      data.payment_provider = v;
-      data.payment_provider_setting = v;
+      await changePaymentProvider("activate", v);
+    },
+    paymentProviderAfterCredentialSave: async (
+      provider: PaymentProviderType,
+      activateFromMissing: boolean,
+    ): Promise<void> => {
+      await changePaymentProvider("credentials", provider, activateFromMissing);
+    },
+    recoverPaymentProvider: async (v: PaymentProviderType): Promise<void> => {
+      await changePaymentProvider("recover", v);
     },
     setPaymentProviderNone: async (): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "none");
-      data.payment_provider = null;
-      data.payment_provider_setting = "none";
+      await changePaymentProvider("disable");
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
 
@@ -466,14 +555,13 @@ const settingsBase = {
     },
     // --- Stripe writes ---
     stripe: {
-      activate: async (config: {
+      configure: async (config: {
         secretKey: string;
         webhookSecret: string;
         webhookEndpointId: string;
       }): Promise<void> => {
         // The API key and webhook pair belong to one Stripe account. Save all
-        // three and select Stripe together so a failed write leaves the prior
-        // provider usable, while later endpoint cleanup can fail safely.
+        // three together so a failed write leaves the prior credentials usable.
         await writeRawBatch([
           [CONFIG_KEYS.STRIPE_SECRET_KEY, await encrypt(config.secretKey)],
           [
@@ -481,13 +569,10 @@ const settingsBase = {
             await encrypt(config.webhookSecret),
           ],
           [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.webhookEndpointId],
-          [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
         ]);
         data.stripe_secret_key = config.secretKey;
         data.stripe_webhook_secret = config.webhookSecret;
         data.stripe_webhook_endpoint_id = config.webhookEndpointId;
-        data.payment_provider = "stripe";
-        data.payment_provider_setting = "stripe";
       },
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
     },

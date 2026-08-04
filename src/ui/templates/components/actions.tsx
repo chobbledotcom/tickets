@@ -74,15 +74,22 @@ export const ActionButton = ({
 export const SubmitButton = ({
   icon,
   class: className,
+  disabled,
   id,
   children,
 }: {
   icon: IconName;
   class?: string;
+  disabled?: boolean;
   id?: string;
   children?: Child;
 }): SafeHtml => (
-  <button class={className} id={id} type="submit">
+  <button
+    class={className}
+    disabled={disabled || undefined}
+    id={id}
+    type="submit"
+  >
     <Icon name={icon} />
     <span>{children}</span>
   </button>

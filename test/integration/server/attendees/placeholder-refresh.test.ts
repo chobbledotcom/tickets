@@ -112,6 +112,13 @@ describeWithEnv(
             attendee.id +
             ").",
         );
+        // A second system note about something else entirely. The cleanup is
+        // for the stale manual-refund instruction only — it must not sweep
+        // away the rest of the record's history.
+        await createSystemNote(
+          attendeeNotes(attendee.id),
+          "Moved to another date at the guest's request.",
+        );
 
         await submitRefreshPayment(attendee, () => Promise.resolve(true));
 
@@ -119,6 +126,9 @@ describeWithEnv(
         expect(
           notes.some((note) => note.note.includes("could NOT be refunded")),
         ).toBe(false);
+        expect(
+          notes.some((note) => note.note.includes("Moved to another date")),
+        ).toBe(true);
         expect(
           notes.some((note) => note.note.includes("Refund confirmed")),
         ).toBe(true);

@@ -25,7 +25,6 @@ import {
 } from "#routes/public/ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "#routes/public/ticket-listings.ts";
 import {
-  ctxStandInNames,
   ctxToBuildTreeInput,
   getTicketContext,
   resolveDayCount,
@@ -50,6 +49,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
   concealLineNames,
+  ctxStandInNames,
   namesConcealed,
   packagePrivacy,
 } from "#shared/package-privacy.ts";

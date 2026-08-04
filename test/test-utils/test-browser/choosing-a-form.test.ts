@@ -173,7 +173,7 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     expect(postedPath()).toBe("/first");
   });
 
-  it("selects a form by body text even when no button text matches", async () => {
+  it("selects a buttonless form by its body text", async () => {
     const browser = new TestBrowser();
     let postedPath = "";
     let posted = "";
@@ -182,11 +182,12 @@ describe("TestBrowser choosing which form a press belongs to", () => {
       posted = await request.text();
       return new Response("saved");
     });
+    // A form with no button at all is still one a person can send — pressing
+    // Enter in the box does it — so its own words are how they would find it.
     browser.currentHtml = `
       <form action="/body-text" method="POST">
         <p>Publish this draft</p>
         <input name="title" value="Draft">
-        <button name="action" value="save">Save</button>
       </form>
     `;
 
@@ -195,7 +196,97 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     const params = new URLSearchParams(posted);
     expect(postedPath).toBe("/body-text");
     expect(params.get("title")).toBe("Draft");
-    expect(params.has("action")).toBe(false);
+  });
+
+  it("refuses words that are on a form but on none of its buttons", async () => {
+    const browser = new TestBrowser();
+    let sent = false;
+    useHandler(browser, () => {
+      sent = true;
+      return new Response("saved");
+    });
+    // The heading says Publish; the only button says Save. A person asked to
+    // press Publish has no such button, so the form must not be sent — this is
+    // how a story notices a button the page took away while its words stayed.
+    browser.currentHtml = `
+      <form action="/body-text" method="POST">
+        <p>Publish this draft</p>
+        <input name="title" value="Draft">
+        <button name="action" value="save">Save</button>
+      </form>
+    `;
+
+    await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+      '"Publish" is on a form, but on none of its buttons',
+    );
+    expect(sent).toBe(false);
+  });
+
+  it("refuses the body-text send when the form's only submit button is switched off", async () => {
+    const browser = new TestBrowser();
+    let sent = false;
+    useHandler(browser, () => {
+      sent = true;
+      return new Response("saved");
+    });
+    // A switched-off Save is still this form's first submit button, so
+    // pressing Enter in the box would send nothing — the form is not one its
+    // body text may stand in for.
+    browser.currentHtml = `
+      <form action="/body-text" method="POST">
+        <p>Publish this draft</p>
+        <input name="title" value="Draft">
+        <button disabled>Save</button>
+      </form>
+    `;
+
+    await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+      '"Publish" is on a form, but on none of its buttons',
+    );
+    expect(sent).toBe(false);
+  });
+
+  it("reports a switched-off button over a form that merely mentions the words", async () => {
+    const browser = new TestBrowser();
+    // One form's Publish button is switched off; another only says Publish in
+    // prose. The switched-off button is the more telling answer, whichever
+    // order the two forms render in.
+    const prose = `
+      <form action="/prose" method="POST">
+        <p>Publish this draft</p>
+        <button>Save</button>
+      </form>
+    `;
+    const switchedOff = `
+      <form action="/off" method="POST">
+        <button disabled>Publish</button>
+      </form>
+    `;
+    for (const page of [prose + switchedOff, switchedOff + prose]) {
+      browser.currentHtml = page;
+      await expect(browser.submitForm({}, "Publish")).rejects.toThrow(
+        'The "Publish" button is switched off',
+      );
+    }
+  });
+
+  it("passes over a form whose buttons say something else for one whose button says it", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    // The first form mentions Publish only in prose; the second has the real
+    // button. The person would press the second form's button.
+    browser.currentHtml = `
+      <form action="/prose" method="POST">
+        <p>Publish this draft</p>
+        <button>Save</button>
+      </form>
+      <form action="/real" method="POST">
+        <button>Publish</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Publish");
+
+    expect(postedPath()).toBe("/real");
   });
 
   it("does not submit nameless button values", async () => {
