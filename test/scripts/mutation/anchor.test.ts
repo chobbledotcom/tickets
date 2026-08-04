@@ -62,10 +62,21 @@ describe("naming what a mutant sits inside", () => {
     ).toBe("Reader.read-it");
   });
 
-  test("skips a member whose written name is empty", () => {
+  /** An empty name is still a name. Dropping it would put the member back in
+   * with everything unnamed, to be told apart by order alone. */
+  test("keeps a member whose written name is empty", () => {
     expect(
       nameOf(nullishAnchor('class Reader { ""(x) { return x ?? 0; } }\n')),
-    ).toBe("Reader");
+    ).toBe("Reader.");
+  });
+
+  test("tells an empty-named member from its unnamed surroundings", () => {
+    const anchors = nullishMutants(
+      'const o = { "": (x) => x ?? 0, read: (y) => y ?? 0 };\n',
+    ).map((m) => m.anchor);
+
+    expect(anchors.map(nameOf)).toEqual(["o.", "o.read"]);
+    expect(anchors.filter((a) => a.includes("@"))).toEqual([]);
   });
 
   test("names the object property a mutant sits in", () => {

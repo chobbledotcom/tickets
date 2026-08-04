@@ -52,15 +52,15 @@ interface NamedNode {
 /** The name a declaration contributes, or nothing when it is anonymous. An
  * anonymous arrow inside a call takes its name from whatever it is assigned
  * to instead. A written-out key counts whether it reads as a word, a quoted
- * string, or a number — `{ 1: … }` names its member just as `{ a: … }` does. */
+ * string, or a number — `{ 1: … }` names its member just as `{ a: … }` does,
+ * and `{ "": … }` names its own, empty though that name is: dropping it would
+ * put the member back in with everything unnamed, to be told apart by order. */
 const nameOf = (node: NamedNode): string | null => {
   const named = node.id?.name ?? node.key?.name;
   if (typeof named === "string" && named !== "") return named;
   const literalKey = node.key?.value;
   if (typeof literalKey === "number") return String(literalKey);
-  return typeof literalKey === "string" && literalKey !== ""
-    ? literalKey
-    : null;
+  return typeof literalKey === "string" ? literalKey : null;
 };
 
 /** Declarations whose name is worth carrying into the path. A block or an `if`
