@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  BACKUP_CLOCK_SKEW_MS,
   BACKUP_REQUIRED_WITHIN_MS,
   backupDir,
   backupIsFresh,
@@ -187,6 +186,9 @@ describeWithEnv("backup storage", { db: true }, () => {
   describe("backupIsFresh", () => {
     const MAX = BACKUP_REQUIRED_WITHIN_MS;
     const NOW = 1_700_000_000_000;
+    // Deliberately restates the documented five-minute skew allowance rather
+    // than importing it, so changing the allowance is a conscious test edit.
+    const SKEW = 5 * 60 * 1000;
 
     test("fresh from the moment it is taken until the window closes", () => {
       expect(backupIsFresh(NOW, NOW, MAX)).toBe(true);
@@ -198,13 +200,11 @@ describeWithEnv("backup storage", { db: true }, () => {
     });
 
     test("tolerates a timestamp ahead of the clock up to the skew allowance", () => {
-      expect(backupIsFresh(NOW + BACKUP_CLOCK_SKEW_MS, NOW, MAX)).toBe(true);
+      expect(backupIsFresh(NOW + SKEW, NOW, MAX)).toBe(true);
     });
 
     test("rejects a timestamp further ahead than the skew allowance", () => {
-      expect(backupIsFresh(NOW + BACKUP_CLOCK_SKEW_MS + 1, NOW, MAX)).toBe(
-        false,
-      );
+      expect(backupIsFresh(NOW + SKEW + 1, NOW, MAX)).toBe(false);
     });
   });
 

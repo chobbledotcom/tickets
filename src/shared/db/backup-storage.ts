@@ -65,7 +65,7 @@ export const BACKUP_REQUIRED_WITHIN_MS = 60 * 60 * 1000;
  * a little ahead of ours; anything further ahead than this is not fresh, so a
  * wrongly future-dated file cannot satisfy the gate forever. Five minutes.
  */
-export const BACKUP_CLOCK_SKEW_MS = 5 * 60 * 1000;
+const BACKUP_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 /** True when a backup taken at `takenAtMs` satisfies the freshness gate at
  *  `nowMs`: younger than `maxAgeMs`, and no further ahead of the clock than
