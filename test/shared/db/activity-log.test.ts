@@ -12,6 +12,7 @@ import {
   getAttendeeActivityLog,
   getListingActivityLog,
   getListingWithActivityLogOrNull,
+  logActivities,
   logActivity,
 } from "#shared/db/activity-log.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
@@ -20,6 +21,7 @@ import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withTestSession } from "#test-utils/session.ts";
+import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 /** Raw (still-encrypted) stored message for an activity-log row. */
 const rawMessage = async (id: number): Promise<string> =>
@@ -29,6 +31,17 @@ const rawMessage = async (id: number): Promise<string> =>
   ))!.message;
 
 describeWithEnv("db > activity log", { db: true }, () => {
+  test("writes nothing, and asks the database for nothing, for an empty list", async () => {
+    const logged: unknown[] = [];
+
+    const calls = await countDatabaseCalls(0, async () => {
+      logged.push(...(await logActivities([])));
+    });
+
+    expect(calls).toBe(0);
+    expect(logged).toEqual([]);
+  });
+
   test("logActivity creates log entry with message", async () => {
     const entry = await logActivity("Test action");
 

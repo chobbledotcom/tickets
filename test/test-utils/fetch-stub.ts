@@ -1,3 +1,4 @@
+import { afterEach, beforeEach } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 
 export type FetchResponder = (
@@ -34,4 +35,38 @@ export const stubFetch = (
           : input.url;
     return await reply(url, init);
   }) as typeof globalThis.fetch);
+};
+
+/** A fetch stub that lives for one test: the calls it took, and a way to swap
+ * in a different reply part-way through. */
+export type TestFetch = {
+  readonly calls: Stub["calls"];
+  /** Answer the rest of this test's requests differently. */
+  reply: (first: FetchReply, ...following: FetchReply[]) => void;
+};
+
+/**
+ * Stub fetch around every test in the calling `describe`, answering with an
+ * empty response unless told otherwise. Call inside a describe body — it
+ * registers the hooks there, never globally.
+ */
+export const stubFetchEachTest = (
+  ...replies: [FetchReply, ...FetchReply[]]
+): TestFetch => {
+  let current: Stub;
+  beforeEach(() => {
+    current = stubFetch(...replies);
+  });
+  afterEach(() => {
+    current.restore();
+  });
+  return {
+    get calls(): Stub["calls"] {
+      return current.calls;
+    },
+    reply: (first, ...following) => {
+      current.restore();
+      current = stubFetch(first, ...following);
+    },
+  };
 };

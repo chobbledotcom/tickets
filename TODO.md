@@ -1021,15 +1021,13 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   (`src/features/api/payment-processing/items.ts`) reads every order line's
   listing in one batch instead of one call per line.
   `getPackageDisplaysByIds` was already a single query.
-- **Registration logs and outgoing webhooks.** `logAndNotifyRegistration` and
-  `sendRegistrationWebhooks` in `src/shared/webhook.ts` can insert one activity
-  row per booking, load two overrides per package, and fetch every distinct
-  webhook URL. Add one bulk log insert and one batched override read
-  (`loadPackageOverrides` can call `loadPackageMemberPricingByGroupIds`, which
-  now exists). Persist outbound webhook jobs for bounded out-of-band delivery.
-  Budget for the test work: `src/shared/webhook.ts` has about twenty surviving
-  mutants today, and the mutation gate demands they all die once the file is
-  touched.
+- **Outgoing webhook fan-out.** The database side is done:
+  `logAndNotifyRegistration` writes every booking's activity row in one batch
+  (`logActivities`), and `loadPackageOverrides` prices every booked package in
+  one batch. What remains is the sending: `sendRegistrationWebhooks` still
+  fetches every distinct webhook URL in the request, so an order spanning many
+  listings with different URLs can still run out of Bunny's external-request
+  budget. Persist outbound webhook jobs and deliver them out of band.
 - **Multi-entry check-in.** `handleCheckinPost` in
   `src/features/checkin.ts` calls `updateCheckedIn` once per eligible booking
   line. A token set with 51 lines therefore makes 51 updates. Replace it with
