@@ -28,6 +28,33 @@ import {
 } from "#test-utils/test-browser/parsing.ts";
 
 /** Extract all cookies from a Set-Cookie header and merge into a cookie jar */
+/** One button somebody could press, and what pressing it really does. */
+interface Pressable {
+  goesTo: string;
+  name: string | undefined;
+  sentBy: string;
+  value: string;
+}
+
+/** Every button on a form somebody could press, and where pressing each one
+ * really goes. Only a submit button submits: a `type="button"` or `type="reset"`
+ * one is rendered and pressable but sends nothing. A button may override its own
+ * form's address and method, so its word wins; a form declaring no method sends
+ * by GET, which no route reached this way takes. */
+const pressableOn = (form: FormInfo): Pressable[] =>
+  regexCollect(
+    /<button\b([^>]*?)>/gi,
+    withoutSwitchedOffGroups(form.body),
+    (m) => m[1]!,
+  )
+    .filter((attrs) => !isDisabled(attrs) && pressingSends(attrs))
+    .map((attrs) => ({
+      goesTo: attrValue(attrs, "formaction") ?? form.action,
+      name: attrValue(attrs, "name"),
+      sentBy: (attrValue(attrs, "formmethod") ?? form.method).toLowerCase(),
+      value: attrValue(attrs, "value") ?? "",
+    }));
+
 const parseCookies = (response: Response, jar: Map<string, string>): void => {
   for (const header of response.headers.getSetCookie()) {
     const eqIdx = header.indexOf("=");
@@ -273,33 +300,9 @@ export class TestBrowser {
     action: string,
     data: Record<string, string | string[]> = {},
   ): Promise<void> {
-    const forms = findForms(this.currentHtml);
-    // Every button on a form somebody could press, and where pressing each one
-    // really goes. Only a submit button submits: a `type="button"` or
-    // `type="reset"` one is rendered and pressable but sends nothing. A button
-    // may override its own form's address and method, so its word wins; a form
-    // declaring no method sends by GET, which no route reached this way takes.
-    const pressableOn = (form: FormInfo) =>
-      regexCollect(
-        /<button\b([^>]*?)>/gi,
-        withoutSwitchedOffGroups(form.body),
-        (m) => m[1]!,
-      )
-        .filter((attrs) => !isDisabled(attrs) && pressingSends(attrs))
-        .map((attrs) => ({
-          goesTo: attrValue(attrs, "formaction") ?? form.action,
-          name: attrValue(attrs, "name"),
-          sentBy: (attrValue(attrs, "formmethod") ?? form.method).toLowerCase(),
-          value: attrValue(attrs, "value") ?? "",
-        }));
-    // The form somebody pressing their way to this address would really be on
-    // — which is not always the one declaring it, since a button can aim its
-    // form somewhere else.
-    for (const form of forms) {
-      const pressed = pressableOn(form).find(
-        ({ goesTo, sentBy }) => goesTo === action && sentBy === "post",
-      );
-      if (!pressed) continue;
+    const wayThere = this.wayToPost(action);
+    if (wayThere) {
+      const { form, pressed } = wayThere;
       return await this.sendForm(
         {
           action,
@@ -314,7 +317,9 @@ export class TestBrowser {
     }
     // Nothing posts there. Which of the three ways it failed decides what to
     // say, so a story is told what is actually wrong with the page.
-    const declared = forms.find((f) => f.action === action);
+    const declared = findForms(this.currentHtml).find(
+      (f) => f.action === action,
+    );
     if (!declared) {
       throw new Error(`No form on this page posts to "${action}"`);
     }
@@ -322,6 +327,31 @@ export class TestBrowser {
       throw new Error(`The form posting to "${action}" cannot be submitted`);
     }
     throw new Error(`No button on the form at "${action}" posts there`);
+  }
+
+  /**
+   * Whether this page offers anybody a way to post to an address at all. A page
+   * whose only button for it is switched off, or which renders no such button,
+   * offers none — so a caller can ask whether an action is really open to the
+   * person looking at the page without trying it and reading the failure.
+   */
+  offersAWayToPost(action: string): boolean {
+    return this.wayToPost(action) !== null;
+  }
+
+  /** The form somebody pressing their way to this address would really be on,
+   * and the button that takes them — not always the form declaring the address,
+   * since a button can aim its own form somewhere else. */
+  private wayToPost(
+    action: string,
+  ): { form: FormInfo; pressed: Pressable } | null {
+    for (const form of findForms(this.currentHtml)) {
+      const pressed = pressableOn(form).find(
+        ({ goesTo, sentBy }) => goesTo === action && sentBy === "post",
+      );
+      if (pressed) return { form, pressed };
+    }
+    return null;
   }
 
   /** Build one form's submission the way a browser does — its own successful

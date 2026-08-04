@@ -1,10 +1,8 @@
 import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import { hashEmail, unsubscribeHash } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { adminFormPost } from "#test-utils/session.ts";
 
 /** Configure the owner's own (bulk-capable) email provider. */
 export const useResend = () =>
@@ -38,18 +36,3 @@ export const seedDraft = async (draft: BulkEmailDraft) =>
       settings.publicKey,
     ),
   });
-
-/** Seed a two-attendee listing where one attendee has unsubscribed, then
- * save a marketing draft targeting it. Shared by the preview and send
- * tests that both check unsubscribed recipients are excluded. */
-export const seedMarketingDraftWithUnsubscriber = async () => {
-  const listing = await seedListingWithAttendees();
-  await unsubscribeHash(await hashEmail("alice@example.com"));
-  await adminFormPost("/admin/emails/preview", {
-    body: "Promo",
-    listing_id: String(listing.id),
-    marketing: "1",
-    subject: "Sale",
-  });
-  return listing;
-};

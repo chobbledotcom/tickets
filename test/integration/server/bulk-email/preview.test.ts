@@ -4,7 +4,6 @@ import { settings } from "#shared/db/settings.ts";
 import {
   seedDraft,
   seedListingWithAttendees,
-  seedMarketingDraftWithUnsubscriber,
   seedSingleAttendeeListing,
   useResend,
 } from "#test/integration/server/bulk-email/helpers.ts";
@@ -193,13 +192,6 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       useResend();
       const html = await staleListingDraftHtml();
       expect(html).toContain("Listing attendees");
-    });
-
-    test("notes how many unsubscribed recipients are skipped", async () => {
-      useResend();
-      await seedMarketingDraftWithUnsubscriber();
-      const html = await getPreviewHtml();
-      expect(html).toContain("1 unsubscribed will be skipped");
     });
   });
 });

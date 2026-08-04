@@ -16,6 +16,7 @@ import type {
   CodeOnScreen,
   WhereTheCodeLed,
 } from "#test/specs/support/shown-code.ts";
+import type { RecordedFetchCall } from "#test-utils/mocks.ts";
 import type {
   JourneyCatalogSpec,
   OrderJourneyCtx,
@@ -136,8 +137,8 @@ export interface TicketsWorld extends World, EvidencePages {
   mergeOutcome?: { applied: boolean; message: string };
   mergePreviewHtml?: string;
   messagesOut?: {
-    calls: Array<{ url: string }>;
-    emailCall: () => { body: unknown } | undefined;
+    calls: RecordedFetchCall[];
+    emailCall: () => RecordedFetchCall | undefined;
   };
   modifierId?: number;
   newStayLength?: number;
@@ -161,6 +162,7 @@ export interface TicketsWorld extends World, EvidencePages {
   stayStartsOn?: string;
   things: RemembersThings;
   ticketToken?: string;
+  wordsWritten?: string;
   writeoffBefore?: number;
 }
 
