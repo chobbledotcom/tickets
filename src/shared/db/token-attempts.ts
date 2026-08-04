@@ -60,7 +60,9 @@ const MERGED_JSON = `(SELECT json_group_array(hashedToken.value) FROM ${UNION_TO
 /** One statement tumbles the window, merges the new tokens, and applies the
  * lockout — all inside the database, so two failures arriving at once can
  * never lose each other's tokens. Once the merged set reaches the limit the
- * stored set is cleared to "[]" (no fingerprint kept while locked). */
+ * stored set is cleared to "[]" (no fingerprint kept while locked). While a
+ * lockout is active, both arms keep it: a straggling failure that queued
+ * behind the locking one must not restart the count and drop the lock. */
 const RECORD_FAILURE_SQL = `
   INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt)
   VALUES (
@@ -71,8 +73,16 @@ const RECORD_FAILURE_SQL = `
     ?
   )
   ON CONFLICT (ip) DO UPDATE SET
-    recent_tokens = CASE WHEN ${MERGED_COUNT} >= ? THEN '[]' ELSE ${MERGED_JSON} END,
-    locked_until = CASE WHEN ${MERGED_COUNT} >= ? THEN ? ELSE NULL END,
+    recent_tokens = CASE
+      WHEN token_attempts.locked_until > ? THEN token_attempts.recent_tokens
+      WHEN ${MERGED_COUNT} >= ? THEN '[]'
+      ELSE ${MERGED_JSON}
+    END,
+    locked_until = CASE
+      WHEN token_attempts.locked_until > ? THEN token_attempts.locked_until
+      WHEN ${MERGED_COUNT} >= ? THEN ?
+      ELSE NULL
+    END,
     window_start = CASE
       WHEN ? - token_attempts.window_start > ? THEN ?
       ELSE token_attempts.window_start
@@ -120,7 +130,8 @@ export const recordTokenFailure = async (
     // VALUES window_start, last_attempt
     current,
     current,
-    // SET recent_tokens: merged count, limit, merged set
+    // SET recent_tokens: active-lock guard, merged count, limit, merged set
+    current,
     current,
     TOKEN_WINDOW_MS,
     newTokensJson,
@@ -128,7 +139,8 @@ export const recordTokenFailure = async (
     current,
     TOKEN_WINDOW_MS,
     newTokensJson,
-    // SET locked_until: merged count, limit, lockout deadline
+    // SET locked_until: active-lock guard, merged count, limit, deadline
+    current,
     current,
     TOKEN_WINDOW_MS,
     newTokensJson,

@@ -125,6 +125,17 @@ describeWithEnv("db > token-attempts", { db: true }, () => {
       expect(await isTokenRateLimited(ip)).toBe(false);
     });
 
+    test("a failure recorded while locked keeps the lockout", async () => {
+      const ip = "10.0.0.13";
+      await recordTokenFailure(ip, makeTokens("lock", MAX_TOKEN_404S));
+      expect(await isTokenRateLimited(ip)).toBe(true);
+
+      // A straggler that queued behind the locking failure must not restart
+      // the count against the cleared token set and drop the lock.
+      expect(await recordTokenFailure(ip, ["straggler"])).toBe(true);
+      expect(await isTokenRateLimited(ip)).toBe(true);
+    });
+
     test("concurrent failures each count their distinct token", async () => {
       const ip = "10.0.0.12";
 
