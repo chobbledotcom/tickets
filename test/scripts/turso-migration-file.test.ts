@@ -79,19 +79,20 @@ const scriptedTransport = (
 });
 
 /** Upload a small file through a scripted transport and return the result. */
-const uploadThroughScript = (
+const uploadThroughScript = async (
   dir: string,
   request: Writable,
   play: (receive: (response: IncomingMessage) => void) => void,
-): Promise<void> =>
-  Deno.writeTextFile(join(dir, "database.sqlite"), "sqlite bytes").then(() =>
-    uploadTursoDatabaseFile(
-      join(dir, "database.sqlite"),
-      TEST_TURSO_CREDENTIALS,
-      undefined,
-      scriptedTransport(request, play),
-    ),
+): Promise<void> => {
+  const path = join(dir, "database.sqlite");
+  await Deno.writeTextFile(path, "sqlite bytes");
+  await uploadTursoDatabaseFile(
+    path,
+    TEST_TURSO_CREDENTIALS,
+    undefined,
+    scriptedTransport(request, play),
   );
+};
 
 describe("Turso migration file", () => {
   test("accepts a complete SQLite file prepared for Turso", () =>
