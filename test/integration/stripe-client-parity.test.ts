@@ -97,6 +97,14 @@ test("the small client matches stripe-node requests for every used operation", a
       () => small.webhookEndpoints.list(),
     ],
     [
+      () =>
+        official.webhookEndpoints.list({
+          limit: 100,
+          starting_after: "we_1",
+        }),
+      () => small.webhookEndpoints.list("we_1"),
+    ],
+    [
       () => official.webhookEndpoints.create(webhookParams),
       () => small.webhookEndpoints.create(webhookParams),
     ],

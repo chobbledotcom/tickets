@@ -41,12 +41,13 @@ operators own the risk of choosing deliberately hostile third-party endpoints.
 
 - **Make rate-limit writes atomic and bounded.** `src/shared/db/login-attempts.ts`
   and `src/shared/db/token-attempts.ts` update shared rows with read-then-write
-  sequences, so concurrent attempts can lose increments. The expired-lockout
-  cleanup in `src/shared/db/attempt-lockout.ts` can also delete a fresh lockout
-  written by another request, and below-threshold rows are not pruned. Fold the
-  login, API-key, booking, address-lookup, and token limiters onto one atomic
-  update/prune shape. Regression tests should drive concurrent attempts and
-  prove the fresh lockout survives cleanup.
+  sequences, so concurrent attempts can lose increments, and below-threshold
+  rows are not pruned. Fold the login, API-key, booking, address-lookup, and
+  token limiters onto one atomic update/prune shape, with regression tests that
+  drive concurrent attempts. (The expired-lockout cleanup race in
+  `src/shared/db/attempt-lockout.ts` is fixed: the delete is conditional on the
+  observed `locked_until`, so a fresh lockout survives cleanup —
+  `test/shared/db/attempt-lockout.test.ts` proves it.)
 - **Preserve the client IP in production request scopes.** `src/edge.ts`,
   `src/deploy.ts`, and `src/serve-app.ts` should carry the platform connection
   context into the shared request handler so production rate limits do not fall
@@ -917,15 +918,6 @@ they were left out of that PR's scope.
   the submitted values back into the `TextField`/`TextFields` inputs, following
   the flash/form-refill pattern other admin forms use.
 
-- **Attempt-lockout expired-row cleanup is not TOCTOU-safe**
-  (`src/shared/db/attempt-lockout.ts` `lockoutActive`). The expired-row delete is
-  unconditional, so a request that observes an expired lockout can delete a fresh
-  lockout another request wrote in between, losing rate-limit state for that IP.
-  Pre-existing: the two attempt tables (`login_attempts`, `token_attempts`) both
-  deleted unconditionally before this branch merged them into one helper. Fix:
-  make the delete conditional on the stored `locked_until` still equalling the
-  observed value, in one atomic statement.
-
 - **`deployAndReport` lets an activity-log failure mask a successful deploy**
   (`src/shared/site-update.ts`). Only the deploy runs inside `tryStep`; the
   `logActivity` write after it is not, so a transient log-write failure throws
@@ -1008,37 +1000,6 @@ machinery to resolve this. Starting point: the preflight in
 `src/features/api/payment-processing/index.ts` (`replaySessionFromLedger`),
 the pruner in `src/shared/db/prune.ts` (`prunePayments`), and the
 classification in `src/shared/session-ledger.ts`.
-
-## Stripe webhook setup hardening — deferred edges (from PR #1827)
-
-*Origin: CodeRabbit and Codex review of PR #1827 (the same-URL cleanup +
-atomic credentials + shared URL helper PR). The create-first refactor and
-endpoint-limit fallback were applied in that PR; the one edge below was
-judged out of scope and recorded here.*
-
-`setupWebhookEndpointImpl` in `src/shared/stripe.ts` creates the new endpoint
-only — old same-URL endpoints are deleted by a separate
-`cleanupOldWebhookEndpoints` call that the settings route invokes AFTER
-`settings.update.stripe.webhookConfig` saves the new endpoint ID + secret to
-the DB. This ordering ensures a DB-save failure leaves the old endpoint
-(whose secret matches the DB) in place. If Stripe rejects the create because
-the account is at its webhook-endpoint cap, setup deletes same-URL strays
-(keeping the recorded endpoint intact) and retries the create. One edge
-remains:
-
-- **Same-URL stray listing doesn't paginate.** `fetchWebhookEndpoints` calls
-  `client.webhookEndpoints.list({ limit: 100 })` once and returns `.data`
-  without following Stripe's `has_more` cursor. A site that has accumulated
-  more than 100 webhook endpoints (rare — would require many failed setups
-  or a long-running test environment) would leave strays beyond the first
-  page un-deleted. Impact is limited: the new endpoint is already live and
-  the DB points at it, so leftover strays are duplicate-delivery-only, not
-  a signing-secret mismatch. Fix direction: follow the `has_more`/cursor
-  loop in `fetchWebhookEndpoints` so the same-URL filter sees every
-  endpoint. Starting point: `src/shared/stripe.ts` (`fetchWebhookEndpoints`
-  and `listSameUrlEndpointIds`).
-
----
 
 ## Bunny subrequest budget follow-ups
 

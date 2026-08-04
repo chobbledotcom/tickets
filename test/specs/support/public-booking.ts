@@ -36,6 +36,9 @@ export interface BookingChoices {
   day?: string;
   dayCount?: number;
   email: string;
+  /** Only for a listing that asks for one; a page that does not offer a phone
+   * box fails the story rather than quietly dropping the number. */
+  phone?: string;
   places?: number;
   who: string;
 }
@@ -101,6 +104,7 @@ export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
     email: choices.email,
     name: choices.who,
     ...quantities,
+    ...(choices.phone === undefined ? {} : { phone: choices.phone }),
     ...(choices.day === undefined ? {} : { date: choices.day }),
     ...(choices.dayCount === undefined
       ? {}
