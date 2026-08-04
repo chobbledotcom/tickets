@@ -45,30 +45,32 @@ Examples:
   deno task mutation src/shared/dates.ts test/shared/dates.test.ts
   deno task mutation 'src/shared/forms/definition.ts' 'test/shared/forms/definition/*.test.ts' --exhaustive`;
 
-const main = async (): Promise<void> => {
+// Ends by returning, never by Deno.exit: as a snapshot child this runs
+// inside runSnapshotChild, whose clean-up must go ahead after the work.
+const main = async (): Promise<number> => {
   const args = parseArgs(Deno.args);
   if (args.error !== null) {
     console.error(args.error);
-    Deno.exit(1);
+    return 1;
   }
   if (args.help || args.sources.length === 0 || args.tests.length === 0) {
     console.log(USAGE);
-    Deno.exit(args.help ? 0 : 1);
+    return args.help ? 0 : 1;
   }
 
   const sourceFiles = await expand(args.sources);
   const testFiles = await expand(args.tests);
   if (sourceFiles.length === 0) {
     console.error("No source files matched.");
-    Deno.exit(1);
+    return 1;
   }
   if (testFiles.length === 0) {
     console.error("No test files matched.");
-    Deno.exit(1);
+    return 1;
   }
 
   const { runMutationTesting } = await import("./mutation/runner.ts");
-  const code = await runMutationTesting({
+  return await runMutationTesting({
     ...(args.batchJobs === undefined ? {} : { batchJobs: args.batchJobs }),
     exhaustive: args.exhaustive,
     sourceFiles,
@@ -76,12 +78,11 @@ const main = async (): Promise<void> => {
     timeout: args.timeout,
     useHarness: args.useHarness,
   });
-  Deno.exit(code);
 };
 
 if (import.meta.main) {
   if (isSnapshotChild()) {
-    await runSnapshotChild(main);
+    Deno.exit(await runSnapshotChild(main));
   } else {
     Deno.exit(await runIsolatedMutationCommand(Deno.args));
   }

@@ -20,13 +20,17 @@ import { errorMessage } from "#shared/error-message.ts";
 import { envWith } from "./child-process.ts";
 import {
   liveRunIdSet,
-  processBelongsToRun,
   removeFinishedRuns,
   removeInactiveRuns,
   removeWorkSnapshot,
   reportRemoveFailure,
+  runIsOwned,
 } from "./isolation-cleanup.ts";
-import { withCopyBackLock, withMutationRunLock } from "./isolation-lock.ts";
+import {
+  withCopyBackLock,
+  withRunClaim,
+  withRunClaimGuard,
+} from "./isolation-lock.ts";
 import { readRunRecords, writeRunRecord } from "./isolation-records.ts";
 import {
   copyMutationSnapshot,
@@ -36,14 +40,17 @@ import {
   MUTATION_RUN_ID_ENV,
   MUTATION_RUN_ROOT_ENV,
   MUTATION_SNAPSHOT_CHILD_ENV,
+  MUTATION_SUPERVISOR_PID_ENV,
   MUTATION_WORK_ROOT_ENV,
   type MutationRunRecord,
+  markChildEnded,
   markFinished,
   markInterrupted,
   markRunning,
   newRunRecord,
   parseIsolationCommand,
   rewriteMutationArgs,
+  runClaimPath,
   type SnapshotArgsFn,
   selectedRuns,
 } from "./isolation-state.ts";
@@ -71,7 +78,7 @@ const signalRun = async (
   record: MutationRunRecord,
   force: boolean,
 ): Promise<boolean> => {
-  if (!(await processBelongsToRun(record)) || record.pid === undefined) {
+  if (!(await runIsOwned(record)) || record.pid === undefined) {
     return false;
   }
   try {
@@ -91,6 +98,9 @@ const childEnv = (
     [MUTATION_SNAPSHOT_CHILD_ENV]: "1",
     [MUTATION_RUN_ID_ENV]: id,
     [MUTATION_RUN_ROOT_ENV]: runRootPath,
+    // The child keeps the run's claim fresh, and needs to know whether this
+    // supervisor is still alive to release it when the child ends.
+    [MUTATION_SUPERVISOR_PID_ENV]: String(Deno.pid),
     [MUTATION_WORK_ROOT_ENV]: snapshotRoot,
   });
 
@@ -103,9 +113,20 @@ const childArgs =
     ...rewriteMutationArgs(root, snapshotRoot, args),
   ];
 
-const forceStopChild = (child: Deno.ChildProcess | null): never => {
+const forceStopChild = (
+  child: Deno.ChildProcess | null,
+  record: MutationRunRecord,
+): void => {
   if (child) stopProcessNow(child);
-  Deno.exit(130);
+  // Exiting here skips the claim's release, so take the claim down first —
+  // under the takers' guard, so a child touch mid-write cannot put it back
+  // after the removal. The child was just killed, so the guard frees in
+  // moments even if that touch held it. Without the claim the run reads as
+  // over at once instead of after a whole stale window.
+  void withRunClaimGuard(record, () => {
+    Deno.removeSync(runClaimPath(record));
+    return Promise.resolve();
+  }).finally(() => Deno.exit(130));
 };
 
 const killChildQuietly = (child: Deno.ChildProcess | null): void => {
@@ -141,29 +162,30 @@ const keepFiles = (
       : bringFilesBack(root, workRoot, copyBack),
   );
 
-/** Record the child's result, then bring back what the run means to keep. */
-const finishChild = (
+/**
+ * Record the child's result, then bring back what the run means to keep. The
+ * supervisor's claim on the run stays fresh throughout, so a clear-up
+ * elsewhere can neither take the copy before its kept files are read nor take
+ * the folder while the last record write lands in it.
+ */
+const finishChild = async (
   record: MutationRunRecord,
   wasInterrupted: () => boolean,
   code: number,
   root: string,
   copyBack: CopyBackFile[],
-): Promise<{ exitCode: number; record: MutationRunRecord }> =>
-  // All under the lock, so a clear-up elsewhere can neither take the copy
-  // before its kept files are read nor take the folder while the last record
-  // write lands in it.
-  withMutationRunLock(record.root, async () => {
-    const failedToKeep =
-      wasInterrupted() || copyBack.length === 0
-        ? 0
-        : await keepFiles(wasInterrupted, root, record.workRoot, copyBack);
-    const interrupted = wasInterrupted();
-    // A run that could not keep its files failed, whatever the child said.
-    const exitCode = interrupted ? 130 : failedToKeep || code;
-    const settled = settleRecord(record, interrupted, exitCode);
-    await writeRunRecord(settled);
-    return { exitCode, record: settled };
-  });
+): Promise<{ exitCode: number; record: MutationRunRecord }> => {
+  const failedToKeep =
+    wasInterrupted() || copyBack.length === 0
+      ? 0
+      : await keepFiles(wasInterrupted, root, record.workRoot, copyBack);
+  const interrupted = wasInterrupted();
+  // A run that could not keep its files failed, whatever the child said.
+  const exitCode = interrupted ? 130 : failedToKeep || code;
+  const settled = settleRecord(record, interrupted, exitCode);
+  await writeRunRecord(settled);
+  return { exitCode, record: settled };
+};
 
 export const runInSnapshot = async (
   run: SnapshotRun,
@@ -174,71 +196,72 @@ export const runInSnapshot = async (
   await removeInactiveRuns(root);
   const id = createRunId();
   let record = newRunRecord(id, args, root);
-  await writeRunRecord(record);
+  // Claimed before the record's first write and held until the snapshot is
+  // gone, so there is no moment when a clear-up can see this run unowned.
+  return await withRunClaim(record, async () => {
+    await writeRunRecord(record);
 
-  let child: Deno.ChildProcess | null = null;
-  let interrupted = false;
-  const stopChild = (): void => {
-    if (interrupted) forceStopChild(child);
-    interrupted = true;
-    killChildQuietly(child);
-  };
-  onTerminationSignals(stopChild);
+    let child: Deno.ChildProcess | null = null;
+    let interrupted = false;
+    const stopChild = (): void => {
+      if (interrupted) {
+        forceStopChild(child, record);
+        return;
+      }
+      interrupted = true;
+      killChildQuietly(child);
+    };
+    onTerminationSignals(stopChild);
 
-  let exitCode = 1;
-  try {
-    console.log(`Creating isolated mutation run ${id}`);
-    console.log(`Snapshot: ${relative(root, record.workRoot)}`);
-    child = await withMutationRunLock(record.root, async () => {
-      // A `--clean` running in the gap above sees an unlocked copying run and
-      // removes it, so write the record again now the lock makes it safe.
-      await writeRunRecord(record);
+    let exitCode = 1;
+    try {
+      console.log(`Creating isolated mutation run ${id}`);
+      console.log(`Snapshot: ${relative(root, record.workRoot)}`);
       await copyMutationSnapshot(root, record.workRoot);
       if (interrupted) {
         record = markInterrupted(record);
         await writeRunRecord(record);
         exitCode = 130;
-        return null;
-      }
-      const spawned = new Deno.Command(Deno.execPath(), {
-        args: childArgs(run.entryScript)(root, record.workRoot, args),
-        cwd: record.workRoot,
-        env: childEnv(id, record.root, record.workRoot),
-        ...INHERIT_STDIO,
-      }).spawn();
-      child = spawned;
-      record = markRunning(record, spawned.pid);
-      await writeRunRecord(record);
-      console.log(`Mutation child pid ${spawned.pid}`);
-      return spawned;
-    });
+      } else {
+        const spawned = new Deno.Command(Deno.execPath(), {
+          args: childArgs(run.entryScript)(root, record.workRoot, args),
+          cwd: record.workRoot,
+          env: childEnv(id, record.root, record.workRoot),
+          ...INHERIT_STDIO,
+        }).spawn();
+        child = spawned;
+        record = markRunning(record, spawned.pid);
+        await writeRunRecord(record);
+        console.log(`Mutation child pid ${spawned.pid}`);
 
-    if (child !== null) {
-      const status = await child.status;
-      const finished = await finishChild(
-        record,
-        () => interrupted,
-        status.code,
-        root,
-        copyBack,
-      );
-      record = finished.record;
-      exitCode = finished.exitCode;
+        const status = await spawned.status;
+        record = markChildEnded(record);
+        await writeRunRecord(record);
+        const finished = await finishChild(
+          record,
+          () => interrupted,
+          status.code,
+          root,
+          copyBack,
+        );
+        record = finished.record;
+        exitCode = finished.exitCode;
+      }
+    } catch (error) {
+      if (child !== null) await stopProcess(child, 250);
+      exitCode = interrupted ? 130 : 1;
+      record = settleRecord(record, interrupted, exitCode);
+      try {
+        await writeRunRecord(record);
+      } catch {
+        // A failed write should not mask the original error.
+      }
+      console.error(errorMessage(error));
     }
-  } catch (error) {
-    if (child !== null) await stopProcess(child, 250);
-    exitCode = interrupted ? 130 : 1;
-    record = settleRecord(record, interrupted, exitCode);
-    try {
-      await writeRunRecord(record);
-    } catch {
-      // A failed write should not mask the original error.
-    }
-    console.error(errorMessage(error));
-  }
-  offTerminationSignals(stopChild);
-  await removeWorkSnapshot(record);
-  return exitCode;
+    offTerminationSignals(stopChild);
+    await removeWorkSnapshot(record);
+    return exitCode;
+  });
 };
 
 export const runMutationInSnapshot: MutationCommandRunner = (

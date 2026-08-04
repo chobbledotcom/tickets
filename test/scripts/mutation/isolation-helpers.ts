@@ -2,10 +2,12 @@ import { join } from "node:path";
 import { stub } from "@std/testing/mock";
 import { runIsolatedMutationCommand } from "#scripts/mutation/isolation.ts";
 import {
+  type MutationRunRecord,
   markFinished,
   markRunning,
   newRunRecord,
   recordPath,
+  runClaimPath,
   runRoot,
 } from "#scripts/mutation/isolation-state.ts";
 import { withTempDir as withSharedTempDir } from "#test-utils/files.ts";
@@ -52,8 +54,28 @@ export const finishedRun = (
 ): ReturnType<typeof markFinished> =>
   markFinished(newRunRecord(runIdNamed(label), [], root), 0);
 
-/** A time far enough back that the startup grace no longer covers it. */
+/** A time far enough back that no claim written then is still fresh. */
 export const LONG_AGO = new Date("2026-01-01T00:00:00.000Z");
+
+/**
+ * A claim as another run's supervisor would leave it on disk. Written at
+ * `writtenAt`, so a moment ago means a live supervisor and `LONG_AGO` means
+ * one that walked away.
+ */
+export const writeRunClaim = async (
+  record: Pick<MutationRunRecord, "root">,
+  writtenAt = Date.now(),
+): Promise<void> => {
+  await Deno.mkdir(record.root, { recursive: true });
+  await Deno.writeTextFile(
+    runClaimPath(record),
+    `another-supervisor\n${writtenAt}`,
+  );
+};
+
+export const removeRunClaim = (
+  record: Pick<MutationRunRecord, "root">,
+): Promise<void> => Deno.remove(runClaimPath(record));
 
 const lineFrom = (values: unknown[]): string => values.map(String).join(" ");
 

@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { writeRunRecord } from "#scripts/mutation/isolation-records.ts";
 import {
   createRunId,
+  MUTATION_CLAIM_FILE,
   MUTATION_RECORD_FILE,
   markFinished,
   newRunRecord,
@@ -16,6 +17,7 @@ import {
   LONG_AGO,
   withTempDir,
   writeFakeMutationScript,
+  writeRunClaim,
 } from "#test/scripts/mutation/isolation-helpers.ts";
 import { pathExists } from "#test-utils/files.ts";
 
@@ -31,93 +33,67 @@ const OLD_RUN_ID = createRunId(
 );
 
 /** A run folder holding a snapshot and a record too broken to read. */
-const writeUnreadableRun = async (
-  root: string,
-  changedAt: Date,
-): Promise<string> => {
+const writeUnreadableRun = async (root: string): Promise<string> => {
   const folder = runRoot(BROKEN_RUN_ID, root);
   await Deno.mkdir(join(folder, "work"), { recursive: true });
   await Deno.writeTextFile(join(folder, MUTATION_RECORD_FILE), "{ half");
-  await Deno.utime(folder, changedAt, changedAt);
   return folder;
 };
 
-/** Answer stats about the broken run folder with `info`, and pass the rest on. */
-const stubRunsFolderStat = (
-  info: Partial<Deno.FileInfo> | Error,
-): Disposable => {
-  const stat = Deno.stat;
-  return stub(Deno, "stat", ((path: string | URL) => {
-    if (!`${path}`.includes(BROKEN_RUN_ID)) return stat(path);
-    return info instanceof Error
-      ? Promise.reject(info)
-      : Promise.resolve(info as Deno.FileInfo);
-  }) as typeof Deno.stat);
-};
-
-const runAfterUnreadableRun = async (
-  root: string,
-  changedAt: Date,
-): Promise<string> => {
+const runAfterUnreadableRun = async (root: string): Promise<string> => {
   await writeFakeMutationScript(root, "Deno.exit(0);\n");
-  const folder = await writeUnreadableRun(root, changedAt);
+  const folder = await writeUnreadableRun(root);
   await captureSimpleSnapshotMutation(root);
   return folder;
 };
 
-/**
- * Run with a just-made unreadable run folder that answers stats with `info`,
- * and report whether the folder was still there afterwards.
- */
-const runWithStatAnswer = (
-  info: Partial<Deno.FileInfo> | Error,
-): Promise<boolean> =>
-  withTempDir(async (root) => {
-    await writeFakeMutationScript(root, "Deno.exit(0);\n");
-    const folder = await writeUnreadableRun(root, new Date());
-
-    await (async () => {
-      using _stat = stubRunsFolderStat(info);
-      await captureSimpleSnapshotMutation(root);
-    })();
-
-    return await pathExists(folder);
-  });
-
 describe("clearing up before a mutation run", () => {
   test("clears out a run folder whose record cannot be read", async () => {
     await withTempDir(async (root) => {
-      const folder = await runAfterUnreadableRun(root, LONG_AGO);
+      const folder = await runAfterUnreadableRun(root);
 
       expect(await pathExists(folder)).toBe(false);
     });
   });
 
-  test("leaves a run folder alone while its record is being written", async () => {
+  test("leaves an unreadable run folder alone while its claim is fresh", async () => {
     await withTempDir(async (root) => {
-      const folder = await runAfterUnreadableRun(root, new Date());
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+      const folder = await writeUnreadableRun(root);
+      // Another run may be writing this record right now: its supervisor's
+      // claim, taken before the record's first write, is what says so.
+      await writeRunClaim({ root: folder });
 
-      // Another run may be writing this record right now.
+      await captureSimpleSnapshotMutation(root);
+
       expect(await pathExists(folder)).toBe(true);
     });
   });
 
-  test("leaves alone a run folder whose age cannot be told", async () => {
-    // No way to know it is over, so it stays put rather than being deleted.
-    expect(await runWithStatAnswer({ isDirectory: true, mtime: null })).toBe(
-      true,
-    );
-    expect(await runWithStatAnswer(new Deno.errors.NotFound("gone"))).toBe(
-      true,
-    );
-  });
+  test("gives up when a run's claim cannot be asked about at all", async () => {
+    await withTempDir(async (root) => {
+      await writeFakeMutationScript(root, "Deno.exit(0);\n");
+      const folder = await writeUnreadableRun(root);
+      await writeRunClaim({ root: folder });
 
-  test("gives up when a run folder cannot be asked about at all", async () => {
-    // Anything other than a missing folder means the disk is in a state we
-    // must not guess about, so the run stops instead of deleting blind.
-    await expect(
-      runWithStatAnswer(new Deno.errors.PermissionDenied("no access")),
-    ).rejects.toThrow("no access");
+      const readTextFile = Deno.readTextFile;
+      using _read = stub(Deno, "readTextFile", ((
+        path: string | URL,
+        options?: Deno.ReadFileOptions,
+      ) => {
+        if (`${path}` === join(folder, MUTATION_CLAIM_FILE)) {
+          // Anything other than a missing claim means the disk is in a state
+          // we must not guess about, so the run stops instead of deleting blind.
+          return Promise.reject(new Deno.errors.PermissionDenied("no access"));
+        }
+        return readTextFile(path, options);
+      }) as typeof Deno.readTextFile);
+
+      await expect(captureSimpleSnapshotMutation(root)).rejects.toThrow(
+        "no access",
+      );
+      expect(await pathExists(folder)).toBe(true);
+    });
   });
 
   test("leaves alone a folder this runner did not name", async () => {
