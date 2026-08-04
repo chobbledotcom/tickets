@@ -278,10 +278,19 @@ export const findFormByButton = (
   // every field being sent is the one a person filling them in would submit,
   // so it wins whenever any form renders them all. The whitespace before
   // name= keeps a longer attribute like data-name from counting as a field.
-  const rendersEveryField = (body: string): boolean =>
-    fieldNames.every((field) =>
-      new RegExp(`\\sname="${escapeForRegex(field)}"`).test(body),
+  const rendersEveryField = (body: string): boolean => {
+    // Only real controls count. Anything else on the page may carry a `name`
+    // without being something a person can fill in, and a form holding one of
+    // those is not the form they would have typed into.
+    const controls = regexCollect(
+      /<(?:input|select|textarea)\b[^>]*>/gi,
+      body,
+      (m) => m[0],
     );
+    return fieldNames.every((field) =>
+      controls.some((tag) => attrValue(tag, "name") === field),
+    );
+  };
   const preferred = forms.filter((f) => rendersEveryField(f.body));
   const candidates = preferred.length > 0 ? preferred : forms;
   let unusable: "switched off" | "sends nothing" | null = null;

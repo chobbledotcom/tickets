@@ -94,6 +94,26 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     expect(postedPath()).toBe("/real");
   });
 
+  it("ranks forms by their real controls, not anything carrying a name", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    browser.currentHtml = `
+      <form action="/decoy" method="POST">
+        <div name="intro">About you</div>
+        <button type="submit">Save</button>
+      </form>
+      <form action="/real" method="POST">
+        <textarea name="intro"></textarea>
+        <button type="submit">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ intro: "Hello" }, "Save");
+
+    // A `<div name="intro">` is not something anybody types into, so the form
+    // holding the real writing space is the one they would have used.
+    expect(postedPath()).toBe("/real");
+  });
+
   it("keeps the first matching form when nothing renders a sent field", async () => {
     const { browser, postedPath } = postedPathBrowser();
     // A field no form renders is a plain override, so form choice falls back
