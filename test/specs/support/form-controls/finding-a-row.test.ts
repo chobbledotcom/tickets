@@ -50,6 +50,18 @@ describe("reading a list into its rows", () => {
     expect(fish!.row).not.toContain("move-down");
   });
 
+  test("does not read markup after the table as the last row's", () => {
+    // The last row's markup ends at its own closing tag — an arrow rendered
+    // after the table must not read as an arrow on that row.
+    const page = `
+      <table>
+        <tr><td><a href="${LIST}/7">Confirmed</a></td></tr>
+      </table>
+      <form action="${LIST}/7/move-up"><button>▲</button></form>
+    `;
+    expect(rowsOnList(page, INTO_ONE)[0]!.row).not.toContain("move-up");
+  });
+
   test("does not count a row whose link goes somewhere else", () => {
     const page = `
       <tr><td><a href="/admin/somewhere-else/3">Not one of these</a></td></tr>

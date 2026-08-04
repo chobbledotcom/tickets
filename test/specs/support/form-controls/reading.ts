@@ -204,7 +204,12 @@ export interface RowOnList {
  * person has no way into, so it is not a row they could act on at all. */
 export const rowsOnList = (html: string, wayIn: RegExp): RowOnList[] => {
   const rows: RowOnList[] = [];
-  for (const row of html.split("<tr").slice(1)) {
+  for (const segment of html.split("<tr").slice(1)) {
+    // Only up to the row's own closing tag: the last row's segment otherwise
+    // runs to the end of the page, and anything rendered after the table
+    // would read as that row's.
+    const closed = segment.indexOf("</tr>");
+    const row = closed === -1 ? segment : segment.slice(0, closed);
     for (const link of findAllLinks(row)) {
       const into = link.href.match(wayIn);
       if (into?.[1]) {
