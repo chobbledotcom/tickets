@@ -154,7 +154,7 @@ const descendTo = (program: object, mutant: Span): Descent => {
   return { context: wider ?? withinStatement.at(-1)!, names };
 };
 
-export interface AnchoredMutant {
+interface AnchoredMutant {
   /** `name~fingerprint`, plus `@n` when two mutants are indistinguishable. */
   anchor: string;
 }

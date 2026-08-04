@@ -21,7 +21,7 @@
  */
 
 import { fromFileUrl, join } from "@std/path";
-import { namesInDirectory, rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { namesInDirectory, readTextFileOrNull } from "#scripts/not-found.ts";
 import { rel } from "#scripts/project-root.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
@@ -124,15 +124,10 @@ export const loadIgnoreList = async (
   const files = ignoreFiles ?? (await listRegistryFiles());
   const entries: string[] = [];
   for (const file of files) {
-    let text: string;
-    try {
-      text = await Deno.readTextFile(file);
-    } catch (error) {
-      // Absence is the documented empty case; a file that exists but cannot
-      // be read is a real failure the run must surface, not an empty registry.
-      rethrowUnlessNotFound(error);
-      continue;
-    }
+    // Absence is the documented empty case; a file that exists but cannot be
+    // read is a real failure the run must surface, not an empty registry.
+    const text = await readTextFileOrNull(file);
+    if (text === null) continue;
     entries.push(...parseRegistryText(text, file).map((entry) => entry.key));
   }
   return { entries, keys: new Set(entries) };

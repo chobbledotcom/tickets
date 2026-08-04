@@ -258,7 +258,10 @@ describe("Turso migration file", () => {
       ).rejects.toThrow("connection reset mid-upload");
     }));
 
-  test("ignores the duplicate body-stream rejection only mid-upload", () =>
+  // The rejection surfaces whenever the polyfill's own internal task ends, so
+  // the watch cannot be timed to the upload — it stays up once an upload has
+  // run, and earns that by only ever ignoring this one message.
+  test("ignores the duplicate body-stream rejection and nothing else", () =>
     withTempDir(async (dir) => {
       const prevented = (reason: unknown): boolean => {
         const event = new PromiseRejectionEvent("unhandledrejection", {
@@ -289,8 +292,10 @@ describe("Turso migration file", () => {
 
       request.destroy(new Error("cut mid-upload"));
       await expect(upload).rejects.toThrow("cut mid-upload");
-      // Once the upload has settled the watch is down again.
-      expect(prevented(defect())).toBe(false);
+      // Still ignored after the upload settles: a late rejection is exactly
+      // the one this watch exists for.
+      expect(prevented(defect())).toBe(true);
+      expect(prevented(new TypeError("some other failure"))).toBe(false);
     }));
 
   test("rejects an interrupted upload before opening the snapshot", () =>

@@ -13,6 +13,7 @@
 
 import { isAbsolute, relative, resolve, SEPARATOR } from "@std/path";
 import { requiredMapValue } from "#fp";
+import { readTextFileOrNull } from "#scripts/not-found.ts";
 import { generateMutants } from "./generate.ts";
 import {
   listRegistryFiles,
@@ -21,7 +22,7 @@ import {
   registryFilePath,
 } from "./ignore.ts";
 
-export interface EquivalentCheckOptions {
+interface EquivalentCheckOptions {
   /** Where the registry files live. */
   registryDir: string | URL;
   /** The project root every entry's path is written relative to. */
@@ -74,14 +75,21 @@ const readEntries = async (
   return entries;
 };
 
-/** Every mutant key a source file can produce, generated exhaustively so an
- * entry for an exhaustive-only replacement still resolves. */
+/**
+ * Every mutant key a source file can produce, generated exhaustively so an
+ * entry for an exhaustive-only replacement still resolves.
+ *
+ * A source the branch deleted or renamed produces none, which reads as stale —
+ * the entry naming it is exactly what the author has to remove, and saying so
+ * is more use than failing the commit with a file-read error.
+ */
 const keysFor = async (
   sourcePath: string,
   root: string,
 ): Promise<Set<string>> => {
   const file = resolve(root, sourcePath);
-  const content = await Deno.readTextFile(file);
+  const content = await readTextFileOrNull(file);
+  if (content === null) return new Set();
   return new Set(
     generateMutants(content, file, true).map((mutant) =>
       mutantKeyForPath(sourcePath, mutant),

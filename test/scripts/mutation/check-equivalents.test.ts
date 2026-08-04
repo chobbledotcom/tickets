@@ -66,6 +66,22 @@ describe("checking the equivalent-mutant registry resolves", () => {
     expect(problems[0]).toContain("noSuchThing~0000000");
   });
 
+  // A branch that deletes or renames a source still has to be told which line
+  // to remove, so a missing file reads as stale rather than killing the run.
+  test("reports an entry whose source file is gone", async () => {
+    const state = await project([
+      "src/read.ts::gone~0000000  ?? \u2192 ||   # its source was deleted",
+    ]);
+    using _dir = state.dir;
+    await Deno.remove(join(state.root, "src", "read.ts"));
+
+    const problems = await check(state);
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("stale");
+    expect(problems[0]).toContain("src/read.ts::gone~0000000");
+  });
+
   test("reports the same entry recorded twice", async () => {
     const state = await project([]);
     using _dir = state.dir;
