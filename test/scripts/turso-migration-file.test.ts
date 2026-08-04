@@ -46,17 +46,24 @@ const withUploadServer = async (
   );
   const address = server.addr;
   if (!("port" in address)) throw new Error("Expected a network address");
+  // A server that answers before reading the body leaves the client still
+  // streaming after the upload has already settled. Ending those requests here
+  // keeps every socket's failure inside the test that made it.
+  const sent: ClientRequest[] = [];
   const transport: DatabaseUploadTransport = {
     request: (url, options, receive) => {
       expect(url.protocol).toBe("https:");
       const localUrl = new URL(url);
       localUrl.protocol = "http:";
-      return httpRequest(localUrl, options, receive);
+      const request = httpRequest(localUrl, options, receive);
+      sent.push(request);
+      return request;
     },
   };
   try {
     await run(`https://127.0.0.1:${address.port}`, transport);
   } finally {
+    for (const request of sent) request.destroy();
     await server.shutdown();
     await server.finished;
   }
