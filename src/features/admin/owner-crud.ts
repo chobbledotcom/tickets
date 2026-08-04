@@ -71,8 +71,6 @@ export const crudRoutes = <Base extends string>(
     [`POST ${base}`]: crud.createPost,
     [`POST ${base}/:id/delete`]: crud.deletePost,
     [`POST ${base}/:id/edit`]: crud.editPost,
-    // Computed template-literal keys widen to an index signature, so the
-    // literal route keys are restated by the cast.
   }) as CrudRoutes<Base>;
 
 /** Resolve one CRUD operation through its success or failure response path. */

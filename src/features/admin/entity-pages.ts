@@ -380,8 +380,6 @@ export const entityTabRoutes = <
       request: Request,
       params: Record<Param, number> & { tab: string },
     ) => page.renderTab(request, idOf(params), params.tab),
-    // Computed template-literal keys widen to an index signature, so the
-    // literal route keys are restated by the cast.
   } as EntityTabRoutes<Base, Param>;
 };
 

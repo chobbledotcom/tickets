@@ -10,7 +10,7 @@ const splitTrimmed =
       .filter((part) => part !== "");
 
 /** The non-blank lines of a block of text, each trimmed. */
-export const nonBlankLines = splitTrimmed(/\r?\n/);
+export const nonBlankLines: (text: string) => string[] = splitTrimmed(/\r?\n/);
 
 /** The trimmed, non-blank entries of a comma-separated list. */
-export const commaParts = splitTrimmed(",");
+export const commaParts: (text: string) => string[] = splitTrimmed(",");

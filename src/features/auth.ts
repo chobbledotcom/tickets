@@ -466,19 +466,29 @@ export const authPage =
       htmlResponse(await render(session, request, flash)),
     );
 
+/** What a role's response-page helper is: it takes the builder for the full
+ * Response and returns the guarded route. */
+type ResponsePageFactory = (
+  build: ResponseHandler<
+    [session: AuthSession, request: Request, flash: Flash]
+  >,
+) => RequestRoute;
+
 /** Owner-only GET page: authenticate, apply flash, render HTML */
 export const ownerPage = authPage(requireOwnerOr);
 
 /** Owner-only GET route whose builder returns the full Response (may 404 or
  * redirect instead of rendering). */
-export const ownerResponsePage = authResponsePage(requireOwnerOr);
+export const ownerResponsePage: ResponsePageFactory =
+  authResponsePage(requireOwnerOr);
 
 /** Authenticated GET page: authenticate, apply flash, render HTML */
 export const sessionPage = authPage(requireSessionOr);
 
 /** Content-editing GET route (staff or editor) whose builder returns the full
  * Response (may 404 or redirect instead of rendering). */
-export const contentResponsePage = authResponsePage(requireContentOr);
+export const contentResponsePage: ResponsePageFactory =
+  authResponsePage(requireContentOr);
 
 /** Content-editing GET page (staff or editor): authenticate, apply flash,
  * render HTML. */
