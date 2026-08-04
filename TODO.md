@@ -1619,6 +1619,10 @@ diagnostic, unknown location". A fix wants a deterministic stand-down —
 e.g. hold the watch until the request's own `close` says its internals are
 done — proven by a test that forces the late rejection, not by timing luck.
 
+---
+
+## The gap between a mutation child ending and its supervisor taking the lock
+
 *Raised by Codex on [PR #1976](https://github.com/chobbledotcom/tickets/pull/1976),
 about `scripts/mutation/isolation.ts` and `scripts/mutation/isolation-cleanup.ts`.*
 
