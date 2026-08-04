@@ -107,6 +107,67 @@ describe("square-provider resolveWebhookSession", () => {
     );
   });
 
+  test("refuses a payment that belongs to a different order", async () => {
+    // The webhook says this payment is for order_mine, but Square's own record
+    // of the payment names another order. One of the two is wrong, and booking
+    // order_mine's signed metadata against a stranger's money is the way that
+    // goes badly — so it is refused rather than guessed at.
+    await withMocks(
+      () =>
+        withOrderAndPayment(
+          {
+            id: "order_mine",
+            metadata: SQUARE_ORDER_META,
+            state: "COMPLETED",
+            totalMoney: squareMoney(1000),
+          },
+          {
+            amountMoney: squareMoney(1000),
+            id: "pay_stranger",
+            orderId: "order_someone_else",
+            status: "COMPLETED",
+          },
+        ),
+      async () => {
+        // Not ours to book here; the payment's real order has its own webhook.
+        expect(await completedWebhook("pay_stranger", "order_mine")).toBe(
+          "skip",
+        );
+        expect(debug().calls.at(-1)?.args[0]).toContain("order_someone_else");
+      },
+    );
+  });
+
+  test("refuses a completed payment that names no amount", async () => {
+    // Standing the order total in for money Square did not report would let an
+    // unreadable charge match the signed price and book as paid in full.
+    await withMocks(
+      () =>
+        withOrderAndPayment(
+          {
+            id: "order_no_amount",
+            metadata: SQUARE_ORDER_META,
+            state: "COMPLETED",
+            totalMoney: squareMoney(1000),
+          },
+          { id: "pay_no_amount", status: "COMPLETED" },
+        ),
+      async () => {
+        const result = await completedWebhook(
+          "pay_no_amount",
+          "order_no_amount",
+        );
+        expect(result).toEqual(
+          expect.objectContaining({
+            paymentReference: "pay_no_amount",
+            reason: "malformed_charge",
+            refundable: true,
+          }),
+        );
+      },
+    );
+  });
+
   test("asks to be retried when the completed payment cannot be read back", async () => {
     // Square said COMPLETED, so a failed read-back is a blip on its side. Going
     // quiet here would acknowledge the captured charge as pending and Square
@@ -145,7 +206,11 @@ describe("square-provider resolveWebhookSession", () => {
           }),
         ),
         payment: stub(squareApi, "retrievePayment", () =>
-          Promise.resolve({ id: "pay_lagging", status: "COMPLETED" }),
+          Promise.resolve({
+            amountMoney: squareMoney(1000),
+            id: "pay_lagging",
+            status: "COMPLETED",
+          }),
         ),
       }),
       async (mocks) => {
@@ -186,7 +251,11 @@ describe("square-provider resolveWebhookSession", () => {
           }),
         ),
         payment: stub(squareApi, "retrievePayment", () =>
-          Promise.resolve({ id: "pay_latest", status: "COMPLETED" }),
+          Promise.resolve({
+            amountMoney: squareMoney(1000),
+            id: "pay_latest",
+            status: "COMPLETED",
+          }),
         ),
       }),
       async (mocks) => {

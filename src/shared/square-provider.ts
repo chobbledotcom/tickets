@@ -141,24 +141,38 @@ export const squarePaymentProvider: PaymentProvider = {
       throw new Error(`Square payment ${paidPaymentId} could not be read back`);
     }
 
-    // Square's own figure for what it took, whenever it names one. The order
-    // total is only what was asked for, so a partial payment would match the
-    // signed price and book as paid in full.
-    const charged =
-      typeof payment?.amountMoney?.amount === "bigint"
-        ? payment.amountMoney
-        : order.totalMoney;
+    // The payment must be for the order whose signed metadata we are about to
+    // book. When Square's two records disagree, one of them is wrong, and
+    // guessing spends a stranger's money against our proof.
+    if (
+      payment &&
+      payment.orderId !== undefined &&
+      payment.orderId !== order.id
+    ) {
+      logDebug(
+        "Square",
+        `Payment ${paymentReference} belongs to order ${payment.orderId}, not ${order.id}`,
+      );
+      return null;
+    }
+
+    // Money we can see was taken. A completed payment names its own amount, and
+    // standing the order total in for it would let a short or unreadable charge
+    // match the signed price and book as paid in full. Until then the order
+    // total is all there is, and nothing has been captured against it.
+    const paid = payment?.status === "COMPLETED";
+    const charged = paid ? payment.amountMoney : order.totalMoney;
     return validatedPaymentSession({
       // A missing amount stays missing: Number(null) is 0, which the
       // boundary would accept as a real free order.
       amountTotal:
-        typeof charged.amount === "bigint" ? Number(charged.amount) : null,
+        typeof charged?.amount === "bigint" ? Number(charged.amount) : null,
       createdAt: toCanonicalIso(order.createdAt),
-      currency: charged.currency,
+      currency: charged?.currency,
       id: order.id,
       metadata,
       paymentReference,
-      paymentStatus: payment?.status === "COMPLETED" ? "paid" : "unpaid",
+      paymentStatus: paid ? "paid" : "unpaid",
     });
   },
 

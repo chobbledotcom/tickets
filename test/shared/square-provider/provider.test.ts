@@ -32,7 +32,11 @@ describeSquare(() => {
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_abc", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(2000), currency: "GBP" },
+                id: "pay_abc",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {
@@ -129,7 +133,7 @@ describeSquare(() => {
       );
     });
 
-    test("retrieveSession returns amountTotal from order totalMoney", async () => {
+    test("retrieveSession reports the amount the payment took", async () => {
       await withSquareClient(
         {
           ordersGet: () =>
@@ -148,7 +152,11 @@ describeSquare(() => {
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_total_123", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(6000), currency: "GBP" },
+                id: "pay_total_123",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {
@@ -185,7 +193,11 @@ describeSquare(() => {
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_multi", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(3000), currency: "GBP" },
+                id: "pay_multi",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {

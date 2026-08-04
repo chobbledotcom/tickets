@@ -39,7 +39,11 @@ const paidPay1Mocks = (id: string, createdAt?: string) => ({
     }),
   ),
   payment: stub(squareApi, "retrievePayment", () =>
-    Promise.resolve({ id: "pay_1", status: "COMPLETED" }),
+    Promise.resolve({
+      amountMoney: squareMoney(1000),
+      id: "pay_1",
+      status: "COMPLETED",
+    }),
   ),
 });
 
@@ -205,6 +209,7 @@ describe("square-provider", () => {
           ),
           payment: stub(squareApi, "retrievePayment", () =>
             Promise.resolve({
+              amountMoney: squareMoney(1000),
               id: "pay_2",
               status: "COMPLETED",
             }),

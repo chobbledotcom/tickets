@@ -109,8 +109,14 @@ export const sumupPaymentProvider: PaymentProvider = {
     // Unsigned webhooks: only fetch checkouts we created. Spam or another
     // integration's listings are acknowledged without an API call.
     if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
+    // The staging row already proved this checkout is ours, so a failed fetch
+    // is SumUp being unreachable rather than a checkout we never made.
+    // Throwing answers retryably; acknowledging is terminal, and a paid
+    // checkout would be left with the money taken and no booking.
     const checkout = await retrieveCheckoutById(webhookEvent.id);
-    if (!checkout) return null;
+    if (!checkout) {
+      throw new Error(`SumUp checkout ${webhookEvent.id} could not be read`);
+    }
     // The reference SumUp echoes back must be the one we generated for this
     // checkout and staged under this webhook id. If it is blank, unknown, or
     // another booking's, SumUp has contradicted itself about a checkout we

@@ -64,10 +64,14 @@ describe("sumup-provider resolveWebhookSession", () => {
     });
   });
 
-  test("returns null when the checkout cannot be fetched", async () => {
+  test("asks to be retried when a staged checkout cannot be fetched", async () => {
+    // The staging row already proved this checkout is ours, so a failed fetch
+    // is SumUp being unreachable, not a checkout we have never heard of.
+    // Acknowledging it would be terminal — SumUp never redelivers — and a paid
+    // checkout would sit with the money taken and no booking.
     await stageSumupCheckout();
     await withFetchedSumupCheckout(null, async () => {
-      expect(await resolveStaged()).toBeNull();
+      await expect(resolveStaged()).rejects.toThrow("co_1");
     });
   });
 
