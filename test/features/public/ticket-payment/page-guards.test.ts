@@ -6,6 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { map } from "#fp";
 import {
   dropChildListings,
   keepParentDailyDatesChildrenCanServe,
@@ -15,6 +16,7 @@ import {
 import { addDays } from "#shared/dates.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
@@ -41,12 +43,14 @@ const parentWithChild = async (
 /** The next date on the given weekday (1 = Monday) at least a week out, so it
  * sits inside a 30-day booking window whichever timezone "today" is read in. */
 const comingWeekday = (weekday: number): string => {
-  let date = addDays(new Date().toISOString().slice(0, 10), 7);
-  for (let step = 0; step < 7; step++) {
-    if (new Date(`${date}T00:00:00Z`).getUTCDay() === weekday) return date;
-    date = addDays(date, 1);
-  }
-  throw new Error(`No day ${weekday} in the week after next`);
+  const weekStart = addDays(new Date().toISOString().slice(0, 10), 7);
+  const week = map((step: number) => addDays(weekStart, step))([
+    0, 1, 2, 3, 4, 5, 6,
+  ]);
+  return requireValue(
+    week.find((date) => new Date(`${date}T00:00:00Z`).getUTCDay() === weekday),
+    `No day ${weekday} in the week from ${weekStart}`,
+  );
 };
 
 describeWithEnv("booking page guards", { db: true }, () => {

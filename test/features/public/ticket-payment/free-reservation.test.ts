@@ -124,7 +124,7 @@ describeWithEnv("free reservation construction", { db: true }, () => {
     test("says an extra sold out while the buyer was checking out", async () => {
       const listing = testListingWithCount({ id: 8 });
       using _create = stub(attendeesApi, "createBookingAtomic", () =>
-        Promise.resolve("sold-out" as never),
+        Promise.resolve("sold-out" as const),
       );
 
       const result = await bookOneWithStock(listing);
