@@ -36,6 +36,19 @@ const checkoutItemFor = (
   ...overrides,
 });
 
+/** Book one free listing whose order also consumes modifier stock. */
+const bookOneWithStock = (
+  listing: ReturnType<typeof testListingWithCount>,
+): ReturnType<typeof createFreeReservation> =>
+  createFreeReservation({
+    contact,
+    date: null,
+    items: [checkoutItemFor(listing, { unitPrice: 0 })],
+    ledgerOrder: null,
+    listings: [buildTicketListing(listing, false, undefined)],
+    modifierUsages: [{ amountApplied: 0, modifierId: 1, quantity: 1 }],
+  });
+
 describeWithEnv("free reservation construction", { db: true }, () => {
   describe("missing lookups", () => {
     test("fails before writing when a paid amount is missing", async () => {
@@ -91,14 +104,7 @@ describeWithEnv("free reservation construction", { db: true }, () => {
         } as never),
       );
 
-      const result = await createFreeReservation({
-        contact,
-        date: null,
-        items: [checkoutItemFor(listing, { unitPrice: 0 })],
-        ledgerOrder: null,
-        listings: [buildTicketListing(listing, false, undefined)],
-        modifierUsages: [{ amountApplied: 0, modifierId: 1, quantity: 1 }],
-      });
+      const result = await bookOneWithStock(listing);
 
       expect(result).toMatchObject({ success: true, token: "ticket-token" });
       expect(create.calls[0]!.args[0]).toMatchObject({
@@ -124,14 +130,7 @@ describeWithEnv("free reservation construction", { db: true }, () => {
         Promise.resolve("sold-out" as never),
       );
 
-      const result = await createFreeReservation({
-        contact,
-        date: null,
-        items: [checkoutItemFor(listing, { unitPrice: 0 })],
-        ledgerOrder: null,
-        listings: [buildTicketListing(listing, false, undefined)],
-        modifierUsages: [{ amountApplied: 0, modifierId: 1, quantity: 1 }],
-      });
+      const result = await bookOneWithStock(listing);
 
       expect(result).toEqual({
         error: MODIFIER_SOLD_OUT_MESSAGE,
