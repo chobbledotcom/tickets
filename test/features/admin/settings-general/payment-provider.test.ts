@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { getCurrentSettingsVersion, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -119,6 +119,41 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expectFlash(
         response,
         "Choose the provider for existing payments before enabling new sales.",
+        false,
+      );
+      expect(settings.paymentProvider).toBeNull();
+    });
+
+    test("does not change the provider while another settings task runs", async () => {
+      await settings.update.currentTask("custom-domain");
+      try {
+        const { response } = await adminFormPost(
+          "/admin/settings/payment-provider",
+          { payment_provider: "stripe" },
+        );
+
+        expectFlash(response, "Another task is already in progress", false);
+        expect(settings.paymentProvider).toBeNull();
+      } finally {
+        await settings.update.currentTask("");
+      }
+    });
+
+    test("does not apply a provider choice from a stale settings page", async () => {
+      const staleVersion = await getCurrentSettingsVersion();
+      await settings.update.theme("dark");
+
+      const { response } = await adminFormPost(
+        "/admin/settings/payment-provider",
+        {
+          payment_provider: "stripe",
+          settings_version: String(staleVersion),
+        },
+      );
+
+      expectFlash(
+        response,
+        "Settings changed. Reload the page and try again.",
         false,
       );
       expect(settings.paymentProvider).toBeNull();

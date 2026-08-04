@@ -1,5 +1,3 @@
-/** Resolve the provider used for payments that already exist. */
-
 import { compact, map, pipe } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
@@ -12,7 +10,6 @@ const providerHasCredentials: Record<PaymentProviderType, () => boolean> = {
   sumup: () => settings.sumup.hasKey,
 };
 
-/** Providers with credentials stored on this site. */
 const configuredPaymentProviderTypes = (): PaymentProviderType[] =>
   pipe(
     map((provider: PaymentProviderType) =>
@@ -26,10 +23,11 @@ export type ExistingPaymentProviderState = {
   recoveryChoices: PaymentProviderType[];
 };
 
-/**
- * Resolve the provider for existing payments and any choice needed to recover
- * an ambiguous sales-off site.
- */
+/** Provider type for refunds, callbacks, and existing-payment UI. */
+export const existingPaymentProviderType = (): PaymentProviderType | null =>
+  existingPaymentProviderState().provider;
+
+/** Resolve the provider for existing payments and any required recovery choice. */
 export const existingPaymentProviderState = (
   current = settings.paymentProvider,
 ): ExistingPaymentProviderState => {
@@ -54,7 +52,3 @@ export const existingPaymentProviderState = (
     ? { provider: onlyProvider, recoveryChoices: [] }
     : { provider: null, recoveryChoices: configured };
 };
-
-/** Provider type for refunds, callbacks, and existing-payment UI. */
-export const existingPaymentProviderType = (): PaymentProviderType | null =>
-  existingPaymentProviderState().provider;

@@ -15,7 +15,7 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   hasSecret: () => settings.stripe.hasKey,
   logMessage: "Stripe key configured",
   provider: "stripe",
-  saveSecret: async (value, activateFromMissing) => {
+  saveSecret: async (value) => {
     const webhookUrl = getPaymentWebhookUrl();
     const previousSecretKey = settings.stripe.secretKey;
     const previousEndpointId = settings.stripe.webhookEndpointId;
@@ -38,13 +38,8 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
       webhookEndpointId: result.endpointId,
       webhookSecret: result.secret,
     });
-    await settings.update.paymentProviderAfterCredentialSave(
-      "stripe",
-      activateFromMissing,
-    );
-    // Cleanup can now fail without leaving saved credentials that name a
-    // deleted endpoint or leaving Stripe unselected. The error still propagates
-    // so stale state is visible.
+    // Cleanup can fail after the replacement is safely stored; surface it so
+    // stale provider state remains visible.
     if (keyChanged && previousSecretKey && previousEndpointId) {
       await stripeApi.cleanupOldWebhookEndpoints(
         previousSecretKey,

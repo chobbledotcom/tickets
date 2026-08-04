@@ -197,6 +197,7 @@ describeWithEnv("db > settings public API", { db: true }, () => {
     });
 
     test("recovery updates the current request snapshot", async () => {
+      await settings.update.square.accessToken("square-recovery");
       await settings.update.clearPaymentProvider();
 
       await settings.update.recoverPaymentProvider("square");
@@ -204,6 +205,18 @@ describeWithEnv("db > settings public API", { db: true }, () => {
       expectDisabledWith("square");
       await reloadPaymentProviderSettings();
       expectDisabledWith("square");
+    });
+
+    test("a stale recovery cannot replace the owner's first choice", async () => {
+      await settings.update.stripe.secretKey("sk_test_recovery");
+      await settings.update.square.accessToken("square-recovery");
+      await settings.update.clearPaymentProvider();
+      await settings.update.recoverPaymentProvider("stripe");
+
+      await expect(
+        settings.update.recoverPaymentProvider("square"),
+      ).rejects.toThrow("Payment provider recovery is no longer available");
+      expectDisabledWith("stripe");
     });
 
     test("does not recover over a provider enabled by another request", async () => {

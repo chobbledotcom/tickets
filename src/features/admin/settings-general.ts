@@ -71,6 +71,7 @@ export const handlePaymentProviderPost = settingsHandler({
     v === "none"
       ? settings.update.setPaymentProviderNone()
       : settings.update.paymentProvider(v as PaymentProviderType),
+  taskName: "payment-provider",
   validate: (v) => {
     if (v === "none") return null;
     if (!isPaymentProvider(v)) return t("error.invalid_payment_provider");
@@ -99,12 +100,21 @@ export const handlePaymentProviderRecoveryPost: RequestRoute = settingsRoute(
     ) {
       return errorPage(t("error.invalid_existing_payment_provider"), formId);
     }
-    await settings.update.recoverPaymentProvider(provider);
-    const message = t("success.existing_payment_provider_set", {
-      provider: PAYMENT_PROVIDERS[provider].label,
-    });
-    await logActivity(message);
-    return redirect("/admin/settings", message, true, { formId });
+    const expectedVersion = form.getOptionalInt("settings_version");
+    const task = await settings.withCurrentTask(
+      "payment-provider",
+      async () => {
+        await settings.update.recoverPaymentProvider(provider);
+        const message = t("success.existing_payment_provider_set", {
+          provider: PAYMENT_PROVIDERS[provider].label,
+        });
+        await logActivity(message);
+        return redirect("/admin/settings", message, true, { formId });
+      },
+      expectedVersion,
+    );
+    if (!task.ok) return errorPage(task.error, formId);
+    return task.value;
   },
 );
 

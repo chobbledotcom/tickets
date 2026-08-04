@@ -43,14 +43,20 @@ const makeProviderRoute = (overrides: Partial<Config> = {}) => {
 const post = async (
   handler: (request: Request) => Promise<Response>,
   fields: Record<string, string>,
-): Promise<Response> =>
-  handler(
+): Promise<Response> => {
+  await settings.loadKeys([]);
+  return handler(
     mockFormRequest(
       "/admin/settings/test-provider",
-      { csrf_token: await testCsrfToken(), ...fields },
+      {
+        csrf_token: await testCsrfToken(),
+        settings_version: String(settings.version),
+        ...fields,
+      },
       await testCookie(),
     ),
   );
+};
 
 const saveCredentialsWhile = async (
   changeSetting: () => Promise<void>,

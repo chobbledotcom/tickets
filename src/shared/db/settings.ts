@@ -37,7 +37,7 @@ import {
   parseEnabledFeatures,
 } from "#shared/admin-features.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
-import { withTransaction } from "#shared/db/client.ts";
+import { executeWithoutCacheInvalidation } from "#shared/db/client.ts";
 import {
   boolUpdate,
   rawUpdate,
@@ -54,7 +54,6 @@ import {
   getCacheState,
   getCurrentSettingsVersion,
   prefetchVersion,
-  settingsVersionIncrement,
 } from "#shared/db/settings/cache.ts";
 import { keyModeOf } from "#shared/db/settings/constants.ts";
 import { withCurrentTask } from "#shared/db/settings/current-task.ts";
@@ -63,10 +62,8 @@ import { updateUserPassword } from "#shared/db/settings/password.ts";
 import {
   deleteRaw,
   encryptedUpdate,
-  executeSettingsBatchReturningValue,
   getRawCached,
   plaintextUpdate,
-  settingUpsert,
   syncStoredSetting,
   writeEncrypted,
   writeOrDelete,
@@ -173,58 +170,52 @@ const syncLastActivePaymentProvider = (provider: string): void => {
   data.last_active_payment_provider = provider;
 };
 
-const syncDisabledPaymentProvider = (remembered: string): void => {
-  syncReturnedPaymentProvider("none");
-  syncLastActivePaymentProvider(remembered);
-};
-
-const rememberActivePaymentProvider = (
-  remembered: PaymentProviderType,
-  active: PaymentProviderSetting,
-) => ({
-  args: [remembered, active],
-  sql:
-    "INSERT INTO settings (key, value) SELECT 'last_active_payment_provider', ? " +
-    "WHERE (SELECT value FROM settings WHERE key = 'payment_provider') = ? " +
-    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-});
-
-const storePaymentProvider = async (
-  active: PaymentProviderSetting,
-  remembered: PaymentProviderType,
+const changePaymentProvider = async (
+  kind: "activate" | "credentials" | "disable" | "recover",
+  provider?: PaymentProviderType,
+  first = false,
 ): Promise<void> => {
-  const stored = v.parse(
-    PaymentProviderSettingSchema,
-    await executeSettingsBatchReturningValue(
-      {
-        args: [
-          CONFIG_KEYS.STRIPE_SECRET_KEY,
-          CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
-          CONFIG_KEYS.SUMUP_API_KEY,
-          active,
-        ],
-        sql:
-          "INSERT OR REPLACE INTO settings (key, value) VALUES (" +
-          "'payment_provider', CASE WHEN " +
-          "COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' " +
-          "AND COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') = '' " +
-          "AND (SELECT COUNT(*) FROM settings WHERE key IN (?, ?, ?) AND value <> '') > 1 " +
-          "THEN 'none' ELSE ? END) " +
-          "RETURNING value",
-      },
-      [
-        rememberActivePaymentProvider(remembered, active),
-        settingsVersionIncrement(),
-      ],
-    ),
-  );
-  if (stored !== active) {
-    throw new Error(
-      "Choose the provider for existing payments before enabling new sales",
-    );
+  if (kind !== "disable" && (!provider || !isPaymentProvider(provider))) {
+    throw new Error(`Invalid payment provider: ${provider}`);
   }
-  syncReturnedPaymentProvider(active);
-  syncLastActivePaymentProvider(remembered);
+  const chosen = provider ?? "";
+  const firstCredential = kind === "credentials" && first ? 1 : 0;
+  const sql = `INSERT INTO settings (key, value) SELECT key, value FROM (
+SELECT 'payment_provider' AS key, CASE WHEN ? IN ('disable', 'recover') THEN 'none' WHEN ? = 'credentials' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'payment_provider')) THEN ? ELSE COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') END ELSE ? END AS value
+UNION ALL SELECT 'last_active_payment_provider', CASE WHEN ? = 'disable' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') IN (${PAYMENT_PROVIDER_IDS.map(() => "?").join(", ")}) THEN (SELECT value FROM settings WHERE key = 'payment_provider') ELSE COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') END WHEN ? = 'credentials' THEN CASE WHEN (SELECT value FROM settings WHERE key = 'payment_provider') = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'payment_provider')) THEN ? ELSE COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') END ELSE ? END
+UNION ALL SELECT 'settings_version', CAST(COALESCE((SELECT value FROM settings WHERE key = 'settings_version'), '0') AS INTEGER) + 1) WHERE (? <> 'recover' OR (COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' AND COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') = '' AND EXISTS (SELECT 1 FROM settings WHERE key = CASE ? WHEN 'stripe' THEN ? WHEN 'square' THEN ? WHEN 'sumup' THEN ? END AND value <> '')))
+AND (? <> 'activate' OR NOT (COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') = 'none' AND COALESCE((SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') = '' AND (SELECT COUNT(*) FROM settings WHERE key IN (?, ?, ?) AND value <> '') > 1))
+ON CONFLICT(key) DO UPDATE SET value = excluded.value RETURNING key, value`;
+  const credentialKeys = [
+    CONFIG_KEYS.STRIPE_SECRET_KEY,
+    CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
+    CONFIG_KEYS.SUMUP_API_KEY,
+  ];
+  const args = [
+    [kind, kind, chosen, firstCredential, chosen, chosen, kind],
+    PAYMENT_PROVIDER_IDS,
+    [kind, chosen, firstCredential, chosen, chosen, kind, chosen],
+    credentialKeys,
+    [kind],
+    credentialKeys,
+  ].flat();
+  const result = await executeWithoutCacheInvalidation(sql, args);
+  const rejection =
+    kind === "recover"
+      ? "Payment provider recovery is no longer available"
+      : "Choose the provider for existing payments before enabling new sales";
+  if (result.rows.length === 0) {
+    throw new Error(rejection);
+  }
+  const values = Object.fromEntries(
+    result.rows.map((row) => [String(row.key), String(row.value)]),
+  );
+  syncReturnedPaymentProvider(
+    v.parse(PaymentProviderSettingSchema, values[CONFIG_KEYS.PAYMENT_PROVIDER]),
+  );
+  syncLastActivePaymentProvider(
+    values[CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER] ?? "",
+  );
 };
 
 const settingsBase = {
@@ -534,81 +525,19 @@ const settingsBase = {
       "orphan_purge_retention",
     ),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      await storePaymentProvider(v, v);
+      await changePaymentProvider("activate", v);
     },
     paymentProviderAfterCredentialSave: async (
       provider: PaymentProviderType,
       activateFromMissing: boolean,
     ): Promise<void> => {
-      const active = v.parse(
-        PaymentProviderSettingSchema,
-        await executeSettingsBatchReturningValue(
-          {
-            args: [provider, provider, activateFromMissing ? 1 : 0, provider],
-            sql:
-              "INSERT OR REPLACE INTO settings (key, value) VALUES (" +
-              "'payment_provider', CASE " +
-              "WHEN (SELECT value FROM settings WHERE key = 'payment_provider') = ? THEN ? " +
-              "WHEN (? = 1 AND NOT EXISTS (" +
-              "SELECT 1 FROM settings WHERE key = 'payment_provider')) THEN ? " +
-              "ELSE COALESCE((SELECT value FROM settings WHERE key = 'payment_provider'), 'none') " +
-              "END) RETURNING value",
-          },
-          [
-            rememberActivePaymentProvider(provider, provider),
-            settingsVersionIncrement(),
-          ],
-        ),
-      );
-      syncReturnedPaymentProvider(active);
-      if (active === provider) syncLastActivePaymentProvider(provider);
+      await changePaymentProvider("credentials", provider, activateFromMissing);
     },
     recoverPaymentProvider: async (v: PaymentProviderType): Promise<void> => {
-      await withTransaction(async (tx) => {
-        const active = await tx.execute({
-          args: [],
-          sql:
-            "INSERT INTO settings (key, value) " +
-            "SELECT 'payment_provider', 'none' " +
-            "ON CONFLICT(key) DO UPDATE SET value = 'none' " +
-            "WHERE settings.value = 'none' RETURNING value",
-        });
-        if (active.rows.length === 0) {
-          throw new Error("Payment provider recovery is no longer available");
-        }
-        await tx.batch([
-          settingUpsert(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, v),
-          settingsVersionIncrement(),
-        ]);
-      });
-      syncDisabledPaymentProvider(v);
+      await changePaymentProvider("recover", v);
     },
     setPaymentProviderNone: async (): Promise<void> => {
-      // Write LAST_ACTIVE from the current DB state, then clear
-      // PAYMENT_PROVIDER — both in one batch. The RETURNING statement's
-      // subqueries read pre-statement state, so a concurrent activation
-      // landing before the batch is correctly reflected.
-      const lastActive = await executeSettingsBatchReturningValue(
-        {
-          args: [...PAYMENT_PROVIDER_IDS],
-          sql:
-            "INSERT OR REPLACE INTO settings (key, value) " +
-            "SELECT 'last_active_payment_provider', " +
-            "COALESCE(CASE " +
-            "WHEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
-            `IN (${PAYMENT_PROVIDER_IDS.map(() => "?").join(", ")}) ` +
-            "THEN (SELECT value FROM settings WHERE key = 'payment_provider') " +
-            "ELSE COALESCE(" +
-            "(SELECT value FROM settings WHERE key = 'last_active_payment_provider'), '') " +
-            "END, '') " +
-            "RETURNING value",
-        },
-        [
-          settingUpsert(CONFIG_KEYS.PAYMENT_PROVIDER, "none"),
-          settingsVersionIncrement(),
-        ],
-      );
-      syncDisabledPaymentProvider(lastActive);
+      await changePaymentProvider("disable");
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
 

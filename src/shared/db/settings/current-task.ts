@@ -12,6 +12,11 @@ import { writeOrDelete } from "#shared/db/settings/raw-writes.ts";
 import { setSnapshotField } from "#shared/db/settings/snapshot.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
+const STALE_TASK: { error: string; ok: false } = {
+  error: "Settings changed. Reload the page and try again.",
+  ok: false,
+};
+
 /**
  * Run `fn` while holding the `current_task` lock for `taskName`.
  * If a task is already in progress, returns `{ ok: false, error }`.
@@ -23,7 +28,9 @@ import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 export const withCurrentTask = async <T>(
   taskName: string,
   fn: () => Promise<T>,
+  expectedVersion?: number | null,
 ): Promise<{ ok: true; value: T } | { ok: false; error: string }> => {
+  if (expectedVersion === null) return STALE_TASK;
   // Ensure the row exists (no-op if already present)
   await executeWithoutCacheInvalidation(
     "INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')",
@@ -31,14 +38,26 @@ export const withCurrentTask = async <T>(
   );
   // Atomic claim: only succeeds when no task is running
   const claim = await executeWithoutCacheInvalidation(
-    "UPDATE settings SET value = ? WHERE key = ? AND value = ''",
-    [taskName, CONFIG_KEYS.CURRENT_TASK],
+    "UPDATE settings SET value = ?1 WHERE key = ?2 AND value = '' " +
+      "AND (?3 IS NULL OR ?3 = CAST(COALESCE((SELECT value FROM settings WHERE key = ?4), '0') AS INTEGER))",
+    [
+      taskName,
+      CONFIG_KEYS.CURRENT_TASK,
+      expectedVersion ?? null,
+      CONFIG_KEYS.SETTINGS_VERSION,
+    ],
   );
   if (claim.rowsAffected === 0) {
-    return {
-      error: "Another task is already in progress",
-      ok: false,
-    };
+    const version = await executeWithoutCacheInvalidation(
+      "SELECT CAST(COALESCE((SELECT value FROM settings WHERE key = ?), '0') AS INTEGER) AS value",
+      [CONFIG_KEYS.SETTINGS_VERSION],
+    );
+    const currentVersion = Number(version.rows[0]?.value);
+    if (!Number.isInteger(currentVersion))
+      throw new Error("Missing settings version");
+    return expectedVersion !== undefined && expectedVersion !== currentVersion
+      ? STALE_TASK
+      : { error: "Another task is already in progress", ok: false };
   }
   syncCache((s) => {
     s.values.set(CONFIG_KEYS.CURRENT_TASK, taskName);
