@@ -94,6 +94,47 @@ describe("TestBrowser choosing which form a press belongs to", () => {
     expect(postedPath()).toBe("/real");
   });
 
+  it("passes over a button written the same way inside a switched-off group", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    browser.currentHtml = `
+      <form action="/switched-off" method="POST">
+        <fieldset disabled><legend>Extras</legend>
+          <button type="submit">Save</button>
+        </fieldset>
+      </form>
+      <form action="/usable" method="POST">
+        <button type="submit">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Save");
+
+    // The two buttons are written identically, so one cannot stand in for the
+    // other: the one nobody could press is passed over on its own account.
+    expect(postedPath()).toBe("/usable");
+  });
+
+  it("ranks forms by controls somebody could really fill in", async () => {
+    const { browser, postedPath } = postedPathBrowser();
+    browser.currentHtml = `
+      <form action="/switched-off" method="POST">
+        <fieldset disabled><legend>Extras</legend>
+          <textarea name="intro"></textarea>
+        </fieldset>
+        <button type="submit">Save</button>
+      </form>
+      <form action="/usable" method="POST">
+        <textarea name="intro"></textarea>
+        <button type="submit">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({ intro: "Hello" }, "Save");
+
+    // A writing space nobody could type in is no reason to prefer its form.
+    expect(postedPath()).toBe("/usable");
+  });
+
   it("ranks forms by their real controls, not anything carrying a name", async () => {
     const { browser, postedPath } = postedPathBrowser();
     browser.currentHtml = `

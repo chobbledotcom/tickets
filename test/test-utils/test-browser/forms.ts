@@ -230,14 +230,17 @@ const buttonToPress = (
   const buttonRe = /<button\b([^>]*?)>([\s\S]*?)<\/button>/gi;
   let switchedOff = false;
   let sendsNothing = false;
-  // What is left once every switched-off group goes. A button missing from it
-  // is one its group switched off, which comes to the same thing as its own
-  // switch being set, for anybody trying to press it.
-  const stillThere = withoutSwitchedOffGroups(body);
-  for (const m of regexCollect(buttonRe, body, (x) => x)) {
-    if (!stripTags(m[2]!).toLowerCase().trim().includes(lower)) continue;
+  /** The buttons carrying these words, in the markup given. */
+  const saying = (markup: string) =>
+    regexCollect(buttonRe, markup, (x) => x).filter((m) =>
+      stripTags(m[2]!).toLowerCase().trim().includes(lower),
+    );
+  // Only what is left once every switched-off group goes is looked at, so a
+  // button is judged where it really sits — two buttons written the same way,
+  // one inside such a group and one outside, are not confused for each other.
+  for (const m of saying(withoutSwitchedOffGroups(body))) {
     const attrs = m[1]!;
-    if (isDisabled(attrs) || !stillThere.includes(m[0])) {
+    if (isDisabled(attrs)) {
       switchedOff = true;
       continue;
     }
@@ -255,7 +258,10 @@ const buttonToPress = (
     };
   }
   if (switchedOff) return "switched off";
-  return sendsNothing ? "sends nothing" : {};
+  if (sendsNothing) return "sends nothing";
+  // Nothing usable was left, yet the page does carry a button saying this — so
+  // its group switched it off, which is the same to anybody trying to press it.
+  return saying(body).length > 0 ? "switched off" : {};
 };
 
 /** Find a form whose body contains the given button text, or throw. Also
@@ -284,11 +290,13 @@ export const findFormByButton = (
     // those is not the form they would have typed into.
     const controls = regexCollect(
       /<(?:input|select|textarea)\b[^>]*>/gi,
-      body,
+      withoutSwitchedOffGroups(body),
       (m) => m[0],
     );
     return fieldNames.every((field) =>
-      controls.some((tag) => attrValue(tag, "name") === field),
+      controls.some(
+        (tag) => attrValue(tag, "name") === field && !isDisabled(tag),
+      ),
     );
   };
   const preferred = forms.filter((f) => rendersEveryField(f.body));
