@@ -1,5 +1,3 @@
-/** Splitting text into trimmed, non-blank parts. */
-
 /** Split text on a separator, trim each part, and drop the blank ones. */
 const splitTrimmed =
   (separator: string | RegExp) =>

@@ -15,6 +15,7 @@ import {
   validateTemplate,
 } from "#shared/email-renderer.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { RequestRoute } from "#shared/response-steps.ts";
 import {
   type EmailTemplateType,
   isEmailTemplateFormat,
@@ -189,6 +190,6 @@ const renderEmailTemplatePreview = async (
 };
 
 /** Handle POST /admin/settings/email-templates/preview - render template with sample data */
-export const handleEmailTemplatePreviewPost = formPost(OWNER_FORM)(
-  renderEmailTemplatePreview,
-);
+export const handleEmailTemplatePreviewPost: RequestRoute = formPost(
+  OWNER_FORM,
+)(renderEmailTemplatePreview);
