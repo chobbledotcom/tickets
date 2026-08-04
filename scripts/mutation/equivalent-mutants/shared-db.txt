@@ -27,13 +27,11 @@ src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.parents  ?? →
 # Group membership and package storage (groups.ts).
 src/shared/db/groups.ts::groupIdsJson  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
 src/shared/db/groups.ts::listingsInGroup  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
-src/shared/db/groups.ts::getPackageDisplaysByIds.packageGroups  groupRecord → ""   # columnsSql only qualifies a column when the alias is truthy, so "" selects the same bare column names, which are unambiguous in this single-table query
 src/shared/db/groups.ts::getListingsByGroupIds  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
 src/shared/db/groups.ts::firstUnpackageableMember  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
 src/shared/db/groups.ts::getGroupPackagePrices  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
 src/shared/db/groups.ts::memberQuantityStatement  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
 src/features/admin/api-groups.ts::parsePackageMember  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
-src/features/admin/api-groups.ts::groupApiRoutes  ?? → ||   # package rows are an array or undefined; every array, including [], is truthy
 
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
 # duration normalization clamps both a default of 0 and 1 to one day.
@@ -110,3 +108,11 @@ src/shared/db/processed-payments.ts::parseSessionFailure  processed_payments.fai
 # resolve.
 src/shared/db/news-posts.ts::getNewsPostCards.rows  news_post → ""   # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
 src/features/admin/api-keys.ts::apiKeyPage  ?? → ||   # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
+
+# Batched package pricing (groups.ts) and its API caller: map lookups whose key
+# the loader always seeds, and an array fallback.
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows  ?? → ||   # rowsByGroup.get(): GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
+src/shared/db/groups.ts::loadPackageMemberPricing  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every requested group id, so the single-group lookup always finds its own id
+src/features/admin/api-groups.ts::groupApiRoutes.pricing  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
+src/shared/db/groups.ts::getGroupById  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree

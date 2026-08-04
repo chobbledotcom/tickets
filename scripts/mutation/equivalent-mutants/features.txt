@@ -26,22 +26,22 @@ src/features/public/ticket-payment.ts::getTicketContext.packages  ?? → ||   # 
 src/features/admin/attendee-form-model.ts::parseAttendeeForm@1  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::parseAttendeeForm@2  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts::isPaymentLockedLine  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
-src/features/admin/attendee-page-data.ts::loadPackagePaths  ?? → ||   # priceRowsByGroupId.get(): PriceRow[]|undefined — an array is always truthy
-src/features/admin/attendee-page-data.ts::packagesByListingIdFrom.groups  ?? → ||   # byListing.get(): Map<number,number|null>|undefined — a Map is always truthy
-src/features/admin/attendee-page-data.ts::buildFormLines.standaloneBlanks  ?? → ||   # preselectedQty.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
-src/features/admin/attendee-page-data.ts::listingBookingFor  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
-src/features/admin/attendee-page-data.ts::overbookedListingIds  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
-src/features/admin/attendee-page-data.ts::computeWarnings.warns  ?? → ||   # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
-src/features/admin/attendee-page-data.ts::assembleTemplateData@2  ?? → ||   # find returns a status object or undefined, and a status object is always truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData@3  ?? → ||   # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
-src/features/admin/attendee-page-data.ts::assembleTemplateData@4  ?? → ||   # fullPrice is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData@5  ?? → ||   # depositPaid is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData@3  0 → 1   # the fallback is used only in create mode, where fullPrice is 0; amountPaid cannot affect any balance-notice branch when no order exists
-src/features/admin/attendee-page-data.ts::assembleTemplateData@8  ?? → ||   # hasMixedTimings is boolean|undefined, and false equals the fallback
-src/features/admin/attendee-page-data.ts::assembleTemplateData@9  ?? → ||   # questions is an array when present, and arrays are always truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData@10  ?? → ||   # selectedAnswerIds is an array when present, and arrays are always truthy
-src/features/admin/attendee-page-data.ts::assembleTemplateData@11  ?? → ||   # selectedTextAnswers is a Map when present, and Maps are always truthy
-src/features/admin/attendee-page-data.ts::loadQuestionsForExisting  ?? → ||   # attendeeAnswerMap values are arrays, and arrays are always truthy
+src/features/admin/attendee-page-data.ts:137:69  ?? → ||   # priceRowsByGroupId.get(): PriceRow[]|undefined — an array is always truthy
+src/features/admin/attendee-page-data.ts:153:33  ?? → ||   # byListing.get(): Map<number,number|null>|undefined — a Map is always truthy
+src/features/admin/attendee-page-data.ts:234:65  ?? → ||   # preselectedQty.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
+src/features/admin/attendee-page-data.ts:350:47  1 → 0   # standard bookings pass date:null, so buildCapacityCondition ignores durationDays entirely
+src/features/admin/attendee-page-data.ts:377:42  ?? → ||   # totalByListing.get(): number|undefined; the only falsy number is 0, and the fallback is also 0
+src/features/admin/attendee-page-data.ts:466:44  ?? → ||   # incompleteParents stores only a non-empty translated warning string, otherwise get returns undefined
+src/features/admin/attendee-page-data.ts:555:63  ?? → ||   # find returns a status object or undefined, and a status object is always truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData@1  ?? → ||   # remaining_balance is an integer; its only falsy value is 0, which equals the fallback
+src/features/admin/attendee-page-data.ts:558:30  ?? → ||   # fullPrice is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData@2  ?? → ||   # depositPaid is an integer or the summary is absent; 0 equals the fallback and every other amount is truthy
+src/features/admin/attendee-page-data.ts:559:36  0 → 1   # the fallback is used only in create mode, where fullPrice is 0; amountPaid cannot affect any balance-notice branch when no order exists
+src/features/admin/attendee-page-data.ts:569:42  ?? → ||   # hasMixedTimings is boolean|undefined, and false equals the fallback
+src/features/admin/attendee-page-data.ts:576:30  ?? → ||   # questions is an array when present, and arrays are always truthy
+src/features/admin/attendee-page-data.ts:579:46  ?? → ||   # selectedAnswerIds is an array when present, and arrays are always truthy
+src/features/admin/attendee-page-data.ts::assembleTemplateData@9  ?? → ||   # selectedTextAnswers is a Map when present, and Maps are always truthy
+src/features/admin/attendee-page-data.ts:623:62  ?? → ||   # attendeeAnswerMap values are arrays, and arrays are always truthy
 src/features/tickets/token-utils.ts::verifyTokensWithRealLine.verified  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
 # Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
@@ -139,7 +139,6 @@ src/ui/client/dom.ts::createButton@2  = → +=   # createElement returns a new b
 # callers; optional collections are arrays (always truthy); parsed day counts and
 # stored package quantities are positive; equal zero fallbacks stay equal.
 src/features/api/payment-processing/index.ts::replaySuccess   → "mutated"   # replaySuccess is private and both callers always pass session.paymentReference, so the default is never evaluated
-src/features/api/payment-processing/items.ts::validateListingForPayment@1  false → true   # validateListingForPayment is private and validateAllItems always passes includeListingName explicitly, so the default is never evaluated
 src/features/api/payment-processing/items.ts::bookingPaths.allocations  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts::validateAllItems  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
 src/features/api/payment-processing/pricing.ts::paidByItem.current  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
@@ -164,3 +163,26 @@ src/features/api/folded-booking.ts::processParentApiBooking.built  1 → 0   # b
 # placeholder and a throw-only label that can never throw.
 src/features/admin/questions/answers.ts::handleAddAnswer  0 → 1   # the inserted sortOrder is a placeholder: insertScopedOrderedRow runs order.append in the same transaction, and append sets sort_order from MAX over siblings that explicitly exclude the row itself, then overwrites it unconditionally before commit — the placeholder value is never read by anything
 src/features/admin/questions/forms.ts::questionTextForm@2  Display as → ""   # requireChoiceOptions reads its label only in its two throw paths: an empty options list, or a value failing an invalid-rule. QUESTION_DISPLAY_TYPES is a non-empty picklist constant and requireChoiceOptions carries no invalid rule, so neither throw is reachable and the label is never read
+
+# Cart package resolution (features/public/groups.ts): map lookups whose key is
+# guaranteed present, and a nullable-object fallback.
+src/features/public/groups.ts::loadCartPackagesBySlugs.completeById  Missing package members → ""   # getListingsByGroupIds seeds an entry for every group id it is given, and the lookup uses ids taken from that same list, so requiredMapValue never raises this message
+src/features/public/groups.ts::loadCartPackagesBySlugs.completeById  Missing package membership → ""   # groupListings.getIdsByKeys likewise returns an entry for every requested key, so this message is unreachable
+src/features/public/groups.ts::loadCartPackagesBySlugs  ?? → ||   # completeById holds GroupWithListings objects or null, so a present value is always truthy and ?? null and || null agree for object, null and undefined alike
+
+# Cart slug resolution (features/public/cart.ts): nullable-object fallbacks and
+# a repeat guard whose effect a downstream dedupe already guarantees.
+src/features/public/cart.ts::cartPackagesBySlug.packageSlugs  ?? → ||   # getListingsBySlugs yields a ListingWithCount object or null per slug, so a present value is always truthy and both operators give the same null
+src/features/public/cart.ts::resolveCartSlugs.listing  ?? → ||   # same per-slug listing lookup, same object-or-null values
+src/features/public/cart.ts::resolveCartSlugs  standaloneIds.add(listing.id); → (removed)   # the set only skips an exact repeat of one listing slug, and cartListings runs uniqueBy on listing id afterward; the other readers of items are a Set of solo child ids and the package-only loop, so a repeated standalone item cannot change any output
+src/features/public/cart.ts::resolveCartSlugs@2  continue; → (removed)   # without it a slug that already resolved to a listing falls into the package lookup, but only slugs with NO listing are put in packagesBySlug, so the lookup always misses and the loop continues anyway
+
+# Listing detail group context (features/admin/listings-view.ts).
+src/features/admin/listings-view.ts::loadGroupContext.remaining  Missing group remaining → ""   # getGroupRemainingByGroupId returns an entry for every group id whose cap is positive, and only those ids are looked up, so requiredMapValue never raises this message
+src/features/api/payment-processing/package-pricing.ts::loadPackagePricingByGroup.pricing  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds is given exactly the order's group ids, and only those are looked up, so requiredMapValue never raises this message
+
+# Page packages (shared/booking/page-packages.ts): nullish fallbacks on values
+# that are only ever a number-or-undefined with a matching fallback.
+src/shared/booking/page-packages.ts::soleParentPackageIds.groupId  ?? → ||   # packageGroupId is a positive group id or undefined; its only falsy value would be 0, which equals the fallback
+src/shared/booking/page-packages.ts::stampChildRowPackages  ?? → ||   # same package group id, same 0 fallback
+src/shared/booking/page-packages.ts::stampChildRowPackages.parentId  ?? → ||   # parentListingId is a positive listing id or undefined, and the fallback is 0

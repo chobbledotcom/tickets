@@ -31,13 +31,13 @@ import {
   generateUniqueGroupSlug,
   getGroupById,
   getListingsByGroupId,
+  groupListingTypeError,
   groups,
   hasPackageBookings,
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
   setGroupPackageMembers,
-  validateGroupListingType,
 } from "#shared/db/groups.ts";
 import {
   clearImageUsesForItemStatement,
@@ -358,9 +358,12 @@ const validateListingTypesForGroup = async (
   group: Group,
   listings: ListingWithCount[],
 ): Promise<string | null> => {
+  // Every listing joins the SAME group, so its current members are read once
+  // and each candidate is judged against that one list.
+  const siblings = await getListingsByGroupId(group.id);
   for (const listing of listings) {
-    const typeError = await validateGroupListingType(
-      group.id,
+    const typeError = groupListingTypeError(
+      siblings,
       listing.listing_type,
       listing.customisable_days,
     );
