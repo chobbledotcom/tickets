@@ -139,16 +139,10 @@ export const getGroupsById = async (): Promise<Map<number, Group>> =>
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
   envNameSource("groups", "groupRecord").all();
 
-/** One group by id, read straight from the table: a group about to be shown,
- * edited or acted on must be the stored row, not a cached copy. Null when no
- * group has that id. */
-export const getGroupById = (id: number): Promise<Group | null> =>
-  rawGroupsTable.read.one({ id });
-
-/** Several groups by id in one query, read straight from the table like
- * {@link getGroupById} — a page that acts on a listing's groups sees the stored
- * rows, not a cached copy that another edge may already have changed. An id
- * with no row is simply absent from the map. */
+/** Groups by id in one query, read straight from the table: a group about to be
+ * shown, edited or acted on must be the stored row, not a cached copy that
+ * another edge may already have changed. An id with no row is simply absent
+ * from the map. */
 export const getGroupsByIds = async (
   ids: readonly number[],
 ): Promise<Map<number, Group>> =>
@@ -160,6 +154,11 @@ export const getGroupsByIds = async (
           { where: inList("id", [...new Set(ids)]) },
         ),
       );
+
+/** One stored group, through the shared many-group read. Null when no group has
+ * that id. */
+export const getGroupById = async (id: number): Promise<Group | null> =>
+  (await getGroupsByIds([id])).get(id) ?? null;
 
 /**
  * Get a single group by slug_index (from cache)

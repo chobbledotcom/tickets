@@ -172,10 +172,10 @@ src/features/public/groups.ts:123:56  ?? → ||   # completeById holds GroupWith
 
 # Cart slug resolution (features/public/cart.ts): nullable-object fallbacks and
 # a repeat guard whose effect a downstream dedupe already guarantees.
-src/features/public/cart.ts:48:48  ?? → ||   # getListingsBySlugs yields a ListingWithCount object or null per slug, so a present value is always truthy and both operators give the same null
-src/features/public/cart.ts:70:36  ?? → ||   # same per-slug listing lookup, same object-or-null values
-src/features/public/cart.ts:75:7  standaloneIds.add(listing.id); → (removed)   # the set only skips an exact repeat of one listing slug, and cartListings runs uniqueBy on listing id afterward; the other readers of items are a Set of solo child ids and the package-only loop, so a repeated standalone item cannot change any output
-src/features/public/cart.ts:77:7  continue; → (removed)   # without it a slug that already resolved to a listing falls into the package lookup, but only slugs with NO listing are put in packagesBySlug, so the lookup always misses and the loop continues anyway
+src/features/public/cart.ts:47:48  ?? → ||   # getListingsBySlugs yields a ListingWithCount object or null per slug, so a present value is always truthy and both operators give the same null
+src/features/public/cart.ts:69:36  ?? → ||   # same per-slug listing lookup, same object-or-null values
+src/features/public/cart.ts:74:7  standaloneIds.add(listing.id); → (removed)   # the set only skips an exact repeat of one listing slug, and cartListings runs uniqueBy on listing id afterward; the other readers of items are a Set of solo child ids and the package-only loop, so a repeated standalone item cannot change any output
+src/features/public/cart.ts:76:7  continue; → (removed)   # without it a slug that already resolved to a listing falls into the package lookup, but only slugs with NO listing are put in packagesBySlug, so the lookup always misses and the loop continues anyway
 
 # Listing detail group context (features/admin/listings-view.ts).
 src/features/admin/listings-view.ts:148:7  Missing group remaining → ""   # getGroupRemainingByGroupId returns an entry for every group id whose cap is positive, and only those ids are looked up, so requiredMapValue never raises this message

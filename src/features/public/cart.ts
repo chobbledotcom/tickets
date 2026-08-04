@@ -15,7 +15,6 @@
 
 import { unique, uniqueBy } from "#fp";
 import { notFoundResponse } from "#routes/response.ts";
-import type { PagePackage } from "#shared/booking/page-packages.ts";
 import { getListingsBySlugs } from "#shared/db/listings/records.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { dropHiddenPackageMembers } from "./discovery.ts";
@@ -24,7 +23,7 @@ import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
   dropChildListings,
   getTicketContext,
-  loadPagePackage,
+  loadPagePackages,
 } from "./ticket-payment.ts";
 import {
   type BySlugsHandler,
@@ -142,18 +141,20 @@ export const handleCartBySlugs: BySlugsHandler<
   const survivingIds = new Set(withoutChildren.map((listing) => listing.id));
   const activeListings =
     await buildTicketListingsWithGroupCapacity(withoutChildren);
-  const packages: PagePackage[] = [];
-  for (const item of items) {
-    if (item.kind !== "package") continue;
-    packages.push(
-      await loadPagePackage(
-        item.group,
-        item.members
-          .map((member) => member.id)
-          .filter((id) => survivingIds.has(id)),
-      ),
-    );
-  }
+  const packages = await loadPagePackages(
+    items.flatMap((item) =>
+      item.kind === "package"
+        ? [
+            {
+              group: item.group,
+              memberListingIds: item.members
+                .map((member) => member.id)
+                .filter((id) => survivingIds.has(id)),
+            },
+          ]
+        : [],
+    ),
+  );
   return handleTicket({
     getContext: (listings) => getTicketContext(listings, undefined, packages),
     listings: activeListings,

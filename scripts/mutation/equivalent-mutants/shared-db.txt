@@ -26,11 +26,11 @@ src/shared/db/listing-parents.ts:222:49  ?? → ||   # parentsByChild.get(id): L
 
 # Group membership and package storage (groups.ts).
 src/shared/db/groups.ts:79:58  1 → 0   # the stored group ids come from group_listings.group_id, a foreign key onto groups' INTEGER PRIMARY KEY, so SQLite never issues 0 and no stored value can tell minValue(1) from minValue(0)
-src/shared/db/groups.ts:245:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
-src/shared/db/groups.ts:211:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
-src/shared/db/groups.ts:413:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
-src/shared/db/groups.ts:662:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts:842:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
+src/shared/db/groups.ts:260:7  Missing group listing membership → ""   # getListingsByGroupIds builds its result map from the ids it was given, so the single-group lookup always finds its own id and requiredMapValue never raises this message
+src/shared/db/groups.ts:226:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
+src/shared/db/groups.ts:428:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
+src/shared/db/groups.ts:677:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts:857:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
 src/features/admin/api-groups.ts:127:31  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
 
 # Attendee group-capacity lookups: Map values are arrays (always truthy), and
@@ -111,7 +111,8 @@ src/features/admin/api-keys.ts:147:75  ?? → ||   # entity-page load: find() re
 
 # Batched package pricing (groups.ts) and its API caller: map lookups whose key
 # the loader always seeds, and an array fallback.
-src/shared/db/groups.ts:713:44  ?? → ||   # rowsByGroup.get(): GroupListing[]|undefined — an array is always truthy
-src/shared/db/groups.ts:721:13  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
-src/shared/db/groups.ts:737:5  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every requested group id, so the single-group lookup always finds its own id
+src/shared/db/groups.ts:728:44  ?? → ||   # rowsByGroup.get(): GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts:736:13  Missing package day prices → ""   # getGroupDayPricesByGroupIds returns an entry for every group id it is given, and only those ids are looked up, so requiredMapValue never raises this message
+src/shared/db/groups.ts:752:5  Missing package pricing → ""   # loadPackageMemberPricingByGroupIds seeds an entry for every requested group id, so the single-group lookup always finds its own id
 src/features/admin/api-groups.ts:250:11  Missing package pricing → ""   # the pricing map is built from the same package group ids the hydrate loop walks, so every lookup hits
+src/shared/db/groups.ts:161:33  ?? → ||   # getGroupsByIds holds decrypted Group objects, so a present value is always truthy and ?? null and || null agree
