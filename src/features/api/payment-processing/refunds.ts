@@ -92,12 +92,9 @@ export const refundRejectedCharge = async (
 };
 
 /**
- * The answer a buyer-facing callback gives for a rejected session: refund the
- * charge, record which way it went through `log`, and show the buyer a page
- * saying their money came back when it did. "Not found" is only honest when
- * there was never a charge of ours — someone who really paid and got a refund
- * would otherwise wait for a ticket, or pay a second time. An unsettled charge
- * answers 503 so the caller retries rather than acknowledging it away.
+ * The answer a buyer-facing callback gives for a rejected session. A charge
+ * left unsettled answers 503, so the caller comes back for it rather than
+ * acknowledging money that is still out there.
  */
 export const answerRejectedSession = async (
   rejection: SessionRejection,
