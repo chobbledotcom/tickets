@@ -1,7 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { claimIsFresh, keepClaimFresh } from "#scripts/stale-claim.ts";
+import {
+  ageClaimToStale,
+  claimIsFresh,
+  keepClaimFresh,
+  withClaimGuard,
+} from "#scripts/stale-claim.ts";
 import {
   countClaimReads,
   eventually,
@@ -10,8 +15,8 @@ import {
   holdThenLoseClaim,
   holdWhileTouchesFail,
   LONG_AGO_MS,
+  settle,
   tickBy,
-  watchClaimReads,
   withClaimDir,
   writeClaim,
 } from "#test/scripts/stale-claim/helpers.ts";
@@ -157,25 +162,33 @@ describe("keeping somebody else's claim fresh for them", () => {
     });
   });
 
-  test("reports a claim taken between the look and the first touch", async () => {
+  test("waits at the takers' door before reading who to keep fresh for", async () => {
     await withClaimDir(async (path) => {
-      // The file already carries a taker's record; only the keeper's first
-      // look still sees the supervisor it set out to keep the claim for.
-      await writeClaim(path, `new-owner\n${Date.now()}`);
-      let firstLook = true;
-      using _read = watchClaimReads(path, () => {
-        if (!firstLook) return null;
-        firstLook = false;
-        return `their-supervisor\n${Date.now()}`;
+      await writeClaim(path, `their-supervisor\n${Date.now()}`);
+      // The owner's own touch is mid-write: it holds the guard. Reading the
+      // claim now could catch a truncated record with no owner in it.
+      const inside = Promise.withResolvers<void>();
+      const letGo = Promise.withResolvers<void>();
+      const guarding = withClaimGuard(path, async () => {
+        inside.resolve();
+        await letGo.promise;
       });
+      await inside.promise;
+      const counter = { reads: 0 };
+      using _read = countClaimReads(path, counter);
 
-      await expect(
-        keepClaimFresh(path, { staleMs: FRESH_FOR_MS, touchMs: FRESH_FOR_MS }),
-      ).rejects.toThrow("was lost while the work ran");
-      // The taker's record is untouched: no touch may land on it.
-      expect((await Deno.readTextFile(path)).startsWith("new-owner")).toBe(
-        true,
-      );
+      const keeping = keepClaimFresh(path, {
+        staleMs: FRESH_FOR_MS,
+        touchMs: FRESH_FOR_MS,
+      });
+      await settle();
+      expect(counter.reads).toBe(0);
+
+      letGo.resolve();
+      await guarding;
+      const claim = await keeping;
+      expect(claim.ownedBy).toBe("their-supervisor");
+      await claim.stopTouching();
     });
   });
 
@@ -195,6 +208,30 @@ describe("keeping somebody else's claim fresh for them", () => {
       await expect(
         keepClaimFresh(path, { staleMs: FRESH_FOR_MS, touchMs: FRESH_FOR_MS }),
       ).rejects.toThrow();
+    });
+  });
+});
+
+describe("aging a claim for an owner who cannot release it", () => {
+  test("refuses to age a claim that is no longer that owner's", async () => {
+    await withClaimDir(async (path) => {
+      await writeClaim(path, `new-owner\n${Date.now()}`);
+
+      await expect(ageClaimToStale(path, "their-supervisor")).rejects.toThrow(
+        "was lost while the work ran",
+      );
+      // The taker's record is not the ager's to touch.
+      expect((await Deno.readTextFile(path)).startsWith("new-owner")).toBe(
+        true,
+      );
+    });
+  });
+
+  test("refuses to age a claim that has already gone", async () => {
+    await withClaimDir(async (path) => {
+      await expect(ageClaimToStale(path, "their-supervisor")).rejects.toThrow(
+        "was lost while the work ran",
+      );
     });
   });
 });

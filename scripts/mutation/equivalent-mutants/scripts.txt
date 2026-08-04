@@ -109,4 +109,4 @@ src/features/admin/listing-page-data.ts:282:61  ?? → ||   # Map.get returns Li
 # fires once more — and the touch it starts bails on the stopped flag before
 # writing anything. No file state or output differs; only when the last no-op
 # timer drains.
-scripts/stale-claim.ts:183:12  = → +=    # the uncancelled timer's one late touch bails on the stopped flag before any read or write
+scripts/stale-claim.ts:186:12  = → +=    # the uncancelled timer's one late touch bails on the stopped flag before any read or write

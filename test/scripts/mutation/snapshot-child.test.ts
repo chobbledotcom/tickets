@@ -30,13 +30,15 @@ const clearChildVars = (): void => {
   for (const name of CHILD_VARS) Deno.env.delete(name);
 };
 
-/** A process id certainly nobody holds, so its supervisor reads as dead. */
+/** A pid that is not this process's parent, as a child killed out from
+ * under its supervisor would see — whoever now holds that pid. */
 const DEAD_SUPERVISOR_PID = 99_999_999;
 
-/** The run values a child started properly would see: it runs in its copy. */
+/** The run values a child started properly would see: it runs in its copy,
+ * and the supervisor that spawned it is its parent process. */
 const setRunVars = (
   runRoot: string,
-  supervisorPid: number = Deno.pid,
+  supervisorPid: number = Deno.ppid,
 ): void => {
   Deno.env.set(MUTATION_RUN_ID_ENV, "mutation-test");
   Deno.env.set(MUTATION_RUN_ROOT_ENV, runRoot);

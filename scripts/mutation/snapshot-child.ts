@@ -6,7 +6,6 @@
  */
 
 import { resolve } from "@std/path";
-import { processExists } from "#scripts/process.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { ageRunClaimToStale, keepRunClaimFresh } from "./isolation-lock.ts";
 import {
@@ -72,8 +71,10 @@ const workUnderFreshClaim = async <Result>(
     } finally {
       // With the supervisor gone, nobody is left to release the claim; age
       // it so the run reads as over the moment this child ends, instead of
-      // staying "live" for a whole stale window.
-      if (!processExists(supervisorPid)) {
+      // staying "live" for a whole stale window. Gone means reparented: a
+      // pid probe could bless a pid already reused by a stranger, but no
+      // reused pid can become this child's parent.
+      if (Deno.ppid !== supervisorPid) {
         await ageRunClaimToStale(record, claim.ownedBy);
       }
     }

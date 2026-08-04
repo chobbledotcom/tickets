@@ -88,34 +88,20 @@ const holdClaimUntilReleased = async (
   return { holding, release: () => released.resolve() };
 };
 
-/** Runs `look` at every read of the claim at `path`. A record handed back is
- * what that one read sees; null lets the real file answer. */
-const watchClaimReads = (
+/** Count every look at the claim at `path`, letting the reads go through. */
+const countClaimReads = (
   path: string,
-  look: () => string | null,
+  counter: { reads: number },
 ): Disposable => {
   const readTextFile = Deno.readTextFile;
   return stub(Deno, "readTextFile", ((
     target: string | URL,
     options?: Deno.ReadFileOptions,
   ) => {
-    if (`${target}` === path) {
-      const standIn = look();
-      if (standIn !== null) return Promise.resolve(standIn);
-    }
+    if (`${target}` === path) counter.reads += 1;
     return readTextFile(target, options);
   }) as typeof Deno.readTextFile);
 };
-
-/** Count every look at the claim at `path`, letting the reads go through. */
-const countClaimReads = (
-  path: string,
-  counter: { reads: number },
-): Disposable =>
-  watchClaimReads(path, () => {
-    counter.reads += 1;
-    return null;
-  });
 
 /** A real-time pause, for waits a fake clock must not intercept — letting a
  * file write that has already started reach the disk. */
@@ -240,7 +226,6 @@ export {
   SETTINGS,
   settle,
   tickBy,
-  watchClaimReads,
   withClaimDir,
   withTestClaim,
   writeClaim,

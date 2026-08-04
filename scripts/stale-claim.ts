@@ -160,9 +160,12 @@ export const ageClaimToStale = async (
   path: string,
   owner: string,
 ): Promise<void> => {
-  await whileStillOwned(path, owner, () =>
+  const aged = await whileStillOwned(path, owner, () =>
     Deno.writeTextFile(path, `${owner}\n1`),
   );
+  // A claim that is no longer that owner's cannot end quietly: the work it
+  // protected may already have run again elsewhere.
+  if (!aged) throw claimLostError(path);
 };
 
 /** Stops touching a claim, and throws if the claim was seen lost meanwhile. */
@@ -266,13 +269,19 @@ export const keepClaimFresh = async (
   path: string,
   settings: StaleClaimSettings,
 ): Promise<{ ownedBy: string; stopTouching: StopTouching }> => {
-  const { owner } = await readClaimRecord(path);
-  if (owner === undefined) {
-    throw new Error(
-      `The claim at ${path} names no owner to keep it fresh for.`,
-    );
-  }
-  if (!(await touchIfStillOurs(path, owner))) throw claimLostError(path);
+  // The owner is read and first touched under one hold of the takers' guard:
+  // an unguarded read could catch the owner's own touch mid-write and see a
+  // half-written record with no owner in it.
+  const owner = await withClaimGuard(path, async () => {
+    const record = await readClaimRecord(path);
+    if (record.owner === undefined) {
+      throw new Error(
+        `The claim at ${path} names no owner to keep it fresh for.`,
+      );
+    }
+    await writeClaimTime(path, record.owner);
+    return record.owner;
+  });
   return {
     ownedBy: owner,
     stopTouching: startClaimTouching(path, owner, settings),
