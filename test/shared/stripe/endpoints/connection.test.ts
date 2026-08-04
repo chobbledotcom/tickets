@@ -8,7 +8,7 @@ import { testStripeConnection } from "#shared/stripe/endpoints.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { describeStripe } from "#test/test-utils/stripe/harness.ts";
 
-const activateOwnEndpoint = () =>
+const configureOwnEndpoint = () =>
   settings.update.stripe.configure({
     secretKey: "sk_test_key",
     webhookEndpointId: "we_own",
@@ -74,7 +74,7 @@ describeStripe("Stripe connection health", () => {
 
   for (const entry of cases) {
     test(`reports ${entry.name} as ${entry.expected ? "ok" : "not ok"}`, async () => {
-      await activateOwnEndpoint();
+      await configureOwnEndpoint();
       const client = {
         balance: {
           retrieve: () => Promise.resolve({ livemode: false }),
@@ -90,7 +90,7 @@ describeStripe("Stripe connection health", () => {
   }
 
   test("reports the endpoint listing error word for word", async () => {
-    await activateOwnEndpoint();
+    await configureOwnEndpoint();
     const client = {
       balance: {
         retrieve: () => Promise.resolve({ livemode: false }),
