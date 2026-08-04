@@ -6,7 +6,7 @@
  */
 
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { deleteByField } from "#shared/db/client.ts";
+import { deleteByField, execute } from "#shared/db/client.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Build the "forget this IP" action for an attempts table: delete the IP's
@@ -27,6 +27,11 @@ export const lockoutActive = async (
 ): Promise<boolean> => {
   if (lockedUntil === null || lockedUntil === undefined) return false;
   if (lockedUntil > nowMs()) return true;
-  await deleteByField(table, "ip", hashedIp);
+  // Delete only the exact lockout we read: a fresh one written by a
+  // concurrent request has a different timestamp and must survive.
+  await execute(`DELETE FROM ${table} WHERE ip = ? AND locked_until = ?`, [
+    hashedIp,
+    lockedUntil,
+  ]);
   return false;
 };

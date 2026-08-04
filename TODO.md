@@ -41,22 +41,18 @@ operators own the risk of choosing deliberately hostile third-party endpoints.
 
 - **Make rate-limit writes atomic and bounded.** `src/shared/db/login-attempts.ts`
   and `src/shared/db/token-attempts.ts` update shared rows with read-then-write
-  sequences, so concurrent attempts can lose increments. The expired-lockout
-  cleanup in `src/shared/db/attempt-lockout.ts` can also delete a fresh lockout
-  written by another request, and below-threshold rows are not pruned. Fold the
-  login, API-key, booking, address-lookup, and token limiters onto one atomic
-  update/prune shape. Regression tests should drive concurrent attempts and
-  prove the fresh lockout survives cleanup.
+  sequences, so concurrent attempts can lose increments, and below-threshold
+  rows are not pruned. Fold the login, API-key, booking, address-lookup, and
+  token limiters onto one atomic update/prune shape, with regression tests that
+  drive concurrent attempts. (The expired-lockout cleanup race in
+  `src/shared/db/attempt-lockout.ts` is fixed: the delete is conditional on the
+  observed `locked_until`, so a fresh lockout survives cleanup —
+  `test/shared/db/attempt-lockout.test.ts` proves it.)
 - **Preserve the client IP in production request scopes.** `src/edge.ts`,
   `src/deploy.ts`, and `src/serve-app.ts` should carry the platform connection
   context into the shared request handler so production rate limits do not fall
   back to one global bucket. Add direct entrypoint tests that prove two client
   IPs do not share a limiter row.
-- **Bound the invalid-session cache.** `src/features/auth.ts` negative-caches
-  arbitrary invalid session cookies in process memory. Give that cache a size
-  cap or time-based sweep that removes entries without waiting for the same bad
-  token to be seen again, and test that unique junk cookies cannot grow it
-  without bound.
 - **Stop cross-origin redirects from replaying secrets or PII.** The shared
   fetch path in `src/shared/safe-fetch.ts` is used by registration webhooks and
   SMS delivery. Do not let a cross-origin redirect replay attendee data,
@@ -871,15 +867,6 @@ they were left out of that PR's scope.
   deleted the dead param), so the form has never re-filled on error. Fix: thread
   the submitted values back into the `TextField`/`TextFields` inputs, following
   the flash/form-refill pattern other admin forms use.
-
-- **Attempt-lockout expired-row cleanup is not TOCTOU-safe**
-  (`src/shared/db/attempt-lockout.ts` `lockoutActive`). The expired-row delete is
-  unconditional, so a request that observes an expired lockout can delete a fresh
-  lockout another request wrote in between, losing rate-limit state for that IP.
-  Pre-existing: the two attempt tables (`login_attempts`, `token_attempts`) both
-  deleted unconditionally before this branch merged them into one helper. Fix:
-  make the delete conditional on the stored `locked_until` still equalling the
-  observed value, in one atomic statement.
 
 - **`deployAndReport` lets an activity-log failure mask a successful deploy**
   (`src/shared/site-update.ts`). Only the deploy runs inside `tryStep`; the
