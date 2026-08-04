@@ -5,10 +5,13 @@ import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 
 const state = {
+  attendeeColumnOrder: "",
+  bookingFee: "1.5",
   businessEmail: "ops@example.com",
   customCss: "body { color: red; }",
   embedHosts: "example.com",
   externalOrderEnabled: true,
+  listingColumnOrder: "",
   showPublicApi: true,
   termsAndConditions: "Be kind.",
 };

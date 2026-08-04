@@ -175,8 +175,9 @@ export const handleCalendarFeedsPost = settingsHandler({
 
 /** Handle POST /admin/settings/booking-fee - owner only */
 export const handleBookingFeePost = settingsHandler({
-  extract: (form) => Number.parseFloat(form.getString("booking_fee")),
-  formId: "settings-booking-fee",
+  ...formLocation(SETTINGS_FORMS.bookingFee),
+  extract: (form) =>
+    Number.parseFloat(form.getString(SETTINGS_FORMS.bookingFee.fieldName)),
   log: (v) => `Booking fee set to ${v}%`,
   save: (v) => settings.update.bookingFee(String(v)),
   validate: (v) =>
@@ -191,10 +192,12 @@ export const handleBookingFeePost = settingsHandler({
  */
 const COLUMN_ORDER_SETTINGS = {
   attendee: {
+    form: SETTINGS_FORMS.attendeeColumnOrder,
     message: () => t("settings.column_order.attendee_updated"),
     update: settings.update.attendeeColumnOrder,
   },
   listing: {
+    form: SETTINGS_FORMS.listingColumnOrder,
     message: () => t("settings.column_order.listing_updated"),
     update: settings.update.listingColumnOrder,
   },
@@ -206,9 +209,8 @@ const columnOrderHandler = (kind: ConfigurableColumnLayoutKind) => {
   const config = COLUMN_ORDER_SETTINGS[kind];
   const layout = configurableTableLayouts[kind];
   return settingsHandler({
-    advanced: true,
-    extract: (form) => form.getString("column_order").trim(),
-    formId: `settings-${kind}-column-order`,
+    ...formLocation(config.form),
+    extract: (form) => form.getString(config.form.fieldName).trim(),
     log: config.message,
     save: config.update,
     validate: (value) =>

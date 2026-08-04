@@ -1,4 +1,6 @@
+import { t } from "#i18n";
 import { CONFIG_KEYS, type ConfigKey } from "#shared/settings/keys.ts";
+import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 
 export type SettingsFormPage = "main" | "advanced";
 
@@ -69,6 +71,13 @@ const form = <const Definition extends SettingsFormConfig>(
   definition: Definition,
 ): Definition => definition;
 
+/** The "Available tags: …" note under a column-order field, listing every
+ *  Liquid tag the table understands. */
+const availableTags = (layout: { keys: readonly string[] }): string =>
+  `${t("settings.column_order.available")} ${layout.keys
+    .map((key) => `{{${key}}}`)
+    .join(", ")}`;
+
 export const SETTINGS_FORM_DEFINITIONS = [
   form({
     action: "/admin/settings/business-email",
@@ -128,6 +137,72 @@ export const SETTINGS_FORM_DEFINITIONS = [
     page: "main",
     routeLabel: "Embed host restrictions",
     stateField: "embedHosts",
+  }),
+  form({
+    action: "/admin/settings/booking-fee",
+    copy: {
+      descriptionKey: "settings.booking_fee_hint",
+      labelKey: "settings.booking_fee_label",
+      submitLabelKey: "settings.save_booking_fee",
+      titleKey: "settings.booking_fee",
+    },
+    fieldName: "booking_fee",
+    formId: "settings-booking-fee",
+    inputType: "number",
+    key: CONFIG_KEYS.BOOKING_FEE,
+    kind: "text",
+    max: "10",
+    min: "0",
+    name: "bookingFee",
+    page: "main",
+    required: true,
+    routeLabel: "Booking fee",
+    stateField: "bookingFee",
+    step: "0.1",
+  }),
+  form({
+    action: "/admin/settings/listing-column-order",
+    copy: {
+      descriptionHtml: true,
+      descriptionKey: "settings.column_order.listing_desc",
+      footerText: () => availableTags(configurableTableLayouts.listing),
+      labelKey: "settings.column_order.label",
+      placeholderText: () => configurableTableLayouts.listing.defaultTemplate,
+      submitLabelKey: "settings.column_order.listing_submit",
+      titleKey: "settings.column_order.listing_title",
+    },
+    fieldName: "column_order",
+    formId: "settings-listing-column-order",
+    inputType: "text",
+    key: CONFIG_KEYS.LISTING_COLUMN_ORDER,
+    kind: "text",
+    name: "listingColumnOrder",
+    page: "advanced",
+    routeLabel: "Listing column order",
+    stateField: "listingColumnOrder",
+    valueFallback: "placeholder",
+  }),
+  form({
+    action: "/admin/settings/attendee-column-order",
+    copy: {
+      descriptionHtml: true,
+      descriptionKey: "settings.column_order.attendee_desc",
+      footerText: () => availableTags(configurableTableLayouts.attendee),
+      labelKey: "settings.column_order.label",
+      placeholderText: () => configurableTableLayouts.attendee.defaultTemplate,
+      submitLabelKey: "settings.column_order.attendee_submit",
+      titleKey: "settings.column_order.attendee_title",
+    },
+    fieldName: "column_order",
+    formId: "settings-attendee-column-order",
+    inputType: "text",
+    key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
+    kind: "text",
+    name: "attendeeColumnOrder",
+    page: "advanced",
+    routeLabel: "Attendee column order",
+    stateField: "attendeeColumnOrder",
+    valueFallback: "placeholder",
   }),
   form({
     action: "/admin/settings/custom-css",

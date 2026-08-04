@@ -13,7 +13,6 @@ import { ChangePasswordForm } from "#templates/admin/settings/change-password.ts
 import { HeaderImageForm } from "#templates/admin/settings/header-image.tsx";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import {
-  BookingFeeForm,
   PaymentProviderForm,
   SquareForm,
   SquareWebhookForm,
@@ -81,7 +80,7 @@ export const adminSettingsPage = (
       {SquareForm(s)}
       {SquareWebhookForm(s)}
       {SumUpForm(s)}
-      {BookingFeeForm(s)}
+      {s.paymentProvider ? settingsForm(SETTINGS_FORMS.bookingFee, s) : null}
 
       {settingsForm(SETTINGS_FORMS.terms, s)}
       {settingsForm(SETTINGS_FORMS.embedHosts, s)}

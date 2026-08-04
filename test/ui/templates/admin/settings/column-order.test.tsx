@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
-import {
-  AttendeeColumnOrderForm,
-  ListingColumnOrderForm,
-} from "#templates/admin/settings/column-order.tsx";
+import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { advancedDefaultState } from "#test/ui/templates/admin/settings-advanced/state.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
@@ -17,7 +15,7 @@ describe("column order settings forms", () => {
   test("uses the listing default template when no template is saved", () => {
     const definition = configurableTableLayouts.listing;
     const html = String(
-      ListingColumnOrderForm({
+      settingsForm(SETTINGS_FORMS.listingColumnOrder, {
         ...advancedDefaultState,
         attendeeColumnOrder: "{{phone}}",
         listingColumnOrder: "",
@@ -39,7 +37,7 @@ describe("column order settings forms", () => {
     const definition = configurableTableLayouts.attendee;
     const saved = "{{ticket}}, {{name}}, {{registered | date: &quot;%Y&quot;}}";
     const html = String(
-      AttendeeColumnOrderForm({
+      settingsForm(SETTINGS_FORMS.attendeeColumnOrder, {
         ...advancedDefaultState,
         attendeeColumnOrder:
           '{{ticket}}, {{name}}, {{registered | date: "%Y"}}',
