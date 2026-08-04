@@ -6,10 +6,13 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
+import {
+  createOwnerCrudHandlers,
+  crudRoutes,
+} from "#routes/admin/owner-crud.ts";
+import { ownerPage } from "#routes/auth.ts";
+import { notFoundResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/builder.ts";
@@ -343,17 +346,13 @@ const handleProvisionRenewal = builtSiteAction(async (site, form, id) => {
 
 /** GET /admin/built-sites — overrides the CRUD list so we can render the
  * renewal-tier summary alongside the sites table. */
-const handleBuiltSitesListGet = (request: Request) =>
-  requireOwnerOr(request, async (session) => {
-    applyFlash(request);
-    const [sites, tiers] = await Promise.all([
-      builtSites.getAll(),
-      getQualifyingTierListings(),
-    ]);
-    return htmlResponse(
-      adminBuiltSitesPage(sites, session, getFlash().success, tiers),
-    );
-  });
+const handleBuiltSitesListGet = ownerPage(async (session) => {
+  const [sites, tiers] = await Promise.all([
+    builtSites.getAll(),
+    getQualifyingTierListings(),
+  ]);
+  return adminBuiltSitesPage(sites, session, getFlash().success, tiers);
+});
 
 /** The whole built-sites section is hidden from the nav when CAN_BUILD_SITES is
  * off, so its routes must not be reachable either — we never serve a page for a
@@ -369,22 +368,16 @@ const gateOnBuilder = <Key extends string>(
 ): Record<Key, RouteHandlerFn> =>
   mapValues(routes, (handler) => builderOnly(handler as RouteHandlerFn));
 
-/** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). */
+/** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). The
+ * list GET restates the standard key with its own handler. */
 export const adminHandlers = gateOnBuilder(
   defineRoutes({
+    ...crudRoutes("/admin/built-sites", crud),
+    ...entityTabRoutes("/admin/built-sites", builtSitePage),
     "GET /admin/built-sites": handleBuiltSitesListGet,
-    "GET /admin/built-sites/:id": (request, { id }) =>
-      builtSitePage.renderTab(request, id, ""),
-    "GET /admin/built-sites/:id/:tab": (request, { id, tab }) =>
-      builtSitePage.renderTab(request, id, tab),
-    "GET /admin/built-sites/:id/delete": crud.deleteGet,
-    "GET /admin/built-sites/new": crud.newGet,
-    "POST /admin/built-sites": crud.createPost,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
     "POST /admin/built-sites/:id/add-uptime-monitor": handleAddUptimeMonitor,
     "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
-    "POST /admin/built-sites/:id/delete": crud.deletePost,
-    "POST /admin/built-sites/:id/edit": crud.editPost,
     "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
     "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
     "POST /admin/built-sites/:id/provision-scheduler":

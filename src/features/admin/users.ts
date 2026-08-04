@@ -20,7 +20,7 @@ import {
   ownerPage,
   requireOwnerOr,
 } from "#routes/auth.ts";
-import { ownerFormById } from "#routes/entity.ts";
+import { idRouteFor, ownerFormById } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -400,10 +400,8 @@ export const adminHandlers = defineRoutes({
   "GET /admin/users/:id/:tab": (request, { id, tab }) =>
     userPage.renderTab(request, id, tab),
   "GET /admin/users/:id/agents": handleUserAgentsGet,
-  "GET /admin/users/:id/delete": (request, { id }) =>
-    userDelete.get(request, id),
+  "GET /admin/users/:id/delete": idRouteFor(userDelete.get),
   "POST /admin/users": handleUsersPost,
   "POST /admin/users/:id/agents": handleUserAgentsPost,
-  "POST /admin/users/:id/delete": (request, { id }) =>
-    userDelete.post(request, id),
+  "POST /admin/users/:id/delete": idRouteFor(userDelete.post),
 });

@@ -8,6 +8,8 @@ import { t } from "#i18n";
 import {
   CONTENT_FORM,
   CONTENT_MULTIPART,
+  contentPage,
+  contentResponsePage,
   formGuard,
   requireContentOr,
   withAuth,
@@ -74,20 +76,15 @@ const imageHandlers = {
     ),
 };
 
-const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> = (request) =>
-  requireContentOr(request, async (session) => {
-    applyFlash(request);
-    const images = isStorageEnabled() ? await getAllImages() : [];
-    return htmlResponse(adminImagesPage(images, session));
-  });
+const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> =
+  contentPage(async (session) =>
+    adminImagesPage(isStorageEnabled() ? await getAllImages() : [], session),
+  );
 
-const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> = (
-  request,
-) =>
-  requireContentOr(request, (session) => {
-    applyFlash(request);
-    return withStorageEnabled(() => htmlResponse(adminImageNewPage(session)));
-  });
+const handleImageNewGet: TypedRouteHandler<"GET /admin/images/new"> =
+  contentResponsePage((session) =>
+    withStorageEnabled(() => htmlResponse(adminImageNewPage(session))),
+  );
 
 const handleImageCreatePost: TypedRouteHandler<"POST /admin/images"> = (
   request,

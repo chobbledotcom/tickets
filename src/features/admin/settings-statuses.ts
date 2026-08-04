@@ -10,7 +10,11 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
+import {
+  createOwnerCrudHandlers,
+  crudRoutes,
+} from "#routes/admin/owner-crud.ts";
 import { OWNER_FORM } from "#routes/auth.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import {
@@ -126,16 +130,8 @@ const statusOrder = createOrderedCollectionHandlers({
 });
 
 export const adminHandlers = defineRoutes({
-  "GET /admin/settings/statuses": crud.listGet,
-  "GET /admin/settings/statuses/:id": (request, { id }) =>
-    attendeeStatusPage.renderTab(request, id, ""),
-  "GET /admin/settings/statuses/:id/:tab": (request, { id, tab }) =>
-    attendeeStatusPage.renderTab(request, id, tab),
-  "GET /admin/settings/statuses/:id/delete": crud.deleteGet,
-  "GET /admin/settings/statuses/new": crud.newGet,
-  "POST /admin/settings/statuses": crud.createPost,
-  "POST /admin/settings/statuses/:id/delete": crud.deletePost,
-  "POST /admin/settings/statuses/:id/edit": crud.editPost,
+  ...crudRoutes("/admin/settings/statuses", crud),
+  ...entityTabRoutes("/admin/settings/statuses", attendeeStatusPage),
   "POST /admin/settings/statuses/:id/move-down": statusOrder.down,
   "POST /admin/settings/statuses/:id/move-up": statusOrder.up,
 });

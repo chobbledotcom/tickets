@@ -11,6 +11,7 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPage,
+  entityTabRoutes,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
 import { withOwnerData } from "#routes/admin/owner-route.ts";
@@ -170,11 +171,8 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
   );
 
 export const adminHandlers = defineRoutes({
+  ...entityTabRoutes("/admin/api-keys", apiKeyPage, "apiKeyId"),
   "GET /admin/api-keys": handleApiKeysGet,
-  "GET /admin/api-keys/:apiKeyId": (request, { apiKeyId }) =>
-    apiKeyPage.renderTab(request, apiKeyId, ""),
-  "GET /admin/api-keys/:apiKeyId/:tab": (request, { apiKeyId, tab }) =>
-    apiKeyPage.renderTab(request, apiKeyId, tab),
   "GET /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>
     apiKeyDelete.get(request, apiKeyId),
   "GET /admin/api-keys/docs": handleApiDocsGet,

@@ -8,6 +8,7 @@ import { defineRoutes } from "#routes/router.ts";
 
 import { compact } from "#fp";
 import { t } from "#i18n";
+import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
 import {
   createContentCrudHandlers,
   createCrudHandlers,
@@ -419,10 +420,7 @@ export const adminHandlers = defineRoutes({
   // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.
-  "GET /admin/groups/:id": (request, { id }) =>
-    groupPage.renderTab(request, id, ""),
-  "GET /admin/groups/:id/:tab": (request, { id, tab }) =>
-    groupPage.renderTab(request, id, tab),
+  ...entityTabRoutes("/admin/groups", groupPage),
   "GET /admin/groups/:id/delete": staffCrud.deleteGet,
   // Create uses the auto-generated-slug resource.
   "GET /admin/groups/new": contentCreate.newGet,

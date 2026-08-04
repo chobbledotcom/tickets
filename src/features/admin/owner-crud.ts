@@ -18,9 +18,11 @@ import {
 /* jscpd:ignore-start */
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import type { RequestRoute } from "#shared/response-steps.ts";
 import type {
   DeleteResult,
   NamedOperations,
@@ -32,6 +34,46 @@ type OperationFailure = Exclude<
   DeleteResult | UpdateResult<unknown>,
   { ok: true }
 >;
+
+/** The handler bundle a CRUD factory returns, bindable via
+ * {@link crudRoutes} or one key at a time. */
+export interface CrudHandlers {
+  createPost: RequestRoute;
+  deleteGet: IdRouteHandler;
+  deletePost: IdRouteHandler;
+  editPost: IdRouteHandler;
+  listGet: RequestRoute;
+  newGet: RequestRoute;
+}
+
+/** The six routes a standard CRUD section binds. */
+export type CrudRoutes<Base extends string> = {
+  [K in
+    | `GET ${Base}`
+    | `GET ${Base}/new`
+    | `GET ${Base}/:id/delete`
+    | `POST ${Base}`
+    | `POST ${Base}/:id/delete`
+    | `POST ${Base}/:id/edit`]: TypedRouteHandler<K>;
+};
+
+/** Bind a CRUD handler bundle under its section's six standard routes, ready
+ * to spread into the route table. A section with a bespoke step spreads this
+ * first and restates just that key (e.g. a custom `:id/edit` POST). */
+export const crudRoutes = <Base extends string>(
+  base: Base,
+  crud: CrudHandlers,
+): CrudRoutes<Base> =>
+  ({
+    [`GET ${base}`]: crud.listGet,
+    [`GET ${base}/new`]: crud.newGet,
+    [`GET ${base}/:id/delete`]: crud.deleteGet,
+    [`POST ${base}`]: crud.createPost,
+    [`POST ${base}/:id/delete`]: crud.deletePost,
+    [`POST ${base}/:id/edit`]: crud.editPost,
+    // Computed template-literal keys widen to an index signature, so the
+    // literal route keys are restated by the cast.
+  }) as CrudRoutes<Base>;
 
 /** Resolve one CRUD operation through its success or failure response path. */
 export const operationResponse = async <Success extends { ok: true }, Output>(
@@ -118,7 +160,7 @@ export const createContentCrudHandlers = createCrudHandlersWithAuth({
 });
 
 function createCrudHandlersWithAuth(auth: AuthGuards) {
-  return <Row, Display = Row>(cfg: CrudConfig<Row, Display>) => {
+  return <Row, Display = Row>(cfg: CrudConfig<Row, Display>): CrudHandlers => {
     const operations = (): NamedOperations<Row> =>
       typeof cfg.operations === "function" ? cfg.operations() : cfg.operations;
     const activityName =

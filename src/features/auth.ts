@@ -476,6 +476,10 @@ export const ownerResponsePage = authResponsePage(requireOwnerOr);
 /** Authenticated GET page: authenticate, apply flash, render HTML */
 export const sessionPage = authPage(requireSessionOr);
 
+/** Content-editing GET route (staff or editor) whose builder returns the full
+ * Response (may 404 or redirect instead of rendering). */
+export const contentResponsePage = authResponsePage(requireContentOr);
+
 /** Content-editing GET page (staff or editor): authenticate, apply flash,
  * render HTML. */
 export const contentPage = authPage(requireContentOr);

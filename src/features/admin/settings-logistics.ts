@@ -13,8 +13,10 @@ import { defineRoutes } from "#routes/router.ts";
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
+import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
 import {
   createOwnerCrudHandlers,
+  crudRoutes,
   operationResponse,
 } from "#routes/admin/owner-crud.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
@@ -107,16 +109,10 @@ const handleAgentEditPost: IdRouteHandler = ownerFormById(
   },
 );
 
-/** Logistics settings + agent routes. */
+/** Logistics settings + agent routes. The agent edit POST restates the
+ * standard key with its own handler. */
 export const adminHandlers = defineRoutes({
-  "GET /admin/logistics": crud.listGet,
-  "GET /admin/logistics/:id": (request, { id }) =>
-    logisticsAgentPage.renderTab(request, id, ""),
-  "GET /admin/logistics/:id/:tab": (request, { id, tab }) =>
-    logisticsAgentPage.renderTab(request, id, tab),
-  "GET /admin/logistics/:id/delete": crud.deleteGet,
-  "GET /admin/logistics/new": crud.newGet,
-  "POST /admin/logistics": crud.createPost,
-  "POST /admin/logistics/:id/delete": crud.deletePost,
+  ...crudRoutes("/admin/logistics", crud),
+  ...entityTabRoutes("/admin/logistics", logisticsAgentPage),
   "POST /admin/logistics/:id/edit": handleAgentEditPost,
 });

@@ -5,6 +5,7 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 import { t } from "#i18n";
+import { entityTabRoutes } from "#routes/admin/entity-pages.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
@@ -360,12 +361,9 @@ const handleResendNotification = verifiedAttendeeAction(
  * Refunds: attendee-refunds.ts
  */
 export const adminHandlers = defineRoutes({
+  ...entityTabRoutes("/admin/attendees", attendeePage, "attendeeId"),
   "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
   "GET /admin/attendees": handleAttendeesListGet,
-  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
-    attendeePage.renderTab(request, attendeeId, ""),
-  "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
-    attendeePage.renderTab(request, attendeeId, tab),
   "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,
   "GET /admin/attendees/:attendeeId/resend-notification":
     handleAdminResendNotificationGet,

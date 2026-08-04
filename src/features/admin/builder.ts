@@ -7,14 +7,8 @@ import { defineRoutes } from "#routes/router.ts";
 
 import { t } from "#i18n";
 /* jscpd:ignore-start */
-import { OWNER_FORM, requireOwnerOr } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 /* jscpd:ignore-end */
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";
@@ -59,16 +53,20 @@ const toDisplay = (
     siteUrl: s.siteUrl,
   }));
 
-/** GET /admin/builder — show builder form and built sites list */
-const handleBuilderGet = (request: Request): Promise<Response> => {
-  if (!isBuilderEnabled()) return Promise.resolve(notFoundResponse());
+const renderBuilderPage = ownerPage(async (session, _request, flash) =>
+  adminBuilderPage(
+    session,
+    toDisplay(await builtSites.getAll()),
+    flash.error,
+    flash.success,
+  ),
+);
 
-  return requireOwnerOr(request, async (session) => {
-    const { error, success } = applyFlash(request);
-    const sites = toDisplay(await builtSites.getAll());
-    return htmlResponse(adminBuilderPage(session, sites, error, success));
-  });
-};
+/** GET /admin/builder — show builder form and built sites list */
+const handleBuilderGet = (request: Request): Promise<Response> =>
+  isBuilderEnabled()
+    ? renderBuilderPage(request)
+    : Promise.resolve(notFoundResponse());
 
 export const builderForm = defineForm({
   fields: [
