@@ -29,9 +29,11 @@ import type { Session } from "#shared/types.ts";
  * without bound.
  */
 const SESSION_CACHE_TTL_MS = 10_000;
+export const SESSION_CACHE_MAX_ENTRIES = 1000;
 const sessionCache = ttlCache<string, Session | null>(
   SESSION_CACHE_TTL_MS,
   () => Date.now(),
+  SESSION_CACHE_MAX_ENTRIES,
 );
 const primaryRefill = createPrimaryCacheRefill();
 
