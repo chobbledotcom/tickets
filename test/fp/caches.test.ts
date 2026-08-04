@@ -258,6 +258,49 @@ describe("fp caches and resources", () => {
       cache.clear();
       expect(cache.size()).toBe(0);
     });
+
+    test("drops the oldest entry when a new key arrives at the cap", () => {
+      const cache = ttlCache<string, number>(1000, () => 0, 2);
+      cache.set("first", 1);
+      cache.set("second", 2);
+      cache.set("third", 3);
+      expect(cache.size()).toBe(2);
+      expect(cache.get("first")).toBe(undefined);
+      expect(cache.get("second")).toBe(2);
+      expect(cache.get("third")).toBe(3);
+    });
+
+    test("re-storing a known key at the cap evicts nothing", () => {
+      const cache = ttlCache<string, number>(1000, () => 0, 2);
+      cache.set("keep", 1);
+      cache.set("update", 2);
+      cache.set("update", 20);
+      expect(cache.size()).toBe(2);
+      expect(cache.get("keep")).toBe(1);
+      expect(cache.get("update")).toBe(20);
+    });
+
+    test("a refreshed entry is not the one evicted at the cap", () => {
+      const cache = ttlCache<string, number>(1000, () => 0, 2);
+      cache.set("refreshed", 1);
+      cache.set("stale", 2);
+      // Storing an existing key again makes it the newest entry, so the next
+      // eviction takes the other one.
+      cache.set("refreshed", 10);
+      cache.set("new", 3);
+      expect(cache.get("stale")).toBe(undefined);
+      expect(cache.get("refreshed")).toBe(10);
+      expect(cache.get("new")).toBe(3);
+    });
+
+    test("grows without limit when no cap is given", () => {
+      const cache = ttlCache<number, number>(1000, () => 0);
+      for (let i = 0; i < 1010; i++) {
+        cache.set(i, i);
+      }
+      expect(cache.size()).toBe(1010);
+      expect(cache.get(0)).toBe(0);
+    });
   });
 
   describe("collectionCache", () => {
