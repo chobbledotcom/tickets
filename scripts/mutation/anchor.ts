@@ -124,12 +124,10 @@ const descendTo = (program: object, mutant: Span): Descent => {
     if (!next) break;
     node = next as object;
   }
+  // The program is itself a span holding every offset, so there is always at
+  // least one to fall back to.
   const containing = spans.filter((span) => span.end - span.start > width);
-  return {
-    context: containing.at(-1) ??
-      spans.at(-1) ?? { end: offset, start: offset },
-    names,
-  };
+  return { context: containing.at(-1) ?? spans.at(-1)!, names };
 };
 
 export interface AnchoredMutant {

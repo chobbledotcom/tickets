@@ -44,6 +44,42 @@ const ignoreList = (entries: string[]): IgnoreList => ({
   keys: new Set(entries),
 });
 
+describe("writing a mutant key onto one line", () => {
+  /** A mutated literal carries its own text into the key, and that text can
+   * hold anything a source file can. Each case is a character that would
+   * otherwise end the line, start its reason, or be eaten by the spacing
+   * around the arrow. */
+  const keyFor = (operator: string): string =>
+    mutantKey(file, { ...mutant(1), newOperator: '""', operator });
+
+  test("escapes a comment mark, which would start the reason early", () => {
+    expect(keyFor("a#b")).toContain(" a%23b→");
+  });
+
+  test("escapes a newline, which would end the line outright", () => {
+    expect(keyFor("a\nb")).toContain(" a%0ab→");
+  });
+
+  test("escapes a percent, so an escape cannot be forged", () => {
+    expect(keyFor("a%23b")).toContain(" a%2523b→");
+  });
+
+  test("escapes a leading space the arrow's spacing would eat", () => {
+    expect(keyFor(" ab")).toContain(" %20ab→");
+  });
+
+  test('escapes a trailing space, so "; " and ";" differ', () => {
+    expect(keyFor("; ")).not.toBe(keyFor(";"));
+    expect(keyFor("; ")).toContain(" ;%20→");
+  });
+
+  test("leaves an interior space alone, so a statement reads as itself", () => {
+    expect(keyFor("applyFlash(request); ok()")).toContain(
+      " applyFlash(request); ok()→",
+    );
+  });
+});
+
 describe("mutation ignore list", () => {
   test("keys mutants by path, what they sit inside, and the mutation", () => {
     expect(mutantKey(file, mutant(12))).toBe("src/example.ts::fn12 ??→||");

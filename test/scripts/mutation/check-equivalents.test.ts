@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { checkEquivalentMutants } from "#scripts/check-equivalent-mutants.ts";
+import { checkEquivalentMutants } from "#scripts/mutation/check-equivalents.ts";
 import { generateMutants } from "#scripts/mutation/generate.ts";
 import { tempDir } from "#test-utils/files.ts";
 

@@ -26,7 +26,7 @@ import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
 import { type MutantResult, rel } from "./summary.ts";
 
-const EQUIVALENT_MUTANTS_DIR = new URL(
+export const EQUIVALENT_MUTANTS_DIR = new URL(
   "./equivalent-mutants/",
   import.meta.url,
 );
