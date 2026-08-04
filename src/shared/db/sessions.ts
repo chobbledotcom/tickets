@@ -2,6 +2,7 @@
  * Sessions table operations
  */
 
+import { ttlCache } from "#fp";
 import {
   type CacheInvalidation,
   registerCache,
@@ -23,41 +24,37 @@ import type { Session } from "#shared/types.ts";
 /**
  * Session cache with TTL (10 seconds)
  * Reduces DB queries for repeated session lookups within the TTL window.
- * Cache entries: { session, cachedAt }
+ * The entry cap matters here: misses are cached too (a null entry per unknown
+ * token), so without it a flood of unique junk cookies would grow the map
+ * without bound.
  */
 const SESSION_CACHE_TTL_MS = 10_000;
-type CacheEntry = { session: Session | null; cachedAt: number };
-const sessionCache = new Map<string, CacheEntry>();
+const SESSION_CACHE_MAX_ENTRIES = 1000;
+const sessionCache = ttlCache<string, Session | null>(
+  SESSION_CACHE_TTL_MS,
+  () => Date.now(),
+  SESSION_CACHE_MAX_ENTRIES,
+);
 const primaryRefill = createPrimaryCacheRefill();
 
-registerCache(() => ({ entries: sessionCache.size, name: "sessions" }));
+registerCache(() => ({ entries: sessionCache.size(), name: "sessions" }));
 
 /**
  * Get cached session if still valid
  */
 const getCachedSession = (token: string): Session | null | undefined => {
   const entry = sessionCache.get(token);
-  if (!entry) return;
-
-  if (Date.now() - entry.cachedAt > SESSION_CACHE_TTL_MS) {
-    sessionCache.delete(token);
-    return;
-  }
-
-  // Also check if the session itself has expired
-  if (entry.session && Date.now() > entry.session.expires) {
-    sessionCache.delete(token);
-    return;
-  }
-
-  return entry.session;
+  // A session that expired mid-window is a miss: the DB read that follows
+  // overwrites the entry, so it is not served again.
+  if (entry && Date.now() > entry.expires) return;
+  return entry;
 };
 
 /**
  * Cache a session lookup result
  */
 const cacheSession = (token: string, session: Session | null): void => {
-  sessionCache.set(token, { cachedAt: Date.now(), session });
+  sessionCache.set(token, session);
 };
 
 /**
