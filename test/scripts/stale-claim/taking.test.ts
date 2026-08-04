@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
   ageFile,
+  doNothing,
   expectClaimRefused,
   LONG_AGO_MS,
   withClaimDir,
@@ -47,7 +48,7 @@ describe("taking a claim", () => {
       await writeClaim(path, "someone-else\nnot-a-time");
       await ageFile(path, LONG_AGO_MS);
 
-      await withTestClaim(path, () => Promise.resolve());
+      await withTestClaim(path, doNothing);
     });
   });
 
@@ -67,7 +68,7 @@ describe("taking a claim", () => {
       // claims — 1970, however unlikely — can tell that it is abandoned.
       await writeClaim(path, "someone-else\n1");
 
-      await withTestClaim(path, () => Promise.resolve());
+      await withTestClaim(path, doNothing);
     });
   });
 
@@ -88,9 +89,7 @@ describe("taking a claim", () => {
           new Deno.errors.PermissionDenied("no access"),
         )) as typeof Deno.open);
 
-      await expect(
-        withTestClaim(path, () => Promise.resolve()),
-      ).rejects.toThrow("no access");
+      await expect(withTestClaim(path, doNothing)).rejects.toThrow("no access");
     });
   });
 
@@ -108,7 +107,7 @@ describe("taking a claim", () => {
         throw new Deno.errors.NotFound("already gone");
       }) as typeof Deno.remove);
 
-      await withTestClaim(path, () => Promise.resolve());
+      await withTestClaim(path, doNothing);
     });
   });
 });

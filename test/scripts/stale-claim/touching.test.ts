@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { claimIsFresh } from "#scripts/stale-claim.ts";
 import {
   countClaimReads,
+  doNothing,
   eventually,
   holdOnFakeClock,
   settle,
@@ -99,6 +100,13 @@ describe("keeping a claim fresh while it is held", () => {
     });
   });
 
+  test("the patient wait for a look gives up loudly, never silently", async () => {
+    // Two attempts, so the giving-up is proven without a real two-second wait.
+    await expect(eventually(() => Promise.resolve(false), 2)).rejects.toThrow(
+      "The looked-for state never arrived.",
+    );
+  });
+
   test("a timer that fires after the release writes nothing", async () => {
     await withClaimDir(async (path) => {
       // Capture the touch timers instead of running them, so the test can
@@ -110,7 +118,7 @@ describe("keeping a claim fresh while it is held", () => {
         return 0;
       }) as unknown as typeof setTimeout);
 
-      await withTestClaim(path, () => Promise.resolve());
+      await withTestClaim(path, doNothing);
       const counter = { reads: 0 };
       using _read = countClaimReads(path, counter);
       for (const touch of lateTouches) touch();

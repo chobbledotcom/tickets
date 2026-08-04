@@ -11,6 +11,7 @@ import {
   holdWhileTouchesFail,
   LONG_AGO_MS,
   tickBy,
+  watchClaimReads,
   withClaimDir,
   writeClaim,
 } from "#test/scripts/stale-claim/helpers.ts";
@@ -150,6 +151,28 @@ describe("keeping somebody else's claim fresh for them", () => {
         "was lost while the work ran",
       );
       // Not the keeper's to touch or remove: the new owner's record stays.
+      expect((await Deno.readTextFile(path)).startsWith("new-owner")).toBe(
+        true,
+      );
+    });
+  });
+
+  test("reports a claim taken between the look and the first touch", async () => {
+    await withClaimDir(async (path) => {
+      // The file already carries a taker's record; only the keeper's first
+      // look still sees the supervisor it set out to keep the claim for.
+      await writeClaim(path, `new-owner\n${Date.now()}`);
+      let firstLook = true;
+      using _read = watchClaimReads(path, () => {
+        if (!firstLook) return;
+        firstLook = false;
+        return `their-supervisor\n${Date.now()}`;
+      });
+
+      await expect(
+        keepClaimFresh(path, { staleMs: FRESH_FOR_MS, touchMs: FRESH_FOR_MS }),
+      ).rejects.toThrow("was lost while the work ran");
+      // The taker's record is untouched: no touch may land on it.
       expect((await Deno.readTextFile(path)).startsWith("new-owner")).toBe(
         true,
       );

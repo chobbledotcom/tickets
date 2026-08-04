@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
+  doNothing,
   expectClaimRefused,
   holdClaimUntilReleased,
   SETTINGS,
@@ -13,10 +14,10 @@ import {
 describe("releasing a claim", () => {
   test("removes the claim so the next taker finds it free", async () => {
     await withClaimDir(async (path) => {
-      await withTestClaim(path, () => Promise.resolve());
+      await withTestClaim(path, doNothing);
 
       await expect(Deno.stat(path)).rejects.toThrow();
-      await withTestClaim(path, () => Promise.resolve());
+      await withTestClaim(path, doNothing);
     });
   });
 

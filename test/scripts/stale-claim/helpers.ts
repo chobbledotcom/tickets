@@ -52,23 +52,20 @@ const withTestClaim = <Result>(
   settings = SETTINGS,
 ): Promise<Result> => withClaim(path, settings, run);
 
-/** Runs `run` with the claim held, and checks nothing runs without it. */
+/** Work with nothing to observe, for tests about the claim alone. */
+const doNothing = (): Promise<void> => Promise.resolve();
+
+/** Tries to take the held claim, and checks the holder's record survives. */
 const expectClaimRefused = async (
   path: string,
   settings = SETTINGS,
 ): Promise<void> => {
-  let ranAnyway = false;
-  await expect(
-    withTestClaim(
-      path,
-      () => {
-        ranAnyway = true;
-        return Promise.resolve();
-      },
-      settings,
-    ),
-  ).rejects.toThrow("Timed out waiting for the test claim");
-  expect(ranAnyway).toBe(false);
+  const holdersRecord = await Deno.readTextFile(path);
+  await expect(withTestClaim(path, doNothing, settings)).rejects.toThrow(
+    "Timed out waiting for the test claim",
+  );
+  // Had the work run, its release would have removed or replaced the record.
+  expect(await Deno.readTextFile(path)).toBe(holdersRecord);
 };
 
 /** Hold the test claim until told to let go, resolving once it is really
@@ -91,20 +88,33 @@ const holdClaimUntilReleased = async (
   return { holding, release: () => released.resolve() };
 };
 
-/** Count every look at the claim at `path`, letting the reads go through. */
-const countClaimReads = (
+/** Runs `look` at every read of the claim at `path`. A record handed back is
+ * what that one read sees; undefined lets the real file answer. */
+const watchClaimReads = (
   path: string,
-  counter: { reads: number },
+  look: () => string | void,
 ): Disposable => {
   const readTextFile = Deno.readTextFile;
   return stub(Deno, "readTextFile", ((
     target: string | URL,
     options?: Deno.ReadFileOptions,
   ) => {
-    if (`${target}` === path) counter.reads += 1;
+    if (`${target}` === path) {
+      const standIn = look();
+      if (typeof standIn === "string") return Promise.resolve(standIn);
+    }
     return readTextFile(target, options);
   }) as typeof Deno.readTextFile);
 };
+
+/** Count every look at the claim at `path`, letting the reads go through. */
+const countClaimReads = (
+  path: string,
+  counter: { reads: number },
+): Disposable =>
+  watchClaimReads(path, () => {
+    counter.reads += 1;
+  });
 
 /** A real-time pause, for waits a fake clock must not intercept — letting a
  * file write that has already started reach the disk. */
@@ -201,8 +211,11 @@ const holdThenLoseClaim = async (
 
 /** Wait, in real time, for the look to say yes — for a write already on its
  * way to the disk. Gives up loudly rather than waiting for ever. */
-const eventually = async (look: () => Promise<boolean>): Promise<void> => {
-  for (let attempt = 0; attempt < 400; attempt += 1) {
+const eventually = async (
+  look: () => Promise<boolean>,
+  attempts = 400,
+): Promise<void> => {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (await look()) return;
     await settle();
   }
@@ -212,6 +225,7 @@ const eventually = async (look: () => Promise<boolean>): Promise<void> => {
 export {
   ageFile,
   countClaimReads,
+  doNothing,
   eventually,
   expectClaimRefused,
   type FakeHold,
@@ -225,6 +239,7 @@ export {
   SETTINGS,
   settle,
   tickBy,
+  watchClaimReads,
   withClaimDir,
   withTestClaim,
   writeClaim,
