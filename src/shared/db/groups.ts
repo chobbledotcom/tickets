@@ -213,6 +213,24 @@ export const getListingsByGroupIds = async (
   );
 };
 
+/** Read several groups' members together with one more thing about the SAME
+ * groups — their prices, their full membership, whatever the caller needs — in
+ * one round of reads. A page hydrating many packages would otherwise pay a pair
+ * of reads per package and eat the request's subrequest budget. `activeOnly`
+ * has the meaning {@link getListingsByGroupIds} gives it. */
+export const readGroupMembersWith = async <Extra>(
+  groupList: readonly Group[],
+  readMore: (groupIds: number[]) => Promise<Extra>,
+  activeOnly = false,
+): Promise<{ members: Map<number, ListingWithCount[]>; more: Extra }> => {
+  const groupIds = groupList.map((group) => group.id);
+  const [members, more] = await Promise.all([
+    getListingsByGroupIds(groupIds, activeOnly),
+    readMore(groupIds),
+  ]);
+  return { members, more };
+};
+
 /** One group's entry from the shared one-or-many membership query. */
 type LoadGroupListings = (groupId: number) => Promise<ListingWithCount[]>;
 
@@ -660,16 +678,21 @@ export const packageMemberMaps = (
   quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
 });
 
-/** A package group's full pricing state: its membership rows, the flat override
- * + quantity maps ({@link packageMemberMaps}), and each customisable member's
- * per-day overrides — the shape the booking flow, the webhook payload, and the
- * payment revalidation all consume. */
-export type PackageMemberPricing = {
-  rows: GroupListing[];
+/** What a package charges for its members: the flat override + quantity maps
+ * ({@link packageMemberMaps}) and each customisable member's per-day overrides.
+ * The shape the booking page, the webhook payload, and the payment
+ * revalidation all price from. */
+export interface PackagePrices {
+  dayPrices: Map<number, Map<number, number>>;
   prices: Map<number, number>;
   quantities: Map<number, number>;
-  dayPrices: Map<number, Map<number, number>>;
-};
+}
+
+/** A package group's full pricing state: what it charges, plus the membership
+ * rows those charges were read from (which listings are in the bundle). */
+export interface PackageMemberPricing extends PackagePrices {
+  rows: GroupListing[];
+}
 
 /** The full pricing state of SEVERAL package groups, keyed by group id, in two
  * reads however many groups are asked for — an order that books many packages

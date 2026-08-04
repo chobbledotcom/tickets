@@ -7,9 +7,9 @@ import { notFoundResponse } from "#routes/response.ts";
 import {
   computeGroupSlugIndex,
   getGroupBySlugIndex,
-  getListingsByGroupIds,
   groupListings,
   groups,
+  readGroupMembersWith,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
@@ -97,12 +97,13 @@ export const loadCartPackagesBySlugs = async (
     compact(bySlug).filter((group) => group.is_package),
   );
   if (packages.length === 0) return noPackages;
-  const packageIds = packages.map((group) => group.id);
-  const [membersByGroup, memberIdsByGroup, holidays] = await Promise.all([
-    getListingsByGroupIds(packageIds, true),
-    groupListings.getIdsByKeys(packageIds),
-    getActiveHolidays(),
-  ]);
+  const { members: membersByGroup, more } = await readGroupMembersWith(
+    packages,
+    (groupIds) =>
+      Promise.all([groupListings.getIdsByKeys(groupIds), getActiveHolidays()]),
+    true,
+  );
+  const [memberIdsByGroup, holidays] = more;
   const completeById = new Map(
     packages.map((group) => [
       group.id,
