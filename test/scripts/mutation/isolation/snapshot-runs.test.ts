@@ -13,6 +13,7 @@ import {
   MUTATION_SNAPSHOT_CHILD_ENV,
   markFinished,
   newRunRecord,
+  runClaimPath,
 } from "#scripts/mutation/isolation-state.ts";
 import {
   captureConsole,
@@ -338,13 +339,21 @@ describe("running mutation inside a snapshot", () => {
         expect(getStopChild()).toBeDefined();
         getStopChild()?.();
         expect(() => getStopChild()?.()).toThrow("exit 130");
+        // The forced stop takes the claim down before exiting, so the run
+        // reads as over at once — not after a whole stale window.
+        expect(await pathExists(runClaimPath({ root: record.root }))).toBe(
+          false,
+        );
 
         try {
           originalKill(record.pid!, "SIGKILL");
         } catch {
           // The supervisor may already have stopped it.
         }
-        expect((await run).result).not.toBe(0);
+        // Only because the test stubbed the exit away does the run carry on
+        // to its release, which finds the claim gone — in production the
+        // process is over the moment the claim comes down.
+        await expect(run).rejects.toThrow("was lost while the work ran");
       });
     });
   });

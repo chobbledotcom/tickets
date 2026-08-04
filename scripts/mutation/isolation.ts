@@ -46,6 +46,7 @@ import {
   newRunRecord,
   parseIsolationCommand,
   rewriteMutationArgs,
+  runClaimPath,
   type SnapshotArgsFn,
   selectedRuns,
 } from "./isolation-state.ts";
@@ -108,8 +109,16 @@ const childArgs =
     ...rewriteMutationArgs(root, snapshotRoot, args),
   ];
 
-const forceStopChild = (child: Deno.ChildProcess | null): never => {
+const forceStopChild = (
+  child: Deno.ChildProcess | null,
+  record: MutationRunRecord,
+): never => {
   if (child) stopProcessNow(child);
+  // Exiting here skips the claim's release, so take the claim down first.
+  // It is this supervisor's own — held fresh since it was taken, and no
+  // other code runs mid-removal — and without it the run reads as over at
+  // once instead of after a whole stale window.
+  Deno.removeSync(runClaimPath(record));
   Deno.exit(130);
 };
 
@@ -188,7 +197,7 @@ export const runInSnapshot = async (
     let child: Deno.ChildProcess | null = null;
     let interrupted = false;
     const stopChild = (): void => {
-      if (interrupted) forceStopChild(child);
+      if (interrupted) forceStopChild(child, record);
       interrupted = true;
       killChildQuietly(child);
     };
