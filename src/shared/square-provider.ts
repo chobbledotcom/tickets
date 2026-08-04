@@ -15,7 +15,6 @@
 import { logDebug } from "#shared/logger.ts";
 import {
   type SessionRejection,
-  sessionOrRejection,
   validatedPaymentSession,
 } from "#shared/payment/validated-session.ts";
 import {
@@ -132,31 +131,35 @@ export const squarePaymentProvider: PaymentProvider = {
     // earlier payment, and either would call this captured charge unpaid.
     const paymentReference =
       paidPaymentId ?? order.tenders?.[0]?.paymentId ?? "";
-
-    let paymentStatus: ValidatedPaymentSession["paymentStatus"] = "unpaid";
-    if (paymentReference) {
-      const payment = await retrievePayment(paymentReference);
-      if (payment?.status === "COMPLETED") {
-        paymentStatus = "paid";
-      }
+    const payment = paymentReference
+      ? await retrievePayment(paymentReference)
+      : null;
+    // The webhook already saw this payment complete, so failing to read it
+    // back is a provider blip, not an unpaid order. Throwing answers the
+    // caller retryably; going quiet would acknowledge a captured charge.
+    if (paidPaymentId && !payment) {
+      throw new Error(`Square payment ${paidPaymentId} could not be read back`);
     }
 
-    return sessionOrRejection(
-      validatedPaymentSession({
-        // A missing amount stays missing: Number(null) is 0, which the
-        // boundary would accept as a real free order.
-        amountTotal:
-          order.totalMoney.amount === null
-            ? null
-            : Number(order.totalMoney.amount),
-        createdAt: toCanonicalIso(order.createdAt),
-        currency: order.totalMoney.currency,
-        id: order.id,
-        metadata,
-        paymentReference,
-        paymentStatus,
-      }),
-    );
+    // Square's own figure for what it took, whenever it names one. The order
+    // total is only what was asked for, so a partial payment would match the
+    // signed price and book as paid in full.
+    const charged =
+      typeof payment?.amountMoney?.amount === "bigint"
+        ? payment.amountMoney
+        : order.totalMoney;
+    return validatedPaymentSession({
+      // A missing amount stays missing: Number(null) is 0, which the
+      // boundary would accept as a real free order.
+      amountTotal:
+        typeof charged.amount === "bigint" ? Number(charged.amount) : null,
+      createdAt: toCanonicalIso(order.createdAt),
+      currency: charged.currency,
+      id: order.id,
+      metadata,
+      paymentReference,
+      paymentStatus: payment?.status === "COMPLETED" ? "paid" : "unpaid",
+    });
   },
 
   setupWebhookEndpoint(

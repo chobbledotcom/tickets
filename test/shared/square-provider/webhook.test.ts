@@ -60,6 +60,76 @@ describe("square-provider resolveWebhookSession", () => {
     );
   });
 
+  /** Stubs the order and the payment Square answers the webhook with. */
+  const withOrderAndPayment = (
+    order: Awaited<ReturnType<typeof squareApi.retrieveOrder>>,
+    payment: Awaited<ReturnType<typeof squareApi.retrievePayment>>,
+  ) => ({
+    order: stub(squareApi, "retrieveOrder", () => Promise.resolve(order)),
+    payment: stub(squareApi, "retrievePayment", () => Promise.resolve(payment)),
+  });
+
+  /** Deliver a completed payment.updated webhook for `paymentId`. */
+  const completedWebhook = (paymentId: string, orderId: string) =>
+    squarePaymentProvider.resolveWebhookSession({
+      data: {
+        object: {
+          payment: { id: paymentId, order_id: orderId, status: "COMPLETED" },
+        },
+      },
+      id: `evt_${paymentId}`,
+      type: "payment.updated",
+    });
+
+  test("validates what the payment took, not what the order asked for", async () => {
+    // A partial payment against a £10 order would otherwise be handed on as
+    // £10 and match the signed price, booking a half-paid order as paid.
+    await withMocks(
+      () =>
+        withOrderAndPayment(
+          {
+            id: "order_partial",
+            metadata: SQUARE_ORDER_META,
+            state: "COMPLETED",
+            totalMoney: squareMoney(1000),
+          },
+          {
+            amountMoney: squareMoney(500),
+            id: "pay_partial",
+            status: "COMPLETED",
+          },
+        ),
+      async () => {
+        const result = await completedWebhook("pay_partial", "order_partial");
+        expect(asSession(result).amountTotal).toBe(500);
+        expect(asSession(result).currency).toBe("GBP");
+      },
+    );
+  });
+
+  test("asks to be retried when the completed payment cannot be read back", async () => {
+    // Square said COMPLETED, so a failed read-back is a blip on its side. Going
+    // quiet here would acknowledge the captured charge as pending and Square
+    // would never deliver it again.
+    await withMocks(
+      () =>
+        withOrderAndPayment(
+          {
+            id: "order_blip",
+            metadata: SQUARE_ORDER_META,
+            state: "COMPLETED",
+            totalMoney: squareMoney(1000),
+          },
+          null,
+        ),
+      async () => {
+        await expect(
+          completedWebhook("pay_blip", "order_blip"),
+        ).rejects.toThrow("pay_blip");
+      },
+    );
+  });
+
   test("books a completed payment whose order has no tender yet", async () => {
     // Square's tenders can lag the payment webhook. Reading the order alone
     // would call this unpaid, and a captured charge would be acknowledged as

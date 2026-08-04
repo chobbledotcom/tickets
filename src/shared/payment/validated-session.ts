@@ -9,18 +9,10 @@ import type {
 import { isRecord } from "#shared/types.ts";
 
 /**
- * Why a provider session was refused at the boundary.
- *
- * `malformed_charge` — a paid or pending charge whose amount or currency
- * cannot be read (a fraction, a negative, a missing currency, a SumUp amount
- * more precise than the currency allows). `refundable` is true when the charge
- * captured money and the provider gave a usable resource id, so the callback
- * can refund it instead of stranding it. The metadata is carried so the
- * callback can verify the price proof before refunding — a session signed by
- * another instance's key must not be refunded from here.
- *
- * `blank_reference` — the provider says the session is paid but gave no
- * resource id, so no refund is possible; the callback acknowledges it.
+ * Why a provider session was refused at the boundary. A `malformed_charge`
+ * carries its metadata so the callback can check the price proof before
+ * refunding — a session signed by another instance must be left alone. A
+ * `blank_reference` names no charge at all, so nothing can be refunded.
  */
 export type SessionRejection =
   | {
@@ -31,10 +23,8 @@ export type SessionRejection =
     }
   | { reason: "blank_reference" };
 
-/** Whether a value is a {@link SessionRejection} (provider adapters and the
- *  callback handlers share this guard for the boundary's refusal). Only the
- *  exact variants with their required fields count, so a partial or invented
- *  shape cannot steer the payment flow. */
+/** Whether a value is a {@link SessionRejection}. Only the exact variants with
+ *  their fields count, so no invented shape can steer the payment flow. */
 export const isSessionRejection = (
   value: unknown,
 ): value is SessionRejection => {
@@ -49,15 +39,11 @@ export const isSessionRejection = (
   );
 };
 
-/** The malformed-charge refusal for a provider session. `paid` says whether
- *  the charge captured money; the rejection is refundable only when the
- *  provider also gave a usable resource id.
- *
- *  The metadata is unpacked before it is carried. Square folds the small
- *  fields into one entry to fit its ten-entry cap, but the price proof is
- *  signed over the unpacked shape — so a rejection holding the packed record
- *  would fail its own ownership check and a real Square charge would never be
- *  refunded. */
+/** The malformed-charge refusal, refundable only when money was captured AND
+ *  the provider named it. The metadata is unpacked first: Square folds its
+ *  small fields into one entry, but the price proof is signed over the
+ *  unpacked shape, so a packed record would fail its own ownership check and
+ *  no Square charge would ever be refunded. */
 export const malformedChargeRejection = (
   paymentReference: string,
   paid: boolean,
@@ -68,16 +54,6 @@ export const malformedChargeRejection = (
   reason: "malformed_charge",
   refundable: paid && isResourceId(paymentReference),
 });
-
-type SessionBuild =
-  | { ok: true; session: ValidatedPaymentSession }
-  | { ok: false; rejection: SessionRejection };
-
-/** Unwrap the boundary's build result into the session or its rejection. */
-export const sessionOrRejection = (
-  build: SessionBuild,
-): ValidatedPaymentSession | SessionRejection =>
-  build.ok ? build.session : build.rejection;
 
 /**
  * The one place a provider's raw session becomes a ValidatedPaymentSession, so
@@ -98,21 +74,18 @@ export const validatedPaymentSession = (fields: {
   metadata: SessionMetadata;
   paymentReference: string;
   paymentStatus: ValidatedPaymentSession["paymentStatus"];
-}): SessionBuild => {
+}): ValidatedPaymentSession | SessionRejection => {
   const charge = money(fields.amountTotal, fields.currency);
   if (charge === null) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Session ${fields.id} carries a malformed charge (amount=${fields.amountTotal}, currency=${fields.currency})`,
     });
-    return {
-      ok: false,
-      rejection: malformedChargeRejection(
-        fields.paymentReference,
-        fields.paymentStatus === "paid",
-        fields.metadata,
-      ),
-    };
+    return malformedChargeRejection(
+      fields.paymentReference,
+      fields.paymentStatus === "paid",
+      fields.metadata,
+    );
   }
   // A paid charge must name the provider resource that captured it. A blank id
   // names no charge to refund — `getRefundPaymentReferences` excludes it and
@@ -126,20 +99,15 @@ export const validatedPaymentSession = (fields: {
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Paid session ${fields.id} is missing its provider resource id`,
     });
-    return { ok: false, rejection: { reason: "blank_reference" } };
+    return { reason: "blank_reference" };
   }
   return {
-    ok: true,
-    session: {
-      amountTotal: charge.amount,
-      currency: charge.currency,
-      ...(fields.createdAt !== undefined
-        ? { createdAt: fields.createdAt }
-        : {}),
-      id: fields.id,
-      metadata: extractSessionMetadata(fields.metadata),
-      paymentReference: fields.paymentReference,
-      paymentStatus: fields.paymentStatus,
-    },
+    amountTotal: charge.amount,
+    currency: charge.currency,
+    ...(fields.createdAt !== undefined ? { createdAt: fields.createdAt } : {}),
+    id: fields.id,
+    metadata: extractSessionMetadata(fields.metadata),
+    paymentReference: fields.paymentReference,
+    paymentStatus: fields.paymentStatus,
   };
 };

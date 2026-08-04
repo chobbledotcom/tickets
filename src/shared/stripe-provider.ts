@@ -9,7 +9,6 @@ import type Stripe from "stripe";
 import * as v from "valibot";
 import {
   type SessionRejection,
-  sessionOrRejection,
   validatedPaymentSession,
 } from "#shared/payment/validated-session.ts";
 import {
@@ -50,17 +49,15 @@ const toValidatedSession = (
     payment_status,
   } = session;
   if (!hasRequiredSessionMetadata(metadata)) return null;
-  return sessionOrRejection(
-    validatedPaymentSession({
-      amountTotal: amount_total,
-      createdAt: isoFromUnixSeconds(session.created),
-      currency,
-      id,
-      metadata,
-      paymentReference: payment_intent ?? "",
-      paymentStatus: payment_status,
-    }),
-  );
+  return validatedPaymentSession({
+    amountTotal: amount_total,
+    createdAt: isoFromUnixSeconds(session.created),
+    currency,
+    id,
+    metadata,
+    paymentReference: payment_intent ?? "",
+    paymentStatus: payment_status,
+  });
 };
 
 /** Stripe's checkout-session builder (see {@link makeCreateCheckoutSession}). */

@@ -22,7 +22,6 @@ import {
   isSessionRejection,
   malformedChargeRejection,
   type SessionRejection,
-  sessionOrRejection,
   validatedPaymentSession,
 } from "#shared/payment/validated-session.ts";
 import {
@@ -71,7 +70,7 @@ const buildValidatedSession = (
       metadata as SessionMetadata,
     );
   }
-  const build = validatedPaymentSession({
+  return validatedPaymentSession({
     amountTotal: checkout.amountMinor,
     createdAt: toCanonicalIso(checkout.createdAt),
     currency: checkout.currency,
@@ -80,7 +79,6 @@ const buildValidatedSession = (
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
   });
-  return sessionOrRejection(build);
 };
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */

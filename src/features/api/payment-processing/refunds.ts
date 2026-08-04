@@ -57,17 +57,10 @@ export const getPaymentProviderOrLog = async (
   return provider;
 };
 
-/**
- * What became of a rejected session's charge.
- *
- * `settled` — nothing is left owing: either money went back, or there was
- * never a charge of ours to return. It is false only when a refund was
- * required and the provider refused it, so the caller retries.
- *
- * `refunded` — money actually went back. Kept apart from `settled` because
- * "nothing to refund" and "refunded" must never read the same in a log or on
- * a page: one means the buyer is out of pocket, the other means they are not.
- */
+/** What became of a rejected session's charge. `settled` means nothing is left
+ *  owing; `refunded` means money actually moved. They are kept apart because
+ *  "nothing to refund" and "refunded" must never read alike in a log or on a
+ *  page — one leaves the buyer out of pocket, the other does not. */
 type RejectionOutcome = { settled: boolean; refunded: boolean };
 
 /** Nothing of ours was captured, so there is nothing to return. */
@@ -99,38 +92,27 @@ export const refundRejectedCharge = async (
 };
 
 /**
- * Refund a rejected session's charge when its proof verifies, and add the HTTP
- * status a handler answers with — 400 once the charge is settled, 503 when a
- * required refund failed so the caller retries rather than acking it away.
- */
-const refundRejectedSession = async (
-  rejection: SessionRejection,
-): Promise<RejectionOutcome & { status: number }> => {
-  const outcome = await refundRejectedCharge(rejection);
-  return { ...outcome, status: outcome.settled ? 400 : 503 };
-};
-
-/**
  * The answer a buyer-facing callback gives for a rejected session: refund the
  * charge, record which way it went through `log`, and show the buyer a page
- * that says their money came back when it did. "Not found" is only honest when
+ * saying their money came back when it did. "Not found" is only honest when
  * there was never a charge of ours — someone who really paid and got a refund
- * would otherwise wait for a ticket, or pay a second time.
+ * would otherwise wait for a ticket, or pay a second time. An unsettled charge
+ * answers 503 so the caller retries rather than acknowledging it away.
  */
 export const answerRejectedSession = async (
   rejection: SessionRejection,
   sessionId: string,
   log: (detail: string) => void,
 ): Promise<Response> => {
-  const outcome = await refundRejectedSession(rejection);
+  const { refunded, settled } = await refundRejectedCharge(rejection);
   log(
-    `Session rejected as ${rejection.reason} (session=${sessionId}, refunded: ${outcome.refunded})`,
+    `Session rejected as ${rejection.reason} (session=${sessionId}, refunded: ${refunded})`,
   );
   return paymentErrorResponse(
-    outcome.refunded
+    refunded
       ? t("payment.error.refunded")
       : t("payment.error.session_not_found"),
-    outcome.status,
+    settled ? 400 : 503,
   );
 };
 
