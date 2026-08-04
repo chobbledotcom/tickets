@@ -66,6 +66,12 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 
 ## Preferences
 
+- **Plan behavior before code**: Follow [PR_WORKFLOW.md](PR_WORKFLOW.md) for
+  every non-trivial change. Fill in its behavior contract before implementation:
+  trusted facts, valid states, commands, failures, retries, races, and owner
+  choices. Schemas describe facts, state transitions describe changes, and
+  transactions or revision checks protect concurrent changes. Do not start
+  coding while any of those parts is still implicit.
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
 - **Plain language for functional code**: Keep the functional style, but name helpers and write comments in simple domain words. Avoid CS jargon in code (`predicate`, `cohort`, `projection`, `fold`, `atom`, etc.) when a plain phrase works. A helper should explain itself like "Keeps only children that can still be booked for this ticket." Write for someone without a CS degree; a ten-year-old should understand the comment and the method name, even if the implementation uses `map`, `filter`, or `reduce`.
 - **Comments describe current code**: Do not leave comments that compare current code with an old implementation or explain what the code replaced. They do not help someone understand the code as it works now. Git history preserves the old code if anyone needs it. Delete stale historical comments when you find them.
@@ -99,6 +105,33 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Answer every PR review thread you address**: When a pull request review leaves comments — from an automated reviewer (e.g. Codex) or a human — reply to **each** thread directly with a concise, proper note: how it was resolved (the mechanism + the regression test that locks it), or why it is not actionable/incorrect. Do this even when the commit message already explains the change — an open thread reads as unaddressed, so close the loop on the thread itself. This is a deliberate exception to general GitHub-comment frugality: resolution replies on review threads are expected, not noise. Keep each reply tight (a few sentences), and reference the fixing commit. **If a suggestion is valid but outside the current job's scope**, do not silently drop it — record it in `TODO.md` with enough context for a future person to pick it up without re-reading the PR (the file/path it concerns, what the reviewer proposed, why it's genuinely out of scope here, and a starting point), then reply on the thread pointing to the TODO entry. Scope is a real boundary, not an excuse to lose good ideas.
 - **Finish by rewriting the PR name and description**: Once a feature is done, revisit its pull request and update the name and description to match what was actually built. A PR often starts life with a WIP or work-in-flight title; the finished PR should be thorough but written in simple, concise, understandable, non-technical language — the same plain language we want in our code, comments, and method names. Someone without a CS degree should be able to read the PR and know what changed, why, and what it means for the people using the site.
 - **Final check**: Run `nix develop -c deno task precommit` before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
+
+## Stacked Pull Requests
+
+Use GitHub stacked pull requests for large, dependency-ordered work when the
+repository has access to the feature. Manage them with the official `gh stack`
+extension. A stack is a short linear chain in this repository: its bottom branch
+targets `main`, and every higher branch targets the branch directly below it.
+
+- Keep a stack small, normally three to seven pull requests. Split a larger job
+  into several completed stacks so a low-layer change does not rebase and rerun
+  CI across dozens of branches.
+- Every layer must be independently green, reviewable, and useful to the system
+  that will exist when that layer merges. Future reuse, tests alone, or an
+  unused foundation do not justify a layer. Delete the implementation a layer
+  replaces in that same layer unless it is a named mixed-version deployment
+  adapter.
+- Review and merge from the bottom up. Higher layers may be reviewed in
+  parallel, but do not merge an upper layer while a required lower layer is
+  unapproved. After a lower layer changes or merges, use `gh stack rebase` or
+  `gh stack sync` rather than manually retargeting every branch.
+- While a layer is above another open layer, run targeted mutation tests for
+  the source changed by that layer. `precommit:mutation` compares the whole
+  branch with `origin/main`, so run that branch-level gate after the lower
+  layers merge and the layer has been rebased into the bottom position.
+- CI runs for every branch and pull request in a stack. Avoid needless full
+  stack pushes, and do not create one giant stack merely because the tool can
+  display it.
 
 ## Offensive Programming — Never Suppress Errors
 
