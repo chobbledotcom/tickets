@@ -7,7 +7,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import {
-  bookedPackageGroupIds,
   buildWebhookPayload,
   type RegistrationEntry,
   sendWebhook,
@@ -26,34 +25,22 @@ const packagedEntry = (
 ): RegistrationEntry =>
   makeEntry({}, { package_group_id: packageGroupId, ...overrides });
 
+/** The price the payload reports for one line, given a package override that
+ * puts this listing at 750 under `overriddenGroupId`. */
+const reportedPrice = (
+  entry: RegistrationEntry,
+  overriddenGroupId: number,
+): number | undefined => {
+  const overrides = new Map([
+    [
+      overriddenGroupId,
+      { dayPrices: new Map(), prices: new Map([[entry.listing.id, 750]]) },
+    ],
+  ]);
+  return buildWebhookPayload([entry], "GBP", overrides).tickets[0]?.unit_price;
+};
+
 describeWithEnv("webhook payload", { db: true }, () => {
-  test("lists each booked package once and skips plain lines", () => {
-    expect(
-      bookedPackageGroupIds([
-        packagedEntry(0),
-        packagedEntry(1),
-        packagedEntry(7),
-        packagedEntry(1),
-      ]),
-    ).toEqual([1, 7]);
-  });
-
-  /** The price the payload reports for one line, given a package override that
-   * puts this listing at 750 under `overriddenGroupId`. */
-  const reportedPrice = (
-    entry: RegistrationEntry,
-    overriddenGroupId: number,
-  ): number | undefined => {
-    const overrides = new Map([
-      [
-        overriddenGroupId,
-        { dayPrices: new Map(), prices: new Map([[entry.listing.id, 750]]) },
-      ],
-    ]);
-    return buildWebhookPayload([entry], "GBP", overrides).tickets[0]
-      ?.unit_price;
-  };
-
   test("prices a package member from its package's override", () => {
     expect(reportedPrice(packagedEntry(1), 1)).toBe(750);
   });

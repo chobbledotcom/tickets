@@ -120,25 +120,22 @@ type PackageGroupPricing = Pick<PackageMemberPricing, "prices" | "dayPrices">;
  * groups. */
 type PackageOverrides = ReadonlyMap<number, PackageGroupPricing>;
 
-/** The packages an order books through: each line carries the group it was
- * booked under, or 0 for a plain line, and each package is listed once. */
-export const bookedPackageGroupIds = (
-  entries: readonly RegistrationEntry[],
-): number[] =>
-  unique(
-    mapNotNullish((e: RegistrationEntry) =>
-      e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
-    )(entries),
-  );
-
-/** Load the package price overrides for every package group in `entries`, so a
- * package member's full unit price can be reported from its configured override
- * rather than the amount collected. Every package on the order is priced in one
- * batch, so a long order costs the same reads as a short one. */
+/** Load the package price overrides for every package the order books through,
+ * so a package member's full unit price can be reported from its configured
+ * override rather than the amount collected. Lines carry the group they were
+ * booked under, or 0 when they are not part of a package; every package is
+ * listed once and priced in one batch, so a long order costs the same reads as
+ * a short one. */
 const loadPackageOverrides = (
   entries: RegistrationEntry[],
 ): Promise<PackageOverrides> =>
-  loadPackageMemberPricingByGroupIds(bookedPackageGroupIds(entries));
+  loadPackageMemberPricingByGroupIds(
+    unique(
+      mapNotNullish((e: RegistrationEntry) =>
+        e.attendee.package_group_id > 0 ? e.attendee.package_group_id : null,
+      )(entries),
+    ),
+  );
 
 /** The full per-unit price for a booking line: the shared checkout evaluation
  * ({@link packageMemberPriceRule} + {@link effectivePrice}) over the span

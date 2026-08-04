@@ -197,6 +197,24 @@ describeWithEnv(
       expect(await renewalLogEntry()).toBeUndefined();
     });
 
+    test("ignores a line that is not a renewal tier at all", async () => {
+      const { tokenIndex } = await siteWithToken("Renew Skip", "skip-token");
+      const notATier = makeEntry(
+        {
+          active: true,
+          hidden: false,
+          months_per_unit: 0,
+          purchase_only: false,
+          unit_price: 100,
+        },
+        { quantity: 1 },
+      );
+
+      await renewWithPush([notATier], tokenIndex, true);
+
+      expect(await renewalLogEntry()).toBeUndefined();
+    });
+
     test("does nothing at all without a renewal token", async () => {
       await siteWithToken("Renew None", "none-token");
 

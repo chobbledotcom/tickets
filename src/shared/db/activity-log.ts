@@ -143,7 +143,7 @@ const toListingId = (listing?: ListingRef | null): number | null =>
 
 /** One thing to record in the log: what happened, and which listing/attendee it
  * happened to. */
-export type ActivityToLog = {
+type ActivityToLog = {
   message: string;
   listing?: ListingRef | null | undefined;
   attendeeId?: number | null | undefined;
