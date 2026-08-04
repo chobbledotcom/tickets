@@ -62,6 +62,20 @@ describe("reading a list into its rows", () => {
     expect(rowsOnList(page, INTO_ONE)[0]!.row).not.toContain("move-up");
   });
 
+  test("keeps a final row the page never closes, as a browser would", () => {
+    // HTML lets a table's last row omit its closing tag — the row then runs
+    // to the end of what was written, and its link still names it.
+    const page = `<table><tr><td><a href="${LIST}/5">Open ended</a></td>`;
+    expect(rowsOnList(page, INTO_ONE)).toEqual([
+      {
+        id: 5,
+        name: "Open ended",
+        row: `><td><a href="${LIST}/5">Open ended</a></td>`,
+        wayIn: `${LIST}/5`,
+      },
+    ]);
+  });
+
   test("does not count a row whose link goes somewhere else", () => {
     const page = `
       <tr><td><a href="/admin/somewhere-else/3">Not one of these</a></td></tr>
