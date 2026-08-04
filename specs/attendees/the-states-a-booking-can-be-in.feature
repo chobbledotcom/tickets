@@ -26,6 +26,12 @@ Feature: The organiser names the states a booking can be in
       When the organiser adds a state called "Waiting & Ready"
       Then "Waiting & Ready" is one of the states a booking can be in
 
+    @case:statuses.a-name-that-reads-like-a-marker
+    Scenario: The organiser names a state after one of the markers
+      When the organiser adds a state called "Paid"
+      Then "Paid" is one of the states a booking can be in
+      And the list no longer marks "Paid" as "where a paid booking lands"
+
     @case:statuses.a-state-that-asks-for-a-deposit
     Scenario: The organiser adds a state that asks for a deposit
       When the organiser adds a state called "Reserved" asking for "10%" up front

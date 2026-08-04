@@ -168,7 +168,15 @@ const rowShowsBadge = async (
   world: TicketsWorld,
   name: string,
   badge: string,
-): Promise<boolean> => (await openAtState(world, name)).row.includes(badge);
+): Promise<boolean> => {
+  // Only the little markers on the row count, not the whole row's words: a
+  // state may be called "Paid", and its own name is no evidence that the site
+  // marked it as where a paid booking lands.
+  const { row } = await openAtState(world, name);
+  return [...row.matchAll(/<span class="badge[^"]*">([\s\S]*?)<\/span>/g)].some(
+    (marker) => marker[1]!.trim() === badge,
+  );
+};
 
 /** Whether the list marks one state as holding one job. */
 export const listMarksStateAs = (
