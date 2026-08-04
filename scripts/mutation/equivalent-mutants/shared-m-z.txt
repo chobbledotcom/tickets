@@ -218,8 +218,8 @@ src/shared/merge/attendee-merge.ts:507:57  = → +=   # mergedPii is computed th
 # hash change can't surface via an idempotent-replay either; and no test or
 # production code queries the merged attendee's reversal legs by their
 # `event_group` value.
-src/shared/merge/attendee-merge.ts:725:18  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
-src/shared/merge/attendee-merge.ts:732:20  merge-credit → ""   # same as :725 — keyParts prefix feeds only the non-reversible hashes; never observed
+src/shared/merge/attendee-merge.ts:724:18  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
+src/shared/merge/attendee-merge.ts:731:20  merge-credit → ""   # same as :724 — keyParts prefix feeds only the non-reversible hashes; never observed
 
 # i18n copy handling (shared/rebrand.ts + shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
