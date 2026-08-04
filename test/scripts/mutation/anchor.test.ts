@@ -74,6 +74,12 @@ describe("naming what a mutant sits inside", () => {
     );
   });
 
+  test("names an object member written as a number", () => {
+    expect(nameOf(nullishAnchor("const o = { 7: (x) => x ?? 0 };\n"))).toBe(
+      "o.7",
+    );
+  });
+
   test("anchors code inside no declaration on the file itself", () => {
     expect(nameOf(nullishAnchor("export default globalThis.x ?? 0;\n"))).toBe(
       "%3cfile%3e",

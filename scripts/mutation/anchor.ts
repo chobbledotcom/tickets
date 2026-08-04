@@ -12,6 +12,8 @@
  * in a name is percent-encoded.
  */
 
+import { percentEncode } from "./percent-encode.ts";
+
 /** Characters an anchor segment may hold unencoded: the ones an identifier or
  * a kebab-case key is made of. Everything else — including the `.` that joins
  * segments, and anything that would end a registry line early — is
@@ -20,13 +22,7 @@ const SAFE_IN_NAME = /[A-Za-z0-9_$-]/;
 
 const encodeName = (name: string): string =>
   [...name]
-    .map((char) =>
-      SAFE_IN_NAME.test(char)
-        ? char
-        : [...new TextEncoder().encode(char)]
-            .map((byte) => `%${byte.toString(16).padStart(2, "0")}`)
-            .join(""),
-    )
+    .map((char) => (SAFE_IN_NAME.test(char) ? char : percentEncode(char)))
     .join("");
 
 /** FNV-1a over the expression's text. Short and stable is all this needs to
@@ -55,11 +51,13 @@ interface NamedNode {
 
 /** The name a declaration contributes, or nothing when it is anonymous. An
  * anonymous arrow inside a call takes its name from whatever it is assigned
- * to instead. */
+ * to instead. A written-out key counts whether it reads as a word, a quoted
+ * string, or a number — `{ 1: … }` names its member just as `{ a: … }` does. */
 const nameOf = (node: NamedNode): string | null => {
   const named = node.id?.name ?? node.key?.name;
   if (typeof named === "string" && named !== "") return named;
   const literalKey = node.key?.value;
+  if (typeof literalKey === "number") return String(literalKey);
   return typeof literalKey === "string" && literalKey !== ""
     ? literalKey
     : null;
@@ -167,9 +165,6 @@ interface HasLocation {
   operator: string;
   start: number;
 }
-
-/** Every character an anchor can hold, for callers validating one. */
-export const ANCHOR_PATTERN = /^[A-Za-z0-9_$\-.%~@]+$/;
 
 /**
  * Give every mutant its anchor.

@@ -95,7 +95,8 @@ describe("the Markdown mutation report", () => {
         "",
         "| location | registry entry |",
         "| --- | --- |",
-        "| `src/example.ts:4:3` | `src/example.ts::fn4 return x\u2192return undefined` |",
+        "| <code>src/example.ts:4:3</code> |" +
+          " <code>src/example.ts::fn4 return x\u2192return undefined</code> |",
         "",
         "Proven unkillable by any test? Paste its line above into a file" +
           " under scripts/mutation/equivalent-mutants/, followed by  # and the" +
@@ -103,6 +104,16 @@ describe("the Markdown mutation report", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  // A raw `|` splits a Markdown row into another column even inside a code
+  // span, and `??` → `||` is the commonest mutation this report shows.
+  test("keeps a survivor holding pipes inside one table cell", async () => {
+    const summary = await stepSummary([fakeResult("survived", 7, "??", "||")]);
+    const row = summary.split("\n").find((line) => line.includes("fn7"))!;
+
+    expect(row).toContain("&#124;&#124;");
+    expect(row.split("|")).toHaveLength(4);
   });
 
   test("keeps earlier step summaries when it writes another", async () => {

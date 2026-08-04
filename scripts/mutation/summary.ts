@@ -235,8 +235,13 @@ export const formatSummaryLines = (s: Summary): string[] => {
 
 // --- GitHub step summary (Markdown) --------------------------------------
 
+/** A Markdown table cell: a raw `|` would split the row into another column
+ * even inside a code span, and a backtick would close the span early. */
+const cell = (text: string): string =>
+  `<code>${text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll("|", "&#124;")}</code>`;
+
 const survivorRow = survivorFormatter(
-  (location, entry) => `| \`${location}\` | \`${entry}\` |`,
+  (location, entry) => `| ${cell(location)} | ${cell(entry)} |`,
 );
 
 const markdownSummary = (s: Summary): string => {

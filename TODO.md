@@ -2029,3 +2029,29 @@ matched row, but `api-keys.ts` has no row concept yet, so a real fix has to give
 every list the row-parsing shape — which is the same mechanism the arrow needs.
 Fixing the two that are easy would leave a helper whose scoping depends on which
 caller you came from, which is worse than the page-wide search it replaced.
+
+### An equivalence proof rests on types the anchor cannot see
+
+*Origin: Codex on PR #2037, against `descendTo` in `scripts/mutation/anchor.ts`.*
+
+Nearly every reason in the equivalent-mutant registry is a claim about a type:
+"`x` is `string | undefined`, so `??` and `||` agree". An anchor fingerprints
+the *expression*, so widening `x` to `number | null` leaves the anchor
+unchanged and the entry keeps suppressing a mutant whose proof is now false.
+The entry only actually hides something when no test distinguishes the two —
+ignored status is applied to survivors only, so a killable mutant still reports
+as killed — but that is exactly the case the registry is supposed to guard.
+
+Fingerprinting the enclosing function's head was tried and reverted. It costs
+more than it buys: adding or renaming any parameter invalidates every entry in
+that function's body, and it still misses the majority of proofs, whose types
+come from a called function's return, an imported shape, or a database row
+rather than the signature overhead. 166 of the 535 recorded reasons name a
+call, a return, or a row. A noisy gate that people learn to re-record past
+makes the registry less trustworthy, not more.
+
+A real fix has to re-prove entries rather than re-locate them. The most
+promising shape is to give `mutation:audit-equivalents` a way to attempt a
+distinguishing input for each entry — or, failing that, an explicit re-audit
+stamp so an entry has to be re-confirmed after the file it lives in changes
+shape, instead of resting on a proof nobody has re-read since it was written.

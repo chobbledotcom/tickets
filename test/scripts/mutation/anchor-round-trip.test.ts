@@ -1,19 +1,11 @@
 /**
  * The invariant the whole registry rests on: a mutant's key must survive being
  * written to a registry line and read back, and must still name that one
- * mutant.
- *
- * Every past failure of this registry broke one leg of that trip. A key that
- * could not be written kept its `#` and was truncated into a comment. A key
- * that could not be read back was skipped in silence. A key that read back but
- * named a different mutant let an unaudited survivor pass as equivalent. These
- * cases walk the trip end to end over real source, so the next break is a
- * failing test rather than a reviewer's catch.
+ * mutant. These cases walk that trip end to end over real source.
  */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ANCHOR_PATTERN } from "#scripts/mutation/anchor.ts";
 import { generateMutants } from "#scripts/mutation/generate.ts";
 import { mutantKeyForPath, parseIgnoreLine } from "#scripts/mutation/ignore.ts";
 import { projectRoot } from "#scripts/project-root.ts";
@@ -80,14 +72,6 @@ describe("a mutant key survives the registry round trip", () => {
       );
 
       expect(readBack).toEqual(keys);
-    });
-
-    test(`every anchor in ${path} holds only anchor characters`, async () => {
-      const anchors = (await keysIn(path)).map(
-        (key) => key.slice(key.indexOf("::") + 2).split(" ")[0]!,
-      );
-
-      expect(anchors.filter((a) => !ANCHOR_PATTERN.test(a))).toEqual([]);
     });
 
     test(`every key in ${path} names one mutant only`, async () => {

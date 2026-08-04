@@ -25,6 +25,7 @@ import { namesInDirectory, rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import { rel } from "#scripts/project-root.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
+import { percentEncode } from "./percent-encode.ts";
 import type { MutantResult } from "./summary.ts";
 
 export const EQUIVALENT_MUTANTS_DIR = new URL(
@@ -54,20 +55,20 @@ export const listRegistryFiles = async (
 /**
  * A mutated literal carries its own text into the displayed `from → to`, where
  * four things would not survive being written to a line and read back: a `#`
- * reads as the start of the reason, a newline ends the line outright, an arrow
- * of its own reads as the one splitting `from` from `to`, and whitespace at
- * either edge is absorbed by the spacing around that arrow — which would let
- * `"; "` and `";"` share one key. Each is escaped; interior spaces are left
- * alone, so a removed statement still reads as itself.
+ * reads as the start of the reason, a line break of any kind ends the line
+ * outright, an arrow of its own reads as the one splitting `from` from `to`,
+ * and whitespace at either edge is absorbed by the spacing around that arrow —
+ * which would let `"; "` and `";"` share one key. Each is escaped; interior
+ * spaces are left alone, so a removed statement still reads as itself.
  */
 const escapeForLine = (text: string): string =>
   text
     .replaceAll("%", "%25")
     .replaceAll("#", "%23")
-    .replaceAll("\n", "%0a")
     .replaceAll("→", "%e2%86%92")
-    .replace(/^\s+/, (run) => "%20".repeat(run.length))
-    .replace(/\s+$/, (run) => "%20".repeat(run.length));
+    .replace(/[\n\r\u2028\u2029]/g, percentEncode)
+    .replace(/^\s+/, percentEncode)
+    .replace(/\s+$/, percentEncode);
 
 /** Canonical key for a mutant at a project-relative path. */
 export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
@@ -92,9 +93,10 @@ export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   // The "from" side is `.*?` (not `.+?`): an already-empty string literal
   // mutates with an empty display label (see stringLiteralMutants), so a
   // legitimate key can have nothing between the location and the arrow.
-  // Neither a path nor an anchor contains a space, so the first run of
-  // whitespace after the anchor ends the location and starts the `from → to`.
-  const match = body.match(/^(\S+)::(\S+)\s+(.*?)\s*→\s*(.+?)$/);
+  // An anchor never holds a `::`, so the LAST one ends the path — which leaves
+  // the path free to hold a space. Neither holds whitespace after that, so the
+  // first run of it ends the location and starts the `from → to`.
+  const match = body.match(/^(.+)::(\S+)\s+(.*?)\s*→\s*(.+?)$/);
   return match
     ? {
         anchor: match[2]!,

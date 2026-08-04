@@ -12,6 +12,7 @@
  */
 
 import { isAbsolute, relative, resolve, SEPARATOR } from "@std/path";
+import { requiredMapValue } from "#fp";
 import { generateMutants } from "./generate.ts";
 import {
   listRegistryFiles,
@@ -111,7 +112,12 @@ export const checkEquivalentMutants = async (
       problems.push(`duplicate (${entry.registry}): ${entry.key}`);
     }
     seen.add(entry.key);
-    if (!byPath.get(entry.sourcePath)!.has(entry.key)) {
+    const keys = requiredMapValue(
+      byPath,
+      entry.sourcePath,
+      `No mutants were generated for ${entry.sourcePath}`,
+    );
+    if (!keys.has(entry.key)) {
       problems.push(
         `stale (nothing to suppress — did it move or get renamed?) (${entry.registry}): ${entry.key}`,
       );

@@ -73,6 +73,21 @@ describe("writing a mutant key onto one line", () => {
     expect(keyFor("; ")).toContain(" ;%20→");
   });
 
+  test("escapes a carriage return, which ends the line just as a newline does", () => {
+    expect(keyFor("a\rb")).toContain(" a%0db\u2192");
+  });
+
+  test("escapes an arrow, which would read as the one splitting from and to", () => {
+    expect(keyFor("left \u2192 right")).toContain(
+      " left %e2%86%92 right\u2192",
+    );
+  });
+
+  test("tells a leading tab from a leading space", () => {
+    expect(keyFor("\tab")).not.toBe(keyFor(" ab"));
+    expect(keyFor("\tab")).toContain(" %09ab\u2192");
+  });
+
   test("leaves an interior space alone, so a statement reads as itself", () => {
     expect(keyFor("applyFlash(request); ok()")).toContain(
       " applyFlash(request); ok()→",
